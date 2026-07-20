@@ -16,6 +16,7 @@ import {
 } from "../helpers/integration.js";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import { reconcileNotesPush, runUserCompact, type UserIOContext } from "../../src/commands/user.js";
+import { gitExec, gitExecInput } from "../../src/lib/io-context.js";
 import { planBranchBoundedNotesExport } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
 import { CROSS_WU_NOTE_WINDOW, listNoteEntries, readNotesCompactionSyncMarker } from "../../src/lib/user-sync/index.js";
 import {
@@ -181,10 +182,14 @@ describe("user notes compaction", () => {
     const entries = await listNoteEntries(makeGitExec(repo), NOTES_REF);
     const retained = entries.filter((entry) => entry.commit === keepCommit);
     const pruned = entries.filter((entry) => entry.commit === pruneCommit);
+    const productionExec = (command: string, args: string[], options = {}) =>
+      gitExec(command, args, { ...options, cwd: repo });
+    const productionExecInput = (args: string[], input: string) =>
+      gitExecInput(["-C", repo!, ...args], input);
 
     const outcome = await compactNotesRefSnapshot({
-      exec: makeGitExec(repo),
-      execInput: makeGitExecInput(repo),
+      exec: productionExec,
+      execInput: productionExecInput,
       fullRef: NOTES_REF,
       retained,
       pruned,

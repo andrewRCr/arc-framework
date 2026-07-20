@@ -26,6 +26,7 @@
 
 import { assessReapSafety } from "../../git/branch-containment.js";
 import type { GitExec } from "../../git/exec.js";
+import { normalizeGitRejection } from "../../git/process-error.js";
 
 /** The default remote a teardown deletes the branch from. */
 const DEFAULT_REMOTE = "origin";
@@ -162,10 +163,9 @@ export async function deleteRemoteBranch(
     await exec("git", args);
     return "deleted";
   } catch (err) {
-    const detail =
-      (err as { stderr?: string }).stderr ?? (err instanceof Error ? err.message : String(err));
-    if (/remote ref does not exist/i.test(detail)) return "absent";
-    if (expectedOid !== undefined && /stale info/i.test(detail)) return "stale";
-    throw err;
+    const error = normalizeGitRejection(err, { command: "git", args });
+    if (error.expectedOutcome === "absent-remote-ref") return "absent";
+    if (expectedOid !== undefined && error.expectedOutcome === "stale-lease") return "stale";
+    throw error;
   }
 }

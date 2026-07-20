@@ -17,6 +17,7 @@ import {
   getCurrentBranch,
   type GitExec,
 } from "./exec.js";
+import { isGitProcessError } from "./process-error.js";
 
 /**
  * Worktree sync state.
@@ -116,7 +117,9 @@ export async function runWorktreeSyncStatus(
   }
 
   const fetch = await boundedFetch(exec, branch, fetchTimeoutMs);
-  if (fetch.outcome === "error" && isBranchGoneError(fetch.error)) {
+  if (fetch.outcome === "error"
+    && isGitProcessError(fetch.error)
+    && fetch.error.expectedOutcome === "absent-remote-ref") {
     // Recoverable, non-network failure: the remote branch was deleted. Carries
     // no failureReason — that field flags transient remote-unavailable causes.
     return { state: "branch-gone", ahead: 0, behind: 0, branch };
@@ -143,20 +146,6 @@ export async function runWorktreeSyncStatus(
       failureReason: "error",
     };
   }
-}
-
-/**
- * Duck-type a fetch rejection as a deleted-upstream-branch failure. Git exits
- * 128 with a "couldn't find remote ref" stderr when the targeted remote branch
- * no longer exists. `GitExec` types only the resolved `ExecResult`, so the
- * rejection's `code`/`stderr` are read defensively off `unknown`.
- */
-function isBranchGoneError(err: unknown): boolean {
-  if (typeof err !== "object" || err === null) return false;
-  const code = (err as { code?: unknown }).code;
-  const stderr = (err as { stderr?: unknown }).stderr;
-  const stderrText = typeof stderr === "string" ? stderr : "";
-  return code === 128 && /find remote ref/iu.test(stderrText);
 }
 
 async function getUpstream(exec: GitExec): Promise<string | null> {

@@ -18,6 +18,7 @@
  */
 
 import type { GitExec, GitExecInput } from "./exec.js";
+import { gitFailureText } from "./process-error.js";
 
 /**
  * The shared bound on tree-ref reconcile / retry attempts before a persistently
@@ -107,7 +108,7 @@ export async function readTreeEntriesDiscriminating(exec: GitExec, ref: string):
     ({ stdout } = await exec("git", ["ls-tree", "--full-tree", ref]));
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    return isAbsentRefError(error.message) ? { kind: "absent" } : { kind: "error", error };
+    return isAbsentRefError(gitFailureText(err)) ? { kind: "absent" } : { kind: "error", error };
   }
   return { kind: "entries", entries: parseTreeEntries(stdout) };
 }

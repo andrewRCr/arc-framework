@@ -10,9 +10,6 @@
 
 import { readFile, writeFile, mkdir, access, chmod, readdir, realpath, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
 import { execa } from "execa";
 
 import type { IOContext } from "../commands/init.js";
@@ -29,7 +26,6 @@ import { atomicWriteFile, exclusiveCreateFile } from "./fs.js";
 
 export { environmentForGitCwd } from "../lib/git/process-executor.js";
 
-export const execFileAsync = promisify(execFile);
 const candidateGitExec = createExecaGitExec();
 
 /** Read one exact Git tree/index blob as bytes; `null` means the object path is absent. */
@@ -205,19 +201,8 @@ export async function prepareGitRefVerification(
   };
 }
 
-/** Real git executor wrapping child_process.execFile. */
-export const gitExec: GitExec = async (cmd, args, options) => {
-  const { indexFile, ...execOptions } = options ?? {};
-  const environment = environmentForGitCwd(execOptions.cwd);
-  const { stdout, stderr } = await execFileAsync(cmd, args, {
-    ...execOptions,
-    env: indexFile === undefined
-      ? environment
-      : { ...(environment ?? process.env), GIT_INDEX_FILE: indexFile },
-    maxBuffer: MAX_GIT_OUTPUT_BYTES,
-  });
-  return { stdout: stdout.trimEnd(), stderr };
-};
+/** Production captured-output Git executor. */
+export const gitExec: GitExec = candidateGitExec;
 
 /** Real IOContext using node:fs/promises. Used by init, join, update. */
 export function createIOContext(): IOContext {

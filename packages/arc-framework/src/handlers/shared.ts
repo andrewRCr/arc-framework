@@ -18,6 +18,7 @@ import {
   type UserPullResult,
 } from "../commands/user.js";
 import { gitExec } from "../lib/io-context.js";
+import { gitFailureText, isGitProcessError } from "../lib/git/process-error.js";
 import type { SyncOutput } from "../lib/sync-output.js";
 
 // --- Spinner ---
@@ -123,7 +124,7 @@ export function reportUserFetchOutcome(
       process.exitCode = 1;
       return;
     case "remote-unavailable": {
-      const msg = result.error.message;
+      const msg = gitFailureText(result.error) || result.error.message;
       if (isMissingRemoteError(msg)) {
         p.log.error(`No remote configured. ${capitalize(operation)} requires a remote repository.`);
         p.log.info("Set up a remote with: git remote add origin <url>");
@@ -138,7 +139,7 @@ export function reportUserFetchOutcome(
         return;
       }
 
-      if (msg.includes("couldn't find remote ref")) {
+      if (isGitProcessError(result.error) && result.error.expectedOutcome === "absent-remote-ref") {
         p.log.warn(`No notes found on remote for identity "${identity}".`);
         p.log.info("The identity may not have pushed notes, or the name may be incorrect.");
         process.exitCode = 1;

@@ -188,9 +188,7 @@ function classifyExpectedOutcome(
 
   const pushArgs = invocation.args.slice(1);
   const deletion = pushArgs.includes("--delete") || pushArgs.some((arg) => /^:[^:]/u.test(arg));
-  if (deletion) {
-    return /remote ref does not exist/iu.test(stderr) ? "absent-remote-ref" : undefined;
-  }
+  if (deletion && /remote ref does not exist/iu.test(stderr)) return "absent-remote-ref";
 
   const leased = pushArgs.some((arg) => arg === "--force-with-lease" || arg.startsWith("--force-with-lease="));
   if (!leased) return undefined;

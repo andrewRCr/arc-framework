@@ -99,168 +99,93 @@ _Purpose:_ Move specialized raw Git processes onto the shared execa substrate wh
 _Purpose:_ Move every audited rejection-shape consumer onto the normalization utilities, then replace the
 production `gitExec` binding only after its thrown-error contract is safe for all named consumers.
 
-### `[ ]` **3.1 Normalize rejection-shape compatibility consumers**
+### `[x]` **3.1 Normalize rejection-shape compatibility consumers**
 
 - _Goal:_ Callers that depend on Node's numeric `code`, complete subprocess output, or raw failure text for domain
   decisions retain their behavior through explicit typed fields and the documented failure-text accessor.
-- **Additional Context:** `notes-cli-git-executor.md` § Rejection ABI and cutover; § Compatibility classifier
-  inventory
+    - `[x]` **3.1.a Convert ref and config rejection consumers**
+        - Strict ref, ancestry, optional config, and local-branch probes now normalize failures and use numeric
+          `exitCode`; remote-unavailable classification reads complete compatibility evidence.
 
-    - `[ ]` **3.1.a Convert ref and config rejection consumers**
-        - Update strict ref reads and ancestry checks in `branch-bounded-notes-export.ts`, optional Git config lookup
-          in `project-roadmap-render.ts`, and local branch existence in `errand/close.ts` to normalize the rejection
-          and read `exitCode` directly.
-        - Route `branch-bounded-notes-export.ts`'s remote-unavailable predicate through `gitFailureText()` instead of
-          the normalized error summary.
-        - Preserve each caller's current handling of its accepted non-zero status and propagate every other typed
-          failure without parsing a formatted message. Keep faithful injected legacy shapes source-compatible.
-        - Build `test-first` (one behavior at a time):
-            - Each accepted exit remains its existing domain result; typed and faithful injected failures behave
-              identically; message-only numeric lookalikes no longer select an exit-code branch.
+    - `[x]` **3.1.b Preserve release-push exit status**
+        - Release push now preserves typed numeric exits directly, retains fallback exit `1` for generic injected
+          failures, and never parses an exit-like message.
 
-    - `[ ]` **3.1.b Preserve release-push exit status**
-        - Update `handlers/release/push-cli.ts` to normalize the inherited-stdio push failure and read `exitCode`
-          directly instead of recovering it from the formatted helper error message.
-        - Preserve the existing fallback exit `1` for injected `PushWorktreeBranchResult` failures without numeric
-          evidence and keep successful plus rejected wrapper result shapes unchanged.
-        - Build `test-first` (one behavior at a time):
-            - Typed non-zero results retain their exact exit status; injected generic failures use `1`; message text
-              containing an exit-like number is never parsed.
+    - `[x]` **3.1.c Preserve merge-file conflict output as domain data**
+        - Merge-file conflict exit `1` now returns complete captured stdout while unrelated failures propagate as
+          typed errors.
 
-    - `[ ]` **3.1.c Preserve merge-file conflict output as domain data**
-        - Update `gitMergeFile()` to normalize rejections, recognize its established conflict exit through
-          `exitCode`, and return complete captured stdout rather than a bounded diagnostic projection.
-        - Build `test-first` (one behavior at a time):
-            - A merge conflict returns the full merged output even when it exceeds the diagnostic cap; clean merges
-              retain the success shape; unrelated failures propagate as typed errors.
+    - `[x]` **3.1.d Convert guarded user-fetch classifiers**
+        - Guarded CAS, remote, non-fast-forward, and reconcile-repush predicates now consume `gitFailureText()`
+          without changing retry, rollback, conflict, or no-remote behavior.
 
-    - `[ ]` **3.1.d Convert guarded user-fetch classifiers**
-        - Route guarded `update-ref` CAS, remote-unavailable, non-fast-forward, and reconcile-repush classification
-          in `commands/user/push-fetch.ts` through `gitFailureText()` instead of `Error.message`.
-        - Retain the current CAS retry bound, notes reconciliation, local-ref rollback, conflict, and `no-remote`
-          outcomes. Classification-specific fixtures must exercise both typed stderr and the documented legacy
-          fallback while ordinary mocks remain unchanged.
-        - Build `test-first` (one behavior at a time):
-            - Typed and faithful legacy CAS evidence retries identically; typed remote and non-fast-forward evidence
-              keeps its current result; the bounded `GitProcessError.message` alone never selects a branch.
+    - `[x]` **3.1.e Convert shared-state CAS and read classifiers**
+        - Shared-state CAS, absent-tree-ref, and older-Git fallback predicates now consume complete typed or faithful
+          legacy evidence while unrelated failures retain their established paths.
 
-    - `[ ]` **3.1.e Convert shared-state CAS and read classifiers**
-        - Update `lib/user-sync/cas-retry.ts`, `lib/git/ref-tree.ts`, and `lib/user-sync/notes-ref.ts` to pass
-          `gitFailureText()` output into their established CAS, absent-tree-ref, and older-Git fallback predicates.
-        - Preserve immediate failure for non-CAS writes, fail-open behavior only at the established read seams, and
-          the Git 2.31-compatible `--since` fallback.
-        - Build `test-first` (one behavior at a time):
-            - Typed and faithful legacy evidence preserve each accepted domain branch; generic typed summaries and
-              unrelated stderr do not trigger retries, absence, or compatibility fallback.
+    - `[x]` **3.1.f Convert publication reconciliation classifiers**
+        - Sync-state and errand publication reconciliation now classify remote and non-fast-forward evidence through
+          `gitFailureText()` with retry bounds and failure distinctions unchanged.
 
-    - `[ ]` **3.1.f Convert publication reconciliation classifiers**
-        - Update `lib/user-sync/sync-state-merge.ts` and `lib/errand/merge.ts` to use `gitFailureText()` for their
-          remote-unavailable and non-fast-forward predicates rather than `Error.message`.
-        - Preserve the existing retry bounds, merge ownership, conflict handling, and `no-remote` / `failed`
-          distinctions with both the legacy production binding and the later typed binding.
-        - Build `test-first` (one behavior at a time):
-            - Typed and faithful legacy push evidence preserves reconciliation and remote-unavailable outcomes;
-              unrelated typed failures remain `failed` without consuming a retry.
+    - `[x]` **3.1.g Preserve explicit force-push remote guidance**
+        - Explicit force-push guidance now recognizes typed stderr and faithful legacy evidence while unrelated
+          typed failures continue to propagate.
 
-    - `[ ]` **3.1.g Preserve explicit force-push remote guidance**
-        - Update `handlers/user.ts`'s explicit-force rejection path to pass `gitFailureText()` into
-          `isRemoteError()` instead of classifying `Error.message`.
-        - Preserve handled-error and `UserPushBlockedError` behavior, the existing missing-remote guidance and exit
-          status, and propagation of unrelated failures.
-        - Build `test-first` (one behavior at a time):
-            - Typed stderr and faithful legacy fallback evidence produce the established missing-remote guidance;
-              unrelated typed failures rethrow, and stdout-only text carried by the bounded summary never selects
-              the branch.
+- _Outcome:_ Every audited compatibility consumer now reads structured status or complete failure evidence; bounded
+  `GitProcessError.message` is display-only and message lookalikes cannot select domain branches.
 
-### `[ ]` **3.2 Reclassify bounded cancellation and timeout outcomes**
+### `[x]` **3.2 Reclassify bounded cancellation and timeout outcomes**
 
 - _Goal:_ Timer-owning callers distinguish their own timeout aborts from all other execution failures through the
   normalized cancellation contract rather than Node error names.
 
-    - `[ ]` **3.2.a Update the shared bounded Git helpers**
-        - Replace `AbortError` name checks in `boundedFetch()` and `boundedGitInvocation()` with normalized
-          cancellation narrowing. Report caller-derived `timeout` only when the helper-owned signal has actually
-          fired and the rejection is the typed cancellation caused by that signal.
-        - Build `test-first` (one behavior at a time):
-            - A timer-triggered cancellation becomes `timeout`; earlier cancellation, execa-originated timeout,
-              output-limit, non-zero, spawn, and unexpected errors remain `error` with their normalized rejection
-              attached.
+    - `[x]` **3.2.a Update the shared bounded Git helpers**
+        - Shared bounded helpers label timeout only when their controller fired and normalization reports
+          cancellation; every other rejection remains a typed error outcome.
 
-    - `[ ]` **3.2.b Update bounded user-notes ref inspection**
-        - Have `boundedNotesRefFetch()` communicate an explicit helper-owned timeout outcome to
-          `inspectUserSyncRefsDetailed()` only when its signal fired and produced a normalized cancellation; revise
-          comments and tests that promise an `AbortError` name.
-        - Build `test-first` (one behavior at a time):
-            - Full-mode notes fetches still carry an `AbortSignal`; timer cancellation reports
-              `remote-unavailable` / `timeout`; earlier cancellation and other failures report
-              `remote-unavailable` / `error`.
+    - `[x]` **3.2.b Update bounded user-notes ref inspection**
+        - Bounded notes fetches preserve their signal and distinguish timer cancellation from earlier cancellation
+          and all other failures through explicit timeout/error outcomes.
 
-### `[ ]` **3.3 Replace expected remote-ref and stale-lease stderr branches**
+- _Outcome:_ Timeout is now caller-owned state derived from both the fired signal and typed cancellation, preventing
+  coincident or name-only failures from being mislabeled.
+
+### `[x]` **3.3 Replace expected remote-ref and stale-lease stderr branches**
 
 - _Goal:_ Expected Git outcomes are interpreted once by the invocation-aware normalizer and consumed only through
   its `absent-remote-ref` and `stale-lease` discriminants.
-- **Additional Context:** `notes-cli-git-executor.md` § Expected outcome classification matrix
+    - `[x]` **3.3.a Convert worktree-fetch and branch-reconciliation outcomes**
+        - Branch-gone, absent deletion, and leased stale deletion now consume only invocation-aware expected outcome
+          discriminants; authentication, connectivity, and unrelated failures propagate.
 
-    - `[ ]` **3.3.a Convert worktree-fetch and branch-reconciliation outcomes**
-        - Update `worktree-sync.ts` to return `branch-gone` only from normalized `absent-remote-ref`, preserving
-          transient remote failures.
-        - Update remote branch deletion to return `absent` and leased deletion to return `stale` only from the
-          applicable typed discriminant; propagate authentication, connectivity, and unrelated failures unchanged.
-        - Build `test-first` (one behavior at a time):
-            - Typed branch-gone, absent-delete, and stale-lease outcomes remain benign or idempotent as established;
-              message-only and wrong-invocation lookalikes no longer trigger those paths.
+    - `[x]` **3.3.b Convert user-notes deletion and publication-lease outcomes**
+        - Notes cleanup and publication now consume typed absence and stale-lease outcomes while preserving rollback,
+          backup recovery, broader remote classification, and local CAS behavior.
 
-    - `[ ]` **3.3.b Convert user-notes deletion and publication-lease outcomes**
-        - Replace stderr/message helpers in `commands/user/compact.ts` and `lib/user-sync/compaction.ts` with
-          normalized absent-ref and stale-lease narrowing while preserving rollback and backup-ref recovery.
-        - Route the broader remote-availability and local-CAS predicates through `gitFailureText()` while preserving
-          their domain rules and the merge-conflict classifier; only expected remote absence and leased-push
-          rejection move to executor-owned discriminants.
-        - Build `test-first` (one behavior at a time):
-            - Remote-already-absent cleanup remains successful, stale publication remains `lease-declined`, and
-              other typed failures preserve the existing `no-remote` / `failed` distinction.
+    - `[x]` **3.3.c Convert user-notes fetch-ref outcomes and reporting**
+        - Notes-ref inspection and missing-notes guidance now share the typed absence discriminant; message-only and
+          unrelated failures remain ordinary remote errors.
 
-    - `[ ]` **3.3.c Convert user-notes fetch-ref outcomes and reporting**
-        - Replace the remote-ref-not-found message branch in `inspectUserSyncRefsDetailed()` with normalized
-          `absent-remote-ref`, retaining `local-ahead` when a remote notes ref disappeared.
-        - Update `reportUserFetchOutcome()` in `handlers/shared.ts` to render missing-notes guidance only from the
-          same typed outcome rather than re-reading the error message.
-        - Build `test-first` (one behavior at a time):
-            - Typed absence produces `local-ahead` during inspection and the established handler guidance;
-              message-only and unrelated failures remain `remote-unavailable` / `error`.
+- _Outcome:_ Expected absence and lease races are classified once from matching invocation plus stderr evidence and
+  consumed without downstream text matching, including leased deletion precedence.
 
-### `[ ]` **3.4 Cut the live `GitExec` binding over to execa**
+### `[x]` **3.4 Cut the live `GitExec` binding over to execa**
 
 - _Goal:_ Production callers receive the prepared typed rejection contract only after every audited
   rejection-shape dependency can consume it safely.
 
-    - Switch the exported production `gitExec` to the Phase 1 adapter and rerun the migrated-consumer slices through
-      the live binding; retain `GitExec`, `ExecResult`, `GitExecOptions`, and ordinary injected function mocks.
-    - Update `GitExecOptions`, `GitExec`, and `GitExecInput` TSDoc to describe the stable executor contract and
-      execa-backed production behavior without promising Node `AbortError` or `child_process` rejection fields.
-    - Remove the remaining private `execFile` binding, exported `execFileAsync` scaffolding, and obsolete
-      `node:child_process` / `node:util` imports from `io-context.ts`. Rework or retire
-      `io-context-mocks.test.ts` and update `isolated-unit-mock-files.ts` so tests no longer mock
-      `node:child_process`.
-    - Run the real compaction lease-race slice through the production execa-backed executor so stale publication is
-      proven without a message fallback.
-    - Build `test-first` (one behavior at a time):
-        - Live success, non-zero, cancellation, output-limit, spawn, environment, and consumer compatibility cases
-          pass through the execa binding.
-        - The production compaction race yields `stale-lease`; no migrated classifier depends directly on a legacy
-          error field or parses `GitProcessError.message`.
+    - Switched the exported production binding to execa, retained the injectable Promise seams, removed the private
+      `execFile` scaffolding and obsolete child-process mock, and updated contract documentation.
+    - The real compaction publication race now runs through production execa bindings and returns `lease-declined`
+      from the typed stale-lease outcome while restoring the local ref.
 
-### `[ ]` **3.5 Prove typed failures remain actionable on display surfaces**
+### `[x]` **3.5 Prove typed failures remain actionable on display surfaces**
 
 - _Goal:_ Existing display and audit-record consumers retain useful bounded Git failure context without becoming
   classification dependencies or requiring production rewrites.
 
-    - Inject representative typed failures through `sync-orchestrator.test.ts`, `sync.test.ts`, and `diff.test.ts`
-      to cover the untouched rendering/recording paths in `handlers/sync.ts`, `handlers/user-sync.ts`, and
-      `commands/diff.ts`.
-    - Assert the rendered or recorded message retains the bounded invocation label, kind and exit/signal disposition,
-      plus stderr-or-stdout diagnostic evidence; do not assert platform-specific quoting or parse the display text
-      back into domain behavior.
+    - Representative typed failures through sync audit, user-sync logging, and diff recording retain the bounded
+      invocation, kind/status, and stderr-or-stdout evidence without platform-specific quoting assertions.
 
 ## **Phase 4:** Integration coverage and residual audit
 

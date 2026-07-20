@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { getCurrentBranch, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { uniqueRefToken } from "../../lib/git/ref-tree.js";
+import { normalizeGitRejection } from "../../lib/git/process-error.js";
 import {
   BRANCH_BOUNDED_NOTES_JOIN_MESSAGE,
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
@@ -1483,11 +1484,9 @@ export async function inspectUserSyncRefsDetailed(
   const classification = classifyPreFetch(localHash, remoteProbe);
   if (classification.kind === "fast-result") return classification.result;
 
-  try {
-    await boundedNotesRefFetch(io, localRef, tempRef, fetchTimeoutMs);
-  } catch (err) {
-    const isAbortError = err instanceof Error && err.name === "AbortError";
-    if (isAbortError) {
+  const fetch = await boundedNotesRefFetch(io, localRef, tempRef, fetchTimeoutMs);
+  if (fetch.kind !== "ok") {
+    if (fetch.kind === "timeout") {
       return {
         state: "remote-unavailable",
         comparison: "comparison-unavailable",
@@ -1496,8 +1495,7 @@ export async function inspectUserSyncRefsDetailed(
         failureReason: "timeout",
       };
     }
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("couldn't find remote ref")) {
+    if (fetch.error.expectedOutcome === "absent-remote-ref") {
       return {
         state: "local-ahead",
         comparison: "read-only",
@@ -1620,8 +1618,8 @@ async function inspectDivergedNoteSetRelation(
  * Fetch the user notes ref into a temp ref, optionally bounded by a timeout.
  *
  * When `timeoutMs` is provided, an `AbortController` aborts the fetch on
- * timeout — the resulting `AbortError` is what tells the caller to classify
- * the failure as `failureReason: "timeout"`. When undefined, falls through to
+ * timeout. Only a normalized cancellation after that controller fires becomes
+ * `failureReason: "timeout"`. When undefined, falls through to
  * the unbounded fetch (preserves legacy behavior on the session-init probe
  * and the orchestrator path).
  *
@@ -1634,11 +1632,15 @@ async function boundedNotesRefFetch(
   localRef: string,
   tempRef: string,
   timeoutMs?: number,
-): Promise<void> {
+): Promise<{ kind: "ok" } | { kind: "timeout" } | { kind: "error"; error: ReturnType<typeof normalizeGitRejection> }> {
   const args = ["fetch", "--refmap=", "origin", `+${localRef}:${tempRef}`];
   if (timeoutMs === undefined) {
-    await io.exec("git", args);
-    return;
+    try {
+      await io.exec("git", args);
+      return { kind: "ok" };
+    } catch (error) {
+      return { kind: "error", error: normalizeGitRejection(error, { command: "git", args }) };
+    }
   }
   const controller = new AbortController();
   const timer = setTimeout(() => {
@@ -1646,6 +1648,12 @@ async function boundedNotesRefFetch(
   }, timeoutMs);
   try {
     await io.exec("git", args, { signal: controller.signal });
+    return { kind: "ok" };
+  } catch (error) {
+    const normalized = normalizeGitRejection(error, { command: "git", args });
+    return controller.signal.aborted && normalized.kind === "canceled"
+      ? { kind: "timeout" }
+      : { kind: "error", error: normalized };
   } finally {
     clearTimeout(timer);
   }
