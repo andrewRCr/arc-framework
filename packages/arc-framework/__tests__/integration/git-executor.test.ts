@@ -8,9 +8,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createUserIOContext,
   gitExec,
+  gitExecInput,
   prepareGitRefVerification,
   readGitBlobBytes,
 } from "../../src/lib/io-context.js";
+import { boundedFetch, boundedGitInvocation } from "../../src/lib/git/exec.js";
 import {
   createExecaGitExec,
   createExecaGitExecInput,
@@ -20,15 +22,12 @@ import { isGitProcessError } from "../../src/lib/git/process-error.js";
 import { realGitDiff } from "../../src/handlers/installation.js";
 
 const tempDirs: string[] = [];
-const candidateExec = createExecaGitExec();
-const candidateExecInput = createExecaGitExecInput();
-
 afterEach(async () => {
   vi.unstubAllEnvs();
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-describe("candidate GitExec", () => {
+describe("production GitExec", () => {
   it("uses argument arrays, cwd, raw stderr, and compatible stdout normalization", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-execa-git-"));
     tempDirs.push(root);
@@ -37,7 +36,7 @@ describe("candidate GitExec", () => {
       "process.stderr.write('diagnostic\\n');",
     ].join("");
 
-    const result = await candidateExec(execPath, ["-e", script, "argument with spaces"], { cwd: root });
+    const result = await gitExec(execPath, ["-e", script, "argument with spaces"], { cwd: root });
 
     expect(result).toEqual({ stdout: `${root}\nargument with spaces`, stderr: "diagnostic\n" });
   });
@@ -46,7 +45,7 @@ describe("candidate GitExec", () => {
     expect(MAX_GIT_OUTPUT_BYTES).toBe(64 * 1024 * 1024);
     const outputBytes = (1024 * 1024) + 1;
 
-    const result = await candidateExec(execPath, [
+    const result = await gitExec(execPath, [
       "-e",
       `process.stdout.write("x".repeat(${outputBytes}))`,
     ]);
@@ -80,7 +79,7 @@ describe("candidate GitExec", () => {
       "const present = keys.filter((key) => process.env[key] !== undefined);",
       "process.stdout.write(JSON.stringify({ present, sentinel: process.env.ARC_TEST_SENTINEL }));",
     ].join("");
-    const result = await candidateExec(execPath, ["-e", script], { cwd: process.cwd() });
+    const result = await gitExec(execPath, ["-e", script], { cwd: process.cwd() });
 
     expect(JSON.parse(result.stdout)).toEqual({ present: [], sentinel: "preserved" });
   });
@@ -95,19 +94,19 @@ describe("candidate GitExec", () => {
       "}));",
     ].join("");
 
-    const result = await candidateExec(execPath, ["-e", script], { indexFile });
+    const result = await gitExec(execPath, ["-e", script], { indexFile });
 
     expect(JSON.parse(result.stdout)).toEqual({ sentinel: "preserved", indexFile });
   });
 
   it("normalizes non-zero, canceled, output-limit, and spawn failures", async () => {
-    await expect(candidateExec("git", ["not-a-command"])).rejects.toMatchObject({
+    await expect(gitExec("git", ["not-a-command"])).rejects.toMatchObject({
       kind: "nonzero-exit",
       exitCode: 1,
     });
 
     const controller = new AbortController();
-    const canceled = candidateExec(execPath, ["-e", "setInterval(() => {}, 1_000)"], {
+    const canceled = gitExec(execPath, ["-e", "setInterval(() => {}, 1_000)"], {
       signal: controller.signal,
     });
     controller.abort();
@@ -123,17 +122,47 @@ describe("candidate GitExec", () => {
         && error.stdout.length <= 128;
     });
 
-    await expect(candidateExec("arc-command-that-does-not-exist", []))
+    await expect(gitExec("arc-command-that-does-not-exist", []))
       .rejects.toMatchObject({ kind: "spawn-failure" });
+  });
+
+  it("classifies a missing branch fetched from a local bare remote", async () => {
+    const root = await createGitRepo("arc-absent-ref-");
+    const remote = await mkdtemp(join(tmpdir(), "arc-absent-ref-remote-"));
+    tempDirs.push(remote);
+    await gitExec("git", ["init", "--bare"], { cwd: remote });
+    await gitExec("git", ["remote", "add", "origin", remote], { cwd: root });
+    const boundExec = (command: string, args: string[], options = {}) =>
+      gitExec(command, args, { ...options, cwd: root });
+
+    const result = await boundedFetch(boundExec, "missing-branch", 1_000);
+
+    expect(result.outcome).toBe("error");
+    if (result.outcome !== "error") return;
+    expect(result.error).toMatchObject({
+      kind: "nonzero-exit",
+      exitCode: 128,
+      expectedOutcome: "absent-remote-ref",
+    });
+  });
+
+  it("relabels only a caller-aborted production invocation as timeout", async () => {
+    const root = await createGitRepo("arc-bounded-timeout-");
+    const boundExec = (command: string, args: string[], options = {}) =>
+      gitExec(command, args, { ...options, cwd: root });
+
+    const result = await boundedGitInvocation(boundExec, ["cat-file", "--batch"], 25);
+
+    expect(result).toEqual({ outcome: "timeout" });
   });
 });
 
-describe("candidate GitExecInput", () => {
+describe("production GitExecInput", () => {
   it("feeds stdin unchanged and preserves raw stdout", async () => {
     const input = "payload with spaces\nand a final newline\n";
 
-    const stdout = await candidateExecInput(["hash-object", "--stdin"], input);
-    const second = await candidateExecInput(["hash-object", "--stdin"], input);
+    const stdout = await gitExecInput(["hash-object", "--stdin"], input);
+    const second = await gitExecInput(["hash-object", "--stdin"], input);
 
     expect(stdout).toMatch(/^[0-9a-f]{40,64}\n$/u);
     expect(second).toBe(stdout);

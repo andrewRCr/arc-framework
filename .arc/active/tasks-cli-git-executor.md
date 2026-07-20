@@ -192,38 +192,25 @@ production `gitExec` binding only after its thrown-error contract is safe for al
 _Purpose:_ Prove the completed production seam against controlled processes and close the audited scope without
 absorbing raw bindings reserved for the cohort tail.
 
-### `[ ]` **4.1 Complete the executor's real-process integration slices**
+### `[x]` **4.1 Complete the executor's real-process integration slices**
 
 - _Goal:_ The final adapter behavior is proven against controlled subprocesses and real Git repositories rather
   than only shaped errors or mocked process factories.
 
-    - Complete `git-executor.test.ts` through the production bindings using temporary repositories and controlled
-      child behavior; avoid incidental wall-clock timing and platform-specific prose assertions.
-    - Exercise argument-array execution, stdin-fed Git plumbing, arbitrary-byte output, output overflow, non-zero
-      exit, spawn failure, cancellation, caller-owned timeout relabeling, and an absent-ref fetch against a local
-      bare remote. Treat Task 3.4's real compaction lease race as the stale-lease integration slice.
-    - Assert only the stable taxonomy, complete process-capped streams, diagnostic-projection bounds, exit metadata,
-      and public seam results so quoting and signal implementation details may vary across supported platforms.
-    - Add `git-executor.test.ts` to `packages/arc-framework/package.json`'s `test:portability` selector so the
-      existing Linux, Windows, and macOS CI jobs run the focused cross-platform contract.
+    - Production bindings now cover argument arrays, stdin plumbing, arbitrary bytes, overflow, non-zero exits,
+      spawn failure, cancellation, caller-owned timeout, local-bare-remote absence, and the real stale-lease race.
+    - Stable taxonomy, complete capped streams, bounded diagnostics, exit metadata, and public outcomes are asserted
+      without platform-specific prose; `git-executor.test.ts` now rides the portability selector.
 
-### `[ ]` **4.2 Audit the in-scope raw Git and failure-classification residue**
+### `[x]` **4.2 Audit the in-scope raw Git and failure-classification residue**
 
 - _Goal:_ The audited migration closes completely without expanding into the raw binding sets reserved for
   `cli-substrate-complete-migration`.
 
-    - Re-run source searches for `child_process`, `execFile`, `spawn`, `AbortError`, numeric rejection `code`, direct
-      Git-rejection `Error.message` classifiers, absent-remote-ref text, stale-lease text, and failure-message exit
-      parsing across every named binding and consumer. Raw process calls must be gone from the audited bindings;
-      expected-outcome strings may remain only in the normalizer and faithful tests, while broader domain text
-      classifiers receive evidence through `gitFailureText()`.
-    - Confirm that standalone dev/CI scripts, the review-gate production executor, and unrelated non-Git process
-      checks remain untouched. The review-gate allowance includes the Git paths in `runtime/production-io.ts` and
-      `run-qualification.ts`; the latter's general non-Git `ProcessRunner` responsibility remains intact for its
-      later targeted migration. Reusable raw-Git test helpers remain part of the cohort tail's support convergence;
-      only the focused production-binding integration file moves in this work unit.
-    - Run the focused unit/integration suites, full `npm test`, `npm run typecheck:all`, `npm run lint:ts`, and
-      `npm run build` before handing the implementation to work-unit verification.
+    - Residue searches confirm audited bindings contain no raw child-process execution, `AbortError` classification,
+      message-parsed exits, or consumer-owned expected-outcome strings; broader classifiers use `gitFailureText()`.
+    - Standalone scripts, review-gate executors, unrelated non-Git process checks, and reusable integration helpers
+      remain in their reserved scopes. Focused suites, full tests, types, lint, build, and portability all pass.
 
 ## **Phase 5:** Verification
 
@@ -233,32 +220,32 @@ absorbing raw bindings reserved for the cohort tail.
 
 ## Success Criteria
 
-- `[ ]` Every audited raw production Git binding executes through execa 10, with no in-scope `child_process`
+- `[x]` Every audited raw production Git binding executes through execa 10, with no in-scope `child_process`
   `execFile` or `spawn` call remaining.
 
-- `[ ]` `GitExec`, `GitExecInput`, `ExecResult`, and `GitExecOptions` remain compatible injectable Promise seams.
+- `[x]` `GitExec`, `GitExecInput`, `ExecResult`, and `GitExecOptions` remain compatible injectable Promise seams.
 
-- `[ ]` Executor failures use the six settled `GitProcessError.kind` / `ArcError.code` pairs with executable and
+- `[x]` Executor failures use the six settled `GitProcessError.kind` / `ArcError.code` pairs with executable and
   argument identity, numeric `exitCode`, signal and execa flags, complete process-capped streams, bounded diagnostic
   projections, and the underlying cause.
 
-- `[ ]` Every audited numeric-exit, failure-output, and text-classification consumer uses normalized typed fields or
+- `[x]` Every audited numeric-exit, failure-output, and text-classification consumer uses normalized typed fields or
   `gitFailureText()` while preserving its established behavior with production and faithful injected shapes;
   `GitProcessError.message` is not a parsing ABI.
 
-- `[ ]` The bounded `GitProcessError.message` remains actionable for untouched display and record consumers by
+- `[x]` The bounded `GitProcessError.message` remains actionable for untouched display and record consumers by
   retaining invocation, failure kind/status, and stderr-or-stdout diagnostic evidence without complete raw streams.
 
-- `[ ]` Expected `absent-remote-ref` and `stale-lease` outcomes follow the invocation/signature matrix and are
+- `[x]` Expected `absent-remote-ref` and `stale-lease` outcomes follow the invocation/signature matrix and are
   consumed through typed discriminants without consumer-side stderr matching.
 
-- `[ ]` Bounded operations classify normalized cancellation correctly and apply caller-owned timeout labeling only
+- `[x]` Bounded operations classify normalized cancellation correctly and apply caller-owned timeout labeling only
   when their own signal fired.
 
-- `[ ]` Real-process integration coverage exercises stdin-fed execution, cancellation, timeout, output-limit,
+- `[x]` Real-process integration coverage exercises stdin-fed execution, cancellation, timeout, output-limit,
   non-zero exit, absent-ref, stale-lease, full failure-output preservation, and bounded diagnostics through the
   Linux, Windows, and macOS portability command.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
