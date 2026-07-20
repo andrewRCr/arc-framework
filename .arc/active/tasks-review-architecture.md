@@ -23,13 +23,10 @@ gate, or workflow consumes them.
         - Added an injectable base/head resolver and native-TypeScript executable that emits stable canonical JSON;
           real-repository coverage proves unresolved refs fail closed and hostile filenames remain inert raw data.
 
-    - `[ ]` **1.1.c Convert the shell classifier into a compatibility adapter**
-        - Make `scripts/classify-change.sh` consume the shared record while preserving `classify`, `lane`,
-          `portability`, `decide`, duplicate-push, and tree-identity behavior at their public boundaries.
-        - Pin Node 24 in the CI classification job before invoking the adapter, but keep the bootstrap path free of
-          `npm ci`, a package build, and generated or checked-in parser copies.
-        - Extend `packages/arc-framework/__tests__/unit/classify-change.test.ts` to prove parity and retain the
-          conservative path-only fallback.
+    - `[x]` **1.1.c Convert the shell classifier into a compatibility adapter**
+        - Moved raw/status reduction, path policy, portability membership, and code-tree identity behind the shared
+          module; the shell retains its public commands and conservative path fallback, with Node 24 pinned before
+          the dependency-free CI classification path.
 
     - `[ ]` **1.1.d Replace review-gate change-path approximations**
         - Migrate `hosts/github/coverage.ts`, `policy/self-hosting/lane.ts`, and runtime composition away from their

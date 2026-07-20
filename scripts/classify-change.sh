@@ -22,86 +22,9 @@ set -euo pipefail
 # wrong" from a subcommand's own failure.
 readonly EX_USAGE=64
 
-# --- Canonical code surface ----------------------------------------------------
-#
-# The single definition of "what, if changed, could change a build / lint /
-# typecheck / test outcome." Both the classify decision and (later) the
-# code-tree hash read from this set, so there is no second glob list to drift.
-#
-# Markdown / JSON under the shipped fixture trees counts as CODE, not docs: the
-# init / save-load / active-format suites read packages/arc-framework/{arc,
-# templates}/** and init-recipe.json as fixtures, so a change there can break a
-# test despite being "just markdown."
-
-# Code surface (test-affecting). `*` matches across `/` in these match contexts,
-# so a trailing `/*` covers a whole subtree.
-readonly CODE_SURFACE_GLOBS=(
-  "packages/arc-framework/src/*"
-  "packages/arc-framework/__tests__/*"
-  "packages/arc-framework/arc/*"
-  "packages/arc-framework/templates/*"
-  "packages/arc-framework/package.json"
-  "packages/arc-framework/tsconfig*.json"
-  "packages/arc-framework/tsup.config.ts"
-  "packages/arc-framework/vitest.config.ts"
-  "packages/arc-framework/eslint.config.js"
-  "packages/arc-framework/init-recipe.json"
-  "package.json"
-  "package-lock.json"
-  "scripts/*.sh"
-  ".github/workflows/ci.yml"
-  # Project extension surfaces are behavior-bearing, not prose: integration
-  # suites assert on the project copy's activation state (`active:` frontmatter
-  # and `.actions`), so an extension edit must select the test-bearing lane
-  # even though the rest of .arc/ is genuine docs. Path-based on purpose —
-  # content-sensitivity would break classify/tree-hash symmetry (tree-hash has
-  # no diff to inspect, only surface membership).
-  ".arc/system/extensions/*"
-)
-
-# Genuine docs (light-safe). Root-level markdown (README / CONTRIBUTING / AGENTS
-# / CLAUDE / …) is handled separately, since a leading-`*` glob would also match
-# nested markdown that the code surface claims.
-readonly GENUINE_DOCS_GLOBS=(
-  ".arc/*"
-  "docs/*"
-  "mkdocs.yml"
-)
-
-# Packaged ARC paths whose contents can change installation, rendering, or
-# runtime contracts. Ordinary 100644 Markdown outside this registry is the one
-# packaged shape whose blob content is light-safe. This registry is shared by
-# status-aware CI classification and verified-tree identity.
-readonly PACKAGED_CONTENT_SENSITIVE_GLOBS=(
-  "packages/arc-framework/arc/system/extensions/*"
-  "packages/arc-framework/arc/system/.internal/*"
-  "packages/arc-framework/arc/reference/templates/*"
-  "packages/arc-framework/arc/*.template.md"
-)
-
-# Files whose behavior is explicitly exercised by the OS-sensitive portability
-# suite. Changes outside this set retain the required Linux leg without paying
-# the Windows/macOS runner multipliers on every heavy pull request.
-readonly PORTABILITY_SURFACE_GLOBS=(
-  "packages/arc-framework/src/lib/git/ref-tree.ts"
-  "packages/arc-framework/src/lib/errand/*"
-  "packages/arc-framework/src/lib/user-sync/*"
-  "packages/arc-framework/src/commands/user/shared.ts"
-  "packages/arc-framework/__tests__/unit/user-sync-notes-lock.test.ts"
-  "packages/arc-framework/__tests__/integration/ref-tree-cas*.test.ts"
-  "packages/arc-framework/__tests__/integration/sync-state-ref*.test.ts"
-  "packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts"
-  "packages/arc-framework/__tests__/e2e/race-worker.ts"
-  "packages/arc-framework/__tests__/e2e/true-race.ts"
-  "packages/arc-framework/__tests__/e2e/helpers.ts"
-  "packages/arc-framework/__tests__/helpers/integration.ts"
-  "packages/arc-framework/package.json"
-  "packages/arc-framework/vitest.config.ts"
-  "package.json"
-  "package-lock.json"
-  ".github/workflows/ci.yml"
-  "scripts/classify-change.sh"
-)
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+readonly CHANGE_FACTS_MODULE="${SCRIPT_DIR}/../packages/arc-framework/src/lib/change-facts.ts"
 
 # --- Heavy verification checks -------------------------------------------------
 #
@@ -127,47 +50,6 @@ readonly HEAVY_CHECK_NAMES=(
 # commits would otherwise stretch the classify job by ~2s per commit. Hitting
 # the cap leaves the fail-safe heavy default in place — never a wrong skip.
 readonly LOOKBACK_MAX_FETCHES=8
-
-# True when $1 matches any glob in the remaining args (glob match, not literal).
-_matches_any() {
-  local path="$1"
-  shift
-  local glob
-  for glob in "$@"; do
-    # shellcheck disable=SC2053  # RHS is an intentional glob, not a literal.
-    [[ "${path}" == ${glob} ]] && return 0
-  done
-  return 1
-}
-
-# True (exit 0) when the path belongs to the code surface; false (exit 1) when it
-# is genuine docs. Anything matching neither set is code — the fail-safe the whole
-# design leans on (an unclassified path must never silently skip the heavy suite).
-is_code_surface_path() {
-  local path="$1"
-  if _matches_any "${path}" "${CODE_SURFACE_GLOBS[@]}"; then
-    return 0
-  fi
-  if _matches_any "${path}" "${GENUINE_DOCS_GLOBS[@]}"; then
-    return 1
-  fi
-  # Root-level markdown only (no path separator) is genuine docs.
-  case "${path}" in
-    */*) ;;
-    *.md) return 1 ;;
-  esac
-  return 0
-}
-
-is_packaged_arc_path() {
-  [[ "$1" == packages/arc-framework/arc/* ]]
-}
-
-is_packaged_content_sensitive_path() {
-  local path="$1"
-  [[ "${path}" != *.md ]] \
-    || _matches_any "${path}" "${PACKAGED_CONTENT_SENSITIVE_GLOBS[@]}"
-}
 
 usage() {
   cat >&2 <<'EOF'
@@ -196,33 +78,10 @@ cmd_classify() {
       echo "classify --stdin0: paths must be supplied on standard input" >&2
       return "${EX_USAGE}"
     fi
-    local seen=false file
-    while IFS= read -r -d '' file; do
-      seen=true
-      if is_code_surface_path "${file}"; then
-        echo "heavy"
-        return 0
-      fi
-    done
-    if [[ "${seen}" == "false" ]]; then
-      echo "heavy"
-    else
-      echo "light"
-    fi
-    return 0
+    node "${CHANGE_FACTS_MODULE}" classify-paths
+    return
   fi
-  if [[ "$#" -eq 0 ]]; then
-    echo "heavy"
-    return 0
-  fi
-  local file
-  for file in "$@"; do
-    if is_code_surface_path "${file}"; then
-      echo "heavy"
-      return 0
-    fi
-  done
-  echo "light"
+  printf '%s\0' "$@" | node "${CHANGE_FACTS_MODULE}" classify-paths
 }
 
 # Preserve the legacy path-only scheduling lane without newline parsing.
@@ -231,15 +90,7 @@ cmd_lane() {
     echo "lane: paths must be supplied as NUL-delimited standard input" >&2
     return "${EX_USAGE}"
   fi
-  local seen=false file
-  while IFS= read -r -d '' file; do
-    seen=true
-    if [[ ! "${file}" =~ ^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)- ]]; then
-      echo "reviewed"
-      return 0
-    fi
-  done
-  if [[ "${seen}" == "true" ]]; then echo "auto"; else echo "reviewed"; fi
+  node "${CHANGE_FACTS_MODULE}" lane-paths
 }
 
 # portability --stdin0 — print `true` when any changed path belongs to the
@@ -250,346 +101,38 @@ cmd_portability() {
     echo "portability: paths must be supplied as NUL-delimited standard input" >&2
     return "${EX_USAGE}"
   fi
-  local seen=false file
-  while IFS= read -r -d '' file; do
-    seen=true
-    if _matches_any "${file}" "${PORTABILITY_SURFACE_GLOBS[@]}"; then
-      echo "true"
-      return 0
-    fi
-  done
-  if [[ "${seen}" == "true" ]]; then echo "false"; else echo "true"; fi
+  node "${CHANGE_FACTS_MODULE}" portability-paths
 }
 
-# Classify one normalized change fact. Rename/copy sources and destinations
-# both participate in path policy; packaged ARC facts need modification +
-# stable regular-file modes + an ordinary Markdown path to be light-safe.
-_classify_change_fact() {
-  local status="$1" old_mode="$2" new_mode="$3" path="$4" previous_path="${5:-}"
-  local endpoint
-  local endpoints=("${path}")
-  [[ -n "${previous_path}" ]] && endpoints+=("${previous_path}")
-  for endpoint in "${endpoints[@]}"; do
-    if is_packaged_arc_path "${endpoint}"; then
-      if [[ "${status}" != "modified" || "${old_mode}" != "100644" || "${new_mode}" != "100644" ]] \
-        || is_packaged_content_sensitive_path "${endpoint}"; then
-        return 1
-      fi
-    elif is_code_surface_path "${endpoint}"; then
-      return 1
-    fi
-  done
-  return 0
-}
-
-# Parse and reduce Git's private `--raw -z` wire format. Malformed cardinality,
-# modes, object ids, statuses, or trailing bytes make the entire set unknown.
-_git_mode_class() {
-  case "$1" in
-    100644 | 100755) echo "regular" ;;
-    120000) echo "symlink" ;;
-    160000) echo "gitlink" ;;
-    *) return 1 ;;
-  esac
-}
-
-_git_tree_entry_is_valid() {
-  case "$1:$2" in
-    100644:blob | 100755:blob | 120000:blob | 160000:commit) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-_raw_fact_endpoints_are_valid() {
-  local status="$1" old_mode="$2" new_mode="$3" old_oid="$4" new_oid="$5"
-  local old_present=false new_present=false old_class="" new_class=""
-
-  if [[ "${#old_oid}" -ne "${#new_oid}" ]]; then
-    return 1
-  fi
-
-  if [[ "${old_mode}" != "000000" && ! "${old_oid}" =~ ^0+$ ]]; then
-    old_class="$(_git_mode_class "${old_mode}")" || return 1
-    old_present=true
-  elif [[ "${old_mode}" != "000000" || ! "${old_oid}" =~ ^0+$ ]]; then
-    return 1
-  fi
-  if [[ "${new_mode}" != "000000" && ! "${new_oid}" =~ ^0+$ ]]; then
-    new_class="$(_git_mode_class "${new_mode}")" || return 1
-    new_present=true
-  elif [[ "${new_mode}" != "000000" || ! "${new_oid}" =~ ^0+$ ]]; then
-    return 1
-  fi
-
-  case "${status}" in
-    added) [[ "${old_present}" == "false" && "${new_present}" == "true" ]] ;;
-    deleted) [[ "${old_present}" == "true" && "${new_present}" == "false" ]] ;;
-    modified)
-      [[ "${old_present}" == "true" && "${new_present}" == "true" ]] \
-        && [[ "${old_class}" == "${new_class}" ]] \
-        && [[ "${old_mode}" != "${new_mode}" || "${old_oid}" != "${new_oid}" ]]
-      ;;
-    type-changed)
-      [[ "${old_present}" == "true" && "${new_present}" == "true" ]] \
-        && [[ "${old_class}" != "${new_class}" ]]
-      ;;
-    renamed | copied)
-      [[ "${old_present}" == "true" && "${new_present}" == "true" ]]
-      ;;
-    *) return 1 ;;
-  esac
-}
-
-_classify_raw_diff_file() {
-  local raw_file="$1" header path previous_path status_token status old_mode new_mode old_oid new_oid
-  local seen=false classification=light
-
-  while true; do
-    header=""
-    if ! IFS= read -r -d '' header; then
-      if [[ -n "${header}" ]]; then
-        echo "unknown"
-        return 0
-      fi
-      break
-    fi
-    seen=true
-    if [[ ! "${header}" =~ ^:([0-7]{6})\ ([0-7]{6})\ ([0-9a-f]{40}|[0-9a-f]{64})\ ([0-9a-f]{40}|[0-9a-f]{64})\ ([A-Z][0-9]{0,3})$ ]]; then
-      echo "unknown"
-      return 0
-    fi
-    old_mode="${BASH_REMATCH[1]}"
-    new_mode="${BASH_REMATCH[2]}"
-    old_oid="${BASH_REMATCH[3]}"
-    new_oid="${BASH_REMATCH[4]}"
-    status_token="${BASH_REMATCH[5]}"
-    case "${status_token}" in
-      A) status=added ;;
-      M) status=modified ;;
-      D) status=deleted ;;
-      T) status="type-changed" ;;
-      R[0-9][0-9][0-9])
-        (( 10#${status_token#R} <= 100 )) || { echo "unknown"; return 0; }
-        status=renamed
-        ;;
-      C[0-9][0-9][0-9])
-        (( 10#${status_token#C} <= 100 )) || { echo "unknown"; return 0; }
-        status=copied
-        ;;
-      *)
-        echo "unknown"
-        return 0
-        ;;
-    esac
-    if ! _raw_fact_endpoints_are_valid "${status}" "${old_mode}" "${new_mode}" "${old_oid}" "${new_oid}"; then
-      echo "unknown"
-      return 0
-    fi
-
-    path=""
-    if ! IFS= read -r -d '' path || [[ -z "${path}" ]]; then
-      echo "unknown"
-      return 0
-    fi
-    previous_path=""
-    if [[ "${status}" == "renamed" || "${status}" == "copied" ]]; then
-      previous_path="${path}"
-      path=""
-      if ! IFS= read -r -d '' path || [[ -z "${path}" ]]; then
-        echo "unknown"
-        return 0
-      fi
-      if [[ "${previous_path}" == "${path}" ]]; then
-        echo "unknown"
-        return 0
-      fi
-    fi
-
-    if ! _classify_change_fact "${status}" "${old_mode}" "${new_mode}" "${path}" "${previous_path}"; then
-      classification=heavy
-    fi
-  done <"${raw_file}"
-
-  if [[ "${seen}" == "false" ]]; then
-    echo "unknown"
-  else
-    echo "${classification}"
-  fi
-}
-
-# Resolve the event-specific exact change set. Tests may inject raw bytes
-# through CLASSIFY_RAW_DIFF_FILE; the seam is private to this script process.
+# Resolve the event-specific exact change set through the canonical TypeScript
+# record. Pull requests compare their merge base to the proposed head; pushes
+# compare the supplied before/after commits directly.
 _classify_diff_changes() {
-  local event="$1" base="$2" head="$3" raw_file result
-  raw_file="$(mktemp)"
-  if [[ -n "${CLASSIFY_RAW_DIFF_FILE:-}" ]]; then
-    if ! cp -- "${CLASSIFY_RAW_DIFF_FILE}" "${raw_file}" 2>/dev/null; then
-      rm -f "${raw_file}"
+  local event="$1" base="$2" head="$3"
+  local diff_base="${base}"
+  if [[ "${event}" == "pull_request" ]] && [[ -z "${CLASSIFY_RAW_DIFF_FILE:-}" ]]; then
+    diff_base="$(git merge-base "${base}" "${head}" 2>/dev/null)" || {
       echo "unknown"
       return 0
-    fi
-  elif [[ "${event}" == "pull_request" ]]; then
-    if ! git diff --raw -z --no-abbrev -M -C --find-copies-harder "${base}...${head}" >"${raw_file}" 2>/dev/null; then
-      rm -f "${raw_file}"
-      echo "unknown"
-      return 0
-    fi
-  elif ! git diff --raw -z --no-abbrev -M -C --find-copies-harder "${base}" "${head}" >"${raw_file}" 2>/dev/null; then
-    rm -f "${raw_file}"
-    echo "unknown"
-    return 0
+    }
   fi
-  result="$(_classify_raw_diff_file "${raw_file}")"
-  rm -f "${raw_file}"
-  printf '%s\n' "${result}"
+  node "${CHANGE_FACTS_MODULE}" classification "${diff_base}" "${head}" 2>/dev/null || echo "unknown"
 }
 
-_cleanup_tree_hash_files() {
-  rm -f "$@"
-}
-
-# Sort NUL-delimited ls-tree records by their raw path bytes. Node is already a
-# repository runtime dependency; Buffer ordering keeps this portable across the
-# GNU and BSD userlands used by supported development environments.
-_sort_tree_listing_by_path() {
-  local input_file="$1" output_file="$2"
-  node --input-type=module - "${input_file}" "${output_file}" <<'NODE'
-import { readFileSync, writeFileSync } from "node:fs";
-
-try {
-  const [inputPath, outputPath] = process.argv.slice(2);
-  if (inputPath === undefined || outputPath === undefined) throw new Error();
-  const input = readFileSync(inputPath);
-  if (input.length > 0 && input[input.length - 1] !== 0) throw new Error();
-
-  const records = [];
-  for (let start = 0; start < input.length;) {
-    const end = input.indexOf(0, start);
-    if (end < 0) throw new Error();
-    const record = input.subarray(start, end);
-    const tab = record.indexOf(0x09);
-    if (tab < 0) throw new Error();
-    records.push({ record, path: record.subarray(tab + 1) });
-    start = end + 1;
-  }
-
-  records.sort((left, right) =>
-    Buffer.compare(left.path, right.path) || Buffer.compare(left.record, right.record),
-  );
-  const nul = Buffer.from([0]);
-  writeFileSync(outputPath, Buffer.concat(records.flatMap(({ record }) => [record, nul])));
-} catch {
-  process.exitCode = 1;
-}
-NODE
-}
-
-# Print a deterministic, versioned identity with independent content-sensitive
-# and packaged-tree-shape layers. NUL boundaries preserve all valid filenames;
-# sensitive packaged entries intentionally appear in both layers.
 _code_tree_hash() {
-  local ref="$1" listing_file sorted_file identity_file record meta path mode type oid oid_width=0
-  listing_file="$(mktemp)"
-  sorted_file="$(mktemp)"
-  identity_file="$(mktemp)"
-
-  if [[ -n "${CLASSIFY_TREE_LIST_DIR:-}" && -f "${CLASSIFY_TREE_LIST_DIR}/${ref}.raw" ]]; then
-    cp -- "${CLASSIFY_TREE_LIST_DIR}/${ref}.raw" "${listing_file}" || {
-      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
-      return 1
-    }
-  elif ! git ls-tree -rz --full-tree "${ref}" >"${listing_file}" 2>/dev/null; then
-    _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
-    return 1
-  fi
-
-  if ! _sort_tree_listing_by_path "${listing_file}" "${sorted_file}"; then
-    _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
-    return 1
-  fi
-
-  printf 'arc-code-tree\0v2\0layer\0content-sensitive\0' >"${identity_file}"
-  # shellcheck disable=SC2094 # Failure cleanup removes the input before returning; the open descriptor is unused.
-  while true; do
-    record=""
-    if ! IFS= read -r -d '' record; then
-      [[ -z "${record}" ]] || {
-        _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
-        return 1
-      }
-      break
-    fi
-    [[ "${record}" == *$'\t'* ]] || {
-      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
-      return 1
-    }
-    meta="${record%%$'\t'*}"
-    path="${record#*$'\t'}"
-    if [[ -z "${path}" || ! "${meta}" =~ ^([0-7]{6})\ (blob|commit|tree)\ ([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
-      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
-      return 1
-    fi
-    mode="${BASH_REMATCH[1]}"
-    type="${BASH_REMATCH[2]}"
-    oid="${BASH_REMATCH[3]}"
-    if ! _git_tree_entry_is_valid "${mode}" "${type}"; then
-      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
-      return 1
-    fi
-    if (( oid_width == 0 )); then
-      oid_width="${#oid}"
-    elif (( oid_width != ${#oid} )); then
-      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
-      return 1
-    fi
-    if is_code_surface_path "${path}" \
-      && { ! is_packaged_arc_path "${path}" || is_packaged_content_sensitive_path "${path}"; }; then
-      printf 'entry\0path\0%s\0mode\0%s\0type\0%s\0oid\0%s\0' \
-        "${path}" "${mode}" "${type}" "${oid}" >>"${identity_file}"
-    fi
-  done <"${sorted_file}"
-
-  printf 'layer\0packaged-shape\0' >>"${identity_file}"
-  # shellcheck disable=SC2094 # Failure cleanup removes the input before returning; the open descriptor is unused.
-  while IFS= read -r -d '' record; do
-    meta="${record%%$'\t'*}"
-    path="${record#*$'\t'}"
-    [[ "${meta}" =~ ^([0-7]{6})\ (blob|commit|tree)\ ([0-9a-f]{40}|[0-9a-f]{64})$ ]] || {
-      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
-      return 1
-    }
-    if is_packaged_arc_path "${path}"; then
-      printf 'entry\0path\0%s\0mode\0%s\0type\0%s\0' \
-        "${path}" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" >>"${identity_file}"
-    fi
-  done <"${sorted_file}"
-
-  _cleanup_tree_hash_files "${listing_file}" "${sorted_file}"
-  if [[ "${CLASSIFY_TREE_SERIALIZE_FAIL:-false}" == "true" ]]; then
-    _cleanup_tree_hash_files "${identity_file}"
-    return 1
-  fi
-  git hash-object --stdin <"${identity_file}"
-  local hash_status=$?
-  _cleanup_tree_hash_files "${identity_file}"
-  return "${hash_status}"
+  node "${CHANGE_FACTS_MODULE}" tree-hash "$1" 2>/dev/null
 }
 
-# tree-hash <ref> — CLI entry for the code-tree hash. Validates the argument and
-# maps a compute failure to a diagnostic on stderr plus a non-zero exit.
 cmd_tree_hash() {
   local ref="${1:-}"
-  if [[ -z "${ref}" ]]; then
+  if [[ -z "${ref}" ]] || [[ "$#" -ne 1 ]]; then
     echo "tree-hash: a git ref is required" >&2
     return 1
   fi
-
-  local hash
-  if ! hash="$(_code_tree_hash "${ref}")"; then
+  if ! _code_tree_hash "${ref}"; then
     echo "tree-hash: cannot read tree at ref '${ref}'" >&2
     return 1
   fi
-  printf '%s\n' "${hash}"
 }
 
 # Collapse check-run rows to the latest row per check name, emitting normalized

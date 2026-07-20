@@ -26,19 +26,24 @@ describe("parseRawDiff", () => {
   });
 
   it.each([
-    ["M", "modified", "100644", "100755"],
-    ["D", "deleted", "100644", "000000"],
-    ["T", "type-changed", "100644", "120000"],
-  ] as const)("maps %s to the canonical %s status", (rawStatus, status, oldMode, newMode) => {
-    expect(parseRawDiff(raw(`:${oldMode} ${newMode} ${HASH} ${HASH} ${rawStatus}`, "path"))).toEqual({
-      changeSet: "known",
-      changes: [{ status, path: "path", oldMode, newMode }],
-    });
-  });
+    ["M", "modified", "100644", "100755", HASH, HASH],
+    ["D", "deleted", "100644", "000000", HASH, ZERO_HASH],
+    ["T", "type-changed", "100644", "120000", HASH, HASH],
+  ] as const)(
+    "maps %s to the canonical %s status",
+    (rawStatus, status, oldMode, newMode, oldObject, newObject) => {
+      expect(
+        parseRawDiff(raw(`:${oldMode} ${newMode} ${oldObject} ${newObject} ${rawStatus}`, "path")),
+      ).toEqual({
+        changeSet: "known",
+        changes: [{ status, path: "path", oldMode, newMode }],
+      });
+    },
+  );
 
   it.each([
     [COMPLETE_RENAME, "renamed"],
-    ["C75", "copied"],
+    ["C075", "copied"],
   ] as const)("preserves both endpoints for %s records", (rawStatus, status) => {
     expect(
       parseRawDiff(
@@ -141,7 +146,18 @@ describe("resolveChangeSet", () => {
       ],
     });
     expect(calls).toEqual([
-      ["diff", "--raw", "-z", "--no-abbrev", "-M", "-C", "base-ref", "head-ref", "--"],
+      [
+        "diff",
+        "--raw",
+        "-z",
+        "--no-abbrev",
+        "-M",
+        "-C",
+        "--find-copies-harder",
+        "base-ref",
+        "head-ref",
+        "--",
+      ],
     ]);
   });
 
