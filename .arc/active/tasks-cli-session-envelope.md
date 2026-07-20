@@ -294,32 +294,25 @@ contracts register; registration does not expand the shipped schema bundle.
 - _Outcome:_ The complete session-init envelope now has a strict registered runtime contract that composes full and
   thin authorities, validates observable presence semantics, and accepts every characterized wire arm.
 
-### `[ ]` **4.4 Compose and register the recovery envelope and audit-report schemas**
+### `[x]` **4.4 Compose and register the recovery envelope and audit-report schemas**
 
 - _Goal:_ Lean recovery status and the recovery-audit report each have a complete registered top-level contract
   composed from shared family records and thin slots.
-- _Context:_ Implements complete family ownership, strict-current registration, and Success Criteria 2, 4, and 8.
 
-    - `[ ]` **4.4.a Compose the lean recovery envelope**
-        - Define a strict `SessionRecoverProbeResultSchema` in `commands/status/schema.ts` for the exact
-          `runRecoverStatus()` output. Require `mode`, `identity`, `worktree`, `dirty`, `extensions`, `config`,
-          `active`, `releaseRouting`, and `loadSet`; apply the shared cohort/cursor presence rules.
-        - Build `test-first` around required lean slots, valid and invalid cohort/cursor presence, mapped
-          active/worktree routing fields, an undeclared top-level key, and representative pass-through nested values.
-        - Add a one-way compile-time assertion that `SessionRecoverProbeResult` is assignable to the schema input;
-          do not infer the full producer type from deliberately partial thin views.
+    - `[x]` **4.4.a Compose the lean recovery envelope**
+        - Added a strict lean recovery root with required-slot, routing-view, cohort, cursor, pass-through, and
+          producer-input compatibility coverage.
 
-    - `[ ]` **4.4.b Compose the recovery-audit report**
-        - Add `lib/recover/report.ts` and move the handler-private report shape into a strict full schema authority
-          that composes the seed summary, optional recover envelope, and full recovery verdict; derive
-          `RecoverAuditReport` via `z.infer`.
-        - Build `test-first` around ready reports, early-stop reports with `recover: null`, malformed cross-state
-          combinations, and rejection of an undeclared top-level report key.
+    - `[x]` **4.4.b Compose the recovery-audit report**
+        - Moved the handler-private report into a strict schema/type authority composing the seed summary, lean
+          recovery envelope, and full verdict with ready/early-stop coherence checks.
 
-    - `[ ]` **4.4.c Register and characterize both recovery contracts**
-        - Register `session-recover-envelope` and `recovery-audit-report` at version 1 with `strict-current` posture
-          and validate the Phase 1 recovery golden fixtures against them; leave their thin helper views unregistered.
-        - Keep the full-mode status and session-handoff envelopes absent from this family registry.
+    - `[x]` **4.4.c Register and characterize both recovery contracts**
+        - Registered both recovery roots at version 1 with strict-current posture and accepted the Phase 1 ready and
+          dirty-drift goldens without admitting thin helpers, full status, or handoff envelopes.
+
+- _Outcome:_ Session recovery and recovery-audit reports now have complete strict registered contracts with shared
+  conditional routing semantics and characterized ready, stopped, and early-stop states.
 
 ## **Phase 5:** Validated producer and consumer boundaries
 

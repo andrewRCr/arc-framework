@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 
-import type { SessionInitProbeResult } from "./types.js";
+import type { SessionInitProbeResult, SessionRecoverProbeResult } from "./types.js";
 import { probe } from "./types.js";
 import { BaseBranchSyncStatusResultSchema } from "../../lib/git/base-branch-sync.js";
 import { LoadSetManifestSchema, LoadSetPathSchema } from "../../lib/load-set/types.js";
@@ -358,8 +358,7 @@ function worktreeValue(value: SessionInitEnvelopeValue): Record<string, unknown>
   return value.worktree.ok ? value.worktree.value : null;
 }
 
-/** Strict session-init wire contract with observable slot-presence invariants. */
-export const SessionInitProbeResultSchema = SessionInitEnvelopeObjectSchema.superRefine((value, context) => {
+const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.superRefine((value, context) => {
   const active = activeValue(value);
   const worktree = worktreeValue(value);
   const rosterSuccessful = value.roster?.ok === true;
@@ -435,6 +434,66 @@ export const SessionInitProbeResultSchema = SessionInitEnvelopeObjectSchema.supe
   requireExactPresence(value, context, "taskCursor", taskCursorRequired);
 });
 
+/** Strict session-init wire contract with observable slot-presence invariants. */
+export const SessionInitProbeResultSchema = SessionInitProbeResultRuntimeSchema as z.ZodType<
+  SessionInitProbeResult
+>;
+
+/** Thin worktree view used by the lean recovery envelope. */
+export const SessionRecoverWorktreeValueViewSchema = WorktreeSyncValueViewSchema.extend({
+  identity: WorktreeIdentityViewSchema,
+}).loose();
+
+const SessionRecoverEnvelopeObjectSchema = z.strictObject({
+  mode: z.literal("recover"),
+  identity: StatusIdentitySchema,
+  worktree: probe(SessionRecoverWorktreeValueViewSchema),
+  dirty: probe(DirtyStateValueViewSchema),
+  extensions: probe(ExtensionsSessionInitValueViewSchema),
+  config: probe(ConfigSessionInitValueViewSchema),
+  active: probe(ActiveSessionInitValueViewSchema),
+  releaseRouting: probe(ReleaseRoutingValueViewSchema),
+  cohortDocPath: LoadSetPathSchema.optional(),
+  loadSet: probe(LoadSetManifestSchema),
+  taskCursor: probe(TaskListCursorFileResultSchema).optional(),
+});
+
+const SessionRecoverProbeResultRuntimeSchema = SessionRecoverEnvelopeObjectSchema.superRefine(
+  (value, context) => {
+    if (
+      Object.hasOwn(value, "cohortDocPath")
+      && !(value.active.ok
+        && value.active.value.resolution === "single"
+        && typeof value.active.value.path === "string"
+        && value.active.value.path.trim().length > 0)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["cohortDocPath"],
+        message: "requires one active work unit with a path",
+      });
+    }
+
+    const taskListPath = value.active.ok ? value.active.value.taskListPath : null;
+    const taskCursorRequired = typeof taskListPath === "string"
+      && LoadSetPathSchema.safeParse(taskListPath).success;
+    if (Object.hasOwn(value, "taskCursor") !== taskCursorRequired) {
+      context.addIssue({
+        code: "custom",
+        path: ["taskCursor"],
+        message: taskCursorRequired
+          ? "required by the safe active task-list path"
+          : "forbidden without a safe active task-list path",
+      });
+    }
+  },
+);
+
+/** Strict lean recovery wire contract with shared cohort and cursor rules. */
+export const SessionRecoverProbeResultSchema = SessionRecoverProbeResultRuntimeSchema as z.ZodType<
+  SessionRecoverProbeResult
+>;
+
 type DeclaredInput<Value> = Value extends readonly (infer Item)[]
   ? DeclaredInput<Item>[]
   : Value extends object
@@ -442,11 +501,21 @@ type DeclaredInput<Value> = Value extends readonly (infer Item)[]
     : Value;
 
 type SessionInitDeclaredInput = Omit<
-  DeclaredInput<z.input<typeof SessionInitProbeResultSchema>>,
+  DeclaredInput<z.input<typeof SessionInitProbeResultRuntimeSchema>>,
   "config"
 > & Pick<SessionInitProbeResult, "config">;
+
+type SessionRecoverDeclaredInput = Omit<
+  DeclaredInput<z.input<typeof SessionRecoverProbeResultRuntimeSchema>>,
+  "config"
+> & Pick<SessionRecoverProbeResult, "config">;
 
 /** Compile-only proof that the producer satisfies every declared schema input field. */
 export type SessionInitProbeResultSchemaInputCompatibility<
   Producer extends SessionInitDeclaredInput = SessionInitProbeResult,
+> = Producer;
+
+/** Compile-only proof that the lean producer satisfies every declared schema input field. */
+export type SessionRecoverProbeResultSchemaInputCompatibility<
+  Producer extends SessionRecoverDeclaredInput = SessionRecoverProbeResult,
 > = Producer;

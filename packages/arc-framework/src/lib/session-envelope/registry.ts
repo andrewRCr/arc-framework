@@ -6,11 +6,15 @@
  */
 
 import { createKernelRegistry, type KernelRegistry } from "../kernel/index.js";
-import { SessionInitProbeResultSchema } from "../../commands/status/schema.js";
+import {
+  SessionInitProbeResultSchema,
+  SessionRecoverProbeResultSchema,
+} from "../../commands/status/schema.js";
 import { CompactionSeedSchema } from "../compaction-seed/schema.js";
 import { LoadSetManifestSchema } from "../load-set/types.js";
 import { LoadSetAuditVerdictSchema } from "../load-set/audit.js";
 import { RecoveryAuditVerdictSchema } from "../recover/audit.js";
+import { RecoverAuditReportSchema } from "../recover/report.js";
 import { BaseBranchSyncStatusResultSchema } from "../git/base-branch-sync.js";
 import { CascadeResolutionSchema } from "../session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../session-init/errand-staleness-sweep.js";
@@ -39,8 +43,10 @@ export const SESSION_ENVELOPE_SCHEMA_IDS = {
   orphanBranchSweep: "orphan-branch-sweep",
   partialPushMarkerSurface: "partial-push-marker-surface",
   recoveryAuditVerdict: "recovery-audit-verdict",
+  recoveryAuditReport: "recovery-audit-report",
   retiredSubdirDetection: "retired-subdir-detection",
   sessionInitEnvelope: "session-init-envelope",
+  sessionRecoverEnvelope: "session-recover-envelope",
   taskListCursor: "task-list-cursor",
   taskListCursorFileResult: "task-list-cursor-file-result",
 } as const;
@@ -117,12 +123,20 @@ export function createSessionEnvelopeRegistry(): KernelRegistry {
     id: SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditVerdict,
     ...STRICT_CURRENT_V1,
   });
+  registry.register(RecoverAuditReportSchema, {
+    id: SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditReport,
+    ...STRICT_CURRENT_V1,
+  });
   registry.register(RetiredSubdirDetectionResultSchema, {
     id: SESSION_ENVELOPE_SCHEMA_IDS.retiredSubdirDetection,
     ...STRICT_CURRENT_V1,
   });
   registry.register(SessionInitProbeResultSchema, {
     id: SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope,
+    ...STRICT_CURRENT_V1,
+  });
+  registry.register(SessionRecoverProbeResultSchema, {
+    id: SESSION_ENVELOPE_SCHEMA_IDS.sessionRecoverEnvelope,
     ...STRICT_CURRENT_V1,
   });
   return registry;

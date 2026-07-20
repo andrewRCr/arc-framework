@@ -12,6 +12,7 @@ import { LoadSetManifestSchema } from "../../../src/lib/load-set/types.js";
 import { LoadSetAuditVerdictSchema } from "../../../src/lib/load-set/audit.js";
 import { CompactionSeedSchema } from "../../../src/lib/compaction-seed/schema.js";
 import { RecoveryAuditVerdictSchema } from "../../../src/lib/recover/audit.js";
+import { RecoverAuditReportSchema } from "../../../src/lib/recover/report.js";
 import { BaseBranchSyncStatusResultSchema } from "../../../src/lib/git/base-branch-sync.js";
 import { CascadeResolutionSchema } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../../src/lib/session-init/errand-staleness-sweep.js";
@@ -24,7 +25,10 @@ import { RetiredSubdirDetectionResultSchema } from "../../../src/lib/session-ini
 import { ClassCompositionSchema } from "../../../src/lib/status/class-composition.js";
 import { TaskListCursorSchema } from "../../../src/lib/task-list/cursor.js";
 import { TaskListCursorFileResultSchema } from "../../../src/lib/task-list/file-cursor.js";
-import { SessionInitProbeResultSchema } from "../../../src/commands/status/schema.js";
+import {
+  SessionInitProbeResultSchema,
+  SessionRecoverProbeResultSchema,
+} from "../../../src/commands/status/schema.js";
 
 describe("session-envelope schema registry", () => {
   it("composes fresh kernel registries with the shared family records", () => {
@@ -45,9 +49,11 @@ describe("session-envelope schema registry", () => {
       "orphan-branch-sweep",
       "partial-push-marker-surface",
       "priority",
+      "recovery-audit-report",
       "recovery-audit-verdict",
       "retired-subdir-detection",
       "session-init-envelope",
+      "session-recover-envelope",
       "slug",
       "task-list-cursor",
       "task-list-cursor-file-result",
@@ -61,7 +67,9 @@ describe("session-envelope schema registry", () => {
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.compactionSeed)).toBe(CompactionSeedSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.loadSetAuditVerdict)).toBe(LoadSetAuditVerdictSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditVerdict)).toBe(RecoveryAuditVerdictSchema);
+    expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditReport)).toBe(RecoverAuditReportSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope)).toBe(SessionInitProbeResultSchema);
+    expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.sessionRecoverEnvelope)).toBe(SessionRecoverProbeResultSchema);
     const advisorySchemas = [
       [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep, ErrandStalenessSweepResultSchema],
