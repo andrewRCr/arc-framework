@@ -54,17 +54,14 @@ path before aligned-table enforcement begins.
   core-field setters through one display-width renderer. Structural drift fails loudly, while field values and
   every byte outside the three managed rows remain unchanged.
 
-### `[ ]` **2.3 Render status and readiness tables by display width**
+### `[x]` **2.3 Render status and readiness tables by display width**
 
 - _Goal:_ `STATUS.USER` and project-readiness tables stay source-aligned for wide glyphs without changing row
   ordering or conditional-column behavior.
 
-    - Move the shared status table formatter from code-unit length and `padEnd` to the display-width primitive.
-    - Preserve current golden ordering, dependency rendering, and optional `Priority` column behavior.
-    - Build `test-first` (one behavior at a time):
-        - Existing ASCII golden output remains stable.
-        - CJK, combining-mark, emoji-variation, and ZWJ rows align and pass aligned `MD060`.
-        - Readiness composition continues to own derived output; no generic formatter write path is introduced.
+- _Outcome:_ Moved the shared status/readiness table renderer to Unicode display-width padding without changing
+  ASCII goldens, row ordering, dependency rendering, or conditional columns. User-status and derived readiness
+  composition now produce aligned-`MD060` tables for CJK, combining-mark, emoji-variation, and ZWJ values.
 
 ### `[ ]` **2.4 Format explicit GFM tables through validated atomic replacements**
 
