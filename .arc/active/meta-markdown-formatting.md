@@ -12,7 +12,7 @@
 - **Task List:** `tasks-markdown-formatting.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Detailed RFC finalized after two adversarial review passes
+- **Last Completed:** Task list finalized and work unit activated
 - **Next Task:** Begin Task 1.1 — Centralize authoritative Markdown selection and path routing
 - **Blockers:** [none]
 
