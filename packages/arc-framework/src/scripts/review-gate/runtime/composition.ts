@@ -17,7 +17,7 @@ import { meetsMinimumPermission, type CapabilitySet, type ReviewRequirement } fr
 import type { ReviewReceipt } from "../core/execution.js";
 import type { GitHostAdapter, ReviewProviderAdapter, ReviewReceiptStore } from "../core/ports.js";
 import type { GitExec } from "../../../lib/git/exec.js";
-import { isCodeSurfacePath, type RawGitExec } from "../../../lib/change-facts.js";
+import { affectedPaths, isCodeSurfacePath, type RawGitExec } from "../../../lib/change-facts.js";
 import { GitHubHostAdapter } from "../hosts/github/adapter.js";
 import { GitHubGraphQLClient } from "../hosts/github/api/graphql.js";
 import type { HttpFetch } from "../hosts/github/api/http.js";
@@ -187,14 +187,8 @@ function assertAttestConfig(config: AttestRuntimeConfig): void {
   assertNonEmpty(config.dispatchActorId, "dispatchActorId");
 }
 
-function riskPaths(changes: ChangedPath[]): string[] {
-  return changes.flatMap((change) => change.previousPath === undefined
-    ? [change.path]
-    : [change.path, change.previousPath]);
-}
-
 function changesTouchCodeSurface(changes: ChangedPath[]): boolean {
-  return riskPaths(changes).some(isCodeSurfacePath);
+  return affectedPaths(changes).some(isCodeSurfacePath);
 }
 
 function composeCodeRabbitApi(
@@ -466,7 +460,7 @@ export async function createReconcileRuntime(
       changes: input.changes,
     }),
     resolveRisk: (changes) => classifyReviewRisk({
-      paths: riskPaths(changes),
+      paths: affectedPaths(changes),
       codeSurface: changesTouchCodeSurface(changes),
     }),
     listCommandComments: () => commandReader.list(),
@@ -536,7 +530,7 @@ export async function createAttestRuntime(
       changes,
     });
     const risk = classifyReviewRisk({
-      paths: riskPaths(changes),
+      paths: affectedPaths(changes),
       codeSurface: changesTouchCodeSurface(changes),
     });
     const decision = resolveSelfHostingDecision({ policy: config.policy, changeRequest: change.changeRequest, lane, risk });

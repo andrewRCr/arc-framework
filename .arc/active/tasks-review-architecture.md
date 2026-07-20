@@ -52,11 +52,10 @@ gate, or workflow consumes them.
           ordinary, derived, and unknown surfaces; both move/copy endpoints participate, declared projections
           require injected source proof, and malformed inputs or failed policy evaluation resolve to `unknown`.
 
-    - `[ ]` **1.2.c Unify review-risk path membership**
-        - Replace `runtime/composition.ts`'s `derivesCodeSurface()` approximation and feed
-          `policy/self-hosting/risk.ts` from the shared affected-path facts.
-        - Build `test-first` coverage for package manifests, shell, fixtures, workflows, project extensions,
-          renamed endpoints, deleted paths, and unknown change sets.
+    - `[x]` **1.2.c Unify review-risk path membership**
+        - Added a shared stable affected-path union and routed review risk through it plus the canonical code-surface
+          predicate; package manifests, shell, fixtures, workflows, project extensions, deletions, and both
+          rename/copy endpoints now share membership, while empty or unresolved sets remain sensitive.
 
     - `[ ]` **1.2.d Preserve CI/review decision independence**
         - Make CI weight, review risk, and authority each map the same facts through their own policy functions.

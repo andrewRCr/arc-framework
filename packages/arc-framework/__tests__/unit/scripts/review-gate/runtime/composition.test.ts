@@ -175,6 +175,7 @@ describe("review-gate composition roots", () => {
     ["test fixture", [{ status: "modified", path: "packages/arc-framework/__tests__/fixtures/example.md" }]],
     ["packaged workflow", [{ status: "modified", path: "packages/arc-framework/arc/system/workflows/example.md" }]],
     ["project extension", [{ status: "modified", path: ".arc/system/extensions/example.md" }]],
+    ["deleted package manifest", [{ status: "deleted", path: "package.json" }]],
     ["type change", [{ status: "type-changed", path: "package-lock.json" }]],
     ["copied source endpoint", [{ status: "copied", path: "docs/copy.md", previousPath: "package.json" }]],
     ["renamed source endpoint", [{ status: "renamed", path: "docs/controller.md", previousPath: "src/controller.ts" }]],

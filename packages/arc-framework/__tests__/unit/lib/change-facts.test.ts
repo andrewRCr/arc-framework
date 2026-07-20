@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRawDiff, resolveChangeSet } from "../../../src/lib/change-facts.js";
+import { affectedPaths, parseRawDiff, resolveChangeSet } from "../../../src/lib/change-facts.js";
 
 const HASH = "a".repeat(40);
 const ZERO_HASH = "0".repeat(40);
@@ -180,5 +180,30 @@ describe("resolveChangeSet", () => {
 
     expect(result).toEqual({ changeSet: "unknown", changes: [] });
     expect(invoked).toBe(false);
+  });
+});
+
+describe("affectedPaths", () => {
+  it("returns a stable union of single-path and dual-endpoint records", () => {
+    expect(affectedPaths([
+      { path: "modified" },
+      { path: "deleted" },
+      {
+        previousPath: "rename-source",
+        path: "rename-target",
+      },
+      {
+        previousPath: "copy-source",
+        path: "copy-target",
+      },
+      { path: "modified" },
+    ])).toEqual([
+      "modified",
+      "deleted",
+      "rename-source",
+      "rename-target",
+      "copy-source",
+      "copy-target",
+    ]);
   });
 });

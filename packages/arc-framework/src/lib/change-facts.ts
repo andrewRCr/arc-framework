@@ -26,6 +26,18 @@ export type ChangeSet =
   | { changeSet: "known"; changes: CanonicalChange[] }
   | { changeSet: "unknown"; changes: [] };
 
+/** Stable union of every affected path, including both move and copy endpoints. */
+export function affectedPaths(
+  changes: readonly Pick<CanonicalChange, "path" | "previousPath">[],
+): string[] {
+  const paths = new Set<string>();
+  for (const change of changes) {
+    if (change.previousPath !== undefined) paths.add(change.previousPath);
+    paths.add(change.path);
+  }
+  return [...paths];
+}
+
 /** Result from a byte-preserving Git invocation. */
 export interface RawGitResult {
   stdout: Uint8Array;
