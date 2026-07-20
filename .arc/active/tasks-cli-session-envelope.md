@@ -246,38 +246,29 @@ contracts register; registration does not expand the shipped schema bundle.
 - _Outcome:_ Shared and deep session values now reject corrupted workflow-routing fields through deliberately loose
   schemas without claiming full authority over their nested record webs.
 
-### `[ ]` **4.2 Define thin routing schemas for command-owned session slots**
+### `[x]` **4.2 Define thin routing schemas for command-owned session slots**
 
 - _Goal:_ Command-owned and deeply shared session slots validate the routing fields agents branch on without moving
   their broader record authority into the envelope module.
-- _Context:_ Implements the thin command-owned validation decision; Success Criteria 4 and 8.
-- **Additional Context:** `notes-cli-session-envelope.md` § Thin validation field map.
 
-    - `[ ]` **4.2.a Cover extension, config, active, and domain-rule session values**
-        - Compose pass-through schemas for `ExtensionsSessionInitResult`, `ConfigSessionInitResult`,
-          `ActiveSessionInitResult`, and `DomainRulesSessionInitResult` from their current home contracts, pinning
-          exactly the modes, active routing values, and twelve config policy domains in the thin validation map.
-        - Build `test-first` around every mapped invalid policy/resolution/stage value while allowing unowned fields
-          to pass unchanged.
+    - `[x]` **4.2.a Cover extension, config, active, and domain-rule session values**
+        - Added loose command views that pin the session modes, active resolution fields, and all twelve policy
+          domains while retaining unowned warnings and payload fields.
 
-    - `[ ]` **4.2.b Cover the user session-init value**
-        - Define a thin pass-through schema for `UserSessionInitStatusResult` and its enriched session view, pinning
-          the mapped state/ref/content/coherence/freshness/drift/qualifier values and optional boolean `loadNeeded`
-          consumed during sync and context load.
-        - Reject malformed `loadNeeded` values and prove representative notes-drift and sync-detail payloads survive
-          validation unperturbed.
+    - `[x]` **4.2.b Cover the user session-init value**
+        - Added raw and enriched user views that validate every routed sync, freshness, drift, qualifier, and
+          `loadNeeded` field without disturbing notes detail payloads.
 
-    - `[ ]` **4.2.c Cover enriched recommendation values**
-        - Compose the closed `recommendedAction` schema into session-init worktree, user, base-distance,
-          base-branch-sync, and retired-subdir values while retaining precomposed text verbatim.
-        - Reject corrupted actions deterministically without attempting to infer a replacement from neighboring
-          state.
+    - `[x]` **4.2.c Cover enriched recommendation values**
+        - Composed the closed recommendation action into all five enriched views, preserving prompt text and full
+          authority for base-sync and retired-subdirectory values.
 
-    - `[ ]` **4.2.d Cover worktree identity and release routing**
-        - Pin the `WorktreeIdentity.kind` view used by session and recovery worktree slots and all three
-          `ReleaseRoutingValue` routes without taking authority for their broader handwritten source types.
-        - Build `test-first` around `primary` / `linked`, `wrapper` / `raw`, malformed kinds/routes, and unchanged
-          pass-through rationale/path fields.
+    - `[x]` **4.2.d Cover worktree identity and release routing**
+        - Added primary/linked identity and wrapper/raw release-routing views with malformed-value coverage and
+          pass-through preservation for paths and rationale.
+
+- _Outcome:_ Command-owned session values now validate every workflow-routing field through thin schemas while
+  leaving broader subsystem records and emitted recommendation text unchanged.
 
 ### `[ ]` **4.3 Compose and register the session-init envelope schema**
 

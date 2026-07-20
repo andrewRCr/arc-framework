@@ -3,12 +3,24 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ActiveSessionInitValueViewSchema,
   BaseDistanceValueViewSchema,
+  ConfigSessionInitValueViewSchema,
   CurrentHuskAdvisoryViewSchema,
   DirtyStateValueViewSchema,
+  DomainRulesSessionInitValueViewSchema,
   ErrandStateValueViewSchema,
+  ExtensionsSessionInitValueViewSchema,
+  ReleaseRoutingValueViewSchema,
+  SessionInitBaseBranchSyncValueViewSchema,
+  SessionInitBaseDistanceValueViewSchema,
+  SessionInitRetiredSubdirsValueViewSchema,
+  SessionInitUserValueViewSchema,
+  SessionInitWorktreeValueViewSchema,
   StaleWorktreeSweepValueViewSchema,
+  UserSessionInitValueViewSchema,
   WorkUnitStateValueViewSchema,
+  WorktreeIdentityViewSchema,
   WorktreeRosterValueViewSchema,
   WorktreeSyncValueViewSchema,
 } from "../../../src/commands/status/schema.js";
@@ -38,6 +50,160 @@ describe("shared git routing views", () => {
     const value = { entries: [{ arbitrary: "payload" }], warnings: ["kept"] };
     expect(WorktreeRosterValueViewSchema.parse(value)).toEqual(value);
     expect(WorktreeRosterValueViewSchema.safeParse([]).success).toBe(false);
+  });
+});
+
+describe("command-owned routing views", () => {
+  const config = {
+    mode: "session-init",
+    settings: {
+      "session.remote_sync": "enabled",
+      "session.init_pull.worktree": "prompt",
+      "session.init_pull.notes": "always",
+      "session.init_pull.base": "manual",
+      "session.init_load.notes": "prompt",
+      "user.notes_push": "on-sync",
+      "branch.protection": "full",
+      "pm.mode": "arc-in-git",
+      "commit.format": "conventional",
+      "commit.context_footer": "required",
+      "commit.interlock": "on-workflow",
+      "push.interlock": "on-sync",
+    },
+    warnings: ["kept"],
+  };
+
+  it("pins session modes and active routing values while retaining unowned fields", () => {
+    expect(ExtensionsSessionInitValueViewSchema.parse({ mode: "session-init", active: ["kept"] }))
+      .toEqual({ mode: "session-init", active: ["kept"] });
+    expect(DomainRulesSessionInitValueViewSchema.parse({ mode: "session-init", rules: [{ kept: true }] }))
+      .toEqual({ mode: "session-init", rules: [{ kept: true }] });
+    const active = {
+      mode: "session-init",
+      layout: "full",
+      resolution: "single",
+      sessionType: "planning",
+      planningStage: "draft-design",
+      retained: true,
+    };
+    expect(ActiveSessionInitValueViewSchema.parse(active)).toEqual(active);
+  });
+
+  it.each([
+    ["session.remote_sync", "sometimes"],
+    ["session.init_pull.worktree", "always"],
+    ["session.init_pull.notes", "invalid"],
+    ["session.init_pull.base", "invalid"],
+    ["session.init_load.notes", "invalid"],
+    ["user.notes_push", "always"],
+    ["branch.protection", "none"],
+    ["pm.mode", "builtin"],
+    ["commit.format", "unknown"],
+    ["commit.context_footer", "optional"],
+    ["commit.interlock", "on-commit"],
+    ["push.interlock", "on-handoff"],
+  ])("rejects invalid config policy %s", (key, value) => {
+    expect(ConfigSessionInitValueViewSchema.safeParse({
+      ...config,
+      settings: { ...config.settings, [key]: value },
+    }).success).toBe(false);
+  });
+
+  it("preserves unowned config fields", () => {
+    expect(ConfigSessionInitValueViewSchema.parse(config)).toEqual(config);
+  });
+
+  it.each([
+    { mode: "full", layout: "full", resolution: "single", sessionType: "execution", planningStage: null },
+    { mode: "session-init", layout: "nested", resolution: "single", sessionType: "execution", planningStage: null },
+    { mode: "session-init", layout: "full", resolution: "ambiguous", sessionType: "execution", planningStage: null },
+    { mode: "session-init", layout: "full", resolution: "single", sessionType: "unknown", planningStage: null },
+    { mode: "session-init", layout: "full", resolution: "single", sessionType: "planning", planningStage: "review" },
+  ])("rejects an invalid active routing value", (value) => {
+    expect(ActiveSessionInitValueViewSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("user and recommendation routing views", () => {
+  const user = {
+    state: "clean",
+    refState: "same",
+    contentRelation: "equal",
+    coherenceState: "partial-push",
+    qualifier: "clean-at-current-head",
+    localNoteFreshness: { state: "current-head", retained: true },
+    notesDrift: { direction: "modified", retained: true },
+    loadNeeded: false,
+    detailLines: ["kept"],
+  };
+
+  it("pins mapped user fields and retains sync detail payloads", () => {
+    expect(UserSessionInitValueViewSchema.parse(user)).toEqual(user);
+  });
+
+  it.each([
+    { ...user, state: "unknown" },
+    { ...user, refState: "unknown" },
+    { ...user, contentRelation: "unknown" },
+    { ...user, coherenceState: "unknown" },
+    { ...user, qualifier: "unknown" },
+    { ...user, localNoteFreshness: { state: "unknown" } },
+    { ...user, notesDrift: { direction: "unknown" } },
+    { ...user, loadNeeded: "yes" },
+  ])("rejects a malformed user routing field", (value) => {
+    expect(UserSessionInitValueViewSchema.safeParse(value).success).toBe(false);
+  });
+
+  it.each([
+    [SessionInitWorktreeValueViewSchema, { state: "clean", identity: { kind: "primary" } }],
+    [SessionInitUserValueViewSchema, user],
+    [SessionInitBaseDistanceValueViewSchema, { verdict: "clean" }],
+    [SessionInitBaseBranchSyncValueViewSchema, {
+      state: "clean", ahead: 0, behind: 0, base: "main", checkout: { kind: "not-checked-out" },
+    }],
+    [SessionInitRetiredSubdirsValueViewSchema, { candidates: [] }],
+  ] as const)("rejects a corrupted recommendation action", (schema, value) => {
+    expect(schema.safeParse({ ...value, recommendedAction: "guess", recommendedPromptText: "kept" }).success)
+      .toBe(false);
+  });
+
+  it("pins drift-surface routing while preserving detail text", () => {
+    const value = {
+      ...user,
+      notesDriftSurface: { direction: "edits", register: "caution", detail: "kept" },
+      recommendedAction: "surface",
+      recommendedPromptText: "verbatim text",
+    };
+    expect(SessionInitUserValueViewSchema.parse(value)).toEqual(value);
+  });
+});
+
+describe("identity and release-routing views", () => {
+  it.each([{ kind: "primary" }, { kind: "linked", path: "/wt/feature", retained: true }])(
+    "accepts worktree identity $kind",
+    (value) => expect(WorktreeIdentityViewSchema.parse(value)).toEqual(value),
+  );
+  it.each([{ kind: "other" }, { kind: "linked" }])("rejects malformed worktree identity", (value) => {
+    expect(WorktreeIdentityViewSchema.safeParse(value).success).toBe(false);
+  });
+
+  it("pins all release routes while retaining rationale", () => {
+    const value = {
+      taskCommit: "wrapper",
+      workflowCommit: "raw",
+      workflowPush: "wrapper",
+      rationale: { releaseOptedIn: true, retained: true },
+    };
+    expect(ReleaseRoutingValueViewSchema.parse(value)).toEqual(value);
+  });
+
+  it.each(["taskCommit", "workflowCommit", "workflowPush"])("rejects an invalid %s route", (key) => {
+    expect(ReleaseRoutingValueViewSchema.safeParse({
+      taskCommit: "raw",
+      workflowCommit: "raw",
+      workflowPush: "raw",
+      [key]: "maybe",
+    }).success).toBe(false);
   });
 });
 
