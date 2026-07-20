@@ -1,8 +1,8 @@
 # Metadata: Markdown Formatting Hygiene
 
-| **State**  | **Owner** | **Branch**                 | **Class** | **Priority** |
-| ---------- | --------- | -------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/markdown-formatting` | `Heavy`   | `P3`         |
+| **State** | **Owner** | **Branch**                 | **Class** | **Priority** |
+| --------- | --------- | -------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/markdown-formatting` | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,12 +11,12 @@
 - **Design:** `spec-markdown-formatting.md`
 - **Task List:** `tasks-markdown-formatting.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** Detailed RFC finalized after two adversarial review passes
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Centralize authoritative Markdown selection and path routing
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Start Task 1.1 — Centralize authoritative Markdown selection and path routing
 
 - **PR URL:** [none]
 - **Completed:** [none]
