@@ -224,17 +224,11 @@ readiness.
           semantic IDs remain distinct from bare Git OIDs, one request binds one repository/target/requirement/
           carrier, actor and hosted-carrier invariants reject, and retargeting cannot retain a stale derived ID.
 
-    - `[ ]` **3.1.c Define forward requirement and receipt schemas**
-        - Consume Phase 2's immutable logical projection, then add `rubricDigest`, retrigger treatment, exact
-          target/request identities, evaluator identity, attesting runtime identity/mechanism, optional provider
-          event identity, and the terminal receipt binding without mutating schema-v1 structures in place.
-        - Consume Phase 1's shared severity/disposition primitives where an envelope references finding or settlement
-          identity, but leave provider normalization and settlement-runtime migration to Task 4.2.c.
-        - Infer TypeScript types from the envelope schemas, register them, and migrate digest/key constructors to
-          their canonical forms.
-        - Derive `requirementId` from its exact registered preimage, sorting and uniquing reasons and acceptable
-          sources by canonical bytes; pin shared golden vectors for domain/version separation, order invariance,
-          one-field sensitivity, explicit nulls, and self-ID exclusion across all three ID constructors.
+    - `[x]` **3.1.c Define forward requirement and receipt schemas**
+        - Added strict registered v2 requirement/preimage and receipt schemas with inferred types and validated
+          constructors. Requirements derive exact target-bound IDs from normalized policy inputs; receipts bind the
+          exact request, target, requirement, rubric, evaluator, attestor, and explicit nullable applicability/
+          provider identities, with golden vectors covering domains, ordering, sensitivity, and self-ID exclusion.
 
     - `[ ]` **3.1.d Migrate controller projections and ports**
         - Carry the new target/request/requirement/receipt contracts through `core/requirements.ts`,

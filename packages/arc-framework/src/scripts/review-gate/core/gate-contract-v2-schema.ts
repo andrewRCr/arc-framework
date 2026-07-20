@@ -2,7 +2,17 @@
 
 import { z } from "zod";
 
-import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import {
+  canonicalize,
+  sortByCanonicalBytes,
+  type KernelRegistry,
+} from "../../../lib/kernel/index.js";
+import { IndependentAnalysisObligationProjectionSchema } from "../policy/independent-analysis-projection-schema.js";
+import {
+  CoreRoutingReasonSchema,
+  ProjectRoutingReasonSchema,
+  ReviewRetriggerSchema,
+} from "../policy/routing-schema.js";
 
 export const ReviewGateV2SemanticsSchema = z.literal("review-gate/v2");
 export type ReviewGateV2Semantics = z.infer<typeof ReviewGateV2SemanticsSchema>;
@@ -87,6 +97,99 @@ export const ReviewRequestV2Schema = z.strictObject({
 });
 export type ReviewRequestV2 = z.infer<typeof ReviewRequestV2Schema>;
 
+export const ReviewAcceptedSourceSchema = z.strictObject({
+  sourceKind: ReviewIdentifierSchema,
+  qualifier: ReviewIdentifierSchema.nullable(),
+});
+export type ReviewAcceptedSource = z.infer<typeof ReviewAcceptedSourceSchema>;
+
+function isSortedUnique(values: readonly unknown[]): boolean {
+  const keys = values.map(canonicalize);
+  if (new Set(keys).size !== keys.length) return false;
+  return sortByCanonicalBytes(values).map(canonicalize).every((key, index) => key === keys[index]);
+}
+
+const ReviewRequirementFieldsSchema = z.strictObject({
+  schemaVersion: z.literal(2),
+  semanticsVersion: ReviewGateV2SemanticsSchema,
+  targetId: ReviewCanonicalDigestSchema,
+  kind: z.literal("independent-analysis"),
+  obligation: z.enum(["recommended", "required"]),
+  reasons: z.array(z.union([CoreRoutingReasonSchema, ProjectRoutingReasonSchema])).min(1),
+  rubricVersion: ReviewIdentifierSchema,
+  rubricDigest: ReviewCanonicalDigestSchema,
+  retrigger: ReviewRetriggerSchema,
+  count: z.literal(1),
+  acceptableSources: z.array(ReviewAcceptedSourceSchema).min(1),
+  initialAdmission: z.enum(["automatic", "checkpoint"]),
+  policyVersion: ReviewCanonicalDigestSchema,
+});
+
+function requirementIsNormalized(requirement: z.infer<typeof ReviewRequirementFieldsSchema>): boolean {
+  return requirement.retrigger !== "none"
+    && isSortedUnique(requirement.reasons)
+    && isSortedUnique(requirement.acceptableSources);
+}
+
+export const ReviewRequirementIdPreimageSchema = z.strictObject({
+  domain: z.literal("arc.review-gate.requirement-id/v2"),
+  ...ReviewRequirementFieldsSchema.shape,
+}).refine(requirementIsNormalized, {
+  message: "requirement sets must be sorted and unique, with a non-exempt retrigger",
+});
+export type ReviewRequirementIdPreimage = z.infer<typeof ReviewRequirementIdPreimageSchema>;
+
+export const ReviewRequirementV2Schema = z.strictObject({
+  ...ReviewRequirementFieldsSchema.shape,
+  requirementId: ReviewCanonicalDigestSchema,
+}).refine(requirementIsNormalized, {
+  message: "requirement sets must be sorted and unique, with a non-exempt retrigger",
+});
+export type ReviewRequirementV2 = z.infer<typeof ReviewRequirementV2Schema>;
+
+export const ReviewRequirementCreationInputSchema = z.strictObject({
+  target: ReviewTargetSchema,
+  projection: IndependentAnalysisObligationProjectionSchema,
+  acceptableSources: z.array(ReviewAcceptedSourceSchema).min(1),
+  initialAdmission: z.enum(["automatic", "checkpoint"]),
+  policyVersion: ReviewCanonicalDigestSchema,
+});
+export type ReviewRequirementCreationInput = z.infer<typeof ReviewRequirementCreationInputSchema>;
+
+const ReviewReceiptFieldsSchema = z.strictObject({
+  schemaVersion: z.literal(2),
+  semanticsVersion: ReviewGateV2SemanticsSchema,
+  requestId: ReviewCanonicalDigestSchema,
+  targetId: ReviewCanonicalDigestSchema,
+  requirementId: ReviewCanonicalDigestSchema,
+  applicabilityId: ReviewCanonicalDigestSchema.nullable(),
+  reviewRunId: ReviewIdentifierSchema,
+  evaluatorIdentity: ReviewIdentifierSchema,
+  attestingRuntimeIdentity: ReviewIdentifierSchema,
+  attestationMechanism: ReviewIdentifierSchema,
+  providerEventIdentity: ReviewIdentifierSchema.nullable(),
+  rubricVersion: ReviewIdentifierSchema,
+  rubricDigest: ReviewCanonicalDigestSchema,
+  result: z.enum(["clean", "findings", "unavailable", "failed"]),
+});
+
+export const ReviewReceiptV2Schema = ReviewReceiptFieldsSchema;
+export type ReviewReceiptV2 = z.infer<typeof ReviewReceiptV2Schema>;
+
+export const ReviewReceiptCreationInputSchema = z.strictObject({
+  target: ReviewTargetSchema,
+  requirement: ReviewRequirementV2Schema,
+  request: ReviewRequestV2Schema,
+  applicabilityId: ReviewCanonicalDigestSchema.nullable(),
+  reviewRunId: ReviewIdentifierSchema,
+  evaluatorIdentity: ReviewIdentifierSchema,
+  attestingRuntimeIdentity: ReviewIdentifierSchema,
+  attestationMechanism: ReviewIdentifierSchema,
+  providerEventIdentity: ReviewIdentifierSchema.nullable(),
+  result: z.enum(["clean", "findings", "unavailable", "failed"]),
+});
+export type ReviewReceiptCreationInput = z.infer<typeof ReviewReceiptCreationInputSchema>;
+
 /** Register forward gate-contract target schemas with a caller-owned registry. */
 export function registerReviewGateV2Schemas(registry: KernelRegistry): KernelRegistry {
   registry.register(ReviewTargetIdPreimageSchema, {
@@ -106,6 +209,21 @@ export function registerReviewGateV2Schemas(registry: KernelRegistry): KernelReg
   });
   registry.register(ReviewRequestV2Schema, {
     id: "review-request",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ReviewRequirementIdPreimageSchema, {
+    id: "review-requirement-id-preimage",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ReviewRequirementV2Schema, {
+    id: "review-requirement",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ReviewReceiptV2Schema, {
+    id: "review-receipt",
     version: 2,
     migrationPosture: "strict-current",
   });

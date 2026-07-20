@@ -24,8 +24,11 @@ const reviewIdentities = [
   "project-routing-promotion",
   "review-assurance-input",
   "review-method-activity",
+  "review-receipt",
   "review-request",
   "review-request-id-preimage",
+  "review-requirement",
+  "review-requirement-id-preimage",
   "review-rubric-overlay-resolution",
   "review-routing-decision",
   "review-routing-facts",
@@ -48,6 +51,8 @@ describe("review schema registration", () => {
     expect(registry.meta("review-severity")?.version).toBe(2);
     expect(registry.meta("review-target")?.version).toBe(2);
     expect(registry.meta("review-request")?.version).toBe(2);
+    expect(registry.meta("review-requirement")?.version).toBe(2);
+    expect(registry.meta("review-receipt")?.version).toBe(2);
     expect(registry.meta("canonical-change-set")?.version).toBe(1);
   });
 
