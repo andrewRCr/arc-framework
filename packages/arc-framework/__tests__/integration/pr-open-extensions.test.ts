@@ -113,6 +113,18 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("uses one workflow-wide WU push contract and retains final pre-merge settlement", async () => {
+    const workflow = await readFile(
+      resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      "utf8",
+    );
+
+    expect(workflow.match(/#pre-push-review/gu)).toHaveLength(1);
+    expect(workflow).toContain("Before every agent-managed push in this workflow");
+    expect(workflow.indexOf("fire `pre-merge` when active"))
+      .toBeLessThan(workflow.indexOf("`integration-interlock`", workflow.indexOf("fire `pre-merge` when active")));
+  });
+
   it("keeps self-review author-side and provider-neutral", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/self-review.md"), "utf8");

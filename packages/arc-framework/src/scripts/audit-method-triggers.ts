@@ -54,6 +54,39 @@ export interface WorkflowEntry {
   content: string;
 }
 
+const PUSH_SITE = /`push-interlock` release.*`workflowPush`|# workflowPush\b|^\s*(?:arc sync|(?:npx )?arc release push)(?:\s|$)/u;
+const GLOBAL_PRE_PUSH_CONTRACT = /#pre-push-review.*Before every agent-managed push/iu;
+
+/** Audit declaration and fire ordering for agent-managed workflow push sites. */
+export function auditPushExtensionCoverage(workflows: WorkflowEntry[]): string[] {
+  const diagnostics: string[] = [];
+  for (const workflow of workflows) {
+    const lines = workflow.content.split("\n");
+    const sites = lines.flatMap((line, index) => PUSH_SITE.test(line) ? [index] : []);
+    if (sites.length === 0) continue;
+
+    const declarations = parseWorkflowFrontmatter(workflow.content);
+    if (!declarations.extensions.includes("pre-push-review")) {
+      diagnostics.push(
+        `Workflow "${workflow.path}" has an agent-managed push but does not declare pre-push-review in arc.extensions.`,
+      );
+    }
+
+    const globalContractLine = lines.findIndex((line) => GLOBAL_PRE_PUSH_CONTRACT.test(line));
+    for (const site of sites) {
+      const localWindow = lines.slice(Math.max(0, site - 12), site).join("\n");
+      const covered = /#pre-push-review/u.test(localWindow)
+        || (globalContractLine >= 0 && globalContractLine < site);
+      if (!covered) {
+        diagnostics.push(
+          `Workflow "${workflow.path}" push site at line ${site + 1} does not fire pre-push-review first.`,
+        );
+      }
+    }
+  }
+  return diagnostics;
+}
+
 /**
  * List entry names (filename without `.md`) under `dir`, excluding `README.md`.
  * Used by both method and extension enumeration.
@@ -225,7 +258,7 @@ export async function audit(
     content: readFileSync(p, "utf8"),
   }));
   const cov = buildCoverageMap(methodNames, extensionNames, workflows);
-  const diagnostics: string[] = [...cov.parseDiagnostics];
+  const diagnostics: string[] = [...cov.parseDiagnostics, ...auditPushExtensionCoverage(workflows)];
   for (const [name, files] of cov.methods) {
     if (files.length === 0) {
       if (!wiringPending.has(name)) diagnostics.push(formatMethodDiagnostic(name));

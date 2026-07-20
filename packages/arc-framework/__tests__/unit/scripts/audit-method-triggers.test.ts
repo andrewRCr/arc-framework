@@ -20,6 +20,7 @@ import {
   formatExtensionDiagnostic,
   audit,
   auditActivatableMethodCorpus,
+  auditPushExtensionCoverage,
   type WorkflowEntry,
 } from "../../../src/scripts/audit-method-triggers.js";
 
@@ -204,6 +205,42 @@ describe("buildCoverageMap", () => {
     expect(cov.methods.get("shared")).toEqual(["a.md"]);
     expect(cov.extensions.get("shared")).toEqual([]);
   });
+});
+
+describe("push extension coverage", () => {
+  it("accepts local and workflow-wide pre-push fire contracts", () => {
+    const local = `${workflow([], ["pre-push-review"])}\n- **Extensions** · \`#pre-push-review\`: Run before push.\n\n> \`push-interlock\` release — \`workflowPush\`.\n`;
+    const global = `${workflow([], ["pre-push-review"])}\n**Push extension contract** · \`#pre-push-review\`: Before every agent-managed push, run it.\n\n> \`push-interlock\` release — \`workflowPush\`.\n\n> \`push-interlock\` release — \`workflowPush\`.\n`;
+
+    expect(auditPushExtensionCoverage([
+      { path: "local.md", content: local },
+      { path: "global.md", content: global },
+    ])).toEqual([]);
+  });
+
+  it("rejects a push without declaration or a preceding fire contract", () => {
+    const bare = `${workflow([], [])}\n> \`push-interlock\` release — \`workflowPush\`.\n`;
+    const declared = `${workflow([], ["pre-push-review"])}\n> \`push-interlock\` release — \`workflowPush\`.\n`;
+
+    expect(auditPushExtensionCoverage([
+      { path: "bare.md", content: bare },
+      { path: "declared.md", content: declared },
+    ])).toEqual(expect.arrayContaining([
+      expect.stringContaining("bare.md"),
+      expect.stringContaining("declared.md"),
+    ]));
+  });
+
+  it.each(["arc sync --json", "arc release push"])(
+    "treats command-form %s as an agent-managed push site",
+    (command) => {
+      const content = `${workflow([], [])}\n\`\`\`bash\n${command}\n\`\`\`\n`;
+
+      const diagnostics = auditPushExtensionCoverage([{ path: "handoff.md", content }]);
+      expect(diagnostics).toHaveLength(2);
+      expect(diagnostics.every((item) => item.includes("handoff.md"))).toBe(true);
+    },
+  );
 });
 
 // --- Diagnostic formatters ---

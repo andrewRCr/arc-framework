@@ -124,9 +124,9 @@ When inactive, proceed directly to Step 3.
 
 Push the WU branch upstream.
 
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-  (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces
-  an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
+**Push extension contract** · `#pre-push-review`: Before every agent-managed push in this workflow, if the
+extension appears in the active-extensions list, load and execute its `.actions`. Halt-on-fail surfaces an
+actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
@@ -218,7 +218,7 @@ else:
     <dispatch result through the validated verdict loop above>
 ```
 
-Resolve conflicts if any and run Tier 1 quality gates. Before pushing, execute the Step 12 pre-push extension check,
+Resolve conflicts if any and run Tier 1 quality gates. Before pushing, execute the Step 3 push extension contract,
 then invoke the active project review coordinator's exact-head mutability action with the current
 `openedChangeRequest`, outgoing local head, and any `begin-fix` authorization receipt. Stop on any typed refusal;
 never reverse the current/outgoing head order.
@@ -323,9 +323,7 @@ What gets pushed varies by cadence:
 - Under `manual`: completion content commit only. Sweep + ROADMAP fire later when `archive-work-unit.md` is
   invoked explicitly post-merge.
 
-**Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-(established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces
-an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
+Repeat the Step 3 push extension contract before this push.
 
 Invoke the active project review coordinator's exact-head mutability action with the current
 `openedChangeRequest`, the outgoing local head, and any `begin-fix` authorization receipt. Stop on any typed refusal;
@@ -372,7 +370,7 @@ else:
     <dispatch result through the validated verdict loop above>
 ```
 
-Resolve conflicts if any and run Tier 1 quality gates. Before pushing, repeat the Step 12 pre-push extension check,
+Resolve conflicts if any and run Tier 1 quality gates. Before pushing, repeat the Step 3 push extension contract,
 then invoke the active project review coordinator's exact-head mutability action with the current
 `openedChangeRequest`, outgoing local head, and any `begin-fix` authorization receipt. Stop on a typed refusal;
 never reverse the current/outgoing head order.

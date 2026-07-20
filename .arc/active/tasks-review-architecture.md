@@ -456,12 +456,11 @@ with adopter-facing contracts mirrored through the package source.
           classification, billing-label, provider, triage, and review-routing policy while retaining the same
           proposed-change-request input, lifecycle fire point, authored-order halt, and retry-safe contract.
 
-    - `[ ]` **4.4.c Reconcile workflow declarations and fire points**
-        - Update `integrate-work-unit.md`, `run-errand.md`, and every agent-managed workflow callsite that invokes
-          `arc release push` or a pushing `arc sync`, so declarations fire each extension at its named operation.
-        - Eliminate the doubled integration `pre-push-review` callout and retain final `pre-merge` settlement.
-        - Add a corpus audit for agent-managed push callsites and document that direct CLI/raw pushes require a hook
-          or host control for structural enforcement.
+    - `[x]` **4.4.c Reconcile workflow declarations and fire points**
+        - Consolidated integration's duplicate pre-push prose into one workflow-wide contract while retaining exact-
+          head `pre-merge` settlement, and made sync retry re-fire the extension. The trigger audit now checks
+          declaration plus prior firing for every class-tagged push, wrapper command, and pushing `arc sync` across
+          integration, Errand, and lifecycle workflows; guidance assigns direct CLI/raw enforcement to hooks/hosts.
 
     - `[ ]` **4.4.d Update configurability documentation and validation**
         - Reconcile method activation, extension inventories, package-neutral defaults, and method/extension parsers
