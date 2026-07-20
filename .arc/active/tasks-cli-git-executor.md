@@ -28,40 +28,20 @@ _Purpose:_ Establish the execa-backed failure contract and prove replacement ada
 - _Outcome:_ The public Git error surface now preserves lossless process evidence while exposing bounded diagnostics
   and narrowly classified expected outcomes, without coupling callers to execa's rejection objects.
 
-### `[ ]` **1.2 Build and prove the replacement core adapters without live cutover**
+### `[x]` **1.2 Build and prove the replacement core adapters without live cutover**
 
 - _Goal:_ The replacement `GitExec` and `GitExecInput` implementations are integration-tested and ready for use
   while the exported production `gitExec` continues using its compatible legacy implementation.
-- **Additional Context:** `notes-cli-git-executor.md` § execa 10 integration specifics; § Rejection ABI and
-  cutover
+    - `[x]` **1.2.a Build the captured-output `GitExec` adapter behind an internal construction seam**
+        - Added an execa-backed constructor preserving argument arrays, environment scrubbing, `cwd`, alternate
+          indexes, cancellation, output normalization, the 64 MiB ceiling, and normalized typed failures.
 
-    - `[ ]` **1.2.a Build the captured-output `GitExec` adapter behind an internal construction seam**
-        - Preserve `GitExec`, `ExecResult`, and `GitExecOptions` as plain-Promise injectable contracts, including
-          `AbortSignal`, `cwd`, alternate-index behavior, repository-local environment scrubbing, argument-array
-          execution, inherited environment, and the 64 MiB output ceiling.
-        - Map the seam's `signal` to execa's `cancelSignal`, set `stripFinalNewline: false`, and retain the established
-          `stdout.trimEnd()` plus raw stderr success shape. Translate rejections through the normalizer without
-          adding execa's `timeout` option to the public contract.
-        - Leave the exported live `gitExec` binding unchanged; expose only the smallest internal construction seam
-          needed to exercise the candidate adapter directly.
-        - Establish `__tests__/integration/git-executor.test.ts` by moving every real-Git/process-backed executor,
-          ref-lease, blob-read, and note-read case from `unit/io-context.test.ts`; leave filesystem-only context tests
-          and pure normalizer coverage in the unit tier.
-        - Build `test-first` (one behavior at a time):
-            - Argument arrays, environment scrubbing, `cwd`, `indexFile`, output normalization, and large-output
-              behavior remain compatible through the candidate adapter.
-            - Non-zero, canceled, output-limit, spawn, and unexpected failures reject through the typed taxonomy; a
-              faithful execa timeout shape remains distinguishable in pure normalizer coverage.
+    - `[x]` **1.2.b Build the stdin-fed `GitExecInput` adapter behind the same substrate**
+        - Added raw-stdout, shell-free execa stdin execution with the shared ceiling and typed partial-output
+          failures; the live binding remains unchanged pending specialized-consumer migration.
 
-    - `[ ]` **1.2.b Build the stdin-fed `GitExecInput` adapter behind the same substrate**
-        - Feed text through execa stdin support without shell interpolation and preserve the raw, untrimmed stdout
-          Promise result expected by note-tree and object-plumbing callers.
-        - Keep the live `gitExecInput` binding unchanged until its production consumers migrate in Phase 2.
-        - Build `test-first` (one behavior at a time):
-            - Text input reaches Git unchanged, stdout remains untrimmed, the 64 MiB ceiling holds, and typed
-              failures preserve full process-capped streams plus bounded diagnostic projections.
-            - Output beyond the ceiling rejects as `output-limit` with partial captured streams rather than an
-              invented exit code.
+- _Outcome:_ Candidate adapters now prove the existing injectable contracts at the real process boundary, and all
+  process-backed `io-context` tests reside in the integration tier while filesystem-only tests remain unit-scoped.
 
 ## **Phase 2:** Specialized production binding migration
 

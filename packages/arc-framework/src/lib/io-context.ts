@@ -16,11 +16,12 @@ import { promisify } from "node:util";
 import type { IOContext } from "../commands/init.js";
 import type { UserIOContext } from "../commands/user.js";
 import type { GitExec, GitExecInput, DirEntry } from "../lib/git/index.js";
+import { environmentForGitCwd, MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import { atomicWriteFile, exclusiveCreateFile } from "./fs.js";
 
-export const execFileAsync = promisify(execFile);
+export { environmentForGitCwd } from "../lib/git/process-executor.js";
 
-const MAX_GIT_STDOUT_BYTES = 64 * 1024 * 1024;
+export const execFileAsync = promisify(execFile);
 
 /** Read one exact Git tree/index blob as bytes; `null` means the object path is absent. */
 export async function readGitBlobBytes(
@@ -31,7 +32,7 @@ export async function readGitBlobBytes(
   const options = {
     cwd,
     env: environmentForGitCwd(cwd),
-    maxBuffer: MAX_GIT_STDOUT_BYTES,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
   };
   let oid: string;
   if (ref === null) {
@@ -155,40 +156,6 @@ export async function prepareGitRefVerification(
   };
 }
 
-const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
-  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-  "GIT_CONFIG",
-  "GIT_CONFIG_PARAMETERS",
-  "GIT_CONFIG_COUNT",
-  "GIT_OBJECT_DIRECTORY",
-  "GIT_DIR",
-  "GIT_WORK_TREE",
-  "GIT_IMPLICIT_WORK_TREE",
-  "GIT_GRAFT_FILE",
-  "GIT_INDEX_FILE",
-  "GIT_NO_REPLACE_OBJECTS",
-  "GIT_REPLACE_REF_BASE",
-  "GIT_PREFIX",
-  "GIT_SHALLOW_FILE",
-  "GIT_COMMON_DIR",
-]);
-
-/**
- * Build an environment where `cwd` selects the Git repository.
- *
- * @param cwd - Repository working directory, when the command is cwd-scoped.
- * @returns The inherited environment without repository-local Git overrides.
- */
-export function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv | undefined {
-  if (cwd === undefined) return undefined;
-
-  // Git exports repository-local variables to hooks. Once a caller supplies cwd,
-  // that directory must select the repository rather than an inherited hook index.
-  return Object.fromEntries(
-    Object.entries(process.env).filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable)),
-  );
-}
-
 /** Real git executor wrapping child_process.execFile. */
 export const gitExec: GitExec = async (cmd, args, options) => {
   const { indexFile, ...execOptions } = options ?? {};
@@ -198,7 +165,7 @@ export const gitExec: GitExec = async (cmd, args, options) => {
     env: indexFile === undefined
       ? environment
       : { ...(environment ?? process.env), GIT_INDEX_FILE: indexFile },
-    maxBuffer: MAX_GIT_STDOUT_BYTES,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
   });
   return { stdout: stdout.trimEnd(), stderr };
 };
