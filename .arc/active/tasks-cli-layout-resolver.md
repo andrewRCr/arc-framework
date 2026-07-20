@@ -9,35 +9,21 @@
 _Purpose:_ Establish the runtime-validated semantic address contract and its pure projection boundaries before any
 caller migration begins.
 
-### `[ ]` **1.1 Define the layout schemas, address algebra, registry, and error contract**
+### `[x]` **1.1 Define the layout schemas, address algebra, registry, and error contract**
 
 - _Goal:_ Every public layout input is validated by a subsystem-owned runtime authority and discoverable through an
   isolated registry without moving layout vocabulary into the kernel.
 
-    - `[ ]` **1.1.a Add strict layout schemas and derived public types**
-        - Create the `src/lib/layout/` subsystem around kernel `Slug`, `ManagedPath`, and `ArcError` primitives.
-        - Cover placement tiers, artifact kinds, procedure families, archive coordinates, template paths,
-          `WorkUnitPlacement`, and the complete discriminated `ArcLayoutAddress` union.
-        - Reuse `validateManagedPath()` as the template schemas' lexical refinement authority, then return distinct
-          template brands without broadening the kernel or treating those roles as repository `ManagedPath` values.
-        - Build `test-first` (one behavior at a time):
-            - Accept every specified enum, branded coordinate, project- and contributor-active scope, placement, and
-              address variant.
-            - Reject unknown object keys, missing or invalid active scope/identity, unsafe template paths, malformed
-              archive values, and invalid cohort depth.
-            - Keep all exported TypeScript types inferred from their Zod schemas.
+    - `[x]` **1.1.a Add strict layout schemas and derived public types**
+        - Added the strict semantic address, placement, archive, procedure, artifact, and distinctly branded template
+          schemas with inferred public types and kernel-owned slug/managed-path validation at their boundaries.
 
-    - `[ ]` **1.1.b Add the local error and registry surfaces**
-        - Export the four-code `LayoutError` contract, nine stable `LAYOUT_SCHEMA_IDS`, fresh
-          `createLayoutRegistry()` composition, and the public `src/lib/layout/index.ts` barrel.
-        - Extend import-boundary coverage so the kernel remains bottom-of-graph and layout imports no command,
-          lifecycle, discovery, user-root, prompt, or storage policy.
-        - Build `test-first` (one behavior at a time):
-            - Register exactly the nine layout roots at version `1` with `strict-current` posture.
-            - Return isolated registries across repeated factory calls and deterministic identities regardless of
-              registration order.
-            - Preserve `LayoutError` causes and prove its code property narrows to the locally exhaustive
-              `LayoutErrorCode` union at compile time.
+    - `[x]` **1.1.b Add the local error and registry surfaces**
+        - Added the four-code `LayoutError`, nine-root isolated registry composition, explicit public barrel, and an
+          architecture test restricting layout dependencies to the kernel, Zod, host path semantics, and local code.
+
+- _Outcome:_ The new layout subsystem is a runtime-authoritative, independently discoverable contract while the
+  kernel remains bottom-of-graph and the kernel JSON Schema publication boundary is unchanged.
 
 ### `[ ]` **1.2 Implement canonical semantic-address projection**
 
