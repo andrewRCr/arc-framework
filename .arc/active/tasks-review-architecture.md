@@ -264,11 +264,10 @@ readiness.
   disjoint tails may carry it, and interacting or final-full conditions retrigger only what policy requires.
 - _Context:_ Implements Design §1.4 and Success Criterion 9.
 
-    - `[ ]` **3.3.a Validate incremental and full-final coverage chains**
-        - Build `test-first` (one behavior at a time):
-            - Accept contiguous same-source exact-target links reaching the current head.
-            - Reject gaps, source changes, target changes, ambiguous carrier events, and incomplete coverage.
-            - Require one final full review of the settled target for `full-final`.
+    - `[x]` **3.3.a Validate incremental and full-final coverage chains**
+        - Added a forward-only reducer over exact v2 target, requirement, request, and receipt links. It accepts
+          contiguous same-source generations, rejects broken or ambiguous bindings and incomplete results, and
+          requires a terminal full record at the settled target for `full-final`.
 
     - `[ ]` **3.3.b Generalize lifecycle-tail carry-forward**
         - Extend `core/lifecycle-tail.ts` and `hosts/github/lifecycle-tail.ts` from the existing bookkeeping proof to
