@@ -177,11 +177,10 @@ pull-request count, provider choice, or host mechanics.
   per deliverable; Phase 3 can bind non-exempt projections to exact targets and add source/admission policy without
   re-running routing or inheriting author/frontline and future assurance-group concerns.
 
-### `[ ]` **2.4 Prove routing totality and fail-closed behavior**
+### `[x]` **2.4 Prove routing totality and fail-closed behavior**
 
 - _Goal:_ Exhaustive and property-style tests make the closed reducer and fact boundary auditable rather than
   relying only on six representative examples.
-- _Context:_ Operationalizes Success Criteria 1–3 across the Phase 1–2 public interfaces.
 
     - `[x]` **2.4.a Exhaust the closed routing matrix**
         - Added exhaustive coverage across all 27,648 schema-accepted fact combinations, proving every input returns
@@ -193,10 +192,14 @@ pull-request count, provider choice, or host mechanics.
           isolation properties for activation and `Class`; centralized the terminal assurance/activity adjustment
           so project promotions cannot reactivate a disabled method.
 
-    - `[ ]` **2.4.c Exercise the public classifier-to-router boundary**
-        - Run integration cases from real Git change facts through risk/authority/ownership normalization and the
-          reducer, including every malformed and rename/copy arm.
-        - Confirm no legacy path-only or four-status representation can enter the router silently.
+    - `[x]` **2.4.c Exercise the public classifier-to-router boundary**
+        - Added one runtime-validated self-hosting composition boundary and real-Git integration coverage from all
+          six canonical statuses through endpoint-aware risk/authority, exact-ref ownership, and routing; malformed,
+          path-only, four-status, and missing rename/copy origins all fail closed to the unknown route.
+
+- _Outcome:_ Phase 2 routing is now mechanically closed from canonical Git input through one total, monotonic policy
+  result: every schema combination is valid, project promotions cannot bypass activation, and no legacy or malformed
+  change representation can reach normalized routing facts without the maximal unknown floor.
 
 ## **Phase 3:** Gate contract and evidence migration
 
