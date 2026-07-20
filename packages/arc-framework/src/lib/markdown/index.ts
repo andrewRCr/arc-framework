@@ -2,4 +2,6 @@
 
 export * from "./authority.js";
 export * from "./contracts.js";
+export * from "./dependency-alignment.js";
+export * from "./display-width.js";
 export * from "./selection.js";

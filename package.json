@@ -8,7 +8,8 @@
     "packages/arc-framework"
   ],
   "scripts": {
-    "lint:md": "markdownlint-cli2 \"**/*.md\"",
+    "lint:md": "npm run -s lint:md:dependencies && markdownlint-cli2 \"**/*.md\"",
+    "lint:md:dependencies": "tsx packages/arc-framework/src/scripts/verify-markdown-dependencies.ts",
     "lint:md:file": "markdownlint-cli2 --no-globs",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
     "lint:md:fix:file": "markdownlint-cli2 --fix --no-globs",
@@ -41,6 +42,7 @@
   },
   "devDependencies": {
     "husky": "^9.1.7",
+    "markdownlint": "0.40.0",
     "markdownlint-cli2": "0.22.1",
     "tsx": "^4.22.4"
   },

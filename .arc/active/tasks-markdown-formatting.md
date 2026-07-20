@@ -35,26 +35,15 @@ from that identity, and worktree/index content loaders never reimplement authori
 _Purpose:_ Give every managed and explicit table producer one Unicode width model and content-preserving rewrite
 path before aligned-table enforcement begins.
 
-### `[ ]` **2.1 Align shared display-width semantics and dependency parity**
+### `[x]` **2.1 Align shared display-width semantics and dependency parity**
 
 - _Goal:_ All table producers measure and pad text with the same Unicode semantics that the pinned linter uses.
 
 - **Additional Context:** `notes-markdown-formatting.md` § Width-Semantics Fixtures
 
-    - Add `displayWidth(value)` and `padToDisplayWidth(value, width)` as a small CLI-library primitive; padding
-      appends ASCII spaces and never truncates.
-    - Pin the CLI's direct `string-width` dependency to the exact version resolved by pinned `markdownlint`;
-      promote that exact `markdownlint` version to a direct root development dependency before parity tests or
-      the later staged runner import its API.
-    - Expose one loader-independent dependency-alignment check over the root and package manifests, lockfile
-      resolutions, and actually imported versions; use it for both worktree verification and the later staged gate,
-      then back the metadata assertion with aligned-`MD060` behavioral fixtures.
-    - Consolidate `view-renderer.ts` on the primitive only where it removes duplicate width semantics without
-      coupling table code to pager behavior.
-    - Build `test-first` (one behavior at a time):
-        - ASCII, CJK, combining marks, emoji variation selectors, and ZWJ sequences measure and pad correctly.
-        - The known keycap and spacing-mark version differences run through both the primitive and aligned `MD060`.
-        - Requests narrower than the input width leave content unchanged.
+- _Outcome:_ Added shared display-width measurement and padding, aligned the CLI and pinned linter on
+  `string-width` 8.1.0, and introduced reusable declared/locked/runtime dependency verification. Worktree lint now
+  certifies dependency alignment, and Unicode parity fixtures exercise the same values through aligned `MD060`.
 
 ### `[ ]` **2.2 Normalize managed meta core tables without changing fields**
 
