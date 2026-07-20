@@ -3,13 +3,17 @@
 ## Contents
 
 - [Tail-routed value-type inventory](#tail-routed-value-type-inventory)
+- [Thin validation field map](#thin-validation-field-map)
+- [Top-level slot presence contract](#top-level-slot-presence-contract)
+- [Boundary failure disposition](#boundary-failure-disposition)
 - [Characterization & test-coverage state](#characterization--test-coverage-state)
 - [Result-migration seam map](#result-migration-seam-map)
+- [Performance measurement protocol](#performance-measurement-protocol)
 
 ## Tail-routed value-type inventory
 
-The types below are the ones this member validates **only at their dispatch discriminant** (a thin pass-through
-schema). Full schema-authority migration (`z.infer`, hand-written type retired) routes to
+The types below are the ones this member validates **only through a mapped routing-field projection** (a thin
+pass-through schema). Full schema-authority migration (`z.infer`, hand-written type retired) routes to
 `cli-substrate-complete-migration`, which also tightens each thin schema to a full one as it takes authority. This
 inventory is the scoped hand-off — it exists so the tail inherits an enumerated set, not an open re-discovery.
 
@@ -17,8 +21,8 @@ inventory is the scoped hand-off — it exists so the tail inherits an enumerate
 composition sites every slot shares: the `lib/git` barrel (`lib/git/index.ts`) and the envelope itself
 (`commands/status/types.ts`). *Bucket* folds external reach and internal nesting depth into an S/M/L
 authority-migration cost. Exact field counts are intentionally omitted (focused inventory). Each git primitive and
-deep web nests further — the ~14 top-level routed types fan out to roughly a hundred nested types — and tightening
-that nesting is the tail's work.
+deep web nests further — 13 top-level routed types plus the nested `BaseDriftResult` web fan out to roughly a
+hundred nested types — and tightening that nesting is the tail's work.
 
 | Group         | Value type                                          | Home module                                 | Blast radius (genuine sibling consumers)                                               | Bucket |
 |---------------|-----------------------------------------------------|---------------------------------------------|----------------------------------------------------------------------------------------|--------|
@@ -43,34 +47,185 @@ retired-subdir, class-composition (`inFlightComposition`), cascade (`CascadeReso
 compaction-advisory — plus the envelope-structure, error-channel, and family records (load-set, task-cursor,
 compaction-seed, recovery-audit verdict). These migrate to `z.infer` here.
 
+## Thin validation field map
+
+The session and recovery thin schemas live in `commands/status/schema.ts`. Each named object level uses a
+pass-through object schema: the fields below are validated, and every other legitimate field survives unchanged.
+Optional fields validate only when present. These helpers remain unregistered because they are deliberately
+incomplete views, not independent schema authorities. Their nested pass-through posture does not extend to the
+complete session-init, lean-recovery, or recovery-report root: each top-level wire schema is strict and rejects an
+undeclared key before validation discards its parsed copy and emits the original object.
+
+### Shared git and deep advisory views
+
+- **`DirtyStateResult`:** pin `state` to `clean | dirty`.
+- **`WorktreeSyncStatusResult`:** pin `state` to the full `WorktreeSyncState` union. Its session/recovery envelope
+  view also pins `identity.kind` to `primary | linked`; the linked arm retains its unowned path payload. The enriched
+  session-init view pins nullable `supersession.superseded` as a boolean because the diverged workflow selects its
+  lossless-reset offer from that flag; commit arrays remain pass-through.
+- **`BaseDistanceStatusResult`:** pin `verdict` to `clean | reconcile | unavailable | skipped`.
+- **`WorktreeRosterResult`:** validate only that the value is an object; no nested roster field drives agent
+  dispatch, so its content remains wholly pass-through.
+- **`CurrentHuskAdvisory`:** pin `subject.kind` and `stamp.kind`; retain each arm's evidence and path fields
+  unchanged.
+- **`StaleWorktreeSweepResult`:** pin each report's `kind`, each cleanup decision's `action` and conditional
+  `reason`, plus husk `subject.kind` and `stamp.kind`; retain all evidence and action-target fields unchanged.
+- **`WorkUnitStateResult`:** pin `inFlight.workUnits[].state`, each report's `behindBase`, and
+  `nudge.shouldNudge`; retain the other in-flight facts, marker details, and warnings unchanged.
+- **`ErrandStateResult`:** pin `resume.resumable`, `inFlight.errands[].state`,
+  `materializable.candidates[].slug`, `materializable.candidates[].branch`, and `nudge.shouldNudge`. Candidate
+  identity and branch are non-empty strings because the Materialize arm renders and invokes them; retain other
+  resume, materialization, residue, marker, and warning fields unchanged.
+
+### Command-owned and envelope-support views
+
+- **`ExtensionsSessionInitResult`:** pin `mode` to `session-init`.
+- **`ConfigSessionInitResult`:** pin `mode` and all twelve session policy domains:
+    - `session.remote_sync`: `enabled | disabled`;
+    - `session.init_pull.worktree`: `manual | prompt`;
+    - `session.init_pull.notes`, `session.init_pull.base`, and `session.init_load.notes`:
+      `manual | prompt | always`;
+    - `user.notes_push`: `manual | prompt | on-sync`;
+    - `branch.protection`: `partial | full`;
+    - `pm.mode`: `none | arc-in-git | external`;
+    - `commit.format`: `conventional | custom | any`;
+    - `commit.context_footer`: `required | recommended | custom | disabled`;
+    - `commit.interlock`: `manual | on-task-approval | on-workflow`;
+    - `push.interlock`: `manual | on-sync | on-workflow`.
+- **`ActiveSessionInitResult`:** pin `mode`, `layout`, `resolution`, nullable `sessionType`, and nullable
+  `planningStage` (`draft-design | create-spec | generate-tasks`).
+- **`DomainRulesSessionInitResult`:** pin `mode` to `session-init`.
+- **`UserSessionInitStatusResult`:** pin `state`, optional `refState`, `contentRelation`, `coherenceState`,
+  `qualifier`, `localNoteFreshness.state`, and `notesDrift.direction`. The enriched view also pins
+  optional `loadNeeded` as a boolean, `notesDriftSurface.direction` / `register`, and `recommendedAction`.
+- **Recommendation-enriched values:** pin `recommendedAction` to `pull | prompt | surface | skip` on worktree,
+  user, base-distance, base-branch-sync, and retired-subdir slots; retain prompt text verbatim.
+- **`ReleaseRoutingValue`:** pin `taskCommit`, `workflowCommit`, and `workflowPush` to `wrapper | raw`.
+
+`StatusIdentity` and `CompactionSeedWriteStatus` are small family-owned records, not thin views. They receive full
+schemas beside the envelope composition and derive their public types through `z.infer`.
+
+## Top-level slot presence contract
+
+The top-level schemas validate the producer domain visible on the wire without recreating hidden probe state. A
+two-way rule applies when the assembled envelope itself determines whether the producer always emits the slot; a
+one-way rule rejects impossible presence when a failed or hidden helper can still make omission legitimate. The
+schema does not infer the private cleanup roster, a degraded worktree-identity result hidden behind an error slot,
+or whether the CLI invocation requested a seed write.
+
+| Slot(s)                                                            | Presence policy                                                                                                                                                                                                    |
+|--------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Unconditional session-init slots                                   | Require `mode`, `identity`, `user`, `worktree`, `baseDistance`, `baseBranchSync`, `dirty`, `extensions`, `config`, `active`, `domainRules`, `releaseRouting`, `loadSet`, and `recommendedCombinedPrompt`.          |
+| `roster`                                                           | Enforce the visible gate in both directions when worktree identity resolved: branch-gone, no active WU, or primary worktree. When the worktree slot failed and hides identity, no stronger relation is observable. |
+| `recovery`                                                         | Present iff the worktree is a successful `branch-gone` result and `roster` is successful.                                                                                                                          |
+| `sweep`                                                            | On a successful primary-worktree slot, present iff `roster` is successful. Linked cleanup-roster success and worktree-error identity are hidden, so other arms remain structurally optional.                       |
+| `currentHusk`                                                      | Presence requires a successful linked, branchless worktree and must itself be a success probe; omission remains valid because advisory failure degrades to absence.                                                |
+| `orphanBranchSweep`                                                | Identity-known envelopes require the slot. With identity absent, a successful primary worktree requires it and a successful linked worktree forbids it; a worktree error hides the remaining gate.                 |
+| `retiredSubdirs`, `errandSweep`, `inboxState`, `partialPushMarker` | Present iff `identity.identity` is non-null.                                                                                                                                                                       |
+| `errandState`                                                      | Present iff both `worktree` and `active` are successful.                                                                                                                                                           |
+| `workUnitState`                                                    | Present iff `roster` is successful.                                                                                                                                                                                |
+| `materializableWorkUnits`                                          | Present iff `active` is successful with `resolution: none`.                                                                                                                                                        |
+| `compactionAdvisory`                                               | Presence requires non-null identity; omission remains valid because the probe is optional at the orchestrator interface.                                                                                           |
+| `inFlightComposition`                                              | Presence requires a successful no-active-WU result and successful roster; omission remains valid for an empty or unresolved composition.                                                                           |
+| `cohortDocPath`                                                    | Presence requires a successful single-active-WU result with a path; omission remains valid when no coordinating document resolves. The same rule applies to lean recovery.                                         |
+| `taskCursor`                                                       | Present iff `active` succeeds with a non-null task-list path that passes the existing load-set path-safety check. The same rule applies to lean recovery.                                                          |
+| `compactionSeedWrite`                                              | Invocation-conditional only. Validate the full value when present; do not infer the command flag from the envelope.                                                                                                |
+
+Tests exercise one valid and one invalid mutation for every row with a cross-field rule. They use the Phase 1 arm
+fixtures so schema presence checks and byte-level producer characterization share the same state vocabulary.
+
+## Boundary failure disposition
+
+Validation disposition follows trust boundary, not merely which schema failed:
+
+| Boundary defect                                                   | Disposition                                                                         | Exit/output contract                                                  | Work performed                                                      |
+|-------------------------------------------------------------------|-------------------------------------------------------------------------------------|-----------------------------------------------------------------------|---------------------------------------------------------------------|
+| Internal session-init, lean-recovery, or recovery-report producer | Throw `session-envelope.invalid` through the top-level CLI error boundary           | Non-zero; stable stderr; no stdout                                    | Stop before JSON or text rendering                                  |
+| Internal compaction-seed producer                                 | Return `compactionSeedWrite: { status: "failed", reason: "seed-invalid", message }` | Session-init remains successful and emits its original valid envelope | Do not write the seed; do not block compaction                      |
+| Malformed, schema-invalid, or version-mismatched persisted seed   | Emit a valid `recover-audit` report stopped with `seed-invalid`                     | Successful machine-readable report                                    | Do not run live recovery probes or construct a replacement baseline |
+| Current valid persisted seed                                      | Continue through ordinary recovery audit                                            | Existing ready/stopped report behavior                                | Probe live state and compare it with the seed baseline              |
+
+`lib/session-envelope/validation.ts` owns the shared producer assertion. It validates for effect, discards the
+parsed copy, and formats schema issues deterministically with the registered contract id and normalized paths. The
+status and report modules export contract-specific assertions that delegate to it. Each complete wire root is a
+strict object, so an undeclared top-level key reaches this failure path rather than disappearing only from the
+discarded parsed copy.
+
+Tests follow the same boundary split. Schema/assertion unit tests inject malformed internal values directly;
+handler-level tests substitute malformed assembled results to prove call placement and no-output rejection. Built
+CLI E2E covers externally constructible states — valid exact-byte output and invalid persisted seeds — without a
+production environment bypass whose only purpose is manufacturing an internal defect.
+
 ## Characterization & test-coverage state
 
-The byte-stability golden is characterize-first work, and the starting coverage is uneven:
+The byte-stability golden matrix is characterize-first work, and the starting coverage is uneven:
 
 - **Compaction-seed — already characterized.** It carries exact-shape characterization today (whole-object
-  round-trip, unknown-field stripping, all error kinds). This is the model the other two goldens follow.
+  round-trip, unknown-field stripping, all error kinds). This is the model the other envelope goldens follow.
 - **Session-init and recovery-audit — effectively greenfield.** Existing end-to-end coverage only spot-checks a few
-  fields and re-declares slots loosely. Build a full-shape golden for each — with machine-specific values (paths,
-  object ids, timestamps) normalized — **before** changing production assembly, so the refactor is measured against
-  a locked baseline rather than a loose one.
+  fields and re-declares slots loosely. Build four successful session-init goldens — Orient/materialization,
+  linked active resume, linked branchless current-husk, and branch-gone recovery — plus ready/stopped recovery-audit
+  goldens, with machine-specific values normalized, **before** changing production assembly. This covers every
+  conditional insertion region without a Cartesian product and measures the refactor against locked baselines.
 
 ## Result-migration seam map
 
 Concrete loci for the internal `Probe<T>` → `Result` / `ResultAsync` migration (greenfield — the kernel Result has
 no production consumers yet):
 
-- **Core seam:** the `safeProbe` wrapper in `commands/status/run.ts` — the throw → `{ kind: "runtime" }` mapping
-  every slot funnels through, and `buildSessionSharedSlots` (same file) which the handoff and full-mode
-  orchestrators also ride.
+- **Internal algebra:** every present slot is an independent `ResultAsync<T, SessionStatusError>`. Eager probes
+  start independently and their Results resolve through `Promise.all`; `ResultAsync.combine` is not used because
+  aggregate failure would discard sibling outcomes. A skipped optional slot is outer `undefined` / `null`, never
+  `Ok(undefined)`. Mandatory user identity absence is an `Err`.
+- **Focused seam:** `commands/status/result-composition.ts` owns the session error variants, `safeProbe`, immediate
+  Result helpers, slot-to-wire conversion, and the small generic gated/user primitives. `commands/status/run.ts`
+  retains orchestration and `buildSessionSharedSlots`, which declares eager independent ResultAsync slots rather
+  than wire-shaped promises.
+- **Internal errors and adapter:** `SessionIdentityMissingError` uses `session.identity-missing`;
+  `SessionProbeError` uses `session.probe-failed` and carries slot/probe context plus the original cause;
+  `SessionCompositionError` uses `session.composition-failed` and carries operation/slot context plus the cause.
+  `SessionStatusError` is the exhaustive union of those three variants. `toProbe()` is the sole conversion point:
+  identity absence maps to wire `identity-missing`, the other variants map to wire `runtime`, and every arm
+  preserves the internal error's message. Probe/composition messages retain `Error.message` or `String(cause)` for
+  a non-`Error` failure.
+- **Synchronous composition boundary:** wrap the known fallible load-set projection (`resolveLoadSetManifest`) as a
+  composition error. Do not blanket-catch pure recommendation/enrichment transforms or programming defects into an
+  arbitrary slot. Use `fromThrowable` / `andThen` where a synchronous operation is intentionally fallible; a
+  throwing `map` callback is not the error channel.
 - **Orchestrators that assemble results:** `runStatus` (full), `runSessionInitStatus`, `runRecoverStatus`,
-  `runSessionHandoffStatus`. The `Promise<T>` slot producers become `ResultAsync<T, ProbeError>`.
-- **Error channel:** `ProbeError` (`commands/status/types.ts`) is the wire error `{ kind: "identity-missing" |
-  "runtime", message }`. Internal kinds may subclass the kernel error base for richer context, but an explicit
-  boundary adapter maps back to the legacy `{ kind, message }` on emit — emitting a dotted code or a stringified
-  error is a silent wire regression.
-- **Import discipline:** `Result` / `ResultAsync` come only through the kernel barrel (`lib/kernel/index.ts`); a
-  compile-time boundary audit forbids importing neverthrow directly.
+  `runSessionHandoffStatus`. Derived and gated stages inspect/map individual Results; each present final slot passes
+  through `toProbe()` at envelope construction. Existing fallbacks remain behavioral authority: failed worktree
+  identity uses primary, failed supersession yields `null`, and degraded advisories stay omitted where they do now.
+- **Kernel surface and import discipline:** re-export `okAsync` / `errAsync` beside `Result` / `ResultAsync` from
+  `lib/kernel/result.ts` and `lib/kernel/index.ts`, with kernel Result and exact barrel-surface tests updated. All
+  session imports use the barrel; the source-graph audit keeps direct `neverthrow` imports exclusive to
+  `lib/kernel/result.ts`.
+- **Test placement:** put error, helper, absence, non-`Error`, and exact-adapter coverage in
+  `__tests__/unit/status/result-composition.test.ts`; keep `run.test.ts` focused on orchestration, concurrency,
+  call-count, gating, fallback, and exact-envelope behavior. Update stale Promise/Probe TSDoc as the seam migrates.
 - **Out-of-charter but seam-touched:** the handoff (`session-handoff`) and full-mode (`full`) `status` envelopes
   ride the shared seam but are not validated or goldened here (see the spec's Scope boundary). Their shared slots
-  are transitively byte-covered by the session-init golden; their unique slots' producer changes are bounded by the
-  compose-site typecheck.
+  are transitively byte-covered by the session-init golden matrix; their unique slots' producer changes are bounded
+  by the compose-site typecheck.
+
+## Performance measurement protocol
+
+The non-gating benchmark lives at `__tests__/benchmarks/session-envelope-validation.ts`, outside Vitest's unit,
+integration, and E2E globs, with a dedicated `benchmark:session-envelope` package/root script. It builds once before
+sampling and excludes build and fixture-setup time from all measurements.
+
+- **Warm paired measurement:** reuse `__tests__/helpers/session-envelope-compat.ts` to prepare the Phase 1
+  Orient/materialization full-slot state, capture one valid session-init envelope during setup, and retain it before
+  machine-specific normalization.
+  After 20 discarded samples, interleave 1,000 real producer-assertion and no-op fixture-consumption samples so both
+  arms see the same object and process conditions. The no-op belongs only to the benchmark harness; it is not
+  injectable through the production CLI.
+- **Cold production measurement:** prepare one stable local fixture with remote sync disabled, discard 5 built-CLI
+  `status --session-init --json` process samples, then record 30. Every process runs the production assertion path;
+  there is no flag, environment variable, config key, or alternate binary that disables validation.
+- **Recorded evidence:** capture operating system, architecture, Node/npm versions, build command, fixture state,
+  sample/warm-up counts, p50, and p95 for the paired validation delta and the complete cold command. Record observed
+  results beneath this section when Task 7.2 runs.
+- **Materiality:** stop for an evidence-plus-replacement-invariant decision if validation p50 exceeds 5 ms or 5% of
+  cold-command p50, or validation p95 exceeds 20 ms. Otherwise retain always-on validation. The benchmark never
+  becomes a wall-clock CI assertion.
