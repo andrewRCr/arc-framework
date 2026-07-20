@@ -183,10 +183,10 @@ pull-request count, provider choice, or host mechanics.
   relying only on six representative examples.
 - _Context:_ Operationalizes Success Criteria 1–3 across the Phase 1–2 public interfaces.
 
-    - `[ ]` **2.4.a Exhaust the closed routing matrix**
-        - Generate every enum combination accepted by the routing schema and assert one valid output with no
-          non-exempt/`none` retrigger pair.
-        - Pin the six representative rows and every stable core reason as readable regression cases.
+    - `[x]` **2.4.a Exhaust the closed routing matrix**
+        - Added exhaustive coverage across all 27,648 schema-accepted fact combinations, proving every input returns
+          a valid decision with a congruent obligation/retrigger pair; pinned the complete framework-reason
+          vocabulary alongside the existing six readable base-route regressions.
 
     - `[ ]` **2.4.b Prove monotonic promotion and activation properties**
         - Add property assertions that sensitivity, ownership, authority, and project policy never lower any
