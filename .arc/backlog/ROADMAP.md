@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `08a94c29c`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `a71545164`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,13 +13,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit           | Priority | Owner  | Depends on | Cohort                 |
-| ------------- | ------------------- | -------- | ------ | ---------- | ---------------------- |
-| `Active`      | review-architecture | P1       | andrew | —          | —                      |
-| `Planning`    | session-locus-model | P1       | andrew | —          | —                      |
-| `Planning`    | cli-layout-resolver | P2       | andrew | —          | cli-substrate-adoption |
-| `Planning`    | markdown-formatting | P3       | andrew | —          | —                      |
-| `Integrating` | self-hosted-ci      | P3       | andrew | —          | —                      |
+| State      | Work unit           | Priority | Owner  | Depends on | Cohort                 |
+| ---------- | ------------------- | -------- | ------ | ---------- | ---------------------- |
+| `Active`   | review-architecture | P1       | andrew | —          | —                      |
+| `Planning` | session-locus-model | P1       | andrew | —          | —                      |
+| `Planning` | cli-layout-resolver | P2       | andrew | —          | cli-substrate-adoption |
+| `Planning` | markdown-formatting | P3       | andrew | —          | —                      |
 
 ## Ready
 
@@ -78,6 +77,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | planning-iteration-mechanics          | P3       | andrew | —          | —                          |
 | quality-gate-hooks                    | P3       | andrew | —          | —                          |
 | rules-restructure                     | P3       | andrew | —          | —                          |
+| self-hosted-ci-qualification          | P3       | andrew | —          | —                          |
 | session-retitle                       | P3       | andrew | —          | —                          |
 | shared-inbox-model                    | P3       | andrew | —          | —                          |
 | skill-infrastructure-cleanup          | P3       | andrew | —          | —                          |
@@ -99,7 +99,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | workflow-template-loads           | P3       | andrew | composable-workflows                                             | principle-anchored-core    |
 | docs-content-sweep                | P3       | andrew | docs-site-refresh                                                | release-readiness          |
 | comprehension-preservation        | P3       | andrew | execution-delegation-doctrine                                    | —                          |
-| self-hosted-ci-qualification      | P3       | andrew | self-hosted-ci                                                   | —                          |
 
 ### Depth 2
 

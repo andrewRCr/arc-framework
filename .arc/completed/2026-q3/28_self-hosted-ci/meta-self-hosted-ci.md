@@ -1,8 +1,8 @@
 # Metadata: self-hosted-ci
 
-| **State**     | **Owner** | **Branch**            | **Class** | **Priority** |
-| ------------- | --------- | --------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/self-hosted-ci` | `Heavy`   | `P3`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/305>
+- **Completed:** 2026-07-20
 
 ## Release Notes Entry
 
