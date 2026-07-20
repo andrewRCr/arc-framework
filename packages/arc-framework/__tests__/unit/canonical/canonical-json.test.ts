@@ -1,12 +1,35 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
   assertCanonicalDigest,
   canonicalDigest,
   canonicalize,
+  digestBytes,
   isCanonicalDigest,
   sortByCanonicalBytes,
+  type CanonicalDigest,
 } from "../../../src/lib/canonical/canonical-json.js";
+import {
+  assertCanonicalDigest as kernelAssertCanonicalDigest,
+  canonicalDigest as kernelCanonicalDigest,
+  canonicalize as kernelCanonicalize,
+  digestBytes as kernelDigestBytes,
+  isCanonicalDigest as kernelIsCanonicalDigest,
+  sortByCanonicalBytes as kernelSortByCanonicalBytes,
+  type CanonicalDigest as KernelCanonicalDigest,
+} from "../../../src/lib/kernel/index.js";
+
+describe("canonical JSON compatibility exports", () => {
+  it("exposes the exact kernel runtime functions and digest type through the old path", () => {
+    expect(canonicalize).toBe(kernelCanonicalize);
+    expect(digestBytes).toBe(kernelDigestBytes);
+    expect(canonicalDigest).toBe(kernelCanonicalDigest);
+    expect(isCanonicalDigest).toBe(kernelIsCanonicalDigest);
+    expect(assertCanonicalDigest).toBe(kernelAssertCanonicalDigest);
+    expect(sortByCanonicalBytes).toBe(kernelSortByCanonicalBytes);
+    expectTypeOf<CanonicalDigest>().toEqualTypeOf<KernelCanonicalDigest>();
+  });
+});
 
 describe("canonical JSON serialization", () => {
   it("serializes object keys in recursively codepoint order regardless of insertion order", () => {
@@ -38,6 +61,18 @@ describe("canonical JSON serialization", () => {
 
   it("preserves array order (arrays are semantically ordered, never sorted)", () => {
     expect(canonicalize({ list: [3, 1, 2] })).toBe('{"list":[3,1,2]}');
+  });
+
+  it("rejects sparse arrays rather than emitting ambiguous or invalid JSON", () => {
+    const interiorHole: unknown[] = [];
+    interiorHole.length = 3;
+    interiorHole[0] = 1;
+    interiorHole[2] = 3;
+    const onlyHole: unknown[] = [];
+    onlyHole.length = 1;
+
+    expect(() => canonicalize(interiorHole)).toThrow(/\$\[1\].*sparse array/u);
+    expect(() => canonicalize(onlyHole)).toThrow(/\$\[0\].*sparse array/u);
   });
 
   it.each([
@@ -107,6 +142,12 @@ describe("canonical JSON serialization", () => {
 describe("CanonicalDigest validation", () => {
   const valid = `sha256:${"a".repeat(64)}`;
 
+  it("hashes exact raw bytes into the canonical wire format", () => {
+    expect(digestBytes(Uint8Array.from([0, 1, 2, 255]))).toBe(
+      "sha256:3d1f57c984978ef98a18378c8166c1cb8ede02c03eeb6aee7e2f121dfeee3e56",
+    );
+  });
+
   it("accepts exactly sha256: plus 64 lowercase hex", () => {
     expect(isCanonicalDigest(valid)).toBe(true);
     expect(canonicalDigest({})).toSatisfy(isCanonicalDigest);
@@ -123,6 +164,15 @@ describe("CanonicalDigest validation", () => {
   ])("rejects every other spelling: %s", (_label, value) => {
     expect(isCanonicalDigest(value)).toBe(false);
     expect(() => assertCanonicalDigest(value)).toThrow();
+  });
+
+  it("narrows values accepted by the guard and assertion", () => {
+    const guarded: unknown = valid;
+    if (isCanonicalDigest(guarded)) expectTypeOf(guarded).toEqualTypeOf<CanonicalDigest>();
+
+    const asserted: unknown = valid;
+    assertCanonicalDigest(asserted);
+    expectTypeOf(asserted).toEqualTypeOf<CanonicalDigest>();
   });
 });
 

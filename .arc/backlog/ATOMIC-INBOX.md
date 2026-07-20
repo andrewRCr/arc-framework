@@ -65,14 +65,3 @@
   escape hatch if typecheck time matters sooner: side-by-side `typescript@7` for `tsc` +
   `@typescript/typescript6` pinned for ESLint. Coordinate with the `cli-substrate-adoption` kernel buffer note
   (Zod-first inversion) so the kernel never needs the compiler API at all.
-
-### `[ ]` **De-flake the base-drift advisory e2e fetch race**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-19) — homeless atomic, deferred; captured after
-  PR #292's unchanged retry passed.
-- _Observation:_ `session-init.e2e.test.ts`'s shared advisory base-drift case once produced
-  `verdict: "unavailable"` / `unavailableReason: "fetch-failed"` instead of `reconcile` under CI shard load. The
-  suite and the data-only PR were otherwise unchanged, and the failed-job retry passed.
-- _Approach:_ reproduce under repetition or load, then make the fixture's local-file-remote fetch leg
-  deterministic or add diagnostics that distinguish a genuine fetch failure from fixture contention. Preserve
-  the product's `unavailable` semantics for real failures; change only the test environment.
