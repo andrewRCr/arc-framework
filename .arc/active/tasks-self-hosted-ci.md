@@ -266,7 +266,7 @@ creation to final check completion and compute nearest-rank p95 over the qualify
 eligible failure or cancellation in the reliability ledger. Runner assignments prove execution placement, while
 repository/SKU billing data is aggregate corroboration rather than per-workflow attribution.
 
-### `[ ]` **4.1 Complete the seven-day, twenty-run canary and calculate its acceptance measures**
+### `[~]` **4.1 Complete the seven-day, twenty-run canary and calculate its acceptance measures**
 
 - _Goal:_ A reviewable sample proves or falsifies the two-slot host against cost, latency, flake, and availability
   targets without mixing fallback runs or non-comparable light lanes into the result.
@@ -279,7 +279,7 @@ repository/SKU billing data is aggregate corroboration rather than per-workflow 
         - Re-proved five-minute/60-day host sampling plus persistent 60-day/1-GB service logs, removed one exact
           pre-allocation image sample, and retained the protected pre-rebuild export to bridge the destructive drill.
 
-    - `[ ]` **4.1.b Satisfy both sample floors**
+    - `[~]` **4.1.b Satisfy both sample floors**
         - Maintain the ledger for every otherwise-eligible run, including failed, retried, cancelled, and superseded
           runs; only a run whose final attempt completes the full heavy graph and `merge-ok` counts toward the
           latency sample, but runner-caused failures or retries remain part of the reliability outcome.
@@ -290,7 +290,7 @@ repository/SKU billing data is aggregate corroboration rather than per-workflow 
           Actions fork setting changes, select hosted fallback and re-run the complete trust checklist before
           resuming the canary.
 
-    - `[ ]` **4.1.c Calculate and classify the canary outcome**
+    - `[~]` **4.1.c Calculate and classify the canary outcome**
         - Treat all attempts for one workflow run id as one sample, sort initial-creation-to-final-`merge-ok`
           durations, and use nearest-rank `ceil(0.95 × N)` for p95; require p95 under ten minutes, no runner-caused
           flake, and no unexplained offline stall.
@@ -303,12 +303,15 @@ repository/SKU billing data is aggregate corroboration rather than per-workflow 
         - Compare aggregate Actions usage with the hosted baseline and confirm every normal `ci.yml` Linux job used
           the expected self-hosted runner; report unrelated hosted Linux and fallback usage separately.
 
-### `[ ]` **4.2 Resolve the canary result with at most one evidence-driven correction**
+- _Outcome:_ The initial ledger and collection contract remain evidence for `self-hosted-ci-qualification`; that
+  planned follow-up owns both sample floors and the acceptance calculation after normal `main` traffic accumulates.
+
+### `[~]` **4.2 Resolve the canary result with at most one evidence-driven correction**
 
 - _Goal:_ A passing canary advances unchanged, while a failed canary receives the response matched to its measured
   cause without speculative expansion or an indefinite tuning loop.
 
-    - `[ ]` **4.2.a Choose the response from measured evidence**
+    - `[~]` **4.2.a Choose the response from measured evidence**
         - If the initial configuration passes every target, record that no tuning is required and proceed directly
           to the permanent-posture decision.
         - Queue depth calls for another runner service plus proportional host capacity; per-job starvation calls
@@ -318,7 +321,7 @@ repository/SKU billing data is aggregate corroboration rather than per-workflow 
           approval before modifying the paid service or runner count or performing any runner deregistration,
           destructive remediation, or host destruction/replacement.
 
-    - `[ ]` **4.2.b Apply at most one approved tuning pass**
+    - `[~]` **4.2.b Apply at most one approved tuning pass**
         - Select and verify hosted fallback before changing infrastructure. Preserve the job graph, apply only the
           approved correction, update the runbook/evidence for the final slot/resource shape, and retain the
           original sample as diagnostic evidence.
@@ -330,35 +333,41 @@ repository/SKU billing data is aggregate corroboration rather than per-workflow 
           canary. Repeat both the seven-day and twenty-qualifying-run floors without another material change before
           accepting that configuration.
 
-    - `[ ]` **4.2.c Stop tuning if the target remains unacceptable**
+    - `[~]` **4.2.c Stop tuning if the target remains unacceptable**
         - Restore `ubuntu-latest` fallback, verify hosted execution, and record why permanent self-hosting was
           rejected rather than broadening scope into autoscaling or a platform project.
 
-### `[ ]` **4.3 Settle the permanent routing posture and maintenance baseline from canary evidence**
+- _Outcome:_ Transferred intact to `self-hosted-ci-qualification`, including the one-correction ceiling and every
+  approval boundary for paid, destructive, or runner-registration changes.
+
+### `[~]` **4.3 Settle the permanent routing posture and maintenance baseline from canary evidence**
 
 - _Goal:_ Repository state, runner lifecycle, monthly ownership, and the evidence record all agree on one explicit
   accepted posture: permanent self-hosted Linux or verified hosted fallback.
 
-    - `[ ]` **4.3.a Decide the permanent route against the success criteria**
+    - `[~]` **4.3.a Decide the permanent route against the success criteria**
         - Accept `arc-ci-linux` only when cost, p95, reliability, fallback, rebuild, trust, and verified-tree proofs
           all hold; otherwise keep `ubuntu-latest` selected.
         - Re-run the complete executable-principal checklist, read back `ARC_CI_LINUX_RUNNER`, and verify the
           expected runner services are online/idle before recording the final posture.
 
-    - `[ ]` **4.3.b Establish the ongoing maintenance baseline**
+    - `[~]` **4.3.b Establish the ongoing maintenance baseline**
         - Record the monthly runner/update/log/disk check, reboot handling, access-change recheck, responsible
           operator, and the rebuild/fallback threshold.
 
-    - `[ ]` **4.3.c Close unused external infrastructure deliberately**
+    - `[~]` **4.3.c Close unused external infrastructure deliberately**
         - If hosted fallback is permanent, surface and obtain approval for runner deregistration and VPS
           cancellation/destruction; verify no runner identity or paid allocation remains accidentally active.
+
+- _Outcome:_ Transferred to `self-hosted-ci-qualification`; this WU delivers the reversible trial route without
+  prematurely declaring it the permanent architecture.
 
 ## **Phase 5:** Operational and architectural closeout
 
 _Purpose:_ Reconcile the durable operating guidance with what the drills and canary proved, then align the project's
 architecture source of truth with the accepted operating posture.
 
-### `[ ]` **5.1 Reconcile the operations runbook with canary and rebuild findings**
+### `[~]` **5.1 Reconcile the operations runbook with canary and rebuild findings**
 
 - _Goal:_ The checked-in runbook accurately operates an accepted self-hosted route or preserves a dormant,
   requalification-required procedure after decommission, without historical drill narration, stale commands,
@@ -377,7 +386,10 @@ architecture source of truth with the accepted operating posture.
     - Re-run every affected non-destructive command and read-only health probe, then run scoped markdown lint; do
       not repeat destructive infrastructure operations merely to validate wording.
 
-### `[ ]` **5.2 Reconcile the accepted Linux CI target in `.arc/reference/TECHNICAL-OVERVIEW.md`**
+- _Outcome:_ Final posture reconciliation moved to `self-hosted-ci-qualification`; the checked-in trial runbook
+  remains the proven provisioning, fallback, rebuild, maintenance, and decommission baseline for this delivery.
+
+### `[~]` **5.2 Reconcile the accepted Linux CI target in `.arc/reference/TECHNICAL-OVERVIEW.md`**
 
 - _Goal:_ The infrastructure source of truth accurately states the live Linux runner target, bounded concurrency,
   hosted portability/review boundaries, and variable-controlled fallback after the canary settles.
@@ -391,14 +403,18 @@ architecture source of truth with the accepted operating posture.
       unchanged. Record the settled decision in `notes-self-hosted-ci.md`, and surface every affected success
       criterion for evidence-based `[~]` or `[ ]` disposition during verification rather than singling out one.
 
+- _Outcome:_ Deferred to `self-hosted-ci-qualification`, where the measured permanent-posture decision can support
+  an architecture claim; the bounded trial intentionally makes no such claim.
+
 ## **Phase 6:** Verification
 
 _Purpose:_ Verify the settled implementation and operational evidence against the full design and project gates.
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **6.1 Complete trial-cutover verification** — load and follow `verify-work-unit.md`
 
-- _Goal:_ The repository changes, external runner state, cutover evidence, canary decision, durable documentation,
-  and every success criterion withstand the work-unit verification workflow.
+- _Goal:_ The repository changes, external runner state, reversible trial cutover, fallback and rebuild evidence,
+  checked-in runbook, transferred qualification scope, and every retained success criterion withstand the work-unit
+  verification workflow.
 
 ---
 
@@ -408,13 +424,13 @@ _Purpose:_ Verify the settled implementation and operational evidence against th
   route, while Windows/macOS portability plus docs and review-gate workflows remain GitHub-hosted.
 - `[ ]` A comparable heavy run records zero billed hosted Linux job-minutes outside an explicitly identified
   fallback drill.
-- `[ ]` The canary includes at least seven elapsed days and twenty comparable heavy runs, with p95 `merge-ok`
+- `[~]` The canary includes at least seven elapsed days and twenty comparable heavy runs, with p95 `merge-ok`
   latency below ten minutes and no runner-caused flake or unexplained offline stall.
 - `[ ]` The variable-only fallback drill restores hosted Linux execution in under five minutes.
 - `[ ]` A no-backup rebuild from `.github/self-hosted-ci.md` restores every accepted runner service within two
   hours.
 - `[ ]` The live portability check is named `Portability (concurrency guards) (linux)`, matches the classifier,
   and a known-verified tree produces `weight=light reason=verified` on self-hosted execution.
-- `[ ]` `TECHNICAL-OVERVIEW.md` § 3 records the accepted self-hosted Linux execution target at permanent cutover.
+- `[~]` `TECHNICAL-OVERVIEW.md` § 3 records the accepted self-hosted Linux execution target at permanent cutover.
 - `[ ]` All quality gates pass (tests, linting, type checking, build, workflow parsing, and shell linting).
 - `[ ]` Ready for integration.

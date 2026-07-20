@@ -50,6 +50,9 @@ plane cheap while preserving GitHub-hosted macOS/Windows coverage and an immedia
 - Moving privileged `pull_request_target` review-gate workflows or the hosted cross-platform jobs to self-hosted.
 - Autoscaling, ephemeral runners, Kubernetes, custom runner images, or any general infrastructure platform.
 - A test-topology rewrite (job-graph consolidation) — considered only post-canary, on measured evidence.
+- Seven-day/twenty-run acceptance, any evidence-driven correction, the permanent-posture decision, and its final
+  operations/architecture reconciliation — transferred to the planned `self-hosted-ci-qualification` follow-up so
+  the proven, reversible routing can serve normal `main` traffic while the sample accumulates.
 
 ## Proposed Design
 
@@ -251,8 +254,9 @@ trade. Two consequences follow, and this is the design's primary risk:
 
 - The renamed portability check requires updating `HEAVY_CHECK_NAMES` and its unit fixture in the same change; the
   existing classifier unit suite guards the check-name contract.
-- The canary is the acceptance test: measured `merge-ok` p95, and flake / offline-stall observation across the
-  sample floor.
+- The initial qualifying runs prove the trial path and seed the acceptance ledger. `self-hosted-ci-qualification`
+  owns the canary acceptance test: measured `merge-ok` p95 plus flake/offline-stall observation across both sample
+  floors.
 - **Verified-tree reuse must be confirmed to fire on self-hosted**, not merely that runs go green. The classifier's
   lookback shells `gh api` and swallows failure (`2>/dev/null … || true`), so a missing `gh` or token on the host
   reads as "not verified" and silently forces every code PR heavy — inflating the very two-slot contention the
@@ -266,11 +270,14 @@ trade. Two consequences follow, and this is the design's primary risk:
 
 - The change lands hosted-first: the variable is set to the self-hosted label only after the access-control
   precondition passes and the runner is confirmed healthy. Until then the fail-safe default keeps execution hosted.
-- The canary runs the real job graph; unacceptable latency or reliability routes to burst-to-hosted, then a tuning
-  pass (resize or add a service), then a permanent hosted fallback if the target cannot be met economically.
-- **TECHNICAL-OVERVIEW update is an in-scope deliverable.** § 3 Infrastructure (CI/CD) records the self-hosted
-  Linux execution target only at permanent cutover after canary acceptance, riding TECHNICAL-OVERVIEW's
-  infrastructure-shift update discipline as a dedicated edit with rationale. The bounded trial is qualification,
+- Once routing, trust, fallback, rebuild, and exact-head qualification are proven, the reversible trial delivery
+  integrates so normal `main` pull requests receive the savings and produce representative canary traffic.
+- `self-hosted-ci-qualification` starts after the seven-day floor, imports the ledger accumulated since cutover,
+  and waits in the planned backlog rather than holding an active branch open if the twenty-run floor is not yet met.
+  Unacceptable latency or reliability routes to burst-to-hosted, then at most one correction, then permanent hosted
+  fallback if the target cannot be met economically.
+- **TECHNICAL-OVERVIEW update is a follow-up deliverable.** § 3 Infrastructure (CI/CD) records the self-hosted
+  Linux execution target only at permanent cutover after canary acceptance. The bounded trial is qualification,
   not a durable architecture claim; permanent hosted fallback leaves the existing overview unchanged.
 - Decommission is a documented sequence: select hosted, verify a hosted run, deregister every runner, destroy the
   VPS.
@@ -281,17 +288,13 @@ trade. Two consequences follow, and this is the design's primary risk:
    portability jobs remain hosted.
 2. A comparable heavy PR run drops from about 14 billed Linux job-minutes to zero, excluding an explicitly invoked
    hosted-fallback run.
-3. The canary runs for at least seven days and 20 comparable heavy-PR runs, with no runner-caused flakes or
-   unexplained offline stalls, and reaches `merge-ok` within 10 minutes at p95. If seven days does not produce the
-   sample floor, the canary continues until it does.
-4. Switching `ARC_CI_LINUX_RUNNER` to `ubuntu-latest` and re-running restores the hosted path in under five
+3. Switching `ARC_CI_LINUX_RUNNER` to `ubuntu-latest` and re-running restores the hosted path in under five
    minutes without a workflow edit.
-5. The runner can be rebuilt from the checked-in runbook in at most two hours, with no machine backup required.
-6. After the check-identity change, the portability check name `Portability (concurrency guards) (linux)` matches
+4. The runner can be rebuilt from the checked-in runbook in at most two hours, with no machine backup required.
+5. After the check-identity change, the portability check name `Portability (concurrency guards) (linux)` matches
    its `HEAVY_CHECK_NAMES` entry (alongside the unchanged lint/typecheck, unit, integration, and E2E-shard names),
    and a known-verified tree classifies `reason=verified` when built on the self-hosted runner — so verified-tree
    reuse survives the executor change in fact, not just in name.
-7. TECHNICAL-OVERVIEW § 3 records the accepted self-hosted Linux execution target at permanent cutover.
 
 ## Open Questions
 
@@ -299,4 +302,5 @@ trade. Two consequences follow, and this is the design's primary risk:
   resource and price envelope, not a design blocker.
 - Whether two slots meet the p95 target under this repository's real concurrency — the canary's primary falsifiable
   assumption. The first response is to add a runner service or resize; a permanent hosted fallback follows if the
-  target cannot be met economically. This is resolved by measurement during the work, not deferred design debt.
+  target cannot be met economically. `self-hosted-ci-qualification` resolves this from the accumulated measurement;
+  the transfer is an explicit delivery boundary, not deferred design debt.
