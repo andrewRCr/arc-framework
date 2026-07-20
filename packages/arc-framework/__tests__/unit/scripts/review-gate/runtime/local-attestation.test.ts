@@ -78,6 +78,7 @@ function fixture() {
     evaluatorIdentity: carrier.request.evaluatorIdentity,
     reviewRunId: "run-1",
     applicabilityId: null,
+    findings: [],
   };
   return { target, requirement, carrier, store, appendReceipt, result };
 }
@@ -87,7 +88,16 @@ describe("local review attestation", () => {
     const records = fixture();
     const receipt = await attestLocalReviewResult({
       ...records,
-      result: { ...records.result, result },
+      result: {
+        ...records.result,
+        result,
+        findings: result === "findings" ? [{
+          findingId: "finding-1",
+          severity: "major" as const,
+          locus: "src/index.ts:1",
+          evidenceUrlOrId: "local:finding-1",
+        }] : [],
+      },
       currentTarget: async () => records.target,
       runtimeIdentity: records.carrier.attestation.runtimeIdentity,
       attestationMechanism: records.carrier.attestation.mechanism,

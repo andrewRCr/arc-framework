@@ -1,0 +1,101 @@
+import { describe, expect, it } from "vitest";
+
+import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import {
+  FindingConversationClosureV2Schema,
+  FindingSettlementV2Schema,
+  NormalizedReviewFindingSchema,
+  normalizeProviderFindingClassification,
+} from "../../../../../src/scripts/review-gate/core/finding-records.js";
+import { reduceNormalizedFindings } from "../../../../../src/scripts/review-gate/core/findings.js";
+import {
+  createFindingConversationClosureV2,
+  createFindingSettlementV2,
+} from "../../../../../src/scripts/review-gate/runtime/finding-settlement.js";
+
+const targetId = canonicalDigest({ target: "old" });
+const fixTargetId = canonicalDigest({ target: "fixed" });
+const finding = {
+  findingId: "finding-1",
+  severity: "minor" as const,
+  nit: true as const,
+  locus: "src/index.ts:7",
+  evidenceUrlOrId: "review:finding-1",
+};
+
+describe("normalized finding records", () => {
+  it.each([
+    ["critical", "blocker"],
+    ["high", "major"],
+    ["medium", "major"],
+    ["low", "minor"],
+    ["info", "minor"],
+  ] as const)("normalizes provider %s severity to %s", (providerSeverity, severity) => {
+    expect(normalizeProviderFindingClassification(providerSeverity, false)).toEqual({ severity });
+  });
+
+  it("requires an explicit pure-polish signal and rejects nit on non-minor findings", () => {
+    expect(normalizeProviderFindingClassification("low", false)).toEqual({ severity: "minor" });
+    expect(normalizeProviderFindingClassification("low", true)).toEqual({ severity: "minor", nit: true });
+    expect(() => NormalizedReviewFindingSchema.parse({ ...finding, severity: "major" })).toThrow(/nit/iu);
+  });
+
+  it("reduces the registered finding shape and rejects reused source identities", () => {
+    expect(reduceNormalizedFindings([{ sourceIdentity: "codex-pr", findings: [finding] }]))
+      .toEqual([{ ...finding, sourceIdentity: "codex-pr" }]);
+    expect(() => reduceNormalizedFindings([
+      { sourceIdentity: "codex-pr", findings: [finding] },
+      { sourceIdentity: "codex-pr", findings: [{ ...finding, locus: "src/other.ts:1" }] },
+    ])).toThrow(/finding-identity-reused/u);
+  });
+});
+
+describe("forward finding settlement", () => {
+  it("records severity and disposition while keeping conversation closure separate", () => {
+    const settlement = createFindingSettlementV2({
+      targetId,
+      sourceIdentity: "codex-pr",
+      finding,
+      disposition: "fix",
+      rationale: "The report is source-verified and the fix is approved.",
+      settledBy: "author-1",
+      settledAt: "2026-07-20T20:00:00Z",
+      fixTargetId,
+      verificationRefs: ["ci:run-1"],
+    });
+    expect(FindingSettlementV2Schema.parse(settlement)).toMatchObject({
+      severity: "minor",
+      nit: true,
+      disposition: "fix",
+      fixTargetId,
+    });
+
+    const closure = createFindingConversationClosureV2({
+      settlement,
+      authorityIdentity: "github-app",
+      hostEvidenceRef: "github:thread-1:resolved",
+      closedAt: "2026-07-20T20:01:00Z",
+    });
+    expect(FindingConversationClosureV2Schema.parse(closure)).toMatchObject({
+      findingId: finding.findingId,
+      settlementId: canonicalDigest(settlement),
+    });
+    expect(closure).not.toHaveProperty("disposition");
+  });
+
+  it("rejects invalid fix and non-fix target bindings", () => {
+    const base = {
+      targetId,
+      sourceIdentity: "codex-pr",
+      finding,
+      rationale: "Approved rationale.",
+      settledBy: "author-1",
+      settledAt: "2026-07-20T20:00:00Z",
+      verificationRefs: ["ci:run-1"],
+    };
+    expect(() => createFindingSettlementV2({ ...base, disposition: "fix", fixTargetId: null }))
+      .toThrow(/resulting target/iu);
+    expect(() => createFindingSettlementV2({ ...base, disposition: "defer", fixTargetId }))
+      .toThrow(/resulting target/iu);
+  });
+});

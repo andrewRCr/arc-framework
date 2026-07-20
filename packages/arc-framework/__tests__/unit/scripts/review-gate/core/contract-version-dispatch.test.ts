@@ -134,6 +134,7 @@ function forward() {
     attestationMechanism: "github-app",
     providerEventIdentity: "event-1",
     result: "clean",
+    findings: [],
   });
   return { target, requirement, request, receipt };
 }

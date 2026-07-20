@@ -202,6 +202,7 @@ export function createReviewReceipt(input: ReviewReceiptCreationInput): ReviewRe
     rubricVersion: creation.requirement.rubricVersion,
     rubricDigest: creation.requirement.rubricDigest,
     result: creation.result,
+    findings: creation.findings,
   });
 }
 

@@ -5,7 +5,10 @@ import type { GitHubGraphQLClient } from "../../hosts/github/api/graphql.js";
 import type { GitHubRestClient } from "../../hosts/github/api/rest.js";
 import { resolveReviews, resolveThreads } from "../../hosts/github/native-review.js";
 import type { CodeRabbitApi, CodeRabbitRunContext, CodeRabbitSignal } from "./adapter.js";
-import type { FindingSeverity } from "../../core/evidence.js";
+import {
+  normalizeProviderFindingClassification,
+} from "../../core/finding-records.js";
+import type { ReviewSeverity } from "../../core/review-primitives.js";
 
 const CODERABBIT_CHECK = "CodeRabbit";
 
@@ -95,15 +98,20 @@ export function isCodeRabbitCleanReviewBody(body: string): boolean {
 }
 
 /** Map a provider-authored finding marker to the neutral severity vocabulary. */
-export function parseCodeRabbitFindingSeverity(body: string): FindingSeverity | null {
+export function parseCodeRabbitFindingSeverity(body: string): ReviewSeverity | null {
   const match = /_([🔴🟠🟡🔵]?)\s*(Critical|Major|Minor|Trivial)_/iu.exec(body);
-  switch (match?.[2]?.toLowerCase()) {
-    case "critical": return "critical";
-    case "major": return "high";
-    case "minor": return "medium";
-    case "trivial": return "low";
-    default: return null;
-  }
+  const providerSeverity = match?.[2]?.toLowerCase() === "critical" ? "critical"
+    : match?.[2]?.toLowerCase() === "major" ? "high"
+      : match?.[2]?.toLowerCase() === "minor" ? "medium"
+        : match?.[2]?.toLowerCase() === "trivial" ? "low"
+          : null;
+  return providerSeverity === null
+    ? null
+    : normalizeProviderFindingClassification(providerSeverity, false).severity;
+}
+
+function isExplicitPurePolish(body: string): boolean {
+  return /(?:\[nit\]|\bnitpick\b|\bpure[- ]polish\b)/iu.test(body);
 }
 
 /** Concrete diagnostic-only GitHub observation boundary for the CodeRabbit provider adapter. */
@@ -191,6 +199,7 @@ export class GitHubCodeRabbitObservationApi implements Pick<CodeRabbitApi, "read
         botUserId: comment.actor.identity,
         locus: `${comment.path}:${line}`,
         severity,
+        ...(isExplicitPurePolish(comment.body) ? { nit: true as const } : {}),
         url: comment.url,
       }];
     }));

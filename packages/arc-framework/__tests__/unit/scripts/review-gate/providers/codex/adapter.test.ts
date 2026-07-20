@@ -134,14 +134,15 @@ describe("hosted Codex adapter", () => {
       reviewNodeId: "PRR_1",
       botUserId: BOT_ID,
       locus: "src/a.ts:7",
-      severity: "high",
+      severity: "major",
       url: "https://github.test/discussion/1",
     }];
     expect(normalizeCodexRun(context(), signals, capabilities, { appId: APP_ID, botUserId: BOT_ID }))
       .toMatchObject({
         state: "findings",
         qualifying: true,
-        evidence: { result: "findings", findings: [{ findingId: "T_1", locus: "src/a.ts:7" }] },
+        findings: [{ findingId: "T_1", severity: "major", locus: "src/a.ts:7" }],
+        evidence: { result: "findings", findings: [{ findingId: "T_1", severity: "high", locus: "src/a.ts:7" }] },
       });
   });
 

@@ -1,9 +1,70 @@
 /** Coordinator-owned, receipt-backed finding settlement sequences. */
 
+import { canonicalDigest } from "../../../lib/kernel/index.js";
 import type { Evidence } from "../core/evidence.js";
+import {
+  FindingConversationClosureV2Schema,
+  FindingSettlementV2Schema,
+  NormalizedReviewFindingSchema,
+  type FindingConversationClosureV2,
+  type FindingSettlementV2,
+  type NormalizedReviewFinding,
+} from "../core/finding-records.js";
+import type { FindingDisposition } from "../core/review-primitives.js";
 import type { ReviewReceipt, ReviewRequest } from "../core/execution.js";
 import { createReceipt } from "../core/request-key.js";
 import type { SettlementReply, SettlementThread } from "../hosts/github/settlement.js";
+
+/** Create one forward settlement from a normalized finding; host closure remains a separate record. */
+export function createFindingSettlementV2(input: {
+  targetId: string;
+  sourceIdentity: string;
+  finding: NormalizedReviewFinding;
+  disposition: FindingDisposition;
+  rationale: string;
+  settledBy: string;
+  settledAt: string;
+  fixTargetId: string | null;
+  verificationRefs: string[];
+}): FindingSettlementV2 {
+  const finding = NormalizedReviewFindingSchema.parse(input.finding);
+  return FindingSettlementV2Schema.parse({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    targetId: input.targetId,
+    findingId: finding.findingId,
+    sourceIdentity: input.sourceIdentity,
+    severity: finding.severity,
+    ...(finding.nit === undefined ? {} : { nit: finding.nit }),
+    disposition: input.disposition,
+    rationale: input.rationale,
+    settledBy: input.settledBy,
+    settledAt: input.settledAt,
+    fixTargetId: input.fixTargetId,
+    verificationRefs: input.verificationRefs,
+  });
+}
+
+/** Bind a host closure to an existing settlement without extending the disposition vocabulary. */
+export function createFindingConversationClosureV2(input: {
+  settlement: FindingSettlementV2;
+  authorityIdentity: string;
+  hostEvidenceRef: string;
+  closedAt: string;
+}): FindingConversationClosureV2 {
+  const settlement = FindingSettlementV2Schema.parse(input.settlement);
+  return FindingConversationClosureV2Schema.parse({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    targetId: settlement.targetId,
+    findingId: settlement.findingId,
+    sourceIdentity: settlement.sourceIdentity,
+    authorityIdentity: input.authorityIdentity,
+    settlementId: canonicalDigest(settlement),
+    hostEvidenceRef: input.hostEvidenceRef,
+    closedAt: input.closedAt,
+  });
+}
 
 interface HeadUpdateProof { authorization: ReviewReceipt; consumption: ReviewReceipt }
 

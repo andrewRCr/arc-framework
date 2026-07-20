@@ -18,6 +18,7 @@ import {
 } from "../core/gate-contract-v2-schema.js";
 import type { LocalChangeSetCarrierContract } from "../core/local-carrier.js";
 import type { ForwardReviewReceiptStore } from "../core/ports.js";
+import { NormalizedReviewFindingSchema } from "../core/finding-records.js";
 
 export const NormalizedLocalReviewResultSchema = z.strictObject({
   status: z.enum(["complete", "partial", "unavailable", "failed"]),
@@ -30,6 +31,18 @@ export const NormalizedLocalReviewResultSchema = z.strictObject({
   evaluatorIdentity: ReviewIdentifierSchema,
   reviewRunId: ReviewIdentifierSchema,
   applicabilityId: ReviewCanonicalDigestSchema.nullable(),
+  findings: z.array(NormalizedReviewFindingSchema),
+}).superRefine((result, context) => {
+  if (result.status === "complete" && (result.result === "findings") !== (result.findings.length > 0)) {
+    context.addIssue({
+      code: "custom",
+      message: "complete finding results must carry normalized findings",
+      path: ["findings"],
+    });
+  }
+  if (result.status !== "complete" && result.findings.length > 0) {
+    context.addIssue({ code: "custom", message: "incomplete results cannot carry findings", path: ["findings"] });
+  }
 });
 export type NormalizedLocalReviewResult = z.infer<typeof NormalizedLocalReviewResultSchema>;
 
@@ -101,6 +114,7 @@ export async function attestLocalReviewResult(
     attestationMechanism: input.attestationMechanism,
     providerEventIdentity: null,
     result: result.result,
+    findings: result.findings,
   });
   await input.store.appendReceipt(receipt, input.expectedLedgerVersion);
   return receipt;

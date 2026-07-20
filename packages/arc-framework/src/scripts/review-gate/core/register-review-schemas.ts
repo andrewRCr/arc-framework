@@ -3,6 +3,7 @@
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { registerChangeFactSchemas } from "../../../lib/change-facts.schema.js";
 import { registerReviewGateV2Schemas } from "./gate-contract-v2-schema.js";
+import { registerFindingRecordSchemas } from "./finding-records.js";
 import { registerIndependentAnalysisProjectionSchema } from "../policy/independent-analysis-projection-schema.js";
 import { registerIndependentAnalysisSchema } from "../policy/independent-analysis-schema.js";
 import { registerProjectRoutingPromotionSchema } from "../policy/project-promotion-schema.js";
@@ -18,6 +19,7 @@ export function registerReviewDomainSchemas(registry: KernelRegistry): KernelReg
   registerChangeFactSchemas(registry);
   registerReviewApplicabilitySchemas(registry);
   registerReviewGateV2Schemas(registry);
+  registerFindingRecordSchemas(registry);
   registerForwardReceiptLedgerSchema(registry);
   registerForwardLifecycleTailSchema(registry);
   registerReviewPrimitiveSchemas(registry);

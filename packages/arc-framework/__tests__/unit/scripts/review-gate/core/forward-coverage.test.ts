@@ -64,6 +64,7 @@ function link(
     generation,
     requestMechanism: generation === 0 ? "automatic" : "refresh",
   });
+  const result = overrides.result ?? "clean";
   const receipt = createReviewReceipt({
     target,
     requirement,
@@ -76,7 +77,13 @@ function link(
     providerEventIdentity: overrides.providerEventIdentity === undefined
       ? `event-${generation}`
       : overrides.providerEventIdentity,
-    result: overrides.result ?? "clean",
+    result,
+    findings: result === "findings" ? [{
+      findingId: `finding-${generation}`,
+      severity: "major",
+      locus: "src/index.ts:1",
+      evidenceUrlOrId: `review:finding-${generation}`,
+    }] : [],
   });
   return { fromTargetId, target, requirement, request, receipt };
 }

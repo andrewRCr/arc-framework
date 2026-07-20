@@ -390,16 +390,11 @@ with adopter-facing contracts mirrored through the package source.
           the complete proposed disposition set before any finding-driven fix, independent of reviewer or channel;
           procedural classification remains in `review-triage`.
 
-    - `[ ]` **4.2.c Migrate finding and settlement records**
-        - Starting from Phase 3's envelope-only migration, update provider normalizers, finding reducers, controller
-          evidence/receipts, settlement runtimes, and tests once to consume Phase 1's shared v2
-          severity/disposition primitives.
-        - Define, infer, and register the normalized finding and settlement schemas at their semantic owners; do not
-          add a second provider- or controller-private record shape.
-        - Normalize fresh provider labels only at adapter boundaries (`critical → blocker`, `high | medium → major`,
-          `low | info → minor`); require an explicit pure-polish signal for `nit` and reject it on non-`minor`.
-        - Keep provider conversation closure outside the disposition enum and preserve legacy values only inside v1
-          diagnostic records.
+    - `[x]` **4.2.c Migrate finding and settlement records**
+        - Added registered, inferred v2 finding, settlement, and conversation-closure schemas; forward receipts,
+          local attestation, reducers, provider normalizers, and settlement runtimes now carry the shared severity ×
+          disposition primitives. Provider labels normalize only at adapter boundaries, `nit` requires explicit
+          pure-polish evidence and minor severity, and legacy labels remain confined to v1 diagnostic evidence.
 
     - `[ ]` **4.2.d Update disposition reports and commit records**
         - Define the channel-neutral report shape and audience-visible record for severity, disposition, rationale,

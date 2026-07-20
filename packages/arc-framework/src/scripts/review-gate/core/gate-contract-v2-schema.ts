@@ -13,6 +13,7 @@ import {
   ProjectRoutingReasonSchema,
   ReviewRetriggerSchema,
 } from "../policy/routing-schema.js";
+import { NormalizedReviewFindingSchema } from "./finding-records.js";
 
 export const ReviewGateV2SemanticsSchema = z.literal("review-gate/v2");
 export type ReviewGateV2Semantics = z.infer<typeof ReviewGateV2SemanticsSchema>;
@@ -201,9 +202,25 @@ const ReviewReceiptFieldsSchema = z.strictObject({
   rubricVersion: ReviewIdentifierSchema,
   rubricDigest: ReviewCanonicalDigestSchema,
   result: z.enum(["clean", "findings", "unavailable", "failed"]),
+  findings: z.array(NormalizedReviewFindingSchema),
 });
 
-export const ReviewReceiptV2Schema = ReviewReceiptFieldsSchema;
+export const ReviewReceiptV2Schema = ReviewReceiptFieldsSchema.superRefine((receipt, context) => {
+  if ((receipt.result === "findings") !== (receipt.findings.length > 0)) {
+    context.addIssue({
+      code: "custom",
+      message: "findings are required only for a findings result",
+      path: ["findings"],
+    });
+  }
+  const identities = new Set<string>();
+  for (const [index, finding] of receipt.findings.entries()) {
+    if (identities.has(finding.findingId)) {
+      context.addIssue({ code: "custom", message: "duplicate finding identity", path: ["findings", index, "findingId"] });
+    }
+    identities.add(finding.findingId);
+  }
+});
 export type ReviewReceiptV2 = z.infer<typeof ReviewReceiptV2Schema>;
 
 export const ReviewReceiptCreationInputSchema = z.strictObject({
@@ -217,6 +234,7 @@ export const ReviewReceiptCreationInputSchema = z.strictObject({
   attestationMechanism: ReviewIdentifierSchema,
   providerEventIdentity: ReviewIdentifierSchema.nullable(),
   result: z.enum(["clean", "findings", "unavailable", "failed"]),
+  findings: z.array(NormalizedReviewFindingSchema),
 });
 export type ReviewReceiptCreationInput = z.infer<typeof ReviewReceiptCreationInputSchema>;
 

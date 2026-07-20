@@ -77,6 +77,7 @@ function contract(options: {
     attestationMechanism: "github-app",
     providerEventIdentity: options.carrier === "local" ? null : `event-${generation}`,
     result: "clean",
+    findings: [],
   });
   return { channel: "hosted" as const, target, requirement, request, receipt };
 }
@@ -184,6 +185,7 @@ describe("forward review contract projection", () => {
       attestationMechanism: "github-app",
       providerEventIdentity: "event-1",
       result: "clean",
+      findings: [],
     });
 
     expect(projectReducedForwardReviewContract({
@@ -328,6 +330,7 @@ describe("forward review contract projection", () => {
       attestationMechanism: "github-app",
       providerEventIdentity: "event-8",
       result: "unavailable",
+      findings: [],
     });
     expect(projectForwardReviewContract({ ...records, receipt: unavailable }).projection).toMatchObject({
       conclusion: "failure",

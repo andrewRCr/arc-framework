@@ -1,7 +1,8 @@
 /** GitHub-backed hosted Codex review and clean-comment observations. */
 
 import { arrayAt, integerAt, objectAt, stringAt, timestampAt } from "../../core/validation.js";
-import type { FindingSeverity } from "../../core/evidence.js";
+import { normalizeProviderFindingClassification } from "../../core/finding-records.js";
+import type { ReviewSeverity } from "../../core/review-primitives.js";
 import type { GitHubGraphQLClient } from "../../hosts/github/api/graphql.js";
 import type { GitHubRestClient } from "../../hosts/github/api/rest.js";
 import { resolveReviews, resolveThreads } from "../../hosts/github/native-review.js";
@@ -38,15 +39,20 @@ function repositoryPath(owner: string, repo: string): string {
 }
 
 /** Map a hosted-Codex priority marker to the neutral severity vocabulary. */
-export function parseCodexFindingSeverity(body: string): FindingSeverity | null {
+export function parseCodexFindingSeverity(body: string): ReviewSeverity | null {
   const match = /\bP([0-3])\b/u.exec(body);
-  switch (match?.[1]) {
-    case "0": return "critical";
-    case "1": return "high";
-    case "2": return "medium";
-    case "3": return "low";
-    default: return null;
-  }
+  const providerSeverity = match?.[1] === "0" ? "critical"
+    : match?.[1] === "1" ? "high"
+      : match?.[1] === "2" ? "medium"
+        : match?.[1] === "3" ? "low"
+          : null;
+  return providerSeverity === null
+    ? null
+    : normalizeProviderFindingClassification(providerSeverity, false).severity;
+}
+
+function isExplicitPurePolish(body: string): boolean {
+  return /(?:\[nit\]|\bnitpick\b|\bpure[- ]polish\b)/iu.test(body);
 }
 
 /** Extract normalized reviewed-commit markers from a hosted-Codex comment. */
@@ -145,6 +151,7 @@ export class GitHubCodexObservationApi implements Pick<CodexApi, "readRunContext
         botUserId: comment.actor.identity,
         locus: `${comment.path}:${line}`,
         severity: findingSeverity,
+        ...(isExplicitPurePolish(comment.body) ? { nit: true as const } : {}),
         url: comment.url,
       }];
     }));

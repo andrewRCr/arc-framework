@@ -97,6 +97,7 @@ async function fixture() {
     attestationMechanism: "local-runtime",
     providerEventIdentity: null,
     result: "clean",
+    findings: [],
   });
   return { root, commonDir, exec, publisher, store, target, requirement, carrier, request, receipt };
 }
@@ -130,7 +131,16 @@ describe("local forward receipt authority", () => {
     const path = join(records.commonDir, "arc", "review-gate", "evidence", "receipts-v2.json");
     const before = await readFile(path, "utf8");
 
-    await expect(records.store.appendReceipt({ ...records.receipt, result: "findings" }, 1))
+    await expect(records.store.appendReceipt({
+      ...records.receipt,
+      result: "findings",
+      findings: [{
+        findingId: "finding-1",
+        severity: "major",
+        locus: "src/index.ts:1",
+        evidenceUrlOrId: "local:finding-1",
+      }],
+    }, 1))
       .rejects.toThrow(/conflicting-replay/u);
     await expect(records.store.appendReceipt({ ...records.receipt, reviewRunId: "run-2" }, 0))
       .rejects.toThrow(/version-conflict/u);
@@ -206,6 +216,12 @@ describe("local forward receipt authority", () => {
           evaluatorIdentity: records.request.evaluatorIdentity,
           reviewRunId: "run-integration",
           applicabilityId: null,
+          findings: result === "findings" ? [{
+            findingId: "finding-1",
+            severity: "blocker",
+            locus: "src/index.ts:1",
+            evidenceUrlOrId: "local:finding-1",
+          }] : [],
         },
         currentTarget: async () => records.target,
         runtimeIdentity: records.carrier.attestation.runtimeIdentity,
@@ -256,6 +272,7 @@ describe("local forward receipt authority", () => {
       result: {
         status: "complete",
         result: "clean",
+        findings: [],
         targetId: records.target.targetId,
         headSha: records.target.headSha,
         headTree: records.target.headTree,

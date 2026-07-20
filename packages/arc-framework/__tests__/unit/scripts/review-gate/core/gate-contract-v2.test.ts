@@ -343,6 +343,7 @@ describe("review gate v2 contract", () => {
       attestationMechanism: "github-app",
       providerEventIdentity: null,
       result: "clean",
+      findings: [],
     });
     expect(receipt).toEqual({
       schemaVersion: 2,
@@ -359,6 +360,7 @@ describe("review gate v2 contract", () => {
       rubricVersion: requirement.rubricVersion,
       rubricDigest,
       result: "clean",
+      findings: [],
     });
 
     expect(() => ReviewAcceptedSourceSchema.parse({ sourceKind: "human" })).toThrow();
@@ -549,6 +551,7 @@ describe("review gate v2 contract", () => {
       attestationMechanism: "local-runtime",
       providerEventIdentity: null,
       result: "clean",
+      findings: [],
     })).toThrow(/evaluator/u);
 
     const receipt = createReviewReceipt({
@@ -562,6 +565,7 @@ describe("review gate v2 contract", () => {
       attestationMechanism: "local-runtime",
       providerEventIdentity: null,
       result: "clean",
+      findings: [],
     });
     expect(() => validateReviewReceipt(target, requirement, request, {
       ...receipt,
@@ -620,6 +624,7 @@ describe("review gate v2 contract", () => {
       attestationMechanism: "local-runtime",
       providerEventIdentity: null,
       result: "clean",
+      findings: [],
     });
     const nextRequirement = createReviewRequirement({
       target,

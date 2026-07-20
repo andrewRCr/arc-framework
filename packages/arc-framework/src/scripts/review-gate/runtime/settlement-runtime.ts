@@ -1,6 +1,11 @@
 /** Safe developer-write/App-read adoption for finding settlement mutations. */
 
 import type { SettlementReply, SettlementThread } from "../hosts/github/settlement.js";
+import type {
+  FindingConversationClosureV2,
+  FindingSettlementV2,
+} from "../core/finding-records.js";
+import { createFindingConversationClosureV2 } from "./finding-settlement.js";
 
 interface ReplyDeveloperPort {
   postInlineReply(input: {
@@ -74,4 +79,32 @@ export async function ensureThreadResolution(input: {
     throw new Error("canonical-thread-resolution-mismatch");
   }
   return current;
+}
+
+/** Resolve one host conversation and return closure evidence separate from its approved disposition. */
+export async function ensureFindingConversationClosureV2(input: {
+  repositoryRef: string;
+  pullRequestNumber: number;
+  threadId: string;
+  expectedHeadSha: string;
+  settlement: FindingSettlementV2;
+  authorityIdentity: string;
+  closedAt: string;
+}, deps: {
+  developer: ThreadDeveloperPort;
+  canonical: { readThread(threadId: string): Promise<SettlementThread> };
+}): Promise<FindingConversationClosureV2> {
+  const thread = await ensureThreadResolution({
+    repositoryRef: input.repositoryRef,
+    pullRequestNumber: input.pullRequestNumber,
+    threadId: input.threadId,
+    expectedActorIdentity: input.authorityIdentity,
+    expectedHeadSha: input.expectedHeadSha,
+  }, deps);
+  return createFindingConversationClosureV2({
+    settlement: input.settlement,
+    authorityIdentity: input.authorityIdentity,
+    hostEvidenceRef: `github-review-thread:${thread.threadId}:resolved`,
+    closedAt: input.closedAt,
+  });
 }
