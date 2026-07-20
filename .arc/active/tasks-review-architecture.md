@@ -324,12 +324,10 @@ readiness.
   records parse strictly, and no stale evidence is silently promoted.
 - _Context:_ Implements Design §1.4's rollout contract and Success Criterion 8.
 
-    - `[ ]` **3.5.a Dispatch parsers by explicit contract version**
-        - Replace ad hoc schema-one assumptions in `core/validation.ts` consumers with schema-based version dispatch
-          at repository, comment-ledger, workflow-input, and provider boundaries.
-        - Dispatch v2 only for `review-gate/v2` plus Kernel `CanonicalDigest` semantic IDs; preserve v1 exact bare
-          encodings and reject unknown versions, mixed-version composites, and prefix coercion with actionable
-          diagnostics.
+    - `[x]` **3.5.a Dispatch parsers by explicit contract version**
+        - Added family-specific repository target, requirement, workflow/provider request, receipt, and ledger
+          dispatch over explicit schema/semantics pairs. V1 retains exact bare encodings; v2 reuses canonical
+          identity validators, while unknown versions, mixed composites, mismatched semantics, and coercion fail.
 
     - `[ ]` **3.5.b Mark legacy evidence ineligible**
         - Keep v1 receipts readable for audit/history while excluding them from forward requirement evaluation,
