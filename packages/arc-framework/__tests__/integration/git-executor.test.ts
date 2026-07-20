@@ -17,6 +17,7 @@ import {
   MAX_GIT_OUTPUT_BYTES,
 } from "../../src/lib/git/process-executor.js";
 import { isGitProcessError } from "../../src/lib/git/process-error.js";
+import { realGitDiff } from "../../src/handlers/installation.js";
 
 const tempDirs: string[] = [];
 const candidateExec = createExecaGitExec();
@@ -149,6 +150,27 @@ describe("candidate GitExecInput", () => {
         && error.diagnosticStdout.length <= error.stdout.length
         && error.expectedOutcome === undefined;
     });
+  });
+});
+
+describe("installation diff adapter", () => {
+  it("keeps no-change and changed exit statuses as domain results", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-execa-diff-"));
+    tempDirs.push(root);
+    const left = join(root, "left.txt");
+    const right = join(root, "right.txt");
+    await writeFile(left, "same\n", "utf8");
+    await writeFile(right, "same\n", "utf8");
+
+    await expect(realGitDiff(left, right)).resolves.toBe("");
+    await writeFile(right, "different\n", "utf8");
+    await expect(realGitDiff(left, right)).resolves.toContain("different");
+  });
+
+  it("rejects spawn failures through the typed taxonomy", async () => {
+    vi.stubEnv("PATH", "");
+    await expect(realGitDiff("left", "right"))
+      .rejects.toSatisfy((error: unknown) => isGitProcessError(error) && error.kind === "spawn-failure");
   });
 });
 

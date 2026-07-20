@@ -77,29 +77,22 @@ _Purpose:_ Move specialized raw Git processes onto the shared execa substrate wh
     - Extended the injected spawn result with optional normalized evidence; real non-zero exits now preserve their
       typed status while legacy fakes retain the established generic-error fallback.
 
-### `[ ]` **2.3 Migrate direct handler Git invocations**
+### `[x]` **2.3 Migrate direct handler Git invocations**
 
 - _Goal:_ Installation diffing and release-commit orchestration use execa-backed bindings while preserving their
   user-facing exit, stream, hook, and retry behavior.
 
-    - `[ ]` **2.3.a Move installation diff execution onto execa**
-        - Use a specialized adapter with `reject: false` so `git diff --no-index` exit code `1` remains a successful
-          difference result with complete stdout. Keep the injected `gitDiff` contract unchanged and normalize only
-          transport, output-limit, cancellation, or unexpected execution failures.
-        - Build `test-first` (one behavior at a time):
-            - No differences, differences, and actionable Git failures retain their current handler outcomes.
+    - `[x]` **2.3.a Move installation diff execution onto execa**
+        - Replaced the raw installation diff with a `reject: false` execa adapter that keeps exit `1` and complete
+          diff output as domain data while normalizing spawn and other execution failures.
 
-    - `[ ]` **2.3.b Move release-commit Git processes onto execa**
-        - Route hook-path, Git-directory, and `HEAD` reads through the prepared executor substrate with
-          repository-local environment scrubbing intact.
-        - Rebuild the wrapped `git commit` adapter with `reject: false`, preserving the `SpawnGit` contract,
-          optional stdin, inherited editor input, stdout/stderr teeing and complete process-capped capture,
-          transport-error handling, and exact exit code. Non-zero hook and commit exits remain control results.
-          Output-limit, cancellation, spawn, and unexpected failures remain typed execution errors rather than
-          ordinary commit-exit control results.
-        - Build `test-first` (one behavior at a time):
-            - Hook discovery, retry-file placement, post-commit hash resolution, interactive commit transport, and
-              non-zero exits remain behaviorally compatible.
+    - `[x]` **2.3.b Move release-commit Git processes onto execa**
+        - Routed hook, Git-directory, and `HEAD` reads through the prepared executor, and rebuilt wrapped commits on
+          a `reject: false` execa binding with optional stdin, inherited editor input, tee-and-capture streams, exact
+          control exits, scrubbed repository context, and typed transport failures.
+
+- _Outcome:_ The remaining direct in-scope handler bindings now use execa without changing their injected contracts
+  or treating expected diff, hook, and commit exit statuses as transport failures.
 
 ## **Phase 3:** Rejection consumer adoption and live cutover
 

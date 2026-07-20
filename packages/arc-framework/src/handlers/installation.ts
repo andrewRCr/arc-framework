@@ -6,6 +6,7 @@
 
 import * as p from "@clack/prompts";
 import { readFile } from "node:fs/promises";
+import { execa } from "execa";
 
 import { runUpdate, buildUpdateSummary } from "../commands/update.js";
 import { runHealth, buildHealthSummary } from "../commands/health.js";
@@ -15,7 +16,9 @@ import { readManifest } from "../lib/manifest/index.js";
 import { listArcFiles } from "../lib/fs.js";
 import { getArcTemplatePath, getRecipePath, getChangelogPath } from "../lib/paths.js";
 import { getFrameworkVersion, checkLatestVersion } from "../lib/version.js";
-import { createIOContext, execFileAsync } from "../lib/io-context.js";
+import { createIOContext } from "../lib/io-context.js";
+import { MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
+import { normalizeGitRejection } from "../lib/git/process-error.js";
 import { runWithSpinner, isHandledError, requireArcProjectRoot } from "./shared.js";
 import { createSyncOutput } from "../lib/sync-output.js";
 import { readChangelog, filterChangelogRange, buildChangelogDisplay } from "../lib/changelog.js";
@@ -113,24 +116,7 @@ export async function handleDiff(): Promise<void> {
       io: {
         readFile: (path) => readFile(path, "utf-8"),
         readManifest: (path) => readManifest(path, (p) => readFile(p, "utf-8")),
-        gitDiff: async (pristinePath, currentPath) => {
-          try {
-            const { stdout } = await execFileAsync("git", [
-              "diff",
-              "--no-index",
-              "--",
-              pristinePath,
-              currentPath,
-            ]);
-            return stdout;
-          } catch (err: unknown) {
-            // git diff --no-index exits 1 when differences found — not an error;
-            // any other exit code is a real failure that must not be masked.
-            const { code, stdout } = err as { code?: number; stdout?: string };
-            if (code === 1 && typeof stdout === "string") return stdout;
-            throw err;
-          }
-        },
+        gitDiff: realGitDiff,
       },
     });
 
@@ -146,4 +132,16 @@ export async function handleDiff(): Promise<void> {
   }
 
   p.outro("Done.");
+}
+
+/** Production `git diff --no-index` adapter with exit 1 retained as domain data. */
+export async function realGitDiff(pristinePath: string, currentPath: string): Promise<string> {
+  const args = ["diff", "--no-index", "--", pristinePath, currentPath];
+  const result = await execa("git", args, {
+    reject: false,
+    stripFinalNewline: false,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
+  });
+  if (!result.failed || result.exitCode === 1) return result.stdout;
+  throw normalizeGitRejection(result, { command: "git", args });
 }
