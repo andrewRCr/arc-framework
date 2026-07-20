@@ -23,6 +23,8 @@ import { join } from "node:path";
 
 import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { canonicalize } from "../../canonical/canonical-json.js";
+import { SlugSchema } from "../../kernel/index.js";
+import { resolveArcPath } from "../../layout/index.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import { repointDependsOn } from "../decompose-sweep.js";
 import type {
@@ -177,11 +179,14 @@ export async function scaffoldCohortMembers(
 ): Promise<ScaffoldedMember[]> {
   const { cohort, originContext, members, internalEdges, outgoingEdges = [] } = params;
   const scaffolded: ScaffoldedMember[] = [];
+  const cohortSegments = cohort.split("/").map((segment) => SlugSchema.parse(segment));
+  const placement = { kind: "backlog", commitment: "planned", cohort: cohortSegments } as const;
 
   for (const member of members) {
-    const dir = `.arc/backlog/planned/${cohort}/${member.slug}`;
-    const metaPath = `${dir}/meta-${member.slug}.md`;
-    const draftPath = `${dir}/draft-${member.slug}.md`;
+    const slug = SlugSchema.parse(member.slug);
+    const dir = resolveArcPath({ kind: "work-unit-container", placement, slug });
+    const metaPath = resolveArcPath({ kind: "work-unit-artifact", placement, slug, artifact: "meta" });
+    const draftPath = resolveArcPath({ kind: "work-unit-artifact", placement, slug, artifact: "draft" });
 
     const overrides: MetaFieldOverrides = {
       State: "Planning",

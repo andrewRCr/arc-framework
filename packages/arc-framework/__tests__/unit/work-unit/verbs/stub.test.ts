@@ -198,6 +198,15 @@ describe("runStub — cohort placement", () => {
       expect(writes).toEqual([]);
     }
   });
+
+  it("rejects a cohort segment outside the canonical slug grammar", async () => {
+    const { ctx, writes } = buildHarness();
+
+    const result = await runStub(ctx, { ...BASE, cohort: "Not-A-Slug" });
+
+    expect(result.status).toBe("rejected");
+    expect(writes).toEqual([]);
+  });
 });
 
 describe("runStub — never defaults (non-interactive safety)", () => {

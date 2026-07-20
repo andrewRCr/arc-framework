@@ -154,36 +154,29 @@ never recover operands from the discovered path merely to call layout.
 - _Outcome:_ Active lifecycle verbs now share the semantic project-active projection contract while their branch,
   field-storage, transition, and side-effect policies remain owned by the existing verb and executor boundaries.
 
-### `[ ]` **3.2 Migrate backlog placement producers**
+### `[x]` **3.2 Migrate backlog placement producers**
 
 - _Goal:_ Backlog creation and relocation project destinations from validated commitment, cohort, and slug facts
   without weakening exact-source or lifecycle-index authority.
 
-    - `[ ]` **3.2.a Migrate stub creation paths**
-        - In `src/lib/work-unit/verbs/stub.ts`, parse the already-validated work-unit and cohort segments into kernel
-          brands, then project the backlog container and meta artifact for the selected commitment.
-        - Preserve stub policy, cohort validation messages, scaffold behavior, and literal expected paths.
+    - `[x]` **3.2.a Migrate stub creation paths**
+        - Projected selected-commitment containers and meta artifacts from branded work-unit and cohort operands,
+          preserving stub policy, scaffold behavior, and literal returned paths.
 
-    - `[ ]` **3.2.b Migrate promotion and demotion destinations**
-        - In `src/lib/work-unit/verbs/promote-demote.ts`, keep the lifecycle index's exact `entry.path` as the source
-          authority and retain its directory for relocation and pruning.
-        - Remove tier-prefix rewriting for the destination. Parse `entry.slug` and its declared cohort field, then
-          project the target backlog container from the target commitment and validated cohort tuple.
-        - Build `test-first` (one behavior at a time): cover standalone and nested moves, invalid record operands,
-          exact-source preservation, source pruning, and unchanged literal destination paths.
+    - `[x]` **3.2.b Migrate promotion and demotion destinations**
+        - Replaced tier-prefix rewriting with semantic destination projection from lifecycle-record slug and cohort
+          fields while retaining exact indexed sources and their directories for relocation and pruning.
 
-    - `[ ]` **3.2.c Migrate park and resume destinations**
-        - In `src/lib/work-unit/verbs/park-resume.ts`, project only semantic project-active/backlog destinations from
-          branded work-unit and cohort operands while retaining exact discovered source paths and retirement
-          evidence.
-        - Cover active and planning park flows, standalone and nested resume flows, invalid operands, and literal
-          expected paths.
+    - `[x]` **3.2.c Migrate park and resume destinations**
+        - Projected project-active and planned destinations from validated operands while preserving exact discovered
+          pointer paths, retirement evidence, worktree behavior, and partial-application reporting.
 
-    - `[ ]` **3.2.d Migrate decompose scaffold destinations**
-        - In `src/lib/work-unit/verbs/decompose.ts`, project planned containers and conventional meta/draft artifacts
-          for new members from validated cohort and member slugs.
-        - Keep allocation judgment, existing-home targets, and exact discovered paths outside layout; cover each
-          distinction with literal expected paths.
+    - `[x]` **3.2.d Migrate decompose scaffold destinations**
+        - Projected planned member containers and conventional meta/draft artifacts from validated allocation
+          operands while leaving existing-home paths and allocation judgment with the decompose owner.
+
+- _Outcome:_ Backlog producers now distinguish semantic destinations from exact source evidence, including declared
+  cohort placement that can intentionally differ from a legacy source directory without reverse-parsing that path.
 
 ### `[ ]` **3.3 Migrate executor and retirement comparison projections**
 
