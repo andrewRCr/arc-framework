@@ -329,11 +329,10 @@ readiness.
           dispatch over explicit schema/semantics pairs. V1 retains exact bare encodings; v2 reuses canonical
           identity validators, while unknown versions, mixed composites, mismatched semantics, and coercion fail.
 
-    - `[ ]` **3.5.b Mark legacy evidence ineligible**
-        - Keep v1 receipts readable for audit/history while excluding them from forward requirement evaluation,
-          request-key reuse, source closure, and exact-head satisfaction.
-        - Preserve v1 provider severity/disposition values exactly—never normalize them into satisfying v2 records—
-          and add stale-membership and downgrade-attempt tests across receipts, requirements, and projections.
+    - `[x]` **3.5.b Mark legacy evidence ineligible**
+        - Added an audit-only eligibility result for parsed v1 receipts with null forward request-reuse and closure
+          authority; only exact v2 composites receive membership keys. Mixed/downgraded receipts, requirements, and
+          projections fail, while all five legacy provider severities and existing dispositions remain unchanged.
 
     - `[ ]` **3.5.c Update durable and workflow fixtures**
         - Migrate `.github` controller examples, qualification fixtures, repair rehearsal data, receipt comments,

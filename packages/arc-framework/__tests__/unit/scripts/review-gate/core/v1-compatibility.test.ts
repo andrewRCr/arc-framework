@@ -15,6 +15,7 @@ import {
 import { createReceipt } from "../../../../../src/scripts/review-gate/core/request-key.js";
 import { validateReceiptLedger } from "../../../../../src/scripts/review-gate/core/receipt-ledger.js";
 import { evaluateRequirements } from "../../../../../src/scripts/review-gate/core/requirements.js";
+import { parseEvidence } from "../../../../../src/scripts/review-gate/core/evidence.js";
 
 const bareDigest = (character: string): string => character.repeat(64);
 const gitSha = (character: string): string => character.repeat(40);
@@ -179,4 +180,31 @@ describe("schema-v1 compatibility boundary", () => {
   ])("does not coerce canonical prefixes onto the v1 %s", (_field, parse) => {
     expect(parse).toThrow(/lowercase hexadecimal/u);
   });
+
+  it.each(["critical", "high", "medium", "low", "info"] as const)(
+    "preserves the legacy %s provider severity without forward normalization",
+    (severity) => {
+      const evidence = parseEvidence({
+        schemaVersion: 1,
+        requirementId: requirement.id,
+        sourceKind: "agent",
+        sourceIdentity: "agent-9",
+        result: "findings",
+        evidenceUrlOrId: "review:1",
+        policyVersion: requirement.policyVersion,
+        rubricVersion: requirement.rubricVersion,
+        coverage: "full",
+        coverageFromSha: changeRequest.diffBaseSha,
+        coverageThroughSha: changeRequest.headSha,
+        baseRef: changeRequest.baseRef,
+        diffBaseSha: changeRequest.diffBaseSha,
+        changeSetId: changeRequest.changeSetId,
+        headSha: changeRequest.headSha,
+        findings: [{ findingId: "finding-1", severity, locus: "src/a.ts:1", evidenceUrlOrId: "review:1" }],
+        closures: [],
+        observedAt: "2026-07-20T20:00:00.000Z",
+      });
+      expect(evidence.findings[0]?.severity).toBe(severity);
+    },
+  );
 });

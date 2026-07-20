@@ -9,6 +9,10 @@ import {
   parseVersionedReviewTarget,
   reviewContractVersionAt,
 } from "../../../../../src/scripts/review-gate/core/contract-version-dispatch.js";
+import {
+  classifyForwardEvidenceEligibility,
+  isForwardProjectionVersion,
+} from "../../../../../src/scripts/review-gate/core/forward-evidence-eligibility.js";
 import type { ReviewRequirement } from "../../../../../src/scripts/review-gate/core/contracts.js";
 import type { ReviewRequest } from "../../../../../src/scripts/review-gate/core/execution.js";
 import {
@@ -185,5 +189,33 @@ describe("review contract version dispatch", () => {
       ...v1.target,
       changeSetId: canonicalDigest({ coerced: true }),
     })).toThrow(/lowercase hexadecimal/u);
+  });
+
+  it("keeps parsed legacy history out of every forward authority key", () => {
+    const v1 = legacy();
+    const v2 = forward();
+
+    expect(classifyForwardEvidenceEligibility(v1)).toMatchObject({
+      eligible: false,
+      version: 1,
+      reason: "legacy-audit-only",
+      receipt: v1.receipt,
+      requestReuseKey: null,
+      sourceClosureIdentity: null,
+    });
+    expect(classifyForwardEvidenceEligibility(v2)).toMatchObject({
+      eligible: true,
+      version: 2,
+      requestReuseKey: v2.request.requestId,
+      sourceClosureIdentity: v2.request.evaluatorIdentity,
+    });
+    expect(isForwardProjectionVersion({ schemaVersion: 1 })).toBe(false);
+    expect(isForwardProjectionVersion({ schemaVersion: 2, semanticsVersion: "review-gate/v2" })).toBe(true);
+    expect(() => classifyForwardEvidenceEligibility({ ...v1, target: v2.target })).toThrow(/mixed/u);
+    expect(() => classifyForwardEvidenceEligibility({
+      ...v2,
+      receipt: { ...v2.receipt, schemaVersion: 1 },
+    })).toThrow();
+    expect(() => isForwardProjectionVersion({ schemaVersion: 2 })).toThrow(/requires review-gate\/v2/u);
   });
 });
