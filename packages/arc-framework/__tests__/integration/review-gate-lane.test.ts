@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
-import { resolveAutoLane } from "../../src/scripts/review-gate/policy/self-hosting/lane.js";
+import {
+  resolveAutoLane,
+  resolveOwnership,
+} from "../../src/scripts/review-gate/policy/self-hosting/lane.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -51,7 +54,7 @@ describe("ref-backed review lane", () => {
     await write(repo, `.arc/backlog/planned/new group/draft-${oddSlug}.md`, "new\n");
     const head = await commit(repo, "mixed group changes");
 
-    await expect(resolveAutoLane({
+    await expect(resolveOwnership({
       exec: makeGitExec(repo),
       diffBaseSha: base,
       headSha: head,
@@ -64,7 +67,7 @@ describe("ref-backed review lane", () => {
         { status: "added", path: `.arc/backlog/planned/new group/meta-${oddSlug}.md` },
         { status: "added", path: `.arc/backlog/planned/new group/draft-${oddSlug}.md` },
       ],
-    })).resolves.toEqual({ lane: "auto", reasons: ["author-owned-artifacts"] });
+    })).resolves.toEqual({ relation: "self" });
   });
 
   it("fails reviewed for cross-group moves and unreadable refs", async () => {
@@ -91,5 +94,10 @@ describe("ref-backed review lane", () => {
       headSha: "f".repeat(40),
       changes: [{ status: "modified", path: ".arc/active/tasks-old.md" }],
     })).resolves.toEqual({ lane: "reviewed", reasons: ["missing-or-invalid-meta"] });
+    await expect(resolveOwnership({
+      ...input,
+      headSha: "f".repeat(40),
+      changes: [{ status: "modified", path: ".arc/active/tasks-old.md" }],
+    })).resolves.toEqual({ relation: "unknown" });
   });
 });

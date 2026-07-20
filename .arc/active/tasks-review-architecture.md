@@ -42,15 +42,10 @@ gate, or workflow consumes them.
 - _Context:_ Implements Design §§1.1–1.3 by generalizing the current self-hosting automatic-lane logic without
   preserving `auto | reviewed` as policy input.
 
-    - `[ ]` **1.2.a Normalize ownership across the full change set**
-        - Refactor `policy/self-hosting/lane.ts` into an exact-ref ownership resolver over the canonical endpoints,
-          retaining `readMetaAtRef()` and `parseMetaRecord()` as the authoritative Owner path.
-        - Build `test-first` (one behavior at a time):
-            - Resolve `self`, `foreign`, `mixed`, `ownerless`, `not-applicable`, and `unknown` distinctly.
-            - Apply the closed aggregate precedence: unavailable evidence yields `unknown`; non-applicable members
-              are neutral; ownerless members do not dilute one known owner; incompatible known owners yield `mixed`.
-            - Classify additions, deletions, renames, and copies from the refs where their owners exist.
-            - Fail closed on owner transitions, malformed metas, cross-group moves, or unknown author mappings.
+    - `[x]` **1.2.a Normalize ownership across the full change set**
+        - Added a six-relation exact-ref ownership resolver beside the derived legacy lane projection; canonical
+          endpoints now read authoritative metas only where they exist, reduce neutral and known-owner groups with
+          closed precedence, and return `unknown` for unavailable evidence, transitions, or ambiguous moves.
 
     - `[ ]` **1.2.b Classify surface authority independently of ownership**
         - Add stable project predicates for the Design §1.1 self-hosting mapping: formative artifacts,
