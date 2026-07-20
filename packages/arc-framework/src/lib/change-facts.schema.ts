@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import type { KernelRegistry } from "./kernel/index.js";
+
 const PathSchema = z.string().min(1);
 const PresentModeSchema = z.string().regex(/^(?:100644|100755|120000|160000)$/u);
 const AbsentModeSchema = z.literal("000000");
@@ -111,3 +113,28 @@ export const ChangePathSetSchema = z.discriminatedUnion("changeSet", [
   z.strictObject({ changeSet: z.literal("unknown"), changes: z.tuple([]) }),
 ]);
 export type ChangePathSet = z.infer<typeof ChangePathSetSchema>;
+
+/** Register canonical change-fact schemas with a caller-owned registry. */
+export function registerChangeFactSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(CanonicalChangeSchema, {
+    id: "canonical-change",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ChangeSetSchema, {
+    id: "canonical-change-set",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ChangePathFactSchema, {
+    id: "change-path-fact",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ChangePathSetSchema, {
+    id: "change-path-set",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  return registry;
+}

@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import type { KernelRegistry } from "../../../lib/kernel/index.js";
+
 export const ReviewSeveritySchema = z.enum(["blocker", "major", "minor"]);
 export type ReviewSeverity = z.infer<typeof ReviewSeveritySchema>;
 
@@ -15,3 +17,23 @@ export const FindingClassificationSchema = z.strictObject({
   message: "nit is valid only for minor findings",
 });
 export type FindingClassification = z.infer<typeof FindingClassificationSchema>;
+
+/** Register shared finding vocabulary with a caller-owned registry. */
+export function registerReviewPrimitiveSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(ReviewSeveritySchema, {
+    id: "review-severity",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  registry.register(FindingDispositionSchema, {
+    id: "finding-disposition",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  registry.register(FindingClassificationSchema, {
+    id: "finding-classification",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  return registry;
+}

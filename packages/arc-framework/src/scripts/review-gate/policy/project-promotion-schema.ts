@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import type { KernelRegistry } from "../../../lib/kernel/index.js";
+
 import { ProjectRoutingReasonSchema } from "./routing-schema.js";
 
 const PolicyIdSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
@@ -25,3 +27,13 @@ export const ProjectRoutingPromotionSchema = z.strictObject({
   message: "project reasons must use the declaring policy namespace",
 });
 export type ProjectRoutingPromotion = z.infer<typeof ProjectRoutingPromotionSchema>;
+
+/** Register project promote-only routing policy with a caller-owned registry. */
+export function registerProjectRoutingPromotionSchema(registry: KernelRegistry): KernelRegistry {
+  registry.register(ProjectRoutingPromotionSchema, {
+    id: "project-routing-promotion",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  return registry;
+}

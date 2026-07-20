@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import type { KernelRegistry } from "../../../lib/kernel/index.js";
+
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 
 export const IndependentAnalysisContractSchema = z.strictObject({
@@ -16,3 +18,13 @@ export const IndependentAnalysisContractSchema = z.strictObject({
   cleanRule: z.literal("all-rubric-dimensions-considered"),
 });
 export type IndependentAnalysisContract = z.infer<typeof IndependentAnalysisContractSchema>;
+
+/** Register the logical independent-analysis contract with a caller-owned registry. */
+export function registerIndependentAnalysisSchema(registry: KernelRegistry): KernelRegistry {
+  registry.register(IndependentAnalysisContractSchema, {
+    id: "independent-analysis-contract",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  return registry;
+}

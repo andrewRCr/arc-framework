@@ -77,12 +77,10 @@ gate, or workflow consumes them.
           schemas, project reasons remain namespaced, and a closed inventory assigns every later durable record to
           its semantic owner and stable versioned identity.
 
-    - `[ ]` **1.3.b Register stable review schema identities**
-        - Expose domain-owned registration functions that accept a fresh registry returned by
-          `createKernelRegistry()` and add explicit version/migration metadata without changing that factory's four
-          built-in identities.
-        - Prove duplicate identity/schema rejection, registrar composition, and absence of review-only imports or
-          shapes in kernel vocabulary and registry modules.
+    - `[x]` **1.3.b Register stable review schema identities**
+        - Added owner-local registrars with explicit strict-current versions and a review-domain composition
+          entrypoint over caller-owned kernel registries; contract tests preserve the four kernel built-ins, prove
+          repeat-composition rejection, and guard the kernel schema modules from review imports and vocabulary.
 
     - `[ ]` **1.3.c Extend deterministic schema generation and packaging**
         - Compose the domain registrars into a fresh kernel registry at the `tsup.config.ts` build boundary and pass

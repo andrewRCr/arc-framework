@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import type { KernelRegistry } from "../../../lib/kernel/index.js";
+
 export const WorkContextSchema = z.enum(["unscoped", "errand", "work-unit"]);
 export type WorkContext = z.infer<typeof WorkContextSchema>;
 
@@ -21,3 +23,18 @@ export const ReviewAssuranceInputSchema = z.strictObject({
   message: "only work-unit context carries a work class",
 });
 export type ReviewAssuranceInput = z.infer<typeof ReviewAssuranceInputSchema>;
+
+/** Register method-activity and assurance inputs with a caller-owned registry. */
+export function registerReviewAssuranceSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(ReviewMethodActivitySchema, {
+    id: "review-method-activity",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ReviewAssuranceInputSchema, {
+    id: "review-assurance-input",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  return registry;
+}

@@ -1,0 +1,20 @@
+/** Composition entrypoint for review-domain schemas over a caller-owned kernel registry. */
+
+import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import { registerChangeFactSchemas } from "../../../lib/change-facts.schema.js";
+import { registerIndependentAnalysisSchema } from "../policy/independent-analysis-schema.js";
+import { registerProjectRoutingPromotionSchema } from "../policy/project-promotion-schema.js";
+import { registerReviewAssuranceSchemas } from "../policy/assurance-schema.js";
+import { registerReviewRoutingSchemas } from "../policy/routing-schema.js";
+import { registerReviewPrimitiveSchemas } from "./review-primitives.js";
+
+/** Compose every currently implemented review schema into a fresh kernel registry. */
+export function registerReviewDomainSchemas(registry: KernelRegistry): KernelRegistry {
+  registerChangeFactSchemas(registry);
+  registerReviewPrimitiveSchemas(registry);
+  registerReviewAssuranceSchemas(registry);
+  registerReviewRoutingSchemas(registry);
+  registerProjectRoutingPromotionSchema(registry);
+  registerIndependentAnalysisSchema(registry);
+  return registry;
+}

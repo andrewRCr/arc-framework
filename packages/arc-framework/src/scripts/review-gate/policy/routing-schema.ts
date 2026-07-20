@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import type { KernelRegistry } from "../../../lib/kernel/index.js";
+
 import {
   ReviewAssuranceInputSchema,
   ReviewMethodActivitySchema,
@@ -114,3 +116,18 @@ export const ReviewRoutingDecisionSchema = z.strictObject({
   message: "independent-analysis obligation and retrigger treatment are incongruent",
 });
 export type ReviewRoutingDecision = z.infer<typeof ReviewRoutingDecisionSchema>;
+
+/** Register topology-neutral routing records with a caller-owned registry. */
+export function registerReviewRoutingSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(ReviewRoutingFactsSchema, {
+    id: "review-routing-facts",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ReviewRoutingDecisionSchema, {
+    id: "review-routing-decision",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  return registry;
+}
