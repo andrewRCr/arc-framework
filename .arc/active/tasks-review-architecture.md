@@ -416,11 +416,10 @@ with adopter-facing contracts mirrored through the package source.
           emits one of the six response states with legal capabilities, precomposed action text, approved
           dispositions, verification references, old/new targets, and explicit blocking status.
 
-    - `[ ]` **4.3.b Encode the bounded response cycle**
-        - Keep method prose to the judgment/communication leaf selected by the plan: disposition approval before
-          mutation, one review-fix increment, and verification reporting.
-        - Leave deterministic transition, persistence, adapter-owned reply/closure, and re-entry to the coordinator;
-          a changed head transitions to `reroute` instead of choosing a retrigger inside the method.
+    - `[x]` **4.3.b Encode the bounded response cycle**
+        - Bound method execution to the planner-selected author leaf: complete-set approval or one approved fix
+          increment with quality evidence. Persistence, adapter reply/closure, and retrigger selection remain
+          caller-owned; changed heads return through `reroute`, and blocked states cannot mutate.
 
     - `[ ]` **4.3.c Define channel-specific etiquette boundaries**
         - Keep local review's disposition report as its complete record; send hosted reply/resolution actions only

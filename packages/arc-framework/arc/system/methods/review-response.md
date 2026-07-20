@@ -46,6 +46,23 @@ Every result returns the approved disposition set when one exists, verification 
 explicit nullable new target, and `blocking: true | false`. The method does not choose a provider, compose a provider
 command, resolve host conversations, persist controller conclusions, or infer authority from thread state.
 
+### Execute only the selected author leaf
+
+Follow the planner state; do not infer or combine transitions:
+
+- For `awaiting-approval`, verify and classify every finding with `review-triage`, present the complete proposal,
+  and return the approval or blocking questions. Do not mutate the target.
+- For `ready-to-fix`, apply exactly the approved `fix` findings as one review increment, run the affected quality
+  gates, and return the candidate target plus verification evidence. Do not persist it inside this method.
+- For `ready-to-persist`, report the verified candidate and return control to the caller's commit/push interlock.
+- For `ready-to-close`, return approved unchanged-target dispositions to the adapter; do not author replies or
+  resolve conversations here.
+- For `reroute`, return the persisted changed target to the coordinator; do not choose or invoke a retrigger.
+- For `blocked`, report the planner's next action and stop without mutation.
+
+The cycle contains at most one fix increment. Any changed head re-enters through `reroute`; it never loops, selects a
+review source, persists, or performs adapter-owned closure within this method.
+
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
