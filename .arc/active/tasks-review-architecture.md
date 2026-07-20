@@ -483,10 +483,11 @@ with adopter-facing contracts mirrored through the package source.
           self-hosting technical overview separately records that its controller is not operational merge authority
           and preserves the established manual integration path pending later qualification and promotion work.
 
-    - `[ ]` **4.5.b Project the rubric into native reviewer surfaces**
-        - Build generic projector/validator functions and a package-neutral human checklist from the typed
-          independent-analysis baseline, with a typed project-augmentation input.
-        - Deliver rubric content only—never coordination workflow, author findings, or controller state.
+    - `[x]` **4.5.b Project the rubric into native reviewer surfaces**
+        - Added a strict additive project-rubric schema plus generic projection, exact-source validation, and a
+          package-neutral human checklist renderer derived from the typed `independent-analysis/v1` baseline. The
+          projection carries rubric identity and content only; its closed schema has no coordination, author-state,
+          approval, receipt, or controller-state channel.
 
     - `[ ]` **4.5.c Document the generic adapter boundary**
         - Describe how native instruction/configuration surfaces consume the projector and prove guidance identity,
