@@ -14,10 +14,11 @@
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** create-spec — `spec-review-architecture.md` finalized (adversarial-reviewed, converged)
 - **Next Task:** [none]
-- **Blockers:** generate-tasks gated on `classify-change-granularity` + `cli-schema-kernel` shipping
+- **Blockers:** [none] — both deps (`classify-change-granularity`, `cli-schema-kernel`) shipped; base reconciled
 
-- **Next Action:** Hold generate-tasks until both deps ship; then re-verify spec § 1.3 against what
-  `classify-change-granularity` delivered before beginning task gen
+- **Next Action:** Begin generate-tasks — resolve depth & Class, then author `tasks-review-architecture.md`.
+  Deps shipped; base reconciled into `plan/review-architecture`; spec § 1.3 verified against delivered
+  `classify-change-granularity` (no drift)
 
 - **PR URL:** [none]
 - **Completed:** [none]
