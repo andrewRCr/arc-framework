@@ -64,12 +64,10 @@ gate, or workflow consumes them.
   status/endpoint-aware review risk, and exact-ref ownership/authority. The legacy lane is only a downstream
   presentation, so routing can consume closed facts without inheriting CI history or owner-policy shortcuts.
 
-### `[ ]` **1.3 Register the review-domain record family**
+### `[x]` **1.3 Register the review-domain record family**
 
 - _Goal:_ Review-domain runtime records are Zod-authoritative, infer their TypeScript types, register under stable
   identities, and generate deterministic JSON Schema without centralizing domain semantics in the kernel.
-- _Context:_ Implements Design §§1.1, 1.4, and 2.1 on the delivered schema-kernel registry.
-- **Additional Context:** `notes-review-architecture.md` § Scope and proportionality boundaries.
 
     - `[x]` **1.3.a Define co-located semantic schemas**
         - Added strict Zod owners for canonical changes, routing facts/decisions, activity and assurance, project
@@ -87,12 +85,15 @@ gate, or workflow consumes them.
           schema-generation and production-artifact tests pin the complete deterministic identity and `$ref` set,
           and a package dry run proves the generated `dist/schemas/kernel.json` ships through the existing manifest.
 
-    - `[ ]` **1.3.d Fence legacy validators during migration**
-        - Keep existing V1 parser compatibility explicit while requiring every new schema-owned contract to export
-          its structural type through `z.infer` and forbidding those owner modules from importing
-          `core/validation.ts`.
-        - Add a focused import/contract-boundary test over the new owner modules; pin the permitted legacy files so
-          the migration cannot add another hand parser, parallel structural interface, or handwritten projection.
+    - `[x]` **1.3.d Fence legacy validators during migration**
+        - Added an AST-backed owner-boundary test that requires schema-inferred exported types, schema-only exported
+          values, and registrar-only functions; the exact schema-v1 handwritten-validator importer set is pinned so
+          new validation imports, structural interfaces, parsers, or projections fail the focused contract suite.
+
+- _Outcome:_ Review semantics now compose above the unchanged kernel as strict, owner-local Zod contracts: runtime
+  types derive from schemas, build output is deterministic and publishable, and the forward record-family inventory
+  plus legacy-validator fence prevents later gate, finding, authorization, and operation-state work from introducing
+  adapter-private JSON authorities.
 
 ## **Phase 2:** Topology-neutral routing policy
 
