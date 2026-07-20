@@ -68,24 +68,10 @@ path before aligned-table enforcement begins.
 - _Goal:_ An explicit tracked-path command can normalize supported GFM tables by display width without changing
   unrelated bytes or leaving a partial validation pass.
 
-    - `[ ]` **2.4.a Transform supported GFM table nodes test-first**
-        - Declare `mdast-util-from-markdown`, `mdast-util-to-markdown`, `mdast-util-gfm-table`, and
-          `micromark-extension-gfm-table` as direct package development dependencies; never import the copies
-          currently present only through `markdownlint`.
-        - Load input as bytes and decode with `TextDecoder("utf-8", { fatal: true, ignoreBOM: true })` so malformed
-          input refuses and an initial BOM remains representable through re-encoding.
-        - Build `test-first` (one behavior at a time):
-            - Complete documents parse through declared micromark/mdast GFM dependencies, table source ranges
-              serialize with `gfmTableToMarkdown({ stringLength: displayWidth })`, and replacements splice backward.
-            - Top-level tables preserve escaped-pipe, code-span, and emphasis semantics; accepted delimiter
-              canonicalization remains reported inside serializer-owned ranges, while CRLF and final-newline state
-              remain byte-identical outside those ranges.
-            - Ordered/unordered-list and block-quote tables recover one consistent container prefix; an inconsistent
-              or unrecoverable prefix fails with path-and-line context.
-            - Reparsed candidates retain position-free GFM syntax trees, ancestor structure, and byte equality
-              outside original table ranges.
-            - Malformed UTF-8 fails before parsing; BOMs and non-ASCII bytes outside table ranges survive exact
-              re-encoding.
+    - `[x]` **2.4.a Transform supported GFM table nodes test-first**
+        - Added a byte-oriented GFM transformer using declared micromark/mdast dependencies, display-width
+          serialization, backward range splicing, container-prefix validation, syntax-tree equivalence checks, and
+          exact outside-range preservation for UTF-8, BOM, line-ending, and final-newline inputs.
 
     - `[ ]` **2.4.b Route and validate complete explicit input sets**
         - For a package Framework source mapped by the evaluated current-install recipe to an existing Framework
