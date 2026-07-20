@@ -13,6 +13,7 @@ import type {
   ReviewTarget,
 } from "./gate-contract-v2-schema.js";
 import type { ForwardGateProjection } from "./projection.js";
+import type { ReviewOperationState } from "./operation-state-schema.js";
 import type {
   GateProjection,
   ReceiptEnvelope,
@@ -250,6 +251,18 @@ export interface ForwardReviewReceiptStore {
     receipt: ReviewReceiptV2,
     expectedLedgerVersion: number,
   ): Promise<{ ledgerVersion: number; durableEvidenceRef: string }>;
+}
+
+/** Versioned storage boundary for resumable, explicitly non-evidentiary review operations. */
+export interface ReviewOperationStateStore {
+  readOperation(operationId: string): Promise<{
+    version: number;
+    state: ReviewOperationState | null;
+  }>;
+  publishOperation(
+    state: ReviewOperationState,
+    expectedVersion: number,
+  ): Promise<{ version: number }>;
 }
 
 /** Forward provider boundary carrying exact v2 request identity without provider finding normalization. */

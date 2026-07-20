@@ -426,10 +426,10 @@ with adopter-facing contracts mirrored through the package source.
           authenticated reply/thread capabilities. Strict schemas reject local, duplicate, and foreign conversation
           actions, while the method forbids roll-up noise, provider impersonation, and resolution-as-authority.
 
-    - `[ ]` **4.3.d Define shared review-operation state**
-        - Add the injected `ReviewOperationStateStore` port over a registered Zod discriminated union with
-          `frontline-run` and `review-suspension` records; infer the exported types and reject unknown variants or
-          fields.
+    - `[x]` **4.3.d Define shared review-operation state**
+        - Added the injected, versioned `ReviewOperationStateStore` port and registered inferred `frontline-run` /
+          `review-suspension` schemas. Strict variants bind exact invalidation and re-entry facts while rejecting
+          controller conclusions, approvals, authorizations, receipts, narrative actions, and unknown fields.
 
     - `[ ]` **4.3.e Implement the project operation-state adapter**
         - Implement the project adapter under the repository's Git common directory by reusing Task 3.4.b's bounded
