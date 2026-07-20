@@ -20,6 +20,7 @@ const reviewIdentities = [
   "finding-classification",
   "finding-disposition",
   "independent-analysis-contract",
+  "independent-analysis-obligation-projection",
   "project-routing-promotion",
   "review-assurance-input",
   "review-method-activity",

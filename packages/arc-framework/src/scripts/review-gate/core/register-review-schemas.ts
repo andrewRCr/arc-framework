@@ -2,6 +2,7 @@
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { registerChangeFactSchemas } from "../../../lib/change-facts.schema.js";
+import { registerIndependentAnalysisProjectionSchema } from "../policy/independent-analysis-projection-schema.js";
 import { registerIndependentAnalysisSchema } from "../policy/independent-analysis-schema.js";
 import { registerProjectRoutingPromotionSchema } from "../policy/project-promotion-schema.js";
 import { registerReviewAssuranceSchemas } from "../policy/assurance-schema.js";
@@ -16,5 +17,6 @@ export function registerReviewDomainSchemas(registry: KernelRegistry): KernelReg
   registerReviewRoutingSchemas(registry);
   registerProjectRoutingPromotionSchema(registry);
   registerIndependentAnalysisSchema(registry);
+  registerIndependentAnalysisProjectionSchema(registry);
   return registry;
 }

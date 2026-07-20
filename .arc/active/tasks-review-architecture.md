@@ -153,28 +153,29 @@ pull-request count, provider choice, or host mechanics.
   the stronger-rubric overlay remains explicit from semantic absence through validated resolution or fail-closed
   unavailability, while method discovery and activation ownership remain outside the record.
 
-### `[ ]` **2.3 Project one independent-analysis requirement per deliverable**
+### `[x]` **2.3 Project one independent-analysis requirement per deliverable**
 
 - _Goal:_ Each deliverable exposes one lossless, version-neutral independent-analysis projection that Phase 3 can
   bind to an exact gate target without rerunning policy or encoding deferred assurance-group algebra.
-- _Context:_ Implements Design §§1.4–1.5 and Success Criterion 7.
 
-    - `[ ]` **2.3.a Project one logical obligation record per deliverable**
-        - Emit obligation, stable reasons, rubric version/digest, retrigger treatment, and fixed `count: 1` from one
-          routing result; exclude target, request, carrier, provider, and contract-version fields.
-        - Build `test-first` coverage proving one caller invocation yields one projection and an exempt decision
-          remains explicit without creating a gate requirement candidate.
+    - `[x]` **2.3.a Project one logical obligation record per deliverable**
+        - Added a registered immutable obligation projection with stable reasons, rubric identity, retrigger, and
+          fixed `count: 1`; one routing decision yields one record, while exemption stays explicit without target-
+          bound requirement fields.
 
-    - `[ ]` **2.3.b Project obligation and retrigger without a second policy decision**
-        - Map `exempt | recommended | required`, reasons, rubric identity, and retrigger treatment directly into
-          the logical projection; keep self-review/frontline data out.
-        - Expose the projection as immutable input that later project source/admission policy may strengthen without
-          rewriting obligation semantics.
+    - `[x]` **2.3.b Project obligation and retrigger without a second policy decision**
+        - Added a validation-only projector that copies the independent-analysis obligation, reasons, and retrigger
+          directly from the routed decision, composes the validated rubric pair, and excludes self-review/frontline
+          outputs from the frozen downstream policy input.
 
-    - `[ ]` **2.3.c Preserve the multi-deliverable seam**
-        - Preserve one projection per deliverable for later target binding; do not add grouping, repository,
-          carrier, or pull-request topology to the routing API.
-        - Add tests showing PR count is not an input and projections never coalesce without the later external proof.
+    - `[x]` **2.3.c Preserve the multi-deliverable seam**
+        - Kept projection cardinality caller-owned: repeated deliverable calls return distinct records, while strict
+          routing validation rejects pull-request count and every projection omits grouping, repository, carrier,
+          provider, request, and target topology.
+
+- _Outcome:_ The routing boundary now terminates in one version-neutral, schema-owned independent-analysis record
+  per deliverable; Phase 3 can bind non-exempt projections to exact targets and add source/admission policy without
+  re-running routing or inheriting author/frontline and future assurance-group concerns.
 
 ### `[ ]` **2.4 Prove routing totality and fail-closed behavior**
 

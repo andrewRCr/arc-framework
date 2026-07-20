@@ -6,14 +6,17 @@ import type { KernelRegistry } from "../../../lib/kernel/index.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 
+export const ReviewRubricIdentitySchema = z.strictObject({
+  version: z.string().min(1),
+  digest: CanonicalDigestSchema,
+});
+export type ReviewRubricIdentity = z.infer<typeof ReviewRubricIdentitySchema>;
+
 export const IndependentAnalysisContractSchema = z.strictObject({
   version: z.literal("independent-analysis/v1"),
   coverage: z.literal("complete-exact-change-set"),
   evaluatorBoundary: z.literal("independent-source-and-context"),
-  rubric: z.strictObject({
-    version: z.string().min(1),
-    digest: CanonicalDigestSchema,
-  }),
+  rubric: ReviewRubricIdentitySchema,
   findingFloor: z.literal("actionable-source-grounded"),
   cleanRule: z.literal("all-rubric-dimensions-considered"),
 });
