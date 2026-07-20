@@ -279,6 +279,22 @@ duration.
   jobs passed across both self-hosted slots, Windows and macOS stayed hosted, and the dispatch-only `ci-ok` and
   `merge-ok` jobs skipped as designed outside pull-request context.
 
+#### Post-rebuild classifier runtime correction
+
+- **Detection:** adversarial verification inspected exact-head heavy run
+  [29761370834](https://github.com/andrewRCr/arc-framework/actions/runs/29761370834) and found the classifier log
+  emitted `node: command not found`, then failed safe to `weight=heavy reason=unverified`. The original
+  verified-tree proof predated the destructive rebuild, so it did not prove the accepted rebuilt runners retained
+  the classifier's undeclared runtime.
+- **Correction and forcing check:** commit `36529703f` provisions pinned `actions/setup-node` in the classifier job
+  before its code-tree hash and adds an integration assertion that fails if the setup step is absent or ordered
+  after classification. The disposable-host contract remains unchanged: no system Node installation is required.
+- **Corrected heavy proof:** run
+  [29762585288](https://github.com/andrewRCr/arc-framework/actions/runs/29762585288) found Node 24.18.0 in the runner
+  tool cache, emitted `weight=heavy reason=unverified` for the new code tree without a runtime error, and completed
+  the entire graph successfully with every Linux job on `arc-ci-linux` and Windows/macOS hosted. The next
+  metadata-only head preserves that code tree and is the required post-rebuild `reason=verified` proof.
+
 #### Cost and retention baseline
 
 - **Actions usage baseline (2026-07-19 23:02Z):** the user billing API's July aggregate for this repository reports
