@@ -97,6 +97,7 @@ const ARC_CONTEXT_ENTRIES: readonly LoadSetEntry[] = [
  */
 export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetManifest {
   const entries: LoadSetEntry[] = ARC_CONTEXT_ENTRIES.map(cloneEntry);
+  const workflowRoot = resolveArcPath({ kind: "procedure-root", family: "workflows" });
 
   if (input.metaPath !== null) {
     entries.push(full(input.metaPath));
@@ -119,18 +120,18 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
   }
 
   if (input.sessionType === "planning" && input.planningStage !== null) {
-    entries.push(full(`.arc/system/workflows/arc/${input.planningStage}.md`));
+    entries.push(full(`${workflowRoot}/arc/${input.planningStage}.md`));
   }
 
   if (input.sessionType === "execution") {
     if (input.taskListPath !== null) {
       entries.push(partialStrategic(input.taskListPath));
     }
-    entries.push(full(".arc/system/workflows/arc/process-task-loop.md"));
+    entries.push(full(`${workflowRoot}/arc/process-task-loop.md`));
   }
 
   if (input.sessionType === "integration") {
-    entries.push(full(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"));
+    entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/integrate-work-unit.md`));
   }
 
   if (input.cohortDocPath !== null) {

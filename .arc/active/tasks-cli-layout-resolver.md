@@ -312,28 +312,25 @@ dispositions in Phase 5.
 - _Outcome:_ Repository-root owners now select `.arc` through one validated projection/materialization boundary,
   while every downstream subsystem continues to receive and own the exact installation directory it already used.
 
-### `[ ]` **4.2 Migrate actual runtime procedure-root consumers**
+### `[x]` **4.2 Migrate actual runtime procedure-root consumers**
 
 - _Goal:_ Runtime workflow lookup starts from the semantic procedure root while package-source enumeration,
   validation, and exact workflow pointers retain their existing authorities.
 
-    - `[ ]` **4.2.a Project workflow roots in the session load set**
-        - Update `src/lib/load-set/projection.ts` to resolve the workflow procedure root, then append only its closed
-          planning-stage or fixed execution/integration descendants.
-        - Keep load-set ordering, exact status/meta/task/cohort pointers, and already-migrated user paths unchanged;
-          cover all three session types with literal expected entries.
+    - `[x]` **4.2.a Project workflow roots in the session load set**
+        - Projected the workflow procedure root before appending closed planning, execution, or integration
+          descendants, preserving load order and every exact status-supplied pointer.
 
-    - `[ ]` **4.2.b Project the workflow scan root for extension status**
-        - Update `src/commands/extensions/status.ts` to materialize the workflow procedure root beneath `cwd` while
-          leaving the sibling extension directory, workflow enumeration, and orphan interpretation locally owned.
-        - Preserve session-init's no-workflow-scan fast path and full-status behavior.
+    - `[x]` **4.2.b Project the workflow scan root for extension status**
+        - Materialized the workflow procedure root for full extension status while preserving extension ownership,
+          enumeration, orphan interpretation, and the session-init no-scan fast path.
 
-    - `[ ]` **4.2.c Preserve non-runtime procedure-root evidence**
-        - Keep template-relative `system/methods` classification, caller-supplied system roots in
-          `audit-method-triggers.ts`, dual package/instance recognition in validators, shell-hook paths, and exact
-          workflow pointers outside layout.
-        - Require the final ledger to distinguish these residuals from the runtime workflow consumers; the absence
-          of a production repository-path method consumer does not weaken unit coverage for the `methods` variant.
+    - `[x]` **4.2.c Preserve non-runtime procedure-root evidence**
+        - Left template classification, caller-supplied system roots, dual-copy validators, shell hooks, and exact
+          workflow pointers under their existing non-runtime authorities.
+
+- _Outcome:_ Actual repository workflow consumers now use the semantic procedure root, while procedure recognition,
+  package-source enumeration, and exact pointer evidence remain independent oracles for the final ledger.
 
 ### `[ ]` **4.3 Migrate project-readiness document consumers by role**
 
