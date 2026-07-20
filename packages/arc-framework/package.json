@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "benchmark:session-envelope": "npm run build && tsx __tests__/benchmarks/session-envelope-validation.ts",
     "test": "vitest run",
     "test:unit": "vitest run --project unit --project unit-mocks",
     "test:integration": "vitest run --project integration",

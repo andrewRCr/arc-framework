@@ -229,3 +229,23 @@ sampling and excludes build and fixture-setup time from all measurements.
 - **Materiality:** stop for an evidence-plus-replacement-invariant decision if validation p50 exceeds 5 ms or 5% of
   cold-command p50, or validation p95 exceeds 20 ms. Otherwise retain always-on validation. The benchmark never
   becomes a wall-clock CI assertion.
+
+### Observed benchmark evidence
+
+One production build and benchmark run on 2026-07-20 produced the following non-gating evidence:
+
+| Measurement             | p50         | p95         |
+|-------------------------|-------------|-------------|
+| Validation assertion    | 0.0420 ms   | 0.1079 ms   |
+| No-op fixture consume   | 0.0001 ms   | 0.0003 ms   |
+| Paired validation delta | 0.0419 ms   | 0.1076 ms   |
+| Cold built CLI command  | 254.8607 ms | 266.9090 ms |
+
+- **Environment:** Linux 5.15.167.4-microsoft-standard-WSL2, x64, Node v26.3.0, npm 11.16.0.
+- **Procedure:** `npm run benchmark:session-envelope` built once, prepared the Orient/materialization and
+  remote-sync-disabled Orient fixtures once, discarded 20 and recorded 1,000 paired warm samples, then discarded 5
+  and recorded 30 built-CLI cold samples. Build and fixture setup were excluded from measured intervals.
+- **Interpretation:** the paired p50 was 0.0165% of cold-command p50. The assertion stayed below the 5 ms p50,
+  5%-of-cold p50, and 20 ms p95 thresholds, so validation remains always on. The cold measurement includes process
+  startup and ordinary command work; the paired in-process delta isolates parsing against a preconstructed schema
+  and the same captured object. This single run does not attribute finer causal shares.

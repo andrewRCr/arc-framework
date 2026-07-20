@@ -482,38 +482,24 @@ tail-routed authority, handoff/full validation, bundle publication, lifecycle re
 - _Outcome:_ The composed contracts now have adversarial cross-family coverage without widening thin authority or
   changing the established wire representation and failure dispositions.
 
-### `[ ]` **7.2 Measure warm and cold producer-validation latency**
+### `[x]` **7.2 Measure warm and cold producer-validation latency**
 
 - _Goal:_ Always-on validation is supported by reproducible evidence, or an explicit replacement invariant is
   settled before the posture changes.
-- _Context:_ Implements Success Criterion 7 and resolves the open performance item in
-  `spec-cli-session-envelope.md`.
+    - `[x]` **7.2.a Add a reproducible non-gating benchmark harness**
+        - Added root/package scripts and a dev-only harness with the prescribed fixture reuse, paired warm samples,
+          production built-CLI cold samples, environment metadata, and no production bypass or CI timing assertion.
 
-    - `[ ]` **7.2.a Add a reproducible non-gating benchmark harness**
-        - Add `__tests__/benchmarks/session-envelope-validation.ts` plus a dedicated
-          `benchmark:session-envelope` package/root script. Keep the file outside Vitest globs and ordinary CI.
-        - Reuse `__tests__/helpers/session-envelope-compat.ts` to prepare the Phase 1 Orient/materialization
-          full-slot state. Capture one valid unnormalized envelope during setup, then pair its real session-init
-          assertion with no-op consumption in-process; the no-op is not a production injection path.
-        - Separately measure a stable local-only fixture through repeated production built-CLI
-          `status --session-init --json` processes with validation always enabled.
-        - Default to 20 discarded plus 1,000 recorded warm paired samples and 5 discarded plus 30 recorded cold
-          process samples. Report runtime, OS/architecture, Node/npm versions, fixture/build procedure, sample
-          counts, p50, and p95; add no wall-clock CI assertion.
+    - `[x]` **7.2.b Run and record the benchmark**
+        - Ran one build plus the 20/1,000 warm and 5/30 cold protocol and recorded the exact environment, setup,
+          distributions, and bounded interpretation in `notes-cli-session-envelope.md`.
 
-    - `[ ]` **7.2.b Run and record the benchmark**
-        - Run one production build before sampling, prepare the remote-sync-disabled fixture once, execute the warm
-          and cold protocols, and record the procedure/results in `notes-cli-session-envelope.md` § Performance
-          measurement protocol. Exclude build and fixture setup from the measured intervals.
-        - Attribute material variance to schema construction, parsing, process startup, or fixture setup rather than
-          inferring causality from one run.
+    - `[x]` **7.2.c Settle any material-cost response**
+        - Measured a 0.0419 ms paired p50, 0.1076 ms paired p95, and 0.0165% of the 254.8607 ms cold-command p50;
+          all thresholds passed, so validation remains always on.
 
-    - `[ ]` **7.2.c Settle any material-cost response**
-        - Keep validation always-on when validation p50 is at most 5 ms and at most 5% of cold-command p50, and
-          validation p95 is at most 20 ms.
-        - If any threshold is crossed, stop at the review increment and present the evidence plus a concrete
-          replacement invariant; do not silently disable validation or add a flag, environment/config bypass, or
-          alternate benchmark binary to the production path.
+- _Outcome:_ Reproducible local evidence supports the always-on assertion posture with substantial margin while
+  keeping performance timing outside ordinary CI.
 
 ### `[ ]` **7.3 Close the envelope-family integration and scope-boundary checkpoint**
 
