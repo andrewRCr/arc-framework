@@ -12,7 +12,8 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** `create-spec` drafting/self-review — spec saved; Gate 1 deferred pending upstream refresh
+- **Last Completed:** `create-spec` — spec finalized (refreshed against the landed `cli-schema-kernel` /
+  `cli-session-envelope` contracts; adversarial pass 2 converged)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
