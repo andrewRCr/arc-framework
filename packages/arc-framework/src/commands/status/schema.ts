@@ -44,6 +44,7 @@ export const WorktreeSyncValueViewSchema = z
       "branch-gone",
       "remote-unavailable",
     ]),
+    branch: z.string().nullable(),
     supersession: z.object({ superseded: z.boolean() }).loose().nullable().optional(),
   })
   .loose();

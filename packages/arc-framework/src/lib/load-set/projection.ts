@@ -186,7 +186,7 @@ export function assertLoadSetPath(path: string): void {
 /** Assert a resolver-produced identity-global path is safe to include in a load-set manifest. */
 export function assertIdentityGlobalLoadSetPath(path: string): void {
   if (!LoadSetPathSchema.safeParse(path).success) {
-    throw new Error(`Identity-global load-set path must be non-empty: ${path}`);
+    throw new Error(`Identity-global load-set path must be canonical: ${path}`);
   }
   if (!isAbsolute(path) && !/^[A-Za-z]:\\/u.test(path) && !path.startsWith("\\\\")) {
     assertLoadSetPath(path);

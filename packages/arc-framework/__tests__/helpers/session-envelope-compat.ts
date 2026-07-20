@@ -295,6 +295,15 @@ export function normalizeSessionEnvelope(
     return token;
   };
 
+  const degradedCommandWarningPrefixes = [
+    "Mergeable-sharpening tier degraded to presence (PR source unavailable):",
+    "Behind-base read degraded (base ref unresolved):",
+  ];
+  const normalizeDegradedCommandWarning = (value: string): string => {
+    const prefix = degradedCommandWarningPrefixes.find((candidate) => value.startsWith(candidate));
+    return prefix === undefined ? value : `${prefix} <COMMAND_ERROR>`;
+  };
+
   const visit = (value: unknown, key: string | undefined): unknown => {
     if (typeof value === "string") {
       let next = value;
@@ -306,7 +315,7 @@ export function normalizeSessionEnvelope(
       );
       next = next.replace(/\b\d{4}-\d{2}-\d{2}\b/gu, (date) => tokenFor(dates, date, "DATE"));
       if (key === "machineId") return "<MACHINE_ID>";
-      return next;
+      return normalizeDegradedCommandWarning(next);
     }
     if (Array.isArray(value)) {
       for (let index = 0; index < value.length; index += 1) {

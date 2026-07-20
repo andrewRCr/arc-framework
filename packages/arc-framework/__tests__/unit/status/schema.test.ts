@@ -30,8 +30,12 @@ describe("shared git routing views", () => {
   it.each([
     [DirtyStateValueViewSchema, { state: "broken" }],
     [WorktreeSyncValueViewSchema, { state: "broken" }],
+    [WorktreeSyncValueViewSchema, { state: "clean", branch: 42 }],
     [BaseDistanceValueViewSchema, { verdict: "broken" }],
-    [WorktreeSyncValueViewSchema, { state: "diverged", supersession: { superseded: "yes" } }],
+    [
+      WorktreeSyncValueViewSchema,
+      { state: "diverged", branch: "feat/test", supersession: { superseded: "yes" } },
+    ],
   ] as const)("rejects a malformed routing field", (schema, value) => {
     expect(schema.safeParse(value).success).toBe(false);
   });
@@ -39,6 +43,7 @@ describe("shared git routing views", () => {
   it("preserves unowned nested evidence and commit arrays", () => {
     const value = {
       state: "diverged",
+      branch: "feat/test",
       commits: [{ oid: "abc", subject: "kept" }],
       supersession: { superseded: true, localOnlyCommits: ["abc"] },
       evidence: { deep: { retained: true } },
@@ -199,7 +204,7 @@ describe("user and recommendation routing views", () => {
   });
 
   it.each([
-    [SessionInitWorktreeValueViewSchema, { state: "clean", identity: { kind: "primary" } }],
+    [SessionInitWorktreeValueViewSchema, { state: "clean", branch: "main", identity: { kind: "primary" } }],
     [SessionInitUserValueViewSchema, user],
     [SessionInitBaseDistanceValueViewSchema, { verdict: "clean" }],
     [
@@ -408,6 +413,7 @@ describe("deep advisory routing views", () => {
       WorktreeSyncValueViewSchema,
       {
         state: "diverged",
+        branch: "feat/test",
         supersession: { superseded: true, commits: [{ oid: "kept" }] },
         evidence: { deep: { retained: true } },
       },
@@ -520,6 +526,7 @@ describe("deep advisory routing views", () => {
       SessionInitWorktreeValueViewSchema,
       {
         state: "clean",
+        branch: "feat/test",
         identity: {
           kind: "linked",
           path: "/worktree",
@@ -574,6 +581,7 @@ describe("deep advisory routing views", () => {
       SessionRecoverWorktreeValueViewSchema,
       {
         state: "clean",
+        branch: "feat/test",
         identity: {
           kind: "linked",
           path: "/worktree",

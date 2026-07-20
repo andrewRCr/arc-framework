@@ -326,8 +326,8 @@ disposition.
 
 ### `[x]` **5.1 Validate session-init output while emitting the original object**
 
-- _Goal:_ Every session-init producer defect fails deterministically before output, while every valid invocation
-  serializes the same assembled object and exact bytes characterized in Phase 1.
+- _Goal:_ Every session-init envelope producer defect fails deterministically before output, while every valid
+  invocation serializes the same assembled object and exact bytes characterized in Phase 1.
 
     - `[x]` **5.1.a Add an injectable producer-validation seam**
         - Added one kernel-backed validate-for-effect helper plus contract-specific assertions with stable contract
@@ -337,8 +337,8 @@ disposition.
         - Validated the finalized session-init object after optional seed status and before both render paths, then
           retained the original object for serialization; all five exact wire goldens remain unchanged.
 
-- _Outcome:_ Session-init producer defects now fail through the CLI boundary before output while valid assembled
-  objects retain their exact byte shape and identity.
+- _Outcome:_ Session-init envelope producer defects now fail through the CLI boundary before output while valid
+  assembled objects retain their exact byte shape and identity.
 
 ### `[x]` **5.2 Validate recovery output and audit reports without changing their JSON**
 

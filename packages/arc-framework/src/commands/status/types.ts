@@ -339,9 +339,9 @@ export interface SessionInitProbeResult {
   /**
    * Pre-computed user-notes compaction advisory — local notes-ref history size
    * compared to the internal threshold, plus a once-per-calendar-day nudge
-   * marker. Present whenever identity resolved; omitted only when identity is
-   * absent. Workflow renders it as offer-only guidance and never auto-runs
-   * compaction.
+   * marker. Present when identity resolved and the optional probe is supplied;
+   * omitted when identity is absent or the probe is not supplied. Workflow
+   * renders it as offer-only guidance and never auto-runs compaction.
    */
   compactionAdvisory?: Probe<NotesCompactionSessionAdvisoryResult>;
   /**

@@ -59,10 +59,11 @@ undeclared key before validation discards its parsed copy and emits the original
 ### Shared git and deep advisory views
 
 - **`DirtyStateResult`:** pin `state` to `clean | dirty`.
-- **`WorktreeSyncStatusResult`:** pin `state` to the full `WorktreeSyncState` union. Its session/recovery envelope
-  view also pins `identity.kind` to `primary | linked`; the linked arm retains its unowned path payload. The enriched
-  session-init view pins nullable `supersession.superseded` as a boolean because the diverged workflow selects its
-  lossless-reset offer from that flag; commit arrays remain pass-through.
+- **`WorktreeSyncStatusResult`:** pin `state` to the full `WorktreeSyncState` union and `branch` to a nullable string
+  because linked branchless routing selects the current-husk advisory. Its session/recovery envelope view also pins
+  `identity.kind` to `primary | linked`; the linked arm retains its unowned path payload. The enriched session-init
+  view pins nullable `supersession.superseded` as a boolean because the diverged workflow selects its lossless-reset
+  offer from that flag; commit arrays remain pass-through.
 - **`BaseDistanceStatusResult`:** pin `verdict` to `clean | reconcile | unavailable | skipped`.
 - **`WorktreeRosterResult`:** validate only that the value is an object; no nested roster field drives agent
   dispatch, so its content remains wholly pass-through.

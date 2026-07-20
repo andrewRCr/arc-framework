@@ -72,7 +72,9 @@ export function findMaterializableWorkUnits(
     if (entry.state === "Shipped") continue;
     if (entry.marks !== undefined && entry.marks.length > 0) continue;
     if (identity !== null && entry.owner !== undefined && entry.owner !== identity) continue;
-    candidates.push({ name: SlugSchema.parse(entry.name), branch: entry.branch });
+    const name = SlugSchema.safeParse(entry.name);
+    if (!name.success) continue;
+    candidates.push({ name: name.data, branch: entry.branch });
   }
   return { candidates };
 }

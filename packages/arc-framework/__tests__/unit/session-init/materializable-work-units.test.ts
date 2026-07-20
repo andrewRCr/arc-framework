@@ -116,6 +116,18 @@ describe("findMaterializableWorkUnits", () => {
     expect(result.candidates).toEqual([]);
   });
 
+  it("skips malformed WU names without dropping valid candidates", () => {
+    const result = findMaterializableWorkUnits({
+      entries: [
+        wu({ name: "Not A Slug", branch: "feat/not-a-slug" }),
+        wu({ name: "valid-slug", branch: "feat/valid-slug" }),
+      ],
+      identity: "andrew",
+    });
+
+    expect(result.candidates).toEqual([{ name: "valid-slug", branch: "feat/valid-slug" }]);
+  });
+
   it("excludes an errand entry (only work units are materialize-WU candidates)", () => {
     const result = findMaterializableWorkUnits({ entries: [errand()], identity: "andrew" });
 

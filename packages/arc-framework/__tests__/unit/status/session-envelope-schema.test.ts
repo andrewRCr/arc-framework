@@ -99,6 +99,14 @@ describe("session-init envelope schema", () => {
       "user.value.recommendedAction",
     ],
     ["worktree state", "orient", ["worktree", "value", "state"], "unknown", "worktree.value.state"],
+    ["worktree branch", "orient", ["worktree", "value", "branch"], 42, "worktree.value.branch"],
+    [
+      "worktree branch omission",
+      "orient",
+      ["worktree", "value", "branch"],
+      undefined,
+      "worktree.value.branch",
+    ],
     [
       "worktree identity",
       "orient",
