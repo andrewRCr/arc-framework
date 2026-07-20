@@ -24,7 +24,7 @@ export type ReviewCanonicalDigest = z.infer<typeof ReviewCanonicalDigestSchema>;
 export const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 export type GitObjectId = z.infer<typeof GitObjectIdSchema>;
 
-const ReviewIdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
+export const ReviewIdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 
 export const ReviewTargetIdPreimageSchema = z.strictObject({
   domain: z.literal("arc.review-gate.target-id/v2"),

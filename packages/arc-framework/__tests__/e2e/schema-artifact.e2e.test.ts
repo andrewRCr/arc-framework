@@ -33,6 +33,7 @@ describe("production schema artifact", () => {
       "review-method-activity",
       "review-policy-version-preimage",
       "review-receipt",
+      "review-receipt-ledger",
       "review-request",
       "review-request-id-preimage",
       "review-requirement",

@@ -297,16 +297,11 @@ readiness.
           only the fixed `local-change-set` carrier with a null change-request identity, rejects uncommitted and
           unborn state, and binds separated author, evaluator, and attesting-runtime identities.
 
-    - `[ ]` **3.4.b Implement the local receipt authority**
-        - Add a `ReviewReceiptStore` implementation rooted under the repository's Git common directory, with no new
-          storage setting or workflow knowledge of its physical location.
-        - Serialize repository-shared mutation with a bounded lock and version-checked temp-write/atomic-publish;
-          make identical replay idempotent and refuse same-ID conflicts, stale versions, or partial state without
-          overwriting recoverable records.
-        - Extract the Git-common-directory lock/atomic-publish primitive for reuse by non-evidentiary review
-          operational state while keeping receipt and operation namespaces and authorities separate.
-        - Keep local receipts machine-local and authoritative only for the local channel; expose an explicit import
-          boundary that revalidates and appends through a hosted store instead of letting hosts read local state.
+    - `[x]` **3.4.b Implement the local receipt authority**
+        - Added a registered repository-scoped v2 receipt ledger and a Git-common-directory store with bounded
+          advisory locking, version-checked atomic publication, idempotent replay, and fail-closed conflict/partial
+          state handling. The reusable publisher separates evidence and operation namespaces, while explicit hosted
+          import revalidates bindings before appending through the destination authority.
 
     - `[ ]` **3.4.c Produce an attested local review receipt**
         - Add a narrow runtime/entrypoint that accepts the normalized adversarial-review result, revalidates the

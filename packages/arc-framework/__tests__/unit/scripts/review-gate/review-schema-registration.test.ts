@@ -31,6 +31,7 @@ const reviewIdentities = [
   "review-method-activity",
   "review-policy-version-preimage",
   "review-receipt",
+  "review-receipt-ledger",
   "review-request",
   "review-request-id-preimage",
   "review-requirement",
@@ -59,6 +60,7 @@ describe("review schema registration", () => {
     expect(registry.meta("review-request")?.version).toBe(2);
     expect(registry.meta("review-requirement")?.version).toBe(2);
     expect(registry.meta("review-receipt")?.version).toBe(2);
+    expect(registry.meta("review-receipt-ledger")?.version).toBe(2);
     expect(registry.meta("independent-analysis-rubric-digest-preimage")?.version).toBe(1);
     expect(registry.meta("review-guidance-digest-preimage")?.version).toBe(2);
     expect(registry.meta("review-policy-version-preimage")?.version).toBe(2);

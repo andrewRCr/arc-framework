@@ -237,10 +237,19 @@ export interface ReviewProviderAdapter {
   normalizeEvidence(observations: ProviderObservation[]): Promise<Evidence[]>;
 }
 
+/** Versioned forward receipt snapshot, optionally filtered to one target. */
+export interface ForwardReceiptLedger {
+  ledgerVersion: number;
+  receipts: ReviewReceiptV2[];
+}
+
 /** Dormant forward receipt persistence boundary, isolated from schema-v1 ledgers. */
 export interface ForwardReviewReceiptStore {
-  readReceipts(targetId: string): Promise<ReviewReceiptV2[]>;
-  appendReceipt(receipt: ReviewReceiptV2): Promise<{ durableEvidenceRef: string }>;
+  readReceipts(targetId: string): Promise<ForwardReceiptLedger>;
+  appendReceipt(
+    receipt: ReviewReceiptV2,
+    expectedLedgerVersion: number,
+  ): Promise<{ ledgerVersion: number; durableEvidenceRef: string }>;
 }
 
 /** Forward provider boundary carrying exact v2 request identity without provider finding normalization. */

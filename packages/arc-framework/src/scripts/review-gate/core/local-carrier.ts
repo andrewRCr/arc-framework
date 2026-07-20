@@ -9,17 +9,16 @@ import {
 import {
   GitObjectIdSchema,
   ReviewCanonicalDigestSchema,
+  ReviewIdentifierSchema,
   ReviewTargetSchema,
   type ReviewRequestV2,
   type ReviewTarget,
 } from "./gate-contract-v2-schema.js";
 
-const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
-
 export const LocalChangeSetSnapshotSchema = z.strictObject({
   state: z.enum(["exact", "uncommitted", "unborn"]),
-  repositoryId: IdentifierSchema,
-  baseRef: IdentifierSchema,
+  repositoryId: ReviewIdentifierSchema,
+  baseRef: ReviewIdentifierSchema,
   diffBaseSha: GitObjectIdSchema,
   diffBaseTree: GitObjectIdSchema,
   headSha: GitObjectIdSchema,
@@ -28,9 +27,9 @@ export const LocalChangeSetSnapshotSchema = z.strictObject({
 export type LocalChangeSetSnapshot = z.infer<typeof LocalChangeSetSnapshotSchema>;
 
 export const LocalAttestationBindingSchema = z.strictObject({
-  evaluatorIdentity: IdentifierSchema,
-  runtimeIdentity: IdentifierSchema,
-  mechanism: IdentifierSchema,
+  evaluatorIdentity: ReviewIdentifierSchema,
+  runtimeIdentity: ReviewIdentifierSchema,
+  mechanism: ReviewIdentifierSchema,
 });
 export type LocalAttestationBinding = z.infer<typeof LocalAttestationBindingSchema>;
 
@@ -38,11 +37,11 @@ export const LocalChangeSetCarrierInputSchema = z.strictObject({
   target: ReviewTargetSchema,
   requirementId: ReviewCanonicalDigestSchema,
   snapshot: LocalChangeSetSnapshotSchema,
-  authorIdentity: IdentifierSchema,
-  evaluatorIdentity: IdentifierSchema,
+  authorIdentity: ReviewIdentifierSchema,
+  evaluatorIdentity: ReviewIdentifierSchema,
   attestation: LocalAttestationBindingSchema,
   generation: z.number().int().nonnegative(),
-  requestMechanism: IdentifierSchema,
+  requestMechanism: ReviewIdentifierSchema,
 });
 export type LocalChangeSetCarrierInput = z.infer<typeof LocalChangeSetCarrierInputSchema>;
 

@@ -97,8 +97,8 @@ describe("review adapter ports", () => {
       publishForwardProjection: async () => [{ opaqueRef: "forward-projection-1" }],
     };
     const forwardStore: ForwardReviewReceiptStore = {
-      readReceipts: async () => [forwardReceipt],
-      appendReceipt: async () => ({ durableEvidenceRef: "forward-receipt-1" }),
+      readReceipts: async () => ({ ledgerVersion: 1, receipts: [forwardReceipt] }),
+      appendReceipt: async () => ({ ledgerVersion: 1, durableEvidenceRef: "forward-receipt-1" }),
     };
     const forwardProvider: ForwardReviewProviderAdapter = {
       qualifyRequest: async () => ({ qualified: true, reason: "qualified" }),
@@ -137,7 +137,10 @@ describe("review adapter ports", () => {
     await expect(provider.request(request)).resolves.toMatchObject({ requestIdentity: "request-1" });
     await expect(forwardHost.publishForwardProjection({ target: forwardTarget, projection: forwardProjection }))
       .resolves.toEqual([{ opaqueRef: "forward-projection-1" }]);
-    await expect(forwardStore.readReceipts(forwardTarget.targetId)).resolves.toEqual([forwardReceipt]);
+    await expect(forwardStore.readReceipts(forwardTarget.targetId)).resolves.toEqual({
+      ledgerVersion: 1,
+      receipts: [forwardReceipt],
+    });
     await expect(forwardProvider.request(forwardRequest)).resolves.toEqual({
       requestId: forwardRequest.requestId,
       providerEventIdentity: null,
