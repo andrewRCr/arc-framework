@@ -9,66 +9,24 @@
 _Purpose:_ Establish the execa-backed failure contract and prove replacement adapters without changing the live
 `GitExec` rejection ABI that existing production consumers still observe.
 
-### `[ ]` **1.1 Define the executor-owned error contract and normalization boundary**
+### `[x]` **1.1 Define the executor-owned error contract and normalization boundary**
 
 - _Goal:_ Every Git rejection shape can be represented by one stable, lossless machine-readable contract before
   any production binding changes its process library.
-- **Additional Context:** `notes-cli-git-executor.md` § Rejection ABI and cutover; § Compatibility classifier
-  inventory; § Expected outcome classification matrix
-
     - `[x]` **1.1.a Add execa 10 as the supported Git process runtime**
         - Added the ESM-only execa 10 runtime dependency without changing the Node ≥24 engine contract, and recorded
           it as the Git process-execution runtime in `.arc/reference/TECHNICAL-OVERVIEW.md`.
 
-    - `[ ]` **1.1.b Implement the concrete `GitProcessError` ABI**
-        - Co-locate `GitProcessError` under `src/lib/git/` with the six `kind` values and `ArcError.code` mappings
-          fixed in the notes: cancellation, timeout, output-limit, non-zero/signaled exit, spawn failure, and
-          unexpected rejection.
-        - Export immutable `GitProcessErrorInit` as the single-object constructor input and
-          `isGitProcessError(value)` as the narrowing guard. Type `{ command: string, args: readonly string[] }`,
-          optional numeric `exitCode`, optional string `signal`, the three boolean source flags, string streams,
-          optional non-zero `expectedOutcome`, and optional cause exactly as specified in the notes.
-        - Default optional flags/streams, derive the fixed code, bounded message, and diagnostic projections, and
-          reject an `expectedOutcome` on any kind except `nonzero-exit`.
-        - Settle one deterministic diagnostic-projection cap from current reporting needs and apply it consistently
-          to both streams without truncating ordinary domain-data fields. Make `message` a deterministic,
-          single-line display summary that reserves bounded space for the invocation (`command` plus first argument),
-          `kind`, and available exit/signal disposition before using the remaining cap for
-          `diagnosticStderr`-then-`diagnosticStdout` evidence. Never embed the complete raw streams or treat the
-          summary as a failure-classification surface.
-        - Build `test-first` (one behavior at a time):
-            - Every `kind` has its exact string `ArcError.code`; the invocation and metadata fields obey the common
-              ABI, the public guard narrows reliably, and only `nonzero-exit` may carry `expectedOutcome`.
-            - Optional process metadata remains optional, diagnostic projections truncate deterministically, full
-              captured streams remain available, and causes retain identity without retaining an output-bearing
-              wrapper unnecessarily.
-            - `output-limit` retains execa's partial process-capped streams and bounded projections without an
-              expected outcome.
-            - The bounded summary retains invocation, kind/status, and stderr-or-stdout diagnostic evidence for
-              display consumers, remains single-line, and truncates diagnostics before losing its identity fields.
+    - `[x]` **1.1.b Implement the concrete `GitProcessError` ABI**
+        - Added the six-kind `ArcError` taxonomy, immutable constructor contract, guard, complete process streams,
+          4 KiB diagnostic projections, and a deterministic single-line display summary capped at 1 KiB.
 
-    - `[ ]` **1.1.c Normalize typed, execa, and injectable rejection shapes**
-        - Implement `normalizeGitRejection(value, { command, args })` with the settled precedence: typed identity,
-          `timedOut`, `isMaxBuffer`, `isCanceled`, exited/signaled process, spawn failure, then unexpected. Preserve
-          a non-cancellation signal as `nonzero-exit` without inventing a numeric status.
-        - Implement `gitFailureText(value)` as the documented compatibility accessor for broader domain
-          classifiers: complete typed stderr, legacy stderr, then legacy message. Keep it distinct from the expected
-          outcome classifier.
-        - Classify complete stderr before deriving bounded diagnostic projections. Apply the exact matrix from the
-          notes: fetch exit `128` plus remote-ref-not-found and deletion-push plus remote-ref-does-not-exist become
-          `absent-remote-ref`; leased push plus `stale info`, and non-delete leased publication plus the established
-          broad rejection signatures, become `stale-lease`.
-        - Preserve unmatched failures as unclassified non-zero exits, including signatures present only in
-          `message`, non-Git executables with Git-shaped arguments, wrong Git subcommands, and broad rejection
-          signatures on deletion pushes.
-        - Build `test-first` (one behavior at a time):
-            - Already-normalized values retain identity; representative execa and faithful legacy/injected shapes
-              yield the same typed metadata and full streams.
-            - Every invocation/signature matrix row classifies only for executable `git` in its allowed subcommand,
-              argument, and exit shape.
-            - `gitFailureText()` preserves broader legacy classifier evidence without making
-              `GitProcessError.message` a failure-classification ABI.
-            - Unrelated thrown values become unexpected executor errors without inventing process metadata.
+    - `[x]` **1.1.c Normalize typed, execa, and injectable rejection shapes**
+        - Added precedence-ordered normalization for typed, execa, legacy process, spawn, and unexpected failures;
+          expected remote-ref and lease outcomes now classify only from matching Git invocation and stderr evidence.
+
+- _Outcome:_ The public Git error surface now preserves lossless process evidence while exposing bounded diagnostics
+  and narrowly classified expected outcomes, without coupling callers to execa's rejection objects.
 
 ### `[ ]` **1.2 Build and prove the replacement core adapters without live cutover**
 
