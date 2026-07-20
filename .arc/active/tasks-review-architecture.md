@@ -380,11 +380,10 @@ with adopter-facing contracts mirrored through the package source.
   orthogonally and blocker/major settlement deterministic across local and hosted review.
 - _Context:_ Implements Design §4 and Success Criterion 6.
 
-    - `[ ]` **4.2.a Rewrite the override-proof triage contract**
-        - Replace `FIX NOW | MINOR FIX | DEFER | REJECT` with severity `blocker | major | minor`, disposition
-          `fix | defer | reject`, and an optional code-review-only `nit` flag.
-        - Preserve the invariant that every finding is source-verified and the complete disposition set is approved
-          before mutation.
+    - `[x]` **4.2.a Rewrite the override-proof triage contract**
+        - Replaced the conflated four-way labels with orthogonal `blocker | major | minor` severity,
+          `fix | defer | reject` disposition, and minor-only code-review `nit`; the method contract now requires
+          independent source verification and approval of the complete set before any mutation.
 
     - `[ ]` **4.2.b Add the high-miss-cost DEV-RULES anchor**
         - Amend package/project `DEV-RULES.ARC.md` copies with the concise universal finding-verification and

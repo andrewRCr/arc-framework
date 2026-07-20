@@ -161,7 +161,7 @@ describe("PR-open lifecycle extensions", () => {
   it("keeps adversarial review launch-neutral and mutation-read-only", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
-      const normalized = method.replace(/\s+/gu, " ");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
       expect(normalized).toContain("caller owns launch policy");
       expect(normalized).toContain("offer callout marks a discretionary invocation");
       expect(normalized).toContain("required invocation is unconditional");
@@ -173,16 +173,17 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
-  it("keeps every review-triage disposition explicit while allowing concise minor roll-up", async () => {
+  it("keeps review severity, disposition, and polish orthogonal", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/review-triage.md"), "utf8");
-      expect(method).toContain("**FIX NOW**");
-      expect(method).toContain("**MINOR FIX**");
-      expect(method).toContain("**DEFER**");
-      expect(method).toContain("**REJECT**");
-      expect(method).toContain("Every valid finding appears in the record");
-      expect(method).toContain("may share one concise `Minor fixes`");
-      expect(method).not.toContain("SILENT FIX");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      expect(normalized).toContain("severity: `blocker | major | minor`");
+      expect(normalized).toContain("disposition: `fix | defer | reject`");
+      expect(normalized).toContain("`nit` is valid only with `minor`");
+      expect(normalized).toContain("verify every finding against source");
+      expect(normalized).toContain("complete disposition set");
+      expect(normalized).toContain("approval before any fix");
+      expect(method).not.toMatch(/FIX NOW|MINOR FIX|SILENT FIX/u);
     }
   });
 
