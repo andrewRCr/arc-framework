@@ -193,4 +193,13 @@ describe("runReopen — the pr-unmerged guard", () => {
     // No mutation or PR withdrawal on an unconfirmable merge state.
     expect(calls.some((c) => c.startsWith("setPhase:") || c === "side:withdraw-pr")).toBe(false);
   });
+
+  it("rejects an invalid work-unit name without mutation or PR withdrawal", async () => {
+    const { ctx, calls } = buildCtx([INTEGRATING]);
+
+    const result = await runReopen(ctx, { ...BASE, name: "../foo" });
+
+    expect(result.status).toBe("rejected");
+    expect(calls.some((c) => c.startsWith("setPhase:") || c === "side:withdraw-pr")).toBe(false);
+  });
 });

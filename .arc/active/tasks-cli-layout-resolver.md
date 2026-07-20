@@ -122,43 +122,37 @@ project-active scope; contributor discovery supplies contributor-active scope pl
 remain exact evidence; comparison code may project an expected path from independently parsed semantic fields but
 never recover operands from the discovered path merely to call layout.
 
-### `[ ]` **3.1 Migrate active-work-unit verb projections**
+### `[x]` **3.1 Migrate active-work-unit verb projections**
 
 - _Goal:_ Every active lifecycle verb obtains its conventional meta and companion paths from validated
   project-active placement while preserving its current transition semantics and stored filename contracts.
 
-    - `[ ]` **3.1.a Migrate `activate` and `deactivate` paths**
-        - Parse the work-unit name through `SlugSchema` at the verb boundary in
-          `src/lib/work-unit/verbs/activate-deactivate.ts`, preserving the existing rejected-result contract for an
-          invalid name, then project the active meta artifact through layout.
-        - Keep branch rotation, phase changes, dependency discharge, and the returned literal path behavior intact.
-        - Build `test-first` (one behavior at a time): preserve valid activate/deactivate results and golden paths;
-          reject invalid names before file reads or transition dispatch.
+    - `[x]` **3.1.a Migrate `activate` and `deactivate` paths**
+        - Parsed work-unit names at the verb boundary and projected project-active meta artifacts; invalid names now
+          retain the rejected-result contract while short-circuiting before file reads or transition dispatch.
 
-    - `[ ]` **3.1.b Migrate `set-stage` paths**
-        - Convert the existing slug-safety guard in `src/lib/work-unit/verbs/set-stage.ts` into a branded operand and
-          project the active meta path without changing stage validation or transition inputs.
-        - Keep expected path strings literal in `set-stage` tests and cover invalid-name short-circuiting.
+    - `[x]` **3.1.b Migrate `set-stage` paths**
+        - Projected the active meta path from the existing branded slug guard without changing stage validation,
+          transition inputs, or literal result paths.
 
-    - `[ ]` **3.1.c Migrate `finalize-stage` paths**
-        - Use active artifact addresses in `src/lib/work-unit/verbs/finalize-stage.ts` for repository paths while
-          preserving bare `tasks-{slug}.md` and design filenames written into meta fields.
-        - Cover both finalize stages, invalid names, and unchanged literal path results.
+    - `[x]` **3.1.c Migrate `finalize-stage` paths**
+        - Projected the active meta artifact while preserving bare task-list and design filenames in stored fields
+          across both finalize stages and all rejection paths.
 
-    - `[ ]` **3.1.d Migrate `repoint-design` paths**
-        - Project the active meta and conventional design artifact in `src/lib/work-unit/verbs/repoint-design.ts`
-          from one branded slug while retaining bare-field storage and existing file-existence policy.
-        - Preserve literal expected paths and current rejection behavior in the focused verb tests.
+    - `[x]` **3.1.d Migrate `repoint-design` paths**
+        - Projected active meta and design artifacts from one branded slug, retaining bare-field storage,
+          deduplication, and existing invalid-name behavior.
 
-    - `[ ]` **3.1.e Migrate `integrate` paths**
-        - Adopt active meta projection in `src/lib/work-unit/verbs/integrate.ts` after its existing semantic checks;
-          leave integration judgment, guards, and Git effects untouched.
-        - Cover valid, invalid, and rejected transitions with resolver-independent expected strings.
+    - `[x]` **3.1.e Migrate `integrate` paths**
+        - Projected the active meta artifact after successful transition checks, leaving integration judgment,
+          guards, and Git effects unchanged and covering invalid and rejected transitions independently.
 
-    - `[ ]` **3.1.f Migrate `reopen` paths**
-        - Adopt active meta projection in `src/lib/work-unit/verbs/reopen.ts` after its existing semantic checks;
-          preserve PR-withdrawal and lifecycle behavior.
-        - Cover valid, invalid, and rejected transitions with resolver-independent expected strings.
+    - `[x]` **3.1.f Migrate `reopen` paths**
+        - Projected the active meta artifact after successful transition checks while preserving PR withdrawal,
+          lifecycle guards, and invalid-name rejection behavior.
+
+- _Outcome:_ Active lifecycle verbs now share the semantic project-active projection contract while their branch,
+  field-storage, transition, and side-effect policies remain owned by the existing verb and executor boundaries.
 
 ### `[ ]` **3.2 Migrate backlog placement producers**
 
