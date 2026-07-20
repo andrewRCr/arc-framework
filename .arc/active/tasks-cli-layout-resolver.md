@@ -70,25 +70,25 @@ resolver without changing fallback or root-selection policy.
     - The fallback resolver now retains derived/prompted slugification and cancellation behavior while returning only
       validated slugs; production Git integration proves canonical, padded, empty, and absent byte handling.
 
-### `[ ]` **2.2 Migrate configured-only identity readers with exact failure semantics**
+### `[x]` **2.2 Migrate configured-only identity readers with exact failure semantics**
 
 - _Goal:_ Status, recovery, and project-readiness probes share the configured-only identity authority without
   accidentally acquiring interactive or `user.name` fallback semantics.
 
-    - `[ ]` **2.2.a Adopt the helper in composite status identity reads**
-        - Replace the direct `arc.identity` read in `src/handlers/status.ts`, leaving `arc.role` on the normalized
-          configuration helper and preserving identity-absence short-circuit behavior.
-        - Extend handler and session-envelope tests for canonical, absent, invalid, and non-absence Git failures.
+    - `[x]` **2.2.a Adopt the helper in composite status identity reads**
+        - Composite status now uses the configured-only authority while leaving role normalization local; absence and
+          prior read-failure degradation remain missing identity, while invalid present configuration stops early.
 
-    - `[ ]` **2.2.b Adopt the helper in recovery probes**
-        - Update `src/handlers/recover.ts` so absence still produces `identity-missing`, read failures retain their
-          current disposition, and invalid present configuration stops before compaction-seed path resolution.
-        - Extend recovery boundary tests without changing the emitted envelope shape.
+    - `[x]` **2.2.b Adopt the helper in recovery probes**
+        - Recovery preserves its `identity-missing` stops for absence and read failure, propagates invalid configured
+          identity before user-path resolution, and retains the existing recovery envelope shape.
 
-    - `[ ]` **2.2.c Adopt the helper in project-readiness errand records**
-        - Update `src/lib/status/project-roadmap-render.ts` so absence remains an empty complete record set, Git
-          failure remains degraded completeness, and invalid configuration surfaces `identity.invalid`.
-        - Assert no production code outside `src/lib/git/identity.ts` directly reads `arc.identity` after migration.
+    - `[x]` **2.2.c Adopt the helper in project-readiness errand records**
+        - Project-readiness rendering preserves authoritative empty records for absence and degraded completeness for
+          Git failure while surfacing invalid configuration; an architecture test enforces the single read owner.
+
+- _Outcome:_ All configured-only consumers now distinguish absence, invalid presence, and executor failure through
+  one byte-preserving identity authority without acquiring fallback semantics.
 
 ### `[ ]` **2.3 Adopt semantic user-document addresses at user-surface owners**
 

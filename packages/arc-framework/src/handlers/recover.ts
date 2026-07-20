@@ -17,7 +17,7 @@ import {
   resolveCompactionSeedPath,
 } from "../lib/compaction-seed/emitter.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
-import { gitConfigGet } from "../lib/git/index.js";
+import { gitConfigGet, readConfiguredIdentity } from "../lib/git/index.js";
 import { gitExec } from "../lib/io-context.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import {
@@ -153,12 +153,15 @@ async function readIdentityPointers(): Promise<{
   identity: string | null;
   role: string | null;
 }> {
-  const [identityRaw, roleRaw] = await Promise.all([
-    gitConfigGet(gitExec, "arc.identity"),
+  const [identity, roleRaw] = await Promise.all([
+    readConfiguredIdentity(gitExec).catch((error: unknown) => {
+      if (error instanceof Error && "code" in error && error.code === "identity.invalid") throw error;
+      return null;
+    }),
     gitConfigGet(gitExec, "arc.role"),
   ]);
   return {
-    identity: normalizeGitConfigValue(identityRaw),
+    identity,
     role: normalizeGitConfigValue(roleRaw),
   };
 }

@@ -1,7 +1,7 @@
 /**
  * Handler for `arc status` — the composite probe orchestrator.
  *
- * Reads `arc.identity` / `arc.role` via two parallel `git config` calls,
+ * Reads configured identity and role pointers in parallel,
  * builds the default probe bundle from real I/O, and delegates orchestration
  * to {@link runStatus} / {@link runSessionInitStatus}. Branches on scope
  * (`--session-init`) and format (`--json`); `--json` bypasses Clack and
@@ -52,6 +52,7 @@ import {
 import {
   filterRosterByIdentity,
   gitConfigGet,
+  readConfiguredIdentity,
   runIdentityScopedWorktreeRoster,
   runWorktreeRoster,
 } from "../lib/git/index.js";
@@ -168,12 +169,15 @@ async function readIdentityPointers(): Promise<{
   identity: string | null;
   role: string | null;
 }> {
-  const [identityRaw, roleRaw] = await Promise.all([
-    gitConfigGet(gitExec, "arc.identity"),
+  const [identity, roleRaw] = await Promise.all([
+    readConfiguredIdentity(gitExec).catch((error: unknown) => {
+      if (error instanceof Error && "code" in error && error.code === "identity.invalid") throw error;
+      return null;
+    }),
     gitConfigGet(gitExec, "arc.role"),
   ]);
   return {
-    identity: normalizeGitConfigValue(identityRaw),
+    identity,
     role: normalizeGitConfigValue(roleRaw),
   };
 }
