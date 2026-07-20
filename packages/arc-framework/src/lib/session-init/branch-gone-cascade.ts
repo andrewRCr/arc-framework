@@ -23,30 +23,50 @@
  * @module
  */
 
+import { z } from "zod";
+
 import { decideWorktreeCleanup } from "../git/worktree-cleanup.js";
 import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 
 /** Proposed disposition for a recovery candidate's worktree. */
-export type CandidateAction = "switch" | "removable" | "external";
+export const CandidateActionSchema = z.enum(["switch", "removable", "external"]);
+
+/** Proposed disposition for a recovery candidate's worktree. */
+export type CandidateAction = z.infer<typeof CandidateActionSchema>;
+
+const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "value must not be empty");
+
+/** Runtime authority for a branch-gone recovery destination. */
+export const CascadeCandidateSchema = z.discriminatedUnion("proposedAction", [
+  z.strictObject({
+    branch: NON_EMPTY_TEXT,
+    worktreePath: NON_EMPTY_TEXT.optional(),
+    proposedAction: z.literal("switch"),
+  }),
+  z.strictObject({
+    branch: NON_EMPTY_TEXT,
+    worktreePath: NON_EMPTY_TEXT,
+    proposedAction: z.literal("removable"),
+  }),
+  z.strictObject({
+    branch: NON_EMPTY_TEXT,
+    worktreePath: NON_EMPTY_TEXT,
+    proposedAction: z.literal("external"),
+  }),
+]);
 
 /** A recovery destination the cascade can resolve to. */
-export interface CascadeCandidate {
-  /** Branch to recover onto. */
-  branch: string;
-  /**
-   * Local worktree path when the candidate is a checked-out worktree; absent
-   * for a candidate sourced from a recent remote branch with no local worktree.
-   */
-  worktreePath?: string;
-  /** Proposed action for this candidate's worktree. */
-  proposedAction: CandidateAction;
-}
+export type CascadeCandidate = z.infer<typeof CascadeCandidateSchema>;
+
+/** Runtime authority for the three branch-gone recovery outcomes. */
+export const CascadeResolutionSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("resolved"), candidate: CascadeCandidateSchema }),
+  z.strictObject({ kind: z.literal("surface"), candidates: z.array(CascadeCandidateSchema).min(2) }),
+  z.strictObject({ kind: z.literal("main-fallback") }),
+]);
 
 /** Outcome of the recovery cascade. */
-export type CascadeResolution =
-  | { kind: "resolved"; candidate: CascadeCandidate }
-  | { kind: "surface"; candidates: CascadeCandidate[] }
-  | { kind: "main-fallback" };
+export type CascadeResolution = z.infer<typeof CascadeResolutionSchema>;
 
 /** Candidate tiers, supplied in confidence order. */
 export interface ResolveCascadeInput {

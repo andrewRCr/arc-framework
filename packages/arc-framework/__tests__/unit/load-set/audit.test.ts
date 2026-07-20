@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { auditLoadSetManifest } from "../../../src/lib/load-set/audit.js";
+import {
+  LoadSetAuditVerdictSchema,
+  auditLoadSetManifest,
+} from "../../../src/lib/load-set/audit.js";
 import {
   LOAD_SET_MANIFEST_VERSION,
   type LoadSetManifest,
@@ -49,7 +52,8 @@ const BASELINE = {
 
 describe("auditLoadSetManifest", () => {
   it("returns a clean verdict when the fresh load-set matches the seed baseline", () => {
-    expect(auditLoadSetManifest({ baseline: BASELINE, fresh: cloneManifest(BASELINE) })).toEqual({
+    const verdict = auditLoadSetManifest({ baseline: BASELINE, fresh: cloneManifest(BASELINE) });
+    expect(verdict).toEqual({
       status: "match",
       diverged: false,
       diff: {
@@ -62,6 +66,23 @@ describe("auditLoadSetManifest", () => {
         pathDrifts: [],
       },
     });
+    expect(LoadSetAuditVerdictSchema.parse(verdict)).toEqual(verdict);
+  });
+
+  it("rejects malformed comparisons and inconsistent status flags", () => {
+    const verdict = auditLoadSetManifest({ baseline: BASELINE, fresh: cloneManifest(BASELINE) });
+    expect(LoadSetAuditVerdictSchema.safeParse({ ...verdict, diverged: true }).success).toBe(false);
+    expect(LoadSetAuditVerdictSchema.safeParse({
+      ...verdict,
+      diff: {
+        ...verdict.diff,
+        pathDrifts: [{ index: -1, expected: BASELINE.entries[0], actual: BASELINE.entries[0] }],
+      },
+    }).success).toBe(false);
+    expect(LoadSetAuditVerdictSchema.safeParse({
+      ...verdict,
+      diff: { ...verdict.diff, membership: { added: [{ path: "bad" }], removed: [] } },
+    }).success).toBe(false);
   });
 
   it("flags membership additions and removals", () => {

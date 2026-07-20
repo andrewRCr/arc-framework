@@ -34,6 +34,7 @@ import { readErrandRecord, removeErrandRecord, type ErrandRecord } from "./recor
 import type { ErrandRecordIO } from "./ref-tree.js";
 import { assessReapSafety, isLandedInBase } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
+import { gitFailureText, normalizeGitRejection } from "../git/process-error.js";
 import { refreshBase } from "../git/refresh-base.js";
 import { fetchPrune } from "../work-unit/mutators/fetch-prune.js";
 import { deleteRemoteBranch } from "../work-unit/mutators/reconcile-branch.js";
@@ -274,8 +275,9 @@ async function localBranchExists(exec: GitExec, branch: string): Promise<boolean
     await exec("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
     return true;
   } catch (err) {
-    const code = (err as { code?: unknown }).code;
-    if (code === 1) return false;
+    if (normalizeGitRejection(err, {
+      command: "git", args: ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
+    }).exitCode === 1) return false;
     throw err;
   }
 }
@@ -312,8 +314,7 @@ async function removeRemoteHead(
     const outcome = await deleteRemoteBranch(exec, remote, branch, expectedOid);
     return outcome === "stale" ? { kind: "kept" } : { kind: outcome };
   } catch (err) {
-    const detail =
-      (err as { stderr?: string }).stderr || (err instanceof Error ? err.message : String(err));
+    const detail = gitFailureText(err) || String(err);
     return { kind: "failed", detail: detail.trim() };
   }
 }

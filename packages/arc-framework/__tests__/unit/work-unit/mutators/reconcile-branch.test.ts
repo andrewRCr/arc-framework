@@ -111,6 +111,7 @@ describe("reconcileBranch", () => {
     const { ctx, calls } = buildCtx(
       "push",
       Object.assign(new Error("git push failed"), {
+        code: 1,
         stderr: "error: unable to delete 'plan/demo-wu': remote ref does not exist",
       }),
     );

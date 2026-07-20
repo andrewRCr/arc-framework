@@ -60,13 +60,20 @@ export async function runRoadmapConflictAutoRemedy(
   };
 }
 
-async function main(): Promise<void> {
-  const result = await runRoadmapConflictAutoRemedy(process.cwd());
-  if (result.stdout !== "") process.stdout.write(result.stdout);
-  if (result.stderr !== "") process.stderr.write(result.stderr);
-  process.exit(result.exitCode);
+/** Run the packaged hidden hook command and forward its process result. */
+export async function runRoadmapConflictAutoRemedyCommand(): Promise<void> {
+  try {
+    const result = await runRoadmapConflictAutoRemedy(process.cwd());
+    if (result.stdout !== "") process.stdout.write(result.stdout);
+    if (result.stderr !== "") process.stderr.write(result.stderr);
+    if (result.exitCode !== 0) process.exitCode = result.exitCode;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`ROADMAP conflict auto-remedy failed: ${message}\n`);
+    process.exitCode = 1;
+  }
 }
 
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  void main();
+  void runRoadmapConflictAutoRemedyCommand();
 }

@@ -27,21 +27,6 @@
   downstream work. Ride the layout evaluation on this chain — at qualification, or later at planning discretion —
   where the surface is being reworked anyway and the evaluation lands without independent churn.
 
-### `[ ]` **Resolve review-gate digest determinism (locale sort + no NFC)**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during
-  `husk-lifecycle-drivers` Phase 1 (Task 1.1).
-- *Concern:* `canonicalizePlainJson` in `review-gate/core/identity.ts` sorts object keys with `localeCompare`
-  (ICU/locale-sensitive) and applies no NFC normalization, so its stored policy-version and change-set digests can
-  diverge across Node/ICU builds or platforms — a latent cross-environment determinism risk in a trust digest that
-  today only holds because every producer runs the same environment.
-- *Approach:* decide between migrating review-gate onto the generalized canonical serializer
-  (`lib/canonical/canonical-json.ts` — codepoint sort + NFC) behind an explicit digest-version bump with a re-hash
-  migration for already-stored digests, or documenting the single-environment constraint as intentional. The
-  generalized serializer already exists — `husk-lifecycle-drivers` built it fresh precisely to avoid mutating
-  review-gate's stored digests in place — so the design fork is the stored-digest migration, not the sort/NFC fix
-  itself.
-
 ### `[ ]` **Consume the review-lane vocabulary rather than minting a parallel classification**
 
 > *Superseded 2026-07-19 — `review-architecture`'s settled `exempt / recommended / required` obligation model

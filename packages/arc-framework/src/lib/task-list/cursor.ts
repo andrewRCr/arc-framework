@@ -7,6 +7,7 @@
  *
  * @module
  */
+import { z } from "zod";
 
 type TaskMarker = " " | "x" | "~";
 
@@ -15,6 +16,7 @@ interface ParsedTask {
   marker: TaskMarker;
   subtasks: ParsedSubtask[];
   phaseIndex: number | null;
+  phaseHeadingLine: number | null;
 }
 
 interface ParsedSubtask {
@@ -22,37 +24,81 @@ interface ParsedSubtask {
   marker: TaskMarker;
 }
 
+const TASK_CURSOR_ID_SCHEMA = z.string()
+  .regex(/^\d+(?:\.[0-9A-Za-z]+)+$/u)
+  .refine((value) => !/^\d+\.\d+\.\d+(?:\.|$)/u.test(value), {
+    error: "Numeric third task-id segments are not executable cursor ids",
+  });
+const NON_EMPTY_TEXT_SCHEMA = z.string().refine((value) => value.trim().length > 0, {
+  error: "Value must contain non-whitespace text",
+});
+const POSITIVE_SAFE_INTEGER_SCHEMA = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+
+const TASK_CURSOR_ITEM_SHAPE = {
+  id: TASK_CURSOR_ID_SCHEMA,
+  title: NON_EMPTY_TEXT_SCHEMA,
+  lineHint: POSITIVE_SAFE_INTEGER_SCHEMA,
+};
+
+/** Strict runtime authority for a task-list cursor anchor. */
+export const TaskCursorItemSchema = z.strictObject(TASK_CURSOR_ITEM_SHAPE);
+
+/** Unknown-stripping persisted-reader variant for a cursor anchor. */
+export const TaskCursorItemReaderSchema = z.object(TASK_CURSOR_ITEM_SHAPE);
+
 /** A task-list cursor anchor with a 1-based line hint. */
-export interface TaskCursorItem {
-  /** Task identifier, e.g. `4.2.a` or `4.R.1`. */
-  id: string;
-  /** Task title without the identifier. */
-  title: string;
-  /** 1-based line number in the task-list markdown. */
-  lineHint: number;
-}
+export type TaskCursorItem = z.infer<typeof TaskCursorItemSchema>;
 
 /** Durable cursor derived from task-list checkboxes. */
-export interface TaskListCursor {
-  /** Parent task section to read for `partial-strategic` context. */
-  section: TaskCursorItem;
-  /** First incomplete executable checkbox in that section. */
-  leaf: TaskCursorItem;
-}
+export const TaskListCursorSchema = z.strictObject({
+  section: TaskCursorItemSchema,
+  leaf: TaskCursorItemSchema,
+});
+
+/** Recursively unknown-stripping persisted-reader variant for a cursor. */
+export const TaskListCursorReaderSchema = z.object({
+  section: TaskCursorItemReaderSchema,
+  leaf: TaskCursorItemReaderSchema,
+});
+
+/** Durable cursor derived from task-list checkboxes. */
+export type TaskListCursor = z.infer<typeof TaskListCursorSchema>;
 
 /** Failure details when task-list markdown looks like a task marker but is invalid. */
-export interface TaskListCursorMalformed {
-  /** 1-based line number containing the malformed marker. */
-  line: number;
-  /** Human-readable parse failure detail. */
-  message: string;
-}
+export const TaskListCursorMalformedSchema = z.strictObject({
+  line: POSITIVE_SAFE_INTEGER_SCHEMA,
+  message: NON_EMPTY_TEXT_SCHEMA,
+});
+
+/** Failure details when task-list markdown looks like a task marker but is invalid. */
+export type TaskListCursorMalformed = z.infer<typeof TaskListCursorMalformedSchema>;
+
+/** Successful cursor-result branch. */
+export const TaskListCursorFoundSchema = z.strictObject({
+  status: z.literal("found"),
+  cursor: TaskListCursorSchema,
+});
+
+/** No-open-task cursor-result branch. */
+export const TaskListCursorNoOpenTaskSchema = z.strictObject({
+  status: z.literal("no-open-task"),
+});
+
+/** Malformed cursor-result branch. */
+export const TaskListCursorMalformedResultSchema = z.strictObject({
+  status: z.literal("malformed"),
+  error: TaskListCursorMalformedSchema,
+});
+
+/** Strict runtime authority for the complete cursor result. */
+export const TaskListCursorResultSchema = z.discriminatedUnion("status", [
+  TaskListCursorFoundSchema,
+  TaskListCursorNoOpenTaskSchema,
+  TaskListCursorMalformedResultSchema,
+]);
 
 /** Result of resolving the current task-list cursor. */
-export type TaskListCursorResult =
-  | { status: "found"; cursor: TaskListCursor }
-  | { status: "no-open-task" }
-  | { status: "malformed"; error: TaskListCursorMalformed };
+export type TaskListCursorResult = z.infer<typeof TaskListCursorResultSchema>;
 
 /** Phase/task/overall counts derived alongside the durable cursor. */
 export interface TaskListTallies {
@@ -64,7 +110,7 @@ export interface TaskListTallies {
 
 /** Cursor plus the phase-aware counts used by `arc view tasks`. */
 export type TaskListAnalysisResult =
-  | { status: "found"; cursor: TaskListCursor; tallies: TaskListTallies }
+  | { status: "found"; cursor: TaskListCursor; tallies: TaskListTallies; phaseHeadingLine?: number }
   | { status: "no-open-task"; tallies?: TaskListTallies }
   | { status: "malformed"; error: TaskListCursorMalformed };
 
@@ -105,6 +151,7 @@ export function analyzeTaskList(content: string): TaskListAnalysisResult {
   let currentTask: ParsedTask | null = null;
   let phaseCount = 0;
   let currentPhaseIndex: number | null = null;
+  let currentPhaseHeadingLine: number | null = null;
 
   const lines = content.split(/\r?\n/u);
   for (const [index, line] of lines.entries()) {
@@ -113,12 +160,13 @@ export function analyzeTaskList(content: string): TaskListAnalysisResult {
     if (PHASE_HEADING_RE.test(line)) {
       phaseCount += 1;
       currentPhaseIndex = phaseCount;
+      currentPhaseHeadingLine = lineNumber;
       currentTask = null;
       continue;
     }
 
     if (TASK_HEADING_PREFIX_RE.test(line)) {
-      const parsed = parseParentTask(line, lineNumber, currentPhaseIndex);
+      const parsed = parseParentTask(line, lineNumber, currentPhaseIndex, currentPhaseHeadingLine);
       if (parsed.status === "malformed") return parsed;
       currentTask = parsed.task;
       tasks.push(currentTask);
@@ -190,9 +238,15 @@ export function analyzeTaskList(content: string): TaskListAnalysisResult {
   const openSubtaskIndex = open.task.subtasks.findIndex(
     (subtask) => subtask.item.id === open.cursor.leaf.id,
   );
+  const firstTaskInPhase = !implicitPhase && tasks.find(
+    (task) => task.phaseIndex === open.task.phaseIndex,
+  ) === open.task;
   return {
     status: "found",
     cursor: open.cursor,
+    ...(firstTaskInPhase && open.task.phaseHeadingLine !== null
+      ? { phaseHeadingLine: open.task.phaseHeadingLine }
+      : {}),
     tallies: {
       phase: { current: phaseIndex, total: implicitPhase ? 1 : phaseCount },
       taskId: open.task.item.id,
@@ -248,6 +302,7 @@ function parseParentTask(
   line: string,
   lineNumber: number,
   phaseIndex: number | null,
+  phaseHeadingLine: number | null,
 ): { status: "parsed"; task: ParsedTask } | { status: "malformed"; error: TaskListCursorMalformed } {
   const match = PARENT_TASK_RE.exec(line);
   if (match === null || match.groups === undefined) {
@@ -264,6 +319,7 @@ function parseParentTask(
       marker: markerFromMatch(match.groups.marker),
       subtasks: [],
       phaseIndex,
+      phaseHeadingLine,
     },
   };
 }

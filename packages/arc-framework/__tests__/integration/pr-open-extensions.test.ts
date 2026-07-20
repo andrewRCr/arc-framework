@@ -185,4 +185,12 @@ describe("PR-open lifecycle extensions", () => {
     const finalHook = await readFile(resolve(packageArc, "system/extensions/pre-merge.md"), "utf8");
     expect(finalHook).toContain("read-only, idempotent, or retry-safe");
   });
+
+  it("keeps the interim self-hosting review gate path-only and NUL-safe", async () => {
+    const extension = await readFile(resolve(projectArc, "system/extensions/pre-pr-open.md"), "utf8");
+
+    expect(extension).toContain("git diff --name-only -z {baseRef}...{headRef}");
+    expect(extension).toContain("bash scripts/classify-change.sh classify --stdin0");
+    expect(extension).not.toContain("classify-change.sh decide");
+  });
 });

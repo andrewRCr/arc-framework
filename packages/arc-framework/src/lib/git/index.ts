@@ -21,6 +21,18 @@ export {
 } from "./exec.js";
 
 export {
+  GIT_DIAGNOSTIC_MAX_CHARS,
+  GitProcessError,
+  gitFailureText,
+  isGitProcessError,
+  normalizeGitRejection,
+  type GitExpectedOutcome,
+  type GitInvocation,
+  type GitProcessErrorInit,
+  type GitProcessErrorKind,
+} from "./process-error.js";
+
+export {
   countAheadBehindRef,
   runWorktreeSyncStatus,
   type WorktreeSyncState,

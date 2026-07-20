@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   COMPACTION_SEED_SCHEMA_VERSION,
+  CompactionSeedSchema,
   isCompactionSeed,
   parseCompactionSeedJson,
   stringifyCompactionSeed,
@@ -150,12 +151,12 @@ describe("CompactionSeed schema", () => {
       harness: "codex-cli",
     };
 
-    expect(isCompactionSeed(value)).toBe(true);
+    expect(isCompactionSeed(value)).toBe(false);
     expect(parseCompactionSeedJson(JSON.stringify(value))).toEqual({
       ok: true,
       seed: canonical,
     });
-    expect(JSON.parse(stringifyCompactionSeed(value))).toEqual(canonical);
+    expect(() => stringifyCompactionSeed(value)).toThrow("Unrecognized key");
   });
 
   it("strips unknown nested fields from cursor and load-set payloads", () => {
@@ -187,12 +188,12 @@ describe("CompactionSeed schema", () => {
       },
     };
 
-    expect(isCompactionSeed(value)).toBe(true);
+    expect(isCompactionSeed(value)).toBe(false);
     expect(parseCompactionSeedJson(JSON.stringify(value))).toEqual({
       ok: true,
       seed: canonical,
     });
-    expect(JSON.parse(stringifyCompactionSeed(value))).toEqual(canonical);
+    expect(() => stringifyCompactionSeed(value)).toThrow("Unrecognized key");
   });
 
   it("accepts null WU pointers for between-unit recovery state", () => {
@@ -225,6 +226,21 @@ describe("CompactionSeed schema", () => {
       ok: true,
       seed: value,
     });
+    expect(Object.keys(JSON.parse(content) as object)).toEqual([
+      "schemaVersion",
+      "emittedAt",
+      "repoRoot",
+      "branch",
+      "head",
+      "dirty",
+      "activeWorkUnit",
+      "metaPath",
+      "sessionType",
+      "currentWorkflow",
+      "taskCursor",
+      "loadSet",
+      "uncommittedFiles",
+    ]);
   });
 
   it("rejects malformed JSON with a typed error", () => {
@@ -236,13 +252,13 @@ describe("CompactionSeed schema", () => {
     }
   });
 
-  it("rejects unknown schema versions with the actual version", () => {
-    const result = parseCompactionSeedJson(JSON.stringify({ ...seed(), schemaVersion: 2 }));
+  it.each([0, 2])("rejects schema version %s with the actual version", (schemaVersion) => {
+    const result = parseCompactionSeedJson(JSON.stringify({ ...seed(), schemaVersion }));
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("schema-version-mismatch");
-      expect(result.error.actualVersion).toBe(2);
+      expect(result.error.actualVersion).toBe(schemaVersion);
     }
   });
 
@@ -356,7 +372,13 @@ describe("CompactionSeed schema", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("invalid-schema");
+      expect(result.error.message).toContain("taskCursor.section.lineHint");
     }
+  });
+
+  it("exposes the strict producer schema", () => {
+    expect(CompactionSeedSchema.parse(seed())).toEqual(seed());
+    expect(CompactionSeedSchema.safeParse({ ...seed(), extra: true }).success).toBe(false);
   });
 
   it("rejects blank task cursor anchors", () => {

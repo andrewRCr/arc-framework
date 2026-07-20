@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
+import { chmod, symlink } from "node:fs/promises";
 
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
 import {
@@ -18,6 +19,7 @@ import {
   makeCommit,
   execFileAsync,
   writeFile,
+  readFile,
   mkdir,
   join,
   dirname,
@@ -256,6 +258,24 @@ describe("classify-change.sh classify", () => {
     ).toBe("heavy");
   });
 
+  it("keeps every focused ARC contract suite on the heavy path when its wiring changes", async () => {
+    const root = dirname(dirname(CLASSIFY_SCRIPT));
+    const manifest = JSON.parse(
+      await readFile(join(root, "packages/arc-framework/package.json"), "utf8"),
+    ) as { scripts: Record<string, string> };
+    const command = manifest.scripts["test:arc-contracts"];
+    const suites = ["framework-sync", "pr-open-extensions", "review-gate-workflows"];
+
+    expect(command).toBe(`vitest run --project integration ${suites.join(" ")}`);
+    for (const suite of suites) {
+      const path = `packages/arc-framework/__tests__/integration/${suite}.test.ts`;
+      expect(await readFile(join(root, path), "utf8")).not.toBe("");
+      expect(await classify([path])).toBe("heavy");
+    }
+    expect(await classify(["packages/arc-framework/package.json"])).toBe("heavy");
+    expect(await classify(["package.json"])).toBe("heavy");
+  });
+
   it("keeps NUL-delimited filenames with whitespace and newlines intact", async () => {
     expect(await classifyNul(["docs/a file.md", "docs/line\nbreak.md"])).toBe("light");
     expect(await classifyNul(["docs/a file.md", "packages/arc-framework/src/line\nbreak.ts"])).toBe("heavy");
@@ -291,8 +311,8 @@ describe("classify-change.sh tree-hash", () => {
     return stdout.trim();
   }
 
-  async function treeHash(repo: string, ref: string): Promise<string> {
-    const result = await runScript(CLASSIFY_SCRIPT, ["tree-hash", ref], { cwd: repo });
+  async function treeHash(repo: string, ref: string, env: NodeJS.ProcessEnv = {}): Promise<string> {
+    const result = await runScript(CLASSIFY_SCRIPT, ["tree-hash", ref], { cwd: repo, env });
     expect(result.exitCode).toBe(0);
     return result.stdout.trim();
   }
@@ -327,6 +347,151 @@ describe("classify-change.sh tree-hash", () => {
     );
 
     expect(await treeHash(repo, after)).not.toBe(await treeHash(repo, before));
+  });
+
+  it("preserves identity across ordinary packaged ARC Markdown content changes", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const path = "packages/arc-framework/arc/system/rules/example.md";
+    const before = await writeAndCommit(repo, { [path]: "before\n" }, "packaged prose");
+    const after = await writeAndCommit(repo, { [path]: "after\n" }, "edit packaged prose");
+
+    expect(await treeHash(repo, after)).toBe(await treeHash(repo, before));
+  });
+
+  it.each([
+    ["extension", "packages/arc-framework/arc/system/extensions/example.md"],
+    ["internal machinery", "packages/arc-framework/arc/system/.internal/example.md"],
+    ["authored template", "packages/arc-framework/arc/reference/templates/example.md"],
+    ["template source", "packages/arc-framework/arc/reference/example.template.md"],
+    ["non-Markdown content", "packages/arc-framework/arc/reference/example.json"],
+  ])("changes identity for packaged %s content", async (_label, path) => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const before = await writeAndCommit(repo, { [path]: "before\n" }, "sensitive content");
+    const after = await writeAndCommit(repo, { [path]: "after\n" }, "edit sensitive content");
+
+    expect(await treeHash(repo, after)).not.toBe(await treeHash(repo, before));
+  });
+
+  it("changes identity for packaged shape and mode changes", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const first = "packages/arc-framework/arc/system/rules/first.md";
+    const second = "packages/arc-framework/arc/system/rules/second.md";
+    const base = await writeAndCommit(repo, { [first]: "one\n" }, "one packaged path");
+    const added = await writeAndCommit(repo, { [second]: "two\n" }, "add packaged path");
+    await execFileAsync("git", ["update-index", "--chmod=+x", second], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "change mode"], {
+      cwd: repo,
+    });
+    const { stdout: modeOutput } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+    await execFileAsync("git", ["mv", first, `${first}.renamed.md`], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "rename path"], {
+      cwd: repo,
+    });
+    const { stdout: renamedOutput } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+    await execFileAsync("git", ["rm", "-f", second], { cwd: repo });
+    await symlink("target.md", join(repo, second));
+    await execFileAsync("git", ["add", second], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "change object type"], {
+      cwd: repo,
+    });
+    const { stdout: typeOutput } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+
+    const hashes = await Promise.all([
+      treeHash(repo, base),
+      treeHash(repo, added),
+      treeHash(repo, modeOutput.trim()),
+      treeHash(repo, renamedOutput.trim()),
+      treeHash(repo, typeOutput.trim()),
+    ]);
+    expect(new Set(hashes).size).toBe(hashes.length);
+  });
+
+  it("keeps tab- and newline-bearing code and packaged paths distinct", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const codePath = "packages/arc-framework/src/tab\tname.ts";
+    const packagedPath = "packages/arc-framework/arc/system/rules/line\nbreak.md";
+    const before = await writeAndCommit(
+      repo,
+      { [codePath]: "one\n", [packagedPath]: "before\n" },
+      "unusual paths",
+    );
+    const proseOnly = await writeAndCommit(repo, { [packagedPath]: "after\n" }, "edit packaged prose");
+    const codeChanged = await writeAndCommit(repo, { [codePath]: "two\n" }, "edit unusual code");
+
+    expect(await treeHash(repo, proseOnly)).toBe(await treeHash(repo, before));
+    expect(await treeHash(repo, codeChanged)).not.toBe(await treeHash(repo, proseOnly));
+  });
+
+  it("does not require GNU sort for NUL-safe tree ordering", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const ref = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
+      "code",
+    );
+    const shimDir = join(repo, ".shims");
+    const sortShim = join(shimDir, "sort");
+    await mkdir(shimDir, { recursive: true });
+    await writeFile(sortShim, "#!/bin/sh\nexit 99\n");
+    await chmod(sortShim, 0o755);
+
+    const hash = await treeHash(repo, ref, {
+      PATH: `${shimDir}:${process.env.PATH ?? ""}`,
+    });
+
+    expect(hash).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it("fails closed for malformed enumeration and serialization failures", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const ref = await writeAndCommit(repo, { "README.md": "docs\n" }, "docs");
+    const fixtures = join(repo, ".trees");
+    await mkdir(fixtures, { recursive: true });
+    await writeFile(join(fixtures, `${ref}.raw`), Buffer.from("malformed\0"));
+
+    const malformed = await runScript(CLASSIFY_SCRIPT, ["tree-hash", ref], {
+      cwd: repo,
+      env: { CLASSIFY_TREE_LIST_DIR: fixtures },
+    });
+    expect(malformed.exitCode).not.toBe(0);
+    expect(malformed.stdout).toBe("");
+
+    const failed = await runScript(CLASSIFY_SCRIPT, ["tree-hash", ref], {
+      cwd: repo,
+      env: { CLASSIFY_TREE_SERIALIZE_FAIL: "true" },
+    });
+    expect(failed.exitCode).not.toBe(0);
+    expect(failed.stdout).toBe("");
+  });
+
+  it.each([
+    ["a noncanonical mode", `777777 blob ${"1".repeat(40)}\tdocs/example.md\0`],
+    ["an inconsistent mode/type pair", `100644 commit ${"1".repeat(40)}\tdocs/example.md\0`],
+    [
+      "mixed object ID widths",
+      `100644 blob ${"1".repeat(40)}\tpackages/arc-framework/src/one.ts\0` +
+        `100644 blob ${"2".repeat(64)}\tpackages/arc-framework/src/two.ts\0`,
+    ],
+  ])("fails closed when tree enumeration contains %s", async (_label, listing) => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const ref = await writeAndCommit(repo, { "README.md": "docs\n" }, "docs");
+    const fixtures = join(repo, ".trees");
+    await mkdir(fixtures, { recursive: true });
+    await writeFile(join(fixtures, `${ref}.raw`), Buffer.from(listing));
+
+    const result = await runScript(CLASSIFY_SCRIPT, ["tree-hash", ref], {
+      cwd: repo,
+      env: { CLASSIFY_TREE_LIST_DIR: fixtures },
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toBe("");
   });
 
   it("changes when a code-surface file mode changes", async () => {
@@ -449,11 +614,12 @@ describe("classify-change.sh decide (pure arms)", () => {
     event: string,
     base: string,
     head: string,
+    env: NodeJS.ProcessEnv = {},
   ): Promise<{ weight: string | undefined; reason: string | undefined }> {
     const result = await runScript(
       CLASSIFY_SCRIPT,
       ["decide", event, base, head],
-      { cwd: repo, env: { CLASSIFY_CHECK_RUNS_DIR: repo } },
+      { cwd: repo, env: { CLASSIFY_CHECK_RUNS_DIR: repo, ...env } },
     );
     expect(result.exitCode).toBe(0);
     const lines = result.stdout.trimEnd().split("\n");
@@ -508,6 +674,299 @@ describe("classify-change.sh decide (pure arms)", () => {
       reason: "unverified",
     });
   });
+
+  it("is light/docs-only for an ordinary packaged ARC Markdown modification", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const path = "packages/arc-framework/arc/system/rules/example.md";
+    const base = await writeAndCommit(repo, { [path]: "before\n" }, "packaged prose");
+    const head = await writeAndCommit(repo, { [path]: "after\n" }, "edit packaged prose");
+
+    expect(await decide(repo, "pull_request", base, head)).toEqual({
+      weight: "light",
+      reason: "docs-only",
+    });
+  });
+
+  it.each([
+    ["extension", "packages/arc-framework/arc/system/extensions/example.md"],
+    ["internal machinery", "packages/arc-framework/arc/system/.internal/example.md"],
+    ["authored template", "packages/arc-framework/arc/reference/templates/example.md"],
+    ["template source", "packages/arc-framework/arc/reference/example.template.md"],
+    ["non-Markdown content", "packages/arc-framework/arc/reference/example.json"],
+  ])("keeps packaged %s modifications heavy", async (_label, path) => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { [path]: "before\n" }, "packaged content");
+    const head = await writeAndCommit(repo, { [path]: "after\n" }, "edit packaged content");
+
+    expect(await decide(repo, "pull_request", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("keeps packaged membership changes and cross-boundary endpoints heavy", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const packaged = "packages/arc-framework/arc/system/rules/example.md";
+    const base = await writeAndCommit(repo, { "docs/example.md": "content\n" }, "docs source");
+    await mkdir(dirname(join(repo, packaged)), { recursive: true });
+    await execFileAsync("git", ["mv", "docs/example.md", packaged], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "move into package"], {
+      cwd: repo,
+    });
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+
+    expect(await decide(repo, "pull_request", base, stdout.trim())).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("keeps rename-out and copy-source packaged endpoints heavy", async () => {
+    const renameRepo = await createTempRepo();
+    tempDirs.push(renameRepo);
+    const packaged = "packages/arc-framework/arc/system/rules/source.md";
+    const renameBase = await writeAndCommit(renameRepo, { [packaged]: "shared\n" }, "packaged source");
+    await mkdir(join(renameRepo, "docs"), { recursive: true });
+    await execFileAsync("git", ["mv", packaged, "docs/moved.md"], { cwd: renameRepo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "move out of package"], {
+      cwd: renameRepo,
+    });
+    const { stdout: renameOutput } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: renameRepo });
+    expect(await decide(renameRepo, "pull_request", renameBase, renameOutput.trim())).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+
+    const copyRepo = await createTempRepo();
+    tempDirs.push(copyRepo);
+    const copyBase = await writeAndCommit(copyRepo, { [packaged]: "shared\n" }, "packaged source");
+    const copyHead = await writeAndCommit(copyRepo, { "docs/copied.md": "shared\n" }, "copy out of package");
+    expect(await decide(copyRepo, "pull_request", copyBase, copyHead)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("reduces mixed ordinary packaged prose and code facts to heavy", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const prose = "packages/arc-framework/arc/system/rules/example.md";
+    const code = "packages/arc-framework/src/example.ts";
+    const base = await writeAndCommit(repo, { [prose]: "before\n", [code]: "export const x = 1;\n" }, "base");
+    const head = await writeAndCommit(repo, { [prose]: "after\n", [code]: "export const x = 2;\n" }, "mixed");
+
+    expect(await decide(repo, "pull_request", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("keeps real packaged adds and deletes heavy", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const path = "packages/arc-framework/arc/system/rules/example.md";
+    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
+    const added = await writeAndCommit(repo, { [path]: "content\n" }, "add packaged path");
+    expect(await decide(repo, "pull_request", base, added)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "rm", path], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "delete packaged path"], {
+      cwd: repo,
+    });
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+    expect(await decide(repo, "pull_request", added, stdout.trim())).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("keeps real packaged copies and within-tree renames heavy", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const source = "packages/arc-framework/arc/system/rules/source.md";
+    const copy = "packages/arc-framework/arc/system/rules/copy.md";
+    const base = await writeAndCommit(repo, { [source]: "shared\n" }, "packaged source");
+    const copied = await writeAndCommit(repo, { [copy]: "shared\n" }, "copy packaged path");
+    expect(await decide(repo, "pull_request", base, copied)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+
+    await execFileAsync("git", ["mv", source, `${source}.renamed.md`], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "rename packaged path"], {
+      cwd: repo,
+    });
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+    expect(await decide(repo, "pull_request", copied, stdout.trim())).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("keeps real packaged mode and object-type changes heavy", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const path = "packages/arc-framework/arc/system/rules/example.md";
+    const base = await writeAndCommit(repo, { [path]: "content\n" }, "packaged prose");
+    await execFileAsync("git", ["update-index", "--chmod=+x", path], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "change packaged mode"], {
+      cwd: repo,
+    });
+    const { stdout: modeOutput } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+    const mode = modeOutput.trim();
+    expect(await decide(repo, "pull_request", base, mode)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+
+    await execFileAsync("git", ["rm", "-f", path], { cwd: repo });
+    await mkdir(dirname(join(repo, path)), { recursive: true });
+    await symlink("target.md", join(repo, path));
+    await execFileAsync("git", ["add", path], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "change packaged type"], {
+      cwd: repo,
+    });
+    const { stdout: typeOutput } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+    expect(await decide(repo, "pull_request", mode, typeOutput.trim())).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("preserves unusual packaged Markdown filenames through raw parsing", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const path = "packages/arc-framework/arc/system/rules/tab\tline\nbreak.md";
+    const base = await writeAndCommit(repo, { [path]: "before\n" }, "unusual packaged path");
+    const head = await writeAndCommit(repo, { [path]: "after\n" }, "edit unusual packaged path");
+
+    expect(await decide(repo, "pull_request", base, head)).toEqual({
+      weight: "light",
+      reason: "docs-only",
+    });
+  });
+
+  it("keeps stable executable packaged Markdown heavy", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const path = "packages/arc-framework/arc/system/rules/example.md";
+    await writeAndCommit(repo, { [path]: "before\n" }, "packaged prose");
+    await execFileAsync("git", ["update-index", "--chmod=+x", path], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "make executable"], {
+      cwd: repo,
+    });
+    const { stdout: baseOutput } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+    const head = await writeAndCommit(repo, { [path]: "after\n" }, "edit executable prose");
+
+    expect(await decide(repo, "pull_request", baseOutput.trim(), head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  const exactRename = `R${100}`;
+  const exactCopy = `C${100}`;
+
+  it.each([
+    ["A", "000000", "100644", "zero", "one"],
+    ["D", "100644", "000000", "one", "zero"],
+    [exactRename, "100644", "100644", "one", "two"],
+    [exactCopy, "100644", "100644", "one", "two"],
+    ["T", "100644", "120000", "one", "two"],
+    ["U", "100644", "100644", "one", "two"],
+  ])(
+    "fails closed for injected packaged raw status %s",
+    async (status, oldMode, newMode, oldOidKind, newOidKind) => {
+      const repo = await createTempRepo();
+      tempDirs.push(repo);
+      const base = await writeAndCommit(repo, { "README.md": "one\n" }, "base");
+      const head = await writeAndCommit(repo, { "README.md": "two\n" }, "head");
+      const fixture = join(repo, `raw-${status}.bin`);
+      const objectIds = {
+        zero: "0".repeat(40),
+        one: "1".repeat(40),
+        two: "2".repeat(40),
+      };
+      const oldOid = objectIds[oldOidKind as keyof typeof objectIds];
+      const newOid = objectIds[newOidKind as keyof typeof objectIds];
+      const paths = status.startsWith("R") || status.startsWith("C")
+        ? "packages/arc-framework/arc/old.md\0packages/arc-framework/arc/new.md\0"
+        : "packages/arc-framework/arc/example.md\0";
+      await writeFile(fixture, Buffer.from(`:${oldMode} ${newMode} ${oldOid} ${newOid} ${status}\0${paths}`));
+
+      expect(await decide(repo, "pull_request", base, head, { CLASSIFY_RAW_DIFF_FILE: fixture })).toEqual({
+        weight: "heavy",
+        reason: "unverified",
+      });
+    },
+  );
+
+  it.each([
+    ["missing destination", exactRename, "packages/arc-framework/arc/old.md\0"],
+    ["missing path", "M", ""],
+    ["trailing bytes", "M", "packages/arc-framework/arc/example.md\0trailing"],
+    ["short rename score", `R${1}`, "docs/old.md\0docs/new.md\0"],
+    ["out-of-range rename score", `R${101}`, "docs/old.md\0docs/new.md\0"],
+    ["same-path rename", exactRename, "docs/same.md\0docs/same.md\0"],
+    ["same-path copy", exactCopy, "docs/same.md\0docs/same.md\0"],
+  ])("fails closed for malformed raw input: %s", async (_label, status, paths) => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "README.md": "one\n" }, "base");
+    const head = await writeAndCommit(repo, { "README.md": "two\n" }, "head");
+    const fixture = join(repo, "raw-malformed.bin");
+    const ones = "1".repeat(40);
+    const twos = "2".repeat(40);
+    await writeFile(fixture, Buffer.from(`:100644 100644 ${ones} ${twos} ${status}\0${paths}`));
+
+    expect(await decide(repo, "pull_request", base, head, { CLASSIFY_RAW_DIFF_FILE: fixture })).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it.each([
+    ["modified without an old endpoint", "M", "000000", "100644", "zero", "one", false],
+    ["added with an old endpoint", "A", "100644", "100644", "one", "two", false],
+    ["deleted with a new endpoint", "D", "100644", "100644", "one", "two", false],
+    ["rename without an old endpoint", exactRename, "000000", "100644", "zero", "one", true],
+    ["mode and object presence disagree", "M", "100644", "100644", "zero", "one", false],
+    ["mixed object ID widths", "M", "100644", "100644", "one", "one64", false],
+    ["noncanonical Git modes", "M", "100640", "100640", "one", "two", false],
+    ["no-op modification", "M", "100644", "100644", "one", "one", false],
+    ["modified across object types", "M", "100644", "120000", "one", "two", false],
+    ["type change within one object type", "T", "100644", "100755", "one", "two", false],
+  ])(
+    "fails closed for status-inconsistent raw input: %s",
+    async (_label, status, oldMode, newMode, oldOidKind, newOidKind, twoPaths) => {
+      const repo = await createTempRepo();
+      tempDirs.push(repo);
+      const base = await writeAndCommit(repo, { "README.md": "one\n" }, "base");
+      const head = await writeAndCommit(repo, { "README.md": "two\n" }, "head");
+      const fixture = join(repo, "raw-endpoint-incomplete.bin");
+      const objectIds = {
+        zero: "0".repeat(40),
+        one: "1".repeat(40),
+        one64: "1".repeat(64),
+        two: "2".repeat(40),
+      };
+      const oldOid = objectIds[oldOidKind as keyof typeof objectIds];
+      const newOid = objectIds[newOidKind as keyof typeof objectIds];
+      const paths = twoPaths ? "docs/old.md\0docs/new.md\0" : "docs/example.md\0";
+      await writeFile(fixture, Buffer.from(`:${oldMode} ${newMode} ${oldOid} ${newOid} ${status}\0${paths}`));
+
+      expect(await decide(repo, "pull_request", base, head, { CLASSIFY_RAW_DIFF_FILE: fixture })).toEqual({
+        weight: "heavy",
+        reason: "unverified",
+      });
+    },
+  );
 
   it("classifies newline-bearing paths through the NUL-safe diff transport", async () => {
     const repo = await createTempRepo();
@@ -603,7 +1062,7 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     "E2E Tests (1)",
     "E2E Tests (2)",
     "E2E Tests (3)",
-    "Portability (concurrency guards) (ubuntu-latest)",
+    "Portability (concurrency guards) (linux)",
   ];
 
   /** Render [name, conclusion] pairs as the normalized "<name>\t<conclusion>" lines the seam returns. */
@@ -655,10 +1114,11 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     event: string,
     base: string,
     head: string,
+    env: NodeJS.ProcessEnv = {},
   ): Promise<{ weight: string | undefined; reason: string | undefined }> {
     const result = await runScript(CLASSIFY_SCRIPT, ["decide", event, base, head], {
       cwd: repo,
-      env: { CLASSIFY_CHECK_RUNS_DIR: checksDir },
+      env: { CLASSIFY_CHECK_RUNS_DIR: checksDir, ...env },
     });
     expect(result.exitCode).toBe(0);
     const lines = result.stdout.trimEnd().split("\n");
@@ -709,6 +1169,56 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
       weight: "light",
       reason: "verified",
+    });
+  });
+
+  it("reuses a green code tree across a later ordinary packaged-prose edit", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
+    const code = await writeAndCommit(
+      repo,
+      {
+        "packages/arc-framework/src/a.ts": "export const x = 1;\n",
+        "packages/arc-framework/arc/system/rules/example.md": "before\n",
+      },
+      "verified code tree",
+    );
+    const head = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/arc/system/rules/example.md": "after\n" },
+      "ordinary packaged prose",
+    );
+    const checksDir = join(repo, ".checks");
+    await mkdir(checksDir, { recursive: true });
+    await injectChecks(checksDir, code, allGreen());
+
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
+      weight: "light",
+      reason: "verified",
+    });
+  });
+
+  it.each([
+    ["sensitive packaged content", "packages/arc-framework/arc/system/extensions/example.md"],
+    ["classifier content", "scripts/classify-change.sh"],
+  ])("does not reuse a green tree after %s changes", async (_label, path) => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
+    const code = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n", [path]: "before\n" },
+      "verified code tree",
+    );
+    const head = await writeAndCommit(repo, { [path]: "after\n" }, "change sensitive content");
+    const checksDir = join(repo, ".checks");
+    await mkdir(checksDir, { recursive: true });
+    await injectChecks(checksDir, code, allGreen());
+
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
     });
   });
 
@@ -822,6 +1332,21 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     await injectChecks(checksDir, head, allGreen());
 
     expect(await decide(repo, checksDir, "push", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it.each(["head", "candidate"])("fails closed when %s tree enumeration is malformed", async (target) => {
+    const { repo, checksDir, base, code, head } = await layeredRepo();
+    await injectChecks(checksDir, code, allGreen());
+    const fixtures = join(repo, ".trees");
+    await mkdir(fixtures, { recursive: true });
+    await writeFile(join(fixtures, `${target === "head" ? head : code}.raw`), Buffer.from("malformed\0"));
+
+    expect(
+      await decide(repo, checksDir, "pull_request", base, head, { CLASSIFY_TREE_LIST_DIR: fixtures }),
+    ).toEqual({
       weight: "heavy",
       reason: "unverified",
     });

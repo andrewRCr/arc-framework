@@ -7,7 +7,11 @@
 
 import { describe, it, expect } from "vitest";
 
-import { runRetiredSubdirDetection } from "../../../src/lib/session-init/retired-subdir-detection.js";
+import {
+  RetiredSubdirCandidatesSchema,
+  RetiredSubdirDetectionResultSchema,
+  runRetiredSubdirDetection,
+} from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { DirEntry, ReadFileFn } from "../../../src/lib/git/user-sync.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
@@ -86,5 +90,26 @@ describe("runRetiredSubdirDetection", () => {
     });
 
     expect(result.candidates).toEqual(["old-wu"]);
+  });
+});
+
+describe("RetiredSubdirDetectionResultSchema", () => {
+  it.each([
+    { candidates: [] },
+    { candidates: ["old-wu", "older-wu"] },
+  ])("accepts candidate arrays", ({ candidates }) => {
+    expect(RetiredSubdirDetectionResultSchema.parse({ candidates })).toEqual({ candidates });
+  });
+
+  it.each([
+    "old-wu",
+    ["Not A Slug"],
+    [42],
+  ])("rejects malformed candidates", (candidates) => {
+    expect(RetiredSubdirCandidatesSchema.safeParse(candidates).success).toBe(false);
+  });
+
+  it("rejects undeclared result fields", () => {
+    expect(RetiredSubdirDetectionResultSchema.safeParse({ candidates: [], leaked: true }).success).toBe(false);
   });
 });

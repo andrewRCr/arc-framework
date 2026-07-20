@@ -18,6 +18,7 @@
  */
 
 import { MAX_RECONCILE_ATTEMPTS, uniqueRefToken } from "../git/ref-tree.js";
+import { gitFailureText } from "../git/process-error.js";
 import { isNonFastForwardError, isRemoteUnavailableError } from "../user-sync/index.js";
 import {
   errandsRef,
@@ -102,8 +103,9 @@ export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPus
       return reconciledOnce ? { kind: "reconciled" } : { kind: "pushed" };
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
-      if (!isNonFastForwardError(error.message)) return { kind: "failed", error };
+      const detail = gitFailureText(err);
+      if (isRemoteUnavailableError(detail)) return { kind: "no-remote" };
+      if (!isNonFastForwardError(detail)) return { kind: "failed", error };
       if (attempt === MAX_RECONCILE_ATTEMPTS) {
         return { kind: "failed", error: new Error("errand push: exceeded reconcile attempts") };
       }

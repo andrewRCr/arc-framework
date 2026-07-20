@@ -12,6 +12,7 @@ import {
   type LoadSetManifest,
 } from "../../../src/lib/load-set/types.js";
 import {
+  RecoveryAuditVerdictSchema,
   auditRecoveryState,
   type AuditRecoveryStateOptions,
 } from "../../../src/lib/recover/audit.js";
@@ -176,6 +177,7 @@ describe("auditRecoveryState", () => {
         match: true,
       },
     });
+    expect(RecoveryAuditVerdictSchema.parse(result)).toEqual(result);
   });
 
   it("stops when the live checkout branch differs even if HEAD is unchanged", async () => {
@@ -197,6 +199,7 @@ describe("auditRecoveryState", () => {
       message: "live checkout branch differs from the compaction seed baseline",
       detail: { expected: "feat/compaction-recovery", actual: "main" },
     });
+    expect(RecoveryAuditVerdictSchema.parse(result)).toEqual(result);
   });
 
   it("explains a same-branch HEAD advance when the seed is its ancestor", async () => {
@@ -220,6 +223,33 @@ describe("auditRecoveryState", () => {
       message: "live HEAD advanced from the compaction seed on the same lineage",
       detail: { expected: seed().head, actual: liveHead },
     });
+    expect(RecoveryAuditVerdictSchema.parse(result)).toEqual(result);
+  });
+
+  it("rejects inconsistent verdicts, unknown stop kinds, and malformed nested audits", async () => {
+    const result = await runAudit({
+      seed: seed(),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+    expect(RecoveryAuditVerdictSchema.safeParse({ ...result, ready: false }).success).toBe(false);
+    expect(RecoveryAuditVerdictSchema.safeParse({
+      ...result,
+      status: "stop",
+      ready: false,
+      stopReasons: [{ kind: "unknown", message: "bad" }],
+    }).success).toBe(false);
+    expect(RecoveryAuditVerdictSchema.safeParse({
+      ...result,
+      loadSetAudit: result.loadSetAudit === null
+        ? null
+        : { ...result.loadSetAudit, diverged: true },
+    }).success).toBe(false);
   });
 
   it("stops when live HEAD moved outside the seed lineage", async () => {

@@ -32,6 +32,7 @@ import {
 } from "../../lib/work-unit/completed-index.js";
 import { notesRef } from "./shared.js";
 import type { UserIOContext } from "./types.js";
+import { gitFailureText, normalizeGitRejection } from "../../lib/git/process-error.js";
 
 /** Options for `arc user compact`. */
 export interface UserCompactOptions {
@@ -266,7 +267,7 @@ async function refreshBaseRef(input: {
     return { kind: "ok", baseRef: `origin/${baseBranch}` };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    return { kind: isRemoteUnavailableError(error.message) ? "no-remote" : "failed", error };
+    return { kind: isRemoteUnavailableError(gitFailureText(err)) ? "no-remote" : "failed", error };
   }
 }
 
@@ -360,9 +361,13 @@ async function pruneExpiredBackupRefs(input: {
     if (nowMs - ref.createdAtMs < minAgeMs) continue;
     if (generationFromBackupRef(ref.ref) >= input.currentGeneration) continue;
     try {
-      await input.io.exec("git", ["push", "origin", `:${ref.ref}`]);
+      const args = ["push", "origin", `:${ref.ref}`];
+      await input.io.exec("git", args);
     } catch (err) {
-      if (!isMissingRemoteRefDeleteError(errorFromUnknown(err).message)) {
+      const error = normalizeGitRejection(err, {
+        command: "git", args: ["push", "origin", `:${ref.ref}`],
+      });
+      if (error.expectedOutcome !== "absent-remote-ref") {
         failedRefs.push({ ref: ref.ref, message: errorFromUnknown(err).message });
         continue;
       }
@@ -411,10 +416,6 @@ function backupCreatedAtMsFromRef(ref: string): number | null {
   if (value === undefined) return null;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function isMissingRemoteRefDeleteError(message: string): boolean {
-  return message.includes("remote ref does not exist");
 }
 
 function errorFromUnknown(err: unknown): Error {

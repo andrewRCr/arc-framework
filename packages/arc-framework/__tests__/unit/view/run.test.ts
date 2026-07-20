@@ -8,23 +8,64 @@ import { runView } from "../../../src/commands/view.js";
 import type { ViewArtifactResolver } from "../../../src/commands/view.js";
 
 describe("runView", () => {
-  it("defaults an omitted kind to tasks", async () => {
+  it("passes an omitted kind through as bare lifecycle-aware view", async () => {
     const resolveArtifact = vi.fn<ViewArtifactResolver>().mockResolvedValue({
-      status: "absent",
-      kind: "tasks",
+      status: "resolved",
+      kind: "meta",
+      path: "/repo/.arc/active/meta-feature.md",
+      workUnit: "feature",
     });
 
     await runView({ cwd: "/repo", kind: undefined, project: false, identity: "andrew" }, {
       resolveArtifact,
-      readFile: vi.fn(),
+      readFile: vi.fn().mockResolvedValue("# Meta\n"),
     });
 
     expect(resolveArtifact).toHaveBeenCalledWith({
       cwd: "/repo",
-      kind: "tasks",
       project: false,
       identity: "andrew",
     });
+  });
+
+  it("forces tasks for omitted-kind --current", async () => {
+    const resolveArtifact = vi.fn<ViewArtifactResolver>().mockResolvedValue({
+      status: "absent",
+      kind: "tasks",
+    });
+    await runView({
+      cwd: "/repo", project: false, identity: "andrew", current: true,
+    }, { resolveArtifact, readFile: vi.fn() });
+    expect(resolveArtifact).toHaveBeenCalledWith({
+      cwd: "/repo", kind: "tasks", project: false, identity: "andrew",
+    });
+  });
+
+  it("validates --for and rejects identity-global combinations before resolution", async () => {
+    const resolveArtifact = vi.fn<ViewArtifactResolver>();
+    await expect(runView({
+      cwd: "/repo", kind: "meta", project: false, identity: "andrew", forSlug: "../bad",
+    }, { resolveArtifact, readFile: vi.fn() })).resolves.toMatchObject({
+      exitCode: 1,
+      stderr: expect.stringContaining("Invalid work-unit slug"),
+    });
+    await expect(runView({
+      cwd: "/repo", kind: "working-memory", project: false, identity: "andrew", forSlug: "feature",
+    }, { resolveArtifact, readFile: vi.fn() })).resolves.toMatchObject({
+      exitCode: 1,
+      stderr: expect.stringContaining("identity-global"),
+    });
+    expect(resolveArtifact).not.toHaveBeenCalled();
+  });
+
+  it("threads a valid explicit target to every WU-scoped kind", async () => {
+    for (const kind of ["meta", "tasks", "spec", "draft", "notes", "cohort", "session-notes"] as const) {
+      const resolveArtifact = vi.fn<ViewArtifactResolver>().mockResolvedValue({ status: "absent", kind });
+      await runView({
+        cwd: "/repo", kind, project: false, identity: "andrew", forSlug: "feature",
+      }, { resolveArtifact, readFile: vi.fn() });
+      expect(resolveArtifact).toHaveBeenCalledWith(expect.objectContaining({ forSlug: "feature", kind }));
+    }
   });
 
   it("passes an explicit kind through unchanged", async () => {
@@ -188,7 +229,7 @@ describe("runView", () => {
 
     expect(renderWithPager).toHaveBeenCalledWith(expect.objectContaining({
       renderer: "glow",
-      anchor: { line: 7, id: "1.1" },
+      anchor: { line: 4, id: "1.1" },
     }));
     expect(result.stderr).toBe("");
   });

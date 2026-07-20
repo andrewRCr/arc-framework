@@ -5,9 +5,16 @@
  */
 
 import { lstat, readFile, realpath } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { dirname, isAbsolute, join, posix, relative } from "node:path";
 
-import { resolveTaskListCursor, type TaskListCursorResult } from "./cursor.js";
+import { z } from "zod";
+
+import {
+  TaskListCursorFoundSchema,
+  TaskListCursorMalformedResultSchema,
+  TaskListCursorNoOpenTaskSchema,
+  resolveTaskListCursor,
+} from "./cursor.js";
 
 interface ResolveTaskListCursorFromFileOptions {
   cwd: string;
@@ -17,10 +24,33 @@ interface ResolveTaskListCursorFromFileOptions {
   lstat?: (path: string) => Promise<{ isSymbolicLink(): boolean }>;
 }
 
+const REPOSITORY_RELATIVE_TASK_LIST_PATH_SCHEMA = z.string().refine((value) => {
+  const normalized = value.replaceAll("\\", "/");
+  return normalized.length > 0
+    && normalized !== "."
+    && !normalized.startsWith("/")
+    && !normalized.startsWith("//")
+    && !/^[A-Za-z]:/u.test(value)
+    && posix.normalize(normalized) === normalized
+    && !normalized.split("/").includes("..");
+}, { error: "Task list path must be repository-relative" });
+
+/** File-backed missing-result branch. */
+export const TaskListCursorMissingSchema = z.strictObject({
+  status: z.literal("missing"),
+  path: REPOSITORY_RELATIVE_TASK_LIST_PATH_SCHEMA,
+});
+
+/** Strict runtime authority for file-backed cursor results. */
+export const TaskListCursorFileResultSchema = z.discriminatedUnion("status", [
+  TaskListCursorFoundSchema,
+  TaskListCursorNoOpenTaskSchema,
+  TaskListCursorMalformedResultSchema,
+  TaskListCursorMissingSchema,
+]);
+
 /** File-backed task-list cursor result, including absent file handling. */
-export type TaskListCursorFileResult =
-  | TaskListCursorResult
-  | { status: "missing"; path: string };
+export type TaskListCursorFileResult = z.infer<typeof TaskListCursorFileResultSchema>;
 
 /**
  * Resolve the first open task cursor from a task-list file path.

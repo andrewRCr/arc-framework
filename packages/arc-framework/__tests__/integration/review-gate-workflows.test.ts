@@ -120,13 +120,72 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).not.toContain("changed_all=");
   });
 
+  it("routes only the Linux CI graph through the fail-safe repository variable", async () => {
+    const workflow = await read("ci.yml");
+    const linuxRunner = "${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}";
+    const linuxJobs = [
+      "classify",
+      "setup",
+      "lint-typecheck",
+      "unit",
+      "integration",
+      "e2e",
+      "portability",
+      "ci_ok",
+      "merge-ok",
+    ];
+    for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe(linuxRunner);
+
+    expect(jobValue(workflow, "portability-cross-platform")["runs-on"]).toBe("${{ matrix.os }}");
+    for (const name of [
+      "docs.yml",
+      "review-gate.yml",
+      "review-gate-attest.yml",
+      "review-gate-qualify.yml",
+      "review-gate-repair.yml",
+      "review-gate-wakeup.yml",
+    ]) {
+      const hostedWorkflow = await read(name);
+      const parsed = load(hostedWorkflow) as { jobs?: Record<string, Record<string, unknown>> };
+      for (const [job, value] of Object.entries(parsed.jobs ?? {})) {
+        expect(value["runs-on"], `${name}:${job}`).toBe("ubuntu-latest");
+      }
+    }
+  });
+
+  it("provisions Node before the classifier hashes the code tree", async () => {
+    const workflow = await read("ci.yml");
+    const classifySteps = jobValue(workflow, "classify").steps;
+    expect(Array.isArray(classifySteps)).toBe(true);
+
+    const steps = classifySteps as Array<Record<string, unknown>>;
+    const setupNodeIndex = steps.findIndex(
+      (step) => typeof step.uses === "string" && step.uses.startsWith("actions/setup-node@"),
+    );
+    const classifierIndex = steps.findIndex((step) => step.id === "c");
+
+    expect(setupNodeIndex).toBeGreaterThanOrEqual(0);
+    expect(classifierIndex).toBeGreaterThan(setupNodeIndex);
+  });
+
+  it("keeps the Linux portability check executor-neutral and non-matrix", async () => {
+    const workflow = await read("ci.yml");
+    const portability = jobValue(workflow, "portability");
+    expect(portability.name).toBe("Portability (concurrency guards) (linux)");
+    expect(portability).not.toHaveProperty("strategy");
+
+    const crossPlatform = jobValue(workflow, "portability-cross-platform");
+    expect(crossPlatform.strategy).toMatchObject({
+      matrix: { os: ["windows-latest", "macos-latest"] },
+    });
+  });
+
   it("contains Actions spend while retaining explicit and bounded portability coverage", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("push:\n    branches: [main]");
     expect(workflow).toContain("workflow_dispatch:");
     // Monthly (not weekly) cross-platform cron — macOS multiplier is the spend driver.
     expect(workflow).toContain("schedule:\n    - cron: '17 8 1 * *'");
-    expect(workflow).toContain("os: [ubuntu-latest]");
     expect(workflow).toContain("os: [windows-latest, macos-latest]");
     expect(workflow).toContain("needs.classify.outputs.portability_target == 'true'");
     expect(workflow).toContain('echo "::error::portability classifier failed"');
@@ -150,6 +209,41 @@ describe("trusted review-gate workflows", () => {
     const rootManifest = JSON.parse(await readRepositoryFile("package.json")) as { scripts: Record<string, string> };
     expect(rootManifest.scripts["review-gate:await"]).toContain("run-await.ts");
     expect(manifest.scripts?.["review-gate:await"]).toBeUndefined();
+  });
+
+  it("pins the focused ARC contract slice and light-only CI invocation", async () => {
+    const packageManifest = JSON.parse(await readRepositoryFile("packages/arc-framework/package.json")) as {
+      scripts: Record<string, string>;
+    };
+    const rootManifest = JSON.parse(await readRepositoryFile("package.json")) as {
+      scripts: Record<string, string>;
+    };
+    expect(packageManifest.scripts["test:arc-contracts"]).toBe(
+      "vitest run --project integration framework-sync pr-open-extensions review-gate-workflows",
+    );
+    expect(rootManifest.scripts["test:arc-contracts"]).toBe(
+      "npm run test:arc-contracts -w packages/arc-framework",
+    );
+
+    const workflow = await read("ci.yml");
+    const lintSteps = jobValue(workflow, "lint-typecheck").steps;
+    expect(Array.isArray(lintSteps)).toBe(true);
+    const focused = (lintSteps as Array<Record<string, unknown>>)
+      .filter((step) => step.run === "npm run test:arc-contracts");
+    expect(focused).toEqual([{ if: "${{ needs.classify.outputs.weight == 'light' }}", run: "npm run test:arc-contracts" }]);
+
+    const unitCondition = "${{ !cancelled() && github.event_name != 'schedule' && " +
+      "needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && " +
+      "needs.classify.outputs.weight != 'light' && needs.setup.result == 'success' }}";
+    expect(jobValue(workflow, "unit").if).toBe(unitCondition);
+
+    const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && " +
+      "needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && " +
+      "needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || " +
+      "github.event_name == 'workflow_dispatch') }}";
+    for (const jobName of ["integration", "e2e", "portability"]) {
+      expect(jobValue(workflow, jobName).if).toBe(broadSuiteCondition);
+    }
   });
 
   it("parses every workflow and pins every external action", async () => {

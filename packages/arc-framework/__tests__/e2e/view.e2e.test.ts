@@ -2,7 +2,7 @@
  * End-to-end tests for the non-TTY `arc view` contract.
  */
 
-import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -53,6 +53,91 @@ describe("arc view", () => {
     expect(result.stdout).toMatch(/^Phase 1\/1 · Task 1\.1 · 0\/1 overall · rendered \d{2}:\d{2}/u);
     expect(result.stdout).toContain("# Task List: feature");
     expect(result.stdout).not.toContain("\u001b[");
+  });
+
+  it("uses conventional task fallback and bare lifecycle selection", async () => {
+    await writeFile(join(cwd, ".arc", "active", "meta-feature.md"), [
+      "# Metadata: feature", "", "- **State:** Active", "- **Branch:** main", "- **Task List:** [none]", "",
+    ].join("\n"));
+    const forming = await runArcNoTty(["view"], cwd);
+    expect(forming.stdout).toContain("# Task List: feature");
+
+    await rm(join(cwd, ".arc", "active", "tasks-feature.md"));
+    await writeFile(join(cwd, ".arc", "active", "spec-feature.md"), "# Forming spec\n");
+    const spec = await runArcNoTty(["view"], cwd);
+    expect(spec.stdout).toMatch(/^spec · feature · 1 line · rendered /u);
+    expect(spec.stdout).toContain("# Forming spec");
+  });
+
+  it("resolves checkout-local explicit targets and fails closed on misses", async () => {
+    const planned = join(cwd, ".arc", "backlog", "planned");
+    const provisional = join(cwd, ".arc", "backlog", "provisional");
+    const completed = join(cwd, ".arc", "completed");
+    await mkdir(planned, { recursive: true });
+    await mkdir(provisional, { recursive: true });
+    await mkdir(completed, { recursive: true });
+    await writeFile(join(planned, "meta-planned.md"), [
+      "# Metadata: planned", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
+    ].join("\n"));
+    await writeFile(join(planned, "spec-planned.md"), "# Planned spec\n");
+    await writeFile(join(provisional, "meta-provisional.md"), [
+      "# Metadata: provisional", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
+    ].join("\n"));
+    await writeFile(join(completed, "meta-completed.md"), [
+      "# Metadata: completed", "", "- **State:** Shipped", "- **Branch:** feat/completed", "- **Task List:** [none]", "",
+    ].join("\n"));
+
+    const active = await runArcNoTty(["view", "meta", "--for", "feature"], cwd);
+    expect(active.exitCode).toBe(0);
+    expect(active.stdout).toContain("meta · feature");
+
+    const resolved = await runArcNoTty(["view", "spec", "--for", "planned"], cwd);
+    expect(resolved.exitCode).toBe(0);
+    expect(resolved.stdout).toContain("spec · planned · 1 line");
+    expect(resolved.stdout).toContain("# Planned spec");
+
+    const provisionalResult = await runArcNoTty(["view", "meta", "--for", "provisional"], cwd);
+    expect(provisionalResult.exitCode).toBe(0);
+    expect(provisionalResult.stdout).toContain("meta · provisional");
+
+    const completedResult = await runArcNoTty(["view", "meta", "--for", "completed"], cwd);
+    expect(completedResult.exitCode).toBe(1);
+    expect(completedResult.stderr).toContain("completed viewing is unsupported");
+
+    const missing = await runArcNoTty(["view", "meta", "--for", "missing"], cwd);
+    expect(missing.exitCode).toBe(1);
+    expect(missing.stderr).toContain("unavailable in this checkout");
+
+    const invalid = await runArcNoTty(["view", "meta", "--for", "../bad"], cwd);
+    expect(invalid.exitCode).toBe(1);
+    expect(invalid.stderr).toContain("Invalid work-unit slug");
+  });
+
+  it.each([
+    ["working-memory"],
+    ["inbox"],
+  ])("rejects --for with the identity-global %s surface", async (kind) => {
+    const result = await runArcNoTty(["view", kind, "--for", "feature"], cwd);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("identity-global");
+  });
+
+  it("rejects --for with the shared project inbox", async () => {
+    const result = await runArcNoTty(["view", "inbox", "--project", "--for", "feature"], cwd);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("identity-global");
+  });
+
+  it("applies the user-scoped clock to non-TTY headers and surfaces invalid overrides", async () => {
+    await writeFile(join(cwd, ".arc", "active", "spec-feature.md"), "# Spec\n");
+    await git(cwd, ["config", "arc.viewClock", "12h"]);
+    const twelveHour = await runArcNoTty(["view", "spec"], cwd);
+    expect(twelveHour.stdout).toMatch(/rendered \d{1,2}:\d{2} [AP]M/u);
+
+    await git(cwd, ["config", "arc.viewClock", "locale"]);
+    const invalid = await runArcNoTty(["view", "spec"], cwd);
+    expect(invalid.stdout).toMatch(/rendered \d{2}:\d{2}/u);
+    expect(invalid.stderr).toContain("warning: Ignoring invalid value \"locale\" for arc.viewClock");
   });
 
   it("does not hang when stdin is piped", async () => {
@@ -136,7 +221,7 @@ describe("arc view", () => {
 
       expect(result.exitCode).toBe(0);
       const log = await readFile(logPath, "utf8");
-      expect(log).toContain("BAT_PAGER=less -RFX +7");
+      expect(log).toContain("BAT_PAGER=less -RFX +4");
       expect(log).toContain("--paging=always --style=plain --language=md");
     },
   );

@@ -5,6 +5,7 @@
  */
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
+import { gitFailureText, normalizeGitRejection } from "../git/process-error.js";
 import { uniqueRefToken } from "../git/ref-tree.js";
 import {
   NOTES_COMPACTION_MANIFEST_PATH,
@@ -169,7 +170,7 @@ export async function pushBranchBoundedNotesExport(
     return { kind: "pushed" };
   } catch (error) {
     const normalized = toError(error);
-    if (isRemoteUnavailableError(normalized.message)) return { kind: "no-remote" };
+    if (isRemoteUnavailableError(gitFailureText(error))) return { kind: "no-remote" };
     return { kind: "failed", error: normalized };
   }
 }
@@ -180,7 +181,9 @@ export async function readStrictLocalRefTip(exec: GitExec, ref: string): Promise
   try {
     ({ stdout } = await exec("git", ["rev-parse", "--verify", "--quiet", ref]));
   } catch (error) {
-    if (exitCode(error) === 1) return null;
+    if (normalizeGitRejection(error, {
+      command: "git", args: ["rev-parse", "--verify", "--quiet", ref],
+    }).exitCode === 1) return null;
     throw error;
   }
   const tip = stdout.trim();
@@ -241,7 +244,9 @@ async function isAncestorStrict(exec: GitExec, ancestor: string, descendant: str
     await exec("git", ["merge-base", "--is-ancestor", ancestor, descendant]);
     return true;
   } catch (error) {
-    if (exitCode(error) === 1) return false;
+    if (normalizeGitRejection(error, {
+      command: "git", args: ["merge-base", "--is-ancestor", ancestor, descendant],
+    }).exitCode === 1) return false;
     throw error;
   }
 }
@@ -257,12 +262,6 @@ async function deleteRef(exec: GitExec, ref: string): Promise<void> {
   } catch {
     // Caller-unique temporary ref cleanup is best-effort.
   }
-}
-
-function exitCode(error: unknown): unknown {
-  return typeof error === "object" && error !== null && "code" in error
-    ? (error as { code?: unknown }).code
-    : undefined;
 }
 
 function planned(destinationRef: string, capturedTip: string): PlanBranchBoundedNotesExportResult {

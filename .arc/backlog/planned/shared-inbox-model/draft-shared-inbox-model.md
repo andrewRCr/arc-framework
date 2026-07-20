@@ -16,6 +16,19 @@
 
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
 
+### `[ ]` **Reopen promote-by-default under parallelism-GA shared-file churn**
+
+- *Routed from:* parallelism-GA operating review and housekeep drain (2026-07-20).
+- *Evidence:* the tracked project inbox has become a multi-writer hotspot under three to six parallel work units plus
+  recurring errands. Its churn cost now exceeds the value of draining homeless atomics out of the identity-global
+  user inbox, and entries become less actionable when moved sight unseen into a shared file.
+- *Interim posture:* evacuate `ATOMIC-INBOX`, prohibit new promotion into it, and let explicitly held atomics remain in
+  `USER-INBOX` until this WU supplies a concurrency-safe project surface. The prohibition lifts on the capability, not
+  merely this WU's merge: the replacement must be non-hotspot storage or an earlier materialized project-inbox model
+  aligned with `operational-state-docs`, `local-mode`, `arc-backend`, and storage evolution.
+- *Grooming decision:* re-evaluate the draft's diagnosis that rot is only a missing-consumer bug. Preserve the semantic
+  need for durable project-scoped tenure, but do not preserve a tracked shared file as its assumed implementation.
+
 ### `[ ]` **Multi-entry errand drain only tombstones the `--from-inbox`-adopted capture**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: shared-inbox-model`), housekeep drain (2026-07-18);

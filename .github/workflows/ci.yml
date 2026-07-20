@@ -41,7 +41,7 @@ jobs:
   # ci-ok rolls up CI truth; merge-ok remains a thin compatibility alias.
   classify:
     name: Classify lane & weight
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       checks: read
@@ -58,6 +58,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # classify-change hashes NUL-delimited tree records with Node. Provision it
+      # explicitly because disposable runners do not carry a system Node install.
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 'lts/*'
       - id: defer
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -193,7 +198,7 @@ jobs:
     # Heavy-weight runs plus workflow_dispatch (manual full suite, matches
     # pre-shared-setup integration/e2e/portability triggers).
     if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -229,7 +234,7 @@ jobs:
     # (fail-safe: run unless explicitly light). setup is optional: light runs
     # skip it and keep a local npm ci; heavy runs restore its cache + dist.
     if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.setup.result == 'success' || needs.setup.result == 'skipped') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -252,6 +257,8 @@ jobs:
     - run: npm run lint:arc:domain-rules
     - run: npm run lint:arc:section-refs
     - run: npm run -s lint:md
+    - if: ${{ needs.classify.outputs.weight == 'light' }}
+      run: npm run test:arc-contracts
     # Code checks - only when the change touches code (weight != light). Prefer the
     # shared dist artifact when setup produced it; fall back to a local build only
     # if setup was skipped (should not happen on heavy weight).
@@ -280,7 +287,7 @@ jobs:
     # entirely, mirroring the integration/e2e legs. Requires setup success so a
     # failed shared install cannot leave this leg skipped-and-green.
     if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.classify.outputs.weight != 'light' && needs.setup.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -307,7 +314,7 @@ jobs:
       actions: read # download-artifact of shared dist
     needs: [classify, setup]
     if: ${{ !cancelled() && needs.setup.result == 'success' && needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -344,7 +351,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -377,17 +384,13 @@ jobs:
   # above can't confirm. This required PR leg stays on Linux; the costlier
   # Windows/macOS confirmation below runs only when its focused surface changes.
   portability:
-    name: Portability (concurrency guards)
+    name: Portability (concurrency guards) (linux)
     permissions:
       contents: read
       actions: read # download-artifact of shared dist
     needs: [classify, setup]
     if: ${{ !cancelled() && needs.setup.result == 'success' && needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -445,7 +448,7 @@ jobs:
     permissions: {}
     needs: [classify, setup, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]
     if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Roll up required jobs
         env:
@@ -478,7 +481,7 @@ jobs:
     permissions: {}
     needs: ci_ok
     if: ${{ always() && github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Mirror ci-ok for required-context compatibility
         env:

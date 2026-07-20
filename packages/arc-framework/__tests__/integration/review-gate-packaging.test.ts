@@ -53,6 +53,7 @@ describe("review-gate package boundary", () => {
     expect(Object.keys(manifest.dependencies).sort()).toEqual([
       "@clack/prompts",
       "commander",
+      "execa",
       "js-yaml",
       "neverthrow",
       "semver",
