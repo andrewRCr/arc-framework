@@ -274,17 +274,10 @@ readiness.
           exact prior/current targets and preserves coverage only when reviewed-surface tree, path-manifest, semantic,
           policy, rubric, and source identities agree; its strict applicability is limited to review coverage.
 
-    - `[ ]` **3.3.c Classify base-reconcile interaction**
-        - Define the v2 applicability proof over prior/current target IDs, exact delta `changeSetId`, normalized
-          sorted-unique reviewed/delta/interaction path manifests, conflict state, treatment, and canonical
-          `applicabilityId`.
-        - Use canonical change facts to prove `carry` for a disjoint merge or `incremental` for an interacting
-          merge; conflict resolution always selects `incremental`.
-        - Bind an incremental receipt to the proof and exact intersection; permit the complete exact delta only as
-          stronger coverage when a carrier cannot present the subset.
-        - Derive `applicabilityId` only from the exact registered Design §1.4 preimage after canonical path
-          normalization and sorted-unique set validation; extend the shared golden vectors and reject ambient,
-          self-ID, unknown, omitted-null, or order-sensitive inputs.
+    - `[x]` **3.3.c Classify base-reconcile interaction**
+        - Added registered v2 applicability proof/preimage schemas and a canonical-change classifier that normalizes
+          exact reviewed, delta, and intersection manifests. Disjoint deltas carry, interactions and conflicts
+          retrigger incrementally, and receipt coverage must match the intersection or complete stronger delta.
 
     - `[ ]` **3.3.d Wire applicability into controller reduction**
         - Update evidence reduction, requirement state, active-flight invalidation, and verdict projection so the

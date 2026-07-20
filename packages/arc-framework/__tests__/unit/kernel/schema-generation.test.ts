@@ -54,6 +54,8 @@ describe("kernel schema artifact generation", () => {
       "independent-analysis-rubric-digest-preimage",
       "priority",
       "project-routing-promotion",
+      "review-applicability",
+      "review-applicability-id-preimage",
       "review-assurance-input",
       "review-guidance-digest-preimage",
       "review-lifecycle-tail-proof",

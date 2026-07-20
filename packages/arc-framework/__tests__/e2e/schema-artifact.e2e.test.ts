@@ -25,6 +25,8 @@ describe("production schema artifact", () => {
       "independent-analysis-rubric-digest-preimage",
       "priority",
       "project-routing-promotion",
+      "review-applicability",
+      "review-applicability-id-preimage",
       "review-assurance-input",
       "review-guidance-digest-preimage",
       "review-lifecycle-tail-proof",
