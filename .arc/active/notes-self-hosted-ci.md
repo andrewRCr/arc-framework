@@ -70,9 +70,9 @@ provider credential.
 - **Inbound / outbound posture:** host firewall active with default-deny inbound and SSH as the only public listener;
   key-only administrative login enforced, root login disabled, unrestricted outbound retained for GitHub and
   package access, and no private-network access configured
-- **Runner service user and directory isolation:** unprivileged `arc-runner` has no supplementary groups; two
-  separately owned application directories use mode `0750`; no development checkout, unrelated service, Docker,
-  runner registration artifact, or runner service exists
+- **Pre-registration service-user and directory isolation:** before each registration gate, unprivileged
+  `arc-runner` had no supplementary groups; two separately owned application directories used mode `0750`; and no
+  development checkout, unrelated service, Docker, runner registration artifact, or runner service existed
 - **Tool versions (`git`, `gh`, `jq`, `shellcheck`, shell/coreutils):** Git 2.53.0; GitHub CLI 2.46.0; jq 1.8.1;
   ShellCheck 0.11.0; `/bin/sh` resolves to dash; Ubuntu's uutils coreutils 0.8.0; all required executables resolve
   for `arc-runner`
@@ -82,15 +82,15 @@ provider credential.
   user-held workstation path with mode-`0600` files and contains no credentials or machine image
 - **Persistent service/restart log retention / cap:** persistent compressed journal active with 60-day retention
   and a 1-GB cap; current disk use 16 MB
-- **Runner application version / checksum result:** official Linux x64 runner 2.335.1 installed in both slots after
-  its published SHA-256 matched; dependencies installed; two unique intended names remain transient operator inputs,
-  with label `arc-ci-linux` reserved for post-audit registration
-- **Runner 1 sanitized status / labels / service health:** online and idle with `self-hosted`, `Linux`, `X64`, and
-  `arc-ci-linux`; enabled `arc-runner` service uses slot 1, automatic runner updates, and a five-second always-restart
-  policy; survived controlled service restart and host reboot
-- **Runner 2 sanitized status / labels / service health:** online and idle with `self-hosted`, `Linux`, `X64`, and
-  `arc-ci-linux`; enabled `arc-runner` service uses slot 2, automatic runner updates, and a five-second always-restart
-  policy; survived controlled service restart and host reboot
+- **Pre-registration runner application / checksum result:** official Linux x64 runner 2.335.1 was installed in
+  both slots after its published SHA-256 matched; dependencies were installed; unique names remained transient
+  operator inputs and `arc-ci-linux` remained reserved until the post-rebuild access audit passed
+- **Post-registration runner 1 status / labels / service health:** online and idle with `self-hosted`, `Linux`,
+  `X64`, and `arc-ci-linux`; enabled `arc-runner` service uses slot 1, automatic runner updates, and a five-second
+  always-restart policy; survived controlled service restart and host reboot
+- **Post-registration runner 2 status / labels / service health:** online and idle with `self-hosted`, `Linux`,
+  `X64`, and `arc-ci-linux`; enabled `arc-runner` service uses slot 2, automatic runner updates, and a five-second
+  always-restart policy; survived controlled service restart and host reboot
 - **Disk headroom / projected retention:** 68 GB free of 72 GB (94% free); bounded journal and `sysstat` retention
   fit comfortably through the canary and posture decision
 - **Pre-cutover go/no-go:** Go for the controlled qualification cutover; the access gate and both slot health checks
