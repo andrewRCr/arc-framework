@@ -1,6 +1,4 @@
-/**
- * Unit tests for semantic `arc view` artifact resolution.
- */
+/** Unit tests for semantic `arc view` artifact resolution. */
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -8,32 +6,22 @@ import {
   resolveViewArtifact,
   type ViewArtifactDependencies,
 } from "../../../src/lib/view-artifact.js";
-import type { ActiveSessionInitResult } from "../../../src/commands/active.js";
+import type { ResolvedViewTarget } from "../../../src/lib/view/types.js";
 
 const CWD = "/repo";
 
-function active(
-  overrides: Partial<ActiveSessionInitResult> = {},
-): ActiveSessionInitResult {
-  return {
-    mode: "session-init",
-    layout: "full",
-    resolution: "single",
-    path: ".arc/active/meta-feature.md",
-    candidates: [],
-    taskListPath: ".arc/active/tasks-feature.md",
-    sessionType: "execution",
-    currentWorkflow: null,
-    planningStage: null,
-    warnings: [],
-    ...overrides,
-  };
-}
+const TARGET: ResolvedViewTarget = {
+  status: "resolved",
+  slug: "feature",
+  location: "active",
+  metaPath: ".arc/active/meta-feature.md",
+  taskListPath: ".arc/active/tasks-feature.md",
+};
 
 function deps(overrides: Partial<ViewArtifactDependencies> = {}): ViewArtifactDependencies {
   return {
-    resolveActive: vi.fn().mockResolvedValue(active()),
-    resolveCurrentBranch: vi.fn().mockResolvedValue("feat/feature"),
+    resolveAmbientTarget: vi.fn().mockResolvedValue(TARGET),
+    resolveExplicitTarget: vi.fn().mockResolvedValue({ status: "unavailable" }),
     resolveCohort: vi.fn().mockResolvedValue(null),
     resolveSessionNotes: vi.fn().mockResolvedValue({ status: "absent" }),
     resolveUserSurfaces: vi.fn().mockResolvedValue({
@@ -46,20 +34,21 @@ function deps(overrides: Partial<ViewArtifactDependencies> = {}): ViewArtifactDe
 }
 
 async function resolve(
-  kind: string,
+  kind: string | undefined,
   dependencies = deps(),
-  options: { identity?: string | null; project?: boolean } = {},
+  options: { identity?: string | null; project?: boolean; forSlug?: string } = {},
 ) {
   return resolveViewArtifact({
     cwd: CWD,
-    kind,
+    ...(kind === undefined ? {} : { kind }),
     project: options.project ?? false,
     identity: options.identity === undefined ? "andrew" : options.identity,
+    ...(options.forSlug === undefined ? {} : { forSlug: options.forSlug }),
   }, dependencies);
 }
 
 describe("resolveViewArtifact", () => {
-  it("resolves meta and tasks from the active oracle result", async () => {
+  it("resolves meta and a valid task-list pointer from the neutral target", async () => {
     await expect(resolve("meta")).resolves.toEqual({
       status: "resolved",
       kind: "meta",
@@ -74,58 +63,113 @@ describe("resolveViewArtifact", () => {
     });
   });
 
-  it("selects the unique branch-matching candidate when the oracle reports multiple", async () => {
-    const dependencies = deps({
-      resolveActive: vi.fn().mockResolvedValue(active({
-        resolution: "multiple",
-        path: null,
-        taskListPath: undefined,
-        candidates: [
-          {
-            path: ".arc/active/meta-other.md",
-            filename: "meta-other.md",
-            branch: "feat/other",
-            state: "Active",
-            nextTask: null,
-            taskList: "tasks-other.md",
-            nextAction: null,
-            currentWorkflow: null,
-          },
-          {
-            path: ".arc/active/meta-feature.md",
-            filename: "meta-feature.md",
-            branch: "feat/feature",
-            state: "Active",
-            nextTask: null,
-            taskList: "tasks-feature.md",
-            nextAction: null,
-            currentWorkflow: null,
-          },
-        ],
-      })),
+  it.each([
+    ["spec", "/repo/.arc/active/spec-feature.md"],
+    ["draft", "/repo/.arc/active/draft-feature.md"],
+    ["notes", "/repo/.arc/active/notes-feature.md"],
+  ])("resolves the %s sibling beside the target meta", async (kind, path) => {
+    await expect(resolve(kind)).resolves.toEqual({ status: "resolved", kind, path, workUnit: "feature" });
+  });
+
+  it("falls back to the conventional task sibling when the pointer is absent or stale", async () => {
+    const noPointer = deps({
+      resolveAmbientTarget: vi.fn().mockResolvedValue({ ...TARGET, taskListPath: null }),
+    });
+    await expect(resolve("tasks", noPointer)).resolves.toMatchObject({
+      status: "resolved",
+      path: "/repo/.arc/active/tasks-feature.md",
     });
 
-    await expect(resolve("tasks", dependencies)).resolves.toMatchObject({
+    const stalePointer = deps({
+      resolveAmbientTarget: vi.fn().mockResolvedValue({
+        ...TARGET,
+        taskListPath: ".arc/active/tasks-old.md",
+      }),
+      pathExists: vi.fn(async (path: string) => path.endsWith("tasks-feature.md")),
+    });
+    await expect(resolve("tasks", stalePointer)).resolves.toMatchObject({
       status: "resolved",
       path: "/repo/.arc/active/tasks-feature.md",
     });
   });
 
-  it.each([
-    ["spec", "/repo/.arc/active/spec-feature.md"],
-    ["draft", "/repo/.arc/active/draft-feature.md"],
-    ["notes", "/repo/.arc/active/notes-feature.md"],
-  ])("resolves the %s sibling beside the active meta", async (kind, path) => {
-    await expect(resolve(kind)).resolves.toEqual({ status: "resolved", kind, path, workUnit: "feature" });
+  it("preserves an existing non-conventional task pointer and returns absence when neither candidate exists", async () => {
+    const custom = deps({
+      resolveAmbientTarget: vi.fn().mockResolvedValue({
+        ...TARGET,
+        taskListPath: ".arc/active/checklist.md",
+      }),
+      pathExists: vi.fn(async (path: string) => path.endsWith("checklist.md")),
+    });
+    await expect(resolve("tasks", custom)).resolves.toMatchObject({
+      status: "resolved",
+      path: "/repo/.arc/active/checklist.md",
+    });
+    await expect(resolve("tasks", deps({
+      resolveAmbientTarget: vi.fn().mockResolvedValue({ ...TARGET, taskListPath: null }),
+      pathExists: vi.fn().mockResolvedValue(false),
+    }))).resolves.toEqual({ status: "absent", kind: "tasks" });
   });
 
-  it("maps a missing artifact and a [none] task list to absent", async () => {
-    await expect(resolve("notes", deps({
-      pathExists: vi.fn().mockResolvedValue(false),
-    }))).resolves.toEqual({ status: "absent", kind: "notes" });
-    await expect(resolve("tasks", deps({
-      resolveActive: vi.fn().mockResolvedValue(active({ taskListPath: null })),
-    }))).resolves.toEqual({ status: "absent", kind: "tasks" });
+  it("uses the explicit target in preference to the ambient target", async () => {
+    const ambient = vi.fn().mockRejectedValue(new Error("must not run"));
+    const explicit = vi.fn().mockResolvedValue({
+      ...TARGET,
+      slug: "planned",
+      location: "planned",
+      metaPath: ".arc/backlog/planned/meta-planned.md",
+      taskListPath: null,
+    });
+    await expect(resolve("meta", deps({
+      resolveAmbientTarget: ambient,
+      resolveExplicitTarget: explicit,
+    }), { forSlug: "planned" })).resolves.toMatchObject({
+      status: "resolved",
+      path: "/repo/.arc/backlog/planned/meta-planned.md",
+      workUnit: "planned",
+    });
+    expect(ambient).not.toHaveBeenCalled();
+  });
+
+  it("exposes a typed recorded-target consumer seam after ambient resolution", async () => {
+    const recorded = vi.fn().mockResolvedValue({
+      ...TARGET,
+      slug: "groomed",
+      location: "planned",
+      metaPath: ".arc/backlog/planned/meta-groomed.md",
+    });
+    await expect(resolve("meta", deps({
+      resolveAmbientTarget: vi.fn().mockResolvedValue({ status: "unavailable" }),
+      resolveRecordedTarget: recorded,
+    }))).resolves.toMatchObject({ status: "resolved", workUnit: "groomed" });
+    expect(recorded).toHaveBeenCalledWith({ cwd: CWD });
+  });
+
+  it("fails closed for unavailable and completed explicit targets", async () => {
+    await expect(resolve("meta", deps({
+      resolveExplicitTarget: vi.fn().mockResolvedValue({ status: "unavailable", slug: "missing" }),
+    }), { forSlug: "missing" })).resolves.toMatchObject({
+      status: "error",
+      message: expect.stringContaining("unavailable in this checkout"),
+    });
+    await expect(resolve("meta", deps({
+      resolveExplicitTarget: vi.fn().mockResolvedValue({ status: "completed", slug: "done" }),
+    }), { forSlug: "done" })).resolves.toMatchObject({
+      status: "error",
+      message: expect.stringContaining("completed viewing is unsupported"),
+    });
+  });
+
+  it.each([
+    [["meta"], "meta"],
+    [["meta", "draft"], "draft"],
+    [["meta", "draft", "spec"], "spec"],
+    [["meta", "draft", "spec", "tasks"], "tasks"],
+  ])("bare view selects the furthest present artifact", async (presentKinds, expectedKind) => {
+    const paths = new Set(presentKinds.map((kind) => `/repo/.arc/active/${kind}-feature.md`));
+    await expect(resolve(undefined, deps({
+      pathExists: vi.fn(async (path: string) => paths.has(path)),
+    }))).resolves.toMatchObject({ status: "resolved", kind: expectedKind });
   });
 
   it("resolves cohort and per-WU session notes through their semantic resolvers", async () => {
@@ -146,10 +190,9 @@ describe("resolveViewArtifact", () => {
     });
   });
 
-  it("roots identity-global kinds at the primary worktree without an active WU", async () => {
-    const dependencies = deps({
-      resolveActive: vi.fn().mockResolvedValue(active({ resolution: "none", path: null })),
-    });
+  it("roots identity-global kinds at the primary worktree without resolving a WU", async () => {
+    const ambient = vi.fn().mockRejectedValue(new Error("must not run"));
+    const dependencies = deps({ resolveAmbientTarget: ambient });
     await expect(resolve("working-memory", dependencies)).resolves.toMatchObject({
       status: "resolved",
       path: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
@@ -158,6 +201,7 @@ describe("resolveViewArtifact", () => {
       status: "resolved",
       path: "/primary/.arc/user/andrew/USER-INBOX.md",
     });
+    expect(ambient).not.toHaveBeenCalled();
   });
 
   it("resolves the project inbox independently of identity", async () => {
@@ -169,10 +213,10 @@ describe("resolveViewArtifact", () => {
     });
   });
 
-  it("reports unknown kind, WU-context, identity, and session-note errors with valid kinds", async () => {
+  it("reports unknown kind, WU-context, identity, and session-note errors", async () => {
     await expect(resolve("bogus")).resolves.toMatchObject({ status: "error", kind: "bogus" });
     await expect(resolve("tasks", deps({
-      resolveActive: vi.fn().mockResolvedValue(active({ resolution: "none", path: null })),
+      resolveAmbientTarget: vi.fn().mockResolvedValue({ status: "unavailable" }),
     }))).resolves.toMatchObject({ status: "error", kind: "tasks" });
     await expect(resolve("inbox", deps(), { identity: null })).resolves.toMatchObject({
       status: "error",
