@@ -25,21 +25,15 @@ caller migration begins.
 - _Outcome:_ The new layout subsystem is a runtime-authoritative, independently discoverable contract while the
   kernel remains bottom-of-graph and the kernel JSON Schema publication boundary is unchanged.
 
-### `[ ]` **1.2 Implement canonical semantic-address projection**
+### `[x]` **1.2 Implement canonical semantic-address projection**
 
 - _Goal:_ A complete semantic address deterministically produces the current repository-relative POSIX path without
   I/O, ambient-root dependence, or lifecycle inference.
 
-    - Implement `resolveArcPath()` as a defensive address parse followed by exhaustive projection and final
-      `validateManagedPath()` validation.
-    - Keep project- and contributor-scoped active containers flat, backlog cohort nesting explicit, completed
-      coordinates caller-supplied, and cohort closeout suffix selection limited to the supplied `leaf | parent`
-      semantic.
-    - Build `test-first` (one behavior at a time):
-        - Resolve every address family to its exact canonical projection.
-        - Reject unsafe JavaScript or cast inputs before construction as `layout.invalid-address`, preserving the
-          originating validation cause where applicable.
-        - Demonstrate synchronous, root-independent behavior with no filesystem, Git, environment, or clock seam.
+    - Added exhaustive, synchronous projection for every semantic address family, including explicit active scopes,
+      backlog cohorts, completed coordinates, cohort-closeout levels, procedures, readiness, and user documents.
+    - Defensive parsing rejects unsafe runtime inputs with preserved causes, and every result passes the kernel's
+      final managed-path validation without filesystem, Git, environment, clock, or ambient-root dependencies.
 
 ### `[ ]` **1.3 Implement contained native-path materialization**
 

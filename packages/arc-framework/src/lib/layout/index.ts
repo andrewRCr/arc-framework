@@ -3,6 +3,7 @@
 export { LayoutError } from "./errors.js";
 export type { LayoutErrorCode } from "./errors.js";
 export { LAYOUT_SCHEMA_IDS, createLayoutRegistry } from "./registry.js";
+export { resolveArcPath } from "./projection.js";
 export {
   ArcLayoutAddressSchema,
   ArcPlacementTierSchema,
