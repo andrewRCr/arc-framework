@@ -22,6 +22,7 @@ import { resolveWorkUnitSessionNotesPath } from "../lib/handoff/session-notes-pa
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveViewArtifact, type ViewArtifactDependencies } from "../lib/view-artifact.js";
 import {
   renderViewWithPager,
@@ -159,7 +160,7 @@ function createViewDependencies(
     resolveSessionNotes: ({ identity: resolvedIdentity, workUnitName }) =>
       resolveWorkUnitSessionNotesPath(cwd, resolvedIdentity, workUnitName, { access }),
     resolveUserSurfaces: ({ identity: resolvedIdentity }) =>
-      resolveUserSurfaceResolver({ cwd, identity: resolvedIdentity, exec: gitExec }),
+      resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(resolvedIdentity), exec: gitExec }),
     pathExists,
   };
 }

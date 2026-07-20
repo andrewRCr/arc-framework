@@ -49,6 +49,7 @@ import { getCurrentBranch, type GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
 import { renderTrackedProjectReadinessViewResult } from "../status/project-roadmap-render.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
+import { SlugSchema } from "../kernel/index.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
@@ -292,7 +293,11 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
             mkdir: io.mkdir,
             writeFile: io.writeFile,
             resolveIdentityGlobalRoot: async (resolvedIdentity) =>
-              (await resolveUserSurfaceResolver({ cwd, identity: resolvedIdentity, exec })).identityGlobalRoot,
+              (await resolveUserSurfaceResolver({
+                cwd,
+                identity: SlugSchema.parse(resolvedIdentity),
+                exec,
+              })).identityGlobalRoot,
           },
           { cwd, identity, slug, from, to },
         ),

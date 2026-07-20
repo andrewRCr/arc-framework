@@ -1,8 +1,8 @@
-import { join } from "node:path";
-
 import { getCurrentBranch, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { uniqueRefToken } from "../../lib/git/ref-tree.js";
 import { normalizeGitRejection } from "../../lib/git/process-error.js";
+import { SlugSchema } from "../../lib/kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../../lib/layout/index.js";
 import {
   BRANCH_BOUNDED_NOTES_JOIN_MESSAGE,
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
@@ -417,7 +417,11 @@ async function sessionNotesSeedExists(
   identity: string,
   wuName: string,
 ): Promise<boolean> {
-  const seedPath = join(cwd, ".arc", "user", identity, wuName, "SESSION-NOTES.md");
+  const seedPath = materializeArcPath(cwd, resolveArcPath({
+    kind: "user-document",
+    identity: SlugSchema.parse(identity),
+    document: { kind: "session-notes", workUnit: SlugSchema.parse(wuName) },
+  }));
   try {
     await io.readFile(seedPath);
     return true;

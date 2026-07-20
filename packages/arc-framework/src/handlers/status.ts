@@ -130,6 +130,7 @@ import {
   assertSessionRecoverProbeResult,
 } from "../commands/status/schema.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
+import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
@@ -224,7 +225,7 @@ async function resolveNudgeState(
   }
   const surfaces = resolveSurfaces !== undefined
     ? await resolveSurfaces(identity)
-    : await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec });
+    : await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec });
   const markerPath = surfaces.identityGlobalDisplayPath(markerRelative);
   const absoluteMarkerPath = surfaces.identityGlobalPath(markerRelative);
   const lastNudge = await io.readFile(absoluteMarkerPath).then(
@@ -326,7 +327,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
   const userSurfacesFor = (id: string): Promise<UserSurfaceResolver> => {
     let resolver = userSurfaceResolvers.get(id);
     if (resolver === undefined) {
-      resolver = resolveUserSurfaceResolver({ cwd, identity: id, exec: gitExec });
+      resolver = resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(id), exec: gitExec });
       userSurfaceResolvers.set(id, resolver);
     }
     return resolver;
@@ -414,7 +415,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         cwd,
         dirty: () => runDirtyStateStatus({ exec: gitExec }),
       }),
-      identityGlobalUserDir: identity === null ? null : (await userSurfacesFor(identity)).identityGlobalRoot,
+      workingMemoryPath: identity === null ? null : (await userSurfacesFor(identity)).workingMemoryPath,
     });
     assertSessionRecoverProbeResult(result);
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -728,10 +729,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       taskCursor: async (taskListPath) =>
         resolveTaskListCursorFromFile({ cwd, taskListPath }),
     };
-    const identityGlobalUserDir = identity === null
+    const workingMemoryPath = identity === null
       ? null
-      : (await userSurfacesFor(identity)).identityGlobalRoot;
-    const result = await runSessionInitStatus({ identity, role, probes, identityGlobalUserDir });
+      : (await userSurfacesFor(identity)).workingMemoryPath;
+    const result = await runSessionInitStatus({ identity, role, probes, workingMemoryPath });
     if (opts.writeCompactionSeed && compactionSeedGitSnapshotP !== null) {
       try {
         const gitSnapshot = await compactionSeedGitSnapshotP;

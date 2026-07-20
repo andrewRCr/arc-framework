@@ -11,6 +11,8 @@
 import { join } from "node:path";
 
 import type { DirEntry } from "../git/index.js";
+import { SlugSchema } from "../kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../layout/index.js";
 
 /** Minimal I/O seam — narrower than `UserIOContext` for testability. */
 export interface SessionNotesPathIO {
@@ -42,7 +44,11 @@ export async function resolveWorkUnitSessionNotesPath(
   workUnitName: string,
   io: WorkUnitSessionNotesPathIO,
 ): Promise<SessionNotesPathResult> {
-  const path = join(cwd, ".arc", "user", identity, workUnitName, "SESSION-NOTES.md");
+  const path = materializeArcPath(cwd, resolveArcPath({
+    kind: "user-document",
+    identity: SlugSchema.parse(identity),
+    document: { kind: "session-notes", workUnit: SlugSchema.parse(workUnitName) },
+  }));
   try {
     await io.access(path);
   } catch (error) {

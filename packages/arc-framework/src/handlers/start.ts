@@ -40,6 +40,8 @@ import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { SlugSchema } from "../lib/kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { ensureDir } from "../lib/template/files.js";
 import { renderTrackedProjectReadinessViewResult } from "../lib/status/project-roadmap-render.js";
 import type { ProjectReadinessWarning } from "../lib/status/project-view.js";
@@ -821,7 +823,11 @@ async function stampStartSessionNotesCommit(
   ctx: ArmContext,
   opts: { cwd: string; identity: string; wuName: string; commit: string },
 ): Promise<void> {
-  const notesPath = join(opts.cwd, ".arc", "user", opts.identity, opts.wuName, "SESSION-NOTES.md");
+  const notesPath = materializeArcPath(opts.cwd, resolveArcPath({
+    kind: "user-document",
+    identity: SlugSchema.parse(opts.identity),
+    document: { kind: "session-notes", workUnit: SlugSchema.parse(opts.wuName) },
+  }));
   try {
     const content = await ctx.io.readFile(notesPath);
     const next = content.replace(

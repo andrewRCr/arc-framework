@@ -90,32 +90,26 @@ resolver without changing fallback or root-selection policy.
 - _Outcome:_ All configured-only consumers now distinguish absence, invalid presence, and executor failure through
   one byte-preserving identity authority without acquiring fallback semantics.
 
-### `[ ]` **2.3 Adopt semantic user-document addresses at user-surface owners**
+### `[x]` **2.3 Adopt semantic user-document addresses at user-surface owners**
 
 - _Goal:_ Per-WU session notes and identity-global working memory use semantic addresses while current-versus-primary
   worktree selection remains exclusively owned by the user-surface resolver.
 
-    - `[ ]` **2.3.a Materialize user documents beneath caller-selected roots**
-        - Update `src/lib/user-surfaces.ts` to accept branded identity and work-unit operands, project
-          `user-document` addresses, and materialize them beneath the current or primary worktree selected by
-          existing topology policy.
-        - Parse strings at the existing semantic record/command owners before they enter the user-surface API;
-          never satisfy the branded contract with casts inside layout or user-surface code.
-        - Preserve arbitrary identity-global descendants as owner-local composition rather than adding a generic
-          layout descendant API.
+    - `[x]` **2.3.a Materialize user documents beneath caller-selected roots**
+        - User surfaces now accept branded semantic operands and materialize conventional session notes beneath the
+          current worktree and working memory beneath the topology-selected primary worktree; owners parse strings.
+        - Arbitrary identity-global descendants remain local composition beneath the resolver-owned user root.
 
-    - `[ ]` **2.3.b Migrate conventional session-note producers**
-        - Adopt the resolver in `src/lib/handoff/session-notes-path.ts`, `src/handlers/start.ts`, and
-          `src/commands/user/sync-status.ts` where the full conventional per-WU address is constructed.
-        - Keep recognition-only basenames and legacy-root note handling local to their existing owners.
+    - `[x]` **2.3.b Migrate conventional session-note producers**
+        - Handoff, start seeding, and sync-status seed detection project and materialize complete conventional note
+          addresses while recognition-only basenames and legacy-root handling remain with their existing owners.
 
-    - `[ ]` **2.3.c Preserve load-set path roles across current and primary worktrees**
-        - Update `src/lib/load-set/projection.ts` to consume semantic user-document projections for conventional
-          current-worktree paths while retaining exact meta/task/cohort pointers.
-        - Replace the internal `identityGlobalUserDir` handoff with the exact working-memory path resolved by the
-          user-surface owner; load-set must not append a filename after primary-worktree selection.
-        - Extend `user-surfaces`, handoff, sync-status, and load-set tests for linked-worktree root selection and
-          canonical display paths.
+    - `[x]` **2.3.c Preserve load-set path roles across current and primary worktrees**
+        - Load-set projection uses semantic conventional note paths and consumes the exact working-memory path from
+          the user-surface owner while exact meta, task, and cohort pointers remain unchanged.
+
+- _Outcome:_ Conventional user documents now cross one semantic projection boundary without moving worktree-root
+  selection or arbitrary identity-global descendant policy into layout.
 
 ## **Phase 3:** Work-unit and lifecycle address migration
 

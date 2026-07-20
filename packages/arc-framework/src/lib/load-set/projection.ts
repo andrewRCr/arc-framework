@@ -9,7 +9,10 @@
  * @module
  */
 
-import { isAbsolute, join } from "node:path";
+import { isAbsolute } from "node:path";
+
+import { SlugSchema } from "../kernel/index.js";
+import { resolveArcPath } from "../layout/index.js";
 
 import {
   LOAD_SET_MANIFEST_VERSION,
@@ -29,10 +32,10 @@ export interface LoadSetProjectionInput {
   /** ARC identity, or `null` when identity is absent. */
   identity: string | null;
   /**
-   * Canonical identity-global user root. When omitted, defaults to the
-   * active-checkout-relative `.arc/user/{identity}` path.
+   * Exact identity-global working-memory path selected by the user-surface owner.
+   * When omitted, defaults to the active-checkout-relative semantic projection.
    */
-  identityGlobalUserDir?: string | null;
+  workingMemoryPath?: string | null;
   /** Active WU slug, or `null` between units / unresolved. */
   activeWorkUnit: string | null;
   /** Active meta path relative to the repo root, or `null` when none resolved. */
@@ -100,11 +103,19 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
   }
 
   if (input.identity !== null && input.activeWorkUnit !== null) {
-    entries.push(full(userPath(input.identity, input.activeWorkUnit, "SESSION-NOTES.md")));
+    entries.push(full(resolveArcPath({
+      kind: "user-document",
+      identity: layoutSlug(input.identity),
+      document: { kind: "session-notes", workUnit: layoutSlug(input.activeWorkUnit) },
+    })));
   }
 
   if (input.identity !== null) {
-    entries.push(identityGlobalFull(identityGlobalPath(input, "WORKING-MEMORY.md")));
+    entries.push(identityGlobalFull(input.workingMemoryPath ?? resolveArcPath({
+      kind: "user-document",
+      identity: layoutSlug(input.identity),
+      document: { kind: "working-memory" },
+    })));
   }
 
   if (input.sessionType === "planning" && input.planningStage !== null) {
@@ -129,23 +140,14 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
   return { manifestVersion: LOAD_SET_MANIFEST_VERSION, entries };
 }
 
-function userPath(...segments: readonly string[]): string {
-  return [".arc", "user", ...segments.map((segment) => safePathSegment(segment))].join("/");
-}
-
-function identityGlobalPath(input: LoadSetProjectionInput, filename: string): string {
-  if (input.identity === null) {
-    throw new Error("identity-global user path requires identity");
-  }
-  if (input.identityGlobalUserDir !== undefined && input.identityGlobalUserDir !== null) {
-    return join(input.identityGlobalUserDir, safePathSegment(filename));
-  }
-  return userPath(input.identity, filename);
-}
-
 function identityGlobalFull(path: string): LoadSetEntry {
   assertIdentityGlobalLoadSetPath(path);
   return { path, readMode: { kind: "full" } };
+}
+
+function layoutSlug(segment: string) {
+  safePathSegment(segment);
+  return SlugSchema.parse(segment);
 }
 
 function safePathSegment(segment: string): string {

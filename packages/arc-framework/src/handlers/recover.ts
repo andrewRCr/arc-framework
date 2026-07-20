@@ -20,6 +20,7 @@ import type { DirtyStateResult } from "../lib/git/dirty-state.js";
 import { gitConfigGet, readConfiguredIdentity } from "../lib/git/index.js";
 import { gitExec } from "../lib/io-context.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { SlugSchema } from "../lib/kernel/index.js";
 import {
   auditRecoveryState,
   type RecoveryAuditStopReason,
@@ -53,8 +54,11 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
     return;
   }
 
-  const identityGlobalUserDir = (await resolveUserSurfaceResolver({ cwd, identity, exec: gitExec }))
-    .identityGlobalRoot;
+  const workingMemoryPath = (await resolveUserSurfaceResolver({
+    cwd,
+    identity: SlugSchema.parse(identity),
+    exec: gitExec,
+  })).workingMemoryPath;
   const seedPath = resolveCompactionSeedPath({ cwd, identity });
   let seedContent: string;
   try {
@@ -92,7 +96,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
     identity,
     role,
     probes,
-    identityGlobalUserDir,
+    workingMemoryPath,
   });
 
   let statusOutput: string;
