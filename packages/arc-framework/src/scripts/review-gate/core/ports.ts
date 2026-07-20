@@ -4,6 +4,12 @@ import type { CapabilitySet, NormalizedChangeRequest } from "./contracts.js";
 import type { Evidence, FindingClosure } from "./evidence.js";
 import type { LifecycleTailProof } from "./lifecycle-tail.js";
 import type {
+  ReviewReceiptV2,
+  ReviewRequestV2,
+  ReviewTarget,
+} from "./gate-contract-v2-schema.js";
+import type { ForwardGateProjection } from "./projection.js";
+import type {
   GateProjection,
   ReceiptEnvelope,
   ReviewReceipt,
@@ -201,4 +207,27 @@ export interface ReviewProviderAdapter {
   request(request: ReviewRequest): Promise<RequestAcknowledgement>;
   observe(requestIdentity: string): Promise<ProviderObservation[]>;
   normalizeEvidence(observations: ProviderObservation[]): Promise<Evidence[]>;
+}
+
+/** Dormant forward receipt persistence boundary, isolated from schema-v1 ledgers. */
+export interface ForwardReviewReceiptStore {
+  readReceipts(targetId: string): Promise<ReviewReceiptV2[]>;
+  appendReceipt(receipt: ReviewReceiptV2): Promise<{ durableEvidenceRef: string }>;
+}
+
+/** Forward provider boundary carrying exact v2 request identity without provider finding normalization. */
+export interface ForwardReviewProviderAdapter {
+  qualifyRequest(request: ReviewRequestV2): Promise<{ qualified: boolean; reason: string }>;
+  request(request: ReviewRequestV2): Promise<{
+    requestId: string;
+    providerEventIdentity: string | null;
+  }>;
+}
+
+/** Forward host projection boundary keyed by the exact target rather than legacy change-set aliases. */
+export interface ForwardGitHostProjectionAdapter {
+  publishForwardProjection(input: {
+    target: ReviewTarget;
+    projection: ForwardGateProjection;
+  }): Promise<HostProjectionRef[]>;
 }

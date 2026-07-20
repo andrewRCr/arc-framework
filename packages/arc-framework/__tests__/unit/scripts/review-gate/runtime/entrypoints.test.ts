@@ -13,6 +13,7 @@ describe("self-hosting review-gate entrypoint assembly", () => {
       "ensureDirectReply",
       "ensureThreadResolution",
       "parseRepairDispatchEvent",
+      "projectForwardReviewContract",
       "provisionRepairEnvironment",
       "recordProviderClosure",
       "runAssertHeadMutable",

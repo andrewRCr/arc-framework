@@ -8,6 +8,15 @@ import type { CapabilitySet, NormalizedChangeRequest } from "../../../../../src/
 import type { Evidence } from "../../../../../src/scripts/review-gate/core/evidence.js";
 import type { GateProjection, ReceiptEnvelope, ReviewRequest, SourceCapacity } from "../../../../../src/scripts/review-gate/core/execution.js";
 import type {
+  ReviewReceiptV2,
+  ReviewRequestV2,
+  ReviewTarget,
+} from "../../../../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
+import type { ForwardGateProjection } from "../../../../../src/scripts/review-gate/core/projection.js";
+import type {
+  ForwardGitHostProjectionAdapter,
+  ForwardReviewProviderAdapter,
+  ForwardReviewReceiptStore,
   GitHostAdapter,
   LifecycleTailProofAdapter,
   ReviewProviderAdapter,
@@ -23,6 +32,10 @@ describe("review adapter ports", () => {
     const capacity = { status: "available" } as SourceCapacity;
     const evidence = [{ result: "clean" } as Evidence];
     const receipts = [{ durableRecordId: "record-1" } as ReceiptEnvelope];
+    const forwardTarget = { targetId: "sha256:target" } as ReviewTarget;
+    const forwardProjection = { schemaVersion: 2 } as ForwardGateProjection;
+    const forwardRequest = { requestId: "sha256:request" } as ReviewRequestV2;
+    const forwardReceipt = { requestId: forwardRequest.requestId } as ReviewReceiptV2;
 
     const host: GitHostAdapter = {
       resolveChangeRequest: async () => ({
@@ -80,6 +93,17 @@ describe("review adapter ports", () => {
       }],
       normalizeEvidence: async () => evidence,
     };
+    const forwardHost: ForwardGitHostProjectionAdapter = {
+      publishForwardProjection: async () => [{ opaqueRef: "forward-projection-1" }],
+    };
+    const forwardStore: ForwardReviewReceiptStore = {
+      readReceipts: async () => [forwardReceipt],
+      appendReceipt: async () => ({ durableEvidenceRef: "forward-receipt-1" }),
+    };
+    const forwardProvider: ForwardReviewProviderAdapter = {
+      qualifyRequest: async () => ({ qualified: true, reason: "qualified" }),
+      request: async () => ({ requestId: forwardRequest.requestId, providerEventIdentity: null }),
+    };
 
     await expect(host.resolveChangeRequest("opaque-change-7")).resolves.toMatchObject({ changeRequest: change });
     await expect(host.resolveActorCapabilities({ login: "actor", expectedActorId: "actor-4" }))
@@ -111,6 +135,13 @@ describe("review adapter ports", () => {
     })).resolves.toBeNull();
     await expect(provider.readCapacity("agent-9")).resolves.toBe(capacity);
     await expect(provider.request(request)).resolves.toMatchObject({ requestIdentity: "request-1" });
+    await expect(forwardHost.publishForwardProjection({ target: forwardTarget, projection: forwardProjection }))
+      .resolves.toEqual([{ opaqueRef: "forward-projection-1" }]);
+    await expect(forwardStore.readReceipts(forwardTarget.targetId)).resolves.toEqual([forwardReceipt]);
+    await expect(forwardProvider.request(forwardRequest)).resolves.toEqual({
+      requestId: forwardRequest.requestId,
+      providerEventIdentity: null,
+    });
   });
 
   it("keeps the core source independent of adapter and runner vocabulary", async () => {

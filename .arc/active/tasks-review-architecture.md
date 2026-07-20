@@ -207,7 +207,7 @@ _Purpose:_ Move the review gate onto the forward-only exact-target contract, pre
 while adding local satisfaction and typed retrigger applicability without claiming that review settlement is merge
 readiness.
 
-### `[ ]` **3.1 Version the gate target, request, requirement, and receipt contracts**
+### `[x]` **3.1 Version the gate target, request, requirement, and receipt contracts**
 
 - _Goal:_ The controller admits the new semantic identities only through an explicit forward contract version,
   while retaining a bounded parser for legacy evidence and projecting only exact-target review obligations.
@@ -230,12 +230,10 @@ readiness.
           exact request, target, requirement, rubric, evaluator, attestor, and explicit nullable applicability/
           provider identities, with golden vectors covering domains, ordering, sensitivity, and self-ID exclusion.
 
-    - `[ ]` **3.1.d Migrate controller projections and ports**
-        - Carry the new target/request/requirement/receipt contracts through `core/requirements.ts`,
-          `core/projection.ts`, `core/ports.ts`, host projections, runtime entrypoints, and check-run rendering.
-        - Leave provider finding normalization and finding-settlement runtime on the existing diagnostic boundary
-          until Task 4.2.c migrates those surfaces once against the settled shared primitives.
-        - Keep the neutral core injected and free of GitHub/provider-specific policy.
+    - `[x]` **3.1.d Migrate controller projections and ports**
+        - Added a dormant strict-v2 chain reducer and neutral projection, v2-specific receipt/provider/host ports,
+          bounded GitHub check rendering, and a private runtime entrypoint. Exact identities now cross each boundary
+          without admitting legacy evidence or moving provider finding normalization into the neutral core.
 
 ### `[ ]` **3.2 Bind rubric, guidance, and policy identities**
 

@@ -1,6 +1,7 @@
 /** App-owned GitHub check-run lookup, projection, and stale-writer guards. */
 
 import type { GateProjection } from "../../core/execution.js";
+import type { ForwardGateProjection } from "../../core/projection.js";
 import { integerAt, objectAt, stringAt } from "../../core/validation.js";
 import type { GitHubRestClient } from "./api/rest.js";
 
@@ -21,6 +22,38 @@ export interface GitHubCheckRun {
 export interface CheckRunOutput {
   title: string;
   summary: string;
+}
+
+/** Render the dormant v2 contract without emitting a schema-v1 aggregate marker. */
+export function renderForwardCheckOutput(projection: ForwardGateProjection): CheckRunOutput {
+  const requirement = projection.requirement;
+  const receipt = projection.receipt;
+  const lines = [
+    `**Result:** ${projection.conclusion}`,
+    `**Target:** ${escapeText(projection.target.targetId)}`,
+    `**Review obligation:** ${requirement === null ? "exempt" : requirement.obligation}`,
+  ];
+  if (requirement !== null) {
+    lines.push(
+      `**Requirement:** ${escapeText(requirement.requirementId)}`,
+      `**Rubric:** ${escapeText(requirement.rubricVersion)} / ${escapeText(requirement.rubricDigest)}`,
+    );
+  }
+  if (projection.request !== null) lines.push(`**Request:** ${escapeText(projection.request.requestId)}`);
+  if (receipt !== null) {
+    lines.push(
+      `**Review run:** ${escapeText(receipt.reviewRunId)}`,
+      `**Attesting runtime:** ${escapeText(receipt.attestingRuntimeIdentity)} / ${escapeText(receipt.attestationMechanism)}`,
+    );
+  }
+  if (projection.blockers.length > 0) {
+    lines.push("", "**Blockers:**", ...projection.blockers.map((blocker) =>
+      `- ${escapeText(blocker.code)}: ${escapeText(blocker.detail)}`));
+  }
+  return {
+    title: `ARC independent review: ${projection.conclusion}`,
+    summary: lines.join("\n").slice(0, MAX_CHECK_SUMMARY),
+  };
 }
 
 /** Create/update payload shared by the injected check boundary. */
