@@ -405,81 +405,54 @@ helpers, and the sole wire adapter. Handoff and full status gain no schema or go
 - _Outcome:_ The kernel and status domain now expose the bounded asynchronous Result foundation, typed failure
   taxonomy, and one exact adapter required for orchestrator migration.
 
-### `[ ]` **6.2 Convert shared probe helpers and slot declaration to `ResultAsync`**
+### `[x]` **6.2 Convert shared probe helpers and slot declaration to `ResultAsync`**
 
 - _Goal:_ Probe invocation, identity short-circuiting, gated slots, and shared session slots compose through the
   kernel Result seam without losing concurrency or per-slot isolation.
-- _Context:_ Implements the shared `safeProbe` / `buildSessionSharedSlots` Result seam; Success Criterion 6.
+    - `[x]` **6.2.a Convert `safeProbe()` to typed asynchronous Result composition**
+        - Moved the probe primitive into the focused composition module with typed capture of synchronous throws,
+          promise rejections, non-`Error` causes, and stable slot context.
 
-    - `[ ]` **6.2.a Convert `safeProbe()` to typed asynchronous Result composition**
-        - Move the primitive into `commands/status/result-composition.ts` and implement it with the kernel's
-          `fromAsyncThrowable`, returning `ResultAsync<T, SessionProbeError>` for both synchronous invocation throws
-          and promise rejections.
-        - Build `test-first` in the focused composition test around success, synchronous throw, asynchronous
-          rejection, slot context, original cause, and non-`Error` failures.
+    - `[x]` **6.2.b Convert gated, user, and shared slot declarations**
+        - Added independent ResultAsync declarations for gated, user, and shared slots, preserving eager concurrency,
+          outer optional absence, identity short-circuiting, and sibling failure isolation in focused tests.
 
-    - `[ ]` **6.2.b Convert gated, user, and shared slot declarations**
-        - Express `gatedSlot()`, `userSlot()`, and `buildSessionSharedSlots()` with independent ResultAsync slots;
-          use `errAsync` for mandatory identity absence and `okAsync` for genuine immediate successes.
-        - Represent a skipped optional slot as outer `undefined` / `null`, never `Ok(undefined)`, and keep its probe
-          uncalled. Start eager shared probes before awaiting and resolve their individual Results with
-          `Promise.all`; do not use `ResultAsync.combine`.
-        - Move helper-algebra coverage out of the 3,358-line `run.test.ts` into the focused composition test while
-          retaining orchestration assertions there. Prove concurrency, identity/gate non-invocation, and sibling
-          failure isolation.
+- _Outcome:_ Shared status probes now compose through one typed Result seam without changing invocation timing or
+  allowing one failed slot to suppress its siblings.
 
-### `[ ]` **6.3 Migrate session-init and recovery orchestrators to Result composition**
+### `[x]` **6.3 Migrate session-init and recovery orchestrators to Result composition**
 
 - _Goal:_ The two in-scope status orchestrators use Result/ResultAsync through eager, derived, and gated stages yet
   return the exact validated legacy envelopes.
-- _Context:_ Implements focused internal Result adoption and legacy boundary unwrapping; Success Criterion 6.
+    - `[x]` **6.3.a Migrate `runSessionInitStatus()`**
+        - Migrated eager, derived, gated, enrichment, load-set, and cursor stages to independent Results, with the
+          synchronous load-set projection captured as a composition error and final adaptation at envelope assembly.
 
-    - `[ ]` **6.3.a Migrate `runSessionInitStatus()`**
-        - Carry independent Results through eager slot fan-out, conditional supersession/current-husk work, gated
-          roster/oracle slots, cross-slot enrichment, cohort/load-set projection, and cursor resolution.
-        - Wrap the known synchronous `resolveLoadSetManifest()` projection with `fromThrowable` / `andThen` as a
-          `SessionCompositionError`; do not rely on a throwing `map` callback as an error channel.
-        - Preserve existing sequencing: eager probes remain parallel; dependent/gated probes fire only after their
-          inputs; optional absence stays omission; worktree-identity, supersession, and degraded-advisory fallbacks
-          remain unchanged; load-set failures retain their current propagation.
-        - Apply `toProbe()` once to each present final slot at envelope construction; retain every sibling outcome
-          rather than collapsing the envelope into an aggregate Result.
-        - Build `test-first` against orchestration call counts, error isolation, gated non-invocation, and the Phase 1
-          exact envelope fixture matrix.
+    - `[x]` **6.3.b Migrate `runRecoverStatus()`**
+        - Migrated the lean recovery fan-out and dependent cohort/load-set/cursor stages while retaining identity
+          fallback, optional omission, per-probe failures, and exact envelope serialization.
 
-    - `[ ]` **6.3.b Migrate `runRecoverStatus()`**
-        - Carry the lean recover fan-out and cohort/load-set/cursor stages as individual Results, including an
-          immediate successful no-cohort branch, then adapt each present final slot through `toProbe()`.
-        - Preserve worktree-identity fallback, optional cohort/cursor behavior, and exact lean envelope bytes under
-          success and per-probe failure.
+- _Outcome:_ Both validated orchestrators now retain typed failures internally through their final compose sites
+  while continuing to emit the characterized legacy envelopes byte-for-byte.
 
-### `[ ]` **6.4 Carry the shared Result seam through handoff and full status**
+### `[x]` **6.4 Carry the shared Result seam through handoff and full status**
 
 - _Goal:_ Existing status and handoff callers continue to share the migrated probe machinery without gaining any
   unplanned schema, golden, or transport work.
-- _Context:_ Implements the shared-seam portion of Result migration and the no-validation scope boundary; Success
-  Criterion 6.
+    - `[x]` **6.4.a Migrate `runStatus()` through the shared probe primitive**
+        - Migrated the full-status eager fan-out through independent Results and final probe adaptation without
+          adding schema or golden scope.
 
-    - `[ ]` **6.4.a Migrate `runStatus()` through the shared probe primitive**
-        - Carry its existing eager fan-out as independent ResultAsync slots through `Promise.all`, then adapt each
-          resolved slot at the final compose site while retaining the exact full-mode return type and field set.
-        - Update focused orchestration tests only; do not add a full-mode envelope schema or characterization
-          golden.
+    - `[x]` **6.4.b Migrate `runSessionHandoffStatus()` through shared slots**
+        - Migrated shared and handoff-only probes while preserving drift enrichment, recommendation text, optional
+          inbox state, and public error shapes without adding handoff validation scope.
 
-    - `[ ]` **6.4.b Migrate `runSessionHandoffStatus()` through shared slots**
-        - Compose the shared and handoff-only probes with ResultAsync, preserving notes-drift enrichment,
-          recommendation text, optional inbox state, and exact public error shapes.
-        - Keep session-handoff schema validation and characterization outside this WU.
+    - `[x]` **6.4.c Enforce Result import and type boundaries**
+        - Kept all session-domain Result imports behind the kernel barrel, refreshed public-boundary documentation,
+          and proved source/test typing plus the direct-import restriction.
 
-    - `[ ]` **6.4.c Enforce Result import and type boundaries**
-        - Extend the existing kernel import-boundary proof only as needed so every new session-domain Result import
-          resolves through `lib/kernel/index.ts` and direct `neverthrow` imports remain exclusive to
-          `lib/kernel/result.ts`.
-        - Update stale Promise/Probe TSDoc and helper references in `commands/status/run.ts`,
-          `commands/status/types.ts`, and affected handler comments to describe Result internals and the unchanged
-          public Probe contract.
-        - Run source and test typechecks to prove every independent internal Result is unwrapped at its public
-          compose site and optional absence cannot serialize as `{ ok: true }`.
+- _Outcome:_ Every status caller now shares the Result composition machinery while full and handoff modes retain
+  their deliberately unvalidated public boundaries.
 
 ## **Phase 7:** Cross-family hardening and performance evidence
 

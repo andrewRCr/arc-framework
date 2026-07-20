@@ -514,11 +514,10 @@ export interface SessionHandoffResult {
 /**
  * Probe slots shared by both session-scoped entry points (`session-init` and
  * `session-handoff`). The two probe interfaces below extend this base so the
- * five slots stay declared once — the orchestrator wires them through a single
- * `buildSessionSharedSlots` source rather than re-declaring each per entry
- * point. Full mode (`StatusProbes`) shares only the `user` identity-missing
- * triad (via the generic `userSlot` helper), since its `user` / `active` slots
- * carry different result types and signatures.
+ * five slots stay declared once — the orchestrator starts them through one
+ * `buildSessionSharedSlots` ResultAsync source rather than re-declaring each
+ * per entry point. Full mode (`StatusProbes`) shares only the `user`
+ * identity-missing primitive because its `user` / `active` signatures differ.
  */
 export interface SessionSharedProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;

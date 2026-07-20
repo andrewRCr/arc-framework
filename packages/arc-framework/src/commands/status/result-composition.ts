@@ -2,9 +2,20 @@
 
 import {
   ArcError,
+  errAsync,
+  fromAsyncThrowable,
   type Result,
+  type ResultAsync,
 } from "../../lib/kernel/index.js";
-import type { Probe } from "./types.js";
+import type {
+  Probe,
+  SessionSharedProbes,
+} from "./types.js";
+import type { ActiveSessionInitResult } from "../active/types.js";
+import type { UserSessionInitStatusResult } from "../user/types.js";
+import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
+import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 
 const IDENTITY_MISSING_MESSAGE =
   "User probe skipped: `arc.identity` is not configured in git config.";
@@ -57,6 +68,61 @@ export type SessionStatusError =
   | SessionIdentityMissingError
   | SessionProbeError
   | SessionCompositionError;
+
+/** One resolved internal session slot. */
+export type SessionResult<Value> = Result<Value, SessionStatusError>;
+
+/** Wrap one probe invocation in the typed asynchronous error channel. */
+export function safeProbe<Value>(
+  slot: string,
+  probe: () => Promise<Value>,
+): ResultAsync<Value, SessionProbeError> {
+  return fromAsyncThrowable(probe, (cause) => new SessionProbeError(slot, cause))();
+}
+
+/** Declare an optional probe only when its gate fires. */
+export function gatedSlot<Value>(
+  condition: boolean,
+  slot: string,
+  probe: () => Promise<Value>,
+): ResultAsync<Value, SessionProbeError> | undefined {
+  return condition ? safeProbe(slot, probe) : undefined;
+}
+
+/** Declare an identity-scoped user probe with a typed immediate absence error. */
+export function userSlot<Value>(
+  identity: string | null,
+  probe: (identity: string) => Promise<Value>,
+): ResultAsync<Value, SessionIdentityMissingError | SessionProbeError> {
+  return identity === null
+    ? errAsync(new SessionIdentityMissingError("user"))
+    : safeProbe("user", () => probe(identity));
+}
+
+/** Five eager ResultAsync slots shared by both session-scoped orchestrators. */
+export interface SessionSharedResults {
+  user: ResultAsync<UserSessionInitStatusResult, SessionIdentityMissingError | SessionProbeError>;
+  worktree: ResultAsync<WorktreeSyncStatusResult, SessionProbeError>;
+  dirty: ResultAsync<DirtyStateResult, SessionProbeError>;
+  active: ResultAsync<ActiveSessionInitResult, SessionProbeError>;
+  releaseRouting: ResultAsync<ReleaseRoutingValue, SessionProbeError>;
+}
+
+/** Declare the shared eager session probes without awaiting or aggregating them. */
+export function buildSessionSharedSlots(options: {
+  identity: string | null;
+  role: string | null;
+  probes: SessionSharedProbes;
+}): SessionSharedResults {
+  const { identity, role, probes } = options;
+  return {
+    user: userSlot(identity, (id) => probes.user(id)),
+    worktree: safeProbe("worktree", () => probes.worktree()),
+    dirty: safeProbe("dirty", () => probes.dirty()),
+    active: safeProbe("active", () => probes.active(identity, role)),
+    releaseRouting: safeProbe("releaseRouting", () => probes.releaseRouting()),
+  };
+}
 
 /**
  * Adapt one resolved internal Result to the stable public Probe wire union.

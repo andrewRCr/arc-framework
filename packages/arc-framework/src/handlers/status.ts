@@ -343,8 +343,8 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       return;
     }
     // Cache the resolution promise instead of awaiting eagerly: a thrown
-    // settings-resolution error now surfaces as a per-probe failure (via the
-    // orchestrator's `safeProbe` wrapper) rather than aborting the whole
+    // settings-resolution error now surfaces through the orchestrator's typed
+    // per-probe Result channel rather than aborting the whole
     // command and breaking the composite-result contract. The mode-validation
     // early-return above runs first to avoid leaving an unawaited rejection on
     // the non-JSON exit path.
