@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "ci-portability-pair-schedule-only",
+  "origin": "description",
+  "intent": "Make the Windows/macOS portability pair schedule-only with explicit dispatch opt-in to contain Actions spend",
+  "branch": "chore/ci-portability-pair-schedule-only",
+  "createdAt": "2026-07-20T18:00:02.724Z",
+  "returnBranch": "main"
+}
