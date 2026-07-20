@@ -1,8 +1,8 @@
 # Metadata: cli-session-envelope
 
-| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
-| --------- | --------- | --------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/cli-session-envelope` | `Heavy`   | `P2`         |
+| **State**     | **Owner** | **Branch**                  | **Class** | **Priority** |
+| ------------- | --------- | --------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/cli-session-envelope` | `Heavy`   | `P2`         |
 
 - **Cohort:** `cli-substrate-adoption`
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-cli-session-envelope.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Characterize the complete session-init envelope representation (line ~15)
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** Open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
