@@ -7,7 +7,9 @@
   },
   "qualification": {
     "bounded": true,
-    "structuredContractInferred": false
+    "structuredContractInferred": false,
+    "selectedMode": "plain-compatibility",
+    "plainFindingsQualified": false
   },
   "observations": [
     {
@@ -65,6 +67,21 @@
         "lastEvent": { "type": "heartbeat", "status": "reviewing" },
         "termination": "bounded-observation-window-exhausted"
       }
+    }
+  ],
+  "plainObservations": [
+    {
+      "shape": "clean-scoped-directory",
+      "command": [
+        "review",
+        "--plain",
+        "--light",
+        "--type",
+        "committed",
+        "--dir",
+        "packages/arc-framework/__tests__/fixtures/coderabbit-frontline"
+      ],
+      "stdout": "CodeRabbit Review\n\nDiff      : committed changes only\n\nReview complete\nNo findings ✔\n\n1 file reviewed:\n- packages/arc-framework/__tests__/fixtures/coderabbit-frontline/observations.json\n"
     }
   ],
   "syntheticInjectedCommandCases": [

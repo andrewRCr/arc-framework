@@ -573,13 +573,11 @@ that shapes review spend without producing satisfying evidence.
           and process failure. A single bounded committed probe never reached a findings result, so that required
           success shape remains explicitly unobserved rather than inferred or pursued through wider repeated probes.
 
-    - `[ ]` **5.3.b Select structured or plain compatibility parsing**
-        - Implement and test the structured parser only if every required outcome is distinguishable; otherwise keep
-          `--plain` as the adapter boundary and document the limitation.
-        - Treat any required structured success shape not observed within the bounded live probe as insufficient
-          qualification rather than extending the probe indefinitely or inferring a schema.
-        - In plain mode, emit `findings` only from explicit parsed findings and `clean` only from a version-pinned,
-          fixture-proven explicit clean marker; empty/unknown output, parse drift, refusal, or failure stays non-clean.
+    - `[x]` **5.3.b Select structured or plain compatibility parsing**
+        - Selected version-pinned `--plain` compatibility because the bounded agent probe did not establish a findings
+          contract. The CLI `0.6.5` parser emits clean only for the fixture-proven `Review complete` plus `No findings`
+          and reviewed-file markers; version drift, unknown/empty output, rate limit, stale head, refusal, or process
+          failure stays non-clean. Findings parsing remains disabled until an explicit provider shape is observed.
 
     - `[ ]` **5.3.c Integrate CodeRabbit frontline execution**
         - Bind the project source to the selected adapter, surface rate limits truthfully, and retain the PR-review

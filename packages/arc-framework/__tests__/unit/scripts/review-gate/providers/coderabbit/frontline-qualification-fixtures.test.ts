@@ -18,7 +18,7 @@ describe("CodeRabbit frontline qualification fixtures", () => {
     };
 
     expect(fixture.cli).toEqual({ name: "coderabbit", version: "0.6.5", mode: "--agent" });
-    expect(fixture.qualification).toEqual({ bounded: true, structuredContractInferred: false });
+    expect(fixture.qualification).toMatchObject({ bounded: true, structuredContractInferred: false });
     expect(fixture.observations).toEqual(expect.arrayContaining([
       expect.objectContaining({ shape: "empty-uncommitted" }),
       expect.objectContaining({ shape: "clean-scoped-directory" }),
