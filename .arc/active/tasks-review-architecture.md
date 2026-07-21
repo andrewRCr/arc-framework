@@ -514,10 +514,10 @@ that shapes review spend without producing satisfying evidence.
           only to typed agent capability handles or direct executable-plus-argv descriptors; invalid values and
           storage failures remain diagnosed, and no self-hosting provider binding ships here.
 
-    - `[ ]` **5.1.b Apply invocation override precedence**
-        - Model `inherit | force | skip` plus the legal optional-source combinations; let `force` temporarily
-          activate and override policy skip without becoming persistent configuration.
-        - Reject a source on `skip` and preserve smart action selection when `inherit` supplies only a source.
+    - `[x]` **5.1.b Apply invocation override precedence**
+        - Added a strict `inherit | force | skip` invocation schema and pure precedence resolver: `force` activates
+          an attempt for one run, `skip` rejects source input, and `inherit` preserves smart routing while allowing
+          source selection without persisting either override.
 
     - `[ ]` **5.1.c Produce the complete semantic result**
         - Emit `schemaVersion: 1`, `semanticsVersion: frontline-review/v1`, action, stable reasons, selected
