@@ -429,7 +429,7 @@ describe("reconcileWorktree — teardown", () => {
 
     expect(result).toEqual({ mutation: "teardown", worktreePath, locusHopped: false });
     expect(events).toEqual([
-      ["git", "worktree", "list", "--porcelain"],
+      ["git", "worktree", "list", "--porcelain", "-z"],
       ["git", "worktree", "remove", worktreePath],
     ]);
   });
@@ -454,7 +454,7 @@ describe("reconcileWorktree — teardown", () => {
       }),
     ).rejects.toThrow(/identity-global user surface/iu);
 
-    expect(events).toEqual([["git", "worktree", "list", "--porcelain"]]);
+    expect(events).toEqual([["git", "worktree", "list", "--porcelain", "-z"]]);
   });
 
   it("refuses oracle-approved husk removal from inside the target", async () => {
@@ -485,7 +485,7 @@ describe("reconcileWorktree — teardown", () => {
     expect(result).toEqual({ mutation: "teardown", worktreePath, locusHopped: false });
     expect(events).toEqual([
       ["git", "status", "--porcelain"],
-      ["git", "worktree", "list", "--porcelain"],
+      ["git", "worktree", "list", "--porcelain", "-z"],
       ["git", "worktree", "remove", worktreePath],
     ]);
   });
@@ -516,7 +516,7 @@ describe("reconcileWorktree — teardown", () => {
     expect(result).toEqual({ mutation: "teardown", worktreePath, locusHopped: true });
     expect(events).toEqual([
       ["git", "status", "--porcelain"],
-      ["git", "worktree", "list", "--porcelain"],
+      ["git", "worktree", "list", "--porcelain", "-z"],
       ["chdir", primary],
       ["git", "worktree", "remove", worktreePath],
     ]);

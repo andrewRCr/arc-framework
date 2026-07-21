@@ -42,61 +42,29 @@ inspection before the record lock that consumes its liveness verdict.
 - _Outcome:_ The locus family now has one strict Zod-first authority from persisted record through public query and
   mutation output, with kernel discovery and bounded operational-error projection ready for storage and drivers.
 
-### `[ ]` **1.2 Build normalized checkout identity and exact record persistence** — D2, D3
+### `[x]` **1.2 Build normalized checkout identity and exact record persistence** — D2, D3
 
 - _Goal:_ One Git-reported checkout spelling resolves to one tamper-evident machine-local record whose path and
   contents cannot redirect persistence outside the locus store.
 
-    - `[ ]` **1.2.a Make registered-worktree topology parsing path-exact**
-        - Refactor `packages/arc-framework/src/lib/git/worktree-roster.ts` so topology and branch-path consumers
-          invoke `git worktree list --porcelain -z` and share one NUL-delimited parser.
-        - Preserve each decoded `worktree` field exactly as Git reports it; never line-split, trim, or hash Git's
-          quoted-path presentation. Reject malformed field/record structure without losing the first-stanza primary
-          designation or the existing structured scan failure.
-        - Build `test-first` (one behavior at a time):
-            - Cover ordinary paths, spaces, quotes, backslashes, embedded newlines, multibyte/astral text, and
-              Windows/UNC spellings without presentation decoding drift.
-            - Cover malformed/truncated NUL records, missing required fields, deterministic primary selection, and
-              parity between topology and branch-path consumers.
+    - `[x]` **1.2.a Make registered-worktree topology parsing path-exact**
+        - All topology and branch-path consumers now invoke one strict `--porcelain -z` parser that preserves the
+          decoded Git path spelling and rejects truncated, duplicate, conflicting, or unknown field structure.
 
-    - `[ ]` **1.2.b Derive stable checkout digests through an explicit path-flavor seam**
-        - Add a pure lexical normalizer and SHA-256 record-ID helpers under
-          `packages/arc-framework/src/lib/locus/`, accepting an explicit POSIX or Windows path flavor while
-          production selects the runtime flavor.
-        - Require Git-reported absolute input, preserve its display spelling separately, and use
-          `canonicalLocalPath()` only for ephemeral same-locus comparisons.
-        - Build `test-first` (one behavior at a time):
-            - POSIX roots, embedded relative segments, trailing separators, Windows drive roots, UNC paths, and
-              extended Windows spellings normalize deterministically under their selected flavor.
-            - Relative input, mixed-flavor ambiguity, and over-limit paths reject before hashing.
-            - Case is preserved, UTF-8 bytes are hashed, and record IDs use exact lowercase hexadecimal grammar.
-            - Existing physical aliases compare equal without changing the persisted spelling or digest.
+    - `[x]` **1.2.b Derive stable checkout digests through an explicit path-flavor seam**
+        - Added explicit POSIX/Windows lexical normalization plus UTF-8 SHA-256 record identity, preserving case and
+          display spelling while rejecting relative, mixed-flavor, NUL-containing, and oversized inputs.
 
-    - `[ ]` **1.2.c Resolve the primary-backed locus root with fail-closed topology semantics**
-        - Add a dedicated locus-root resolver over `scanRegisteredWorktrees()` that requires exactly one successful
-          primary stanza, preserves structured topology failures, and never calls the ordinary active-checkout
-          fallback.
-        - Leave `resolveUserSurfaceResolver()` and its existing non-locus callers unchanged.
-        - Resolve `.arc/user/{identity}/.internal/loci/` and record-scoped lock paths only beneath that root.
-        - Preserve the existing dot-prefixed user-sync exclusion and add a regression proving locus files never
-          enter notes manifests.
-        - Build `test-first` (one behavior at a time):
-            - Exactly one primary resolves the store, while zero/multiple primaries and structured topology failures
-              refuse without the active-checkout fallback.
-            - Resolved locus and lock paths remain beneath the primary user root and excluded from notes manifests.
+    - `[x]` **1.2.c Resolve the primary-backed locus root with fail-closed topology semantics**
+        - Added a no-fallback root resolver requiring one primary topology stanza, bounded record/lock path builders,
+          and whole-dot-directory notes exclusion so `.internal/loci/` remains machine-local.
 
-    - `[ ]` **1.2.d Parse and atomically persist exact record generations**
-        - Add record-store reads that validate filename digest, `recordId`, recomputed `checkoutPath` digest,
-          schema version, and absolute-path shape before returning data.
-        - Bound reads to `MAX_LOCUS_JSON_BYTES + 1` bytes before UTF-8 decoding or `JSON.parse`; classify oversized,
-          malformed, unsupported, and unreadable input without buffering the remaining file.
-        - Use same-directory atomic replacement for updates and exclusive create for mint; preserve incompatible or
-          malformed existing content for reconciliation instead of overwriting it.
-        - Build `test-first` (one behavior at a time):
-            - Absent, valid, malformed, unsupported-version, digest-mismatch, and raced-create outcomes remain
-              distinct in `packages/arc-framework/__tests__/unit/locus/record-store.test.ts`.
-            - Oversized input rejects before full buffering, and atomic replace/exclusive create never overwrite an
-              incompatible or concurrently created generation.
+    - `[x]` **1.2.d Parse and atomically persist exact record generations**
+        - Added bounded record reads with distinct absence, malformed, unsupported, oversized, unreadable, and digest
+          mismatch outcomes, plus exclusive mint and byte-generation-checked same-directory atomic replacement.
+
+- _Outcome:_ Git topology spelling, lexical path identity, primary-backed storage, and exact record bytes now form
+  one tamper-evident persistence chain; portable notes cannot absorb its machine-local files.
 
 ### `[ ]` **1.3 Implement cross-platform process anchors and three-state liveness** — D5
 

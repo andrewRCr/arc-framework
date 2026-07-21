@@ -12,19 +12,11 @@ import {
 
 function execReturningWorktrees(primary: string, linked: string): GitExec {
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
-    expect(args).toEqual(["worktree", "list", "--porcelain"]);
+    expect(args).toEqual(["worktree", "list", "--porcelain", "-z"]);
     return {
       stderr: "",
-      stdout: [
-        `worktree ${primary}`,
-        "HEAD 1111111111111111111111111111111111111111",
-        "branch refs/heads/main",
-        "",
-        `worktree ${linked}`,
-        "HEAD 2222222222222222222222222222222222222222",
-        "branch refs/heads/feat/demo",
-        "",
-      ].join("\n"),
+      stdout: `worktree ${primary}\0HEAD ${"1".repeat(40)}\0branch refs/heads/main\0\0`
+        + `worktree ${linked}\0HEAD ${"2".repeat(40)}\0branch refs/heads/feat/demo\0\0`,
     };
   });
 }
