@@ -186,7 +186,7 @@ the distinct recovery and precedence policies of existing adapters.
 - _Outcome:_ Project configuration now has one typed catalog for keys, defaults, authoring domains, and empty-value
   policy, plus distinct raw, authorable, and completed record contracts for the adapters that consume it.
 
-### `[ ]` **3.2 Rebase policy adapters on catalog domains and defaults**
+### `[x]` **3.2 Rebase policy adapters on catalog domains and defaults**
 
 - _Goal:_ Configuration consumers share field definitions without losing their distinct tolerance, precedence,
   normalization, and hard-error policies.
@@ -209,14 +209,14 @@ the distinct recovery and precedence policies of existing adapters.
           still short-circuit unrelated failures, custom patterns pass through unchanged, and invalid domains retain
           their existing `config.invalid-value` and `config.invalid-number` contracts.
 
-    - `[ ]` **3.2.d Migrate worktree configuration adapters**
-        - Reuse catalog leaves in `git/worktree-location.ts` and `git/worktree-harness-dirs.ts` while retaining token
-          substitution, order-preserving deduplication, top-level-directory checks, reserved-name checks, and throws.
-        - Keep post-create command execution and fallback authority at their current callers rather than introducing a
-          global worktree normalizer.
-        - Build `test-first` (one behavior at a time):
-            - preserve location-token expansion without ambient Git or filesystem reads;
-            - preserve every accepted, normalized, and rejected harness-directory form.
+    - `[x]` **3.2.d Migrate worktree configuration adapters**
+        - Reused the catalog's location-template and normalized-directory leaves at the two worktree boundaries and
+          sourced the registered-harness default from its descriptor. Token expansion stays pure; harness parsing
+          retains ordered deduplication, trailing-separator normalization, reserved-name diagnostics, and throws;
+          command execution and fallback policy remain with their existing callers.
+
+- _Outcome:_ Agent, precedence, commit-check, and worktree adapters now share one catalog without collapsing their
+  distinct tolerant, strict, dual-scope, and normalization policies into a global configuration normalizer.
 
 ### `[ ]` **3.3 Deliver typed configuration validation behind the stable launcher**
 
