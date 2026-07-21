@@ -19,9 +19,10 @@ export type ChangeRequestLifecycleConfiguration = Pick<
   "repositoryRef" | "hostRef" | "baseRef"
 >;
 
-/** Closed lifecycle truth vocabulary consumed by identity retirement. */
+/** Closed host-truth vocabulary consumed by identity retirement and requested-work resume. */
 export type ChangeRequestLifecycleTruth =
   | "merged"
+  | "requested-work"
   | "open"
   | "closed-unmerged"
   | "changed-head"
@@ -44,6 +45,27 @@ export interface ChangeRequestLifecyclePort {
   ): Promise<ChangeRequestLifecycleEvidence>;
 }
 
+/** Resolve the configured origin repository and base for an exact host read. */
+export async function resolveChangeRequestLifecycleConfiguration(
+  exec: GitExec,
+  baseRef: string,
+): Promise<ChangeRequestLifecycleConfiguration | null> {
+  let url: string;
+  try {
+    url = (await exec("git", ["remote", "get-url", "origin"])).stdout.trim();
+  } catch {
+    return null;
+  }
+  const https = /^(?:https?|ssh):\/\/(?:[^@/]+@)?([^/]+)\/([^/]+\/[^/]+?)(?:\.git)?$/u.exec(url);
+  const scp = /^(?:[^@]+@)?([^:]+):([^/]+\/[^/]+?)(?:\.git)?$/u.exec(url);
+  const match = https ?? scp;
+  const hostRef = match?.[1];
+  const repositoryRef = match?.[2];
+  return hostRef !== undefined && repositoryRef !== undefined && baseRef !== ""
+    ? { hostRef, repositoryRef, baseRef }
+    : null;
+}
+
 /** Any v3 transient identity whose local locus has become a change-request tail. */
 export type TransientIdentityTailRecord = Extract<
   TransientIdentityRecordV3,
@@ -63,6 +85,7 @@ interface GhPullRequestLifecycle {
   readonly baseRefName: string;
   readonly headRefName: string;
   readonly headRefOid: string;
+  readonly reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | "" | null;
 }
 
 /**
@@ -93,7 +116,7 @@ export function createGhChangeRequestLifecyclePort(
           "--state", "all",
           "--head", changeRequest.headRef,
           "--limit", String(QUERY_LIMIT),
-          "--json", "number,state,baseRefName,headRefName,headRefOid",
+          "--json", "number,state,baseRefName,headRefName,headRefOid,reviewDecision",
         ], controller.signal);
         if (branchQuery.kind !== "ok") return evidence(branchQuery.kind, changeRequest);
         const branchPulls = branchQuery.pulls;
@@ -108,7 +131,7 @@ export function createGhChangeRequestLifecyclePort(
           "--state", "all",
           "--search", changeRequest.headSha,
           "--limit", String(QUERY_LIMIT),
-          "--json", "number,state,baseRefName,headRefName,headRefOid",
+          "--json", "number,state,baseRefName,headRefName,headRefOid,reviewDecision",
         ], controller.signal);
         if (movedQuery.kind !== "ok") return evidence(movedQuery.kind, changeRequest);
         const movedPulls = movedQuery.pulls;
@@ -155,7 +178,9 @@ function classifyExactCoordinates(
   const [current] = exact;
   if (current === undefined) return evidence("ambiguous", changeRequest);
   if (current.state === "MERGED") return evidence("merged", changeRequest);
-  if (current.state === "OPEN") return evidence("open", changeRequest);
+  if (current.state === "OPEN") {
+    return evidence(current.reviewDecision === "CHANGES_REQUESTED" ? "requested-work" : "open", changeRequest);
+  }
   return evidence("closed-unmerged", changeRequest);
 }
 
@@ -207,15 +232,24 @@ function parseLifecyclePulls(stdout: string): GhPullRequestLifecycle[] {
       throw new Error("GitHub lifecycle entry must be an object");
     }
     const record = item as Record<string, unknown>;
-    const { number, state, baseRefName, headRefName, headRefOid } = record;
+    const { number, state, baseRefName, headRefName, headRefOid, reviewDecision } = record;
     if (!Number.isSafeInteger(number) || (number as number) <= 0
       || (state !== "OPEN" && state !== "CLOSED" && state !== "MERGED")
       || typeof baseRefName !== "string" || baseRefName === ""
       || typeof headRefName !== "string" || headRefName === ""
-      || typeof headRefOid !== "string" || !/^[0-9a-f]{40}$/u.test(headRefOid)) {
+      || typeof headRefOid !== "string" || !/^[0-9a-f]{40}$/u.test(headRefOid)
+      || (reviewDecision !== null && reviewDecision !== "" && reviewDecision !== "APPROVED"
+        && reviewDecision !== "CHANGES_REQUESTED" && reviewDecision !== "REVIEW_REQUIRED")) {
       throw new Error("GitHub lifecycle entry is malformed");
     }
-    return { number: number as number, state, baseRefName, headRefName, headRefOid };
+    return {
+      number: number as number,
+      state,
+      baseRefName,
+      headRefName,
+      headRefOid,
+      reviewDecision,
+    };
   });
 }
 

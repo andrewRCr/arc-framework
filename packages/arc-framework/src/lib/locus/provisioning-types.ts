@@ -56,8 +56,12 @@ export interface ProvisionTransientLocusDependencies {
     checkoutPath: string;
     handle: ProvisioningRecordLock;
   }): Promise<{ kind: "ready" } | { kind: "refused"; reason: ProvisioningRefusalReason }>;
-  /** Checkout the requested branch, or prove a null-branch direct-base no-op. Throw only before changing Git. */
-  checkoutPrimary(checkoutPath: string, branch: string | null): Promise<PrimaryCheckoutReceipt>;
+  /** Create or exactly reuse the requested branch, or prove a null-branch direct-base no-op. */
+  checkoutPrimary(
+    checkoutPath: string,
+    branch: string | null,
+    expectedBranchHead: string | null,
+  ): Promise<PrimaryCheckoutReceipt>;
   rollbackPrimary(checkoutPath: string, receipt: PrimaryCheckoutReceipt): Promise<
     { kind: "rolled-back" } | { kind: "generation-mismatch" }
   >;
@@ -131,6 +135,8 @@ export interface ProvisionTransientLocusOptions {
   identity: LocusIdentityV1 | null;
   authority?: LocusRoleAuthority;
   branch: string | null;
+  /** Null creates a fresh branch; a Git OID requires exact retained-branch reuse. */
+  expectedBranchHead: string | null;
   base: string;
   locationTemplate: string;
   repo: string;

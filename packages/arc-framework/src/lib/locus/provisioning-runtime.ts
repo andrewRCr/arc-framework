@@ -138,7 +138,8 @@ export function createNodeProvisioningDependencies(
       if (!safety.onBase) return { kind: "refused", reason: "primary-off-base" };
       return { kind: "ready" };
     },
-    checkoutPrimary: (checkoutPath, branch) => checkoutPrimary(options.exec, checkoutPath, branch),
+    checkoutPrimary: (checkoutPath, branch, expectedBranchHead) =>
+      checkoutPrimary(options.exec, checkoutPath, branch, expectedBranchHead),
     rollbackPrimary: (checkoutPath, receipt) => rollbackPrimary(options.exec, checkoutPath, receipt),
     readRecord: (path, handle) => {
       requireHeldLock(heldLocks, handle);
@@ -208,6 +209,7 @@ async function checkoutPrimary(
   exec: GitExec,
   checkoutPath: string,
   branch: string | null,
+  expectedBranchHead: string | null,
 ): Promise<PrimaryCheckoutReceipt> {
   const previousBranch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath }))
     .stdout.trim();
@@ -215,6 +217,15 @@ async function checkoutPrimary(
   if (previousBranch === "" || previousHead === "") throw new Error("Primary checkout state is unavailable");
   if (branch === null) {
     return { kind: "idempotent", branchCreated: false, previousBranch, head: previousHead };
+  }
+  if (expectedBranchHead !== null) {
+    await exec("git", ["checkout", branch], { cwd: checkoutPath });
+    const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
+    if (head !== expectedBranchHead) {
+      await exec("git", ["checkout", previousBranch], { cwd: checkoutPath });
+      throw new Error("Retained Errand branch does not match the expected resume head");
+    }
+    return { kind: "applied", branchCreated: false, previousBranch, head };
   }
   await exec("git", ["checkout", "-b", branch, previousBranch], { cwd: checkoutPath });
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
@@ -230,7 +241,12 @@ async function rollbackPrimary(
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
   if (head !== receipt.head) return { kind: "generation-mismatch" };
   if (!receipt.branchCreated) {
-    return branch === receipt.previousBranch ? { kind: "rolled-back" } : { kind: "generation-mismatch" };
+    if (receipt.kind === "idempotent") {
+      return branch === receipt.previousBranch ? { kind: "rolled-back" } : { kind: "generation-mismatch" };
+    }
+    if (branch === receipt.previousBranch || branch === "") return { kind: "generation-mismatch" };
+    await exec("git", ["checkout", receipt.previousBranch], { cwd: checkoutPath });
+    return { kind: "rolled-back" };
   }
   if (branch === "" || branch === receipt.previousBranch) return { kind: "generation-mismatch" };
   await exec("git", ["checkout", receipt.previousBranch], { cwd: checkoutPath });

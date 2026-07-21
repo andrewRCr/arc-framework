@@ -1,6 +1,6 @@
 /** Recoverable transient locus provisioning across checkout, marker, and record generations. */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   provisionTransientLocus,
@@ -44,6 +44,7 @@ function options(
     protection: "full",
     identity,
     branch: BRANCH,
+    expectedBranchHead: null,
     base: "main",
     locationTemplate: "../{name}",
     repo: "arc-framework",
@@ -175,6 +176,57 @@ function testHarness(
 }
 
 describe("provisionTransientLocus", () => {
+  it("reuses an exact retained branch when provisioning a resumed spawned locus", async () => {
+    const events: string[] = [];
+    const createLinkedWorktree = vi.fn(async () => ({
+      kind: "created" as const,
+      receipt: {
+        worktreePath: WORKTREE_PATH,
+        branch: BRANCH,
+        worktreeCreated: true as const,
+        branchCreated: false,
+        base: null,
+      },
+    }));
+    const harness = testHarness(events, { createLinkedWorktree });
+
+    const result = await provisionTransientLocus(options(harness.dependencies, {
+      expectedBranchHead: "1".repeat(40),
+    }));
+
+    expect(createLinkedWorktree).toHaveBeenCalledWith(expect.objectContaining({
+      branch: BRANCH,
+      createBranch: false,
+    }));
+    expect(result).toMatchObject({
+      kind: "provisioned",
+      receipt: { branch: { created: false, head: "1".repeat(40), base: null } },
+    });
+  });
+
+  it("rolls back a resumed spawned checkout whose retained branch head changed", async () => {
+    const events: string[] = [];
+    const harness = testHarness(events, {
+      createLinkedWorktree: async () => ({
+        kind: "created",
+        receipt: {
+          worktreePath: WORKTREE_PATH,
+          branch: BRANCH,
+          worktreeCreated: true,
+          branchCreated: false,
+          base: null,
+        },
+      }),
+    });
+
+    const result = await provisionTransientLocus(options(harness.dependencies, {
+      expectedBranchHead: "2".repeat(40),
+    }));
+
+    expect(result).toMatchObject({ kind: "refused", reason: "identity-conflict" });
+    expect(events).toContain("rollback-worktree");
+  });
+
   it("rolls back an unchanged created checkout when pending marker creation fails", async () => {
     const events: string[] = [];
     const harness = testHarness(events, {

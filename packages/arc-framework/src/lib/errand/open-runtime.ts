@@ -15,10 +15,23 @@ import { acquireSessionAnchor } from "../locus/process-inspector.js";
 import { readPrimarySafety } from "../locus/primary-safety.js";
 import type { LocusMutationResultV1, LocusProcessAnchor } from "../locus/schema/index.js";
 import type { GitExec } from "../git/exec.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import { rollbackIdentityClaim } from "./identity-claims.js";
-import { ordinaryErrandTransform } from "./identity-transitions.js";
+import {
+  ordinaryErrandTransform,
+  provePauseHead,
+  rollbackOrdinaryErrandResumeTransform,
+  type OrdinaryErrandRecord,
+} from "./identity-transitions.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
-import { openOrdinaryErrand } from "./open.js";
+import {
+  openOrdinaryErrand,
+  type ResumeAuthorizationResult,
+} from "./open.js";
+import {
+  createGhChangeRequestLifecyclePort,
+  resolveChangeRequestLifecycleConfiguration,
+} from "./change-request-lifecycle.js";
 
 export interface OpenOrdinaryErrandRuntimeOptions {
   readonly slug: string;
@@ -92,6 +105,25 @@ export async function openOrdinaryErrandAtRuntime(
           }),
         });
       },
+      readIdentity: async () => {
+        const read = await transactTransientIdentities({
+          exec: options.exec,
+          execInput: options.execInput,
+          identity: options.identity,
+        }, {
+          remote: "origin",
+          message: `arc: reconcile errand identity ${options.slug}`,
+          transform: (records) => ({ kind: "idempotent", value: records.get(options.slug) ?? null }),
+        });
+        if (read.kind === "applied" || read.kind === "idempotent") {
+          return { kind: "ready" as const, record: read.value };
+        }
+        return read.kind === "refused"
+          ? { kind: "refused" as const, reason: read.reason }
+          : { kind: "error" as const, message: read.message };
+      },
+      authorizeResume: (record) => authorizeOrdinaryErrandResume(options.exec, options.base, record),
+      recoverOpen: (record) => recoverOpenIdentityBranch(options.exec, record),
       claim: async (record) => {
         const claimed = await transactTransientIdentities({
           exec: options.exec,
@@ -110,6 +142,24 @@ export async function openOrdinaryErrandAtRuntime(
           ? { kind: "refused", reason: claimed.reason }
           : { kind: "error", message: claimed.message };
       },
+      resume: async (record, authorization, updatedAt) => {
+        const resumed = await transactTransientIdentities({
+          exec: options.exec,
+          execInput: options.execInput,
+          identity: options.identity,
+        }, {
+          remote: "origin",
+          message: `arc: resume errand ${record.slug}`,
+          transform: ordinaryErrandTransform({ kind: "resume", previous: record, authorization, updatedAt }),
+        });
+        if (resumed.kind === "applied" || resumed.kind === "idempotent") {
+          if (resumed.value === null) return { kind: "error" as const, message: "Resume returned no identity" };
+          return { kind: resumed.kind, record: resumed.value };
+        }
+        return resumed.kind === "refused"
+          ? { kind: "refused" as const, reason: resumed.reason }
+          : { kind: "error" as const, message: resumed.message };
+      },
       rollbackClaim: async (record) => {
         const rolledBack = await rollbackIdentityClaim({
           exec: options.exec,
@@ -123,6 +173,20 @@ export async function openOrdinaryErrandAtRuntime(
         return rolledBack.kind === "retired"
           ? { kind: "rolled-back" }
           : { kind: "generation-mismatch" };
+      },
+      rollbackResume: async (previous, resumed) => {
+        const rollback = await transactTransientIdentities({
+          exec: options.exec,
+          execInput: options.execInput,
+          identity: options.identity,
+        }, {
+          remote: "origin",
+          message: `arc: roll back errand resume ${previous.slug}`,
+          transform: rollbackOrdinaryErrandResumeTransform(previous, resumed),
+        });
+        return rollback.kind === "applied" || rollback.kind === "idempotent"
+          ? { kind: "rolled-back" as const }
+          : { kind: "generation-mismatch" as const };
       },
       provision: async (request) => {
         if (request.anchor.kind !== "process") {
@@ -145,4 +209,65 @@ export async function openOrdinaryErrandAtRuntime(
       },
     },
   });
+}
+
+async function recoverOpenIdentityBranch(
+  exec: GitExec,
+  record: OrdinaryErrandRecord,
+): Promise<
+  | { kind: "ready"; expectedBranchHead: string | null }
+  | { kind: "refused"; reason: string }
+  | { kind: "error"; message: string }
+> {
+  const ref = `refs/heads/${record.branch}`;
+  const existsArgs = ["show-ref", "--verify", "--quiet", ref];
+  try {
+    await exec("git", existsArgs);
+  } catch (error) {
+    const normalized = normalizeGitRejection(error, { command: "git", args: existsArgs });
+    return normalized.exitCode === 1
+      ? { kind: "ready", expectedBranchHead: null }
+      : { kind: "error", message: normalized.message };
+  }
+  let head: string;
+  try {
+    head = (await exec("git", ["rev-parse", "--verify", `${ref}^{commit}`])).stdout.trim();
+  } catch (error) {
+    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  }
+  const proof = await provePauseHead(exec, { remote: "origin", branch: record.branch, savedHead: head });
+  if (proof.kind === "proven") return { kind: "ready", expectedBranchHead: head };
+  return proof.kind === "refused"
+    ? { kind: "refused", reason: proof.reason }
+    : { kind: "error", message: proof.message };
+}
+
+/** Prove the state-specific preservation or host predicate for ordinary Errand resume. */
+export async function authorizeOrdinaryErrandResume(
+  exec: GitExec,
+  base: string,
+  record: OrdinaryErrandRecord,
+): Promise<ResumeAuthorizationResult> {
+  if (record.state === "paused") {
+    const proof = await provePauseHead(exec, {
+      remote: "origin",
+      branch: record.branch,
+      savedHead: record.savedHead,
+    });
+    if (proof.kind === "proven") return { kind: "authorized", authorization: proof.evidence };
+    return proof.kind === "refused"
+      ? { kind: "refused", reason: proof.reason }
+      : { kind: "error", message: proof.message };
+  }
+  if (record.state === "awaiting-merge") {
+    const configured = await resolveChangeRequestLifecycleConfiguration(exec, base);
+    if (configured === null) {
+      return { kind: "refused", reason: "Configured origin coordinates are unavailable." };
+    }
+    const lifecycle = await createGhChangeRequestLifecyclePort(exec).read(configured, record.changeRequest);
+    return lifecycle.kind === "requested-work"
+      ? { kind: "authorized", authorization: lifecycle }
+      : { kind: "refused", reason: `Host truth is ${lifecycle.kind}, not requested-work.` };
+  }
+  return { kind: "refused", reason: "Open identity already has no resume transition." };
 }

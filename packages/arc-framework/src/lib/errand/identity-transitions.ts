@@ -73,7 +73,12 @@ export type OrdinaryErrandTransition =
       observed: LocusChangeRequestV1;
       updatedAt: string;
     }
-  | { kind: "resume"; previous: OrdinaryErrandRecord; updatedAt: string }
+  | {
+      kind: "resume";
+      previous: OrdinaryErrandRecord;
+      authorization: PauseHeadEvidence | ChangeRequestLifecycleEvidence;
+      updatedAt: string;
+    }
   | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "promotion"; authorization: "local" }
   | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "close"; lifecycle: ChangeRequestLifecycleEvidence }
   | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "abandon"; authorization: "local" }
@@ -94,6 +99,25 @@ export function ordinaryErrandTransform(
   request: OrdinaryErrandTransition,
 ): OrdinaryErrandTransform {
   return (basis) => transitionOrdinaryErrand(basis, request);
+}
+
+/** Restore an exact resumed generation to its previous identity tail after allocation failure. */
+export function rollbackOrdinaryErrandResumeTransform(
+  previous: OrdinaryErrandRecord,
+  resumed: OrdinaryErrandRecord,
+): OrdinaryErrandTransform {
+  return (basis) => {
+    const actual = basis.get(previous.slug);
+    if (actual !== undefined && recordsEqual(actual, previous)) {
+      return { kind: "idempotent", value: previous };
+    }
+    if (actual === undefined || !recordsEqual(actual, resumed)) {
+      return { kind: "refused", reason: `Identity '${previous.slug}' changed before resume rollback` };
+    }
+    const records = new Map(basis);
+    records.set(previous.slug, previous);
+    return { kind: "applied", records, value: previous };
+  };
 }
 
 /**
@@ -297,8 +321,20 @@ function desiredRecord(request: Exclude<OrdinaryErrandTransition, { kind: "creat
       break;
     }
     case "resume": {
-      if (request.previous.state !== "paused") {
-        return { kind: "refused", reason: "Only a paused Errand can resume" };
+      if (request.previous.state === "paused") {
+        if (!("terminalHead" in request.authorization)
+          || request.authorization.terminalHead !== request.previous.savedHead
+          || !isGitOid(request.authorization.remoteBranchTip)
+          || !request.authorization.savedHeadIsAncestor) {
+          return { kind: "refused", reason: "Paused resume requires exact remote preservation proof" };
+        }
+      } else if (request.previous.state === "awaiting-merge") {
+        if (!("kind" in request.authorization)
+          || !lifecycleAuthorizes(request.authorization, request.previous.changeRequest, "requested-work")) {
+          return { kind: "refused", reason: "Awaiting resume requires exact requested-work host truth" };
+        }
+      } else {
+        return { kind: "refused", reason: "Only a paused or awaiting-merge Errand can resume" };
       }
       value = {
         ...request.previous,
@@ -347,7 +383,7 @@ function hasLocalAuthorization(request: object): boolean {
 function lifecycleAuthorizes(
   evidence: ChangeRequestLifecycleEvidence,
   changeRequest: LocusChangeRequestV1,
-  required: "merged" | "closed-unmerged",
+  required: "merged" | "closed-unmerged" | "requested-work",
 ): boolean {
   return evidence.kind === required && changeRequestsEqual(evidence.changeRequest, changeRequest);
 }

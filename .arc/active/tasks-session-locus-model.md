@@ -447,14 +447,11 @@ result so workflows consume verbs and precomposed verdicts.
           entering process's exact role/lease generation, retaining recoverable tails and supporting replay across
           failed persistence, failed role cleanup, and lost responses with warm or cold parent restoration.
 
-    - `[ ]` **5.1.d Resume identity tails through the ordinary open driver**
-        - Permit paused resume after preservation proof and awaiting-merge resume only when exact host truth reports
-          requested work.
-        - Allocate a fresh locus, return the identity to open, and preserve the original WU parent or null cold
-          parent without creating a third frame.
-        - Build `test-first` (one behavior at a time):
-            - Cover paused and requested-work resume, open/merged/changed/unreachable host results, stale claim
-              generations, allocation rollback, and exact dispatch continuity.
+    - `[x]` **5.1.d Resume identity tails through the ordinary open driver**
+        - Composed paused and exact requested-work awaiting tails through the ordinary open driver without rotating
+          their claim, while plain-open, merged, changed-head, unreachable, and stale-generation evidence refuses.
+        - Fresh primary/spawned allocation reuses only the exact retained branch head, links the entering WU or null
+          cold parent, preserves inbox-dispatch output, and restores the prior tail on allocation rollback.
 
     - `[ ]` **5.1.e Separate local leave from merge finalization**
         - Refactor `packages/arc-framework/src/lib/errand/close.ts` so base-context finalization proves merge,

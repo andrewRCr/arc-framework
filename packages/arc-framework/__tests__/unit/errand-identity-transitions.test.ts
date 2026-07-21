@@ -192,7 +192,7 @@ describe("ordinary Errand identity transitions", () => {
 
   it("resumes a paused generation to open without changing its immutable fields", () => {
     const previous = open({ state: "paused", savedHead: head });
-    const request = { kind: "resume" as const, previous, updatedAt };
+    const request = { kind: "resume" as const, previous, authorization: pauseEvidence(), updatedAt };
     const resumed = apply(new Map([[previous.slug, previous]]), request);
     expect(resumed).toMatchObject({
       kind: "applied",
@@ -200,6 +200,26 @@ describe("ordinary Errand identity transitions", () => {
     });
     if (resumed.kind !== "applied") throw new Error("expected applied resume");
     expect(apply(resumed.records, request)).toMatchObject({ kind: "idempotent" });
+  });
+
+  it("resumes an awaiting generation only with exact requested-work host truth", () => {
+    const previous = open({ state: "awaiting-merge", changeRequest, updatedAt });
+    const resumedAt = "2026-07-18T00:02:00.000Z";
+    const request = {
+      kind: "resume" as const,
+      previous,
+      authorization: lifecycleEvidence("requested-work"),
+      updatedAt: resumedAt,
+    };
+
+    expect(apply(new Map([[previous.slug, previous]]), request)).toMatchObject({
+      kind: "applied",
+      value: { state: "open", changeRequest: null, claimId },
+    });
+    expect(apply(new Map([[previous.slug, previous]]), {
+      ...request,
+      authorization: lifecycleEvidence("open"),
+    })).toMatchObject({ kind: "refused" });
   });
 
   it("retires only along state-authorized promotion, close, and abandonment edges", () => {
@@ -255,7 +275,15 @@ describe("ordinary Errand identity transitions", () => {
       updatedAt,
     })).toMatchObject({ kind: "refused" });
     expect(apply(new Map([[previous.slug, previous]]), {
-      kind: "resume", previous, updatedAt,
+      kind: "resume", previous, authorization: pauseEvidence(), updatedAt,
+    })).toMatchObject({ kind: "refused" });
+    const paused = open({ state: "paused", savedHead: head });
+    expect(apply(new Map([[paused.slug, open({
+      state: "paused",
+      savedHead: head,
+      claimId: "f".repeat(32),
+    })]]), {
+      kind: "resume", previous: paused, authorization: pauseEvidence(), updatedAt,
     })).toMatchObject({ kind: "refused" });
     expect(apply(new Map([[previous.slug, previous]]), {
       kind: "pause",

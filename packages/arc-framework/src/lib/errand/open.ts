@@ -37,12 +37,31 @@ import type {
 import {
   mintClaimId as mintIdentityClaimId,
   projectLocusIdentity,
+  type TransientIdentityRecord,
   TransientIdentityRecordV3Schema,
 } from "./identity-record.js";
-import type { OrdinaryErrandRecord } from "./identity-transitions.js";
+import type {
+  OrdinaryErrandRecord,
+  PauseHeadEvidence,
+} from "./identity-transitions.js";
+import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
 
 type ClaimResult =
   | { kind: "applied" | "idempotent"; record: OrdinaryErrandRecord }
+  | { kind: "refused"; reason: string }
+  | { kind: "error"; message: string };
+
+export type ResumeAuthorization = PauseHeadEvidence | ChangeRequestLifecycleEvidence;
+type IdentityReadResult =
+  | { kind: "ready"; record: TransientIdentityRecord | null }
+  | { kind: "refused"; reason: string }
+  | { kind: "error"; message: string };
+type OpenRecoveryResult =
+  | { kind: "ready"; expectedBranchHead: string | null }
+  | { kind: "refused"; reason: string }
+  | { kind: "error"; message: string };
+export type ResumeAuthorizationResult =
+  | { kind: "authorized"; authorization: ResumeAuthorization }
   | { kind: "refused"; reason: string }
   | { kind: "error"; message: string };
 
@@ -51,8 +70,20 @@ export interface OpenOrdinaryErrandDependencies {
   mintClaimId?: () => string;
   acquireAnchor(): Promise<LocusAnchor>;
   readState(): Promise<LocusStateV1>;
+  readIdentity(): Promise<IdentityReadResult>;
+  recoverOpen?(record: OrdinaryErrandRecord): Promise<OpenRecoveryResult>;
+  authorizeResume?(record: OrdinaryErrandRecord): Promise<ResumeAuthorizationResult>;
   claim(record: OrdinaryErrandRecord): Promise<ClaimResult>;
+  resume?(
+    record: OrdinaryErrandRecord,
+    authorization: ResumeAuthorization,
+    updatedAt: string,
+  ): Promise<ClaimResult>;
   rollbackClaim(record: OrdinaryErrandRecord): Promise<{ kind: "rolled-back" | "generation-mismatch" }>;
+  rollbackResume?(
+    previous: OrdinaryErrandRecord,
+    resumed: OrdinaryErrandRecord,
+  ): Promise<{ kind: "rolled-back" | "generation-mismatch" }>;
   provision(options: Omit<ProvisionTransientLocusOptions, "dependencies">): Promise<ProvisionTransientLocusResult>;
 }
 
@@ -110,39 +141,102 @@ export async function openOrdinaryErrand(
 
   const branch = options.protection === "full" ? `chore/${slug}` : null;
   let record: OrdinaryErrandRecord | null = null;
+  let previousRecord: OrdinaryErrandRecord | null = null;
+  let expectedBranchHead: string | null = null;
   let claimKind: "applied" | "idempotent" | null = null;
   if (options.protection === "full") {
-    const parsed = TransientIdentityRecordV3Schema.safeParse({
-      version: 3,
-      slug,
-      claimId: (options.dependencies.mintClaimId ?? mintIdentityClaimId)(),
-      createdAt: options.createdAt,
-      updatedAt: options.createdAt,
-      kind: "errand",
-      purpose: "errand",
-      intent: options.intent?.trim() || slug,
-      branch,
-      origin: originEntry === null ? "description" : "inbox",
-      originEntry,
-      dispatchId,
-      state: "open",
-      savedHead: null,
-      changeRequest: null,
-    });
-    if (!parsed.success || parsed.data.kind !== "errand" || parsed.data.purpose !== "errand") {
-      return openRefusal("identity-conflict", "The Errand identity request is invalid.");
-    }
-    record = parsed.data;
-    let claimed: ClaimResult;
+    let read: IdentityReadResult;
     try {
-      claimed = await options.dependencies.claim(record);
+      read = await options.dependencies.readIdentity();
     } catch (error) {
-      return openError("locus.errand-open.identity", error instanceof Error ? error.message : String(error));
+      return openError("locus.errand-open.identity-read", error instanceof Error ? error.message : String(error));
     }
-    if (claimed.kind === "refused") return openRefusal("identity-conflict", claimed.reason);
-    if (claimed.kind === "error") return openError("locus.errand-open.identity", claimed.message);
-    record = claimed.record;
-    claimKind = claimed.kind;
+    if (read.kind === "refused") return openRefusal("identity-conflict", read.reason);
+    if (read.kind === "error") return openError("locus.errand-open.identity-read", read.message);
+    const existing = read.record;
+    if (existing !== null) {
+      if (existing.version !== 3 || existing.kind !== "errand" || existing.purpose !== "errand") {
+        return openRefusal("identity-conflict", `Identity '${slug}' is not a resumable ordinary v3 Errand.`);
+      }
+      const continuity = validateResumeContinuity(existing, options.intent, originEntry, dispatchId);
+      if (continuity !== null) return openRefusal("dispatch-conflict", continuity);
+      if (existing.state === "open") {
+        if (options.dependencies.recoverOpen !== undefined) {
+          let recovery: OpenRecoveryResult;
+          try {
+            recovery = await options.dependencies.recoverOpen(existing);
+          } catch (error) {
+            return openError("locus.errand-open.recovery", error instanceof Error ? error.message : String(error));
+          }
+          if (recovery.kind === "refused") return openRefusal("preservation-unproven", recovery.reason);
+          if (recovery.kind === "error") return openError("locus.errand-open.recovery", recovery.message);
+          expectedBranchHead = recovery.expectedBranchHead;
+        }
+        record = existing;
+        claimKind = "idempotent";
+      } else {
+        if (options.dependencies.authorizeResume === undefined || options.dependencies.resume === undefined) {
+          return openError("locus.errand-open.resume", "Resume authority is unavailable");
+        }
+        let authorized: ResumeAuthorizationResult;
+        try {
+          authorized = await options.dependencies.authorizeResume(existing);
+        } catch (error) {
+          return openError("locus.errand-open.resume-proof", error instanceof Error ? error.message : String(error));
+        }
+        if (authorized.kind === "refused") {
+          return openRefusal(
+            existing.state === "paused" ? "preservation-unproven" : "change-request-unverifiable",
+            authorized.reason,
+          );
+        }
+        if (authorized.kind === "error") return openError("locus.errand-open.resume-proof", authorized.message);
+        let resumed: ClaimResult;
+        try {
+          resumed = await options.dependencies.resume(existing, authorized.authorization, options.createdAt);
+        } catch (error) {
+          return openError("locus.errand-open.identity", error instanceof Error ? error.message : String(error));
+        }
+        if (resumed.kind === "refused") return openRefusal("identity-conflict", resumed.reason);
+        if (resumed.kind === "error") return openError("locus.errand-open.identity", resumed.message);
+        previousRecord = existing;
+        expectedBranchHead = resumeHead(existing);
+        record = resumed.record;
+        claimKind = resumed.kind;
+      }
+    } else {
+      const parsed = TransientIdentityRecordV3Schema.safeParse({
+        version: 3,
+        slug,
+        claimId: (options.dependencies.mintClaimId ?? mintIdentityClaimId)(),
+        createdAt: options.createdAt,
+        updatedAt: options.createdAt,
+        kind: "errand",
+        purpose: "errand",
+        intent: options.intent?.trim() || slug,
+        branch,
+        origin: originEntry === null ? "description" : "inbox",
+        originEntry,
+        dispatchId,
+        state: "open",
+        savedHead: null,
+        changeRequest: null,
+      });
+      if (!parsed.success || parsed.data.kind !== "errand" || parsed.data.purpose !== "errand") {
+        return openRefusal("identity-conflict", "The Errand identity request is invalid.");
+      }
+      record = parsed.data;
+      let claimed: ClaimResult;
+      try {
+        claimed = await options.dependencies.claim(record);
+      } catch (error) {
+        return openError("locus.errand-open.identity", error instanceof Error ? error.message : String(error));
+      }
+      if (claimed.kind === "refused") return openRefusal("identity-conflict", claimed.reason);
+      if (claimed.kind === "error") return openError("locus.errand-open.identity", claimed.message);
+      record = claimed.record;
+      claimKind = claimed.kind;
+    }
   }
 
   const subject = { kind: "errand" as const, key: slug, claimId: record?.claimId ?? null };
@@ -153,7 +247,7 @@ export async function openOrdinaryErrand(
     subject,
   });
   if (proposal.kind === "refused") {
-    return rollbackAfterRefusal(options, record, claimKind, proposal.reason);
+    return rollbackAfterRefusal(options, record, previousRecord, claimKind, proposal.reason);
   }
   const sessionHomePath = parent.checkoutPath
     ?? (proposal.allocation.kind === "primary" ? proposal.allocation.checkoutPath : proposal.allocation.primaryPath);
@@ -173,6 +267,7 @@ export async function openOrdinaryErrand(
         },
       } : {}),
       branch,
+      expectedBranchHead,
       base: options.base,
       locationTemplate: options.locationTemplate,
       repo: options.repo,
@@ -184,14 +279,16 @@ export async function openOrdinaryErrand(
       leaseId: options.leaseId,
     });
   } catch (error) {
-    return rollbackAfterFailure(options, record, claimKind, "locus.errand-open.provision", error);
+    return rollbackAfterFailure(options, record, previousRecord, claimKind, "locus.errand-open.provision", error);
   }
   if (provisioned.kind === "error") {
-    return rollbackAfterFailure(options, record, claimKind, "locus.errand-open.provision", provisioned.error);
+    return rollbackAfterFailure(options, record, previousRecord, claimKind, "locus.errand-open.provision", provisioned.error);
   }
   if (provisioned.kind === "refused") {
-    return rollbackAfterRefusal(options, record, claimKind, provisioningReason(provisioned.reason));
+    return rollbackAfterRefusal(options, record, previousRecord, claimKind, provisioningReason(provisioned.reason));
   }
+  const resultOriginEntry = record?.origin === "inbox" ? record.originEntry : originEntry;
+  const resultDispatchId = record?.dispatchId ?? dispatchId;
   return createLocusMutationResult({
     outcome: claimKind === "idempotent" ? "idempotent" : "applied",
     operation: "errand-open",
@@ -201,8 +298,8 @@ export async function openOrdinaryErrand(
     activeLocusPath: provisioned.receipt.checkoutPath,
     sessionHomePath,
     identity: record === null ? null : projectLocusIdentity(record),
-    originEntry,
-    dispatchId,
+    originEntry: resultOriginEntry,
+    dispatchId: resultDispatchId,
     routingPlanDigest: null,
     restoredParent: null,
     nextOffer: null,
@@ -225,13 +322,39 @@ function warmWorkUnitParent(state: LocusStateV1):
   return { kind: "ready", checkoutPath: row.checkoutPath };
 }
 
+function resumeHead(record: OrdinaryErrandRecord): string {
+  if (record.state === "paused") return record.savedHead;
+  if (record.state === "awaiting-merge") return record.changeRequest.headSha;
+  throw new Error("Resume provisioning requires an identity tail");
+}
+
+function validateResumeContinuity(
+  record: OrdinaryErrandRecord,
+  intent: string | undefined,
+  originEntry: string | null,
+  dispatchId: string | null,
+): string | null {
+  const requestedIntent = intent?.trim();
+  if (requestedIntent !== undefined && requestedIntent !== "" && requestedIntent !== record.intent) {
+    return "Resume cannot change the Errand intent.";
+  }
+  if (originEntry !== null && (record.origin !== "inbox" || record.originEntry !== originEntry)) {
+    return "Resume cannot change the originating inbox entry.";
+  }
+  if (dispatchId !== null && record.dispatchId !== dispatchId) {
+    return "Resume cannot change the execute-dispatch generation.";
+  }
+  return null;
+}
+
 async function rollbackAfterRefusal(
   options: OpenOrdinaryErrandOptions,
   record: OrdinaryErrandRecord | null,
+  previousRecord: OrdinaryErrandRecord | null,
   claimKind: "applied" | "idempotent" | null,
   reason: LocusAllocationRefusalReason,
 ): Promise<LocusMutationResultV1> {
-  const rollback = await rollbackClaim(options, record, claimKind);
+  const rollback = await rollbackIdentity(options, record, previousRecord, claimKind);
   return rollback === null
     ? openRefusal(reason, `Errand open refused: ${reason}.`)
     : openError("locus.errand-open.rollback", rollback);
@@ -240,24 +363,30 @@ async function rollbackAfterRefusal(
 async function rollbackAfterFailure(
   options: OpenOrdinaryErrandOptions,
   record: OrdinaryErrandRecord | null,
+  previousRecord: OrdinaryErrandRecord | null,
   claimKind: "applied" | "idempotent" | null,
   code: string,
   error: unknown,
 ): Promise<LocusMutationResultV1> {
-  const rollback = await rollbackClaim(options, record, claimKind);
+  const rollback = await rollbackIdentity(options, record, previousRecord, claimKind);
   return rollback === null
     ? openError(code, error instanceof Error ? error.message : String(error))
     : openError("locus.errand-open.rollback", rollback);
 }
 
-async function rollbackClaim(
+async function rollbackIdentity(
   options: OpenOrdinaryErrandOptions,
   record: OrdinaryErrandRecord | null,
+  previousRecord: OrdinaryErrandRecord | null,
   claimKind: "applied" | "idempotent" | null,
 ): Promise<string | null> {
   if (record === null || claimKind !== "applied") return null;
   try {
-    const result = await options.dependencies.rollbackClaim(record);
+    const result = previousRecord === null
+      ? await options.dependencies.rollbackClaim(record)
+      : options.dependencies.rollbackResume === undefined
+        ? { kind: "generation-mismatch" as const }
+        : await options.dependencies.rollbackResume(previousRecord, record);
     return result.kind === "rolled-back" ? null : "The identity claim changed before rollback.";
   } catch (error) {
     return error instanceof Error ? error.message : String(error);

@@ -268,7 +268,7 @@ Role creation and removal bind to the operations that establish or end a checkou
 | WU session-init | Adopt/backfill the WU role if needed; attach or refresh the session lease. |
 | WU handoff | Release only the matching lease; retain the durable role. |
 | WU teardown | Linearize final lease validation and role pop with linked removal or in-place base restoration. |
-| Errand open / resume | Mint `errand` role in the allocated checkout; link the WU parent when warm. |
+| Errand open / resume | Mint `errand` role in the allocated checkout; link the entering WU parent when warm. |
 | Errand leave | Full mode returns/tears down the local locus and pops its role while retaining identity. |
 | Errand complete | Full mode retires identity after merge; partial mode pops occupancy after the base commit. |
 | Errand promote | Replace the exact transient generation with a WU role/marker and make it the session home. |
@@ -857,7 +857,11 @@ pending-marker, or marker/record mismatch for reconciliation.
 `resume` is a reader/action verdict, not another public command: selecting it dispatches to the subject's open
 driver (`arc errand open`, `arc housekeep open <recorded-key>` for `housekeep-routing`, or `arc plan open` with the
 recorded groom anchor/member set), which validates the identity state before allocating a fresh locus.
-Awaiting-merge resume additionally requires exact host truth that the recorded change request needs work.
+The fresh role links the entering process's current WU when warm or records a null parent when cold; the portable
+identity tail never persists a machine-local checkout path. Resume reuses the retained branch only at the exact
+`savedHead` or `changeRequest.headSha`, and allocation failure restores the unchanged identity tail rather than
+retiring it. Awaiting-merge resume additionally requires exact host truth that the recorded change request needs
+work.
 
 Three new state-touching companions cover lifecycle sites that do not already own allocation:
 
@@ -1024,11 +1028,14 @@ same-slug conflict. An overlapping non-identical claim returns `identity-conflic
 If subsequent locus allocation fails, open CAS-retires only the unchanged record carrying its own `claimId`; a
 failed rollback surfaces the claim for explicit resume/abandon rather than hiding it.
 
-Tail retirement uses a narrow developer-authenticated change-request lifecycle port, not a review-provider result.
-The port validates the configured repository/base against the stored `repositoryRef`, `hostRef`, `baseRef`,
+Tail retirement and requested-work resume use a narrow developer-authenticated change-request lifecycle port, not
+a review-provider result. The port validates the configured repository/base against the stored `repositoryRef`,
+`hostRef`, `baseRef`,
 `headRef`, and `headSha`, then returns exactly `merged | open | closed-unmerged | changed-head | missing | ambiguous |
-unreachable`. Only `merged` for the exact stored change request authorizes automatic retirement;
-`closed-unmerged` authorizes only explicit abandonment, while every other result retains the claim and prompts.
+unreachable | requested-work`. `requested-work` means the exact stored head is still open and the host's native
+aggregate review decision is changes-requested; plain open review state remains `open`. Only `merged` for the exact
+stored change request authorizes automatic retirement; `closed-unmerged` authorizes only explicit abandonment,
+while every other result retains the claim and prompts.
 Branch absence and base containment are never merge proof, so merge, squash, and rebase strategies share one rule.
 An incomplete or malformed identity-ref read likewise blocks open/retirement; unreadable state is never absence.
 

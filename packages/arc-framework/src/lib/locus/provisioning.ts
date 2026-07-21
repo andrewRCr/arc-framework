@@ -76,7 +76,7 @@ async function provisionSpawned(
       repo: options.repo,
       placementName: `locus-${subject.kind}-${subject.slug}-${subject.claimId}`,
       branch: options.branch,
-      createBranch: true,
+      createBranch: options.expectedBranchHead === null,
       base: options.base,
     });
     if (creation.kind === "error") return failure(creation.error, { kind: "identity-only" });
@@ -102,6 +102,9 @@ async function provisionSpawned(
     && !worktree.detached);
   if (roster === undefined) {
     return rollbackSpawnRefusal(options, created, null, "topology-unknown");
+  }
+  if (options.expectedBranchHead !== null && roster.head !== options.expectedBranchHead) {
+    return rollbackSpawnRefusal(options, created, roster.head, "identity-conflict");
   }
 
   const marker = await establishReadyMarker(options, checkoutPath, subject);
@@ -167,7 +170,11 @@ async function provisionPrimaryUnderLock(
       handle,
     });
     if (fresh.kind === "refused") return refused(fresh.reason, { kind: "identity-only" });
-    checkout = await options.dependencies.checkoutPrimary(checkoutPath, options.branch);
+    checkout = await options.dependencies.checkoutPrimary(
+      checkoutPath,
+      options.branch,
+      options.expectedBranchHead,
+    );
     const result = await provisionRecord(options, authority, null, { checkout, lock: handle });
     if (result.kind === "provisioned") return result;
     const expectedCheckout = checkout;

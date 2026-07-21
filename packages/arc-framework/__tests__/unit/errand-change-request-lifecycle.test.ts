@@ -34,11 +34,20 @@ function pull(overrides: Record<string, unknown> = {}) {
     baseRefName: "main",
     headRefName: "chore/fix-output",
     headRefOid: "a".repeat(40),
+    reviewDecision: "",
     ...overrides,
   };
 }
 
 describe("GitHub change-request lifecycle port", () => {
+  it("reports requested work only for an exact open head with changes requested", async () => {
+    const port = createGhChangeRequestLifecyclePort(ghResult([pull({ reviewDecision: "CHANGES_REQUESTED" })]));
+    await expect(port.read(configured, changeRequest)).resolves.toMatchObject({
+      kind: "requested-work",
+      changeRequest,
+    });
+  });
+
   it.each([
     ["OPEN", "open"],
     ["MERGED", "merged"],
