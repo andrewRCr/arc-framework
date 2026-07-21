@@ -61,6 +61,8 @@ import { formatErrandOpenResult } from "./errand.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
+import { closeGroomAtRuntime } from "../lib/groom/close-runtime.js";
+import { settleGroomAtRuntime } from "../lib/groom/tail-runtime.js";
 
 import * as p from "@clack/prompts";
 
@@ -77,6 +79,76 @@ export interface PlanCheckOptions {
 export interface PlanOpenOptions {
   include?: string[];
   json?: boolean;
+}
+
+export interface PlanCloseOptions { json?: boolean }
+export interface PlanAbandonOptions { json?: boolean }
+
+/** Close one exact grooming generation after path and preservation checks. */
+export async function handlePlanClose(anchorSlug: string, opts: PlanCloseOptions): Promise<void> {
+  if (opts.json !== true) p.intro("arc plan close");
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+  const { settings } = await readConfigSettings(cwd);
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) { emitPlanErrorFor("plan-close", "identity", "No identity resolved.", opts.json === true); return; }
+  const io = createUserIOContext();
+  if (!io.execInput) {
+    emitPlanErrorFor("plan-close", "identity", "The stdin Git boundary is unavailable.", opts.json === true); return;
+  }
+  let result: Parameters<typeof emitPlanResult>[0];
+  try {
+    const runtimeOptions = {
+      anchorStub: anchorSlug, base: settings["branch.base"], identity,
+      postCreateScript: settings["worktree.post_create"],
+      registeredHarnessDirs: settings["worktree.harness_dirs"],
+      exec: io.exec, execInput: io.execInput, cwd,
+    };
+    result = await closeGroomAtRuntime(runtimeOptions);
+    if ((result.outcome === "applied" || result.outcome === "idempotent")
+      && result.identity?.kind === "groom" && result.identity.state === "awaiting-merge") {
+      const settled = await settleGroomAtRuntime({ ...runtimeOptions, action: "finalize" });
+      if (settled.outcome !== "refused" || !settled.recommendedPromptText.includes("not 'merged'")) {
+        result = createLocusMutationResult({ ...settled, operation: "plan-close" });
+      }
+    }
+  } catch (error) {
+    result = createLocusMutationResult({
+      outcome: "error", operation: "plan-close",
+      error: { code: "locus.plan-close.handler", message: error instanceof Error ? error.message : String(error) },
+      recommendedPromptText: "Inspect the retained grooming identity and locus before retrying.",
+    });
+  }
+  emitPlanResult(result, opts.json === true);
+}
+
+/** Abandon one exact open or closed-unmerged grooming generation. */
+export async function handlePlanAbandon(anchorSlug: string, opts: PlanAbandonOptions): Promise<void> {
+  if (opts.json !== true) p.intro("arc plan abandon");
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+  const { settings } = await readConfigSettings(cwd);
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) { emitPlanErrorFor("plan-abandon", "identity", "No identity resolved.", opts.json === true); return; }
+  const io = createUserIOContext();
+  if (!io.execInput) {
+    emitPlanErrorFor("plan-abandon", "identity", "The stdin Git boundary is unavailable.", opts.json === true); return;
+  }
+  let result: Parameters<typeof emitPlanResult>[0];
+  try {
+    result = await settleGroomAtRuntime({
+      anchorStub: anchorSlug, action: "abandon", base: settings["branch.base"], identity,
+      postCreateScript: settings["worktree.post_create"], registeredHarnessDirs: settings["worktree.harness_dirs"],
+      exec: io.exec, execInput: io.execInput, cwd,
+    });
+  } catch (error) {
+    result = createLocusMutationResult({
+      outcome: "error", operation: "plan-abandon",
+      error: { code: "locus.plan-abandon.handler", message: error instanceof Error ? error.message : String(error) },
+      recommendedPromptText: "Inspect the retained grooming identity and locus before retrying.",
+    });
+  }
+  emitPlanResult(result, opts.json === true);
 }
 
 /** Claim and provision one immutable single- or multi-stub grooming set. */
@@ -216,6 +288,18 @@ function emitPlanError(suffix: string, message: string, json: boolean): void {
   emitPlanResult(createLocusMutationResult({
     outcome: "error", operation: "plan-open", error: { code: `locus.plan-open.${suffix}`, message },
     recommendedPromptText: "Inspect the retained grooming identity before retrying.",
+  }), json);
+}
+
+function emitPlanErrorFor(
+  operation: "plan-close" | "plan-abandon",
+  suffix: string,
+  message: string,
+  json: boolean,
+): void {
+  emitPlanResult(createLocusMutationResult({
+    outcome: "error", operation, error: { code: `locus.${operation}.${suffix}`, message },
+    recommendedPromptText: "Inspect the retained grooming state before retrying.",
   }), json);
 }
 

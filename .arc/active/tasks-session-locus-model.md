@@ -498,7 +498,7 @@ result so workflows consume verbs and precomposed verdicts.
         - Reused the ordinary resume transaction so paused and requested-work tails retain their claim generation,
           transition to open before provisioning, roll back on failure, and emit shared human/JSON mutation results.
 
-### `[ ]` **5.3 Compose single- and multi-WU groom-and-ship transitions** — D4, D7, D8
+### `[x]` **5.3 Compose single- and multi-WU groom-and-ship transitions** — D4, D7, D8
 
 - _Goal:_ One pre-WU grooming pass can co-design an explicit fixed set of related stubs through one edit-and-review
   tail without allowing overlapping claims, arbitrary planning riders, or started-WU branch contamination.
@@ -509,34 +509,22 @@ result so workflows consume verbs and precomposed verdicts.
         - Registered `plan open` with fresh base pinning, immutable v3 claim/adoption, full/partial allocation,
           role/lease provisioning, exact claim rollback, pinned partial-base revalidation, and shared JSON/human output.
 
-    - `[ ]` **5.3.b Add groom close and review-tail transitions**
-        - Validate that the grooming diff touches only claimed members' planning artifacts, cohort coordination
-          records those members already name, and mechanically required derived project views; refuse unrelated
-          planning riders and any started-WU artifact outside that fixed set.
-        - In full mode, refresh the configured base outside locus locks, prove the branch descends from
-          `openedBaseHead`, and classify paths from its live merge-base. In partial mode, require current base `HEAD`
-          to descend from `openedBaseHead` and classify the exact commit/diff range; refuse unrelated intervening
-          commits or incomplete Git evidence.
-        - Full mode records the exact awaiting-merge change request before closing occupancy; partial mode retires
-          the claim only after its direct-base commit and push discipline complete.
-        - Rerunning open/close offers resume, wait, or finalization from record state instead of cutting a second
-          stable branch.
-        - Register close plus `--json` and render only the shared result.
-        - Build `test-first` (one behavior at a time):
-            - Cover path-pure single/multi-member diffs, legal cohort/derived writes, unrelated and started-WU rider
-              refusal, moving full-mode base, non-descendant or intervening partial commits, full awaiting-merge
-              close, partial completion, resume/wait/finalize verdicts, role-pop failure, exact host truth, and
-              idempotent replay.
+    - `[x]` **5.3.b Add groom close and review-tail transitions**
+        - Added a fixed-set path policy for claimed member planning artifacts, their named cohort records, and the
+          derived readiness view, refusing unrelated backlog, active-WU, and general repository riders.
+        - Registered exact full/partial close: both refresh and verify base ancestry, full mode persists the exact
+          change-request tail before popping occupancy, and partial mode requires the pushed base head before
+          retiring its claim; reruns return wait or merged finalization instead of duplicating the branch.
 
-    - `[ ]` **5.3.c Add explicit groom abandonment and safe branch reuse**
-        - Add `arc plan abandon <anchor-stub>` for open or exact closed-unmerged tails with the shared preservation
-          checks and exact member-set projection.
-        - Register abandon plus `--json` and render only the shared result.
-        - Retire merged claims only from exact host truth, then remove the recorded local/remote branch generation
-          under its expected head before minting a fresh claim ID; branch absence or base containment is not proof.
-        - Build `test-first` (one behavior at a time):
-            - Cover single/multi-member open and closed-unmerged abandonment, merged finalization, moved/absent heads,
-              refreshed base, failed cleanup retention, and safe same-anchor branch reuse.
+    - `[x]` **5.3.c Add explicit groom abandonment and safe branch reuse**
+        - Added `plan abandon` for clean exact open generations and host-proven closed-unmerged tails, plus merged
+          finalization on repeated close; every path checks exact checkout, local ref, fetched remote ref, claim, and
+          change-request generations before cleanup and retains identity on unsafe or failed settlement.
+        - Exact remote lease deletion and local compare-and-delete remove the old stable branch generation before a
+          later open can mint a fresh claim, while absent or moved evidence refuses without broad cleanup authority.
+
+- _Outcome:_ Grooming now has one generation-bound fixed-set lifecycle across single and multi-member planning,
+  protection-aware execution, path-pure review tails, exact abandonment/finalization, and safe stable-branch reuse.
 
 ### `[ ]` **5.4 Compose one-sweep housekeeping open, close, resume, and abandon transitions** — D4, D7, D8
 

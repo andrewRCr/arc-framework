@@ -42,7 +42,16 @@ import {
   type BaseDriftOptions,
   type BaseSyncOptions,
 } from "./handlers/base.js";
-import { handlePlanCheck, handlePlanOpen, type PlanCheckOptions, type PlanOpenOptions } from "./handlers/plan.js";
+import {
+  handlePlanCheck,
+  handlePlanAbandon,
+  handlePlanClose,
+  handlePlanOpen,
+  type PlanCheckOptions,
+  type PlanAbandonOptions,
+  type PlanCloseOptions,
+  type PlanOpenOptions,
+} from "./handlers/plan.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -451,6 +460,18 @@ plan
   .option("--include <stubs...>", "Additional related backlog stubs")
   .option("--json", "Emit the producer-validated locus mutation result")
   .action((anchorStub: string, opts: PlanOpenOptions) => handlePlanOpen(anchorStub, opts));
+
+plan
+  .command("abandon <anchor-stub>")
+  .description("Abandon an exact open or closed-unmerged grooming generation")
+  .option("--json", "Emit the producer-validated locus mutation result")
+  .action((anchorStub: string, opts: PlanAbandonOptions) => handlePlanAbandon(anchorStub, opts));
+
+plan
+  .command("close <anchor-stub>")
+  .description("Preserve an exact grooming tail and close its local occupancy")
+  .option("--json", "Emit the producer-validated locus mutation result")
+  .action((anchorStub: string, opts: PlanCloseOptions) => handlePlanClose(anchorStub, opts));
 
 plan
   .command("check")

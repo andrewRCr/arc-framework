@@ -384,7 +384,7 @@ async function cleanExactHead(
   }
 }
 
-async function observeOpenChangeRequest(
+export async function observeOpenChangeRequest(
   exec: GitExec,
   branch: string,
   base: string,
