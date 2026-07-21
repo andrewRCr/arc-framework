@@ -125,6 +125,15 @@ describe("local forward receipt authority", () => {
     });
   });
 
+  it("reports the current ledger version on an idempotent replay", async () => {
+    const records = await fixture();
+    await records.store.appendReceipt(records.receipt, 0);
+    await records.store.appendReceipt({ ...records.receipt, reviewRunId: "run-2" }, 1);
+
+    await expect(records.store.appendReceipt(records.receipt, 2))
+      .resolves.toMatchObject({ ledgerVersion: 2 });
+  });
+
   it("refuses conflicting replay and stale versions without changing durable state", async () => {
     const records = await fixture();
     await records.store.appendReceipt(records.receipt, 0);

@@ -91,7 +91,7 @@ export class LocalForwardReviewReceiptStore implements ForwardReviewReceiptStore
         return {
           content: null,
           result: {
-            ledgerVersion: replayVersion,
+            ledgerVersion: ledger.ledgerVersion,
             durableEvidenceRef: `git-common:review-gate/evidence/${RECEIPT_RECORD}#${replayVersion}`,
           },
         };
