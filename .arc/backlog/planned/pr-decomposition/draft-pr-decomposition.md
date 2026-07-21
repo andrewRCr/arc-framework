@@ -25,7 +25,7 @@
 
 - **Readiness:** `maturing` — the frame, core mechanism, and `Class` (Heavy) are settled; open items are
   detail-design (config posture, terminology, orchestration surface). Not yet formalization-ready.
-- **Resolved (through 2026-07-20):**
+- **Resolved (through 2026-07-21):**
     - **Goal** = _reviewability / merge-coherence of large coherent changes_, **reviewer-agnostic** (human + AI; AI
       review is the acute forcing case, esp. for solo devs). Not "emit multiple PRs" as an end.
     - **Chunking ⊥ stacking (the core unlock).** _Review chunking_ — decomposing the review surface into
@@ -51,7 +51,28 @@
       re-examination). Cohort-fit: stays **one work unit**.
     - **Class = Heavy** (settled 2026-07-20) — v1 is composition from mature prior art; the invented-feeling
       assurance algebra is deferred to provisional v2.
+    - **gh-stack is the forward-compat north star (2026-07-21).** GitHub-native stacked PRs (private preview):
+      chain-of-PRs model, native stack-map UI with focused per-layer diffs, branch protection evaluated against
+      the _final_ target, and atomic merge-down — merging any PR merges it and every unmerged PR below in one
+      operation, which is this WU's terminal-aggregation semantics on native rails (a chunk chain that never
+      partial-merges + one atomic top merge ≡ "WU → `main` once, as the sum of reviewed chunks"). At GA it may
+      subsume the custom integration-branch mechanic. Posture: never design against the preview API; keep chunk
+      identity/order data in ARC artifacts with topology as a projection; keep the orchestration verb thin so it
+      can later drive `gh stack init/add/submit`. The flagged stacking fragilities (tool-lock, rebase cascade,
+      per-chunk green-on-`main`) are precisely what first-party support absorbs — the tool-lock objection
+      inverts for host-native tooling.
+    - **Chunk refs carry no ARC state (2026-07-21).** The append-only rule protects SHA-keyed user notes on
+      _pushed_ branches; host-tool stacking rebases (gh-stack cascades) rewrite chunk branches by design.
+      Reconcile by construction: chunk/review refs are disposable review-surface projections — no notes
+      anchoring, no meta state, no lifecycle records — while ARC state anchors only to the WU branch /
+      integration ref, which merges append-only. Rebase-freedom where no state lives; append-only where it does.
 - **Open (developer calls):**
+    - **PR-surface naming** — the group key is the WU slug (the deliverable/branch name, already public in
+      `feat/<slug>`, legible without ARC context — not a planning-ID leak), lean
+      `<slug> [n/N]: <chunk title>`. Grouping _identity_ rides structure (base branch + a label), never title
+      parsing — titles are a list-scanning courtesy, disposable once native stack UI exists. The WU → `main` PR
+      keeps the canonical conventional title (the cover-letter / `[0/N]` slot). `[n/N]` drift under Mode A
+      (kernel-style series re-versioning vs. bare `[n]`) settles with the terminology call below.
     - **Config posture** — default-on with opt-out vs. opt-in (§ Alternatives).
     - **Terminology** — the review unit is **not** a "deliverable" under the integration-branch default (it doesn't
       ship to `main` alone); candidates `slice` / `segment` / `chunk`, with `deliverable` / `stack` reserved for the
@@ -60,8 +81,10 @@
       tooling; the `integration-lane` seam (a WU that integrates once composes cleanly with its single exclusive
       window).
     - Inbound-buffer items 1 & 2 (review / verify cardinality) — fold at the mechanism-detail pass.
-- **Next:** mechanism-detail (task-list chunk-tagging, orchestration surface, config posture) and fold items 1 & 2;
-  reconcile the `session-locus-model` / `review-architecture` seams at planning close.
+- **Next:** mechanism-detail (task-list chunk-tagging, orchestration surface, config posture), fold items 1 & 2
+  plus the first-run field-evidence entry (chunk-cohesion boundaries, pre-triage type check, test inclusion);
+  settle terminology + PR-surface naming together; reconcile the `session-locus-model` / `review-architecture`
+  seams at planning close.
 - **Coordination seams (checked 2026-07-20; route at planning close):**
     - `review-architecture` (**hard `Depends On`**, impl phase 5 — imminent): both rewrite `integrate-work-unit`;
       consume its _shipped_ integration reshape + Review-Increment Invariant + review-obligation contract as the
@@ -80,6 +103,38 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Fold first-run field evidence into the review-chunking design**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: pr-decomposition`), direct route during the
+  decomposition-program grooming session (2026-07-21); captured during `review-architecture` pre-integration
+  review (2026-07-21).
+- _Observation:_ Mode B (review-only retrofit) ran ad hoc against `review-architecture`'s 307-file / ~24.4k-
+  insertion change set. Eight path-scoped passes covered 10,789 lines and produced 37 findings: 12 real,
+  7 advisory, 13 false, 5 unresolved. The mechanism works — but its cost profile is specific enough to design
+  against rather than rediscover.
+- _Observation:_ **chunk cohesion predicts accuracy far better than chunk size.** The smallest, most
+  self-contained chunk (372 lines, provider adapters) scored 5 real / 1 false. False positives concentrated in
+  chunks that cross-reference other chunks — decisively in the _critical_ band: all three Criticals were false,
+  each asserting a symbol undeclared when its declaration sat in a different chunk. Draw boundaries on contract
+  cohesion, not line budget; a boundary splitting a declaration from its consumers manufactures high-severity
+  noise.
+- _Observation:_ a full type check refutes that entire class in seconds — run one before triage and discard
+  compile-error claims wholesale (three Criticals became three dismissals at near-zero cost). Excluding test
+  directories from the chunk set makes every verification-dimension finding unreliable: a reviewer blind to the
+  tests reports proven behavior as unproven.
+- _Observation:_ injected review guidance bled into the judgement — the rubric was applied as a specification
+  the _code_ must satisfy, producing a finding that a baseline constant lacked a dimension actually contributed
+  by a separate augmentation layer. Guidance injection and code criteria need to read as distinct to the
+  reviewer.
+- _Approach:_ the only bounded scoping axis available today is path-shaped (a directory plus a base ref); the
+  commit-range flag scopes a suffix to HEAD, not a bounded range, so a chunk is effectively one directory.
+  Provider rate limiting (five reviews per hour) is a real planning constraint on chunk count. Weigh whether
+  the design should emit chunk boundaries a reviewer invocation can consume directly, rather than leaving
+  operators to approximate them with directory paths.
+- _Observation:_ the run corroborates the research's retrofit conclusion — a review decomposition with no
+  merge-topology change. One branch, one PR, merging once; only the review surface was carved. No stacking, no
+  integration branch, nothing rewritten.
 
 ### `[ ]` **Coordinate multi-PR review cardinality with the reviewed-lane gate contract**
 
