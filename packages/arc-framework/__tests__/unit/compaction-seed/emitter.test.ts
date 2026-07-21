@@ -16,6 +16,7 @@ import {
   LOAD_SET_MANIFEST_VERSION,
   type LoadSetManifest,
 } from "../../../src/lib/load-set/types.js";
+import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
 
 const LOAD_SET = {
   manifestVersion: LOAD_SET_MANIFEST_VERSION,
@@ -31,9 +32,22 @@ const LOAD_SET = {
   ],
 } satisfies LoadSetManifest;
 
+function locusState(overrides: Partial<LocusStateV1> = {}): LocusStateV1 {
+  return {
+    roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
+    current: { kind: "none" },
+    primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+    inFlightIdentities: [],
+    recovery: { kind: "none" },
+    reconciliation: { kind: "clean" },
+    ...overrides,
+  };
+}
+
 function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]> = {}) {
   return {
     identity: { identity: "andrew" },
+    locusState: { ok: true, value: locusState() },
     worktree: { ok: true, value: { branch: "feat/compaction-recovery" } },
     active: {
       ok: true,
@@ -162,6 +176,59 @@ describe("emitCompactionSeed", () => {
       expect(result.seed.loadSet).toEqual(LOAD_SET);
       expect(result.seed).not.toHaveProperty("harness");
     }
+  });
+
+  it("emits one complete locus hint only for the resolved current live lease", async () => {
+    const recordId = `sha256:${"a".repeat(64)}`;
+    const parentRecordId = `sha256:${"c".repeat(64)}`;
+    const result = await emit({
+      envelope: {
+        locusState: {
+          ok: true,
+          value: locusState({
+            current: { kind: "resolved", sessionHomeRecordId: parentRecordId, activeRecordId: recordId, parentRecordId },
+            roster: {
+              mode: "locus", ok: true, primaryPath: "/repo", diagnostics: [],
+              rows: [{
+                kind: "managed-role", checkoutPath: "/repo/worktrees/errand", primary: false, recordId,
+                role: {
+                  kind: "errand", subject: { kind: "errand", key: "task", claimId: "d".repeat(32) },
+                  parentCheckoutPath: "/repo", dispatchId: null, originEntry: null, routingPlanDigest: null,
+                },
+                identity: null,
+                lease: {
+                  leaseId: "b".repeat(32), state: "live", sessionHomePath: "/repo",
+                  attachedAt: "2026-06-28T12:00:00.000Z", heartbeatAt: "2026-06-28T12:00:00.000Z",
+                },
+                frame: "active", derived: null, diagnostics: [],
+              }],
+            },
+          }),
+        },
+      },
+    });
+    expect(result).toMatchObject({
+      status: "written",
+      seed: {
+        locus: {
+          sessionHomePath: "/repo",
+          activeLocusPath: "/repo/worktrees/errand",
+          recordId,
+          leaseId: "b".repeat(32),
+          parentRecordId,
+        },
+      },
+    });
+  });
+
+  it.each([
+    ["none", { ok: true, value: locusState() }],
+    ["ambiguous", { ok: true, value: locusState({ current: { kind: "ambiguous", recordIds: [], reasons: ["role-conflict"] } }) }],
+    ["probe failure", { ok: false, error: { kind: "runtime", message: "unavailable" } }],
+  ] as const)("omits the locus hint for %s", async (_label, locusStateProbe) => {
+    const result = await emit({ envelope: { locusState: locusStateProbe } });
+    expect(result.status).toBe("written");
+    if (result.status === "written") expect(result.seed).not.toHaveProperty("locus");
   });
 
   it("embeds uncommitted files from the supplied git snapshot", async () => {

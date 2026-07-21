@@ -20,6 +20,11 @@ import {
   TaskListCursorReaderSchema,
   TaskListCursorSchema,
 } from "../task-list/cursor.js";
+import {
+  LocusAbsolutePathSchema,
+  LocusDigestSchema,
+  LocusTokenSchema,
+} from "../locus/schema/index.js";
 
 /** Current compaction-seed envelope version. */
 export const COMPACTION_SEED_SCHEMA_VERSION = 1;
@@ -36,6 +41,15 @@ const ABSOLUTE_REPOSITORY_ROOT_SCHEMA = z.string().refine((value) =>
   ), { error: "Repository root must be absolute" });
 const SESSION_TYPE_SCHEMA = z.enum(["planning", "execution", "integration"]);
 
+/** Atomic correlation hint captured from one resolved live locus generation. */
+export const CompactionSeedLocusHintSchema = z.strictObject({
+  sessionHomePath: LocusAbsolutePathSchema,
+  activeLocusPath: LocusAbsolutePathSchema,
+  recordId: LocusDigestSchema,
+  leaseId: LocusTokenSchema,
+  parentRecordId: LocusDigestSchema.nullable(),
+});
+
 const COMPACTION_SEED_FIELDS = {
   schemaVersion: z.literal(COMPACTION_SEED_SCHEMA_VERSION),
   emittedAt: z.string(),
@@ -50,6 +64,7 @@ const COMPACTION_SEED_FIELDS = {
   taskCursor: TaskListCursorSchema.nullable(),
   loadSet: LoadSetManifestSchema,
   uncommittedFiles: z.array(REPOSITORY_RELATIVE_PATH_SCHEMA),
+  locus: CompactionSeedLocusHintSchema.optional(),
 };
 
 /** Strict producer authority for schema-v1 compaction seeds. */
@@ -70,6 +85,9 @@ export type CompactionSeedSessionType = z.infer<typeof SESSION_TYPE_SCHEMA>;
 
 /** Schema-v1 compaction seed derived from its strict producer authority. */
 export type CompactionSeed = z.infer<typeof CompactionSeedSchema>;
+
+/** Optional complete locus correlation hint retained by schema-v1 seeds. */
+export type CompactionSeedLocusHint = z.infer<typeof CompactionSeedLocusHintSchema>;
 
 /** Parse/validation failure for a compaction-seed JSON boundary. */
 export interface CompactionSeedSchemaError {

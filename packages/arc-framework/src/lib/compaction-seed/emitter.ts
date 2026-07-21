@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { atomicWriteJson } from "../fs.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
+import type { LocusStateV1 } from "../locus/schema/index.js";
 import {
   assertCompactionSeed,
   COMPACTION_SEED_SCHEMA_VERSION,
@@ -28,6 +29,7 @@ type SeedProbe<T> =
 /** Minimal session-init envelope surface the seed emitter consumes. */
 export interface CompactionSeedEnvelope {
   identity: { identity: string | null };
+  locusState: SeedProbe<LocusStateV1>;
   worktree: SeedProbe<{ branch: string | null }>;
   active: SeedProbe<{
     path: string | null;
@@ -179,6 +181,7 @@ export async function emitCompactionSeed(
     taskCursor,
     loadSet: options.envelope.loadSet.value,
     uncommittedFiles,
+    ...locusHint(options.envelope.locusState),
   };
 
   try {
@@ -193,6 +196,25 @@ export async function emitCompactionSeed(
     return { status: "failed", reason: "write-failed", message: errorMessage(err) };
   }
   return { status: "written", path, seed };
+}
+
+function locusHint(
+  probe: SeedProbe<LocusStateV1>,
+): Pick<CompactionSeed, "locus"> | Record<never, never> {
+  if (!probe.ok || probe.value.current.kind !== "resolved") return {};
+  const current = probe.value.current;
+  const row = probe.value.roster.rows.find((candidate) => candidate.recordId === current.activeRecordId);
+  if (row?.checkoutPath === null || row?.checkoutPath === undefined
+    || row.lease === null || row.lease.state !== "live") return {};
+  return {
+    locus: {
+      sessionHomePath: row.lease.sessionHomePath,
+      activeLocusPath: row.checkoutPath,
+      recordId: current.activeRecordId,
+      leaseId: row.lease.leaseId,
+      parentRecordId: current.parentRecordId,
+    },
+  };
 }
 
 async function writeCompactionSeedFile(path: string, seed: CompactionSeed): Promise<void> {

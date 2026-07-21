@@ -662,16 +662,10 @@ as their machine-local occupancy authority.
 - _Goal:_ Compaction recovery resumes the authoritative active transient frame and restores its parent context even
   when the harness summary is missing or the stored snapshot is stale.
 
-    - `[ ]` **6.3.a Add one atomic optional locus hint to the compaction seed**
-        - Extend `packages/arc-framework/src/lib/compaction-seed/schema.ts`, `emitter.ts`, and
-          `CompactionSeedEnvelope` with one optional atomic `locus` object containing required session-home path,
-          active-locus path, record ID, lease ID, and nullable parent record ID while retaining `schemaVersion: 1`.
-        - Emit the complete object only from a resolved current record with a live entering lease; omit it for
-          `none`, ambiguity, or probe failure. Never make old seeds invalid, persist partial hints, or treat snapshot
-          values as live authority.
-        - Build `test-first` (one behavior at a time):
-            - Cover pre-model seeds, complete hint round-trips, partial-object rejection, every omission arm,
-              producer validation, and atomic write behavior.
+    - `[x]` **6.3.a Add one atomic optional locus hint to the compaction seed**
+        - Kept schema v1 backward-compatible while adding one all-fields-or-absent locus hint; emission selects only
+          the reader-resolved current row with a live lease and omits every unresolved, ambiguous, failed, or
+          incomplete projection.
 
     - `[ ]` **6.3.b Derive recovery state from the fresh locus graph**
         - Update `packages/arc-framework/src/handlers/recover-probes.ts` and recover orchestration to consume the
