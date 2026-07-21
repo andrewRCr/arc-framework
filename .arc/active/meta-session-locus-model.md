@@ -12,8 +12,7 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** `create-spec` — spec finalized (refreshed against the landed `cli-schema-kernel` /
-  `cli-session-envelope` contracts; adversarial pass 2 converged)
+- **Last Completed:** Planning finalized and work unit activated for implementation
 - **Next Task:** Task 1.1 — Define and register the locus schema family
 - **Blockers:** [none]
 
