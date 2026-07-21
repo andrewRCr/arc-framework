@@ -538,11 +538,10 @@ that shapes review spend without producing satisfying evidence.
   truthful provider-neutral outcome without ever producing independent-analysis evidence.
 - _Context:_ Implements Design §3's two-stage resolver/adapter boundary.
 
-    - `[ ]` **5.2.a Add agent and command carrier adapters**
-        - Resolve registered descriptors only after an accepted offer/attempt and preserve harness authorization for
-          agent process creation.
-        - Return typed preparation `ready | needs-authorization | unavailable | invalid`; only `ready` may execute,
-          and `needs-authorization` returns a precomposed offer without consuming a pass.
+    - `[x]` **5.2.a Add agent and command carrier adapters**
+        - Added effect-free preparation for registered agent handles and direct executable-plus-argv descriptors.
+          Harness adapters return `ready | needs-authorization | unavailable | invalid`; only `ready` carries an
+          execution capability, while authorization needs become a precomposed one-run offer without spending a pass.
 
     - `[ ]` **5.2.b Normalize execution outcomes**
         - Build `test-first` (one behavior at a time):
