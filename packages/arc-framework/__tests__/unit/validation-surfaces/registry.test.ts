@@ -12,6 +12,10 @@ import {
   WorkClassSchema,
   WorkUnitStateSchema,
 } from "../../../src/lib/kernel/index.js";
+import {
+  projectKernelSchemas,
+  serializeKernelSchemaBundle,
+} from "../../../src/lib/kernel/schema/generate.js";
 import { AuditEntrySchema } from "../../../src/lib/release/schema.js";
 import { PersistedLocalSyncStateSchema } from "../../../src/lib/user-sync/schema.js";
 import {
@@ -80,5 +84,23 @@ describe("validation-surfaces schema registry", () => {
     expect(() => registry.register(AuditEntrySchema, strict("renamed-audit", 2))).toThrowError(
       expect.objectContaining<Partial<SchemaError>>({ code: "schema.registry.duplicate-schema" }),
     );
+  });
+
+  it("keeps default publication kernel-only and composed projection opt-in", () => {
+    const defaultBytes = serializeKernelSchemaBundle(projectKernelSchemas());
+    const registry = createValidationSurfacesRegistry();
+    const composed = projectKernelSchemas(registry);
+
+    expect(serializeKernelSchemaBundle(projectKernelSchemas())).toBe(defaultBytes);
+    expect(Object.keys(JSON.parse(defaultBytes).schemas as object)).toEqual([
+      "priority",
+      "slug",
+      "work-class",
+      "work-unit-state",
+    ]);
+    expect(Object.keys(composed.schemas)).toEqual(registry.ids());
+    expect(composed.schemas[VALIDATION_SURFACE_SCHEMA_IDS.metaRecord]?.properties?.state).toEqual({
+      $ref: "work-unit-state.schema.json",
+    });
   });
 });

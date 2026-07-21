@@ -433,7 +433,7 @@ incomplete durable contracts through the registry.
 _Purpose:_ Compose the four externally meaningful schema roots only after their owning boundaries exist, keeping
 registry discovery independent from kernel artifact publication.
 
-### `[ ]` **6.1 Compose the validation-surfaces registry**
+### `[x]` **6.1 Compose the validation-surfaces registry**
 
 - _Goal:_ Consumers can discover exactly the four declared durable roots through a fresh kernel-derived registry
   without changing kernel-only build output.
@@ -443,15 +443,13 @@ registry discovery independent from kernel artifact publication.
           their declared versions and migration postures. Each call extends a fresh kernel registry, retaining
           deterministic vocabulary composition, mutation isolation, and duplicate rejection.
 
-    - `[ ]` **6.1.b Establish the internal-only composition boundary**
-        - Export the ID map and factory only from the new internal source module for first-party and introspection
-          follow-on imports; add no package export map, tsup entry, CLI command, or static schema artifact.
-        - Keep `tsup.config.ts` calling `writeKernelSchemaArtifact()` without a registry override so
-          `projectKernelSchemas()` continues to default to `createKernelRegistry()`.
-        - Build `test-first` (one behavior at a time):
-            - preserve the default kernel bundle bytes before and after in-memory validation-surface composition;
-            - keep the build output inventory limited to `dist/schemas/kernel.json`;
-            - prove composed projection remains opt-in through an explicit in-memory registry argument only.
+    - `[x]` **6.1.b Establish the internal-only composition boundary**
+        - Kept composition source-internal and opt-in: default projection bytes remain kernel-only before and after
+          composition, while an explicit registry argument projects the expanded in-memory set and kernel references.
+          The unchanged package build continues to emit only `dist/schemas/kernel.json`.
+
+- _Outcome:_ Durable validation roots are discoverable through an isolated internal registry without expanding the
+  CLI entry surface or changing the kernel artifact publication contract.
 
 ### `[ ]` **6.2 Prove registry projection fidelity and closed membership**
 
