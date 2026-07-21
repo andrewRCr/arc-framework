@@ -456,18 +456,10 @@ registry discovery independent from kernel artifact publication.
 - _Goal:_ Registry metadata, ordering, and JSON Schema acceptance are deterministic and cannot drift beyond the
   declared root set.
 
-    - `[ ]` **6.2.a Validate runtime and projected acceptance independently**
-        - Add Ajv 8 as a direct test-only dependency and configure its draft-2020-12 evaluator with every schema in the
-          in-memory projected bundle registered by `$id`, including referenced kernel vocabulary.
-        - Run one shared representative corpus for each root through both the owning Zod schema and Ajv, requiring the
-          same acceptance result without using adapter normalization as projection evidence.
-        - Build `test-first` (one behavior at a time):
-            - compare valid command arms with invalid command/decision/outcome combinations for `audit-entry`;
-            - compare complete semantic meta records with missing, extra, and invalid closed-domain fields;
-            - compare valid known and unknown dotted config keys with invalid known values, malformed keys, and
-              non-string unknown values;
-            - compare sync-state versions 2–4, malformed required fields, malformed optional extensions, and unknown
-              additive fields.
+    - `[x]` **6.2.a Validate runtime and projected acceptance independently**
+        - Added Ajv 8 as a direct test dependency and registered the entire in-memory draft-2020-12 bundle by `$id`.
+          Shared literal corpora now require matching Zod and Ajv results across audit cross-products, semantic meta
+          strictness, config key/value policy, and backward-compatible sync-state versions and extensions.
 
     - `[ ]` **6.2.b Prove closed membership and publication isolation**
         - Assert the exact sorted registry set is `arc-config`, `audit-entry`, `local-sync-state`, `meta-record`,
