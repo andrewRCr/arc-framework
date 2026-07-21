@@ -3,7 +3,7 @@
 import type { AuthorizedReviewCommandEvent } from "./command-ingestion.js";
 import type { NormalizedChangeRequest, ReviewRequirement } from "./contracts.js";
 import {
-  REVIEW_SEMANTICS_VERSION,
+  LEGACY_REVIEW_SEMANTICS_VERSION,
   type ReviewReceipt,
   type ReviewRequest,
 } from "./execution.js";
@@ -72,7 +72,7 @@ function commandRequest(
     changeRequestId: input.changeRequest.changeRequestId,
     changeSetId: input.requirement.changeSetId,
     policyVersion: input.requirement.policyVersion,
-    semanticsVersion: REVIEW_SEMANTICS_VERSION,
+    semanticsVersion: LEGACY_REVIEW_SEMANTICS_VERSION,
     rubricVersion: input.requirement.rubricVersion,
     requirementId: input.requirement.id,
     sourceIdentity,
@@ -190,7 +190,7 @@ export function planCommandRefresh(input: CommandRefreshInput): CommandRefreshRe
     changeRequestId: input.changeRequest.changeRequestId,
     changeSetId: input.requirement.changeSetId,
     policyVersion: input.requirement.policyVersion,
-    semanticsVersion: REVIEW_SEMANTICS_VERSION,
+    semanticsVersion: LEGACY_REVIEW_SEMANTICS_VERSION,
     rubricVersion: input.requirement.rubricVersion,
     requirementId: input.requirement.id,
     sourceIdentity,

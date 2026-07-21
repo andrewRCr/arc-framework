@@ -13,6 +13,7 @@
 import { execFile } from "node:child_process";
 
 import type { ExecResult, GitExec, GitExecOptions } from "../../../lib/git/exec.js";
+import { createRawGitExec, type RawGitExec } from "../../../lib/change-facts.js";
 import type { HttpFetch } from "../hosts/github/api/http.js";
 import { GhProcessError, type ProcessRunner } from "./gh-action-port.js";
 
@@ -47,6 +48,16 @@ export function createAuthenticatedGitExec(gitToken: string, base: GitExec = exe
   const credential = Buffer.from(`x-access-token:${gitToken}`, "utf8").toString("base64");
   const header = `http.extraheader=AUTHORIZATION: basic ${credential}`;
   return (cmd, args, options) => base(cmd, ["-c", header, ...args], options);
+}
+
+/** Wrap a raw-byte Git executor with the same per-invocation read credential. */
+export function createAuthenticatedRawGitExec(
+  gitToken: string,
+  base: RawGitExec = createRawGitExec(),
+): RawGitExec {
+  const credential = Buffer.from(`x-access-token:${gitToken}`, "utf8").toString("base64");
+  const header = `http.extraheader=AUTHORIZATION: basic ${credential}`;
+  return (args, options) => base(["-c", header, ...args], options);
 }
 
 /** `execFile` process boundary for repository-only `gh` action launchers. */

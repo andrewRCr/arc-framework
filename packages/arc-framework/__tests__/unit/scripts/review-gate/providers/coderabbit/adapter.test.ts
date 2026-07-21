@@ -93,7 +93,7 @@ function findingSignals(overrides: Record<string, unknown> = {}): CodeRabbitSign
       reviewNodeId: "PRR_1",
       botUserId: BOT_ID,
       locus: "src/a.ts:7",
-      severity: "high",
+      severity: "major",
       url: "https://github.com/acme/repo/pull/7#discussion_r1",
       ...overrides,
     } as CodeRabbitSignal,
@@ -281,11 +281,12 @@ describe("CodeRabbit durable finding qualification", () => {
     expect(result).toMatchObject({
       state: "findings",
       qualifying: true,
+      findings: [{ findingId: "finding-1", severity: "major", locus: "src/a.ts:7" }],
       evidence: {
         sourceIdentity: "coderabbit-pr",
         result: "findings",
         coverage: "full",
-        findings: [{ findingId: "finding-1", locus: "src/a.ts:7" }],
+        findings: [{ findingId: "finding-1", severity: "high", locus: "src/a.ts:7" }],
         closures: [],
       },
     });

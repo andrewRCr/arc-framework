@@ -212,6 +212,10 @@ broader pre-* family) still fire on workflow steps that invoke a push, including
 the marker before the sync invocation; the agent loads the extension's `.actions` per the
 established contract regardless of how the push itself routes.
 
+This is an agent-layer guarantee. The workflow corpus audit verifies agent-managed wrapper and pushing-sync
+callsites, but direct CLI invocations and raw Git pushes outside those workflows cannot be structurally intercepted
+by an agent-interpreted extension. Git hooks or host controls own stronger enforcement across those paths.
+
 ---
 
 [template-workflow]: ../../templates/arc/template-workflow.md

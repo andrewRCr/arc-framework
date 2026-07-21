@@ -10,15 +10,15 @@ import {
   validateQualificationCheckpoint,
   validateQualificationScope,
 } from "../../../../../src/scripts/review-gate/runtime/qualification-contract.js";
-import { qualificationCell, qualificationScope } from "./qualification-fixtures.js";
+import { legacyV1QualificationCell, legacyV1QualificationScope } from "./qualification-fixtures.js";
 
 const HASH = "b".repeat(64);
 
 describe("qualification acceptance contract", () => {
   it("accepts only the exact complete matrix and emits stable sanitized identity", () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     let checkpoint = createQualificationCheckpoint(scope);
-    for (const cellId of QUALIFICATION_CELL_IDS) checkpoint = appendQualificationCell(scope, checkpoint, qualificationCell(cellId));
+    for (const cellId of QUALIFICATION_CELL_IDS) checkpoint = appendQualificationCell(scope, checkpoint, legacyV1QualificationCell(cellId));
     expect(validateQualificationCheckpoint(scope, checkpoint)).toEqual([]);
     const candidate = finalizeQualification(scope, checkpoint);
     expect(candidate).toMatchObject({
@@ -30,8 +30,8 @@ describe("qualification acceptance contract", () => {
   });
 
   it("refuses fixtures, credentials, incomplete rubric coverage, and changed workflow scope", () => {
-    const scope = qualificationScope();
-    const valid = qualificationCell("coderabbit-clean");
+    const scope = legacyV1QualificationScope();
+    const valid = legacyV1QualificationCell("coderabbit-clean");
     expect(validateQualificationCell(scope, "coderabbit-clean", { ...valid, fixture: true }))
       .toContain("fixture-result-prohibited");
     expect(validateQualificationCell(scope, "coderabbit-clean", {
@@ -51,10 +51,10 @@ describe("qualification acceptance contract", () => {
   });
 
   it("requires the enabled policy inputs needed by activation", () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     expect(validateQualificationAcceptanceCandidate({
       ...finalizeQualification(scope, QUALIFICATION_CELL_IDS.reduce(
-        (checkpoint, cellId) => appendQualificationCell(scope, checkpoint, qualificationCell(cellId)),
+        (checkpoint, cellId) => appendQualificationCell(scope, checkpoint, legacyV1QualificationCell(cellId)),
         createQualificationCheckpoint(scope),
       )),
       scope: { ...scope, guidanceDigests: {} },
@@ -62,7 +62,7 @@ describe("qualification acceptance contract", () => {
   });
 
   it("requires every matrix cell to use an isolated PR, change request, and head", () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     const duplicate = scope.cellScopes["pending-first"];
     expect(validateQualificationScope({
       ...scope,
@@ -75,8 +75,8 @@ describe("qualification acceptance contract", () => {
   });
 
   it("keeps connected-account behavior parser-only until an admissible actor proves terminality", () => {
-    const scope = qualificationScope();
-    const parserOnly = qualificationCell("codex-connected-account");
+    const scope = legacyV1QualificationScope();
+    const parserOnly = legacyV1QualificationCell("codex-connected-account");
     expect(validateQualificationCell(scope, "codex-connected-account", parserOnly)).toEqual([]);
     expect(validateQualificationCell(scope, "codex-connected-account", { ...parserOnly, admissibleActor: true }))
       .toContain("connected-account-terminal-proof-invalid");
@@ -87,16 +87,16 @@ describe("qualification acceptance contract", () => {
   });
 
   it("detects checkpoint tampering and refuses an incomplete candidate", () => {
-    const scope = qualificationScope();
-    const checkpoint = appendQualificationCell(scope, createQualificationCheckpoint(scope), qualificationCell("pending-first"));
+    const scope = legacyV1QualificationScope();
+    const checkpoint = appendQualificationCell(scope, createQualificationCheckpoint(scope), legacyV1QualificationCell("pending-first"));
     expect(validateQualificationCheckpoint(scope, { ...checkpoint, chainHash: HASH })).toContain("checkpoint-chain-mismatch");
     expect(() => finalizeQualification(scope, checkpoint)).toThrow("qualification-matrix-incomplete");
   });
 
   it("detects a forged serialized acceptance digest", () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     let checkpoint = createQualificationCheckpoint(scope);
-    for (const cellId of QUALIFICATION_CELL_IDS) checkpoint = appendQualificationCell(scope, checkpoint, qualificationCell(cellId));
+    for (const cellId of QUALIFICATION_CELL_IDS) checkpoint = appendQualificationCell(scope, checkpoint, legacyV1QualificationCell(cellId));
     const candidate = finalizeQualification(scope, checkpoint);
     expect(validateQualificationAcceptanceCandidate({ ...candidate, matrixDigest: HASH }))
       .toContain("acceptance-matrix-digest-mismatch");

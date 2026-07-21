@@ -1,28 +1,28 @@
 ---
-name: diff-review
+name: self-review
 description: Local author-side aggregate diff preflight — generic and composable
 related:
   - review-triage
+active: true
 override-active: false
 ---
 
-# Method: diff-review
+# Method: self-review
 
 > - **Workflow:** [integrate-work-unit.md][integrate-work-unit] (primary caller)
 > - **When:** When a workflow or skill invokes local diff preflight — notably before opening a change request
 >
 > - **Contract:** The authoring agent reviews its aggregate local diff for cross-cutting issues that per-task review
->   misses. This preflight is not peer/independent review evidence and cannot satisfy a review requirement. Generic
->   activity contract — callers decide when to invoke and what gating applies. The primary caller
->   (integrate-work-unit.md) gates on `review.pre_merge` in [`arc-config.yml`][arc-config]; other callers apply
->   their own gating.
+>   misses. This preflight is not peer/independent review evidence and cannot satisfy a review requirement. Callers
+>   decide when to invoke it and what gating applies. As agent-side ergonomics, it does not structurally enforce
+>   merge safety.
 > - **Related:** [review-triage](review-triage.md) — use for finding classification
 
-## diff-review.override
+## self-review.override
 
 [No override configured]
 
-## diff-review.default
+## self-review.default
 
 Lightweight author-side diff preflight. It catches issues that only emerge at the aggregate level; it invokes no
 external review provider by default and authors no independent evidence.
@@ -50,9 +50,10 @@ git diff {parent-branch}...HEAD
 aggregate change actually solve the stated problem? Check exception handling paths explicitly — AI-generated
 code systematically underperforms on error cases and edge conditions.
 
-**Process findings** using the [review-triage method](review-triage.md) (fix-now/minor-fix/defer/reject). Run Tier 3
-quality gates on modified files. Commit fixes using the context footer appropriate to the invoking workflow (e.g.,
-`(integration)` when called from integrate-work-unit.md).
+**Process findings** using the [review-triage method](review-triage.md): verify them against source, propose severity
+and disposition for the complete set, and obtain approval before applying fixes. Run Tier 3 quality gates on modified
+files. Commit fixes using the context footer appropriate to the invoking workflow (e.g., `(integration)` when called
+from integrate-work-unit.md).
 
 For structured review workflows, configure lifecycle extensions separately; do not reinterpret this author-side
 preflight as independent evidence.
@@ -60,4 +61,3 @@ preflight as independent evidence.
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[arc-config]: ../arc-config.yml

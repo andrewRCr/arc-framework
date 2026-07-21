@@ -19,6 +19,10 @@ import { fileURLToPath } from "node:url";
 import { resolveRepoRoot } from "./repo-root.js";
 import { walkMarkdown } from "../lib/fs/walk-markdown.js";
 import { parseFrontmatter } from "../lib/frontmatter/index.js";
+import {
+  ACTIVATABLE_METHOD_REGISTRY,
+  isActivatableMethodName,
+} from "../lib/method-activation-registry.js";
 
 /** Declarations extracted from a single workflow file's frontmatter. */
 export interface WorkflowDeclarations {
@@ -50,6 +54,39 @@ export interface WorkflowEntry {
   content: string;
 }
 
+const PUSH_SITE = /`push-interlock` release.*`workflowPush`|# workflowPush\b|^\s*(?:arc sync|(?:npx )?arc release push)(?:\s|$)/u;
+const GLOBAL_PRE_PUSH_CONTRACT = /#pre-push-review.*Before every agent-managed push/iu;
+
+/** Audit declaration and fire ordering for agent-managed workflow push sites. */
+export function auditPushExtensionCoverage(workflows: WorkflowEntry[]): string[] {
+  const diagnostics: string[] = [];
+  for (const workflow of workflows) {
+    const lines = workflow.content.split("\n");
+    const sites = lines.flatMap((line, index) => PUSH_SITE.test(line) ? [index] : []);
+    if (sites.length === 0) continue;
+
+    const declarations = parseWorkflowFrontmatter(workflow.content);
+    if (!declarations.extensions.includes("pre-push-review")) {
+      diagnostics.push(
+        `Workflow "${workflow.path}" has an agent-managed push but does not declare pre-push-review in arc.extensions.`,
+      );
+    }
+
+    const globalContractLine = lines.findIndex((line) => GLOBAL_PRE_PUSH_CONTRACT.test(line));
+    for (const site of sites) {
+      const localWindow = lines.slice(Math.max(0, site - 12), site).join("\n");
+      const covered = /#pre-push-review/u.test(localWindow)
+        || (globalContractLine >= 0 && globalContractLine < site);
+      if (!covered) {
+        diagnostics.push(
+          `Workflow "${workflow.path}" push site at line ${site + 1} does not fire pre-push-review first.`,
+        );
+      }
+    }
+  }
+  return diagnostics;
+}
+
 /**
  * List entry names (filename without `.md`) under `dir`, excluding `README.md`.
  * Used by both method and extension enumeration.
@@ -69,6 +106,39 @@ export function enumerateMethods(dir: string): string[] {
 /** Enumerate extension names from a per-file extensions directory. */
 export function enumerateExtensions(dir: string): string[] {
   return enumerateEntries(dir);
+}
+
+/** Audit package method activation fields against the closed typed registry. */
+export function auditActivatableMethodCorpus(methodsDir: string): string[] {
+  const diagnostics: string[] = [];
+  const names = enumerateMethods(methodsDir);
+  const nameSet = new Set(names);
+
+  for (const name of names) {
+    const parsed = parseFrontmatter(readFileSync(join(methodsDir, `${name}.md`), "utf8"));
+    if (parsed.parseError !== undefined || parsed.data === null || typeof parsed.data !== "object") continue;
+    const active = (parsed.data as Record<string, unknown>).active;
+    if (active !== undefined && !isActivatableMethodName(name)) {
+      diagnostics.push(`Method "${name}" declares active but is absent from the activatable-method registry.`);
+    }
+  }
+
+  for (const [name, definition] of Object.entries(ACTIVATABLE_METHOD_REGISTRY)) {
+    if (!nameSet.has(name)) {
+      diagnostics.push(`Activatable method "${name}" is missing from the package method corpus.`);
+      continue;
+    }
+    const parsed = parseFrontmatter(readFileSync(join(methodsDir, `${name}.md`), "utf8"));
+    const data = parsed.data !== null && typeof parsed.data === "object"
+      ? parsed.data as Record<string, unknown>
+      : {};
+    if (data.active !== definition.defaultActive) {
+      diagnostics.push(
+        `Activatable method "${name}" must declare package default ${String(definition.defaultActive)}.`,
+      );
+    }
+  }
+  return diagnostics;
 }
 
 /**
@@ -188,7 +258,7 @@ export async function audit(
     content: readFileSync(p, "utf8"),
   }));
   const cov = buildCoverageMap(methodNames, extensionNames, workflows);
-  const diagnostics: string[] = [...cov.parseDiagnostics];
+  const diagnostics: string[] = [...cov.parseDiagnostics, ...auditPushExtensionCoverage(workflows)];
   for (const [name, files] of cov.methods) {
     if (files.length === 0) {
       if (!wiringPending.has(name)) diagnostics.push(formatMethodDiagnostic(name));
@@ -212,8 +282,9 @@ async function main(): Promise<void> {
     join(systemDir, "extensions"),
     join(systemDir, "workflows"),
   );
-  if (!result.pass) {
-    for (const d of result.diagnostics) {
+  const diagnostics = [...result.diagnostics, ...auditActivatableMethodCorpus(join(systemDir, "methods"))];
+  if (diagnostics.length > 0) {
+    for (const d of diagnostics) {
       process.stderr.write(`${d}\n`);
     }
     process.exit(1);

@@ -24,8 +24,8 @@
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: config-storage-architecture`), housekeep drain (2026-06-19);
   captured during `lifecycle-mechanics-tail` integrate-work-unit Step 1 (2026-06-18).
 - *Concern:* workflow ceremonies resolve config by hand-reading `arc-config.yml` — hit at integrate-work-unit
-  Step 1 (grepped `branch.base` / `merge.strategy` / `archive.cadence` / `review.pre_merge`, none surfaced by the
-  session-init probe's fixed config slice). A correctness gap, not just ergonomics: the interlock modes
+  Step 1 (grepped `branch.base` / `merge.strategy` / `archive.cadence` / the then-live `review.pre_merge`, none
+  surfaced by the session-init probe's fixed config slice). A correctness gap, not just ergonomics: the interlock modes
   (`commit.interlock` / `push.interlock`) are git-config-resolved with documented defaults — not yaml — and this WU
   is moving more keys (`role`, the three interlocks, `releaseOptedIn`) into `.arc/user/{identity}/config.user.yml`.
   So an agent reading raw yaml silently diverges from the real resolver (`lib/config/resolved-settings.ts`), and

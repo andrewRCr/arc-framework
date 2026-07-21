@@ -45,6 +45,14 @@ function input(
 }
 
 describe("integrated review-gate contract", () => {
+  it("keeps native guidance rendering outside controller runtime composition", () => {
+    const forbidden = /(?:renderIndependentAnalysisReviewerInstructions|SELF_HOSTING_REVIEW_GUIDANCE_BLOCK)/u;
+    const violations = typescriptFiles(join(REVIEW_GATE_ROOT, "runtime"))
+      .filter((path) => forbidden.test(readFileSync(path, "utf8")));
+
+    expect(violations).toEqual([]);
+  });
+
   it("keeps neutral core modules independent of repository policy and GitHub implementations", () => {
     const forbiddenImport = /from\s+["'][^"']*(?:policy\/self-hosting|hosts\/github|providers\/)[^"']*["']/u;
     const violations = typescriptFiles(join(REVIEW_GATE_ROOT, "core"))

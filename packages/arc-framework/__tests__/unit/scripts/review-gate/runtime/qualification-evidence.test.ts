@@ -12,7 +12,7 @@ import {
   type QualificationRawRecord,
 } from "../../../../../src/scripts/review-gate/runtime/qualification-evidence.js";
 import type { QualificationCellId, QualificationScope } from "../../../../../src/scripts/review-gate/runtime/qualification-contract.js";
-import { qualificationScope } from "./qualification-fixtures.js";
+import { legacyV1QualificationScope } from "./qualification-fixtures.js";
 
 function request(scope: QualificationScope, cellId: QualificationCellId, sourceIdentity: string): ReviewRequest {
   const cell = scope.cellScopes[cellId];
@@ -125,7 +125,7 @@ function records(
 
 describe("qualification live-evidence derivation", () => {
   it("derives a Codex clean capability from the owned request, pinned artifact, and successful App projection", () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     const cellId = "codex-clean";
     const body = [
       "Codex Review:",
@@ -146,7 +146,7 @@ describe("qualification live-evidence derivation", () => {
   });
 
   it("records an observed but unproven CodeRabbit clean path as partial instead of enabling it", () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     const cellId = "coderabbit-clean";
     const result = deriveQualificationCellResult(scope, cellId, records(scope, cellId, "coderabbit-pr", [{
       id: 600,
@@ -161,7 +161,7 @@ describe("qualification live-evidence derivation", () => {
   });
 
   it("accepts CodeRabbit findings only when the production normalizer can correlate review and thread evidence", () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     const cellId = "coderabbit-findings";
     const headSha = scope.cellScopes[cellId].headSha;
     const pullRequestNumber = scope.cellScopes[cellId].pullRequestNumber;
@@ -203,7 +203,7 @@ describe("qualification live-evidence derivation", () => {
   });
 
   it("records a pinned but semantically unknown Codex review through the production queued state", () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     const cellId = "codex-unknown";
     const result = deriveQualificationCellResult(scope, cellId, records(scope, cellId, "codex-pr", [{
       id: 700,
@@ -218,7 +218,7 @@ describe("qualification live-evidence derivation", () => {
   });
 
   it("binds scheduled event repair to fresh cell evidence instead of any non-manual run", () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     const cellId = "event-repair";
     const live = records(scope, cellId, "coderabbit-pr", [], "pending");
     const value = live[0]?.value as {
@@ -241,7 +241,7 @@ describe("qualification live-evidence derivation", () => {
   });
 
   it("rejects provider artifacts without an owned request or matching aggregate projection", () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     const cellId = "codex-clean";
     const unrelated = records(scope, cellId, "codex-pr", [], "success");
     const value = unrelated[0]?.value as { comments: unknown[] };

@@ -16,8 +16,12 @@
  */
 
 import type { GitExec } from "../../../../lib/git/exec.js";
+import {
+  resolveChangeSet,
+  type CanonicalChange,
+  type RawGitExec,
+} from "../../../../lib/change-facts.js";
 import { computeChangeSetId } from "../../core/identity.js";
-import type { ChangedPath, ChangedPathStatus } from "../../policy/self-hosting/lane.js";
 
 /** Local ref namespace the trusted fetch writes into; never checked out. */
 const LOCAL_REF_PREFIX = "refs/arc-review-gate";
@@ -31,6 +35,8 @@ const SHA = /^[0-9a-f]{40}$/u;
 export interface CoverageIdentityInput {
   /** Injected git executor (argument-array; no shell). */
   exec: GitExec;
+  /** Optional byte-preserving Git boundary; production supplies it for raw diff parsing. */
+  rawExec?: RawGitExec;
   /** Trusted base-repository remote name (e.g. `origin`); never a fork URL. */
   baseRemote: string;
   /** Base branch ref name reported by the host for the target repository. */
@@ -58,7 +64,7 @@ export type CoverageIdentity =
       diffBaseSha: string;
       headSha: string;
       changeSetId: string;
-      changedPaths: ChangedPath[];
+      changedPaths: CanonicalChange[];
     }
   | { kind: "sensitive"; reason: CoverageSensitiveReason };
 
@@ -132,62 +138,27 @@ async function computeMergeBase(exec: GitExec, left: string, right: string): Pro
   }
 }
 
-function mapStatus(code: string): ChangedPathStatus {
-  switch (code) {
-    case "A":
-      return "added";
-    case "D":
-      return "deleted";
-    case "R":
-      return "renamed";
-    default:
-      return "modified";
-  }
+function rawAdapter(exec: GitExec): RawGitExec {
+  return async (args, options) => {
+    const { stdout, stderr } = await exec(
+      "git",
+      args,
+      options?.cwd === undefined ? undefined : { cwd: options.cwd },
+    );
+    return {
+      stdout: new TextEncoder().encode(stdout),
+      ...(stderr === undefined ? {} : { stderr: new TextEncoder().encode(stderr) }),
+    };
+  };
 }
 
-/**
- * Parse `git diff --name-status -z` output. NUL framing preserves arbitrary
- * valid Git filenames (spaces, newlines, non-ASCII); rename/copy records carry
- * the previous path as a separate NUL field.
- */
-export function parseNameStatusZ(stdout: string): ChangedPath[] {
-  const fields = stdout.split("\0");
-  const changes: ChangedPath[] = [];
-  let index = 0;
-  while (index < fields.length) {
-    const status = fields[index];
-    if (status === undefined || status === "") {
-      index += 1;
-      continue;
-    }
-    const code = status[0] ?? "";
-    if (code === "R" || code === "C") {
-      const previousPath = fields[index + 1];
-      const path = fields[index + 2];
-      if (previousPath === undefined || path === undefined) break;
-      changes.push(
-        code === "R"
-          ? { status: "renamed", path, previousPath }
-          : { status: "added", path },
-      );
-      index += 3;
-    } else {
-      const path = fields[index + 1];
-      if (path === undefined) break;
-      changes.push({ status: mapStatus(code), path });
-      index += 2;
-    }
-  }
-  return changes;
-}
-
-async function resolveChangedPaths(exec: GitExec, from: string, to: string): Promise<ChangedPath[] | null> {
-  try {
-    const { stdout } = await exec("git", ["diff", "--name-status", "-z", "-M", from, to]);
-    return parseNameStatusZ(stdout);
-  } catch {
-    return null;
-  }
+async function resolveChangedPaths(
+  exec: RawGitExec,
+  from: string,
+  to: string,
+): Promise<CanonicalChange[] | null> {
+  const result = await resolveChangeSet(exec, from, to);
+  return result.changeSet === "known" ? result.changes : null;
 }
 
 /**
@@ -207,7 +178,7 @@ export async function resolveCoverageIdentity(input: CoverageIdentityInput): Pro
   const diffBaseSha = await computeMergeBase(input.exec, baseTip, headLocal);
   if (diffBaseSha === null) return { kind: "sensitive", reason: "no-merge-base" };
 
-  const changedPaths = await resolveChangedPaths(input.exec, diffBaseSha, headLocal);
+  const changedPaths = await resolveChangedPaths(input.rawExec ?? rawAdapter(input.exec), diffBaseSha, headLocal);
   if (changedPaths === null) return { kind: "sensitive", reason: "diff-unresolvable" };
 
   return {

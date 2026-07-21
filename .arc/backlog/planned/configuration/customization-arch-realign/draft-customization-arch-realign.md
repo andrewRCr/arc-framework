@@ -18,6 +18,12 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
 
 ---
 
+> [!NOTE]
+> The Problem, Current State Inventory, and original migration sketch preserve the May 2026 baseline. The
+> `review-architecture` dependency has since retired `review.pre_merge`, renamed `diff-review` to `self-review`, and
+> added project-level activation to `self-review` and `frontline-review`. Treat those names below as historical input,
+> not current guidance; the remaining design must rebase on the shipped method-activation model at grooming.
+
 ## Inbound Buffer — Pending Integration
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
@@ -306,12 +312,9 @@ scope activation question until then.
 
 ### (d) Migration sequencing
 
-- This plan depends on `review-architecture` for the `review.pre_merge → diff-review.active`
-  migration (avoid double-touching `diff-review` method content). Either the review-family WU
-  ships first and lands the migration as part of its scope, or this plan ships first and the
-  review-family WU coordinates.
-- This plan can ship the method `active` flag (frontmatter + loading) independently of either
-  user-scope or review-architecture.
+- `review-architecture` has landed the review-method activation axis and retired its config toggle. Rebase the
+  generic activation design on that shipped contract rather than carrying the original migration scope.
+- User-scope activation remains dependent on its storage substrate.
 - Decision-tree update is no-dependencies; could ship at any time.
 
 ### (e) Commit/push interlock enum granularity
@@ -353,9 +356,8 @@ config validators. Surfaced 2026-05-25 during Worktree Foundation execution kick
 
 ## Cross-Plan Coordination
 
-- **`review-architecture`** — owns the `diff-review`/`review-triage` reshape; the
-  `review.pre_merge → diff-review.active` migration should ride that WU (avoid double-touching
-  the `diff-review` method file). Add a § Coordination note to that plan referencing this one.
+- **`review-architecture`** — shipped the `self-review` / `frontline-review` activation precedent and review-family
+  reshape. Consume that contract as current state; only the generic override-pointer question remains routed here.
 - **`plan-config-storage-architecture`** — owns the user-scope substrate; the user-scope
   activation question (above) depends on the storage shape landing there. Add a § Coordination
   note to that plan referencing this one.
@@ -384,9 +386,8 @@ config validators. Surfaced 2026-05-25 during Worktree Foundation execution kick
 
 ## Sequencing
 
-No firm dependencies; soft dependencies on `plan-config-storage-architecture` (for the
-user-scope activation question) and `review-architecture` (for the diff-review migration).
-Could ship in parallel with either; should not ship before the others without coordinating.
+No firm dependencies; soft dependency on `plan-config-storage-architecture` for the user-scope activation question.
+The shipped review-method activation contract is now an input rather than a sequencing dependency.
 
 ---
 

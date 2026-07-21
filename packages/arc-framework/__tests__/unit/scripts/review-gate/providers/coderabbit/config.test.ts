@@ -4,6 +4,7 @@ import {
   qualifyResolvedCodeRabbitConfiguration,
   validateCodeRabbitRepositoryDelta,
 } from "../../../../../../src/scripts/review-gate/providers/coderabbit/config.js";
+import { SELF_HOSTING_REVIEW_GUIDANCE_BLOCK } from "../../../../../../src/scripts/review-gate/policy/self-hosting/guidance.js";
 
 const delta = {
   inheritance: true,
@@ -11,6 +12,7 @@ const delta = {
     request_changes_workflow: true,
     commit_status: true,
     fail_commit_status: true,
+    path_instructions: [{ path: "**/*", instructions: SELF_HOSTING_REVIEW_GUIDANCE_BLOCK }],
     auto_review: {
       enabled: true,
       labels: ["arc-review-gate"],

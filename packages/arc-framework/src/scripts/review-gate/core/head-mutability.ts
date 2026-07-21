@@ -1,6 +1,14 @@
 /** Request-flight reduction and single-use exact-head repair authorization. */
 
 import type { ReviewReceipt, ReviewRequest } from "./execution.js";
+import {
+  FixAuthorizationConsumptionSchema,
+  validateFixAuthorization,
+  type FixAuthorization,
+  type FixAuthorizationConsumption,
+} from "./fix-authorization.js";
+import { ApprovedDispositionSetSchema, type ApprovedDispositionSet } from "./disposition-records.js";
+import { ReviewTargetSchema, type ReviewTarget } from "./gate-contract-v2-schema.js";
 import { computeRequestKey, computeRequirementKey, createReceipt } from "./request-key.js";
 
 export type RequestFlightState =
@@ -96,6 +104,72 @@ export function reduceRequestFlights(
 export type HeadMutabilityResult =
   | { kind: "allow"; reason: "unchanged-head" | "settled-head-update" | "authorized-head-update"; authorizationReceiptHash?: string }
   | { kind: "refuse"; reason: "active-flight" | "ambiguous-flight" | "ambiguous-authorization" | "missing-authorization" | "unexpected-head" | "reused-authorization" };
+
+export type FixMutabilityResult =
+  | { kind: "allow"; reason: "authorized-fix"; fixAuthorizationId: string }
+  | { kind: "refuse"; reason: "missing-authorization" | "ambiguous-authorization" | "invalid-authorization" | "stale-authorization" | "mismatched-authorization" | "reused-authorization" };
+
+/** Select one exact persisted authorization before applying the semantic mutability guard. */
+export function queryFixAuthorizationSetMutability(input: {
+  authorizations: readonly FixAuthorization[];
+  requestedFixAuthorizationId: string;
+  dispositionState: ApprovedDispositionSet;
+  currentTarget: ReviewTarget;
+  priorConsumptions: readonly FixAuthorizationConsumption[];
+}): FixMutabilityResult {
+  const candidates = input.authorizations.filter(
+    (authorization) => authorization.fixAuthorizationId === input.requestedFixAuthorizationId,
+  );
+  if (candidates.length === 0) return { kind: "refuse", reason: "missing-authorization" };
+  if (candidates.length > 1) return { kind: "refuse", reason: "ambiguous-authorization" };
+  const authorization = candidates[0];
+  if (authorization === undefined) return { kind: "refuse", reason: "missing-authorization" };
+  return queryFixMutability({
+    authorization,
+    dispositionState: input.dispositionState,
+    currentTarget: input.currentTarget,
+    priorConsumptions: input.priorConsumptions,
+  });
+}
+
+/** Decide whether an approved, unconsumed authorization permits the first fix mutation. */
+export function queryFixMutability(input: {
+  authorization: FixAuthorization;
+  dispositionState: ApprovedDispositionSet;
+  currentTarget: ReviewTarget;
+  priorConsumptions: readonly FixAuthorizationConsumption[];
+}): FixMutabilityResult {
+  let authorization: FixAuthorization;
+  let dispositionState: ApprovedDispositionSet;
+  let currentTarget: ReviewTarget;
+  let priorConsumptions: FixAuthorizationConsumption[];
+  try {
+    authorization = validateFixAuthorization(input.authorization);
+    dispositionState = ApprovedDispositionSetSchema.parse(input.dispositionState);
+    currentTarget = ReviewTargetSchema.parse(input.currentTarget);
+    priorConsumptions = input.priorConsumptions.map((record) => FixAuthorizationConsumptionSchema.parse(record));
+  } catch {
+    return { kind: "refuse", reason: "invalid-authorization" };
+  }
+  if (priorConsumptions.some((record) => record.fixAuthorizationId === authorization.fixAuthorizationId)) {
+    return { kind: "refuse", reason: "reused-authorization" };
+  }
+  if (authorization.oldTargetId !== currentTarget.targetId || authorization.oldHeadSha !== currentTarget.headSha) {
+    return { kind: "refuse", reason: "stale-authorization" };
+  }
+  const approvedFixIds = dispositionState.dispositionSet.findings
+    .filter((finding) => finding.disposition === "fix")
+    .map((finding) => finding.findingId)
+    .sort();
+  if (authorization.dispositionSetId !== dispositionState.dispositionSet.dispositionSetId
+    || authorization.authorizedBy !== dispositionState.approval.approvedBy
+    || authorization.authorizedAt !== dispositionState.approval.approvedAt
+    || authorization.authorizedFindingIds.length !== approvedFixIds.length
+    || authorization.authorizedFindingIds.some((findingId, index) => findingId !== approvedFixIds[index])) {
+    return { kind: "refuse", reason: "mismatched-authorization" };
+  }
+  return { kind: "allow", reason: "authorized-fix", fixAuthorizationId: authorization.fixAuthorizationId };
+}
 
 function authorizations(receipts: readonly ReviewReceipt[]): ReviewReceipt[] {
   return receipts.filter((receipt) => receipt.action === "begin-fix"

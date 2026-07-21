@@ -551,7 +551,8 @@ Strategy][session-ops] § Push Toggles for the underlying model.
 
   **Notes-push-failed (the Act site).** When the envelope carries `retryOffer` — the notes leg is still
   failing after its silent auto-retries, and the partial-push marker is already persisted — surface a primed
-  retry **defaulted to retry** (re-running the push is zero-clobber). On accept, re-invoke `arc sync --json`;
+  retry **defaulted to retry** (re-running the push is zero-clobber). On accept, repeat the pre-push extension
+  check and re-invoke `arc sync --json`;
   a resolved notes leg self-invalidates the marker (nothing to record). On deferral, or a retry that still
   fails, the marker persists knowingly — report it in § Confirm Handoff so the next session inherits it.
   Resolve the offer conversationally; never block on a TTY prompt.

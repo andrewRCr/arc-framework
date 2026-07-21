@@ -63,7 +63,7 @@ the dependency in frontmatter:
 
 ```yaml
 arc:
-  methods: [diff-review, review-triage]
+  methods: [self-review, review-triage]
   extensions: [pre-merge]
   templates: [template-pull-request]
 ```
