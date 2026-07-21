@@ -548,10 +548,10 @@ that shapes review spend without producing satisfying evidence.
           target, and bounded pass. Explicit clean and finding results remain distinct; rate limits normalize to
           unavailable, while ambiguous, partial, malformed, stale-head, and provider failures can never become clean.
 
-    - `[ ]` **5.2.c Feed findings through the universal checkpoint**
-        - Route normalized findings into `review-triage` / `review-response`, verify them against source, and obtain
-          disposition approval before any fix.
-        - Re-run affected gates and the exact target after an approved fix without granting the carrier authority.
+    - `[x]` **5.2.c Feed findings through the universal checkpoint**
+        - Added a narrow adapter admitting only normalized frontline finding outcomes into the existing local
+          `review-response` planner. Complete source-verified disposition approval gates fix capability; changed-target
+          verification, affected-gate evidence, persistence, and rerouting remain required without carrier authority.
 
     - `[ ]` **5.2.d Enforce bounded follow-up policy**
         - Permit one follow-up only after at least one approved `major | blocker` fix changes the target; do not spend
