@@ -22,7 +22,7 @@ import { promisify } from "node:util";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
-import { parseMetaProjectionRecord, renderMetaProjectionFile, type MetaFieldOverrides } from "../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord, renderMetaProjectionFile, type MetaProjectionOverrides } from "../../src/lib/active/meta-reader.js";
 import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
 import { validateManagedPath } from "../../src/lib/canonical/managed-path.js";
 import { createUserIOContext, readGitBlobBytes } from "../../src/lib/io-context.js";
@@ -61,9 +61,12 @@ async function commitAll(repo: string, message: string): Promise<void> {
 }
 
 /** Write a managed meta (+ a placeholder draft) for a fixture WU at a repo-relative dir. */
-async function writeWu(repo: string, relDir: string, slug: string, over: MetaFieldOverrides): Promise<void> {
+async function writeWu(repo: string, relDir: string, slug: string, over: MetaProjectionOverrides): Promise<void> {
   await mkdir(join(repo, relDir), { recursive: true });
-  await writeFile(join(repo, relDir, `meta-${slug}.md`), renderMetaProjectionFile(slug, over));
+  await writeFile(
+    join(repo, relDir, `meta-${slug}.md`),
+    renderMetaProjectionFile(slug, { Owner: IDENTITY, ...over }),
+  );
   await writeFile(join(repo, relDir, `draft-${slug}.md`), `# Draft: ${slug}\n\n- **Purpose:** —\n\n---\n`);
 }
 

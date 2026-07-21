@@ -30,7 +30,7 @@ import {
   reconcileMetaFields,
   validateMetaFieldBlockShape,
   META_FIELDS,
-  type MetaFieldOverrides,
+  type MetaProjectionOverrides,
 } from "../../../src/lib/active/meta-reader.js";
 
 interface Fixture {
@@ -658,7 +658,7 @@ describe("readActiveMetaCandidates — layout detection", () => {
   });
 });
 
-const SPAWN_OVERRIDES: MetaFieldOverrides = {
+const SPAWN_OVERRIDES: MetaProjectionOverrides = {
   State: "Planning",
   Owner: "andrew",
   Branch: "plan/foo",
@@ -1148,7 +1148,7 @@ describe("parseMetaFile — reads the core-block table (session-init path)", () 
 
 describe("renderMetaProjectionFile ↔ parseMetaProjectionRecord — round-trip", () => {
   it("recovers every rendered field value through the meta parser", () => {
-    const overrides: MetaFieldOverrides = {
+    const overrides: MetaProjectionOverrides = {
       State: "Planning",
       Owner: "andrew",
       Branch: "plan/foo",

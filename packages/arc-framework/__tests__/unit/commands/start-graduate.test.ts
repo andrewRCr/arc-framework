@@ -14,7 +14,7 @@ import { normalize } from "node:path";
 import type { ExecuteTransitionContext, SideEffectHandler } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import type { DirEntry, LifecycleIndexFs } from "../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../src/lib/work-unit/lifecycle-transitions.js";
-import type { MetaFieldName, MetaFieldOverrides } from "../../../src/lib/active/meta-reader.js";
+import type { MetaFieldName, MetaProjectionOverrides } from "../../../src/lib/active/meta-reader.js";
 import {
   buildGraduateCeremonyCommitMessage,
   runGraduate,
@@ -92,7 +92,7 @@ function buildIndexFs(metas: MetaSpec[], root = CWD): LifecycleIndexFs {
 
 interface ReconcileCall {
   metaPath: string;
-  overrides: MetaFieldOverrides;
+  overrides: MetaProjectionOverrides;
 }
 
 interface StageWrite {

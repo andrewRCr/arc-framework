@@ -512,6 +512,17 @@ describe("runPark — park@Active", () => {
     expect(writes).toEqual([]);
   });
 
+  it("rejects an invalid pointer record before tearing down the worktree", async () => {
+    const { ctx, writes, calls } = buildCtx([ACTIVE]);
+    const sourceRecord = { ...recordFor(ACTIVE), Owner: null };
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord });
+
+    expect(result.status).toBe("rejected");
+    expect(calls.some((call) => call.startsWith("worktree:"))).toBe(false);
+    expect(writes).toEqual([]);
+  });
+
   it("reports partial application when the pointer write fails after teardown", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
     ctx.fs.writeFile = async () => {

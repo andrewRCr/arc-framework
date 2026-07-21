@@ -314,7 +314,10 @@ export type MetaFieldName = (typeof META_FIELDS)[number]["name"];
  * Design from parsed spec input. Fields absent from the map render at their
  * declared default.
  */
-export type MetaFieldOverrides = Partial<Record<MetaFieldName, string>>;
+export type MetaProjectionOverrides = Partial<Record<MetaFieldName, string>>;
+
+/** Partial storage-independent record accepted by the full semantic renderer. */
+export type MetaRenderOverrides = Partial<MetaRecord>;
 
 /** The structured field record recovered from a meta projection by {@link parseMetaRecord}. */
 /** Strict durable semantic record type. */
@@ -460,7 +463,7 @@ function wrapCommaList(items: readonly string[], firstPrefixLength: number): str
  */
 export function renderMetaProjectionFile(
   wuName: string,
-  overrides: MetaFieldOverrides = {},
+  overrides: MetaProjectionOverrides = {},
 ): string {
   const valueOf = (field: MetaFieldDescriptor): string =>
     overrides[field.name as MetaFieldName] ?? field.default;
@@ -482,7 +485,7 @@ export function renderMetaProjectionFile(
  */
 export function renderMetaFile(
   wuName: string,
-  overrides: Partial<MetaRecord> = {},
+  overrides: MetaRenderOverrides = {},
 ): string {
   const record = MetaRecordSchema.parse({
     state: undefined,
@@ -769,7 +772,7 @@ function bulletMarkerRe(name: string): RegExp {
  */
 export function reconcileMetaFields(
   content: string,
-  overrides: MetaFieldOverrides = {},
+  overrides: MetaProjectionOverrides = {},
 ): ReconcileMetaResult {
   const lines = content.split("\n");
   const h1Idx = lines.findIndex((line) => /^# /.test(line));
@@ -814,7 +817,7 @@ export function reconcileMetaFields(
  * @returns The rewritten markdown.
  * @throws When the meta carries no resolvable core-block table.
  */
-function setMetaCoreFields(content: string, overrides: MetaFieldOverrides): string {
+function setMetaCoreFields(content: string, overrides: MetaProjectionOverrides): string {
   const lines = content.split("\n");
   const firstFieldIdx = lines.findIndex((line) => FIELD_MARKER_RE.test(line));
   const scanLimit = firstFieldIdx === -1 ? lines.length : firstFieldIdx;

@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaProjectionRecord, renderMetaProjectionFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord, renderMetaProjectionFile, type MetaProjectionOverrides } from "../../../../src/lib/active/meta-reader.js";
 import {
   runDecompose,
   runPreparedDecompose,
@@ -70,7 +70,7 @@ function member(slug: string, over: Partial<NewMemberEntry> = {}): NewMemberEntr
 }
 
 const ORIGIN_CONTEXT: ScaffoldCohortMembersParams["originContext"] = {
-  origin: "[internal]",
+  origin: "internal",
   owner: "andrew",
   priority: "P1",
 };
@@ -235,7 +235,7 @@ interface MetaSpec {
 
 /** Render a fixture meta via the production projection, so `parseMetaProjectionRecord` round-trips it. */
 function metaContent(spec: MetaSpec): string {
-  const o: MetaFieldOverrides = {
+  const o: MetaProjectionOverrides = {
     State: spec.state,
     Owner: "andrew",
     Branch: spec.branch ?? "[none]",

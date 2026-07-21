@@ -27,7 +27,7 @@
 
 import { posix } from "node:path";
 
-import type { MetaFieldName, MetaFieldOverrides } from "../active/meta-reader.js";
+import type { MetaFieldName, MetaProjectionOverrides } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   buildLifecycleIndex,
@@ -276,7 +276,7 @@ export interface ExecuteTransitionContext {
    */
   reconcileMeta?: (
     metaPath: string,
-    overrides: MetaFieldOverrides,
+    overrides: MetaProjectionOverrides,
   ) => Promise<MetaFieldName[]>;
 
   /**

@@ -43,7 +43,13 @@
 import { join } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
-import { parseMetaProjectionRecord, type MetaFieldName, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import {
+  parseIdentifierList,
+  parseMetaProjectionRecord,
+  type MetaFieldName,
+  type MetaRenderOverrides,
+} from "../../active/meta-reader.js";
+import { MetaPrioritySchema, MetaWorkClassSchema } from "../../active/meta-schema.js";
 import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
 import { receiptId } from "../../canonical/receipt-id.js";
@@ -218,25 +224,21 @@ export type ResumeResult =
       inPlaceCheckoutPending: boolean;
     };
 
-/** The source-meta render fields a pointer-record carries forward (sans State / Branch). */
-const POINTER_RENDER_FIELDS: readonly MetaFieldName[] = [
-  "Owner",
-  "Class",
-  "Priority",
-  "Cohort",
-  "Depends On",
-  "Origin",
-  "Design",
-];
+/** Translate the projection fields carried by an Active pointer into semantic values. */
+function renderFieldsFrom(record: Record<MetaFieldName, string | null>): MetaRenderOverrides {
+  return {
+    owner: record.Owner ?? undefined,
+    workClass: MetaWorkClassSchema.parse(record.Class === "[TBD]" ? "TBD" : record.Class),
+    priority: MetaPrioritySchema.parse(record.Priority === "[TBD]" ? "TBD" : record.Priority),
+    cohort: nullableProjectionValue(record.Cohort),
+    dependsOn: parseIdentifierList(record["Depends On"]),
+    origin: record.Origin === null || record.Origin === "[internal]" ? "internal" : record.Origin,
+    design: parseIdentifierList(record.Design),
+  };
+}
 
-/** Collect a source meta's non-null render fields into a {@link MetaFieldOverrides}. */
-function renderFieldsFrom(record: Record<MetaFieldName, string | null>): MetaFieldOverrides {
-  const fields: MetaFieldOverrides = {};
-  for (const name of POINTER_RENDER_FIELDS) {
-    const value = record[name];
-    if (value !== null) fields[name] = value;
-  }
-  return fields;
+function nullableProjectionValue(value: string | null): string | null {
+  return value === null || value === "[none]" || value === "—" ? null : value;
 }
 
 /** Source position park@Active moves from / to — for the verb-orchestrated side-effect + outcome shape. */
@@ -488,21 +490,27 @@ async function parkActive(
     };
   }
 
-  // Teardown first: its clean-guard gates the whole park before anything is
-  // written, so a dirty preserved-branch worktree rejects without leaving a pointer.
+  const metaPath = `${toDir}/meta-${name}.md`;
+  let pointerRecord: string;
+  try {
+    pointerRecord = composePointerRecord({
+      name,
+      branch,
+      reason,
+      renderFields: renderFieldsFrom(sourceRecord),
+    });
+  } catch (err) {
+    return { status: "rejected", reason: `invalid pointer record: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  // The pointer is valid before teardown. The teardown clean guard then gates
+  // every filesystem effect, so dirty work still rejects without a pointer.
   try {
     await ctx.executor.reconcileWorktree({ mutation: "teardown", worktreePath, currentLocus });
   } catch (err) {
     return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
   }
 
-  const metaPath = `${toDir}/meta-${name}.md`;
-  const pointerRecord = composePointerRecord({
-    name,
-    branch,
-    reason,
-    renderFields: renderFieldsFrom(sourceRecord),
-  });
   // The worktree is already torn down; a pointer-write failure here leaves a
   // half-applied park, so report it as such rather than throwing past the caller.
   try {

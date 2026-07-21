@@ -69,26 +69,25 @@ onto stable code-facing fields without losing tolerant recovery.
           the existing malformed-table, absent-marker, legacy-layout, and field-local degradation corpus remains
           green across the semantic reader and renderer cutovers.
 
-### `[ ]` **2.3 Migrate semantic meta writers and render producers**
+### `[x]` **2.3 Migrate semantic meta writers and render producers**
 
 - _Goal:_ Every full-record writer supplies semantic keys while localized Markdown mutations retain their explicit
   projection-level contract.
 
-    - `[ ]` **2.3.a Establish the semantic-writer compatibility boundary**
-        - Replace the dual-purpose `MetaFieldOverrides` contract with separate semantic-render and projection-update
-          types in `meta-reader.ts` and its focused tests.
-        - Preserve the projection-label API only for setters that intentionally locate Markdown fields by label.
+    - `[x]` **2.3.a Establish the semantic-writer compatibility boundary**
+        - Replaced the dual-purpose override type with distinct semantic-render and projection-update contracts;
+          localized Markdown setters retain their label-keyed projection API.
 
-    - `[ ]` **2.3.b Migrate direct creation-path renderers**
-        - Move `errand/promote.ts`, `git/worktree-scaffold.ts`, and `work-unit/verbs/stub.ts` from display labels and
-          sentinels to semantic render overrides.
-        - Retain byte fixtures for freshly rendered planning, active, and promoted work-unit metadata.
+    - `[x]` **2.3.b Migrate direct creation-path renderers**
+        - Migrated errand promotion, worktree scaffolding, and stub creation to schema-checked semantic overrides while
+          preserving the established planning, active, and promoted metadata bytes.
 
-    - `[ ]` **2.3.c Migrate composed and transition render inputs**
-        - Move `work-unit/pointer-record.ts`, `work-unit/verbs/decompose.ts`, and the park/resume render-field bridge
-          to semantic keys without broadening the durable schema into lifecycle policy.
-        - Add a source inventory assertion that rejects display-label objects passed to `renderMetaFile()` and stale
-          use of the removed dual-purpose override type.
+    - `[x]` **2.3.c Migrate composed and transition render inputs**
+        - Migrated pointer, decomposition, and park render composition to semantic keys and added a source-wide AST
+          inventory guard against label-keyed semantic calls or the retired override contract.
+
+- _Outcome:_ Full-record creation now crosses one strict semantic boundary, including pointer prevalidation before
+  destructive park teardown, while localized projection mutations remain explicit and byte-compatible.
 
 ### `[ ]` **2.4 Migrate work-unit lifecycle consumers to semantic fields**
 

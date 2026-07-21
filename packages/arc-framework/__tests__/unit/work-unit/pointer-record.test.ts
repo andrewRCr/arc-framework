@@ -9,7 +9,7 @@ const BASE_INPUT: PointerRecordInput = {
   name: "lifecycle-transition-core",
   branch: "feat/lifecycle-transition-core",
   reason: "blocked on upstream ADR-022 sign-off",
-  renderFields: { Owner: "andrew", Class: "Feature", Priority: "P1" },
+  renderFields: { owner: "andrew", workClass: "Heavy", priority: "P1" },
 };
 
 describe("composePointerRecord", () => {
@@ -45,16 +45,16 @@ describe("composePointerRecord", () => {
   it("forces State to `Active` even when renderFields supplies a conflicting State", () => {
     const out = composePointerRecord({
       ...BASE_INPUT,
-      renderFields: { ...BASE_INPUT.renderFields, State: "Provisional" },
+      renderFields: { ...BASE_INPUT.renderFields, state: "Planning" },
     });
     expect(out).toContain("`Active`");
-    expect(out).not.toContain("`Provisional`");
+    expect(out).not.toContain("`Planning`");
   });
 
   it("forces the authoritative Branch into the core table even against a conflicting renderField", () => {
     const out = composePointerRecord({
       ...BASE_INPUT,
-      renderFields: { ...BASE_INPUT.renderFields, Branch: "wrong/branch" },
+      renderFields: { ...BASE_INPUT.renderFields, branch: "wrong/branch" },
     });
     expect(out).toContain("`feat/lifecycle-transition-core`");
     expect(out).not.toContain("wrong/branch");
@@ -64,7 +64,7 @@ describe("composePointerRecord", () => {
     const out = composePointerRecord(BASE_INPUT);
     expect(out).toContain("# Metadata: lifecycle-transition-core");
     expect(out).toContain("`andrew`");
-    expect(out).toContain("`Feature`");
+    expect(out).toContain("`Heavy`");
     expect(out).toContain("`P1`");
   });
 
