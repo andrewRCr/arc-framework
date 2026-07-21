@@ -98,33 +98,21 @@ inspection before the record lock that consumes its liveness verdict.
 - _Outcome:_ Locks, leases, and cleanup consumers now share one cross-platform three-state liveness contract in
   which only exact process-generation evidence can prove a session live or dead.
 
-### `[ ]` **1.4 Implement record-scoped locking and token-safe stale breaking** — D3
+### `[x]` **1.4 Implement record-scoped locking and token-safe stale breaking** — D3
 
 - _Goal:_ Concurrent commands serialize only the checkout they mutate, and no contender can break or release a
   lock unless the exact observed holder generation is conclusively dead under the process-inspector contract.
 
-    - `[ ]` **1.4.a Implement the record and secondary-break lock protocol**
-        - Add `packages/arc-framework/src/lib/locus/lock.ts` using exclusive-create files with lock token, command
-          process anchor, bounded retry, and record-scoped secondary break locks.
-        - Reuse shared filesystem primitives, but consume the established PID-plus-start-token inspector rather than
-          the notes lock's PID-only liveness or corrupt-holder break behavior.
-        - Bound holder reads before decoding; classify malformed, oversized, partially written after the readback
-          budget, and unreadable holders as unknown rather than dead.
-        - Build `test-first` (one behavior at a time):
-            - One contender wins an empty lock; live, unknown, malformed, oversized, and unreadable holders time out
-              without eviction.
-            - A dead holder is removed only while the secondary lock is held and its token/anchor remain unchanged.
-            - A changed holder aborts stale breaking and forces a fresh acquisition attempt.
+    - `[x]` **1.4.a Implement the record and secondary-break lock protocol**
+        - Added bounded exclusive-create record locks and per-record secondary break locks; malformed, oversized,
+          unreadable, partial, live, or unknown holders remain intact, while only a stable dead generation breaks.
 
-    - `[ ]` **1.4.b Make release and failure cleanup generation-safe**
-        - Return an ownership handle containing the exact serialized holder bytes, token, and anchor used at
-          acquisition.
-        - Release only a byte-equivalent holder generation; tolerate an already-gone lock without deleting a newer
-          holder.
-        - Build `test-first` (one behavior at a time):
-            - Same-process siblings, PID reuse, create-before-write windows, and secondary-lock contention cannot
-              release or break another generation.
-            - Already-gone locks are idempotent and failed cleanup preserves the newer or uncertain holder.
+    - `[x]` **1.4.b Make release and failure cleanup generation-safe**
+        - Acquisition returns the exact serialized holder generation and release compares those bytes before unlink;
+          absent locks are idempotent and changed primary or secondary generations are never removed.
+
+- _Outcome:_ Each checkout now has an independently serialized mutation boundary whose acquisition, stale recovery,
+  and release all require token-stable process-generation evidence.
 
 ## **Phase 2:** Transient Identity Model and Transactions
 
