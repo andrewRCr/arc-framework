@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import { ArcError } from "../kernel/index.js";
+
 /** Strict normalized record for one Git worktree porcelain stanza. */
 export const GitWorktreePorcelainRecordSchema = z.strictObject({
   path: z.string().min(1),
@@ -53,6 +55,23 @@ export function tokenizeGitWorktreePorcelain(stdout: string): GitWorktreePorcela
   }
   flush();
   return stanzas;
+}
+
+/**
+ * Parse successful Git output into normalized worktree records.
+ *
+ * @throws ArcError when any non-empty stanza lacks a valid worktree anchor
+ */
+export function parseGitWorktreePorcelain(stdout: string): GitWorktreePorcelainRecord[] {
+  return tokenizeGitWorktreePorcelain(stdout).map(({ index, candidate }) => {
+    const parsed = GitWorktreePorcelainRecordSchema.safeParse(candidate);
+    if (parsed.success) return parsed.data;
+    const detail = parsed.error.issues.map((issue) => {
+      const field = issue.path.length === 0 ? "<root>" : issue.path.map(String).join(".");
+      return `stanzas.${index}.${field}: ${issue.message}`;
+    }).join("; ");
+    throw new ArcError(`invalid git worktree porcelain: ${detail}`, "git.worktree-porcelain.invalid");
+  });
 }
 
 function emptyCandidate(): GitWorktreePorcelainStanza["candidate"] {

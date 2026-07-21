@@ -17,7 +17,10 @@ import {
 } from "../active/meta-reader.js";
 
 import type { GitExec } from "./exec.js";
-import { tokenizeGitWorktreePorcelain } from "./worktree-porcelain.js";
+import {
+  parseGitWorktreePorcelain,
+  type GitWorktreePorcelainRecord,
+} from "./worktree-porcelain.js";
 
 /**
  * Roster-entry state — codified `WorkUnitState` plus an `"unknown"`
@@ -90,7 +93,7 @@ export async function runWorktreeRoster(
   const { exec, fs } = options;
   const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
   const branched = worktrees.filter(
-    (wt): wt is RawWorktree & { branch: string } => wt.branch !== null,
+    (wt): wt is GitWorktreePorcelainRecord & { branch: string } => wt.branch !== null,
   );
 
   const resolutions = await Promise.all(branched.map((wt) => resolveEntry(fs, wt)));
@@ -199,7 +202,7 @@ export interface WorktreePathsByBranchResult {
 export async function resolveWorktreePathsByBranchResult(
   exec: GitExec,
 ): Promise<WorktreePathsByBranchResult> {
-  let worktrees: RawWorktree[];
+  let worktrees: GitWorktreePorcelainRecord[];
   try {
     worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
   } catch {
@@ -219,7 +222,7 @@ export async function resolveWorktreePathsByBranchResult(
  * @returns A bounded topology snapshot or an explicit read/parse failure
  */
 export async function scanRegisteredWorktrees(exec: GitExec): Promise<RegisteredWorktreeScanResult> {
-  let worktrees: RawWorktree[];
+  let worktrees: GitWorktreePorcelainRecord[];
   try {
     worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
   } catch (err) {
@@ -402,19 +405,8 @@ function buildEntry(
   };
 }
 
-interface RawWorktree {
-  path: string;
-  head: string | null;
-  branch: string | null;
-  detached: boolean;
-}
-
-function parseWorktreeList(result: { stdout: string }): RawWorktree[] {
-  return tokenizeGitWorktreePorcelain(result.stdout).flatMap(({ candidate }) =>
-    candidate.path === null
-      ? []
-      : [{ path: candidate.path, head: candidate.head, branch: candidate.branch, detached: candidate.detached }]
-  );
+function parseWorktreeList(result: { stdout: string }): GitWorktreePorcelainRecord[] {
+  return parseGitWorktreePorcelain(result.stdout);
 }
 
 async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promise<string[]> {

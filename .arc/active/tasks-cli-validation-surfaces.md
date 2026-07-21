@@ -398,7 +398,7 @@ incomplete durable contracts through the registry.
   adapter, canonical post-parse ordering, retirement-policy separation, and byte-addressed preparation/receipt chain
   remain compatible.
 
-### `[ ]` **5.2 Extract and validate Git worktree porcelain records**
+### `[x]` **5.2 Extract and validate Git worktree porcelain records**
 
 - _Goal:_ Successful Git output cannot silently discard malformed worktree stanzas, while process failures and
   caller-specific degradation remain distinct.
@@ -409,18 +409,14 @@ incomplete durable contracts through the registry.
           extracted tokenizer; focused coverage pins branched, detached, bare, blank, forward-compatible, and strict
           record behavior.
 
-    - `[ ]` **5.2.b Introduce the domain validation error boundary**
-        - Throw an `ArcError` carrying `git.worktree-porcelain.invalid` and stable stanza/field paths when successful
-          Git output contains a non-empty stanza without a valid `worktree` anchor; do not echo the stanza or convert
-          the domain failure into `GitProcessError`.
-        - Replace `RawWorktree` in `worktree-roster.ts` with the inferred record and preserve each current policy:
-          roster reads propagate failures, primary-path lookup degrades to `null`, branch-map lookup degrades to an
-          unsuccessful empty map, and topology scan returns `{ok: false, message}` while still requiring a head.
-        - Build `test-first` (one behavior at a time):
-            - reject missing or empty worktree anchors in the first, middle, and final non-empty stanza;
-            - expose stable issue paths and the domain code without leaking raw records;
-            - distinguish malformed successful output from `GitProcessError` process failures;
-            - preserve roster, primary-path, branch-map, topology-scan, detached, and missing-head outcomes.
+    - `[x]` **5.2.b Introduce the domain validation error boundary**
+        - Added `git.worktree-porcelain.invalid` `ArcError` failures with stable stanza/field paths and no raw-record
+          leakage, replaced `RawWorktree` with the inferred record, and preserved process-error identity plus each
+          roster, primary-path, branch-map, and topology caller's propagate/degrade policy, detached handling, and
+          missing-head refusal.
+
+- _Outcome:_ Successful Git output now crosses one strict normalized record boundary and cannot silently discard a
+  malformed non-empty stanza, while Git-version extensions and caller-specific failure semantics remain compatible.
 
 ### `[ ]` **5.3 Establish the cold-start input schema contract**
 

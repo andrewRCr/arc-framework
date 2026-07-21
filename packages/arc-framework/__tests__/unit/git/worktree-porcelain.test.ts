@@ -5,9 +5,11 @@ import { z } from "zod";
 
 import {
   GitWorktreePorcelainRecordSchema,
+  parseGitWorktreePorcelain,
   tokenizeGitWorktreePorcelain,
   type GitWorktreePorcelainRecord,
 } from "../../../src/lib/git/worktree-porcelain.js";
+import { ArcError } from "../../../src/lib/kernel/index.js";
 
 describe("tokenizeGitWorktreePorcelain", () => {
   it("normalizes branched, detached, and bare worktrees in stanza order", () => {
@@ -61,5 +63,24 @@ describe("GitWorktreePorcelainRecordSchema", () => {
     { path: "/repo", head: null, branch: null, detached: false, extra: true },
   ])("rejects invalid normalized record %#", (value) => {
     expect(GitWorktreePorcelainRecordSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("parseGitWorktreePorcelain", () => {
+  it.each([
+    ["first", "HEAD aaa\n\nworktree /second\nHEAD bbb\n", "stanzas.0.path"],
+    ["middle", "worktree /first\nHEAD aaa\n\nHEAD bbb\n\nworktree /third\nHEAD ccc\n", "stanzas.1.path"],
+    ["final", "worktree /first\nHEAD aaa\n\nHEAD ccc\n", "stanzas.1.path"],
+  ])("rejects a missing %s anchor with a stable field path", (_position, stdout, path) => {
+    let thrown: unknown;
+    try {
+      parseGitWorktreePorcelain(stdout);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ArcError);
+    expect(thrown).toMatchObject({ code: "git.worktree-porcelain.invalid" });
+    expect((thrown as Error).message).toContain(path);
+    expect((thrown as Error).message).not.toContain("HEAD aaa");
   });
 });
