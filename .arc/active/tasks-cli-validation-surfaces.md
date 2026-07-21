@@ -39,20 +39,10 @@ onto stable code-facing fields without losing tolerant recovery.
 - _Goal:_ Meta state has a storage-agnostic strict record while the current Markdown format retains an explicit,
   independently validated compatibility representation.
 
-    - `[ ]` **2.1.a Define the semantic meta-record contract**
-        - Add `src/lib/active/meta-schema.ts` with all code-facing keys present; require non-null `state`, `owner`,
-          `workClass`, `priority`, and `origin`, allow the remaining absent scalars to be `null`, use string arrays for
-          `dependsOn` and `design`, and compose kernel state, class, and priority domains.
-        - Accept `TBD` only for unresolved `workClass` and `priority`; represent internal origin as `internal` rather
-          than carrying display sentinels into the durable record.
-        - Apply no new lexical policy to open identifiers, branches, filenames, origins, URLs, or narratives:
-          normalization removes absence and the semantic schema accepts remaining non-empty strings.
-        - Derive `MetaRecord` and its structural children from `MetaRecordSchema`.
-        - Build `test-first` (one behavior at a time):
-            - accept complete valid records at each closed-domain value;
-            - reject missing or unknown keys, null required fields, display sentinels, empty present values, and
-              malformed arrays;
-            - distinguish semantic `null`, empty-list, `TBD`, and `internal` values.
+    - `[x]` **2.1.a Define the semantic meta-record contract**
+        - Added the strict storage-agnostic `MetaRecordSchema` with kernel vocabulary composition, semantic nullable
+          fields and identifier arrays, deliberate `TBD`/`internal` values, and inferred structural types. Display
+          sentinels and malformed or incomplete records are rejected without adding policy to open values.
 
     - `[ ]` **2.1.b Define the Markdown projection contracts**
         - Add semantic keys to `META_FIELDS` while retaining display order, render mode, and value-class metadata.
