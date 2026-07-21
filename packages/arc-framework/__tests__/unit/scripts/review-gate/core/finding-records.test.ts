@@ -4,7 +4,9 @@ import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
   FindingConversationClosureV2Schema,
   FindingSettlementV2Schema,
+  LocalDispositionTerminalV2Schema,
   NormalizedReviewFindingSchema,
+  ProviderNativeConversationClosureV2Schema,
   normalizeProviderFindingClassification,
 } from "../../../../../src/scripts/review-gate/core/finding-records.js";
 import { reduceNormalizedFindings } from "../../../../../src/scripts/review-gate/core/findings.js";
@@ -16,6 +18,8 @@ import {
 import {
   createFindingConversationClosureV2,
   createFindingSettlementV2,
+  createLocalDispositionTerminalV2,
+  createProviderNativeConversationClosureV2,
 } from "../../../../../src/scripts/review-gate/runtime/finding-settlement.js";
 
 const targetId = canonicalDigest({ target: "old" });
@@ -124,15 +128,95 @@ describe("forward finding settlement", () => {
 
     const closure = createFindingConversationClosureV2({
       settlement,
-      authorityIdentity: "github-app",
+      authorityIdentity: "codex-pr",
+      sourceConfirmationRef: "codex-pr:closure:finding-1",
       hostEvidenceRef: "github:thread-1:resolved",
       closedAt: "2026-07-20T20:01:00Z",
     });
     expect(FindingConversationClosureV2Schema.parse(closure)).toMatchObject({
       findingId: finding.findingId,
+      closureKind: "controller-source-confirmed",
       settlementId: canonicalDigest(settlement),
     });
     expect(closure).not.toHaveProperty("disposition");
+  });
+
+  it("keeps local reports and provider-native decisive closure on separate authority records", () => {
+    const localApproved = approvedSet("reject");
+    expect(createLocalDispositionTerminalV2({
+      ...localApproved,
+      reportRef: "local-report:dispositions-1",
+      recordedAt: "2026-07-20T20:00:00Z",
+    })).toMatchObject({
+      terminalKind: "local-disposition-report",
+      dispositionSetId: localApproved.dispositionState.dispositionSet.dispositionSetId,
+    });
+    const providerClosure = createProviderNativeConversationClosureV2({
+      targetId,
+      providerIdentity: "provider-review",
+      conversationId: "conversation-1",
+      decisiveReviewId: "review-1",
+      decisiveState: "approved",
+      conversationState: "resolved",
+      decisiveEvidenceRef: "provider:review-1:approved",
+      conversationEvidenceRef: "provider:conversation-1:resolved",
+      observedAt: "2026-07-20T20:01:00Z",
+    });
+    expect(ProviderNativeConversationClosureV2Schema.parse(providerClosure)).toMatchObject({
+      closureKind: "provider-native-decisive",
+      decisiveState: "approved",
+      conversationState: "resolved",
+    });
+    expect(LocalDispositionTerminalV2Schema.parse(createLocalDispositionTerminalV2({
+      ...localApproved,
+      reportRef: "local-report:dispositions-1",
+      recordedAt: "2026-07-20T20:00:00Z",
+    }))).not.toHaveProperty("conversationId");
+  });
+
+  it("rejects bare resolution, generic approval, coordinator claims, and provider ignore state", () => {
+    const approvedFix = approvedSet("fix");
+    const settlement = createFindingSettlementV2({
+      ...approvedFix,
+      finding,
+      settledBy: "author-1",
+      settledAt: "2026-07-20T20:00:00Z",
+      fixTargetId,
+      fixConsumption: {
+        schemaVersion: 2, semanticsVersion: "review-gate/v2",
+        fixAuthorizationId: canonicalDigest({ authorization: "fix-2" }),
+        dispositionSetId: approvedFix.dispositionState.dispositionSet.dispositionSetId,
+        oldTargetId: targetId, newTargetId: fixTargetId,
+        oldHeadSha: "a".repeat(40), newHeadSha: "b".repeat(40), appliedBy: "author-1",
+        consumedAt: "2026-07-20T19:59:30Z", verificationRefs: ["ci:run-1"],
+      },
+      verificationRefs: ["ci:run-1"],
+    });
+    expect(() => createFindingConversationClosureV2({
+      settlement,
+      authorityIdentity: "coordinator-1",
+      sourceConfirmationRef: "coordinator:claimed-closed",
+      hostEvidenceRef: "host:thread-resolved",
+      closedAt: "2026-07-20T20:01:00Z",
+    })).toThrow(/finding source/iu);
+    for (const input of [
+      { decisiveState: "approved" as const, conversationState: "unresolved" as const },
+      { decisiveState: "changes-requested" as const, conversationState: "resolved" as const },
+      { decisiveState: "review-required" as const, conversationState: "resolved" as const },
+    ]) {
+      expect(() => createProviderNativeConversationClosureV2({
+        targetId, providerIdentity: "provider-review", conversationId: "conversation-1",
+        decisiveReviewId: "review-1", ...input, decisiveEvidenceRef: "provider:review-1",
+        conversationEvidenceRef: "provider:conversation-1", observedAt: "2026-07-20T20:01:00Z",
+      })).toThrow();
+    }
+    expect(() => ProviderNativeConversationClosureV2Schema.parse({
+      schemaVersion: 2, semanticsVersion: "review-gate/v2", closureKind: "provider-native-decisive",
+      targetId, providerIdentity: "provider-review", conversationId: "conversation-1",
+      decisiveReviewId: "review-1", decisiveState: "approved", conversationState: "resolved",
+      decisiveEvidenceRef: "provider:review-1", conversationEvidenceRef: "provider:conversation-1",
+      observedAt: "2026-07-20T20:01:00Z", ignoreCommand: "@provider ignore",
+    })).toThrow();
   });
 
   it("rejects invalid fix and non-fix target bindings", () => {

@@ -94,7 +94,11 @@ describe("settlement mutation adoption", () => {
       ...base,
       threadId: "PRRT_1",
       settlement,
-      authorityIdentity: "44",
+      resolverIdentity: "44",
+      sourceConfirmation: {
+        authorityIdentity: "codex-pr",
+        evidenceRef: "codex-pr:closure:finding-1",
+      },
       closedAt: "2026-07-20T20:01:00Z",
     }, {
       developer: { resolveReviewThread: vi.fn() },
@@ -102,8 +106,28 @@ describe("settlement mutation adoption", () => {
     });
     expect(closure).toMatchObject({
       findingId: "finding-1",
+      closureKind: "controller-source-confirmed",
+      authorityIdentity: "codex-pr",
+      sourceConfirmationRef: "codex-pr:closure:finding-1",
       hostEvidenceRef: "github-review-thread:PRRT_1:resolved",
     });
     expect(closure).not.toHaveProperty("disposition");
+    const invalidRead = vi.fn(async () => ({
+      threadId: "PRRT_1", isResolved: true, resolvedByActorIdentity: "44",
+    }));
+    const invalidResolve = vi.fn();
+    await expect(ensureFindingConversationClosureV2({
+      ...base,
+      threadId: "PRRT_1",
+      settlement,
+      resolverIdentity: "44",
+      sourceConfirmation: { authorityIdentity: "coordinator-1", evidenceRef: "coordinator:claim" },
+      closedAt: "2026-07-20T20:01:00Z",
+    }, {
+      developer: { resolveReviewThread: invalidResolve },
+      canonical: { readThread: invalidRead },
+    })).rejects.toThrow(/finding source/iu);
+    expect(invalidRead).not.toHaveBeenCalled();
+    expect(invalidResolve).not.toHaveBeenCalled();
   });
 });

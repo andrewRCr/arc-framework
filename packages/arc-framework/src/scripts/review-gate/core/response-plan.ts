@@ -30,6 +30,7 @@ function projectChannelActions(
         threadStateHandle: capability.threadStateHandle,
         reply: capability.canReply,
         resolve: capability.canResolve,
+        requiredClosure: "controller-source-confirmed",
       });
     } else {
       actions.push({
@@ -39,6 +40,7 @@ function projectChannelActions(
         threadStateHandle: capability.threadStateHandle,
         decisiveReviewHandle: capability.decisiveReviewHandle,
         reply: capability.canReply,
+        requiredClosure: "provider-native-decisive",
       });
     }
   }
@@ -68,6 +70,9 @@ function plan(
       : null,
     verificationRefs: input.verificationRefs,
     blocking: options.blocking,
+    localTerminalRecord: state === "ready-to-close" && input.channel === "local"
+      ? "local-disposition-report"
+      : null,
     allowedCapabilities: options.allowedCapabilities,
     channelActions: projectChannelActions(input, state),
     nextAction: options.nextAction,

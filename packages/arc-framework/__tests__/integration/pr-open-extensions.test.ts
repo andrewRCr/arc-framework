@@ -319,8 +319,8 @@ describe("PR-open lifecycle extensions", () => {
     expect(workflow).not.toContain("review-gate:assert-head-mutable");
     expect(workflow).toContain("`FixAuthorization`");
     expect(workflow).toContain("consumption is canonical");
-    expect(workflow).toContain("**FIX:**");
-    expect(workflow).toContain("**DEFER or REJECT:**");
+    expect(workflow).toContain("**Controller FIX:**");
+    expect(workflow).toContain("**Controller DEFER or REJECT:**");
     expect(workflow).toContain("**Provider-owned closure:**");
     expect(workflow).not.toContain("Triage both paths");
     expect(workflow).not.toContain("/review-gate dismiss");

@@ -154,6 +154,7 @@ describe("review response planning", () => {
       newTarget: null,
       blocking: false,
       channelActions: [],
+      localTerminalRecord: "local-disposition-report",
     });
   });
 
@@ -180,6 +181,7 @@ describe("review response planning", () => {
         receiptHandle: "controller:receipt-1",
         reply: true,
         resolve: true,
+        requiredClosure: "controller-source-confirmed",
       }],
     });
     expect(projectReviewResponse({
@@ -204,6 +206,7 @@ describe("review response planning", () => {
         threadStateHandle: "provider:thread-1",
         decisiveReviewHandle: "provider:review-1",
         reply: true,
+        requiredClosure: "provider-native-decisive",
       }],
     });
     expect(() => projectReviewResponse({

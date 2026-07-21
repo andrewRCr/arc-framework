@@ -115,6 +115,7 @@ export const ReviewResponsePlanSchema = z.strictObject({
   fixAuthorization: FixAuthorizationSchema.nullable(),
   verificationRefs: z.array(z.string().trim().min(1)),
   blocking: z.boolean(),
+  localTerminalRecord: z.literal("local-disposition-report").nullable(),
   allowedCapabilities: z.array(ReviewResponseCapabilitySchema),
   channelActions: z.array(z.discriminatedUnion("kind", [
     z.strictObject({
@@ -125,6 +126,7 @@ export const ReviewResponsePlanSchema = z.strictObject({
       threadStateHandle: AdapterHandleSchema.nullable(),
       reply: z.boolean(),
       resolve: z.boolean(),
+      requiredClosure: z.literal("controller-source-confirmed"),
     }),
     z.strictObject({
       kind: z.literal("provider-native"),
@@ -133,6 +135,7 @@ export const ReviewResponsePlanSchema = z.strictObject({
       threadStateHandle: AdapterHandleSchema,
       decisiveReviewHandle: AdapterHandleSchema,
       reply: z.boolean(),
+      requiredClosure: z.literal("provider-native-decisive"),
     }),
   ])),
   nextAction: z.string().trim().min(1),

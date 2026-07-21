@@ -114,19 +114,62 @@ export const FindingSettlementV2Schema = z.strictObject({
 });
 export type FindingSettlementV2 = z.infer<typeof FindingSettlementV2Schema>;
 
-/** Host conversation closure is evidence about a settlement, never a finding disposition. */
+/** Controller conversation closure requires same-source confirmation beyond host thread state. */
 export const FindingConversationClosureV2Schema = z.strictObject({
   schemaVersion: z.literal(2),
   semanticsVersion: ReviewGateV2SemanticsSchema,
+  closureKind: z.literal("controller-source-confirmed"),
   targetId: ReviewCanonicalDigestSchema,
   findingId: FindingIdentitySchema,
   sourceIdentity: ReviewIdentifierSchema,
   authorityIdentity: ReviewIdentifierSchema,
   settlementId: ReviewCanonicalDigestSchema,
-  hostEvidenceRef: EvidenceReferenceSchema,
+  sourceConfirmationRef: EvidenceReferenceSchema,
+  hostEvidenceRef: EvidenceReferenceSchema.nullable(),
   closedAt: z.iso.datetime({ offset: true }),
+}).superRefine((closure, context) => {
+  if (closure.authorityIdentity !== closure.sourceIdentity) {
+    context.addIssue({
+      code: "custom",
+      message: "controller closure must be confirmed by the finding source",
+      path: ["authorityIdentity"],
+    });
+  }
 });
 export type FindingConversationClosureV2 = z.infer<typeof FindingConversationClosureV2Schema>;
+
+export const ProviderNativeConversationClosureV2Schema = z.strictObject({
+  schemaVersion: z.literal(2),
+  semanticsVersion: ReviewGateV2SemanticsSchema,
+  closureKind: z.literal("provider-native-decisive"),
+  targetId: ReviewCanonicalDigestSchema,
+  providerIdentity: ReviewIdentifierSchema,
+  conversationId: ReviewIdentifierSchema,
+  decisiveReviewId: ReviewIdentifierSchema,
+  decisiveState: z.literal("approved"),
+  conversationState: z.literal("resolved"),
+  decisiveEvidenceRef: EvidenceReferenceSchema,
+  conversationEvidenceRef: EvidenceReferenceSchema,
+  observedAt: z.iso.datetime({ offset: true }),
+});
+export type ProviderNativeConversationClosureV2 = z.infer<typeof ProviderNativeConversationClosureV2Schema>;
+
+export const LocalDispositionTerminalV2Schema = z.strictObject({
+  schemaVersion: z.literal(2),
+  semanticsVersion: ReviewGateV2SemanticsSchema,
+  terminalKind: z.literal("local-disposition-report"),
+  targetId: ReviewCanonicalDigestSchema,
+  dispositionSetId: ReviewCanonicalDigestSchema,
+  approval: DispositionApprovalSchema,
+  reportRef: EvidenceReferenceSchema,
+  recordedAt: z.iso.datetime({ offset: true }),
+}).superRefine((record, context) => {
+  if (record.approval.targetId !== record.targetId
+    || record.approval.dispositionSetId !== record.dispositionSetId) {
+    context.addIssue({ code: "custom", message: "local report must bind the exact approved disposition set" });
+  }
+});
+export type LocalDispositionTerminalV2 = z.infer<typeof LocalDispositionTerminalV2Schema>;
 
 /** Register finding-domain records at their semantic owner. */
 export function registerFindingRecordSchemas(registry: KernelRegistry): KernelRegistry {
@@ -142,6 +185,16 @@ export function registerFindingRecordSchemas(registry: KernelRegistry): KernelRe
   });
   registry.register(FindingConversationClosureV2Schema, {
     id: "finding-conversation-closure",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ProviderNativeConversationClosureV2Schema, {
+    id: "provider-native-conversation-closure",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  registry.register(LocalDispositionTerminalV2Schema, {
+    id: "local-disposition-terminal",
     version: 2,
     migrationPosture: "strict-current",
   });

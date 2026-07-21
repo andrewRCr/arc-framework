@@ -93,7 +93,8 @@ planner state:
   atomically with a `(code review)` context footer through the caller's commit interlock, then bind one consumption
   record to the actual old/new targets, applying actor, and verification references. Run any active pre-push review
   action and release the push interlock only after the consumption is canonical.
-- `ready-to-close` — pass only the returned closure work to § 3's authority-specific adapters.
+- `ready-to-close` — preserve a local disposition report as terminal without adapter work, or pass only the returned
+  hosted closure work to § 3's authority-specific adapters.
 - `reroute` — recompose the exact target and return it to routing before another action.
 - `blocked` — stop with the planner's next action; do not infer a missing capability or transition.
 
@@ -105,12 +106,13 @@ provider state or prose. Run the resulting typed action/wait loop, then re-enter
 
 Settle each controller-normalized finding through exactly one authority path:
 
-- **FIX:** Retain the approved-set `FixAuthorization`, consume it once against the actual old/new target after the
+- **Controller FIX:** Retain the approved-set `FixAuthorization`, consume it once against the actual old/new target after the
   affected gates and interlocked commit succeed, require successful exact-new-head CI and a qualifying full-head
-  follow-up review with no explicit recurrence, post an accurate direct reply, append and confirm `fixed`, then
-  resolve and canonically observe the conversation.
-- **DEFER or REJECT:** Keep the head unchanged, post the authorized developer's bounded rationale as a direct reply,
-  append and confirm that disposition, then resolve and canonically observe the conversation.
+  follow-up review with no explicit recurrence, post an accurate direct reply, append and confirm `fixed`, and retain
+  any host resolution separately. Close only from the same source's explicit confirmation.
+- **Controller DEFER or REJECT:** Keep the head unchanged, post the authorized developer's bounded rationale as a
+  direct reply, append and confirm that disposition, and retain any host resolution separately. Close only from the
+  same source's explicit confirmation.
 - **Provider-owned closure:** Accept only an explicit closure relation from the same qualified source that issued the
   finding. Record `provider-closed` without speaking for the provider or mutating the thread on its behalf.
 
@@ -118,8 +120,9 @@ A bare host-thread mutation, generic approval, provider ignore command, coordina
 provider review request cannot close or satisfy a requirement. Thread resolution is a separate observation that may
 follow durable coordinator authority; it is never authority by itself.
 
-A provider-native conversation closes only when its provider's current decisive state and conversation status confirm
-it. Never mint a controller finding or settlement for a native artifact the provider boundary cannot model.
+A provider-native conversation closes only when its provider's current decisive state is approved and the conversation
+is resolved, each with canonical evidence. Never mint a controller finding or settlement for a native artifact the
+provider boundary cannot model.
 
 ## 4. Return Settled State
 

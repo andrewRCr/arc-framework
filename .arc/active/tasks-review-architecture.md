@@ -685,10 +685,14 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
           commit → consumption. Forward settlements retain the complete consumption; legacy schema-v1 receipt payloads
           remain unchanged and ineligible, while non-fix dispositions never mint fix authority or move the target.
 
-    - `[ ]` **6.2.c Close each channel with its own authority**
-        - Preserve source-confirmed closure for controller findings; require provider decisive state/conversation
-          status for native findings; keep local disposition reports as the terminal record.
-        - Reject generic approval, bare thread mutation, coordinator claims, and provider ignore commands as closure.
+    - `[x]` **6.2.c Close each channel with its own authority**
+        - Registered distinct controller-source-confirmed, provider-native-decisive, and local-disposition-terminal
+          records. Controller closure now validates same-source evidence before any host mutation; host resolution is
+          retained only as optional observation.
+        - Provider-native closure requires canonical decisive approval and resolved-conversation evidence together,
+          while local review terminates on the exact approved disposition report without a synthetic conversation.
+        - Response plans declare the required authority per action and reject bare resolution, generic approval,
+          coordinator claims, changes-requested/review-required state, and provider ignore commands.
 
     - `[ ]` **6.2.d Make severity gating deterministic**
         - Add project-policy `minorGating: blocking | record-only`, default package and self-hosting to `record-only`,

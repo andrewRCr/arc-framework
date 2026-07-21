@@ -88,22 +88,34 @@ export async function ensureFindingConversationClosureV2(input: {
   threadId: string;
   expectedHeadSha: string;
   settlement: FindingSettlementV2;
-  authorityIdentity: string;
+  resolverIdentity: string;
+  sourceConfirmation: {
+    authorityIdentity: string;
+    evidenceRef: string;
+  };
   closedAt: string;
 }, deps: {
   developer: ThreadDeveloperPort;
   canonical: { readThread(threadId: string): Promise<SettlementThread> };
 }): Promise<FindingConversationClosureV2> {
+  createFindingConversationClosureV2({
+    settlement: input.settlement,
+    authorityIdentity: input.sourceConfirmation.authorityIdentity,
+    sourceConfirmationRef: input.sourceConfirmation.evidenceRef,
+    hostEvidenceRef: null,
+    closedAt: input.closedAt,
+  });
   const thread = await ensureThreadResolution({
     repositoryRef: input.repositoryRef,
     pullRequestNumber: input.pullRequestNumber,
     threadId: input.threadId,
-    expectedActorIdentity: input.authorityIdentity,
+    expectedActorIdentity: input.resolverIdentity,
     expectedHeadSha: input.expectedHeadSha,
   }, deps);
   return createFindingConversationClosureV2({
     settlement: input.settlement,
-    authorityIdentity: input.authorityIdentity,
+    authorityIdentity: input.sourceConfirmation.authorityIdentity,
+    sourceConfirmationRef: input.sourceConfirmation.evidenceRef,
     hostEvidenceRef: `github-review-thread:${thread.threadId}:resolved`,
     closedAt: input.closedAt,
   });

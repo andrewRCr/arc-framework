@@ -13,10 +13,14 @@ import { validateDispositionState } from "../core/dispositions.js";
 import {
   FindingConversationClosureV2Schema,
   FindingSettlementV2Schema,
+  LocalDispositionTerminalV2Schema,
   NormalizedReviewFindingSchema,
+  ProviderNativeConversationClosureV2Schema,
   type FindingConversationClosureV2,
   type FindingSettlementV2,
+  type LocalDispositionTerminalV2,
   type NormalizedReviewFinding,
+  type ProviderNativeConversationClosureV2,
 } from "../core/finding-records.js";
 import type { ReviewReceipt, ReviewRequest } from "../core/execution.js";
 import { createReceipt } from "../core/request-key.js";
@@ -67,20 +71,63 @@ export function createFindingSettlementV2(input: {
 export function createFindingConversationClosureV2(input: {
   settlement: FindingSettlementV2;
   authorityIdentity: string;
-  hostEvidenceRef: string;
+  sourceConfirmationRef: string;
+  hostEvidenceRef: string | null;
   closedAt: string;
 }): FindingConversationClosureV2 {
   const settlement = FindingSettlementV2Schema.parse(input.settlement);
   return FindingConversationClosureV2Schema.parse({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
+    closureKind: "controller-source-confirmed",
     targetId: settlement.targetId,
     findingId: settlement.findingId,
     sourceIdentity: settlement.sourceIdentity,
     authorityIdentity: input.authorityIdentity,
     settlementId: canonicalDigest(settlement),
+    sourceConfirmationRef: input.sourceConfirmationRef,
     hostEvidenceRef: input.hostEvidenceRef,
     closedAt: input.closedAt,
+  });
+}
+
+/** Record provider-native terminal state only from both decisive review and resolved conversation evidence. */
+export function createProviderNativeConversationClosureV2(input: {
+  targetId: string;
+  providerIdentity: string;
+  conversationId: string;
+  decisiveReviewId: string;
+  decisiveState: "approved" | "changes-requested" | "review-required" | null;
+  conversationState: "resolved" | "unresolved";
+  decisiveEvidenceRef: string;
+  conversationEvidenceRef: string;
+  observedAt: string;
+}): ProviderNativeConversationClosureV2 {
+  return ProviderNativeConversationClosureV2Schema.parse({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    closureKind: "provider-native-decisive",
+    ...input,
+  });
+}
+
+/** Preserve the exact approved disposition report as the local channel's terminal record. */
+export function createLocalDispositionTerminalV2(input: {
+  dispositionState: ApprovedDispositionSet;
+  reportRef: string;
+  recordedAt: string;
+}): LocalDispositionTerminalV2 {
+  const state = validateDispositionState(input.dispositionState);
+  if (state.state !== "approved") throw new Error("local terminal record requires approved dispositions");
+  return LocalDispositionTerminalV2Schema.parse({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    terminalKind: "local-disposition-report",
+    targetId: state.dispositionSet.targetId,
+    dispositionSetId: state.dispositionSet.dispositionSetId,
+    approval: state.approval,
+    reportRef: input.reportRef,
+    recordedAt: input.recordedAt,
   });
 }
 

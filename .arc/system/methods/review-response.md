@@ -63,8 +63,9 @@ Follow the planner state; do not infer or combine transitions:
 - For `ready-to-persist`, report the verified candidate and return control to the caller's commit interlock. Bind the
   authorization consumption to the actual old/new target, applying actor, and verification references before any push
   interlock can release.
-- For `ready-to-close`, return approved unchanged-target dispositions to the adapter; do not author replies or
-  resolve conversations here.
+- For `ready-to-close`, return the channel's declared terminal authority: the approved disposition report for local,
+  same-source confirmation for controller findings, or provider decisive review plus resolved conversation for
+  provider-native findings. Do not author replies or resolve conversations here.
 - For `reroute`, return the persisted changed target to the coordinator; do not choose or invoke a retrigger.
 - For `blocked`, report the planner's next action and stop without mutation.
 
@@ -73,17 +74,18 @@ review source, persists, or performs adapter-owned closure within this method.
 
 ### Keep response etiquette at the channel boundary
 
-- **Local:** The approved disposition report is the complete audience-visible record. Emit no synthetic reply or
-  closure surface.
+- **Local:** The approved disposition report is the complete audience-visible terminal record. Emit no synthetic reply
+  or closure surface.
 - **Hosted:** Return reply or resolution work only for a finding whose adapter supplied an authoritative comment or
   thread capability. Controller actions return the receipt handle and only their declared reply/resolution handles.
   Provider-native actions return provider-reply, thread-state, and decisive-review handles without acquiring a
   resolution capability. A finding without its own conversation produces no hosted response; never create a roll-up
   comment.
 
-Conversation resolution records host state only. It is not disposition approval or provider closure authority.
-Never impersonate a provider, infer provider closure from a resolved thread, or let coordinator-authored text satisfy
-source-confirmed closure.
+Conversation resolution records host state only. Controller closure additionally requires confirmation from the
+finding source. Provider-native closure requires both the provider's current decisive approval and resolved
+conversation state. Generic approval, bare thread mutation, coordinator-authored text, and provider ignore commands
+never satisfy either authority.
 
 ---
 
