@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { canonicalize } from "../../../../../src/lib/kernel/index.js";
 import { canonicalizeReviewGateV1 } from "../../../../../src/scripts/review-gate/core/legacy-canonical-v1.js";
 
 describe("legacy review-gate version-1 canonicalization", () => {
@@ -16,6 +17,16 @@ describe("legacy review-gate version-1 canonicalization", () => {
     expect(canonicalizeReviewGateV1({ value: "é" })).toBe('{"value":"é"}');
     expect(canonicalizeReviewGateV1({ value: "e\u0301" })).toBe('{"value":"é"}');
     expect(canonicalizeReviewGateV1({ 10: "ten", 2: "two" })).toBe('{"2":"two","10":"ten"}');
+  });
+
+  it("demonstrates the accepted Unicode value used by durability fixtures diverges", () => {
+    const value = { evidenceRef: "https://example.test/evidence/e\u0301" };
+
+    expect(canonicalizeReviewGateV1(value)).toBe(
+      '{"evidenceRef":"https://example.test/evidence/é"}',
+    );
+    expect(canonicalize(value)).toBe('{"evidenceRef":"https://example.test/evidence/é"}');
+    expect(canonicalizeReviewGateV1(value)).not.toBe(canonicalize(value));
   });
 
   it("preserves legacy JSON edge behavior", () => {
