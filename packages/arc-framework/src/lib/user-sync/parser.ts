@@ -14,8 +14,12 @@
  * @module
  */
 
-import type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";
-import { CrossWuEntryParseSchema } from "./schema.js";
+import {
+  CrossWuEntryParseSchema,
+  type CrossWuEntry,
+  type EntryParse,
+} from "./schema.js";
+import type { CrossWuShape } from "./types.js";
 
 /** Bold-field header line: starts with `**`, ends with `:**`. */
 const WM_HEADER = /^\*\*.+:\*\*\s*$/;

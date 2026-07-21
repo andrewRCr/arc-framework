@@ -336,7 +336,7 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
 - _Outcome:_ Every local sync-state ingress and producer now crosses the versioned schemas, while real-file, built-CLI,
   concurrent marker, and ref-backed tests preserve the existing migration, carry-forward, and recovery lifecycle.
 
-### `[ ]` **4.3 Establish cross-work-unit note adapter schemas**
+### `[x]` **4.3 Establish cross-work-unit note adapter schemas**
 
 - _Goal:_ Cross-work-unit note parsing has schema-derived success and failure shapes while retaining title/header
   identity, no-throw recovery, and byte-lossless reconstruction.
@@ -351,17 +351,14 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
           exposure, keeping authored malformation as no-throw data while schema defects throw. Characterization coverage
           pins exact reasons, full-header and section-scoped title identity, and raw bytes apart from trailing blanks.
 
-    - `[ ]` **4.3.c Migrate merge and downstream parser consumers**
-        - Move merge, inbox/session probes, and baseline entry extraction onto the inferred payloads without changing
-          their caller-specific failure handling.
-        - Preserve most-recent-note conflict resolution, tombstone precedence and expiry, malformed-reason
-          deduplication, unknown-file fallback, and reconstructed output bytes.
-        - Keep the materialized-baseline stamp and its handwritten validator unchanged; only its cross-WU parser input
-          adopts the inferred entry type because that stamp remains owned by the cohort tail.
-        - Build `test-first` (one behavior at a time):
-            - preserve multi-note identity collisions, older-only union, and tombstone outcomes;
-            - preserve lossless reconstructed Working Memory and User Inbox bytes;
-            - preserve inbox counts/reminders and baseline entry hashes without converting the baseline stamp.
+    - `[x]` **4.3.c Migrate merge and downstream parser consumers**
+        - Moved parser, merge, inbox-state/reminder, and baseline extraction seams onto the schema-inferred payloads;
+          public exports remain compatible and the baseline stamp/validator stay handwritten. Existing exact-byte,
+          collision, union, tombstone, malformed-reason, count/reminder, and entry-hash coverage remains unchanged.
+
+- _Outcome:_ Cross-work-unit entry/result structure now has one strict runtime and type authority from parser assembly
+  through merge, session probes, and baseline extraction, without elevating the Markdown adapter or baseline stamp to
+  a registered durable contract.
 
 ## **Phase 5:** Unregistered ingress contracts
 

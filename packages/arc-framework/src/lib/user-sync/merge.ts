@@ -14,7 +14,8 @@
 
 import { parseCrossWuEntries, shapeForFile } from "./parser.js";
 import { stripTombstoneSections } from "./projection.js";
-import type { CrossWuEntry, CrossWuShape } from "./types.js";
+import type { CrossWuEntry } from "./schema.js";
+import type { CrossWuShape } from "./types.js";
 
 /** Section-scoped identity key shared by entries and tombstones. */
 function idOf(section: string, key: string): string {
