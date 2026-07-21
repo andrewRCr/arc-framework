@@ -17,6 +17,7 @@ describe("canonical review identities", () => {
     expect(computeChangeSetId({ baseRef: "release", diffBaseSha, headSha })).not.toBe(identity);
     expect(computeChangeSetId({ baseRef: "main", diffBaseSha: "c".repeat(40), headSha })).not.toBe(identity);
     expect(computeChangeSetId({ baseRef: "main", diffBaseSha, headSha: "d".repeat(40) })).not.toBe(identity);
+    expect(identity).toBe("b6b08cdc346a8bea4ce30d3d9420168c8db4a3766d2d88e74c2cc02e40acd6f5");
   });
 
   it("sorts object keys recursively while preserving array order", () => {
@@ -29,6 +30,21 @@ describe("canonical review identities", () => {
     expect(computePolicyVersion({ policy: { list: [1, 2] } })).not.toBe(
       computePolicyVersion({ policy: { list: [2, 1] } }),
     );
+  });
+
+  it("adopts kernel Unicode ordering and normalization", () => {
+    expect(canonicalizePlainJson({ z: 1, ä: 2 })).toBe('{"z":1,"ä":2}');
+    expect(canonicalizePlainJson({ value: "e\u0301" })).toBe('{"value":"é"}');
+    expect(canonicalizePlainJson({ "e\u0301": 1 })).toBe('{"é":1}');
+    expect(() => canonicalizePlainJson({ é: 1, "e\u0301": 2 })).toThrow(/collide/u);
+  });
+
+  it("rejects malformed Unicode and sparse arrays", () => {
+    const sparse = ["first", "second"];
+    delete sparse[0];
+
+    expect(() => canonicalizePlainJson("\ud800")).toThrow(/well-formed Unicode/u);
+    expect(() => canonicalizePlainJson(sparse)).toThrow(/sparse arrays/u);
   });
 
   it("changes policy identity for data, predicate, or semantics changes", () => {

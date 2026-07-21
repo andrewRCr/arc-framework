@@ -502,16 +502,11 @@ version-1 review-gate identity behind a repository-private frozen serializer.
 - _Goal:_ Newly computed policy, permission, and repair-result identities share the kernel's canonicalization
   authority without adopting its digest wire prefix.
 
-    - `[ ]` **7.2.a Delegate `canonicalizePlainJson()` to the kernel**
-        - Retain the review-gate export and existing hash helpers, but replace its local normalization algorithm with
-          direct kernel `canonicalize()` delegation.
-        - Preserve digest formatting and keep `computeChangeSetId()` on its existing NUL-delimited identity contract.
-        - Build `test-first` (one behavior at a time):
-            - preserve representative recursive ASCII output while adopting Unicode-codepoint key order;
-            - NFC-normalize string values and keys, and reject keys that collide after normalization;
-            - reject malformed Unicode and sparse arrays through the review-gate compatibility export;
-            - retain the existing unprefixed 64-hex digest shape and literal NUL-delimited `computeChangeSetId()`
-              fixture.
+    - `[x]` **7.2.a Delegate `canonicalizePlainJson()` to the kernel**
+        - Replaced the duplicate normalizer with direct kernel `canonicalize()` delegation while retaining the
+          review-gate export and unprefixed hash helpers. ASCII and the literal NUL-delimited change-set identity stay
+          fixed; Unicode ordering/NFC behavior, collision checks, malformed-Unicode refusal, and sparse rejection now
+          match the kernel authority.
 
     - `[ ]` **7.2.b Route the recomputable caller set**
         - Keep `computePolicyVersion()` directly on `canonicalizePlainJson()`, and retain
