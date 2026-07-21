@@ -15,17 +15,27 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
-import { attachLocusAtRuntime, releaseLocusAtRuntime } from "../lib/locus/command-runtime.js";
+import {
+  attachLocusAtRuntime,
+  releaseLocusAtRuntime,
+  resolveLocusAtRuntime,
+} from "../lib/locus/command-runtime.js";
 import { formatErrandOpenResult } from "./errand.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
 import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
+import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
+import { settleHousekeepAtRuntime } from "../lib/housekeep/lifecycle-runtime.js";
+import { settleGroomAtRuntime } from "../lib/groom/tail-runtime.js";
+import { unmarkCurrentInboxEntry } from "../commands/user/inbox-mutation.js";
+import type { LocusResolveAction } from "../lib/locus/resolve-driver.js";
 
 export interface LocusCliOptions {
   json?: boolean;
 }
 
 export interface LocusAttachOptions extends LocusCliOptions { checkout?: string }
-export interface LocusReleaseOptions extends LocusCliOptions { checkout?: string; lease: string }
+export interface LocusReleaseOptions extends LocusCliOptions { lease: string }
+export interface LocusResolveOptions extends LocusCliOptions { action: string }
 
 /** Attach the entering process to one reader-trusted managed checkout. */
 export async function handleLocusAttach(options: LocusAttachOptions): Promise<void> {
@@ -33,13 +43,85 @@ export async function handleLocusAttach(options: LocusAttachOptions): Promise<vo
 }
 
 /** Release only one caller-named exact lease generation. */
-export async function handleLocusRelease(options: LocusReleaseOptions): Promise<void> {
-  await handleLocusMutation("release", options);
+export async function handleLocusRelease(recordId: string, options: LocusReleaseOptions): Promise<void> {
+  await handleLocusMutation("release", { ...options, recordId });
+}
+
+/** Resume or abandon one exact conclusively dead transient generation. */
+export async function handleLocusResolve(recordId: string, options: LocusResolveOptions): Promise<void> {
+  const cwd = requireArcProjectRoot();
+  if (cwd === null) return;
+  if (options.action !== "resume" && options.action !== "abandon") {
+    emitMutation(createLocusMutationResult({
+      outcome: "error", operation: "locus-resolve",
+      error: { code: "locus.resolve.input", message: "--action must be 'resume' or 'abandon'." },
+      recommendedPromptText: "Choose one supported residue action.",
+    }), options.json === true);
+    return;
+  }
+  const action: LocusResolveAction = options.action;
+  const identity = await resolveIdentityWithPrompt(false);
+  if (identity === null) return;
+  const io = createUserIOContext();
+  if (!io.execInput) return;
+  const execInput = io.execInput;
+  const { settings } = await readConfigSettings(cwd);
+  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
+  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+    cwd, identity: SlugSchema.parse(identity), exec: io.exec,
+  })).identityGlobalRoot;
+  const common = {
+    recordId, action, base: settings["branch.base"], identity, cwd,
+    postCreateScript: settings["worktree.post_create"],
+    registeredHarnessDirs: settings["worktree.harness_dirs"],
+    io: { ...io, execInput },
+  };
+  let result: LocusMutationResultV1;
+  try {
+    result = await resolveLocusAtRuntime({
+      ...common,
+      abandon: async (subject, key) => {
+        if (subject === "housekeep") {
+          return settleHousekeepAtRuntime({ ...common, slug: key, action: "abandon" });
+        }
+        if (subject === "groom") {
+          const anchorStub = key.startsWith("groom-") ? key.slice("groom-".length) : key;
+          return settleGroomAtRuntime({
+            anchorStub, action: "abandon", base: common.base, identity,
+            postCreateScript: common.postCreateScript, registeredHarnessDirs: common.registeredHarnessDirs,
+            exec: io.exec, execInput, cwd,
+          });
+        }
+        return abandonOrdinaryErrandAtRuntime({
+          slug: key, protection: "full", base: common.base, identity, identityGlobalUserDir,
+          activeExtensions: activeExtensions.active, postCreateScript: common.postCreateScript,
+          registeredHarnessDirs: common.registeredHarnessDirs, exec: io.exec, execInput,
+          clearDispatch: async (record) => {
+            if (record.originEntry === null || record.dispatchId === null) return { kind: "idempotent" };
+            const cleared = await unmarkCurrentInboxEntry({
+              cwd, io, identity, title: record.originEntry, dispatchId: record.dispatchId,
+            });
+            return { kind: cleared.changed ? "applied" : "idempotent" };
+          },
+        });
+      },
+    });
+  } catch (error) {
+    result = createLocusMutationResult({
+      outcome: "error", operation: "locus-resolve",
+      error: {
+        code: "locus.resolve.failed",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      recommendedPromptText: "Inspect the retained transient generation before retrying.",
+    });
+  }
+  emitMutation(result, options.json === true);
 }
 
 async function handleLocusMutation(
   action: "attach" | "release",
-  options: LocusAttachOptions | LocusReleaseOptions,
+  options: LocusAttachOptions | (LocusReleaseOptions & { recordId?: string }),
 ): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (cwd === null) return;
@@ -56,7 +138,9 @@ async function handleLocusMutation(
   }
   const { settings } = await readConfigSettings(cwd);
   const runtimeOptions = {
-    checkout: options.checkout, base: settings["branch.base"], identity, cwd,
+    checkout: "checkout" in options ? options.checkout : undefined,
+    recordId: "recordId" in options ? options.recordId : undefined,
+    base: settings["branch.base"], identity, cwd,
     postCreateScript: settings["worktree.post_create"],
     registeredHarnessDirs: settings["worktree.harness_dirs"],
     io: { ...io, execInput: io.execInput },

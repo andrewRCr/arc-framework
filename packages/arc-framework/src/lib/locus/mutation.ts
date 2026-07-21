@@ -150,6 +150,46 @@ export async function attachLocusLease(options: {
     : { kind: "refused", reason: "lease-generation-mismatch" };
 }
 
+/** Replace one exact conclusively dead transient lease without changing its trusted role. */
+export async function resumeDeadTransientLease(options: {
+  recordId: string;
+  expectedLeaseId: string;
+  sessionHomePath: string;
+  anchor: LocusAnchor;
+  leaseId?: string;
+  attachedAt: string;
+  heartbeatAt: string;
+  observedLiveness: ProcessLiveness;
+  io: LocusLeaseMutationIO;
+}): Promise<LocusLeaseMutationResult> {
+  const existing = await options.io.read();
+  if (existing.kind !== "valid" || existing.record.recordId !== options.recordId) {
+    return { kind: "refused", reason: "record-malformed" };
+  }
+  const current = existing.record.lease;
+  if (current === null || current.leaseId !== options.expectedLeaseId) {
+    return { kind: "refused", reason: "lease-generation-mismatch" };
+  }
+  if (options.observedLiveness === "live") return { kind: "refused", reason: "lease-live" };
+  if (options.observedLiveness !== "dead") return { kind: "refused", reason: "lease-unknown" };
+  if (existing.record.role.kind === "work-unit") return { kind: "refused", reason: "role-conflict" };
+  const parsed = LocusRecordV1Schema.safeParse({
+    ...existing.record,
+    lease: {
+      leaseId: options.leaseId ?? randomBytes(16).toString("hex"),
+      sessionHomePath: options.sessionHomePath,
+      anchor: options.anchor,
+      attachedAt: options.attachedAt,
+      heartbeatAt: options.heartbeatAt,
+    },
+  });
+  if (!parsed.success) return { kind: "refused", reason: "record-malformed" };
+  const replaced = await options.io.replace(existing.bytes, parsed.data);
+  return replaced.kind === "replaced"
+    ? { kind: "applied", record: parsed.data, bytes: replaced.bytes }
+    : { kind: "refused", reason: "lease-generation-mismatch" };
+}
+
 /**
  * Refresh an exact lease generation only for a state-touching operation.
  * @param options - Expected record/lease generation, anchor, heartbeat, call class, and store port.

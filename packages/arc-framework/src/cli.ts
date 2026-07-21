@@ -105,8 +105,10 @@ import {
   handleLocus,
   handleLocusAttach,
   handleLocusRelease,
+  handleLocusResolve,
   type LocusAttachOptions,
   type LocusReleaseOptions,
+  type LocusResolveOptions,
 } from "./handlers/locus.js";
 import { handleView, type ViewCliOptions } from "./handlers/view.js";
 import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
@@ -751,12 +753,18 @@ locusCmd
   .action((opts: LocusAttachOptions) => handleLocusAttach(opts));
 
 locusCmd
-  .command("release")
+  .command("release <recordId>")
   .description("Release one exact caller-named lease generation")
   .requiredOption("--lease <id>", "Exact lease generation to release")
-  .option("--checkout <path>", "Select one roster-backed checkout")
   .option("--json", "Emit one typed locus mutation result")
-  .action((opts: LocusReleaseOptions) => handleLocusRelease(opts));
+  .action((recordId: string, opts: LocusReleaseOptions) => handleLocusRelease(recordId, opts));
+
+locusCmd
+  .command("resolve <recordId>")
+  .description("Resume or abandon one exact conclusively dead transient generation")
+  .requiredOption("--action <action>", "Resolution action: resume | abandon")
+  .option("--json", "Emit one typed locus mutation result")
+  .action((recordId: string, opts: LocusResolveOptions) => handleLocusResolve(recordId, opts));
 
 // --- Recover ---
 

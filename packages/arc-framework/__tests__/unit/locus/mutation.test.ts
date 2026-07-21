@@ -10,6 +10,7 @@ import {
   popLocusRole,
   refreshLocusLeaseHeartbeat,
   releaseLocusLease,
+  resumeDeadTransientLease,
   updateLocusRole,
   type LocusLeaseMutationIO,
   type LocusRolePopIO,
@@ -507,6 +508,55 @@ describe("durable locus role minting", () => {
       leaseId: "a".repeat(32),
       io: exact.io,
     })).toMatchObject({ kind: "idempotent", record: { lease: null } });
+  });
+
+  it("replaces only the exact dead transient lease generation", async () => {
+    const store = memoryIO();
+    await mintDurableLocusRole({
+      ...BASE,
+      authority: { kind: "identity", identity: errandIdentity("errand") },
+      io: store.io,
+    });
+    const originalAnchor = {
+      kind: "process" as const,
+      pid: 42,
+      startToken: "old",
+      inspector: "test",
+      selector: "codex",
+    };
+    await attachLocusLease({
+      recordId: BASE.recordId,
+      sessionHomePath: BASE.checkoutPath,
+      anchor: originalAnchor,
+      leaseId: "a".repeat(32),
+      attachedAt: "2026-07-20T01:00:00.000Z",
+      heartbeatAt: "2026-07-20T01:00:00.000Z",
+      observedLiveness: null,
+      io: store.io,
+    });
+    const request = {
+      recordId: BASE.recordId,
+      expectedLeaseId: "a".repeat(32),
+      sessionHomePath: BASE.checkoutPath,
+      anchor: { ...originalAnchor, pid: 43, startToken: "new" },
+      leaseId: "b".repeat(32),
+      attachedAt: "2026-07-20T02:00:00.000Z",
+      heartbeatAt: "2026-07-20T02:00:00.000Z",
+      observedLiveness: "dead" as const,
+      io: store.io,
+    };
+
+    expect(await resumeDeadTransientLease(request)).toMatchObject({
+      kind: "applied",
+      record: { lease: { leaseId: "b".repeat(32), anchor: request.anchor } },
+    });
+    expect(await resumeDeadTransientLease(request))
+      .toEqual({ kind: "refused", reason: "lease-generation-mismatch" });
+    expect(await resumeDeadTransientLease({
+      ...request,
+      expectedLeaseId: "b".repeat(32),
+      observedLiveness: "live",
+    })).toEqual({ kind: "refused", reason: "lease-live" });
   });
 
   it("updates a directed role and parent only from the exact prior role generation", async () => {

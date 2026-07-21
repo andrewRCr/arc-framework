@@ -590,17 +590,13 @@ result so workflows consume verbs and precomposed verdicts.
         - Reuses the entering process's exact lease generation idempotently, refuses live/unknown or changed
           authority, retains the durable role on release, and registers shared human/JSON mutation-result commands.
 
-    - `[ ]` **5.6.b Add `arc locus resolve` through subject-owned resume and abandon drivers**
-        - Dispatch dead transient residue to the matching Errand, housekeep, or groom driver while refusing live,
-          unknown, dirty, unproven, missing-checkout, or changed-generation state.
-        - Separate remote/host proof and identity transitions from the final local record-lock critical section;
-          rederive and validate the expected action at each boundary and perform no remote call while holding a locus
-          lock.
-        - Register resolve and `--json` through `packages/arc-framework/src/cli.ts`; render only the shared mutation
-          result.
-        - Build `test-first` (one behavior at a time):
-            - Cover each subject/action pair, live/unknown/dirty/unproven refusal, changed generation, missing
-              checkout, remote/host failure, and exact dispatch cleanup delegation.
+    - `[x]` **5.6.b Add `arc locus resolve` through subject-owned resume and abandon drivers**
+        - Added exact record selection and trusted-role dispatch for Errand, housekeep, and groom resume/abandon;
+          live, unknown, absent-lease, dirty, missing-checkout, unproven, duplicate, and raced generations refuse.
+        - Resume replaces only the selected dead lease under its record lock, while abandonment delegates remote,
+          host, identity, dispatch, and teardown work outside that lock to the matching lifecycle driver.
+        - Registered the positional record/action CLI boundary and shared human/JSON mutation result, including
+          operational error containment that leaves the selected generation available for retry.
 
     - `[ ]` **5.6.c Cover stateful command boundaries end to end**
         - Cover trusted adoption, exact release, every subject dispatch, raced revalidation, failed allocation
