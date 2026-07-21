@@ -206,10 +206,27 @@ export const ARC_CONFIG_FIELDS = [
   positiveSafeIntegerField("integration.stale_after_days", "2", 1),
 ] as const satisfies readonly ArcConfigFieldDescriptor[];
 
-type ArcConfigField = (typeof ARC_CONFIG_FIELDS)[number];
+/** One field from the authoritative project-configuration catalog. */
+export type ArcConfigField = (typeof ARC_CONFIG_FIELDS)[number];
 
 /** Every active project-level configuration key. */
 export type ArcConfigKey = ArcConfigField["key"];
+
+/**
+ * Resolve one catalog descriptor while preserving its key-specific type.
+ *
+ * @param key - Registered project-configuration key
+ * @returns The descriptor registered for that key
+ */
+export function getArcConfigField<Key extends ArcConfigKey>(
+  key: Key,
+): Extract<ArcConfigField, { key: Key }> {
+  const field = ARC_CONFIG_FIELDS.find((candidate) => candidate.key === key);
+  if (field === undefined) {
+    throw new Error(`Unknown ARC config field: ${key}`);
+  }
+  return field as Extract<ArcConfigField, { key: Key }>;
+}
 
 type KnownConfigShape = {
   [Key in ArcConfigKey]: Extract<ArcConfigField, { key: Key }>["schema"];
@@ -233,13 +250,24 @@ export const ArcConfigSchema = z.intersection(
   z.looseObject(knownConfigShape).partial(),
 );
 
-type AgentConsumableConfigKey = Exclude<ArcConfigKey, `hooks.${string}`>;
+/** Project keys surfaced to agents rather than consumed only by hooks. */
+export type AgentConsumableConfigKey = Exclude<ArcConfigKey, `hooks.${string}`>;
+
+/** One descriptor from the agent-consumable catalog projection. */
+export type AgentConsumableConfigField = Extract<
+  ArcConfigField,
+  { key: AgentConsumableConfigKey }
+>;
+
+/** Ordered catalog projection surfaced by status and lifecycle adapters. */
+export const AGENT_CONSUMABLE_CONFIG_FIELDS = ARC_CONFIG_FIELDS.filter(
+  ({ key }) => !key.startsWith("hooks."),
+) as readonly AgentConsumableConfigField[];
+
 type ConfigSettingsShape = { [Key in AgentConsumableConfigKey]: z.ZodString };
 
 const configSettingsShape = Object.fromEntries(
-  ARC_CONFIG_FIELDS
-    .filter(({ key }) => !key.startsWith("hooks."))
-    .map(({ key }) => [key, z.string()]),
+  AGENT_CONSUMABLE_CONFIG_FIELDS.map(({ key }) => [key, z.string()]),
 ) as ConfigSettingsShape;
 
 /** Complete, raw-string projection consumed by agent-facing status and lifecycle adapters. */

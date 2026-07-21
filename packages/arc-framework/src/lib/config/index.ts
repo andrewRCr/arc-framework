@@ -8,7 +8,15 @@
 
 import { CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE } from "../constants.js";
 import type { InstallConfig } from "../types.js";
-import { RawArcConfigSchema, type RawArcConfig } from "./schema.js";
+import {
+  getArcConfigField,
+  RawArcConfigSchema,
+  type RawArcConfig,
+} from "./schema.js";
+
+const PM_MODE_FIELD = getArcConfigField("pm.mode");
+const TEAM_MODE_FIELD = getArcConfigField("team.mode");
+const NOTES_PUSH_FIELD = getArcConfigField("user.notes_push");
 
 // --- Config Key Overrides ---
 
@@ -25,10 +33,13 @@ import { RawArcConfigSchema, type RawArcConfig } from "./schema.js";
 export function buildConfigKeyOverrides(
   source: { pm_mode: string; team_mode?: boolean },
 ): Record<string, string> {
+  const teamMode = source.team_mode ?? (TEAM_MODE_FIELD.defaultValue === "true");
   return {
-    [CONFIG_KEY_PM_MODE]: source.pm_mode,
-    [CONFIG_KEY_TEAM_MODE]: String(source.team_mode ?? false),
-    "user.notes_push": source.team_mode ? "prompt" : "on-sync",
+    [PM_MODE_FIELD.key]: source.pm_mode,
+    [TEAM_MODE_FIELD.key]: String(teamMode),
+    [NOTES_PUSH_FIELD.key]: NOTES_PUSH_FIELD.schema.parse(
+      teamMode ? "prompt" : NOTES_PUSH_FIELD.defaultValue,
+    ),
   };
 }
 

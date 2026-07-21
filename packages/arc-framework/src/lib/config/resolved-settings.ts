@@ -48,6 +48,7 @@ import {
   type ResolvedConfigOverride,
 } from "./resolve-override.js";
 import { readConfigSettings } from "./status-reader.js";
+import { getArcConfigField } from "./schema.js";
 import type { ConfigSettings } from "../../commands/config/types.js";
 import type { GitExec } from "../git/index.js";
 
@@ -115,13 +116,15 @@ function isSyncInterlock(value: string): value is SyncInterlock {
   return (SYNC_INTERLOCK_VALUES as readonly string[]).includes(value);
 }
 
+const NOTES_PUSH_FIELD = getArcConfigField("user.notes_push");
+const NOTES_PUSH_VALUES = NOTES_PUSH_FIELD.policy.values;
+
 /** Valid notes-push policy values. */
-export type NotesPushPolicy = "manual" | "prompt" | "on-sync";
+export type NotesPushPolicy = (typeof NOTES_PUSH_VALUES)[number];
 
 export const NOTES_PUSH_GIT_CONFIG_KEY = "arc.notesPush";
-export const NOTES_PUSH_YAML_KEY = "user.notes_push";
-export const DEFAULT_NOTES_PUSH_POLICY: NotesPushPolicy = "on-sync";
-const NOTES_PUSH_VALUES: readonly NotesPushPolicy[] = ["manual", "prompt", "on-sync"];
+export const NOTES_PUSH_YAML_KEY = NOTES_PUSH_FIELD.key;
+export const DEFAULT_NOTES_PUSH_POLICY: NotesPushPolicy = NOTES_PUSH_FIELD.defaultValue;
 
 function isNotesPushPolicy(value: string): value is NotesPushPolicy {
   return (NOTES_PUSH_VALUES as readonly string[]).includes(value);

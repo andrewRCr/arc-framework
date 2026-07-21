@@ -15,6 +15,7 @@ import { z } from "zod";
 import { ARC_CONFIG_SEGMENTS } from "../constants.js";
 import { gitConfigGet, type GitExec } from "../git/index.js";
 import { parseArcConfig } from "./index.js";
+import type { ArcConfigKey } from "./schema.js";
 
 /** Runtime authority for the source tier that supplied a resolved value. */
 export const ConfigOverrideSourceSchema = z.enum(["git-config", "yaml", "default"]);
@@ -56,7 +57,7 @@ export interface ResolveGitConfigOverrideOptions<T extends string> {
    * the yaml tier is skipped and resolution falls through directly from
    * git-config to default.
    */
-  yamlKey?: string;
+  yamlKey?: ArcConfigKey;
   /** Value returned when neither configured source supplies a valid value. */
   defaultValue: T;
   /** Per-key validator for values read from git config or yaml. */

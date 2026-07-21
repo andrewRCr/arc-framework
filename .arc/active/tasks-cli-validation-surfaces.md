@@ -196,16 +196,12 @@ the distinct recovery and precedence policies of existing adapters.
           the existing tokenizer corpus preserves broad names, line endings, quoting, colon values, and first-claim
           behavior for bare and quoted empty definitions without adding normalization.
 
-    - `[ ]` **3.2.b Migrate agent-consumable and precedence-aware readers**
-        - Source the `readConfigSettings()` key projection, defaults, and tolerant enum checks from catalog-derived
-          descriptors, then parse the assembled complete map through `ConfigSettingsSchema` before return.
-        - Keep `user.notes_push` raw until the git-config precedence resolver validates it, and preserve provenance
-          in resolved release-mode settings.
-        - Migrate `buildConfigKeyOverrides()` and `resolveGitConfigOverride()` to catalog-owned key/default references
-          without adding project YAML tiers to per-developer-only settings.
-        - Build `test-first` (one behavior at a time):
-            - preserve tolerant invalid-value degradation and omission defaults;
-            - preserve git-config-over-YAML precedence, fallback warnings, and provenance.
+    - `[x]` **3.2.b Migrate agent-consumable and precedence-aware readers**
+        - Derived the agent projection, omission defaults, and existing tolerant policy checks from catalog
+          descriptors, validating the assembled completed view before return while leaving `user.notes_push` raw
+          until its catalog-backed dual-scope resolver applies git-config precedence and preserves provenance.
+          Config rendering and generic YAML override resolution now use catalog-owned keys and defaults without
+          introducing YAML tiers for per-developer-only settings.
 
     - `[ ]` **3.2.c Migrate strict commit-check configuration**
         - Derive the commit-check key subset and `COMMIT_CHECK_DEFAULTS` from catalog descriptors, then reuse the
