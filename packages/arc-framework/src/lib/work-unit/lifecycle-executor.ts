@@ -129,7 +129,7 @@ export type GuardValidator = (ctx: GuardContext) => GuardResult | Promise<GuardR
  */
 export const DEFAULT_GUARD_VALIDATORS: Partial<Record<GuardId, GuardValidator>> = {
   "class-resolved": ({ inputs }) =>
-    inputs.class !== undefined && inputs.class !== "" && inputs.class !== "[TBD]"
+    inputs.class !== undefined && inputs.class !== "" && inputs.class !== "TBD" && inputs.class !== "[TBD]"
       ? { ok: true }
       : { ok: false, message: "`promote` requires a resolved `Class` (not `[TBD]`) supplied in inputs." },
   confirmation: ({ inputs }) =>

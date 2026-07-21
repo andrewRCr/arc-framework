@@ -89,7 +89,7 @@ onto stable code-facing fields without losing tolerant recovery.
 - _Outcome:_ Full-record creation now crosses one strict semantic boundary, including pointer prevalidation before
   destructive park teardown, while localized projection mutations remain explicit and byte-compatible.
 
-### `[ ]` **2.4 Migrate work-unit lifecycle consumers to semantic fields**
+### `[x]` **2.4 Migrate work-unit lifecycle consumers to semantic fields**
 
 - _Goal:_ Work-unit handlers, transitions, and projections consume one parsed semantic representation instead of
   display labels and repeated list parsing.
@@ -120,9 +120,12 @@ onto stable code-facing fields without losing tolerant recovery.
         - Moved lifecycle indexing and executor-bound branch reads onto one semantic parse while retaining explicitly
           label-keyed projection override types at localized transition write seams.
 
-    - `[ ]` **2.4.g Migrate remaining transition and completion projections**
-        - Update `verbs/promote-demote.ts`, `verbs/teardown.ts`, and `completed-index.ts`; then migrate
-          `decompose-retirement-projection.ts` with its focused retirement fixtures.
+    - `[x]` **2.4.g Migrate remaining transition and completion projections**
+        - Migrated promote/demote, teardown, completed-index, and decomposition retirement projection reads to
+          semantic class, branch, completion, and PR fields while preserving unresolved-class refusal and receipts.
+
+- _Outcome:_ Lifecycle execution now shares one tolerant semantic representation across handlers, transitions,
+  evidence, indexes, and completion reads; label-keyed access remains only where localized Markdown writes require it.
 
 ### `[ ]` **2.5 Migrate status, session, validation, and review readers**
 

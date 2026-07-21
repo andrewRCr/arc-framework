@@ -28,7 +28,7 @@
 
 import { join, posix } from "node:path";
 
-import { parseMetaProjectionRecord } from "../../active/meta-reader.js";
+import { parseMetaRecord } from "../../active/meta-reader.js";
 import { buildLifecycleIndex } from "../lifecycle-index.js";
 import {
   executeTransition,
@@ -130,13 +130,13 @@ export async function runPromote(ctx: BacklogMoveContext, params: BacklogMovePar
   }
 
   const fromDir = posix.dirname(entry.path);
-  const cls = parseMetaProjectionRecord(await executor.indexFs.readFile(join(executor.cwd, entry.path))).Class;
+  const cls = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, entry.path))).workClass;
   const toDir = swapTier(fromDir, "provisional", "planned");
 
   const outcome = await executeTransition(executor, {
     verb: "promote",
     slug: name,
-    inputs: { class: cls ?? "[TBD]", toDir },
+    inputs: { class: cls ?? "TBD", toDir },
   });
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };

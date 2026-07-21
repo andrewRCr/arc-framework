@@ -2,7 +2,7 @@
 
 import { join, posix } from "node:path";
 
-import { parseMetaProjectionRecord } from "../active/meta-reader.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import { canonicalDigest, digestBytes, type CanonicalDigest } from "../canonical/canonical-json.js";
 import {
   contentDigest,
@@ -225,12 +225,10 @@ export async function bindDecomposePreparation(
   if (occupiedMember?.kind === "new-member") {
     throw new Error(`decompose member \`${occupiedMember.slug}\` already exists`);
   }
-  const originRecord = parseMetaProjectionRecord(await deps.readFile(join(deps.cwd, origin.path)));
+  const originRecord = parseMetaRecord(await deps.readFile(join(deps.cwd, origin.path)));
   const resultBranch = await getCurrentBranch(deps.exec);
   if (resultBranch === null) throw new Error("decompose requires an attached result branch");
-  const sourceBranch = originRecord.Branch === null || originRecord.Branch === "[none]"
-    ? resultBranch
-    : originRecord.Branch;
+  const sourceBranch = originRecord.branch ?? resultBranch;
   const [sourceHead, resultHead] = await Promise.all([
     resolveRef(deps, sourceBranch),
     resolveRef(deps, resultBranch),

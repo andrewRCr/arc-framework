@@ -25,7 +25,7 @@
 
 import { join } from "node:path";
 
-import { parseMetaProjectionRecord } from "../active/meta-reader.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 
 /** Filesystem adapter — injected for unit testability; production binds `node:fs/promises`. */
@@ -232,17 +232,16 @@ async function readCompletedRecordFromMeta(
   }
   let meta;
   try {
-    meta = parseMetaProjectionRecord(stdout);
+    meta = parseMetaRecord(stdout);
   } catch {
     return null;
   }
-  const completedValue = meta.Completed?.trim();
+  const completedValue = meta.completed?.trim();
   const completedAt = completedValue === undefined
-    || completedValue === "[none]"
     || Number.isNaN(Date.parse(completedValue))
     ? null
     : completedValue;
-  const prValue = meta["PR URL"]?.trim();
+  const prValue = meta.prUrl?.trim();
   const prMatch = prValue === undefined
     ? null
     : /^(https?:\/\/[^\s]+\/pull\/([1-9]\d*))$/u.exec(prValue);
