@@ -17,6 +17,10 @@ current change-set projection before acting. Provider-specific requests and obse
 commands and adapter summaries; controller-normalized findings and provider-native conversations have distinct
 closure authority.
 
+Require `review-gate/v2` for every forward projection and operation record. Treat an exact v1 parser or ledger result
+as historical/diagnostic input only and stop if it is offered as current qualification evidence. This workflow does
+not activate the dormant controller, project lifecycle readiness, or merge authority.
+
 ## 1. Run the Typed Action Loop
 
 Pass the explicit `hostRef` to each repository launcher; the launchers resolve and validate the remaining canonical

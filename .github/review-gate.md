@@ -42,8 +42,16 @@ Never use `--admin`, direct base pushes, force pushes, or an empty required-chec
 The operational rubric is `independent-analysis/v1`:
 
 ```yaml
+semantics_version: review-gate/v2
 rubric_version: independent-analysis/v1
-checks: [intent-and-scope, correctness-and-failure-behavior, trust-and-compatibility, verification, coherence]
+project_augmentation: self-hosting-review/v1
+checks:
+  - coherence-and-maintainability
+  - correctness-and-failure-behavior
+  - intent-and-scope
+  - trust-boundaries-and-compatibility
+  - verification-quality-and-missing-cases
+  - repository-contract-coherence
 ```
 
 A rubric change and its `rubric_version` change land in the same reviewed commit. Satisfying evidence covers the full
@@ -55,6 +63,11 @@ Every v1 `terminal-failure` is effect-ambiguous and needs separate durable termi
 impossible, close the PR without merging and replace it with a new v2-ledger PR.
 Historical v1 evidence remains audit-readable but cannot satisfy v2 policy. Any malformed old record still degrades
 the ledger, and the monotonic anchor/version chain never resets.
+
+Every forward executable operation in this runbook uses `review-gate/v2` contracts. The exact v1 parser and ledger
+remain available only for upgrade validation, historical audit, and diagnostic qualification fixtures; never use a
+v1 projection or receipt as current qualification evidence. The checked-in v2 controller remains dormant and is not
+merge authority until the separate qualification and promotion deliveries complete.
 
 Provenance: the empirical basis for these inputs — the App permission model (PR ledger comments and the one-shot
 label ride `pull-requests: write`, not `issues: write`), the branch-protection check-source pinning proof, and

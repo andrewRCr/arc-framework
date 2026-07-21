@@ -4,6 +4,10 @@ Every satisfying local review mechanism applies `independent-analysis/v1` to the
 attesting maintainer supplies exact base, diff-base, head, change-set, policy, rubric, and run-time bounds; local
 reviewer prose is never authority by itself.
 
+Forward attestations emit `review-gate/v2` records. Exact v1 parsing remains diagnostic and historical only; a v1
+receipt cannot satisfy current policy. This checklist does not activate the dormant controller or grant merge
+authority.
+
 | Mechanism | Rubric delivery | Identity statement |
 | --- | --- | --- |
 | Codex CLI | This instruction file | Maintainer-attested runtime and fresh run |

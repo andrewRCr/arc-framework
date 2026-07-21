@@ -823,11 +823,10 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
 _Purpose:_ Reconcile project bindings, hosted guidance, package mirrors, and end-to-end coverage so the new review
 architecture lands as one coherent forward contract.
 
-### `[ ]` **7.1 Migrate self-hosting policy and hosted-review guidance**
+### `[x]` **7.1 Migrate self-hosting policy and hosted-review guidance**
 
 - _Goal:_ Repository-specific policy binds the neutral records, local/hosted sources, and native guidance without
   preserving rejected lanes or implying that live enforcement is enabled.
-- _Context:_ Implements Design §§1.4, 2.1, and 8.
 
     - `[x]` **7.1.a Replace the self-hosting lane decision**
         - Rebased self-hosting decision/reduction and production runtime composition on normalized routing facts and
@@ -852,15 +851,19 @@ architecture lands as one coherent forward contract.
         - Extended guidance, package, controller, and repository-carrier coverage without exposing coordination or
           controller state through reviewer instructions.
 
-    - `[ ]` **7.1.d Reconcile Actions, commands, and operator docs**
-        - Define a closed executable-operation map across `run-*.ts` launchers, the private controller entrypoint
-          registry, root npm scripts, `.github/workflows/review-gate*.yml`, and operator commands; reject missing,
-          duplicate, or publicly exported operations.
-        - Update policy examples, `.github/review-gate*.md`, and `coordinate-pr-review.md` so forward operations use
-          v2 while the exact v1 parser/ledger, historical evidence, and qualification fixtures remain explicitly
-          diagnostic or historical rather than rewritten as v2 qualification.
-        - Keep setup, qualification, promotion, and outage authority boundaries intact; never imply that the dormant
-          v2 controller is live merge authority or that this WU provides the downstream readiness projection.
+    - `[x]` **7.1.d Reconcile Actions, commands, and operator docs**
+        - Added a closed private operation map binding every launcher/mode to its entrypoint keys, npm command,
+          workflow, operator document, and dormant-forward/qualification/outage authority class; corpus tests reject
+          missing surface bindings and public CLI exposure.
+        - Updated the operator rubric example, attestation contract, and PR coordination workflow to require forward
+          v2 records while retaining exact v1 parsing and ledger history only for upgrade, audit, diagnostics, and
+          qualification fixtures.
+        - Preserved manual merge authority and the separate setup, qualification, promotion, outage, and downstream
+          lifecycle-readiness boundaries.
+
+- _Outcome:_ Self-hosting policy, native guidance carriers, and executable operator surfaces now share one typed
+  forward contract with explicit source/admission identities and closed surface coverage, while qualification,
+  promotion, lifecycle readiness, and merge authority remain outside the dormant controller.
 
 ### `[ ]` **7.2 Prove routing-to-gate behavior across adapters and workflows**
 
