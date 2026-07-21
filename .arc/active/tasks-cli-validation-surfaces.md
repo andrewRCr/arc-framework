@@ -9,7 +9,7 @@
 _Purpose:_ Establish the release audit record as a strict schema-owned boundary before expanding the shared
 registry to include it.
 
-### `[ ]` **1.1 Establish the audit-entry schema authority**
+### `[x]` **1.1 Establish the audit-entry schema authority**
 
 - _Goal:_ Every valid version-2 audit cell has one runtime and TypeScript authority, and invalid cross-products
   are unrepresentable at the persistence boundary.
@@ -19,23 +19,15 @@ registry to include it.
           codes, and a reusable resolved-override schema factory. Producers now parse assembled entries so forbidden
           cross-products remain unrepresentable at compile time as well as runtime.
 
-### `[ ]` **1.2 Cut audit persistence over to the schema contract**
+### `[x]` **1.2 Cut audit persistence over to the schema contract**
 
 - _Goal:_ Audit writes reject programming defects before filesystem effects while preserving redaction and the
   existing non-masking I/O failure policy.
 
-    - `[ ]` **1.2.a Replace the handwritten write-boundary validator**
-        - Parse the assembled entry with `AuditEntrySchema` at the start of `appendAuditEntry()` and remove
-          `validateEntry()` plus its parallel command/outcome tables.
-        - Translate Zod issues into an `audit-log` boundary error with stable field paths, without echoing complete
-          records, arguments, or message contents.
-        - Preserve `sanitizeArgs()` and `toAuditWorkUnit()` as adapter logic outside the record schema.
-        - Build `test-first` (one behavior at a time):
-            - schema failures throw before directory creation or append;
-            - schema diagnostics name the boundary and failing paths without including sensitive values;
-            - append and directory failures still return `{ ok: false, error }`;
-            - message arguments remain redacted in every accepted commit form;
-            - valid commit, push, proceeded-sync, and refused-sync entries append unchanged JSONL records.
+    - `[x]` **1.2.a Replace the handwritten write-boundary validator**
+        - Replaced the handwritten validator and command/outcome tables with an `AuditEntrySchema` parse before I/O.
+          Schema errors now report stable boundary paths without values; valid entries retain their JSONL bytes, and
+          filesystem failures retain the non-masking `{ ok: false, error }` contract.
 
 ## **Phase 2:** Semantic meta-record authority
 

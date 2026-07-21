@@ -299,6 +299,16 @@ describe("appendAuditEntry — append + round-trip", () => {
     );
     expect(JSON.parse(content.trim())).toEqual(entry);
   });
+
+  it("round-trips a refused sync entry without changing its sync outcome", async () => {
+    const entry = syncEntry({ decision: "refused", refusalCode: 14 });
+    await appendAuditEntry({ cwd: fixture.root, identity: "alice", entry });
+    const content = await readFile(
+      resolveAuditLogPath({ cwd: fixture.root, identity: "alice" }),
+      "utf8",
+    );
+    expect(JSON.parse(content.trim())).toEqual(entry);
+  });
 });
 
 describe("appendAuditEntry — schema enforcement (throws on violation)", () => {
@@ -307,6 +317,22 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
   const ctx = (root: string) => ({ cwd: root, identity: "alice" });
+
+  it("reports stable boundary paths without echoing values before filesystem effects", async () => {
+    const secret = "do-not-echo-this-message";
+    const entry = commitEntry({ args: [secret, 42] });
+
+    await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).rejects.toThrow(
+      /audit-log: invalid entry at .*args\.1/,
+    );
+    await expect(stat(join(fixture.root, ".arc"))).rejects.toMatchObject({ code: "ENOENT" });
+
+    try {
+      await appendAuditEntry({ ...ctx(fixture.root), entry });
+    } catch (error) {
+      expect(String(error)).not.toContain(secret);
+    }
+  });
 
   it.each([1, 99])("throws when schemaVersion is %i", async (schemaVersion) => {
     const entry = commitEntry({ schemaVersion: schemaVersion as 2 });
@@ -436,7 +462,9 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
       ...overrides,
       outcome: { kind: "preflight-failed", reason: "input" },
     });
-    await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).rejects.toThrow(/preflight/);
+    await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).rejects.toThrow(
+      /refusalCode|outcome/,
+    );
   });
 });
 
