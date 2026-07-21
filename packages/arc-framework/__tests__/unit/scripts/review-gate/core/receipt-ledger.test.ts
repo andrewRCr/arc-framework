@@ -8,6 +8,7 @@ import type {
 import {
   computeRequestKey,
   createReceipt as createReceiptCore,
+  receiptIdentityValid,
   type ReceiptCreationInput,
 } from "../../../../../src/scripts/review-gate/core/request-key.js";
 import { canonicalizePlainJson } from "../../../../../src/scripts/review-gate/core/identity.js";
@@ -91,6 +92,49 @@ function envelope(ledgerVersion: number, receipt = createReceipt({
 }
 
 describe("canonical request keys and receipt ledger", () => {
+  it("validates a literal pre-cutover Unicode receipt", () => {
+    const literal: ReviewReceipt = {
+      schemaVersion: 1,
+      eventId: "event-unicode",
+      idempotencyKey: "68b0e00ae8f627c875c5d5af5d6dbada135e3114af53c8c996f8d140ffbd5e20",
+      previousLedgerVersion: 0,
+      action: "reserved",
+      request: request(),
+      result: null,
+      reason: "e\u0301",
+      evidenceUrlOrId: null,
+      findingIds: [],
+      payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
+      receiptHash: "8dc46bb65f6f25c7d8d76d016192fa3beca78cbbeb62dd788cf4f9d6a522fb47",
+    };
+
+    expect(receiptIdentityValid(literal)).toBe(true);
+  });
+
+  it("keeps an earlier receipt hash opaque inside a later payload", () => {
+    const durableHash = "8dc46bb65f6f25c7d8d76d016192fa3beca78cbbeb62dd788cf4f9d6a522fb47";
+    const later = createReceiptCore({
+      request: request(),
+      previousLedgerVersion: 1,
+      action: "head-update-consumed",
+      eventId: `head-update:${durableHash}:consumed`,
+      result: null,
+      evidenceUrlOrId: null,
+      findingIds: [],
+      payload: {
+        kind: "head-update-consumption",
+        consumedAt: "2026-07-21T00:00:00.000Z",
+        authorizationReceiptHash: durableHash,
+        oldHeadSha: "c".repeat(40),
+        newHeadSha: "d".repeat(40),
+        findingIds: [],
+      },
+    });
+
+    expect(later.eventId).toContain(durableHash);
+    expect(later.payload).toMatchObject({ authorizationReceiptHash: durableHash });
+  });
+
   it("matches the definitive literal identity and serialization fixtures", () => {
     const created = createReceiptCore({
       request: request(),

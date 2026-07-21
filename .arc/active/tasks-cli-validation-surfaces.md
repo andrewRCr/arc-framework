@@ -484,18 +484,10 @@ version-1 review-gate identity behind a repository-private frozen serializer.
           recursive bytes, ambient locale ordering, non-normalized strings, numeric-key reordering, lone-surrogate,
           sparse-array, `__proto__`, and complete refusal behavior without exporting it through a barrel.
 
-    - `[ ]` **7.1.b Route receipt and attestation identities through the frozen seam**
-        - In `core/request-key.ts`, use `canonicalizeReviewGateV1()` for both private receipt identity helpers so
-          `createReceipt()` and `receiptIdentityValid()` create and verify the same version-1 bytes.
-        - In `core/attestations.ts`, use the frozen serializer for the manifest digest embedded in each attestation
-          event id and preserve exact replay/conflict classification.
-        - Keep receipt hashes carried by later payloads opaque; do not recompute links or rewrite persisted receipts.
-        - Build `test-first` (one behavior at a time):
-            - validate a literal pre-cutover Unicode receipt with fixed idempotency and receipt hashes, and preserve
-              the existing representative ASCII receipt fixture;
-            - replay a literal pre-cutover attestation whose accepted Unicode manifest produces different legacy and
-              kernel bytes, while a changed manifest with the same run id remains a conflict;
-            - preserve later payloads that reference an existing receipt hash without interpreting or replacing it.
+    - `[x]` **7.1.b Route receipt and attestation identities through the frozen seam**
+        - Routed both receipt identities and attestation manifest event digests through the frozen serializer. Literal
+          decomposed-Unicode receipt and attestation constants remain valid, exact replay and changed-run conflict
+          behavior is preserved, and later payloads carry existing receipt hashes as opaque references.
 
     - `[ ]` **7.1.c Route qualification identities through the frozen seam**
         - In `runtime/qualification-contract.ts`, use `canonicalizeReviewGateV1()` for scope digests, empty and

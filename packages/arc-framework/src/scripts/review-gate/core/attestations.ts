@@ -8,7 +8,8 @@ import {
   type ReviewRequest,
 } from "./execution.js";
 import { hashContent } from "../../../lib/manifest/hash.js";
-import { canonicalizePlainJson, computeChangeSetId } from "./identity.js";
+import { computeChangeSetId } from "./identity.js";
+import { canonicalizeReviewGateV1 } from "./legacy-canonical-v1.js";
 import { createReceipt } from "./request-key.js";
 import {
   arrayAt,
@@ -277,7 +278,7 @@ export function ingestAttestation(input: AttestationIngestInput): AttestationIng
     const raw = JSON.parse(input.content) as unknown;
     const parsed = objectAt(raw, "attestation");
     reviewRunId = idAt(parsed.reviewRunId, "attestation.reviewRunId");
-    manifestDigest = hashContent(canonicalizePlainJson(raw));
+    manifestDigest = hashContent(canonicalizeReviewGateV1(raw));
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }

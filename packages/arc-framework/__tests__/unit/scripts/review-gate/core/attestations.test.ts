@@ -187,6 +187,38 @@ describe("neutral attestations", () => {
     })).toMatchObject({ ok: false, error: "conflicting attestation replay" });
   });
 
+  it("replays a pre-cutover Unicode manifest and rejects a changed reuse", () => {
+    const content = manifest({ evidenceUrlOrId: "https://example.test/evidence/e\u0301" });
+    const input = {
+      content,
+      context,
+      repositoryId: "100",
+      changeRequestId: "PR_node",
+      expectedLedgerVersion: 0,
+      priorReceipts: [],
+    };
+    const first = ingestAttestation(input);
+    if (!first.ok) throw new Error(first.error);
+    expect(first.receipt).toMatchObject({
+      eventId: "attestation:run-1:b1801a70abc3e0c233b87fa20d789eac4a28be2c19105e40c0940357b0f2b8a3",
+      idempotencyKey: "03613a3624b4bb66f781e3b785881a315fc41e20520f025c95b0b0d69b97db40",
+      receiptHash: "3895584d5a51598c9b086ce03d1d8f0aaee4a9c64b2876afe6f9b0923e5a5f7a",
+    });
+    expect(ingestAttestation({ ...input, priorReceipts: [first.receipt] })).toMatchObject({
+      ok: true,
+      replay: true,
+      receipt: { receiptHash: first.receipt.receiptHash },
+    });
+    expect(ingestAttestation({
+      ...input,
+      content: manifest({
+        evidenceUrlOrId: "https://example.test/evidence/e\u0301",
+        completedAt: "2026-07-10T20:11:00.000Z",
+      }),
+      priorReceipts: [first.receipt],
+    })).toMatchObject({ ok: false, error: "conflicting attestation replay" });
+  });
+
   it("enforces the manifest size bound before ingestion parses the payload", () => {
     expect(ingestAttestation({
       content: `{"reviewRunId":"run-1","padding":"${"x".repeat(33 * 1024)}"}`,
