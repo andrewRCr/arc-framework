@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   projectIndependentAnalysisGuidance,
+  renderIndependentAnalysisReviewerInstructions,
   renderIndependentAnalysisHumanChecklist,
   validateIndependentAnalysisGuidanceProjection,
 } from "../../../../../src/scripts/review-gate/policy/independent-analysis-guidance.js";
@@ -84,5 +85,14 @@ describe("independent-analysis guidance projection", () => {
     expect(checklist).toContain("Secret handling");
     expect(checklist).toContain("Stable locus");
     expect(checklist).not.toMatch(/controller state|coordination workflow|author findings|approval status/iu);
+  });
+
+  it("renders provider instructions from the same typed projection", () => {
+    const instructions = renderIndependentAnalysisReviewerInstructions(PROJECT_AUGMENTATION);
+
+    expect(instructions).toContain("Rubric: `independent-analysis/v1`");
+    expect(instructions).toContain("Secret handling");
+    expect(instructions).toContain("Stable locus");
+    expect(instructions).not.toMatch(/controller state|coordination workflow|author findings|approval status/iu);
   });
 });

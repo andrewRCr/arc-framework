@@ -13,10 +13,39 @@ reviewer prose is never authority by itself.
 
 ## Inputs
 
-- The exact full current change set from diff base through head.
-- `independent-analysis/v1`: intent and scope; correctness and failure behavior; trust and compatibility;
-  verification; coherence and maintainability.
-- Project orientation, applicable development rules, and the authored design for the reviewed work.
+<!-- arc:review-guidance:start -->
+### Independent Analysis Checklist
+
+Rubric: `independent-analysis/v1` / `sha256:c34dfab26c476e8bfa07c60540b7af7f01b06834e6533a5e14d433e88a1d07f8`
+
+#### Coverage and evaluator boundary
+
+- [ ] Review the complete exact requested change set, not a sample or only the latest fix.
+- [ ] Bind the review to the exact requested target.
+- [ ] Use a non-author evaluator working from source and governing project context.
+- [ ] Do not provide author conclusions, preferred fixes, self-verification claims, or suspected weak spots.
+
+#### Rubric dimensions
+
+- [ ] Coherence and maintainability — Check whether the change remains understandable, cohesive, and maintainable.
+- [ ] Correctness and failure behavior — Check normal behavior, boundary cases, and explicit failure handling.
+- [ ] Intent and scope — Check that the complete change serves its stated intent without unrelated scope.
+- [ ] Trust boundaries and compatibility — Check authority boundaries, unsafe inputs, and compatibility obligations.
+- [ ] Verification quality and missing cases — Check that verification proves the behavior and covers material missing cases.
+- [ ] Repository contract coherence — Check repository-specific instructions, package boundaries, and self-hosting contracts.
+
+#### Finding requirements
+
+- [ ] Actionable materiality — State the material impact and an actionable correction boundary.
+- [ ] Rubric failure explanation — Explain which rubric dimension fails and why.
+- [ ] Source-grounded evidence — Ground the finding in the reviewed source rather than speculation.
+- [ ] Stable locus — Name a stable code or document locus for the finding.
+
+#### Clean-result rule
+
+- [ ] Return clean only after the complete requested change set and every rubric dimension were considered.
+- [ ] Unavailable, partial, ambiguous, or failed review is never clean.
+<!-- arc:review-guidance:end -->
 
 ## Output
 

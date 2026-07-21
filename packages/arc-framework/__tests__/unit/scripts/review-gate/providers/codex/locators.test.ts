@@ -6,6 +6,7 @@ import type { ReceiptEnvelope, ReviewRequest } from "../../../../../../src/scrip
 import { buildCodexReviewCommand } from "../../../../../../src/scripts/review-gate/providers/codex/adapter.js";
 import { resolveCodexGuidance } from "../../../../../../src/scripts/review-gate/providers/codex/guidance.js";
 import { ReceiptBackedCodexLocator } from "../../../../../../src/scripts/review-gate/providers/codex/locators.js";
+import { SELF_HOSTING_REVIEW_GUIDANCE_BLOCK } from "../../../../../../src/scripts/review-gate/policy/self-hosting/guidance.js";
 
 const HEAD = "a".repeat(40);
 const DIFF_BASE = "b".repeat(40);
@@ -13,8 +14,7 @@ const ROOT = `# Agent Bootstrap
 
 ## Review guidelines
 
-Rubric: independent-analysis/v1
-Intent and scope; correctness and failure behavior; trust and compatibility; verification; coherence and maintainability.
+${SELF_HOSTING_REVIEW_GUIDANCE_BLOCK}
 `;
 
 describe("receipt-backed Codex locators", () => {

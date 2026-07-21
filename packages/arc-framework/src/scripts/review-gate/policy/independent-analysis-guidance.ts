@@ -176,19 +176,48 @@ function checklistItems(items: readonly string[]): string {
   return items.map((item) => `- [ ] ${item}`).join("\n");
 }
 
-/** Render the package-neutral checklist carried by human and instruction-surface adapters. */
-export function renderIndependentAnalysisHumanChecklist(augmentationInput?: unknown): string {
+function instructionItems(items: readonly string[]): string {
+  return items.map((item) => `- ${item}`).join("\n");
+}
+
+/** Render content-only instructions suitable for a provider-native review carrier. */
+export function renderIndependentAnalysisReviewerInstructions(augmentationInput?: unknown): string {
   const projection = projectIndependentAnalysisGuidance(augmentationInput);
   const sections = [
-    "# Independent Analysis Checklist",
     `Rubric: \`${projection.rubricVersion}\` / \`${projection.rubricDigest}\``,
-    "## Coverage and evaluator boundary",
+    "### Coverage and evaluator boundary",
+    instructionItems([...projection.coverageInstructions, ...projection.evaluatorInstructions]),
+    "### Rubric dimensions",
+    instructionItems(projection.dimensions.map((item) => `${item.title} — ${item.instruction}`)),
+    "### Finding requirements",
+    instructionItems(projection.findingRequirements.map((item) => `${item.title} — ${item.instruction}`)),
+    "### Clean-result rule",
+    instructionItems(projection.cleanInstructions),
+  ];
+  return `${sections.join("\n\n")}\n`;
+}
+
+/** Render the package-neutral checklist carried by human and instruction-surface adapters. */
+export function renderIndependentAnalysisHumanChecklist(
+  augmentationInput?: unknown,
+  headingLevel = 1,
+): string {
+  const projection = projectIndependentAnalysisGuidance(augmentationInput);
+  if (!Number.isInteger(headingLevel) || headingLevel < 1 || headingLevel > 5) {
+    throw new Error("checklist heading level must be an integer from 1 through 5");
+  }
+  const heading = "#".repeat(headingLevel);
+  const subheading = "#".repeat(headingLevel + 1);
+  const sections = [
+    `${heading} Independent Analysis Checklist`,
+    `Rubric: \`${projection.rubricVersion}\` / \`${projection.rubricDigest}\``,
+    `${subheading} Coverage and evaluator boundary`,
     checklistItems([...projection.coverageInstructions, ...projection.evaluatorInstructions]),
-    "## Rubric dimensions",
+    `${subheading} Rubric dimensions`,
     checklistItems(projection.dimensions.map((item) => `${item.title} — ${item.instruction}`)),
-    "## Finding requirements",
+    `${subheading} Finding requirements`,
     checklistItems(projection.findingRequirements.map((item) => `${item.title} — ${item.instruction}`)),
-    "## Clean-result rule",
+    `${subheading} Clean-result rule`,
     checklistItems(projection.cleanInstructions),
   ];
   return `${sections.join("\n\n")}\n`;

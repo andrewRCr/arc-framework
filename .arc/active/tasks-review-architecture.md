@@ -842,14 +842,15 @@ architecture lands as one coherent forward contract.
         - Kept source qualification/capacity outside obligation routing, rejected approving/applying actors as source
           policy, and fixed the repository posture at manual merge authority with inactive live-controller authority.
 
-    - `[ ]` **7.1.c Update native review instruction projections**
-        - Apply Phase 4's generic projector through stable managed boundaries to the hosted Codex rubric block in
-          root `AGENTS.md` (inherited by `CLAUDE.md`), CodeRabbit's repository instruction surface, and the local /
-          qualified-human checklist in `.github/review-gate-attestation.md`.
-        - Deliver only the typed baseline plus project augmentation, record each carrier's digest/admission result,
-          and validate effective nested guidance for every changed path.
-        - Extend guidance-digest and package/controller tests for missing, stale, identical, conflicting, inherited,
-          and nested-effective sets.
+    - `[x]` **7.1.c Update native review instruction projections**
+        - Projected the typed baseline plus self-hosting augmentation through managed blocks in root `AGENTS.md`,
+          CodeRabbit's repository-wide path instruction, and the local/qualified-human attestation checklist while
+          retaining `CLAUDE.md` inheritance.
+        - Added carrier-specific digest/admission records and exact managed-content validation; hosted Codex now
+          rejects missing or stale root projections, accepts inherited or identical repeats, and rejects differing
+          effective nested sets.
+        - Extended guidance, package, controller, and repository-carrier coverage without exposing coordination or
+          controller state through reviewer instructions.
 
     - `[ ]` **7.1.d Reconcile Actions, commands, and operator docs**
         - Define a closed executable-operation map across `run-*.ts` launchers, the private controller entrypoint

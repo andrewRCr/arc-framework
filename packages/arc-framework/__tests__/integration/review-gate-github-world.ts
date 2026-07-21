@@ -14,6 +14,7 @@ import type {
   HttpResponse,
 } from "../../src/scripts/review-gate/hosts/github/api/http.js";
 import type { ChangedPath } from "../../src/scripts/review-gate/policy/self-hosting/lane.js";
+import { SELF_HOSTING_REVIEW_GUIDANCE_BLOCK } from "../../src/scripts/review-gate/policy/self-hosting/guidance.js";
 
 /** Fixed clock shared by the fakes and the reconcile invocation. */
 export const NOW = new Date("2026-07-11T20:00:00.000Z");
@@ -34,8 +35,7 @@ export const CODEX_GUIDANCE = `# Agent Bootstrap
 
 ## Review guidelines
 
-Apply rubric \`independent-analysis/v1\` across intent and scope; correctness and failure behavior; trust and
-compatibility; verification; coherence and maintainability.
+${SELF_HOSTING_REVIEW_GUIDANCE_BLOCK}
 `;
 
 /** One GitHub issue comment (ledger anchor, receipt, or human command). */
