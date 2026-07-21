@@ -177,6 +177,68 @@ export async function refreshLocusLeaseHeartbeat(options: {
     : { kind: "refused", reason: "lease-generation-mismatch" };
 }
 
+/**
+ * Release only one expected lease generation, preserving the durable role.
+ * @param options - Directed record ID, expected lease token, and store port.
+ * @returns Applied/idempotent cleared generation or a typed refusal.
+ */
+export async function releaseLocusLease(options: {
+  recordId: string;
+  leaseId: string;
+  io: LocusLeaseMutationIO;
+}): Promise<LocusLeaseMutationResult> {
+  const existing = await options.io.read();
+  if (existing.kind !== "valid" || existing.record.recordId !== options.recordId) {
+    return { kind: "refused", reason: "record-malformed" };
+  }
+  if (existing.record.lease === null) {
+    return { kind: "idempotent", record: existing.record, bytes: existing.bytes };
+  }
+  if (existing.record.lease.leaseId !== options.leaseId) {
+    return { kind: "refused", reason: "lease-generation-mismatch" };
+  }
+  const next = { ...existing.record, lease: null };
+  const replaced = await options.io.replace(existing.bytes, next);
+  return replaced.kind === "replaced"
+    ? { kind: "applied", record: next, bytes: replaced.bytes }
+    : { kind: "refused", reason: "lease-generation-mismatch" };
+}
+
+/**
+ * Replace a directed role or parent edge only from its exact prior role generation.
+ * @param options - Target coordinates, expected role, next authority/parent, timestamp, and store port.
+ * @returns Applied/idempotent role generation or a typed refusal.
+ */
+export async function updateLocusRole(options: {
+  recordId: string;
+  checkoutPath: string;
+  expectedRole: LocusRole;
+  authority: LocusRoleAuthority;
+  parentCheckoutPath: string | null;
+  establishedAt: string;
+  io: LocusLeaseMutationIO;
+}): Promise<LocusLeaseMutationResult> {
+  const existing = await options.io.read();
+  if (existing.kind !== "valid"
+    || existing.record.recordId !== options.recordId
+    || existing.record.checkoutPath !== options.checkoutPath) {
+    return { kind: "refused", reason: "record-malformed" };
+  }
+  const desired = deriveRole(options.authority, options.parentCheckoutPath, options.establishedAt);
+  if (desired === null) return { kind: "refused", reason: "role-conflict" };
+  if (isDeepStrictEqual(existing.record.role, desired)) {
+    return { kind: "idempotent", record: existing.record, bytes: existing.bytes };
+  }
+  if (!isDeepStrictEqual(existing.record.role, options.expectedRole)) {
+    return { kind: "refused", reason: "role-conflict" };
+  }
+  const next = { ...existing.record, role: desired };
+  const replaced = await options.io.replace(existing.bytes, next);
+  return replaced.kind === "replaced"
+    ? { kind: "applied", record: next, bytes: replaced.bytes }
+    : { kind: "refused", reason: "role-conflict" };
+}
+
 function deriveRole(
   authority: LocusRoleAuthority,
   parentCheckoutPath: string | null,
@@ -224,7 +286,9 @@ function deriveRole(
     );
   }
   const parsed = LocusRoleSchema.safeParse(candidate);
-  return parsed.success ? parsed.data : null;
+  return parsed.success && !(parsed.data.kind === "work-unit" && parsed.data.parentCheckoutPath !== null)
+    ? parsed.data
+    : null;
 }
 
 function role(

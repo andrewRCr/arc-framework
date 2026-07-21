@@ -6,6 +6,8 @@ import {
   attachLocusLease,
   mintDurableLocusRole,
   refreshLocusLeaseHeartbeat,
+  releaseLocusLease,
+  updateLocusRole,
   type LocusLeaseMutationIO,
   type LocusRoleAuthority,
   type LocusRoleMintIO,
@@ -447,5 +449,87 @@ describe("durable locus role minting", () => {
       stateTouching: true,
       anchor: { ...anchor, pid: 99 },
     })).toEqual({ kind: "refused", reason: "lease-generation-mismatch" });
+  });
+
+  it("releases only the requested lease generation and replays an already-cleared release", async () => {
+    const seeded = async () => {
+      const store = memoryIO();
+      await mintDurableLocusRole({
+        ...BASE,
+        authority: { kind: "work-unit", key: "demo" },
+        io: store.io,
+      });
+      await attachLocusLease({
+        recordId: BASE.recordId,
+        sessionHomePath: BASE.checkoutPath,
+        anchor: {
+          kind: "process",
+          pid: 42,
+          startToken: "start",
+          inspector: "test",
+          selector: "codex",
+        },
+        leaseId: "a".repeat(32),
+        attachedAt: "2026-07-20T01:00:00.000Z",
+        heartbeatAt: "2026-07-20T01:00:00.000Z",
+        observedLiveness: null,
+        io: store.io,
+      });
+      return store;
+    };
+    const mismatch = await seeded();
+    expect(await releaseLocusLease({
+      recordId: BASE.recordId,
+      leaseId: "b".repeat(32),
+      io: mismatch.io,
+    })).toEqual({ kind: "refused", reason: "lease-generation-mismatch" });
+    expect(mismatch.current()).toMatchObject({ record: { lease: { leaseId: "a".repeat(32) } } });
+
+    const exact = await seeded();
+    expect(await releaseLocusLease({
+      recordId: BASE.recordId,
+      leaseId: "a".repeat(32),
+      io: exact.io,
+    })).toMatchObject({ kind: "applied", record: { lease: null } });
+    expect(await releaseLocusLease({
+      recordId: BASE.recordId,
+      leaseId: "a".repeat(32),
+      io: exact.io,
+    })).toMatchObject({ kind: "idempotent", record: { lease: null } });
+  });
+
+  it("updates a directed role and parent only from the exact prior role generation", async () => {
+    const store = memoryIO();
+    const identity = errandIdentity("errand");
+    await mintDurableLocusRole({
+      ...BASE,
+      authority: { kind: "identity", identity },
+      io: store.io,
+    });
+    const initial = store.current();
+    if (initial.kind !== "valid") throw new Error("expected seeded record");
+    const request = {
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedRole: initial.record.role,
+      authority: { kind: "identity" as const, identity },
+      parentCheckoutPath: "/parent",
+      establishedAt: BASE.establishedAt,
+      io: store.io,
+    };
+
+    expect(await updateLocusRole(request)).toMatchObject({
+      kind: "applied",
+      record: { checkoutPath: BASE.checkoutPath, role: { parentCheckoutPath: "/parent" } },
+    });
+    expect(await updateLocusRole(request)).toMatchObject({
+      kind: "idempotent",
+      record: { role: { parentCheckoutPath: "/parent" } },
+    });
+    expect(await updateLocusRole({
+      ...request,
+      expectedRole: { ...initial.record.role, subject: { ...initial.record.role.subject, key: "other" } },
+      parentCheckoutPath: "/new-parent",
+    })).toEqual({ kind: "refused", reason: "role-conflict" });
   });
 });

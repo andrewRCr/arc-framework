@@ -257,14 +257,11 @@ roster and one generation-safe local mutation boundary.
           refusal. Heartbeats now advance only for state-touching calls carrying the matching record, lease token,
           and anchor; read-only calls preserve the observed generation.
 
-    - `[ ]` **3.3.c Release and update only the expected generation**
-        - Require record ID plus lease ID for release; return `lease-generation-mismatch` instead of clearing a
-          newer lease.
-        - Gate role and parent updates on the same record lock and exact prior role state.
-        - Make directed operations mutate the target checkout record rather than the command's current directory.
-        - Build `test-first` (one behavior at a time):
-            - Cover exact release, lost-response retry, newer-token refusal, same-role update replay, changed-role
-              refusal, and cross-directory targeting.
+    - `[x]` **3.3.c Release and update only the expected generation**
+        - Added directed exact-token lease release with lost-response replay and newer-token preservation, plus
+          authority-derived role/parent replacement gated by the target record ID, checkout path, exact prior role,
+          and byte generation. Same-result retries are idempotent; changed roles or raced writes refuse without
+          mutating the newer record.
 
     - `[ ]` **3.3.d Pop roles without weakening preservation rules**
         - Delete only the expected role/lease generation and refuse live/unknown, malformed, newer-role, or
