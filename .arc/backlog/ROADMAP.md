@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `0f084a7d3`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `fe340acff`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,19 +13,19 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit               | Priority | Owner  | Depends on | Cohort                 |
-| ------------- | ----------------------- | -------- | ------ | ---------- | ---------------------- |
-| `Active`      | session-locus-model     | P1       | andrew | —          | —                      |
-| `Integrating` | cli-command-inputs      | P2       | andrew | —          | cli-substrate-adoption |
-| `Active`      | cli-validation-surfaces | P2       | andrew | —          | cli-substrate-adoption |
-| `Active`      | markdown-formatting     | P3       | andrew | —          | —                      |
+| State         | Work unit                | Priority | Owner  | Depends on | Cohort                 |
+| ------------- | ------------------------ | -------- | ------ | ---------- | ---------------------- |
+| `Planning`    | cohortless-decomposition | P1       | andrew | —          | —                      |
+| `Active`      | session-locus-model      | P1       | andrew | —          | —                      |
+| `Integrating` | cli-command-inputs       | P2       | andrew | —          | cli-substrate-adoption |
+| `Active`      | cli-validation-surfaces  | P2       | andrew | —          | cli-substrate-adoption |
+| `Active`      | markdown-formatting      | P3       | andrew | —          | —                      |
 
 ## Ready
 
 | Work unit                             | Priority | Owner  | Depends on | Cohort                     |
 | ------------------------------------- | -------- | ------ | ---------- | -------------------------- |
 | interlock-release-refinement          | P1       | andrew | —          | approval-flow-refinement   |
-| cohortless-decomposition              | P1       | andrew | —          | —                          |
 | decomposition-doctrine                | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | pr-decomposition                      | P1       | andrew | —          | —                          |
