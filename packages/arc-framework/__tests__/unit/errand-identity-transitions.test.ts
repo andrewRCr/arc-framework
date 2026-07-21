@@ -110,6 +110,23 @@ describe("ordinary Errand identity transitions", () => {
     })).toMatchObject({ kind: "refused" });
   });
 
+  it("accepts an exact late-link replay from the already-linked generation", () => {
+    const previous = open({
+      origin: "inbox",
+      originEntry: "Fix output capture",
+      dispatchId: "dispatch-1",
+      updatedAt,
+    });
+
+    expect(apply(new Map([[previous.slug, previous]]), {
+      kind: "link",
+      previous,
+      originEntry: "Fix output capture",
+      dispatchId: "dispatch-1",
+      updatedAt: "2026-07-18T00:02:00.000Z",
+    })).toMatchObject({ kind: "idempotent", value: previous });
+  });
+
   it("pauses only with the exact terminal head proven on the fetched remote branch", () => {
     const previous = open();
     const request = {

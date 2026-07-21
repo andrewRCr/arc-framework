@@ -29,7 +29,6 @@ import {
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   closeErrand,
-  linkErrandToInbox,
   promoteErrand,
   retireErrand,
   type ErrandPushOutcome,
@@ -49,13 +48,13 @@ import { gitExec, createUserIOContext } from "../lib/io-context.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
 import { openOrdinaryErrandAtRuntime } from "../lib/errand/open-runtime.js";
+import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
   clearErrandPartialPushMarker,
   inspectInboxEntry,
   recordErrandPartialPushMarker,
-  requireLiveInboxTitle,
 } from "../lib/user-sync/index.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -420,6 +419,8 @@ function emitErrandOpenFailure(code: string, message: string, json: boolean): vo
 export interface ErrandLinkOptions {
   /** USER-INBOX capture title to associate with this errand. */
   fromInbox?: string;
+  /** Emit the producer-validated mutation result without human decoration. */
+  json?: boolean;
   /**
    * UTF-8 file containing the capture's **inner bold title** (one line), or `-`
    * for stdin. Preferred name; see also `inboxEntryFile`.
@@ -437,38 +438,45 @@ export interface ErrandLinkOptions {
  * promote path can drop the capture after the record is removed.
  */
 export async function handleErrandLink(slug: string, opts: ErrandLinkOptions): Promise<void> {
-  p.intro("arc errand link");
+  if (opts.json !== true) p.intro("arc errand link");
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
   const { settings } = await readConfigSettings(cwd);
   if (settings["branch.protection"] !== "full") {
-    p.log.error(
-      "`arc errand link` is a full-protection verb. Under partial protection an errand is a direct "
-      + "base commit — no branch, no record — so there is nothing to link.",
+    emitErrandLinkFailure(
+      "locus.errand-link.protection",
+      "Errand link requires full branch protection.",
+      opts.json === true,
+      "full-protection-required",
     );
-    process.exitCode = 1;
     return;
   }
 
   const identity = await resolveIdentityWithPrompt(false);
   if (!identity) {
-    p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
-    process.exitCode = 1;
+    emitErrandLinkFailure(
+      "locus.errand-link.identity",
+      "No identity resolved — set arc.identity before linking an Errand.",
+      opts.json === true,
+    );
     return;
   }
 
   const io = createUserIOContext();
   if (!io.execInput) {
-    p.log.error("The stdin git seam is unavailable — cannot update the errand record.");
-    process.exitCode = 1;
+    emitErrandLinkFailure(
+      "locus.errand-link.identity",
+      "The stdin Git boundary is unavailable.",
+      opts.json === true,
+    );
     return;
   }
 
-  let originEntry: string;
+  let inbox: ReturnType<typeof inspectInboxEntry>;
   try {
-    originEntry = await resolveLiveInboxOriginEntry({
+    inbox = await resolveLiveInboxAdoption({
       cwd,
       io,
       identity,
@@ -476,47 +484,70 @@ export async function handleErrandLink(slug: string, opts: ErrandLinkOptions): P
       file: opts.inboxTitleFile ?? opts.inboxEntryFile,
     });
   } catch (err) {
-    p.log.error(`Could not resolve the inbox entry title: ${err instanceof Error ? err.message : String(err)}`);
-    process.exitCode = 1;
+    emitErrandLinkFailure(
+      "locus.errand-link.inbox",
+      err instanceof Error ? err.message : String(err),
+      opts.json === true,
+    );
     return;
   }
 
-  let result;
+  let result: LocusMutationResultV1;
   try {
-    result = await linkErrandToInbox(
-      { exec: io.exec, execInput: io.execInput, identity },
-      { slug, originEntry },
-    );
+    result = await linkOrdinaryErrandAtRuntime({
+      slug,
+      inbox,
+      updatedAt: new Date().toISOString(),
+      identity,
+      exec: io.exec,
+      execInput: io.execInput,
+    });
   } catch (err) {
-    p.log.error(`Could not link the errand: ${err instanceof Error ? err.message : String(err)}`);
-    process.exitCode = 1;
-    return;
+    result = createLocusMutationResult({
+      outcome: "error",
+      operation: "errand-link",
+      error: { code: "locus.errand-link.handler", message: err instanceof Error ? err.message : String(err) },
+      recommendedPromptText: "Re-read the inbox and identity evidence before retrying.",
+    });
   }
+  emitErrandLinkResult(result, opts.json === true);
+}
 
-  if (result.kind === "no-record") {
-    p.log.info(`No errand record for '${slug}' — nothing to link.`);
+export function formatErrandLinkResult(
+  result: LocusMutationResultV1,
+  json: boolean,
+): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
+  return formatErrandOpenResult(result, json);
+}
+
+function emitErrandLinkResult(result: LocusMutationResultV1, json: boolean): void {
+  const formatted = formatErrandLinkResult(result, json);
+  if (json) process.stdout.write(formatted.text);
+  else if (formatted.stream === "stderr") p.log.error(formatted.text);
+  else {
+    p.log.success(formatted.text);
     p.outro("Done.");
-    return;
   }
+  process.exitCode = formatted.exitCode;
+}
 
-  if (result.kind === "link-conflict") {
-    p.log.error(
-      `Errand '${slug}' is already linked to inbox capture '${result.record.originEntry ?? ""}' `
-      + `(requested '${result.requestedEntry}'). Changing an existing link is refused so the original capture `
-      + "cannot be orphaned.",
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  // Mirror the sync leg's marker discipline (see handleErrandOpen): a clean push
-  // of the update clears any stale marker; a failed push records it and is
-  // non-fatal, with collision outcomes naming their manual remedy.
-  await settleErrandPushOutcome(cwd, io, identity, "Record-link", result.push);
-
-  const suffix = result.changed ? "" : " (already linked)";
-  p.log.success(`Linked errand '${slug}' to inbox capture '${result.record.originEntry ?? ""}'${suffix}.`);
-  p.outro("Done.");
+function emitErrandLinkFailure(
+  code: string,
+  message: string,
+  json: boolean,
+  reason?: "full-protection-required",
+): void {
+  emitErrandLinkResult(createLocusMutationResult(reason === undefined ? {
+    outcome: "error",
+    operation: "errand-link",
+    error: { code, message },
+    recommendedPromptText: "Resolve the reported input or configuration error before retrying.",
+  } : {
+    outcome: "refused",
+    operation: "errand-link",
+    reason,
+    recommendedPromptText: message,
+  }), json);
 }
 
 /** Options for the `arc errand close` subcommand. */
@@ -822,45 +853,6 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
     `ROADMAP regen pending (no renderer yet): \`${wuName}\` promoted to ${stage} — hand-render the readiness view.`,
   );
   p.outro("Done.");
-}
-
-/**
- * Resolve a title operand and require it to match a live parsed USER-INBOX
- * capture before minting an origin back-pointer.
- */
-async function resolveLiveInboxOriginEntry(options: {
-  cwd: string;
-  io: ReturnType<typeof createUserIOContext>;
-  identity: string;
-  literal?: string;
-  file?: string;
-}): Promise<string> {
-  const title = await resolveInboxEntryOperand({
-    literal: options.literal,
-    file: options.file,
-  });
-  const inboxPath = (
-    await resolveUserSurfaceResolver({
-      cwd: options.cwd,
-      identity: options.identity,
-      exec: options.io.exec,
-    })
-  ).identityGlobalPath("USER-INBOX.md");
-
-  let content: string;
-  try {
-    content = await options.io.readFile(inboxPath);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(
-        `USER-INBOX is missing — cannot adopt capture '${title}'. Create the inbox or drop --from-inbox.`,
-        { cause: err },
-      );
-    }
-    throw err;
-  }
-
-  return requireLiveInboxTitle(content, title);
 }
 
 /** Resolve and revalidate one exact inbox adoption while holding the identity notes lock. */

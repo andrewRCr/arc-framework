@@ -132,9 +132,17 @@ export {
 
 export {
   linkErrandToInbox,
+  linkOrdinaryErrand,
   type LinkErrandToInboxParams,
   type LinkErrandToInboxResult,
+  type LinkOrdinaryErrandDependencies,
+  type LinkOrdinaryErrandOptions,
 } from "./link.js";
+
+export {
+  linkOrdinaryErrandAtRuntime,
+  type LinkOrdinaryErrandRuntimeOptions,
+} from "./link-runtime.js";
 
 export {
   closeErrand,

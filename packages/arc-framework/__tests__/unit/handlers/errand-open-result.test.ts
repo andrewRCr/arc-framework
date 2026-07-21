@@ -1,8 +1,8 @@
-/** Errand-open human and JSON command-boundary parity. */
+/** Errand mutation human and JSON command-boundary parity. */
 
 import { describe, expect, it } from "vitest";
 
-import { formatErrandOpenResult } from "../../../src/handlers/errand.js";
+import { formatErrandLinkResult, formatErrandOpenResult } from "../../../src/handlers/errand.js";
 import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
 
 const refusal = createLocusMutationResult({
@@ -24,6 +24,52 @@ describe("errand open result rendering", () => {
       stream: "stderr",
       text: "Refused [cold-entry-required]: Start a cold session.",
       exitCode: 1,
+    });
+  });
+});
+
+describe("errand link result rendering", () => {
+  const linked = createLocusMutationResult({
+    outcome: "applied",
+    operation: "errand-link",
+    allocation: null,
+    recordId: null,
+    leaseId: null,
+    activeLocusPath: null,
+    sessionHomePath: null,
+    identity: {
+      kind: "errand",
+      key: "fix-output",
+      claimId: "0123456789abcdef0123456789abcdef",
+      protection: "full",
+      purpose: "errand",
+      origin: "inbox",
+      originEntry: "Fix output capture",
+      dispatchId: "dispatch-1",
+      state: "open",
+      branch: "chore/fix-output",
+      savedHead: null,
+      changeRequest: null,
+    },
+    originEntry: "Fix output capture",
+    dispatchId: "dispatch-1",
+    routingPlanDigest: null,
+    restoredParent: null,
+    nextOffer: null,
+    recommendedPromptText: "Linked Errand 'fix-output' to inbox capture 'Fix output capture'.",
+  });
+
+  it("emits the exact validated producer result as JSON", () => {
+    const output = formatErrandLinkResult(linked, true);
+    expect(output).toEqual({ stream: "stdout", text: `${JSON.stringify(linked)}\n`, exitCode: 0 });
+    expect(JSON.parse(output.text)).toStrictEqual(linked);
+  });
+
+  it("uses the producer narration for human output", () => {
+    expect(formatErrandLinkResult(linked, false)).toEqual({
+      stream: "stdout",
+      text: linked.recommendedPromptText,
+      exitCode: 0,
     });
   });
 });

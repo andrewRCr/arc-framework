@@ -361,8 +361,15 @@ describe("arc errand close", () => {
     await writeFile(inboxPath, inbox, "utf-8");
 
     await seedLegacyErrand(tmpDir, { slug: "late-adopt", type: "chore" });
-    const link = await runArc(["errand", "link", "late-adopt", "--from-inbox", "Link me"], tmpDir);
+    const link = await runArc([
+      "errand", "link", "late-adopt", "--from-inbox", "Link me", "--json",
+    ], tmpDir);
     expect(link.exitCode).toBe(1);
+    expect(JSON.parse(link.stdout.trim())).toMatchObject({
+      outcome: "refused",
+      operation: "errand-link",
+      reason: "identity-conflict",
+    });
     const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:late-adopt"]);
     expect(record).toContain('"origin": "description"');
     expect(record).not.toContain('"originEntry"');
@@ -390,6 +397,44 @@ describe("arc errand close", () => {
     expect(link.exitCode).toBe(1);
     const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:safe-link"]);
     expect(record).not.toContain(`"originEntry": ${JSON.stringify(title)}`);
+  });
+
+  it("returns pure JSON errors for missing and malformed inbox link evidence", async () => {
+    await setFullProtection(tmpDir);
+    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+    const inboxPath = join(inboxDir, "USER-INBOX.md");
+    await mkdir(inboxDir, { recursive: true });
+    await writeFile(
+      inboxPath,
+      "# User Inbox\n\n## Errand\n\n### `[ ]` **Other capture**\n\n- _Observation:_ unrelated.\n\n---\n",
+      "utf-8",
+    );
+
+    const missing = await runArc([
+      "errand", "link", "ghost", "--from-inbox", "Missing capture", "--json",
+    ], tmpDir);
+    expect(missing.exitCode).toBe(1);
+    expect(JSON.parse(missing.stdout.trim())).toMatchObject({
+      outcome: "error",
+      operation: "errand-link",
+      error: { code: "locus.errand-link.inbox" },
+    });
+
+    await writeFile(
+      inboxPath,
+      "# User Inbox\n\n## Errand\n\n### `[ ]` **Broken capture**\n\n"
+        + "- _Disposition:_ `execute-bound`\n\n---\n",
+      "utf-8",
+    );
+    const malformed = await runArc([
+      "errand", "link", "ghost", "--from-inbox", "Broken capture", "--json",
+    ], tmpDir);
+    expect(malformed.exitCode).toBe(1);
+    expect(JSON.parse(malformed.stdout.trim())).toMatchObject({
+      outcome: "error",
+      operation: "errand-link",
+      error: { code: "locus.errand-link.inbox" },
+    });
   });
 });
 

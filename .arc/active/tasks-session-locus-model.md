@@ -433,15 +433,12 @@ result so workflows consume verbs and precomposed verdicts.
           adoption, fail-closed ancestry and legacy-identity handling, production marker/record mutations, and real
           CLI plus compatibility coverage for the retired v2-producing surface.
 
-    - `[ ]` **5.1.b Make late inbox linking an exact v3 transition**
-        - Refactor `packages/arc-framework/src/lib/errand/link.ts` through the complete-basis transaction so
-          `arc errand link` updates only the exact ordinary v3 claim and a live, well-formed inbox capture.
-        - Preserve same-entry idempotence; refuse a different existing origin, legacy record, incomplete identity
-          basis, changed claim generation, or conflicting dispatch binding.
-        - Return `errand-link` through the shared mutation result and register `--json` at the existing CLI command.
-        - Build `test-first` (one behavior at a time):
-            - Cover free-description adoption, same-link replay, different-link and dispatch conflicts, missing or
-              malformed inbox state, v1/v2 refusal, CAS races, and JSON/human parity.
+    - `[x]` **5.1.b Make late inbox linking an exact v3 transition**
+        - Routed late linking through a complete local/remote basis read followed by an exact-generation identity
+          transaction, preserving same-entry replay while refusing changed claims, legacy identities, different
+          origins, conflicting dispatches, and missing or malformed locked inbox evidence before mutation.
+        - Added the shared `errand-link` mutation result and `--json` boundary, with unit, real-Git integration,
+          remote-only reconciliation, and E2E coverage proving JSON/human parity and legacy compatibility refusal.
 
     - `[ ]` **5.1.c Implement full-mode leave to paused or awaiting-merge**
         - Add `arc errand leave <slug> --state paused|awaiting-merge` and validate the exact remote-preserved WIP

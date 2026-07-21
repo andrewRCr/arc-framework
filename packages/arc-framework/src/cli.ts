@@ -364,6 +364,7 @@ errand
   .option("--from-inbox <entry-title>", "USER-INBOX capture bold title to associate with the errand")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--json", "Emit the producer-validated locus mutation result")
   .action((slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts));
 
 errand

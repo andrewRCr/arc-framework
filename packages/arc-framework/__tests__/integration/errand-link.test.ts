@@ -14,10 +14,16 @@ import {
   makeGitExecInput,
 } from "../helpers/integration.js";
 import {
+  TransientIdentityRecordV3Schema,
   openErrand,
   linkErrandToInbox,
+  linkOrdinaryErrandAtRuntime,
+  ordinaryErrandTransform,
   readErrandRecord,
+  readTransientIdentitySnapshot,
+  transactTransientIdentities,
   type ErrandRecordIO,
+  type OrdinaryErrandRecord,
 } from "../../src/lib/errand/index.js";
 
 const IDENTITY = "andrew";
@@ -81,6 +87,60 @@ describe("linkErrandToInbox", () => {
     expect(await linkErrandToInbox(io, { slug: "ghost", originEntry: "Existing capture" })).toEqual({
       kind: "no-record",
       slug: "ghost",
+    });
+  });
+
+  it("adopts a remote-only v3 identity through complete-basis reconciliation", async () => {
+    const record = TransientIdentityRecordV3Schema.parse({
+      version: 3,
+      kind: "errand",
+      slug: "late-match",
+      claimId: "0123456789abcdef0123456789abcdef",
+      purpose: "errand",
+      origin: "description",
+      originEntry: null,
+      dispatchId: null,
+      intent: "Late match",
+      branch: "chore/late-match",
+      state: "open",
+      savedHead: null,
+      changeRequest: null,
+      createdAt: CREATED_AT,
+      updatedAt: CREATED_AT,
+    }) as OrdinaryErrandRecord;
+    expect(await transactTransientIdentities(io, {
+      remote: "origin",
+      message: "seed v3 errand",
+      transform: ordinaryErrandTransform({ kind: "create", record }),
+    })).toMatchObject({ kind: "applied" });
+    await io.exec("git", ["update-ref", "-d", `refs/arc/user/${IDENTITY}/errands`]);
+
+    const result = await linkOrdinaryErrandAtRuntime({
+      slug: record.slug,
+      inbox: {
+        title: "Existing capture",
+        sourceDigest: `sha256:${"b".repeat(64)}` as `sha256:${string}`,
+        dispatchId: "dispatch-1",
+      },
+      updatedAt: "2026-06-19T12:01:00.000Z",
+      identity: IDENTITY,
+      exec: io.exec,
+      execInput: io.execInput,
+    });
+
+    expect(result).toMatchObject({
+      outcome: "applied",
+      originEntry: "Existing capture",
+      dispatchId: "dispatch-1",
+    });
+    const snapshot = await readTransientIdentitySnapshot(io);
+    expect(snapshot).toMatchObject({ kind: "complete" });
+    if (snapshot.kind !== "complete") throw new Error("expected complete identity snapshot");
+    expect(snapshot.records.get(record.slug)).toMatchObject({
+      claimId: record.claimId,
+      origin: "inbox",
+      originEntry: "Existing capture",
+      dispatchId: "dispatch-1",
     });
   });
 });

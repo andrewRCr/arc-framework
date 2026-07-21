@@ -236,6 +236,12 @@ type DesiredResult =
 
 function desiredRecord(request: Exclude<OrdinaryErrandTransition, { kind: "create" }>): DesiredResult {
   if (request.kind === "retire") return retirementDesired(request);
+  if (request.kind === "link" && request.previous.state === "open" && request.previous.origin === "inbox") {
+    return request.previous.originEntry === request.originEntry
+      && request.previous.dispatchId === request.dispatchId
+      ? { kind: "desired", record: request.previous }
+      : { kind: "refused", reason: "Errand is already linked to a different inbox generation" };
+  }
   if (!timestampAdvances(request.previous.updatedAt, request.updatedAt)) {
     return { kind: "refused", reason: "updatedAt must advance monotonically" };
   }
