@@ -1,7 +1,7 @@
 /** Complete-basis reconciliation and compare-and-swap identity transactions. */
 
 import { MAX_RECONCILE_ATTEMPTS, uniqueRefToken } from "../git/ref-tree.js";
-import { gitFailureText, isGitProcessError } from "../git/process-error.js";
+import { gitFailureText, isGitProcessError, normalizeGitRejection } from "../git/process-error.js";
 import { isCasRejectionError } from "../user-sync/notes-merge.js";
 import { isRemoteUnavailableError } from "../user-sync/index.js";
 import {
@@ -67,6 +67,23 @@ export type IdentityTransform<T> = (
   records: ReadonlyMap<string, TransientIdentityRecord>,
 ) => IdentityTransformDecision<T> | Promise<IdentityTransformDecision<T>>;
 
+/** Exact decoded generations behind one divergent identity key. */
+export interface IdentityConflictInput {
+  readonly key: string;
+  readonly base: TransientIdentityRecord | undefined;
+  readonly local: TransientIdentityRecord | undefined;
+  readonly remote: TransientIdentityRecord | undefined;
+}
+
+/** Narrow caller decision for a transaction-level same-key divergence. */
+export type IdentityConflictDecision =
+  | { kind: "select-local" }
+  | { kind: "select-remote" }
+  | { kind: "refused"; reason: string };
+
+/** Pure resolver for domain-sanctioned same-key contention. */
+export type IdentityConflictResolver = (input: IdentityConflictInput) => IdentityConflictDecision;
+
 /** Inputs for a complete-basis identity transaction. */
 export interface IdentityTransactionParams<T> {
   /** Configured remote name, or `null` for local-only identity authority. */
@@ -75,6 +92,8 @@ export interface IdentityTransactionParams<T> {
   readonly message: string;
   /** Idempotent expected-state transform. */
   readonly transform: IdentityTransform<T>;
+  /** Optional narrow resolver for domain-sanctioned same-key races. */
+  readonly resolveConflict?: IdentityConflictResolver;
 }
 
 /** Single-channel transaction outcome. */
@@ -155,10 +174,11 @@ async function transactRemoteAttempt<T>(
   const base = await readCommonBasis(io, local.tip, remote.tip);
   if (base.kind === "error") return base;
   const reconciled = reconcileIdentityObjects(base.objects, local.objects, remote.objects);
-  if (reconciled.kind === "conflict") {
-    return { kind: "refused", reason: `Divergent identity keys: ${reconciled.keys.join(", ")}` };
-  }
-  const records = materializeReconciledRecords(reconciled.objects, base, local, remote);
+  const resolved = reconciled.kind === "merged"
+    ? reconciled
+    : resolveObjectConflicts(reconciled.keys, base, local, remote, params.resolveConflict);
+  if (resolved.kind === "refused") return resolved;
+  const records = materializeReconciledRecords(resolved.objects, base, local, remote);
   if (records === null) {
     return { kind: "error", stage: "basis", message: "Reconciled identity objects lack decoded records" };
   }
@@ -166,11 +186,48 @@ async function transactRemoteAttempt<T>(
     io,
     ref,
     local,
-    { kind: "complete", tip: remote.tip, objects: reconciled.objects, records },
+    { kind: "complete", tip: remote.tip, objects: resolved.objects, records },
     params,
     true,
     remote.objects,
   );
+}
+
+function resolveObjectConflicts(
+  conflictKeys: readonly string[],
+  base: CompleteBasis,
+  local: CompleteBasis,
+  remote: CompleteBasis,
+  resolver: IdentityConflictResolver | undefined,
+): { kind: "merged"; objects: Map<string, string> } | { kind: "refused"; reason: string } {
+  if (resolver === undefined) {
+    return { kind: "refused", reason: `Divergent identity keys: ${conflictKeys.join(", ")}` };
+  }
+  const conflictSet = new Set(conflictKeys);
+  const objects = new Map<string, string>();
+  const keys = [...new Set([...base.objects.keys(), ...local.objects.keys(), ...remote.objects.keys()])].sort();
+  for (const key of keys) {
+    const baseOid = base.objects.get(key);
+    const localOid = local.objects.get(key);
+    const remoteOid = remote.objects.get(key);
+    let selected: string | undefined;
+    if (!conflictSet.has(key)) {
+      if (localOid === remoteOid) selected = localOid;
+      else if (localOid === baseOid) selected = remoteOid;
+      else selected = localOid;
+    } else {
+      const decision = resolver({
+        key,
+        base: base.records.get(key),
+        local: local.records.get(key),
+        remote: remote.records.get(key),
+      });
+      if (decision.kind === "refused") return decision;
+      selected = decision.kind === "select-local" ? localOid : remoteOid;
+    }
+    if (selected !== undefined) objects.set(key, selected);
+  }
+  return { kind: "merged", objects };
 }
 
 async function applyAndPublish<T>(
@@ -255,7 +312,11 @@ async function readCommonBasis(
   try {
     commonTip = (await io.exec("git", ["merge-base", localTip, remoteTip])).stdout.trim();
   } catch (error) {
-    if (isGitProcessError(error) && error.exitCode === 1) return emptyBasis();
+    const normalized = normalizeGitRejection(error, {
+      command: "git",
+      args: ["merge-base", localTip, remoteTip],
+    });
+    if (normalized.exitCode === 1) return emptyBasis();
     return { kind: "error", stage: "basis", message: errorMessage(error) };
   }
   return commonTip === "" ? emptyBasis() : readCompleteBasis(io, commonTip);

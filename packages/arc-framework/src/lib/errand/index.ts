@@ -55,6 +55,9 @@ export {
   type IdentityObjectReconcile,
   type IdentityTransformDecision,
   type IdentityTransform,
+  type IdentityConflictInput,
+  type IdentityConflictDecision,
+  type IdentityConflictResolver,
   type IdentityTransactionParams,
   type IdentityTransactionOutcome,
 } from "./identity-transaction.js";
@@ -70,6 +73,27 @@ export {
   type OrdinaryErrandTransition,
   type OrdinaryErrandTransform,
 } from "./identity-transitions.js";
+
+export {
+  groomClaimTransform,
+  groomClaimConflictResolver,
+  groomAwaitMergeTransform,
+  housekeepClaimTransform,
+  housekeepClaimConflictResolver,
+  identityClaimRollbackTransform,
+  rollbackIdentityClaim,
+  mintHousekeepDispatchId,
+  pinGroomOpenedBaseHead,
+  type GroomIdentityRecord,
+  type GroomClaimVerdict,
+  type GroomAwaitMergeRequest,
+  type HousekeepIdentityRecord,
+  type HousekeepClaimVerdict,
+  type IdentityClaimRollbackParams,
+  type IdentityClaimRollbackOutcome,
+  type PinGroomOpenedBaseHeadParams,
+  type PinGroomOpenedBaseHeadOutcome,
+} from "./identity-claims.js";
 
 export {
   mergeErrandTrees,

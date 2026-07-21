@@ -160,26 +160,12 @@ grooming, or housekeeping state.
           the exact terminal head is remote-backed; invalid branches, missing/unpushed heads, and cleanup uncertainty
           remain explicit non-mutating outcomes.
 
-    - `[ ]` **2.2.c Implement generation-owned first-writer claims**
-        - Make `groom-<anchorStub>` create-if-absent in the global identity-key namespace and scan every live groom's
-          canonical member set in the same complete-basis transform. Disjoint sets may proceed; an occupied
-          incompatible kind or non-identical overlapping set conflicts, while a losing same-anchor/exact-set retry
-          adopts the winner and returns a resume/wait verdict.
-        - Pin the refreshed `openedBaseHead` before the claim transform and preserve it unchanged through every groom
-          transition; an exact-set loser adopts the winner's `openedBaseHead` rather than substituting its own
-          observed base tip.
-        - Provide the same complete-tree primitive for housekeep so one live `housekeep-routing` identity blocks a
-          second claim across all slugs and machines under full protection. Mint its dispatch ID, persist the
-          confirmed `auto | reviewed` lane plus immutable routing-plan digest, permit only monotonic escalation to
-          `reviewed`, and adopt a losing retry only when its caller-supplied validated digest matches the winner;
-          Phase 5 owns plan parsing/canonicalization and passes the digest into this transaction boundary.
-        - On local allocation failure, CAS-retire only the exact unchanged record carrying the claimant's `claimId`;
-          surface failed rollback as explicit resume/abandon work.
-        - Build `test-first` (one behavior at a time):
-            - Cover one winner, same-millisecond claimants, single- and multi-member sets, disjoint concurrent
-              claims, exact-set loser adoption, incompatible-kind occupancy, and every partial/full overlap refusal.
-            - Cover changed-record rollback refusal, failed rollback recovery, different-slug housekeep races,
-              dispatch stability, routing-plan mismatch, and routing-lane downgrade refusal.
+    - `[x]` **2.2.c Implement generation-owned first-writer claims**
+        - Added remote-base pinning and generation-owned groom claims with complete-tree member exclusion, disjoint
+          concurrency, exact-set remote-winner adoption, and base-head preservation through awaiting-merge. Added one
+          global housekeeping claimant with minted stable dispatches, same-plan race adoption, immutable digests, and
+          monotonic lane escalation. Narrow conflict resolvers preserve default divergent-key refusal, while exact
+          rollback and recovery-required outcomes retain failed allocations for explicit resume or abandon work.
 
     - `[ ]` **2.2.d Gate tail retirement and abandonment on exact host truth**
         - Add a narrow developer-authenticated change-request lifecycle port in shared CLI code rather than treating
