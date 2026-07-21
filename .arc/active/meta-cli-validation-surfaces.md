@@ -9,14 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-cli-validation-surfaces.md`
-- **Task List:** [none]
+- **Task List:** `tasks-cli-validation-surfaces.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

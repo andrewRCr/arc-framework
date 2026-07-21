@@ -147,10 +147,11 @@ rejection, argument redaction, and the precondition-versus-I/O failure split.
 `state`, `owner`, `branch`, `workClass`, `priority`, `cohort`, `dependsOn`, `origin`, `design`, `taskList`,
 `currentWorkflow`, `lastCompleted`, `nextTask`, `blockers`, `nextAction`, `prUrl`, and `completed`.
 
-Every key is present. Semantically absent scalar values are `null`; `dependsOn` and `design` are identifier arrays.
-State, class, and priority compose kernel domains, while `workClass` and `priority` also accept the unresolved
-semantic value `TBD`. `[internal]` maps to `internal`; display sentinels and Markdown quoting do not enter the
-semantic root.
+Every key is present. `state`, `owner`, `workClass`, `priority`, and `origin` are required non-null semantic values;
+`workClass` and `priority` additionally accept the unresolved semantic value `TBD`, and internal origin is the value
+`internal`. `branch`, `cohort`, `taskList`, `currentWorkflow`, `lastCompleted`, `nextTask`, `blockers`, `nextAction`,
+`prUrl`, and `completed` are nullable. `dependsOn` and `design` are identifier arrays. Display sentinels and Markdown
+quoting do not enter the semantic root.
 
 The Markdown adapter remains a separate compatibility layer:
 
@@ -164,11 +165,22 @@ The Markdown adapter remains a separate compatibility layer:
 5. `toMetaRecord` applies `MetaRecordSchema.safeParse` only where a caller requires a fully valid durable record.
    Valid parsed records require no reshaping at this step.
 6. `renderMetaFile` assembles a complete semantic record from defaults plus partial semantic overrides, validates
-   it, and performs the inverse projection while preserving current Markdown bytes.
+   it, and emits only the canonical full table layout. It is not a legacy flat-bullet writer.
 
-The display mappings are exact: `—` and `[none]` become `null` for scalar fields and empty arrays for list fields;
-`[TBD]` becomes `TBD`; `[internal]` becomes `internal`; identifier lists are parsed once rather than reparsed by
-consumers.
+The display mappings are exact in both directions. On read, `—` and `[none]` become `null` for nullable scalar fields
+and `[none]` becomes an empty array for list fields; `[TBD]` becomes `TBD`; `[internal]` becomes `internal`.
+Canonical full-layout rendering maps null `branch`, `cohort`, `taskList`, `currentWorkflow`, `lastCompleted`,
+`nextTask`, `blockers`, `prUrl`, and `completed` to `[none]`, maps null `nextAction` to `—`, and maps empty identifier
+arrays to `[none]`. Required semantic fields have no null projection. Identifier lists are parsed once rather than
+reparsed by consumers.
+
+Both the full table and legacy flat-bullet layouts remain readable. Byte preservation for an existing legacy file
+belongs to the localized projection setters and reconciliation helpers, which mutate only their owned fields; a
+parse followed by `renderMetaFile` deliberately emits the full layout rather than reproducing legacy bytes.
+
+Strict render producers validate before any earlier irreversible effect. In particular, `park@Active` composes and
+validates its pointer record before worktree teardown, then retains teardown before the pointer write so the dirty
+worktree guard and the existing post-teardown write-failure classification remain unchanged.
 
 Existing consumers move from display-label indexing and comma splitting to semantic properties. Compatibility
 granularity does not change: the worktree roster, for example, maps an unrecognized parsed state to `unknown` while
@@ -197,14 +209,28 @@ must produce the ordinary unknown-key warning rather than remain a validator-onl
 `hooks.code_extensions` validator comment is removed; that key is already unknown and has no runtime contract.
 
 `ArcConfigSchema` is the registered authoring-record contract built from the catalog. Known keys are optional
-because omission selects the documented default. Unknown dotted keys with string values remain accepted and
-preserved for forward compatibility; known keys cannot bypass their leaf domains. The schema owns record shape and
-per-key domains, not cross-field policy.
+because omission selects the documented default. Its key grammar is the installed validator's exact discovery
+contract, `^[a-z][a-z0-9_.]+$`; preserving that existing grammar intentionally retains undotted names plus repeated
+or trailing periods while excluding uppercase, leading-digit, leading-underscore, and one-character names. Unknown
+matching keys with string values remain accepted and preserved for forward compatibility; known keys cannot bypass
+their leaf domains. The schema owns record shape and per-key domains, not cross-field policy.
 
-`parseArcConfig` remains the syntax tokenizer. It retains CRLF normalization, quote stripping,
-first-definition-wins behavior, colon-bearing values, and bare-empty default selection, and validates its output
-only through an unregistered open `RawArcConfigSchema` (`Record<string, string>`). No universal coercing normalizer
-is introduced.
+`parseArcConfig` remains the broader syntax tokenizer. It retains its `^[\w.]+` key capture, CRLF normalization,
+quote stripping, first-definition-wins behavior, colon-bearing values, and bare-empty default selection, and
+validates its output only through an unregistered open `RawArcConfigSchema` (`Record<string, string>`). Existing
+tolerant readers therefore keep every key they accept today. Full validation separately inventories raw key
+occurrences through the installed `^[a-z][a-z0-9_.]+:` line grammar, then applies `ArcConfigSchema` to the matching
+first-definition value map. Tokenizer-only keys outside that grammar remain ignored, while the raw inventory
+preserves unknown bare-empty and duplicate-key warning behavior. No universal coercing normalizer is introduced.
+
+Bare-empty and quoted-empty values remain distinct. A bare-empty first definition claims the key but is omitted
+from the parsed value map; `""` and `''` claim the key and remain present as the empty string. Each catalog descriptor
+declares the existing quoted-empty posture: `default` for omission-default domains, `unset` for optional strings
+whose owning policy treats empty as absent, or `invalid` where empty is a domain error. `ArcConfigSchema` accepts the
+empty string only for `default` and `unset` leaves. Full validation renders the current absent/default pass for
+`default`, applies existing cross-field missing/ignored behavior for `unset`, and reports the existing domain error
+for `invalid`; positive-integer leaves are `invalid`. First-definition masking remains identical for both empty
+forms.
 
 Policy adapters retain their existing observable behavior while importing catalog leaf schemas and defaults:
 
@@ -341,6 +367,11 @@ exercise divergent Unicode values in attestation replay, receipt validation, and
 A final direct-caller inventory proves every use of either serializer belongs to the declared kernel-backed or
 version-1-frozen set. Existing kernel receipt and digest fixtures remain byte-identical.
 
+The frozen serializer retains ambient `localeCompare()` exactly. Durable version-1 contracts expose only fixed ASCII
+property-name sets, including their closed map keys; divergence fixtures vary accepted string values rather than
+introducing arbitrary Unicode property names. Pinning a locale would change the legacy algorithm and is not part of
+this compatibility seam.
+
 ## Alternatives & Rationale
 
 - **One global validation schema module:** rejected because it would centralize semantics away from the adapters
@@ -424,8 +455,9 @@ schema and no migrated handwritten structural authority remains.
   unchanged.
 - Audit records reject every invalid command/decision/outcome combination before I/O while preserving the throw
   versus returned-I/O-error split and argument redaction.
-- Semantic meta records round-trip through the current Markdown rendering, list/sentinel mappings are lossless, and
-  malformed closed-domain tokens preserve the existing field-level degradation behavior.
+- Both meta layouts parse to the same semantic fields, the canonical full layout round-trips with exact field-specific
+  absence projection, localized legacy-layout mutations preserve unrelated bytes, and malformed closed-domain tokens
+  preserve the existing field-level degradation behavior; strict pointer composition fails before worktree teardown.
 - The configuration catalog accounts for every packaged and code-consumed project key exactly once; policy-specific
   defaults, warnings, precedence, hard errors, cross-field checks, degraded values, and unknown-key behavior remain
   observably compatible.
