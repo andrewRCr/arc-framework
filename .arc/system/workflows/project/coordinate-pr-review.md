@@ -3,6 +3,9 @@ purpose: Coordinate one explicit open pull request through controller admission,
 audience: agent
 arc:
   methods:
+    - adversarial-review
+    - independent-analysis
+    - implementation-audit
     - review-response
 ---
 
@@ -21,8 +24,27 @@ coordinates. Bind one loop iteration to the canonical target and head, policy id
 provider-event identity. An approved fix, base merge, or change to any bound identity invalidates that scope: re-read
 the canonical target and routing result before another action.
 
-1. Run `npm run review-gate:next-action -- <hostRef>` and parse its JSON contract. Never infer an action from summary
-   prose.
+Consume the effective routing result plus the explicit project channel, `local | hosted | both`. Materialize the
+exact target, independent-analysis requirement, and selected carrier request from those typed inputs. An exempt
+obligation produces no request. For every admitted source:
+
+- **Local:** Launch [`adversarial-review`][adversarial-review] under the effective
+  [`implementation-audit`][implementation-audit] rubric over the complete exact target. Run without author conclusions,
+  suspected weak spots, preferred fixes, or self-verification claims. Normalize the result, then submit only a complete
+  clean or findings result to the exact-head attestor. Re-reduce the requirement from the appended local receipt; send
+  findings to § 2 with a local channel and no conversation capabilities.
+- **Hosted:** Enter the typed action/await loop below. Provider trigger, observation, and conversation mechanics stay
+  behind repository launchers and authority-specific adapters.
+
+Unavailable, partial, or failed review is non-satisfying. An unsatisfied required obligation blocks; an unsatisfied
+recommended obligation remains visible and non-blocking. After an approved fix changes the target, reroute and
+relaunch every still-selected source rather than carrying a prior request or result. Typed reduction ends the bounded
+call and does not add a resident engine or retain coordinator-owned execution state.
+
+When a hosted source remains selected and unsatisfied:
+
+1. Run `npm run review-gate:next-action -- <hostRef>` and parse its JSON contract. Never infer an action from
+   summary prose.
 2. On `needs-user-trigger`, surface the provider, generation, command, and required actor. After authorization, run
    `npm run review-gate:perform-action -- <hostRef> <request-key> <generation>`; it revalidates actor and canonical
    state before the trigger and dispatches exact-PR/head reconciliation afterward.
@@ -107,3 +129,5 @@ current-head coordination. If the head changes, restart at § 1.
 ---
 
 [review-response]: ../../methods/review-response.md
+[adversarial-review]: ../../methods/adversarial-review.md
+[implementation-audit]: ../../methods/implementation-audit.md

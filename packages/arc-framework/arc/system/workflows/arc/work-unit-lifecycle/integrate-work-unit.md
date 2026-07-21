@@ -175,6 +175,12 @@ both the newly-created path and every open-PR re-entry; actions derive current c
 Review coordination and every hook invocation share this exact-head contract. If a review action changes the head,
 recompose `openedChangeRequest` from the canonical current head before re-entry; never carry the prior head forward.
 
+Invoke the active project review coordinator's source-neutral independent-analysis cycle with the exact target,
+effective routed obligation, and explicit project channel `local | hosted | both`. The coordinator selects and
+normalizes the admitted carrier, reduces its result, and sends findings through [`review-response`][review-response].
+If the selected source is unavailable, partial, or failed, only a required obligation blocks; recommended work stays
+visible and non-blocking. Recompose and repeat the cycle after any approved fix changes the target.
+
 Process any reviewer findings per the [`review-triage` method][review-triage]; commit fixes per the
 [`commit-footer` method][commit-footer]. Re-run Tier 1 quality gates on modified files after each review-driven
 commit.

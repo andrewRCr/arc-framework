@@ -624,12 +624,11 @@ that shapes review spend without producing satisfying evidence.
 _Purpose:_ Preserve exact-head authority and finding-fix approval before mutation while allowing a fully reviewed
 provisional integration candidate to compose, reconcile, suspend, and re-enter between genuine developer decisions.
 
-### `[ ]` **6.1 Graduate the project coordinator behind review-response**
+### `[x]` **6.1 Graduate the project coordinator behind review-response**
 
 - _Goal:_ Local and hosted obligations enter one source-neutral coordination cycle while
   `coordinate-pr-review.md` retains repository-specific host/provider mechanics and the reusable finding cycle
   lives once in `review-response`.
-- _Context:_ Implements Design §§2.1–2.2 and 8 without exporting the half-wired controller as framework authority.
 
     - `[x]` **6.1.a Split neutral response from project action/await mechanics**
         - The project coordinator now executes the six `review-response` planner states for verification, approved
@@ -648,16 +647,18 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
           typed applicability proof that the reviewed work-unit delta is unchanged.
         - Project contracts cover the stale, exempt, recommended, required, and attention dispatch arms.
 
-    - `[ ]` **6.1.d Coordinate source-neutral independent analysis**
-        - Consume routing plus explicit `local | hosted | both` channel policy, materialize the exact
-          target/requirement/request, invoke the selected carrier, normalize and attest eligible terminal evidence,
-          reduce the requirement, and send findings through `review-response` without adding a resident engine.
-        - For local review, launch `adversarial-review` under `implementation-audit` without author conclusions;
-          require the Phase 3 exact-head attestor before clean satisfaction, and reroute/relaunch after an approved
-          fix changes the target.
-        - Keep unavailable/partial/failed results non-satisfying, blocking only required obligations; retain hosted
-          action/await and conversation authority in project adapters, and expose the same cycle to WU and Errand
-          callers.
+    - `[x]` **6.1.d Coordinate source-neutral independent analysis**
+        - The coordinator now consumes typed routing plus explicit `local | hosted | both` policy, materializes exact
+          carrier inputs, normalizes and attests eligible terminal evidence, reduces the requirement, and routes
+          findings through `review-response` without retaining resident execution state.
+        - Local review runs `adversarial-review` under `implementation-audit` without author conclusions and requires
+          the exact-head attestor; hosted trigger, await, and conversation authority stays behind project adapters.
+        - Unavailable, partial, and failed results remain non-satisfying and block only required obligations. Work-unit
+          and Errand integration invoke the same cycle and reroute after every approved head change.
+
+- _Outcome:_ The project coordinator now composes exact-target local and hosted evidence through one bounded cycle,
+  while the neutral `review-response` planner remains the sole finding-response procedure. Project adapters retain
+  host authority, and both WU and Errand integration share the same rerouting and failure semantics.
 
 ### `[ ]` **6.2 Enforce approved dispositions and authoritative settlement**
 

@@ -355,6 +355,31 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("coordinates source-neutral independent analysis for work units and errands", async () => {
+    const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
+    for (const method of ["adversarial-review", "independent-analysis", "implementation-audit", "review-response"]) {
+      expect(workflow).toContain(`- ${method}`);
+    }
+    expect(workflow).toContain("`local | hosted | both`");
+    expect(workflow).toContain("without author conclusions");
+    expect(workflow).toContain("exact-head attestor");
+    expect(workflow).toContain("Unavailable, partial, or failed");
+    expect(workflow).toContain("required obligation blocks");
+    expect(workflow).toContain("recommended obligation remains visible and non-blocking");
+    expect(workflow).toContain("does not add a resident engine");
+
+    for (const relative of [
+      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      "system/workflows/arc/supplemental/run-errand.md",
+    ]) {
+      for (const base of [packageArc, projectArc]) {
+        const caller = await readFile(resolve(base, relative), "utf8");
+        expect(caller).toContain("source-neutral independent-analysis cycle");
+        expect(caller).toContain("`local | hosted | both`");
+      }
+    }
+  });
+
   it("keeps project actions populated but inactive until cutover", async () => {
     for (const name of ["post-pr-open", "pre-merge"]) {
       const project = await readFile(resolve(projectArc, `system/extensions/${name}.md`), "utf8");

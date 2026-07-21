@@ -187,6 +187,12 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    coordination and both hooks share this exact-head contract. After any head-changing action, recompose
    `openedChangeRequest` from the canonical current head before re-entry.
 
+   Invoke the active project review coordinator's source-neutral independent-analysis cycle with the exact target,
+   effective routed obligation, and explicit project channel `local | hosted | both`. The coordinator selects and
+   normalizes the admitted carrier, reduces its result, and sends findings through [`review-response`][review-response].
+   If the selected source is unavailable, partial, or failed, only a required obligation blocks; recommended work
+   stays visible and non-blocking. Recompose and repeat the cycle after any approved fix changes the target.
+
 5. **Settle the final head.** For reviewed and auto lanes, run review coordination and fire `pre-merge` before
    merge authorization. If any fix/request action changes the head, repeat base freshness, current-head coordination,
    and the final hook until the head is unchanged and the controller reports it settled. No review-authored commit or
