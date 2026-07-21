@@ -429,29 +429,25 @@ dispositions in Phase 5.
 _Purpose:_ Bind the final indexed tree to a complete, reproducible disposition ledger and prove every selected
 layout hit has exactly one semantic owner.
 
-### `[ ]` **5.1 Define the class-inventory and migration-ledger proof contracts**
+### `[x]` **5.1 Define the class-inventory and migration-ledger proof contracts**
 
 - _Goal:_ The migration proof has a strict versioned data model and unambiguous canonical digest recipes for its
   disposition-independent source evidence and selected class-hit sets.
 
-    - `[ ]` **5.1.a Extract the deterministic class-inventory scan**
-        - Add a shared `scanClassInventory` primitive that returns manifest/corpus source metadata and canonical
-          `classes[].hits` before catch-all disposition partitioning.
-        - Compose the existing `scanCorpus` from that primitive without weakening or changing its stale-disposition
-          behavior, and cover equivalence of the full scan's class projection.
+    - `[x]` **5.1.a Extract the deterministic class-inventory scan**
+        - Added canonical disposition-independent class-inventory projection and composed the full scan from the same
+          state, preserving duplicate-path checks, class evidence, report inputs, and stale-disposition failures.
 
-    - `[ ]` **5.1.b Add the version-1 ledger schemas and closed disposition vocabulary**
-        - Implement `src/lib/coupling-audit/layout-migration-ledger.ts` with exact/bulk entries, closed predicates,
-          `classInventoryDigest` source metadata, owner/reason fields, and the fixed fifteen-class identity set.
-        - Keep this audit-only surface out of the public layout barrel.
+    - `[x]` **5.1.b Add the version-1 ledger schemas and closed disposition vocabulary**
+        - Added strict source, predicate, exact, bulk, and ledger schemas with the fixed fifteen-class tuple, seven
+          dispositions, canonical identifiers, uniqueness checks, owners, reasons, and no public layout export.
 
-    - `[ ]` **5.1.c Implement class-aware hit-set hashing**
-        - Define hit keys as `[classId, evidenceDigest]`, reject duplicates and empty bulk sets, order through
-          `sortByCanonicalBytes`, and hash the canonical JSON preimage without delimiter joining or implicit dedupe.
-        - Build `test-first` (one behavior at a time):
-            - Distinguish the same evidence digest under different classes.
-            - Reject malformed digests, duplicate tuples, and empty member sets.
-            - Freeze trailing-LF versus no-trailing-LF digest recipes for every source field.
+    - `[x]` **5.1.c Implement class-aware hit-set hashing**
+        - Added non-empty class-aware tuple hashing with strict class/digest validation, duplicate rejection, canonical
+          byte ordering, and no implicit dedupe; fixed vectors freeze artifact-LF and set/value-no-LF recipes.
+
+- _Outcome:_ The final migration proof now has a disposition-independent canonical source inventory and strict,
+  class-aware ledger contracts without weakening the historical audit's candidate/disposition behavior.
 
 ### `[ ]` **5.2 Implement the index-pinned migration assertion and command surface**
 

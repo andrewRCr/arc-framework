@@ -7,6 +7,7 @@
 import { sortByCanonicalBytes } from "../canonical/canonical-json.js";
 import {
   canonicalizeManifest,
+  canonicalizeClassInventory,
   canonicalizeScanResult,
   digestCandidateEvidence,
   digestCanonicalJson,
@@ -27,11 +28,19 @@ import type {
   ClassifiedHit,
   CorpusLocus,
   CouplingIdiom,
+  CouplingClassInventory,
   CouplingManifest,
   CouplingScanCore,
   CouplingScanResult,
   SurfaceKind,
 } from "./types.js";
+
+interface ClassInventoryState {
+  inventory: CouplingClassInventory;
+  manifest: CouplingManifest;
+  candidates: LocatedCandidate[];
+  classMatches: LocatedClassMatch[];
+}
 
 interface LocatedMatch extends PatternMatch {
   path: string;
@@ -238,7 +247,10 @@ function partitionCandidates(
  * @param files - Decoded and mechanically classified corpus files.
  * @returns Validated canonical scan result without volatile execution metadata.
  */
-export function scanCorpus(manifest: CouplingManifest, files: readonly CorpusFile[]): CouplingScanResult {
+function buildClassInventoryState(
+  manifest: CouplingManifest,
+  files: readonly CorpusFile[],
+): ClassInventoryState {
   if (files.length === 0) throw new CouplingAuditScanError("The authoritative corpus is empty");
   const canonicalManifest = canonicalizeManifest(manifest);
   const orderedFiles = [...files].sort((left, right) => left.path.localeCompare(right.path));
@@ -285,7 +297,7 @@ export function scanCorpus(manifest: CouplingManifest, files: readonly CorpusFil
       hits,
     };
   });
-  const core: CouplingScanCore = {
+  const inventory = canonicalizeClassInventory({
     version: 1,
     manifestDigest: digestCanonicalJson(canonicalManifest),
     corpus: {
@@ -295,12 +307,41 @@ export function scanCorpus(manifest: CouplingManifest, files: readonly CorpusFil
       ),
     },
     classes,
-    candidates: partitionCandidates(canonicalManifest, candidates, classMatches),
+  });
+  return { inventory, manifest: canonicalManifest, candidates, classMatches };
+}
+
+/**
+ * Scan the canonical class inventories before historical residue dispositions are applied.
+ *
+ * @param manifest - Validated executable audit manifest.
+ * @param files - Decoded and mechanically classified corpus files.
+ * @returns Canonical disposition-independent source evidence.
+ */
+export function scanClassInventory(
+  manifest: CouplingManifest,
+  files: readonly CorpusFile[],
+): CouplingClassInventory {
+  return buildClassInventoryState(manifest, files).inventory;
+}
+
+/**
+ * Scan a validated manifest across an already collected authoritative corpus.
+ *
+ * @param manifest - Validated executable audit manifest.
+ * @param files - Decoded and mechanically classified corpus files.
+ * @returns Validated canonical scan result without volatile execution metadata.
+ */
+export function scanCorpus(manifest: CouplingManifest, files: readonly CorpusFile[]): CouplingScanResult {
+  const state = buildClassInventoryState(manifest, files);
+  const core: CouplingScanCore = {
+    ...state.inventory,
+    candidates: partitionCandidates(state.manifest, state.candidates, state.classMatches),
     diagnostics: [],
   };
   const result: CouplingScanResult = canonicalizeScanResult({
     ...core,
-    reportInputs: buildReportInputs(canonicalManifest, core),
+    reportInputs: buildReportInputs(state.manifest, core),
   });
   return parseCouplingScanResult(result);
 }

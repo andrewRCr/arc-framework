@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { digestMemberSet } from "../../../../src/lib/coupling-audit/canonical.js";
 import { CouplingAuditStaleDispositionError } from "../../../../src/lib/coupling-audit/contracts.js";
-import { scanCorpus } from "../../../../src/lib/coupling-audit/scan.js";
+import { scanClassInventory, scanCorpus } from "../../../../src/lib/coupling-audit/scan.js";
 import type {
   CatchAllVector,
   CouplingIdiom,
@@ -52,6 +52,38 @@ function manifest(): CouplingManifest {
 }
 
 describe("coupling-audit scan", () => {
+  it("projects the canonical class inventory before disposition partitioning", () => {
+    const input = manifest();
+    const files = [
+      { path: "pkg/src/a.ts", content: "known/path", surfaceKind: "code" as const, locus: "package" as const },
+    ];
+
+    const inventory = scanClassInventory(input, files);
+    const result = scanCorpus(input, files);
+
+    expect(inventory).toEqual({
+      version: 1,
+      manifestDigest: result.manifestDigest,
+      corpus: result.corpus,
+      classes: result.classes,
+    });
+  });
+
+  it("keeps stale historical dispositions out of class-inventory projection", () => {
+    const input = manifest();
+    input.dispositions.exact.push({
+      id: "stale-residue",
+      candidateDigest: "a".repeat(64),
+      reason: "Historical residue no longer present.",
+    });
+    const files = [
+      { path: "pkg/src/a.ts", content: "known/path", surfaceKind: "code" as const, locus: "package" as const },
+    ];
+
+    expect(scanClassInventory(input, files).classes[0]?.hitCount).toBe(1);
+    expect(() => scanCorpus(input, files)).toThrow(CouplingAuditStaleDispositionError);
+  });
+
   it("aggregates distinct-file fan-out and retains overlapping class attribution", () => {
     const input = manifest();
     input.classes.push({

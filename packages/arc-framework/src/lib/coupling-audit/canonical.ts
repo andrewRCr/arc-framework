@@ -9,6 +9,7 @@ import { toForwardSlash } from "../fs.js";
 import { CouplingAuditValidationError } from "./contracts.js";
 import type {
   CandidateEvidence,
+  CouplingClassInventory,
   CouplingManifest,
   CouplingScanResult,
   RoutingLedger,
@@ -101,6 +102,22 @@ function compareCandidate(left: CandidateEvidence, right: CandidateEvidence): nu
     lexical(left.token, right.token) ||
     lexical(left.id, right.id)
   );
+}
+
+/**
+ * Normalize the disposition-independent class inventory for hashing and comparison.
+ *
+ * @param inventory - Raw class inventory from the deterministic scan.
+ * @returns Detached canonical representation.
+ */
+export function canonicalizeClassInventory(inventory: CouplingClassInventory): CouplingClassInventory {
+  const output = structuredClone(inventory);
+  output.classes.sort((left, right) => lexical(left.classId, right.classId));
+  output.classes.forEach((entry) => {
+    entry.files = entry.files.map(normalizeRepositoryPath).sort(lexical);
+    entry.hits = entry.hits.map(canonicalCandidate).sort(compareCandidate);
+  });
+  return output;
 }
 
 /**
