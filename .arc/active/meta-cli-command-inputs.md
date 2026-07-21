@@ -12,11 +12,11 @@
 - **Task List:** `tasks-cli-command-inputs.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Define canonical command-input declarations and inventory records
+- **Last Completed:** Phase 7 — Command-contract closure and termination proof
+- **Next Task:** Task 8.1 — Complete verification (line ~400)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Define canonical command-input declarations and inventory records
+- **Next Action:** Start Task 8.1 — Complete verification
 
 - **PR URL:** [none]
 - **Completed:** [none]
