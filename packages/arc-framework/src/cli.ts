@@ -75,7 +75,7 @@ import {
   type UserInboxRemoveOptions,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
-import { handleConfigStatus } from "./handlers/config.js";
+import { handleConfigStatus, handleConfigValidate } from "./handlers/config.js";
 import { handleActiveStatus, handleActiveRoster, handleActiveInFlight } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
 import { handleView, type ViewCliOptions } from "./handlers/view.js";
@@ -555,6 +555,12 @@ configCmd
   .option("--session-init", "Emit the init-gating subset consumed by session-init")
   .option("--json", "Emit the typed result as JSON")
   .action(handleConfigStatus);
+
+configCmd
+  .command("validate")
+  .description("Validate arc-config.yml settings")
+  .option("--file <path>", "Validate an explicitly selected configuration file")
+  .action(handleConfigValidate);
 
 // --- Active ---
 

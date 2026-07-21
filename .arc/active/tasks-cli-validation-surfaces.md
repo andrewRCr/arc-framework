@@ -230,14 +230,11 @@ the distinct recovery and precedence policies of existing adapters.
           selected path tokens, and severity-derived status without exposing pattern bodies; quoted-empty posture and
           exact positive-safe-integer boundaries follow the catalog.
 
-    - `[ ]` **3.3.b Add `arc config validate` command wiring**
-        - Register the optional `--file <path>` surface in `src/cli.ts`, expose the orchestrator through the stable
-          `src/commands/config.ts` barrel, and add non-interactive handling in `src/handlers/config.ts`.
-        - Require `resolveArcRoot()` only for the default config path; resolve explicit paths from `process.cwd()`,
-          preserve the supplied token in diagnostics, and allow validation outside a standard ARC root.
-        - Have the handler write the returned lines and set `process.exitCode` from the structured service result.
-        - Add integration coverage for nested-cwd default resolution, relative and absolute explicit paths outside an
-          ARC root, selected-token diagnostics, and exit-code propagation.
+    - `[x]` **3.3.b Add `arc config validate` command wiring**
+        - Registered the optional `--file` command, exported the validation service through the stable config barrel,
+          and added non-interactive line/status propagation. Default selection resolves the nearest ARC root while
+          explicit relative and absolute paths resolve from the current directory without requiring a project root;
+          process-level integration coverage pins nested defaults, preserved display tokens, and exit codes 0–2.
 
     - `[ ]` **3.3.c Reduce `validate-config.sh` to the compatibility launcher**
         - Update the authoritative package-source script at its installed path, source `arc-lib.sh`, and `exec`

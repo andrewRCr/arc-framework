@@ -1,5 +1,5 @@
 /**
- * Handler for `arc config status` subcommand.
+ * Handlers for ARC configuration inspection and validation.
  *
  * Branches on scope (`--session-init`) and format (`--json`). `--json`
  * bypasses Clack and writes the typed result to stdout for harness
@@ -9,18 +9,46 @@
  */
 
 import * as p from "@clack/prompts";
+import { join, resolve } from "node:path";
 
 import {
   buildConfigSessionInitSummary,
   buildConfigStatusSummary,
   runConfigSessionInitStatus,
   runConfigStatus,
+  validateConfigFile,
 } from "../commands/config.js";
+import { ARC_CONFIG_SEGMENTS } from "../lib/constants.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface ConfigStatusCliOptions {
   sessionInit?: boolean;
   json?: boolean;
+}
+
+export interface ConfigValidateCliOptions {
+  file?: string;
+}
+
+/** Validate the default project config or an explicitly selected file. */
+export async function handleConfigValidate(opts: ConfigValidateCliOptions): Promise<void> {
+  const selectedPath = opts.file;
+  let readPath: string;
+  let displayPath: string;
+
+  if (selectedPath === undefined) {
+    const root = requireArcProjectRoot();
+    if (!root) return;
+    readPath = join(root, ...ARC_CONFIG_SEGMENTS);
+    displayPath = ARC_CONFIG_SEGMENTS.join("/");
+  } else {
+    readPath = resolve(process.cwd(), selectedPath);
+    displayPath = selectedPath;
+  }
+
+  const result = await validateConfigFile({ readPath, displayPath });
+  process.stdout.write(`${result.lines.join("\n")}\n`);
+  process.exitCode = result.exitCode;
 }
 
 export async function handleConfigStatus(opts: ConfigStatusCliOptions): Promise<void> {
