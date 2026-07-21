@@ -309,12 +309,18 @@ describe("PR-open lifecycle extensions", () => {
   it("routes self-hosting actions through one controller workflow", async () => {
     const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
     expect(workflow).toContain("one caller-supplied `openedChangeRequest");
+    expect(workflow).toContain("- review-response");
     expect(workflow).toContain("review-gate:next-action");
     expect(workflow).toContain("review-gate:perform-action");
     expect(workflow).toContain("review-gate:await");
+    for (const state of [
+      "awaiting-approval", "ready-to-fix", "ready-to-persist", "ready-to-close", "reroute", "blocked",
+    ]) expect(workflow).toContain(`\`${state}\``);
+    expect(workflow).toContain("review-gate:assert-head-mutable");
     expect(workflow).toContain("**FIX:**");
     expect(workflow).toContain("**DEFER or REJECT:**");
     expect(workflow).toContain("**Provider-owned closure:**");
+    expect(workflow).not.toContain("Triage both paths");
     expect(workflow).not.toContain("/review-gate dismiss");
     expect(workflow).not.toMatch(/@coderabbit|resolveReviewThread/iu);
   });

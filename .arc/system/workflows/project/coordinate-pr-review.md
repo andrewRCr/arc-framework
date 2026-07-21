@@ -3,7 +3,7 @@ purpose: Coordinate one explicit open pull request through controller admission,
 audience: agent
 arc:
   methods:
-    - review-triage
+    - review-response
 ---
 
 # Workflow: Coordinate PR Review
@@ -34,23 +34,27 @@ coordinates. Keep the resulting scope unchanged for one loop iteration:
 This is the `next-action` → `perform-action` → `await` → canonical re-entry loop. It is idempotent from both
 `post-pr-open` and final `pre-merge`; no arm bypasses the controller.
 
-## 2. Coordinate Findings
+## 2. Coordinate Findings Through `review-response`
 
-Fetch controller-normalized findings with source-scoped immutable ids and provider-native conversations with their
-current decisive review state. Triage both paths with [`review-triage`][review-triage], then keep their authority
-separate:
+Fetch controller-normalized findings and provider-native conversations, retaining source-scoped immutable ids and
+current decisive review state. Compose the [`review-response` method][review-response] input from the exact current
+target, effective routing result, normalized findings, disposition/approval state, verification and persistence
+evidence, and adapter capabilities. Every normalized finding retains its explicit FIX, DEFER, or REJECT disposition
+and immutable source locus. For provider-native conversations, `CHANGES_REQUESTED` remains blocking.
+Completion-check success only wakes a canonical re-read and never closes a conversation. Execute only the returned
+planner state:
 
-- **Controller-normalized findings:** Surface every finding and record an explicit FIX, DEFER, or REJECT disposition.
-  Apply only approved fixes; non-fix dispositions require an authorized developer rationale on the unchanged head.
-- **Provider-native conversations:** Surface dispositions and apply only approved fixes, but never mint a controller
-  finding or settlement. `CHANGES_REQUESTED` remains blocking; closure comes from the provider's decisive state and
-  current conversation status. Completion-check success only wakes a canonical re-read; it never closes or cleans a
-  conversation.
-
-Run affected quality gates and commit atomically with a `(code review)` context footer. For a FIX, record the
-authorized `begin-fix` transition before invoking the guard. Run
-`npm run review-gate:assert-head-mutable -- <hostRef> HEAD [<begin-fix-receipt-hash>]`. Stop on refusal; only then run
-any active pre-push review action and push.
+- `awaiting-approval` — verify every finding against source, present the complete disposition set, and obtain exact
+  approval. Do not mutate the target.
+- `ready-to-fix` — apply only the approved fix set as one bounded increment and run affected quality gates. Return
+  the candidate target and verification references without persisting it.
+- `ready-to-persist` — record the authorized `begin-fix` transition, then run
+  `npm run review-gate:assert-head-mutable -- <hostRef> HEAD <begin-fix-receipt-hash>`. The command revalidates the
+  current exact head and actor-owned authorization. Stop on refusal; otherwise commit atomically with a `(code
+  review)` context footer, run any active pre-push review action, and push.
+- `ready-to-close` — pass only the returned closure work to § 3's authority-specific adapters.
+- `reroute` — recompose the exact target and return it to routing before another action.
+- `blocked` — stop with the planner's next action; do not infer a missing capability or transition.
 
 After a head update, recompose the exact scope and return to § 1. The controller decides whether full or incremental
 coverage is admissible and exposes any actor-owned trigger through `next-action`; never synthesize a command from
@@ -86,4 +90,4 @@ current-head coordination. If the head changes, restart at § 1.
 
 ---
 
-[review-triage]: ../../methods/review-triage.md
+[review-response]: ../../methods/review-response.md

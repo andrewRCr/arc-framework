@@ -631,10 +631,10 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
   lives once in `review-response`.
 - _Context:_ Implements Design §§2.1–2.2 and 8 without exporting the half-wired controller as framework authority.
 
-    - `[ ]` **6.1.a Split neutral response from project action/await mechanics**
-        - Refactor the coordinator to call `review-response` for verification, approved dispositions, fix
-          increments, and rerouting; retain typed `next-action`/`perform-action`/`await` commands project-side.
-        - Remove duplicated triage procedure without weakening exact-head or actor validation.
+    - `[x]` **6.1.a Split neutral response from project action/await mechanics**
+        - The project coordinator now executes the six `review-response` planner states for verification, approved
+          mutation, persistence, closure, and rerouting while retaining typed controller action/await commands plus
+          exact-head and actor-authorization validation at the project boundary.
 
     - `[ ]` **6.1.b Adapt controller findings and native conversations**
         - Normalize both into the method input while retaining distinct closure capabilities and immutable source
