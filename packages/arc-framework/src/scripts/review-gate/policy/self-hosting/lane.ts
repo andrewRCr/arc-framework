@@ -1,4 +1,4 @@
-/** Ref-backed ownership policy and legacy lane projection for self-hosting. */
+/** Ref-backed ownership policy for self-hosting review routing. */
 
 import { posix } from "node:path";
 
@@ -23,9 +23,6 @@ export interface OwnershipResolutionInput {
   changes: ChangedPath[];
 }
 
-/** Compatibility input name for the derived legacy lane presentation. */
-export type AutoLaneInput = OwnershipResolutionInput;
-
 /** Normalized ownership relation consumed by review routing. */
 export type OwnershipRelation = "self" | "foreign" | "mixed" | "ownerless" | "not-applicable" | "unknown";
 
@@ -34,40 +31,11 @@ export interface OwnershipResolution {
   relation: OwnershipRelation;
 }
 
-/** Stable lane-decision reason. */
-export type LaneReason =
-  | "author-owned-artifacts"
-  | "ownerless-cohort"
-  | "unknown-author"
-  | "unknown-change-set"
-  | "non-lane-path"
-  | "ambiguous-move"
-  | "missing-or-invalid-meta"
-  | "owner-transition"
-  | "mixed-ownership"
-  | "owner-mismatch";
-
-/** Automatic or reviewed lane with stable reasons. */
-export interface LaneDecision {
-  lane: "auto" | "reviewed";
-  reasons: LaneReason[];
-}
-
 interface ArtifactGroup {
   key: string;
   metaPath: string | null;
   ownerless: boolean;
 }
-
-type OwnershipFailureReason =
-  | "unknown-author"
-  | "unknown-change-set"
-  | "non-lane-path"
-  | "ambiguous-move"
-  | "missing-or-invalid-meta"
-  | "owner-transition";
-
-type DetailedOwnershipResolution = OwnershipResolution & { failureReason?: OwnershipFailureReason };
 
 function nestedBacklogDirectory(directory: string): boolean {
   return directory.startsWith(".arc/backlog/planned/")
@@ -103,26 +71,26 @@ function parseOwner(content: string | null): string | null {
   }
 }
 
-async function resolveOwnershipDetailed(input: OwnershipResolutionInput): Promise<DetailedOwnershipResolution> {
+async function resolveOwnershipDetailed(input: OwnershipResolutionInput): Promise<OwnershipResolution> {
   const mappedOwner = input.authorMap[input.authorLogin];
-  if (mappedOwner === undefined) return { relation: "unknown", failureReason: "unknown-author" };
-  if (input.changes.length === 0) return { relation: "unknown", failureReason: "unknown-change-set" };
+  if (mappedOwner === undefined) return { relation: "unknown" };
+  if (input.changes.length === 0) return { relation: "unknown" };
 
   const groups = new Map<string, { group: ArtifactGroup; changes: ChangedPath[] }>();
   for (const change of input.changes) {
     const group = groupForPath(change.path);
     if (change.path.startsWith("/") || change.path.split("/").includes("..")) {
-      return { relation: "unknown", failureReason: "non-lane-path" };
+      return { relation: "unknown" };
     }
     if (change.status === "renamed" || change.status === "copied") {
       const previous = groupForPath(change.previousPath);
       if (change.previousPath.startsWith("/")
         || change.previousPath.split("/").includes("..")) {
-        return { relation: "unknown", failureReason: "ambiguous-move" };
+        return { relation: "unknown" };
       }
       if (group === null && previous === null) continue;
       if (group === null || previous === null || previous.key !== group.key) {
-        return { relation: "unknown", failureReason: "ambiguous-move" };
+        return { relation: "unknown" };
       }
     }
     if (group === null) continue;
@@ -139,7 +107,7 @@ async function resolveOwnershipDetailed(input: OwnershipResolutionInput): Promis
       continue;
     }
     if (group.metaPath === null) {
-      return { relation: "unknown", failureReason: "missing-or-invalid-meta" };
+      return { relation: "unknown" };
     }
     const requiresBase = changes.some((change) => change.status !== "added");
     const requiresHead = changes.some((change) => change.status !== "deleted");
@@ -154,13 +122,13 @@ async function resolveOwnershipDetailed(input: OwnershipResolutionInput): Promis
     const baseOwner = parseOwner(baseContent);
     const headOwner = parseOwner(headContent);
     if ((requiresBase && baseOwner === null) || (requiresHead && headOwner === null)) {
-      return { relation: "unknown", failureReason: "missing-or-invalid-meta" };
+      return { relation: "unknown" };
     }
     if (baseOwner !== null && headOwner !== null && baseOwner !== headOwner) {
-      return { relation: "unknown", failureReason: "owner-transition" };
+      return { relation: "unknown" };
     }
     const owner = baseOwner ?? headOwner;
-    if (owner === null) return { relation: "unknown", failureReason: "missing-or-invalid-meta" };
+    if (owner === null) return { relation: "unknown" };
     owners.add(owner);
   }
 
@@ -172,25 +140,5 @@ async function resolveOwnershipDetailed(input: OwnershipResolutionInput): Promis
 
 /** Resolve normalized ownership over every affected endpoint at the ref where it exists. */
 export async function resolveOwnership(input: OwnershipResolutionInput): Promise<OwnershipResolution> {
-  const { relation } = await resolveOwnershipDetailed(input);
-  return { relation };
-}
-
-/** Resolve automatic-lane eligibility from exact-ref companion ownership. */
-export async function resolveAutoLane(input: AutoLaneInput): Promise<LaneDecision> {
-  const ownership = await resolveOwnershipDetailed(input);
-  switch (ownership.relation) {
-    case "self":
-      return { lane: "auto", reasons: ["author-owned-artifacts"] };
-    case "ownerless":
-      return { lane: "auto", reasons: ["ownerless-cohort"] };
-    case "foreign":
-      return { lane: "reviewed", reasons: ["owner-mismatch"] };
-    case "mixed":
-      return { lane: "reviewed", reasons: ["mixed-ownership"] };
-    case "not-applicable":
-      return { lane: "reviewed", reasons: ["non-lane-path"] };
-    case "unknown":
-      return { lane: "reviewed", reasons: [ownership.failureReason ?? "unknown-change-set"] };
-  }
+  return resolveOwnershipDetailed(input);
 }

@@ -148,9 +148,9 @@ describe("self-hosting review policy document", () => {
   });
 
   it.each([
-    ["lane predicate", { lanePredicate: { ...SELF_HOSTING_POLICY.lanePredicate, id: "owner/v2" } }],
-    ["risk predicate", { riskPredicate: { ...SELF_HOSTING_POLICY.riskPredicate, id: "risk/v2" } }],
-    ["lane parameters", { lanePredicate: { ...SELF_HOSTING_POLICY.lanePredicate, artifactKinds: ["spec"] } }],
+    ["ownership policy", { ownershipPolicy: { ...SELF_HOSTING_POLICY.ownershipPolicy, id: "owner/v2" } }],
+    ["review-risk policy", { reviewRiskPolicy: { ...SELF_HOSTING_POLICY.reviewRiskPolicy, id: "risk/v2" } }],
+    ["ownership parameters", { ownershipPolicy: { ...SELF_HOSTING_POLICY.ownershipPolicy, artifactKinds: ["spec"] } }],
     ["semantics version", { semanticsVersion: "" }],
     ["minor gating", { minorGating: "advisory" }],
     ["rollout mode", { rolloutMode: "shadow" }],

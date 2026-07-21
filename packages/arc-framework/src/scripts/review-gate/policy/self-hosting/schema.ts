@@ -42,12 +42,12 @@ export interface SelfHostingPolicy {
   schemaVersion: 1;
   semanticsVersion: string;
   minorGating: "blocking" | "record-only";
-  lanePredicate: {
+  ownershipPolicy: {
     id: "artifact-owner/v1";
     artifactRoots: string[];
     artifactKinds: string[];
   };
-  riskPredicate: {
+  reviewRiskPolicy: {
     id: "sensitive-paths/v1";
     sensitivePrefixes: string[];
     sensitiveFiles: string[];
@@ -71,17 +71,17 @@ export interface SelfHostingPolicy {
   qualifications: SourceQualificationDeclaration[];
 }
 
-/** Initial reviewed-lane policy, including disabled shadow qualifications. */
+/** Initial normalized self-hosting policy, including disabled shadow qualifications. */
 export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
   schemaVersion: 1,
   semanticsVersion: "self-hosting-review/v1",
   minorGating: "record-only",
-  lanePredicate: {
+  ownershipPolicy: {
     id: "artifact-owner/v1",
     artifactRoots: [".arc/active/", ".arc/backlog/"],
     artifactKinds: ["draft", "tasks", "meta", "notes"],
   },
-  riskPredicate: {
+  reviewRiskPolicy: {
     id: "sensitive-paths/v1",
     sensitivePrefixes: [
       ".github/",
@@ -315,18 +315,18 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const path = "selfHostingPolicy";
   const record = objectAt(input, path);
   exactKeys(record, [
-    "schemaVersion", "semanticsVersion", "minorGating", "lanePredicate", "riskPredicate", "lifecycleTailPredicate", "authorMap",
+    "schemaVersion", "semanticsVersion", "minorGating", "ownershipPolicy", "reviewRiskPolicy", "lifecycleTailPredicate", "authorMap",
     "fallbackMaintainer",
     "requirementTemplates", "rubricBindings", "timeouts", "providerIdentities", "attestationEnforcement",
     "qualifications",
   ], path);
 
-  const lane = objectAt(record.lanePredicate, `${path}.lanePredicate`);
-  exactKeys(lane, ["id", "artifactRoots", "artifactKinds"], `${path}.lanePredicate`);
-  const laneId = enumAt(lane.id, ["artifact-owner/v1"], `${path}.lanePredicate.id`);
-  const risk = objectAt(record.riskPredicate, `${path}.riskPredicate`);
-  exactKeys(risk, ["id", "sensitivePrefixes", "sensitiveFiles"], `${path}.riskPredicate`);
-  const riskId = enumAt(risk.id, ["sensitive-paths/v1"], `${path}.riskPredicate.id`);
+  const ownership = objectAt(record.ownershipPolicy, `${path}.ownershipPolicy`);
+  exactKeys(ownership, ["id", "artifactRoots", "artifactKinds"], `${path}.ownershipPolicy`);
+  const ownershipId = enumAt(ownership.id, ["artifact-owner/v1"], `${path}.ownershipPolicy.id`);
+  const reviewRisk = objectAt(record.reviewRiskPolicy, `${path}.reviewRiskPolicy`);
+  exactKeys(reviewRisk, ["id", "sensitivePrefixes", "sensitiveFiles"], `${path}.reviewRiskPolicy`);
+  const reviewRiskId = enumAt(reviewRisk.id, ["sensitive-paths/v1"], `${path}.reviewRiskPolicy.id`);
   const lifecycleTail = objectAt(record.lifecycleTailPredicate, `${path}.lifecycleTailPredicate`);
   exactKeys(lifecycleTail, ["id"], `${path}.lifecycleTailPredicate`);
   const lifecycleTailId = enumAt(
@@ -435,15 +435,15 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
     semanticsVersion: templatePolicy.semanticsVersion,
     minorGating: enumAt(record.minorGating, ["blocking", "record-only"], `${path}.minorGating`),
-    lanePredicate: {
-      id: laneId,
-      artifactRoots: exactStringArray(lane.artifactRoots, SELF_HOSTING_POLICY.lanePredicate.artifactRoots, `${path}.lanePredicate.artifactRoots`),
-      artifactKinds: exactStringArray(lane.artifactKinds, SELF_HOSTING_POLICY.lanePredicate.artifactKinds, `${path}.lanePredicate.artifactKinds`),
+    ownershipPolicy: {
+      id: ownershipId,
+      artifactRoots: exactStringArray(ownership.artifactRoots, SELF_HOSTING_POLICY.ownershipPolicy.artifactRoots, `${path}.ownershipPolicy.artifactRoots`),
+      artifactKinds: exactStringArray(ownership.artifactKinds, SELF_HOSTING_POLICY.ownershipPolicy.artifactKinds, `${path}.ownershipPolicy.artifactKinds`),
     },
-    riskPredicate: {
-      id: riskId,
-      sensitivePrefixes: exactStringArray(risk.sensitivePrefixes, SELF_HOSTING_POLICY.riskPredicate.sensitivePrefixes, `${path}.riskPredicate.sensitivePrefixes`),
-      sensitiveFiles: exactStringArray(risk.sensitiveFiles, SELF_HOSTING_POLICY.riskPredicate.sensitiveFiles, `${path}.riskPredicate.sensitiveFiles`),
+    reviewRiskPolicy: {
+      id: reviewRiskId,
+      sensitivePrefixes: exactStringArray(reviewRisk.sensitivePrefixes, SELF_HOSTING_POLICY.reviewRiskPolicy.sensitivePrefixes, `${path}.reviewRiskPolicy.sensitivePrefixes`),
+      sensitiveFiles: exactStringArray(reviewRisk.sensitiveFiles, SELF_HOSTING_POLICY.reviewRiskPolicy.sensitiveFiles, `${path}.reviewRiskPolicy.sensitiveFiles`),
     },
     lifecycleTailPredicate: { id: lifecycleTailId },
     authorMap,

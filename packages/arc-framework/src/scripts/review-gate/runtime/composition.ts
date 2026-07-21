@@ -49,9 +49,8 @@ import {
   GitHubRestIssueCommentApi,
   type ReceiptWriteState,
 } from "../hosts/github/receipt-store.js";
-import { classifyReviewRiskFromChangeSet } from "../policy/self-hosting/risk.js";
-import { resolveAutoLane, type ChangedPath } from "../policy/self-hosting/lane.js";
 import { resolveSelfHostingDecision } from "../policy/self-hosting/decision.js";
+import { resolveSelfHostingReviewRouting } from "../policy/self-hosting/routing.js";
 import {
   deriveAcceptedReviewerClaims,
   type SelfHostingPolicy,
@@ -447,15 +446,17 @@ export async function createReconcileRuntime(
     mode: config.mode,
     expectedAppId: config.expectedAppId,
     resolveCiState: (headSha) => resolveCiState(shared.checks, headSha),
-    resolveLane: (input) => resolveAutoLane({
+    resolveRouting: (input) => resolveSelfHostingReviewRouting({
+      changeSet: { changeSet: "known", changes: input.changes },
       exec: io.exec,
       diffBaseSha: input.diffBaseSha,
       headSha: input.headSha,
       authorLogin: input.authorLogin,
       authorMap: config.policy.authorMap,
-      changes: input.changes,
+      changeDeterminacy: "ordinary",
+      assurance: { workContext: "unscoped", workClass: "none" },
+      activity: { selfReview: true, frontlineReview: true },
     }),
-    resolveRisk: (changes) => classifyReviewRiskFromChangeSet({ changeSet: "known", changes }),
     listCommandComments: () => commandReader.list(),
     readTriggerHistory: (headSha) => triggerHistory.read(headSha),
   };
@@ -509,20 +510,23 @@ export async function createAttestRuntime(
           expectedActorId: config.dispatchActorId,
         })
       : await seams.resolveActorCapabilities();
-    const changes: ChangedPath[] = change.context.changedPaths.map((item) =>
-      item.status === "renamed" || item.status === "copied"
-        ? { status: item.status, path: item.path, previousPath: item.previousPath }
-        : { status: item.status, path: item.path });
-    const lane = await resolveAutoLane({
+    const routing = await resolveSelfHostingReviewRouting({
+      changeSet: { changeSet: "known", changes: change.context.changedPaths },
       exec: io.exec,
       diffBaseSha: change.changeRequest.diffBaseSha,
       headSha: change.changeRequest.headSha,
       authorLogin: change.context.author.login,
       authorMap: config.policy.authorMap,
-      changes,
+      changeDeterminacy: "ordinary",
+      assurance: { workContext: "unscoped", workClass: "none" },
+      activity: { selfReview: true, frontlineReview: true },
     });
-    const risk = classifyReviewRiskFromChangeSet({ changeSet: "known", changes });
-    const decision = resolveSelfHostingDecision({ policy: config.policy, changeRequest: change.changeRequest, lane, risk });
+    const decision = resolveSelfHostingDecision({
+      policy: config.policy,
+      changeRequest: change.changeRequest,
+      routingFacts: routing.facts,
+      routing: routing.decision,
+    });
     const requirement = decision.requirements[0];
     if (requirement === undefined || decision.requirements.length !== 1) {
       throw new Error("review-gate composition: attestation requirement unavailable");

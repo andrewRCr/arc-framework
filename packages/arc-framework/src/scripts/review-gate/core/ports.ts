@@ -139,8 +139,20 @@ export interface ActorAddress {
 
 /** Host-neutral changed-path record used by policy classification. */
 export type HostChangedPath =
-  | { status: "added" | "modified" | "deleted" | "type-changed"; path: string; previousPath?: never }
-  | { status: "renamed" | "copied"; path: string; previousPath: string };
+  | {
+      status: "added" | "modified" | "deleted" | "type-changed";
+      path: string;
+      previousPath?: never;
+      oldMode?: string;
+      newMode?: string;
+    }
+  | {
+      status: "renamed" | "copied";
+      path: string;
+      previousPath: string;
+      oldMode?: string;
+      newMode?: string;
+    };
 
 /** Host-neutral context retained beside a normalized change request. */
 export interface HostChangeContext {

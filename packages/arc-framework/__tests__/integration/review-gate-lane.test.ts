@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import {
-  resolveAutoLane,
   resolveOwnership,
 } from "../../src/scripts/review-gate/policy/self-hosting/lane.js";
 import {
@@ -17,7 +16,7 @@ import {
   writeFile,
 } from "../helpers/integration.js";
 
-describe("ref-backed review lane", () => {
+describe("ref-backed review ownership", () => {
   const tempDirs: string[] = [];
 
   afterEach(async () => {
@@ -70,7 +69,7 @@ describe("ref-backed review lane", () => {
     })).resolves.toEqual({ relation: "self" });
   });
 
-  it("fails reviewed for cross-group moves and unreadable refs", async () => {
+  it("fails closed for cross-group moves and unreadable refs", async () => {
     const repo = await createTempRepo("review-gate-lane-");
     tempDirs.push(repo);
     await write(repo, ".arc/active/meta-old.md", renderMetaFile("old", { Owner: "andrew" }));
@@ -85,15 +84,10 @@ describe("ref-backed review lane", () => {
       authorMap: { andrewRCr: "andrew" },
     };
 
-    await expect(resolveAutoLane({
+    await expect(resolveOwnership({
       ...input,
       changes: [{ status: "renamed", previousPath: ".arc/active/tasks-old.md", path: ".arc/active/tasks-new.md" }],
-    })).resolves.toEqual({ lane: "reviewed", reasons: ["ambiguous-move"] });
-    await expect(resolveAutoLane({
-      ...input,
-      headSha: "f".repeat(40),
-      changes: [{ status: "modified", path: ".arc/active/tasks-old.md" }],
-    })).resolves.toEqual({ lane: "reviewed", reasons: ["missing-or-invalid-meta"] });
+    })).resolves.toEqual({ relation: "unknown" });
     await expect(resolveOwnership({
       ...input,
       headSha: "f".repeat(40),

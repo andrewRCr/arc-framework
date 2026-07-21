@@ -829,12 +829,12 @@ architecture lands as one coherent forward contract.
   preserving rejected lanes or implying that live enforcement is enabled.
 - _Context:_ Implements Design §§1.4, 2.1, and 8.
 
-    - `[ ]` **7.1.a Replace the self-hosting lane decision**
-        - Migrate the complete six-module `policy/self-hosting/` subsystem—`lane.ts`, `risk.ts`, `decision.ts`,
-          `qualification.ts`, `reduction.ts`, and `schema.ts`—plus its consumers/tests to normalized ownership,
-          authority, risk, routing, channel, and source/admission records.
-        - Keep `auto | reviewed` only as a derived display/CI compatibility result where still consumed; do not add
-          the downstream qualification WU's lifecycle-readiness adapter here.
+    - `[x]` **7.1.a Replace the self-hosting lane decision**
+        - Rebased self-hosting decision/reduction and production runtime composition on normalized routing facts and
+          obligations, with ownership and review-risk policy identities replacing lane-named policy inputs.
+        - Removed the standalone lane reducer, retained `auto | reviewed` only as a derived legacy check projection,
+          preserved canonical change modes across the GitHub host boundary, and left lifecycle readiness outside this
+          subsystem.
 
     - `[ ]` **7.1.b Bind local, hosted, and human sources**
         - Declare local runtime identities, hosted CodeRabbit/Codex, and qualified-human sources with qualifiers,

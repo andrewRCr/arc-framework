@@ -17,6 +17,8 @@ import {
   SELF_HOSTING_POLICY,
   type SelfHostingPolicy,
 } from "../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
+import { reduceReviewRouting } from "../../../../../src/scripts/review-gate/policy/routing.js";
+import type { ReviewRoutingFacts } from "../../../../../src/scripts/review-gate/policy/routing-schema.js";
 
 const changeRequest = {
   schemaVersion: 1 as const,
@@ -36,12 +38,29 @@ const nativeReview = {
   decision: "not-configured" as const,
 };
 
+function routing(reviewRisk: "routine" | "sensitive", autoEligible = false): Pick<
+  SelfHostingGateReductionInput,
+  "routingFacts" | "routing"
+> {
+  const routingFacts: ReviewRoutingFacts = {
+    schemaVersion: 1,
+    changeSetState: "known",
+    contentKind: "documentation",
+    reviewRisk,
+    changeDeterminacy: "ordinary",
+    ownership: autoEligible ? "self" : "not-applicable",
+    surfaceAuthority: autoEligible ? "planning-grooming" : "ordinary",
+    assurance: { workContext: "unscoped", workClass: "none" },
+    activity: { selfReview: true, frontlineReview: true },
+  };
+  return { routingFacts, routing: reduceReviewRouting(routingFacts) };
+}
+
 function input(overrides: Partial<SelfHostingGateReductionInput> = {}): SelfHostingGateReductionInput {
   return {
     policy: SELF_HOSTING_POLICY,
     changeRequest,
-    lane: { lane: "auto" as const, reasons: ["author-owned-artifacts" as const] },
-    risk: { risk: "routine" as const, reasons: ["routine-doc-surface" as const] },
+    ...routing("routine", true),
     evidence: [],
     receipts: [],
     capacities: [],
@@ -298,8 +317,7 @@ describe("self-hosting gate reduction", () => {
     const recovered = extractAuthenticatedReceiptEvidence(envelopes);
     expect(recovered).toEqual([normalized]);
     expect(reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: recovered,
     })).projection).toMatchObject({
       conclusion: "success",
@@ -330,8 +348,7 @@ describe("self-hosting gate reduction", () => {
 
   it("reduces current clean full coverage to success", () => {
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [evidence()],
     }));
 
@@ -358,8 +375,7 @@ describe("self-hosting gate reduction", () => {
       }),
     });
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [reviewedEvidence],
       lifecycleTail: tail,
     }));
@@ -397,8 +413,7 @@ describe("self-hosting gate reduction", () => {
       observedAt: "2026-07-11T21:00:00.000Z",
     });
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [clean, finding],
       lifecycleTail: tail,
     }));
@@ -421,8 +436,7 @@ describe("self-hosting gate reduction", () => {
       }),
     });
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [reviewedEvidence],
       lifecycleTail: tail,
       nativeReview: { ...nativeReview, requestedChanges: true, decision: "changes-requested" },
@@ -436,8 +450,7 @@ describe("self-hosting gate reduction", () => {
 
   it("does not treat a lifecycle proof as independent analysis evidence", () => {
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       lifecycleTail: lifecycleTail(),
     }));
 
@@ -450,8 +463,7 @@ describe("self-hosting gate reduction", () => {
 
   it("replaces an otherwise green projection when the receipt ledger is unavailable", () => {
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [evidence()],
       inconsistencies: ["ledger-unavailable"],
       ledgerVersion: null,
@@ -468,8 +480,7 @@ describe("self-hosting gate reduction", () => {
   it("suppresses an admitted provider request when controller state is inconsistent", () => {
     const decision = reduceSelfHostingGate(input({
       policy: coderabbitPolicy(),
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       capacities: [capacity()],
       inconsistencies: ["ledger-fork"],
       ledgerVersion: 0,
@@ -484,8 +495,7 @@ describe("self-hosting gate reduction", () => {
 
   it("accepts the policy-qualified non-author human attestation source", () => {
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [evidence({
         sourceKind: "human",
         sourceIdentity: "reviewer-42",
@@ -512,8 +522,7 @@ describe("self-hosting gate reduction", () => {
     ["failed evidence", evidence({ result: "failed" })],
   ])("reduces %s to failure", (_name, item) => {
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [item],
     }));
 
@@ -522,8 +531,7 @@ describe("self-hosting gate reduction", () => {
 
   it("keeps attestation-only obligations pending without an automatic request", () => {
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
     }));
 
     expect(decision.request).toBeNull();
@@ -535,8 +543,7 @@ describe("self-hosting gate reduction", () => {
 
   it("does not invoke a disabled or unqualified durable-record declaration", () => {
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       capacities: [capacity()],
     }));
 
@@ -548,8 +555,7 @@ describe("self-hosting gate reduction", () => {
     const policy = coderabbitPolicy();
     const decision = reduceSelfHostingGate(input({
       policy,
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "routine", reasons: ["routine-doc-surface"] },
+      ...routing("routine"),
       capacities: [capacity()],
       receipts: [requiredReceipt(policy)],
     }));
@@ -559,13 +565,11 @@ describe("self-hosting gate reduction", () => {
 
   it("applies a waiver only while its requirement scope is current", () => {
     const current = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       receipts: [waivedReceipt(SELF_HOSTING_POLICY)],
     }));
     const stale = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       receipts: [createReceipt({
         eventId: "command:IC_2:stale-waived",
         previousLedgerVersion: 0,
@@ -648,8 +652,7 @@ describe("self-hosting gate reduction", () => {
       },
     });
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [finding],
       receipts: [deferred, resolved],
     }));
@@ -660,8 +663,7 @@ describe("self-hosting gate reduction", () => {
   it("keeps an old-head finding blocking without an authorized consumed FIX transition", () => {
     const oldHeadSha = "e".repeat(40);
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [evidence({
         result: "findings",
         changeSetId: "f".repeat(64),
@@ -688,8 +690,7 @@ describe("self-hosting gate reduction", () => {
     const policy = coderabbitPolicy();
     const decision = reduceSelfHostingGate(input({
       policy,
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       capacities: [{ ...capacity(), ...capacityOverride }],
     }));
 
@@ -701,8 +702,7 @@ describe("self-hosting gate reduction", () => {
     const policy = coderabbitPolicy();
     const first = reduceSelfHostingGate(input({
       policy,
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       capacities: [capacity()],
     }));
     expect(first.request).toMatchObject({
@@ -716,8 +716,7 @@ describe("self-hosting gate reduction", () => {
 
     const replay = reduceSelfHostingGate(input({
       policy,
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       capacities: [capacity()],
       receipts: [admittedReceipt(policy)],
     }));
@@ -728,8 +727,7 @@ describe("self-hosting gate reduction", () => {
   it("selects the first qualified provider while retaining later fallback candidates", () => {
     const decision = reduceSelfHostingGate(input({
       policy: coderabbitPolicy(true),
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       capacities: [capacity(), capacity("other-provider")],
     }));
 
@@ -741,8 +739,7 @@ describe("self-hosting gate reduction", () => {
     const policy = coderabbitPolicy(true);
     const first = reduceSelfHostingGate(input({
       policy,
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       capacities: [
         { ...capacity(), status: "exhausted", reason: "provider-reported" },
         capacity("other-provider"),
@@ -756,8 +753,7 @@ describe("self-hosting gate reduction", () => {
 
     const second = reduceSelfHostingGate(input({
       policy,
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       receipts: first.receiptsToAppend,
       capacities: [capacity(), capacity("other-provider")],
       ledgerVersion: 1,
@@ -774,8 +770,7 @@ describe("self-hosting gate reduction", () => {
     });
     const decision = reduceSelfHostingGate(input({
       policy,
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [approved],
       capacities: [capacity()],
     }));
@@ -789,8 +784,7 @@ describe("self-hosting gate reduction", () => {
 
   it("keeps prior-change evidence stale and pending", () => {
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [evidence({ changeSetId: "f".repeat(64), headSha: "9".repeat(40) })],
     }));
 
@@ -811,8 +805,7 @@ describe("self-hosting gate reduction", () => {
     }, "failure"],
   ])("composes %s into a %s conclusion", (_name, overrides, conclusion) => {
     const decision = reduceSelfHostingGate(input({
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      ...routing("sensitive"),
       evidence: [evidence()],
       ...overrides,
     }));

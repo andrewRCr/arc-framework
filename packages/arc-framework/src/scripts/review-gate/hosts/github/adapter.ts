@@ -121,12 +121,7 @@ export class GitHubHostReadAdapter implements GitHostReadAdapter {
     return {
       changeRequest: result.changeRequest,
       context: {
-        changedPaths: result.context.changedPaths.map((change) => {
-          if (change.status !== "renamed" && change.status !== "copied") {
-            return { status: change.status, path: change.path };
-          }
-          return { status: change.status, path: change.path, previousPath: change.previousPath };
-        }),
+        changedPaths: result.context.changedPaths,
         author: {
           identity: result.context.author.identity,
           login: result.context.author.login,
