@@ -144,9 +144,9 @@ onto stable code-facing fields without losing tolerant recovery.
         - Moved worktree roster and in-flight derivation onto semantic records while preserving display-facing
           unresolved values and field-level degradation when state is invalid or metadata is unreadable.
 
-    - `[ ]` **2.5.d Migrate base and session-resolution adapters**
-        - Update `base-drift/current-adapters.ts` and `session-init/cohort-doc.ts`, preserving their current fail or
-          degrade policies and externally visible records.
+    - `[x]` **2.5.d Migrate base and session-resolution adapters**
+        - Moved base-drift completion and session cohort resolution onto semantic completion, PR, and cohort fields
+          while preserving malformed-meta degradation and externally visible record shapes.
 
     - `[ ]` **2.5.e Migrate meta validators and foreign-write checks**
         - Update `scripts/validate-meta-spec.ts` and `scripts/check-foreign-writes.ts` without coupling the structural

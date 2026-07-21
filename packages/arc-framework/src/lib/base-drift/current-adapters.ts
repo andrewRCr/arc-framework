@@ -4,7 +4,7 @@
  * @module
  */
 
-import { parseMetaProjectionRecord } from "../active/meta-reader.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import type {
   BaseDriftCommitInput,
   IntegrationEvidenceResolver,
@@ -150,17 +150,16 @@ function recordFromMeta(path: string, content: string): ShippedWorkUnitRecord | 
   if (slug === null) return null;
   let meta;
   try {
-    meta = parseMetaProjectionRecord(content);
+    meta = parseMetaRecord(content);
   } catch {
     return null;
   }
-  const completedValue = meta.Completed?.trim();
+  const completedValue = meta.completed?.trim();
   const completedAt = completedValue === undefined
-    || completedValue === "[none]"
     || Number.isNaN(Date.parse(completedValue))
     ? null
     : completedValue;
-  const prValue = meta["PR URL"]?.trim();
+  const prValue = meta.prUrl?.trim();
   const match = prValue === undefined
     ? null
     : /^(https?:\/\/[^\s]+\/pull\/([1-9]\d*))$/u.exec(prValue);

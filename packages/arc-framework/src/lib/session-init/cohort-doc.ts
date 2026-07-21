@@ -19,10 +19,7 @@
 import { join } from "node:path";
 
 import { cohortLeaf } from "../active/cohort-path.js";
-import { parseMetaProjectionRecord } from "../active/meta-reader.js";
-
-/** The standalone-work-unit sentinel; carries no cohort grouping. */
-const NONE_SENTINEL = "[none]";
+import { parseMetaRecord } from "../active/meta-reader.js";
 
 /** Filesystem seam — injected so the resolver stays unit-testable. */
 export interface CohortDocFs {
@@ -64,10 +61,10 @@ export async function resolveActiveCohortDocPath(
     return null;
   }
 
-  const cohort = parseMetaProjectionRecord(content).Cohort;
+  const cohort = parseMetaRecord(content).cohort;
   if (cohort === null) return null;
   const field = cohort.trim();
-  if (field === "" || field === NONE_SENTINEL) return null;
+  if (field === "") return null;
 
   const leaf = cohortLeaf(field);
   const docPath = `.arc/backlog/planned/${field}/cohort-${leaf}.md`;
