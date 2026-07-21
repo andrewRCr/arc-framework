@@ -370,18 +370,11 @@ incomplete durable contracts through the registry.
 - _Goal:_ Cut maps derive their structural types from one strict version-2 schema while retaining graph invariants,
   targeted diagnostics, canonical ordering, and receipt bytes.
 
-    - `[ ]` **5.1.a Define the cut-map structural schema family**
-        - Add `src/lib/work-unit/decompose-cut-map-schema.ts` with strict schemas for positions, locators,
-          allocations, edge dispositions, target sets, and the complete version-2 record.
-        - Compose `WorkClassSchema` and `SlugSchema`, narrow `WorkUnitStateSchema` to the currently accepted
-          `Planning` / `Active` origin phases, and preserve canonical-digest branding through `isCanonicalDigest`.
-        - Derive `DecomposeAllocationMap`, its position, locator, allocation, target, entry, and edge structural
-          families with `z.infer`; keep decision/result unions and compatibility aliases outside schema authority.
-        - Build `test-first` (one behavior at a time):
-            - accept every position, locator, allocation, target, entry, and edge discriminated arm;
-            - reject extra keys, unknown discriminants, unresolved Classes, unsafe slugs, and unsupported origin phases;
-            - reject malformed canonical digests, managed document paths, artifact basenames, and locator fields;
-            - preserve nullable or optional fields exactly without embedding canonical ordering in the root schema.
+    - `[x]` **5.1.a Define the cut-map structural schema family**
+        - Added strict version-2 position, locator, target, entry, allocation, edge-disposition, target-set, and root
+          schemas with inferred structural types. Kernel Class/slug/state vocabularies, branded canonical digests,
+          managed paths, normalized headings, safe cohort paths, optional cohort, and ordering-neutral arrays are pinned
+          by focused acceptance and rejection coverage.
 
     - `[ ]` **5.1.b Preserve cross-record and graph invariants**
         - Express duplicate destination identities, cohort coordination, home/target coupling, source allocation,
