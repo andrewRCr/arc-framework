@@ -376,19 +376,11 @@ incomplete durable contracts through the registry.
           managed paths, normalized headings, safe cohort paths, optional cohort, and ordering-neutral arrays are pinned
           by focused acceptance and rejection coverage.
 
-    - `[ ]` **5.1.b Preserve cross-record and graph invariants**
-        - Express duplicate destination identities, cohort coordination, home/target coupling, source allocation,
-          dependency recipient, internal-edge, transform-shape, parent-position, locator ownership, and target-set
-          invariants through path-targeted runtime refinements without registering the schema.
-        - Preserve normalized heading-source, NFC basename, managed-path, uniqueness, and direct self-dependency rules.
-        - Keep `retirementAllocationRefusal()` as a separate retirement-policy decision so extraction remains a valid
-          parsed map, and keep ordering out of schema acceptance so normalization runs only after successful parsing.
-        - Build `test-first` (one behavior at a time):
-            - reject duplicate destination ids or identities and invalid cohort-coordination cardinality or placement;
-            - enforce symmetric, extraction, backlog-source, heterogeneous-home, and parent-position constraints;
-            - require unique source allocations whose target locator belongs to an eligible declared destination;
-            - reject unknown dependency recipients, duplicate edges, direct self-dependencies, and invalid target sets;
-            - retain retirement-only ownership refusals outside `DecomposeAllocationMapSchema` acceptance.
+    - `[x]` **5.1.b Preserve cross-record and graph invariants**
+        - Composed path-targeted refinements for destination/cohort identity, home/locator ownership, transform and
+          placement shape, source allocations, internal/dependency edges, recipient eligibility, uniqueness, and
+          self-dependencies. Acceptance remains ordering-neutral and permits extraction independently of the unchanged
+          retirement-policy decision.
 
     - `[ ]` **5.1.c Preserve the public no-throw adapter and type surface**
         - Rebase `parseCutMap()` on `safeParse`, retaining the handwritten `CutMapParseResult`, exact version-1 upgrade
