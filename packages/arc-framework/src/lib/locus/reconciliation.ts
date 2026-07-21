@@ -26,7 +26,11 @@ export type LocusInternalReconcileAction =
   | {
       readonly summary: LocusReconcileAction;
       readonly proof: LocusRecordGenerationProof;
-      readonly authority: { readonly marker: "verified"; readonly identityKey: string | null } | null;
+      readonly authority: {
+        readonly marker: "verified";
+        readonly subjectKey: string;
+        readonly identityKey: string | null;
+      } | null;
     }
   | {
       readonly summary: LocusReconcileAction;
@@ -42,12 +46,14 @@ export type LocusAdoptionCandidate =
       readonly recordId: string;
       readonly proof: Extract<LocusRecordGenerationProof, { kind: "record-absent" }>;
       readonly marker: "verified";
+      readonly subjectKey: string;
       readonly identityKey: string | null;
     }
   | {
       readonly kind: "blocked";
       readonly checkoutPath: string;
       readonly recordId: string;
+      readonly subjectKey: string;
       readonly identityKey: string | null;
       readonly reasons: readonly LocusStopReason[];
     };
@@ -87,7 +93,11 @@ export function deriveLocusReconciliation(options: {
         recordId: candidate.recordId,
       },
       proof: candidate.proof,
-      authority: { marker: candidate.marker, identityKey: candidate.identityKey },
+      authority: {
+        marker: candidate.marker,
+        subjectKey: candidate.subjectKey,
+        identityKey: candidate.identityKey,
+      },
     });
   }
   for (const row of options.rows) {

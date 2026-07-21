@@ -80,15 +80,15 @@ export async function acquireLocusLock(options: {
       if (liveness === "live") lastReason = "live";
       else if (liveness === "unknown") lastReason = "unknown";
       else {
-        const broken = await breakDeadHolder({
+        const broken = await breakDeadLocusLock({
           path: options.path,
           observed,
           inspector: options.inspector,
           breakerToken: token,
           beforeBreakRecheck: options.beforeBreakRecheck,
         });
-        if (broken) continue;
-        lastReason = "unknown";
+        if (broken.kind === "broken" || broken.kind === "already-absent") continue;
+        lastReason = broken.kind === "live" ? "live" : "unknown";
       }
     }
 
@@ -117,25 +117,29 @@ export async function releaseLocusLock(
   }
 }
 
-async function breakDeadHolder(options: {
+/** Break only an unchanged conclusively dead main holder through its secondary lock. */
+export async function breakDeadLocusLock(options: {
   path: string;
   observed: { kind: "valid"; holder: LocusLockHolder; bytes: Buffer };
   inspector: ProcessInspector;
   breakerToken: string;
   beforeBreakRecheck?: () => Promise<void>;
-}): Promise<boolean> {
+}): Promise<{ kind: "broken" | "already-absent" | "generation-mismatch" | "live" | "unknown" }> {
   const breakPath = `${options.path}.break`;
   const breakBytes = Buffer.from(options.breakerToken, "utf8");
-  if (!await exclusiveCreate(breakPath, breakBytes)) return false;
+  if (!await exclusiveCreate(breakPath, breakBytes)) return { kind: "generation-mismatch" };
   try {
     await options.beforeBreakRecheck?.();
     const current = await readLocusLockHolder(options.path);
-    if (current.kind !== "valid" || !current.bytes.equals(options.observed.bytes)) return false;
-    if (await verifyProcessAnchor(current.holder.anchor, options.inspector) !== "dead") return false;
+    if (current.kind !== "valid" || !current.bytes.equals(options.observed.bytes)) {
+      return { kind: "generation-mismatch" };
+    }
+    const liveness = await verifyProcessAnchor(current.holder.anchor, options.inspector);
+    if (liveness !== "dead") return { kind: liveness };
     await unlink(options.path);
-    return true;
+    return { kind: "broken" };
   } catch (error) {
-    return errorCode(error) === "ENOENT";
+    return errorCode(error) === "ENOENT" ? { kind: "already-absent" } : { kind: "unknown" };
   } finally {
     await releaseExactFile(breakPath, breakBytes);
   }

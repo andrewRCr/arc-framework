@@ -88,6 +88,7 @@ describe("locus reconciliation", () => {
       recordId: `sha256:${"2".repeat(64)}`,
       proof: { kind: "record-absent", path: "/loci/wu.json" },
       marker: "verified",
+      subjectKey: "demo",
       identityKey: null,
     } satisfies LocusAdoptionCandidate;
     const transientAdoption = {
@@ -97,6 +98,7 @@ describe("locus reconciliation", () => {
       recordId: `sha256:${"1".repeat(64)}`,
       proof: { kind: "record-absent", path: "/loci/errand.json" },
       marker: "verified",
+      subjectKey: "errand",
       identityKey: "errand",
     } satisfies LocusAdoptionCandidate;
     const adoptions = [wuAdoption, transientAdoption];
@@ -144,12 +146,12 @@ describe("locus reconciliation", () => {
       {
         summary: expect.objectContaining({ kind: "adopt-transient" }),
         proof: transientAdoption.proof,
-        authority: { marker: "verified", identityKey: "errand" },
+        authority: { marker: "verified", subjectKey: "errand", identityKey: "errand" },
       },
       {
         summary: expect.objectContaining({ kind: "adopt-work-unit" }),
         proof: wuAdoption.proof,
-        authority: { marker: "verified", identityKey: null },
+        authority: { marker: "verified", subjectKey: "demo", identityKey: null },
       },
       {
         summary: expect.objectContaining({ kind: "break-dead-lock" }),
@@ -251,6 +253,7 @@ describe("locus reconciliation", () => {
       kind: "blocked" as const,
       checkoutPath: "/blocked",
       recordId: `sha256:${"8".repeat(64)}`,
+      subjectKey: "errand",
       identityKey: "errand",
       reasons: ["cross-identity", "marker-missing", "subject-unresolved"] as const,
     } satisfies LocusAdoptionCandidate;

@@ -272,21 +272,16 @@ roster and one generation-safe local mutation boundary.
 - _Outcome:_ One directed mutation core now derives roles from authority evidence and preserves every newer record,
   role, lease, parent, and heartbeat generation across mint, attach, refresh, release, update, and pop operations.
 
-### `[ ]` **3.4 Reconcile WU roles, dead locks, and stale records through expected generations** — D6, D9
+### `[x]` **3.4 Reconcile WU roles, dead locks, and stale records through expected generations** — D6, D9
 
 - _Goal:_ State-touching entry repairs only locally proven gaps while transient adoption and subject-owned residue
   wait for their marker and operation drivers.
 
-    - `[ ]` **3.4.a Revalidate and apply safe local reconciliation actions**
-        - Add a driver that reruns the public reader, resolves one current internal proof-bearing action, and applies
-          WU adoption or stale-record reap under the target record lock and exact record generation.
-        - Break a dead main lock only through Phase 1's secondary-break protocol after its token/anchor proof remains
-          unchanged; never attempt to acquire the main record lock in order to break that same lock.
-        - Derive WU adoption only from a matching ARC marker and meta; reap or break only with conclusively dead,
-          token-stable evidence.
-        - Build `test-first` (one behavior at a time):
-            - Cover raced revalidation, changed record bytes, replaced lock holders, malformed/live/unknown refusal,
-              unrelated unmanaged worktrees, and retry idempotence.
+    - `[x]` **3.4.a Revalidate and apply safe local reconciliation actions**
+        - Added a driver that reruns the proof-bearing plan, rejects changed reader or authority evidence, and applies
+          WU adoption or stale-record reap only under the directed record lock. Dead main locks now expose a direct
+          exact-holder secondary-break operation, so breaking never acquires the lock being removed; byte/token/
+          anchor changes, live/unknown holders, malformed records, races, and retries remain fail-closed or idempotent.
 
 ### `[ ]` **3.5 Expose the read contract through `arc locus`** — D6
 

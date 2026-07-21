@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   acquireLocusLock,
+  breakDeadLocusLock,
+  readLocusLockHolder,
   releaseLocusLock,
   serializeLocusLockHolder,
 } from "../../../src/lib/locus/lock.js";
@@ -103,6 +105,22 @@ describe("locus record lock", () => {
     });
     expect(result).toMatchObject({ kind: "refused" });
     expect(await readFile(path)).toEqual(replacement);
+  });
+
+  it("breaks an exact dead proof directly without acquiring the main lock", async () => {
+    const path = await lockPath();
+    const bytes = serializeLocusLockHolder({ token: "a".repeat(32), anchor, createdAt: timestamp });
+    await writeFile(path, bytes);
+    const observed = await readLocusLockHolder(path);
+    if (observed.kind !== "valid") throw new Error("expected valid holder");
+    await expect(breakDeadLocusLock({
+      path,
+      observed,
+      inspector: inspector("dead"),
+      breakerToken: "b".repeat(32),
+    })).resolves.toEqual({ kind: "broken" });
+    await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(`${path}.break`)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("releases only a byte-equivalent owned generation and tolerates absence", async () => {
