@@ -76,6 +76,18 @@ describe("self-hosting ownership", () => {
     })).resolves.toEqual({ relation });
   });
 
+  it.each([
+    ".arc/backlog/planned/doc-conventions/cohort-doc-conventions.md",
+    ".arc/backlog/provisional/some-cohort/cohort-some-cohort.md",
+    ".arc/active/cohort-sample.md",
+  ])("groups a cohort document beside the work units it coordinates: %s", async (path) => {
+    await expect(resolveOwnership({
+      ...common,
+      exec: execWith({}),
+      changes: [{ status: "modified" as const, path }],
+    })).resolves.toEqual({ relation: "ownerless" });
+  });
+
   it("treats non-applicable and ownerless members as neutral beside one known owner", async () => {
     await expect(resolveOwnership({
       ...common,

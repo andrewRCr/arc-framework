@@ -42,12 +42,26 @@ function nestedBacklogDirectory(directory: string): boolean {
     || directory.startsWith(".arc/backlog/provisional/");
 }
 
+/**
+ * Directories that hold grooming-stage artifacts, matching the surface-authority predicate.
+ *
+ * Cohort documents sit beside the work units they coordinate, so they nest a level below the
+ * lifecycle root rather than resting directly in it.
+ */
+function planningGroomingDirectory(directory: string): boolean {
+  return directory === ".arc/active"
+    || directory === ".arc/backlog/planned"
+    || directory === ".arc/backlog/provisional"
+    || directory.startsWith(".arc/active/")
+    || nestedBacklogDirectory(directory);
+}
+
 function groupForPath(path: string): ArtifactGroup | null {
   if (path.startsWith("/") || path.split("/").includes("..")) return null;
   const directory = posix.dirname(path);
   const basename = posix.basename(path);
   if (/^cohort-.+\.md$/su.test(basename)) {
-    if (directory !== ".arc/backlog/planned" && directory !== ".arc/backlog/provisional") return null;
+    if (!planningGroomingDirectory(directory)) return null;
     return { key: `${directory}/${basename}`, metaPath: null, ownerless: true };
   }
   if (directory !== ".arc/active" && !nestedBacklogDirectory(directory)) return null;
