@@ -27,6 +27,8 @@ import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.j
 import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
+import { deriveLocusRecordId } from "../../src/lib/locus/path-identity.js";
+import { createNodeWorkUnitLocusDriver } from "../../src/lib/work-unit/work-unit-locus.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -153,6 +155,19 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.value.branch).toBe("plan/alpha");
+    const locusIdentity = deriveLocusRecordId(wt, process.platform === "win32" ? "windows" : "posix");
+    const locusPath = join(h.repo, ".arc", "user", IDENTITY, ".internal", "loci", `locus-${locusIdentity.digest}.json`);
+    const locus = JSON.parse(await readFile(locusPath, "utf8")) as {
+      role: { kind: string; subject: { key: string } };
+      lease: unknown;
+    };
+    expect(locus).toMatchObject({ role: { kind: "work-unit", subject: { key: "alpha" } }, lease: null });
+    await expect(createNodeWorkUnitLocusDriver({ exec: h.io.exec, identity: IDENTITY }).reconcile({
+      checkoutPath: wt,
+      branch: "plan/alpha",
+      wuName: "alpha",
+      attachSession: false,
+    })).resolves.toMatchObject({ recordId: locusIdentity.recordId, roleCreated: false });
     expect(await pathExists(wt)).toBe(true);
     const record = parseMetaRecord(await readFile(join(wt, ".arc", "active", "meta-alpha.md"), "utf8"));
     expect(record.State).toBe("Planning");
@@ -448,8 +463,16 @@ describe("arc start dispatch — against real worktrees", () => {
       branch: "plan/widget",
     });
 
+    const reconcileLocus = vi.fn().mockResolvedValue({ recordId: "sha256:test", leaseId: "lease", roleCreated: true });
     const result = await runGraduate(
-      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
+      buildExecutorContext({
+        cwd: h.repo,
+        io: h.io,
+        identity: IDENTITY,
+        teamMode: false,
+        internalTemplateDir: getInternalTemplatePath(),
+        workUnitLocus: { reconcile: reconcileLocus },
+      }),
       { name: "widget", cls: "Light", inPlace: true },
     );
 
@@ -461,6 +484,12 @@ describe("arc start dispatch — against real worktrees", () => {
     const { stdout: head } = await execFileAsync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: h.repo });
     expect(head.trim()).toBe("plan/widget");
     expect(await pathExists(spawnWt)).toBe(false);
+    expect(reconcileLocus).toHaveBeenCalledWith({
+      checkoutPath: h.repo,
+      branch: "plan/widget",
+      wuName: "widget",
+      attachSession: true,
+    });
   });
 
   it("worktree-occupancy (in-place): graduating --here into a checkout already holding an active WU is rejected", async () => {

@@ -624,7 +624,15 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
 
   const inputs: TransitionInputs = {
     worktreeOp: params.inPlace
-      ? { mutation: "spawn", inPlace: true, branch, createBranch: false, deferCheckout: true }
+      ? {
+          mutation: "spawn",
+          inPlace: true,
+          branch,
+          wuName: name,
+          attachSession: true,
+          createBranch: false,
+          deferCheckout: true,
+        }
       : {
           mutation: "spawn",
           branch,

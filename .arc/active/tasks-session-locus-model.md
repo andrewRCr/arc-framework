@@ -620,20 +620,10 @@ as their machine-local occupancy authority.
 - _Goal:_ Every managed WU checkout has durable ownership from creation through teardown and exactly one attached
   session when active, without changing existing meta or marker authority.
 
-    - `[ ]` **6.1.a Mint WU roles beside spawn and materialize markers**
-        - Extend lifecycle `reconcileWorkUnitWorktree()` so its successful spawn/in-place composition mints the
-          trusted WU role only after the target appears in Git's roster. Keep `scaffoldIntoWorktree()` responsible
-          for meta/marker creation rather than adding a second role-mint authority.
-        - Make in-place mint the physical primary's WU role from the exact start/resume transition receipt even
-          though the primary has no ARC-created-worktree marker; spawn remains the default full-protection path and
-          `--here` remains explicit.
-        - Route start, resume, and `runMaterialize()` through that WU-owned composition with the applicable idle or
-          entering-session lease state.
-        - Preserve spawn-anchored behavior: the originating session does not attach to or relocate into a newly
-          created WU worktree.
-        - Build `test-first` (one behavior at a time):
-            - Cover start, resume, materialize, partial provisioning failure, and idempotent replay in integration
-              tests.
+    - `[x]` **6.1.a Mint WU roles beside spawn and materialize markers**
+        - Composed roster-validated WU role minting and optional entering-session attachment into
+          `reconcileWorkUnitWorktree()`, with idle spawned roles, explicit in-place attachment dispositions, exact
+          replay, and failure-before-role coverage across start, resume, and materialize paths.
 
     - `[ ]` **6.1.b Adopt and attach WU roles during session entry**
         - Reconcile a recordless ARC-marked WU from its marker/meta, replace only a conclusively dead WU lease, and

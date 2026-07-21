@@ -33,6 +33,8 @@ interface MockOptions {
   failPostCreate?: boolean;
   /** Primary-side directories that should appear present to the harness-dir copy seam. */
   existingDirs?: readonly string[];
+  /** Record role-composition calls in the event stream. */
+  trackLocus?: boolean;
 }
 
 /**
@@ -68,6 +70,16 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorkUnitWorktreeConte
       mkdir: async () => {},
       readDir: async () => [],
     },
+    ...(opts.trackLocus === true
+      ? {
+          locus: {
+            reconcile: async (options) => {
+              events.push(["locus", options.checkoutPath, options.wuName, String(options.attachSession)]);
+              return { recordId: "sha256:test", leaseId: null, roleCreated: true };
+            },
+          },
+        }
+      : {}),
   };
   return { ctx, events };
 }
@@ -97,7 +109,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
   });
 
   it("creates the branch + worktree at the templated path and writes the ownership marker", async () => {
-    const { ctx, events } = buildCtx();
+    const { ctx, events } = buildCtx({ trackLocus: true });
     const template = join(root, "{repo}.{name}");
     const expectedPath = resolveWorktreeLocation({
       template,
@@ -121,6 +133,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
     expect(events).toEqual([
       ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
       ["git", "rev-parse", "--git-path", "info/exclude"],
+      ["locus", expectedPath, "demo-wu", "false"],
     ]);
 
     const marker = await readWorktreeMarker(expectedPath);
@@ -226,7 +239,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
   });
 
   it("fails loud and writes no marker when the configured post-create script fails", async () => {
-    const { ctx, events } = buildCtx({ failPostCreate: true });
+    const { ctx, events } = buildCtx({ failPostCreate: true, trackLocus: true });
     const template = join(root, "{repo}.{name}");
     const expectedPath = resolveWorktreeLocation({
       template,

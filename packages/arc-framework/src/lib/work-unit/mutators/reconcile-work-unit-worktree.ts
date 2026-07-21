@@ -51,6 +51,7 @@ import {
   reconcileLinkedIdentityGlobalUserSurfaces,
   type UserSurfaceMigrationDirent,
 } from "../../user-surface-migration.js";
+import type { WorkUnitLocusDriver } from "../work-unit-locus.js";
 
 /** Dependencies for {@link reconcileWorkUnitWorktree}. */
 export interface ReconcileWorkUnitWorktreeContext {
@@ -60,6 +61,8 @@ export interface ReconcileWorkUnitWorktreeContext {
   chdir: (dir: string) => void;
   /** Filesystem seam for post-create harness-dir provisioning. */
   fs: ReconcileWorkUnitWorktreeFs;
+  /** Machine-local role composer; production always binds it. */
+  locus?: WorkUnitLocusDriver;
 }
 
 /** Filesystem operations used by the fresh-worktree post-create provisioning leg. */
@@ -152,6 +155,10 @@ export type ReconcileWorkUnitWorktreeOp =
       inPlace: true;
       /** Branch to place in the current worktree. */
       branch: string;
+      /** Work-unit whose trusted transition owns this checkout. */
+      wuName?: string;
+      /** Attach the entering session; false for spawn-anchored internal replay. */
+      attachSession?: boolean;
       /** `true` cuts a fresh branch (`-b`, graduate / create-new); `false` attaches an existing one (resume). */
       createBranch: boolean;
       /**
@@ -223,7 +230,19 @@ export async function reconcileWorkUnitWorktree(
       await ctx.exec("git", checkout);
     }
     const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);
-    return { mutation: "spawn", worktreePath: stdout.trim(), branch: op.branch };
+    const worktreePath = stdout.trim();
+    if (ctx.locus !== undefined) {
+      if (op.wuName === undefined || op.attachSession === undefined) {
+        throw new Error("work-unit locus composition requires a work-unit name and attach disposition");
+      }
+      await ctx.locus.reconcile({
+        checkoutPath: worktreePath,
+        branch: op.branch,
+        wuName: op.wuName,
+        attachSession: op.attachSession,
+      });
+    }
+    return { mutation: "spawn", worktreePath, branch: op.branch };
   }
 
   if (op.mutation === "spawn") {
@@ -264,6 +283,13 @@ export async function reconcileWorkUnitWorktree(
       createdFor: { kind: "work-unit", name: op.wuName },
       spawningIdentity: op.spawningIdentity,
       now: op.now,
+    });
+    await ctx.locus?.reconcile({
+      checkoutPath: worktreePath,
+      branch: op.branch,
+      wuName: op.wuName,
+      attachSession: false,
+      ...(op.now === undefined ? {} : { establishedAt: new Date(op.now).toISOString() }),
     });
     return {
       mutation: "spawn",

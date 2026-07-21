@@ -68,6 +68,8 @@ import { setPhase } from "./mutators/set-phase.js";
 import { dischargeDepEdges } from "./side-effects/discharge-dep-edges.js";
 import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
 import { withdrawPr } from "./side-effects/withdraw-pr.js";
+import { createNodeWorkUnitLocusDriver } from "./work-unit-locus.js";
+import type { WorkUnitLocusDriver } from "./work-unit-locus.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
 export interface ExecutorContextDeps {
@@ -83,6 +85,8 @@ export interface ExecutorContextDeps {
   baseBranch?: string;
   /** Internal template directory for the user-workspace SESSION-NOTES seed. */
   internalTemplateDir: string;
+  /** Test/embedding override for WU role composition. */
+  workUnitLocus?: WorkUnitLocusDriver;
 }
 
 /**
@@ -186,14 +190,17 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
 
   const reconcileBoundWorkUnitWorktree: NonNullable<
     ExecuteTransitionContext["reconcileWorkUnitWorktree"]
-  > = (op) =>
-    reconcileWorkUnitWorktree({
+  > = (op) => {
+    if (identity === null) throw new Error("work-unit locus composition requires a resolved identity");
+    return reconcileWorkUnitWorktree({
       exec,
       chdir: (dir) => {
         process.chdir(at(dir));
       },
       fs: nodeReconcileWorkUnitWorktreeFs,
+      locus: deps.workUnitLocus ?? createNodeWorkUnitLocusDriver({ exec, identity }),
     }, op);
+  };
 
   return {
     cwd,

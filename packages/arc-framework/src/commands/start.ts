@@ -66,6 +66,7 @@ import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
+import { createNodeWorkUnitLocusDriver } from "../lib/work-unit/work-unit-locus.js";
 
 /**
  * The arm `start` dispatches to for a resolved lifecycle state. `create-new`
@@ -364,7 +365,7 @@ export async function runGraduate(
     ctx,
     params,
     branch,
-    { mutation: "spawn", inPlace: true, branch, createBranch: true },
+    { mutation: "spawn", inPlace: true, branch, wuName: params.name, attachSession: true, createBranch: true },
   );
 }
 
@@ -417,7 +418,15 @@ async function runGraduateSpawn(
         }),
     },
     branch,
-    { mutation: "spawn", inPlace: true, branch, createBranch: true, deferCheckout: true },
+    {
+      mutation: "spawn",
+      inPlace: true,
+      branch,
+      wuName: params.name,
+      attachSession: false,
+      createBranch: true,
+      deferCheckout: true,
+    },
   );
   if (result.status !== "graduated") return result;
   return {
@@ -795,7 +804,12 @@ export async function runCreateNew(
   let postCreateNotice: string | undefined;
   try {
     const spawnResult = await reconcileWorkUnitWorktree(
-      { exec: ctx.io.exec, chdir: (dir) => { process.chdir(dir); }, fs: nodeReconcileWorkUnitWorktreeFs },
+      {
+        exec: ctx.io.exec,
+        chdir: (dir) => { process.chdir(dir); },
+        fs: nodeReconcileWorkUnitWorktreeFs,
+        locus: createNodeWorkUnitLocusDriver({ exec: ctx.io.exec, identity: params.identity }),
+      },
       {
         mutation: "spawn",
         branch,

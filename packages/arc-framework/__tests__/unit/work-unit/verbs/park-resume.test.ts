@@ -603,7 +603,7 @@ describe("runResume — the inverse", () => {
   });
 
   it("re-attaches in place (`--here`) — removes the pointer but defers the checkout", async () => {
-    const { ctx, calls, removals } = buildCtx([PARKED]);
+    const { ctx, calls, removals, worktreeOps } = buildCtx([PARKED]);
 
     const result = await runResume(ctx, { name: "foo", inPlace: true });
 
@@ -620,6 +620,14 @@ describe("runResume — the inverse", () => {
     expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
     expect(calls.some((c) => c.startsWith("branch:"))).toBe(false);
     expect(removals).toContain("/repo/.arc/backlog/planned/foo/meta-foo.md");
+    expect(worktreeOps[0]).toMatchObject({
+      mutation: "spawn",
+      inPlace: true,
+      branch: "feat/foo",
+      wuName: "foo",
+      attachSession: true,
+      deferCheckout: true,
+    });
   });
 
   it("rejects cleanly when the parked record has no preserved branch (`[none]`)", async () => {

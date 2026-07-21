@@ -115,6 +115,8 @@ describe("runMaterialize", () => {
       mutation: "spawn",
       inPlace: true,
       branch: "feat/foo",
+      wuName: "foo",
+      attachSession: true,
       createBranch: false,
     });
   });
