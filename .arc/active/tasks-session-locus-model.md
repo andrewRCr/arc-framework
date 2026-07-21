@@ -129,18 +129,10 @@ grooming, or housekeeping state.
           full/partial groom arms, canonical relationship validation, random 128-bit claim IDs, and validated locus
           projection. Legacy v1/v2 records remain separately discriminated for the bounded compatibility path.
 
-    - `[ ]` **2.1.b Read one exact identity-tree snapshot and project valid records**
-        - Add a tip-pinned snapshot reader that distinguishes absent ref, root read error, strict tree-enumeration
-          error, and per-entry decode results instead of reading blobs through a ref that can advance mid-scan.
-        - Check each tree blob's size before buffering or UTF-8/JSON decoding, require its key to match the embedded
-          schema-valid slug, and retain malformed, oversized, unreadable, and unknown-version entries as typed
-          diagnostics. A complete snapshot may contain diagnostics, but every mutator rejects such a basis.
-        - Convert each valid v3 record to `LocusIdentityV1` through a pure projector that preserves `claimId`. Defer
-          managed-row joining and `identity-only` row construction to the Phase 3 roster projector.
-        - Build `test-first` (one behavior at a time):
-            - Pin every blob read to one tip despite a concurrent ref move.
-            - Distinguish clean absence from tip/tree/blob failure and preserve every invalid entry by key.
-            - Reject oversized input before blob buffering and detect tree-key/record-slug mismatch.
+    - `[x]` **2.1.b Read one exact identity-tree snapshot and project valid records**
+        - Added a tip- and object-pinned strict tree scan that size-gates before blob reads, distinguishes clean
+          absence from root failures, and retains every per-key decode/read failure as a typed diagnostic alongside
+          valid records and their claim-preserving locus projections.
 
     - `[ ]` **2.1.c Contain legacy identity records to the close-only compatibility path**
         - Route v1/v2 records only to the existing restore-aware `arc errand close` path; make open, link, leave,

@@ -37,6 +37,13 @@ export {
 } from "./identity-record.js";
 
 export {
+  readTransientIdentitySnapshot,
+  type IdentitySnapshotIO,
+  type IdentitySnapshotDiagnostic,
+  type TransientIdentitySnapshot,
+} from "./identity-snapshot.js";
+
+export {
   mergeErrandTrees,
   reconcileErrandPush,
   incomingErrandRef,
