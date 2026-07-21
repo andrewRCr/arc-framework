@@ -10,7 +10,7 @@
 import { posix, join, resolve } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
-import { parseMetaProjectionRecord } from "../active/meta-reader.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import { canonicalDigest, isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 import {
   contentDigest,
@@ -243,11 +243,11 @@ async function readCommittedTransition(
     }
     const plannedDir = posix.dirname(plannedMeta.path);
     const plannedMetaBytes = await requireBlob(deps, commit, plannedMeta.path);
-    const cohort = parseMetaProjectionRecord(decodeUtf8(plannedMetaBytes)).Cohort?.trim() ?? "";
+    const cohort = parseMetaRecord(decodeUtf8(plannedMetaBytes)).cohort?.trim() ?? "";
     if (!isSafeCohortPath(cohort) || validateCohortPath(cohort) !== null) {
       return { status: "rejected", reason: "The planned result carries an invalid Cohort path." };
     }
-    const expectedPlannedDir = cohort === "" || cohort === "[none]"
+    const expectedPlannedDir = cohort === ""
       ? `${plannedRoot}/${params.name}`
       : `${plannedRoot}/${cohort}/${params.name}`;
     if (plannedDir !== expectedPlannedDir) {

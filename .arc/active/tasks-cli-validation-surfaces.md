@@ -110,16 +110,11 @@ onto stable code-facing fields without losing tolerant recovery.
         - Moved decomposition origin, incoming-edge rewrite, and retirement reads onto semantic fields and parsed
           dependency arrays, removing repeated splitting without changing allocation or retirement policy.
 
-    - `[ ]` **2.4.e Migrate park and resume evidence consumers**
-        - Update `verbs/park-resume.ts`, `park-planning-landing.ts`, and `park-retirement-proof.ts`, preserving byte
-          evidence, cohort routing, and staged projection behavior.
-        - For `park@Active`, translate the carried source fields and compose the strict pointer record before
-          `reconcileWorktree()` tears down the worktree; reject composition failures without invoking teardown or
-          filesystem writes, while retaining teardown before the pointer write.
-        - Build `test-first` (one behavior at a time):
-            - reject missing or invalid required pointer fields before worktree or filesystem mutation;
-            - retain the dirty-worktree guard with no pointer write and preserve successful pointer bytes;
-            - preserve the partial-application result only for pointer-write failures after successful teardown.
+    - `[x]` **2.4.e Migrate park and resume evidence consumers**
+        - Moved park/resume, planning-landing, and retirement-proof reads onto semantic fields while preserving byte
+          evidence, cohort routing, staged projections, dirty-worktree refusal, and successful pointer bytes.
+        - Strict pointer composition now precedes teardown and rejects missing required fields without mutation;
+          only pointer-write failure after successful teardown retains the partial-application result.
 
     - `[ ]` **2.4.f Migrate lifecycle execution infrastructure**
         - Update `lifecycle-index.ts`, `lifecycle-executor.ts`, and `executor-context.ts` while retaining the explicit
