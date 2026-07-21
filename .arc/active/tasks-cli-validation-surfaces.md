@@ -218,7 +218,7 @@ the distinct recovery and precedence policies of existing adapters.
 - _Outcome:_ Agent, precedence, commit-check, and worktree adapters now share one catalog without collapsing their
   distinct tolerant, strict, dual-scope, and normalization policies into a global configuration normalizer.
 
-### `[ ]` **3.3 Deliver typed configuration validation behind the stable launcher**
+### `[x]` **3.3 Deliver typed configuration validation behind the stable launcher**
 
 - _Goal:_ One non-interactive TypeScript validator owns diagnostics and exit status while the installed shell path
   and custom-root behavior remain compatible.
@@ -236,15 +236,13 @@ the distinct recovery and precedence policies of existing adapters.
           explicit relative and absolute paths resolve from the current directory without requiring a project root;
           process-level integration coverage pins nested defaults, preserved display tokens, and exit codes 0–2.
 
-    - `[ ]` **3.3.c Reduce `validate-config.sh` to the compatibility launcher**
-        - Update the authoritative package-source script at its installed path, source `arc-lib.sh`, and `exec`
-          `arc config validate --file "$ARC_CONFIG_FILE"` with transparent stdout, stderr, signal, and status
-          forwarding.
-        - Sync the Framework script to its byte-identical `.arc/` mirror after the package-source edit.
-        - Characterize the thin launcher with a PATH-injected `arc` shim that pins argv plus stdout, stderr, and status
-          forwarding; keep real built-CLI behavior in command-level integration or E2E coverage.
-        - Cover direct default-path use, absolute temporary paths, and `verify-integrity.sh` with a custom `ARC_DIR`
-          before removing every shell key/domain/default table.
+    - `[x]` **3.3.c Reduce `validate-config.sh` to the compatibility launcher**
+        - Replaced both byte-identical installed copies with a sourced-library launcher that `exec`s the typed command
+          using `ARC_CONFIG_FILE`. PATH-shim coverage pins default and absolute argv plus transparent stdout, stderr,
+          and status forwarding; custom-`ARC_DIR` integrity verification proves its selected config reaches the CLI.
+
+- _Outcome:_ Configuration validation now has one typed, non-interactive policy authority behind both the direct CLI
+  and stable installed-script path, with explicit path selection and compatibility output preserved end to end.
 
 ### `[ ]` **3.4 Prove catalog completeness and compatibility behavior**
 
