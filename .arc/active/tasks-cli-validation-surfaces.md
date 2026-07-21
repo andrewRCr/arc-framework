@@ -310,17 +310,12 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
 - _Goal:_ Reads, atomic writes, and concurrent mutations use the schemas without changing missing/malformed versus
   I/O-failure behavior or dropping compatible state.
 
-    - `[ ]` **4.2.a Cut validated reads over to parse and normalize**
-        - Replace manual `parseLocalSyncState()` checks with the persisted schema and normalizer while retaining
-          fallback to the legacy path and one-time machine-id migration.
-        - Preserve current path precedence exactly: `ENOENT` continues to the legacy path, invalid JSON at the first
-          readable path returns `null`, and a structurally unusable parsed value may continue to the legacy candidate.
-        - Keep the raw one-time `machineId` reader independent from the full persisted schema so a machine-id-only
-          legacy object remains adoptable without surfacing the field in validated current state.
-        - Build `test-first` (one behavior at a time):
-            - preserve preferred-path, legacy-path, invalid-JSON, structurally unusable, and both-path-absent outcomes;
-            - rethrow non-`ENOENT` reads without attempting to mint or overwrite state;
-            - hydrate versions 2–4 and adopt a valid raw legacy `machineId` through their separate paths.
+    - `[x]` **4.2.a Cut validated reads over to parse and normalize**
+        - Replaced the manual record and extension checks with persisted-schema parsing followed by normalization,
+          while leaving raw machine-id adoption independent. Preferred and legacy path tests pin valid precedence,
+          `ENOENT` fallback, invalid-JSON termination, structurally unusable fallthrough, total absence, and immediate
+          propagation of non-`ENOENT` failures; the existing save/load corpus continues to cover version hydration and
+          one-time legacy machine-id adoption.
 
     - `[ ]` **4.2.b Validate every version-4 persistence path**
         - Parse complete records with `LocalSyncStateSchema` immediately before atomic write in the shared mutation
