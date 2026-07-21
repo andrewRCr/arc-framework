@@ -1,6 +1,7 @@
 /** Unit coverage for contained native ARC path materialization. */
 
-import { posix, win32 } from "node:path";
+import { tmpdir } from "node:os";
+import { join, posix, resolve, win32 } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -94,8 +95,8 @@ describe("materializeArcPathWithSemantics", () => {
 
 describe("materializeArcPath", () => {
   it("uses host semantics without resolving against process cwd", () => {
-    const root = posix.resolve("/tmp", "arc-layout-root");
+    const root = resolve(tmpdir(), "arc-layout-root");
     expect(materializeArcPath(root, managed(".arc/backlog/ROADMAP.md")))
-      .toBe(posix.join(root, ".arc/backlog/ROADMAP.md"));
+      .toBe(join(root, ".arc/backlog/ROADMAP.md"));
   });
 });

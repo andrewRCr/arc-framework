@@ -178,16 +178,19 @@ export async function resolveExplicitViewTarget(input: {
   try {
     const slug = SlugSchema.safeParse(entry.slug);
     if (!slug.success) return { status: "unavailable", slug: input.slug };
-    const cohort = entry.cohort === null ? [] : entry.cohort.split("/").map((segment) => SlugSchema.safeParse(segment));
-    if (cohort.some((segment) => !segment.success) || cohort.length > 2) {
-      return { status: "unavailable", slug: input.slug };
+    const cohort = [];
+    for (const segment of entry.cohort?.split("/") ?? []) {
+      const parsed = SlugSchema.safeParse(segment);
+      if (!parsed.success) return { status: "unavailable", slug: input.slug };
+      cohort.push(parsed.data);
     }
+    if (cohort.length > 2) return { status: "unavailable", slug: input.slug };
     const placement: WorkUnitPlacement = entry.location === "active"
       ? { kind: "active", scope: { kind: "project" } }
       : {
           kind: "backlog",
           commitment: entry.location === "planned" ? "planned" : "provisional",
-          cohort: entry.cohort === null ? [] : entry.cohort.split("/").map((segment) => SlugSchema.parse(segment)),
+          cohort,
         };
     const meta = parseMetaFile(await input.readFile(join(input.cwd, entry.path)));
     return {

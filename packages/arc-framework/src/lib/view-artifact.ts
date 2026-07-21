@@ -10,7 +10,7 @@
 import { isAbsolute, join } from "node:path";
 
 import type { SessionNotesPathResult } from "./handoff/session-notes-path.js";
-import { resolveArcPath } from "./layout/index.js";
+import { materializeArcPath, resolveArcPath } from "./layout/index.js";
 import {
   VIEW_KINDS,
   type ResolvedViewTarget,
@@ -160,7 +160,7 @@ async function resolveExactKind(
     case "notes":
       return presentOrAbsent(
         kind,
-        join(options.cwd, resolveArcPath({
+        materializeArcPath(options.cwd, resolveArcPath({
           kind: "work-unit-artifact",
           placement: target.placement,
           slug: target.slug,
@@ -206,7 +206,7 @@ async function resolveTaskPath(
     const pointer = absolute(cwd, target.taskListPath);
     if (await dependencies.pathExists(pointer)) return pointer;
   }
-  const conventional = join(cwd, resolveArcPath({
+  const conventional = materializeArcPath(cwd, resolveArcPath({
     kind: "work-unit-artifact",
     placement: target.placement,
     slug: target.slug,
