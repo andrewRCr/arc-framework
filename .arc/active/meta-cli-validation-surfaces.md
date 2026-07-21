@@ -12,11 +12,11 @@
 - **Task List:** `tasks-cli-validation-surfaces.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Establish the audit-entry schema authority
+- **Last Completed:** Task 7.3 — Prove identity compatibility and caller classification
+- **Next Task:** Task 8.1 — Complete verification (line ~544)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Establish the audit-entry schema authority
+- **Next Action:** Load and follow `verify-work-unit.md` for Task 8.1
 
 - **PR URL:** [none]
 - **Completed:** [none]
