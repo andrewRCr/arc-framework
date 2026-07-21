@@ -532,11 +532,10 @@ that shapes review spend without producing satisfying evidence.
   one-run precedence, private/project source fallback, and a versioned workflow result. Configuration can select safe
   source IDs, but carrier preparation and process authorization remain separate downstream stages.
 
-### `[ ]` **5.2 Execute frontline carriers with typed outcomes**
+### `[x]` **5.2 Execute frontline carriers with typed outcomes**
 
 - _Goal:_ Accepted frontline attempts execute the selected carrier against the exact aggregate target and return a
   truthful provider-neutral outcome without ever producing independent-analysis evidence.
-- _Context:_ Implements Design §3's two-stage resolver/adapter boundary.
 
     - `[x]` **5.2.a Add agent and command carrier adapters**
         - Added effect-free preparation for registered agent handles and direct executable-plus-argv descriptors.
@@ -553,10 +552,14 @@ that shapes review spend without producing satisfying evidence.
           `review-response` planner. Complete source-verified disposition approval gates fix capability; changed-target
           verification, affected-gate evidence, persistence, and rerouting remain required without carrier authority.
 
-    - `[ ]` **5.2.d Enforce bounded follow-up policy**
-        - Permit one follow-up only after at least one approved `major | blocker` fix changes the target; do not spend
-          it on minor/nit-only changes.
-        - Prove reduced project limits, cap exhaustion, and provider unavailability remain non-clean and advisory.
+    - `[x]` **5.2.d Enforce bounded follow-up policy**
+        - Added an exact-outcome follow-up resolver that permits pass two only after matching approved dispositions
+          contain a `major | blocker` fix and the target changed. Minor/deferred findings, reduced limits, exhausted
+          caps, unchanged targets, provider failure, and unavailability all stop without becoming clean.
+
+- _Outcome:_ Carrier preparation, execution normalization, finding response, and bounded rerouting now form one typed
+  advisory pipeline. Only authorized ready carriers execute, every result stays exact-target-bound, and neither
+  provider output nor project activation can bypass disposition approval or mint independent-analysis evidence.
 
 ### `[ ]` **5.3 Qualify structured CodeRabbit output with a safe fallback**
 
