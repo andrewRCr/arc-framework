@@ -191,16 +191,10 @@ the distinct recovery and precedence policies of existing adapters.
 - _Goal:_ Configuration consumers share field definitions without losing their distinct tolerance, precedence,
   normalization, and hard-error policies.
 
-    - `[ ]` **3.2.a Validate tokenizer output without changing syntax behavior**
-        - Keep `parseArcConfig()` responsible for its broader `^[\w.]+` key capture, CRLF handling, quote stripping,
-          first-definition wins, colon-bearing values, and bare-empty default selection.
-        - Parse the resulting string map only through `RawArcConfigSchema`, return its inferred type, and introduce no
-          global coercing normalizer.
-        - Build `test-first` (one behavior at a time):
-            - preserve broad tokenizer-only names, duplicate claims, bare-empty omission, quoted-empty presence,
-              quoted and colon-bearing non-empty values, and CRLF input;
-            - keep both empty forms first-definition-wins so neither permits a later value to replace it;
-            - reject non-string records at the raw-schema boundary.
+    - `[x]` **3.2.a Validate tokenizer output without changing syntax behavior**
+        - `parseArcConfig()` now parses its assembled map through `RawArcConfigSchema` and returns the inferred type;
+          the existing tokenizer corpus preserves broad names, line endings, quoting, colon values, and first-claim
+          behavior for bare and quoted empty definitions without adding normalization.
 
     - `[ ]` **3.2.b Migrate agent-consumable and precedence-aware readers**
         - Source the `readConfigSettings()` key projection, defaults, and tolerant enum checks from catalog-derived

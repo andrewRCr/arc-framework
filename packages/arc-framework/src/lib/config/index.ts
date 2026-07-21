@@ -8,6 +8,7 @@
 
 import { CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE } from "../constants.js";
 import type { InstallConfig } from "../types.js";
+import { RawArcConfigSchema, type RawArcConfig } from "./schema.js";
 
 // --- Config Key Overrides ---
 
@@ -106,7 +107,7 @@ export function buildInstallConfig(
  * @param content - Raw file content
  * @returns Map of dotted config keys to string values
  */
-export function parseArcConfig(content: string): Record<string, string> {
+export function parseArcConfig(content: string): RawArcConfig {
   const config: Record<string, string> = {};
   const claimedKeys = new Set<string>();
   // Normalize CRLF to LF before parsing (cross-platform safety)
@@ -133,5 +134,5 @@ export function parseArcConfig(content: string): Record<string, string> {
       config[key] = value;
     }
   }
-  return config;
+  return RawArcConfigSchema.parse(config);
 }
