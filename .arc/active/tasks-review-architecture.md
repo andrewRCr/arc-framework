@@ -871,13 +871,13 @@ architecture lands as one coherent forward contract.
   routing, review execution, evidence, response, lifecycle re-entry, and merge authorization.
 - _Context:_ Operationalizes Success Criteria 4–12 without duplicating the unit behavior lists in earlier tasks.
 
-    - `[ ]` **7.2.a Add cross-layer integration scenarios**
-        - Cover local-only, hosted-only, both, inactive review methods, unknown facts, atomic routine code, ordinary
-          code, sensitive docs/code, foreign ownership, constitutional authority, and rubric overlay.
-        - Make the local-only case run the full route → request → fresh launch → normalize → exact-head attest →
-          reduce → response/reroute sequence with no hosted carrier.
-        - Assert exact obligations, frontline action, evidence eligibility, retrigger, and the workflow rule that
-          review settlement enters candidate assembly but grants no merge authority.
+    - `[x]` **7.2.a Add cross-layer integration scenarios**
+        - Added cross-layer routing matrices for atomic/ordinary/sensitive/unknown changes, foreign ownership,
+          constitutional authority, inactive methods, and rubric overlays with exact obligation, frontline, and
+          retrigger assertions.
+        - Exercised local-only and hosted-only v2 chains through exact target/request construction, separated local
+          attestation or hosted evidence, forward eligibility/reduction, explicit `both` admission, and cross-channel
+          substitution refusal while preserving inactive controller/manual merge authority.
 
     - `[ ]` **7.2.b Exercise finding and re-entry scenarios**
         - Cover approved fix, defer, reject, mixed severity, provider-native conversation, local finding report,
