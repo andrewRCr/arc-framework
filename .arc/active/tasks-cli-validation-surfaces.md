@@ -94,9 +94,9 @@ onto stable code-facing fields without losing tolerant recovery.
 - _Goal:_ Work-unit handlers, transitions, and projections consume one parsed semantic representation instead of
   display labels and repeated list parsing.
 
-    - `[ ]` **2.4.a Migrate start and planning handlers**
-        - Replace display-label access in `handlers/start.ts` and `handlers/plan.ts`, preserving defaults, refusal
-          text, and planning-stage behavior.
+    - `[x]` **2.4.a Migrate start and planning handlers**
+        - Moved start graduation and planning-entry resolution onto semantic class, state, and branch fields while
+          retaining unresolved-class defaults, refusal text, and planning-route behavior.
 
     - `[ ]` **2.4.b Migrate lifecycle and view handlers**
         - Move `handlers/lifecycle.ts` and `handlers/view.ts` onto semantic fields and already-parsed design arrays.

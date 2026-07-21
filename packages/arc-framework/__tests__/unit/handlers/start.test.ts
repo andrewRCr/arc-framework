@@ -83,7 +83,7 @@ vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({
 }));
 
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
-  parseMetaProjectionRecord: () => ({ Class: "Light" }),
+  parseMetaRecord: () => ({ workClass: "Light" }),
 }));
 
 vi.mock("../../../src/lib/config/status-reader.js", () => ({

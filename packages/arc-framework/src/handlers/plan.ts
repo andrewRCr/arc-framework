@@ -23,7 +23,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
-import { parseMetaFile } from "../lib/active/meta-reader.js";
+import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   classifyPlanningEntry,
@@ -93,18 +93,18 @@ async function resolveActiveWorkUnitFacts(
     return { onPlanningBranch: false, activeWorkUnit: false };
   }
 
-  let fields;
+  let record;
   try {
-    fields = parseMetaFile(await readFile(join(cwd, active.path), "utf8"));
+    record = parseMetaRecord(await readFile(join(cwd, active.path), "utf8"));
   } catch {
     // An unreadable / malformed active meta resolves to no committable signal —
     // the gate redirects rather than trusting a half-resolved state.
     return { onPlanningBranch: false, activeWorkUnit: false };
   }
 
-  const activeWorkUnit = fields.state !== null && OCCUPYING_PHASES.has(fields.state);
+  const activeWorkUnit = record.state !== null && OCCUPYING_PHASES.has(record.state);
   const onPlanningBranch =
-    fields.state === "Planning" && currentBranch !== null && fields.branch === currentBranch;
+    record.state === "Planning" && currentBranch !== null && record.branch === currentBranch;
   return { onPlanningBranch, activeWorkUnit };
 }
 

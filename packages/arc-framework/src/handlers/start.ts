@@ -30,7 +30,7 @@ import {
   deriveColdStartWuName,
 } from "../commands/start.js";
 import { validateClass } from "../commands/active/types.js";
-import { parseMetaProjectionRecord } from "../lib/active/meta-reader.js";
+import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { refreshBase } from "../lib/git/refresh-base.js";
@@ -394,8 +394,8 @@ async function graduate(
         return;
       }
     }
-    const record = parseMetaProjectionRecord(baseContent);
-    cls = record.Class ?? "[TBD]";
+    const record = parseMetaRecord(baseContent);
+    cls = record.workClass ?? "TBD";
   } catch {
     p.log.error(`could not read the backlog meta for \`${wuName}\`.`);
     process.exitCode = 1;
