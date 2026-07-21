@@ -886,14 +886,13 @@ architecture lands as one coherent forward contract.
         - Exercised durable suspension through pending preservation, scheduled and explicit human re-entry, exact
           wakeup validation, timeout escalation, stale-head rerouting, and bounded frontline pass-cap exhaustion.
 
-    - `[ ]` **7.2.c Exercise lifecycle and migration scenarios**
-        - Cover WU and Errand publication, reviewed/CI-green pre-composition refusal, `manual` and
-          `with-integration` cadence products, complete candidate-tail review, open swept-candidate re-entry,
-          composition correction/invalidation, disjoint/interacting base merge, final-full review, schema-v1 residue,
-          forward evidence, exact-head merge, and post-merge cleanup.
-        - Reject release-note composition containing WU identifiers, branch/task/phase language, internal
-          review/provider machinery, or other internal development jargon without rejecting shipped public review
-          concepts.
+    - `[x]` **7.2.c Exercise lifecycle and migration scenarios**
+        - Added cross-layer lifecycle coverage for WU and Errand publication, pre-composition non-authority,
+          cadence-specific products, complete candidate-tail review, swept-candidate re-entry, append-only correction
+          and invalidation, exact-head merge authorization, and cadence-specific post-merge cleanup.
+        - Proved typed disjoint carry, interacting incremental retrigger, final-full review, forward evidence, and
+          strict schema-v1 exclusion; locked the release-note rejection classes for internal identifiers, process and
+          provider machinery, and unshipped plans while retaining shipped public review concepts.
 
     - `[ ]` **7.2.d Run the affected integration checkpoint**
         - Run focused unit/integration/controller/workflow suites plus source/test typecheck and build; fix all
