@@ -305,7 +305,7 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
 - _Outcome:_ Persisted local state now has an acceptance-equivalent loose reader and one strict current record type;
   normalization preserves compatible extension state while preventing legacy or malformed data from escaping ingress.
 
-### `[ ]` **4.2 Preserve sync-state persistence and migration behavior**
+### `[x]` **4.2 Preserve sync-state persistence and migration behavior**
 
 - _Goal:_ Reads, atomic writes, and concurrent mutations use the schemas without changing missing/malformed versus
   I/O-failure behavior or dropping compatible state.
@@ -328,9 +328,13 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
           the preferred path while carrying file-list and provenance extensions, and races notes/errand marker updates
           through the actual advisory-lock and compare-and-swap path without losing either marker or sibling state.
 
-    - `[ ]` **4.2.d Exercise state-producing command and ref flows**
-        - Extend built-CLI and ref-backed coverage for save/load production, partial-push publication, reconciliation,
-          and recovery so schema adoption does not alter externally visible sync behavior.
+    - `[x]` **4.2.d Exercise state-producing command and ref flows**
+        - Extended built-CLI save/load and multi-machine partial-push E2E coverage to parse produced local records with
+          `LocalSyncStateSchema`. Assertions pin version and operation rewrites plus notes-tip/partial-push linkage while
+          the existing ref publication, reconciliation, fulfillment, and two-machine union cases remain unchanged.
+
+- _Outcome:_ Every local sync-state ingress and producer now crosses the versioned schemas, while real-file, built-CLI,
+  concurrent marker, and ref-backed tests preserve the existing migration, carry-forward, and recovery lifecycle.
 
 ### `[ ]` **4.3 Establish cross-work-unit note adapter schemas**
 
