@@ -299,7 +299,7 @@ roster and one generation-safe local mutation boundary.
 _Purpose:_ Allocate primary or spawned loci, establish complete transient provenance, and land the shared inbox
 transaction boundary before operation composers consume it.
 
-### `[ ]` **4.1 Build the protection-aware primary-or-spawn allocator** — D1, D7
+### `[x]` **4.1 Build the protection-aware primary-or-spawn allocator** — D1, D7
 
 - _Goal:_ Every transient open gets a safe active checkout without branch-switching a WU workspace or inventing a
   partial-mode fallback that weakens base-branch safety.
@@ -340,17 +340,15 @@ transaction boundary before operation composers consume it.
           refusal. Reused slugs receive generation-distinct paths, while partial mode refuses before touching the
           creation boundary and cannot synthesize a branch or second base checkout.
 
-    - `[ ]` **4.1.g Enforce the directed-command harness boundary**
-        - Return active-locus and session-home paths in every successful open result so callers pin Git/filesystem
-          work with `cwd` or absolute paths.
-        - Derive a pure `directedCommands` capability from a fixed entering-process-anchor table: recognized Codex
-          and Claude selectors qualify; every other selector, interactive-shell, shared-host, and unverifiable
-          anchors do not.
-        - Return `cold-entry-required` with precomposed guidance before identity claim or local allocation mutation
-          when warm entry lacks the capability; never move the agent process or human terminal.
-        - Build `test-first` (one behavior at a time):
-            - Cover Codex/Claude admission, every incapable/unverifiable selector, refusal-before-mutation, and
-              successful cross-directory command pinning without ambient `cwd` dependence.
+    - `[x]` **4.1.g Enforce the directed-command harness boundary**
+        - Added a fixed Codex/Claude `directedCommands` capability, a warm-entry guard that returns precomposed
+          `cold-entry-required` guidance before invoking mutation, and an executor that pins Git work to an explicit
+          locus. Successful open results now require both active-locus and session-home paths at the schema boundary.
+
+- _Outcome:_ Allocation now separates protection-aware planning, primary-lock linearization, and generation-qualified
+  linked creation while keeping WU behavior behind its own wrapper. Warm entry is admitted only where subsequent
+  commands can be directed to the returned locus without moving the agent process, human terminal, or ambient
+  checkout.
 
 ### `[ ]` **4.2 Provision ownership markers, transient roles, and materialized Errand loci recoverably** — D4, D7
 

@@ -156,4 +156,27 @@ describe("locus public value schemas", () => {
     ];
     for (const value of values) expect(LocusMutationResultV1Schema.parse(value)).toEqual(value);
   });
+
+  it("requires both directed path coordinates on successful open results", () => {
+    const openSuccess = {
+      outcome: "applied",
+      operation: "plan-open",
+      allocation: { kind: "primary", checkoutPath: "/repo" },
+      recordId: digest,
+      leaseId: claimId,
+      activeLocusPath: "/repo",
+      sessionHomePath: "/session-home",
+      identity: null,
+      originEntry: null,
+      dispatchId: null,
+      routingPlanDigest: null,
+      restoredParent: null,
+      nextOffer: null,
+      recommendedPromptText: "Continue.",
+    };
+
+    expect(LocusMutationResultV1Schema.safeParse({ ...openSuccess, activeLocusPath: null }).success).toBe(false);
+    expect(LocusMutationResultV1Schema.safeParse({ ...openSuccess, sessionHomePath: null }).success).toBe(false);
+    expect(LocusMutationResultV1Schema.safeParse(openSuccess).success).toBe(true);
+  });
 });

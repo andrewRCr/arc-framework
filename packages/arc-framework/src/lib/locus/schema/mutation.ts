@@ -34,6 +34,8 @@ const success = {
   nextOffer: z.strictObject({ kind: z.enum(["errand", "housekeep"]), key: LocusOpaqueTextSchema, dispatchId: LocusOpaqueTextSchema, parentCheckoutPath: LocusAbsolutePathSchema.nullable() }).nullable(),
 };
 
+const LOCUS_OPEN_OPERATIONS = new Set(["errand-open", "plan-open", "housekeep-open"]);
+
 export const LocusMutationResultV1Schema = z.discriminatedUnion("outcome", [
   z.strictObject({ outcome: z.enum(["applied", "idempotent"]), ...success }),
   z.strictObject({ outcome: z.literal("refused"), ...common, reason: LocusRefusalReasonSchema }),
@@ -41,7 +43,17 @@ export const LocusMutationResultV1Schema = z.discriminatedUnion("outcome", [
     outcome: z.literal("error"), ...common,
     error: z.strictObject({ code: z.string().regex(/^locus\.[a-z0-9-]+(?:\.[a-z0-9-]+)*$/u), message: LocusOpaqueTextSchema }),
   }),
-]);
+]).superRefine((value, context) => {
+  if ((value.outcome === "applied" || value.outcome === "idempotent")
+    && LOCUS_OPEN_OPERATIONS.has(value.operation)) {
+    if (value.activeLocusPath === null) {
+      context.addIssue({ code: "custom", path: ["activeLocusPath"], message: "Open success requires active locus" });
+    }
+    if (value.sessionHomePath === null) {
+      context.addIssue({ code: "custom", path: ["sessionHomePath"], message: "Open success requires session home" });
+    }
+  }
+});
 
 export type LocusOperation = z.infer<typeof LocusOperationSchema>;
 export type LocusRefusalReason = z.infer<typeof LocusRefusalReasonSchema>;
