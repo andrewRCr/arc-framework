@@ -240,7 +240,7 @@ describe("managed subject authority", () => {
     });
   });
 
-  it("joins a transient only through its exact identity claim and branch", () => {
+  it("keeps claimless transient marker provenance unresolved despite an exact identity claim and branch", () => {
     const identity: LocusIdentityV1 = {
       kind: "errand",
       key: "demo",
@@ -280,7 +280,7 @@ describe("managed subject authority", () => {
     expect(projectManagedSubject({
       ...base,
       record: record({ kind: "errand", key: "demo", claimId: identity.claimId }),
-    })).toMatchObject({ kind: "resolved", authority: "transient", identity });
+    })).toEqual({ kind: "unresolved", reasons: ["subject-unresolved"] });
     expect(projectManagedSubject({
       ...base,
       record: record({ kind: "errand", key: "demo", claimId: "4".repeat(32) }),

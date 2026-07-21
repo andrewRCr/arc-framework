@@ -260,8 +260,8 @@ function markerMatches(
     ?? (result.marker.wuName === undefined ? undefined : { kind: "work-unit" as const, name: result.marker.wuName });
   if (subject === undefined || subject.kind !== expected.kind) return false;
   if (subject.kind === "work-unit") return subject.name === expected.key;
-  if (subject.kind === "errand") return subject.slug === expected.key;
-  return subject.ref === expected.key;
+  if (subject.kind === "branch") return subject.ref === expected.key;
+  return false;
 }
 
 function addMarkerReason(

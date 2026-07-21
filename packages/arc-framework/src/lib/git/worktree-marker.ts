@@ -17,6 +17,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import { atomicWriteJson } from "../fs.js";
 import { isCanonicalDigest } from "../canonical/canonical-json.js";
+import { LocusTokenSchema } from "../locus/schema/limits.js";
 import type {
   HuskAuthorization,
   PersistedRetirementEvidence,
@@ -30,6 +31,16 @@ export type WorktreeSubject =
   | { kind: "work-unit"; name: string }
   | { kind: "errand"; slug: string }
   | { kind: "branch"; ref: string };
+
+/** Generation-bearing transient target recorded only in ownership markers. */
+export type TransientWorktreeSubject = {
+  kind: "errand" | "groom" | "housekeep";
+  slug: string;
+  claimId: string;
+};
+
+/** Logical target carried by current and legacy ownership markers. */
+export type WorktreeMarkerSubject = WorktreeSubject | TransientWorktreeSubject;
 
 /** Terminal proof recorded after ARC detaches a worktree for safe later disposal. */
 export interface WorktreeHuskStamp {
@@ -77,9 +88,22 @@ interface WorktreeMarkerBase {
 /** Machine-local marker recording that ARC created a worktree. */
 export type WorktreeMarker = WorktreeMarkerBase &
   (
-    | { wuName: string; createdFor?: Extract<WorktreeSubject, { kind: "work-unit" }> }
-    | { wuName?: never; createdFor: WorktreeSubject }
+    | { wuName: string; createdFor?: Extract<WorktreeSubject, { kind: "work-unit" }>; provisioning?: never }
+    | { wuName?: never; createdFor: WorktreeSubject; provisioning?: never }
+    | { wuName?: never; createdFor: TransientWorktreeSubject; provisioning: string }
   );
+
+/** Trust classification for a structurally valid ownership marker. */
+export type DecodedWorktreeMarkerOwnership =
+  | {
+      kind: "current";
+      subject: Exclude<WorktreeMarkerSubject, { kind: "errand"; claimId?: never }>;
+      provisioning: "pending" | "ready" | null;
+    }
+  | {
+      kind: "manual-only";
+      reason: "legacy-transient" | "unknown-provisioning" | "malformed-ownership";
+    };
 
 /** Outcome of reading the marker: present, absent, or present-but-invalid. */
 export type WorktreeMarkerReadResult =
@@ -163,23 +187,31 @@ export function isWorktreeMarker(value: unknown): value is WorktreeMarker {
   if (typeof value !== "object" || value === null) return false;
   const marker = value as Record<string, unknown>;
   const wuNameValid = marker.wuName === undefined || typeof marker.wuName === "string";
-  const createdForValid = marker.createdFor === undefined || isWorktreeSubject(marker.createdFor);
+  const createdForValid = marker.createdFor === undefined || isWorktreeMarkerSubject(marker.createdFor);
   const hasWuName = typeof marker.wuName === "string";
-  const hasCreatedFor = isWorktreeSubject(marker.createdFor);
+  const hasCreatedFor = isWorktreeMarkerSubject(marker.createdFor);
   const huskValid = marker.husk === undefined || isWorktreeHuskStamp(marker.husk);
   return typeof marker.spawnedByArc === "boolean"
     && wuNameValid
     && createdForValid
     && (hasWuName || hasCreatedFor)
     && ownershipIsConsistent(marker.wuName, marker.createdFor)
+    && provisioningIsConsistent(marker.createdFor, marker.provisioning)
     && huskValid
     && typeof marker.spawningIdentity === "string"
     && typeof marker.createdAt === "string";
 }
 
 function ownershipIsConsistent(wuName: unknown, createdFor: unknown): boolean {
-  if (typeof wuName !== "string" || !isWorktreeSubject(createdFor)) return true;
+  if (typeof wuName !== "string" || !isWorktreeMarkerSubject(createdFor)) return true;
   return createdFor.kind === "work-unit" && createdFor.name === wuName;
+}
+
+function provisioningIsConsistent(createdFor: unknown, provisioning: unknown): boolean {
+  if (!isWorktreeMarkerSubject(createdFor)) return provisioning === undefined;
+  return isTransientWorktreeSubject(createdFor)
+    ? typeof provisioning === "string"
+    : provisioning === undefined;
 }
 
 function isWorktreeHuskStamp(value: unknown): value is WorktreeHuskStamp {
@@ -278,12 +310,45 @@ function isWorktreeSubject(value: unknown): value is WorktreeSubject {
     case "work-unit":
       return typeof subject.name === "string";
     case "errand":
-      return typeof subject.slug === "string";
+      return typeof subject.slug === "string" && subject.claimId === undefined;
     case "branch":
       return typeof subject.ref === "string";
     default:
       return false;
   }
+}
+
+function isWorktreeMarkerSubject(value: unknown): value is WorktreeMarkerSubject {
+  if (isWorktreeSubject(value)) return true;
+  return isTransientWorktreeSubject(value);
+}
+
+function isTransientWorktreeSubject(value: unknown): value is TransientWorktreeSubject {
+  if (typeof value !== "object" || value === null) return false;
+  const subject = value as Record<string, unknown>;
+  return (subject.kind === "errand" || subject.kind === "groom" || subject.kind === "housekeep")
+    && typeof subject.slug === "string"
+    && LocusTokenSchema.safeParse(subject.claimId).success;
+}
+
+/** Decode marker ownership without granting authority to legacy or future transient shapes. */
+export function decodeWorktreeMarkerOwnership(marker: WorktreeMarker): DecodedWorktreeMarkerOwnership {
+  let subject: WorktreeMarkerSubject;
+  if (marker.createdFor !== undefined) {
+    subject = marker.createdFor;
+  } else {
+    const wuName = marker.wuName;
+    if (wuName === undefined) return { kind: "manual-only", reason: "malformed-ownership" };
+    subject = { kind: "work-unit", name: wuName };
+  }
+  if (isTransientWorktreeSubject(subject)) {
+    if (marker.provisioning !== "pending" && marker.provisioning !== "ready") {
+      return { kind: "manual-only", reason: "unknown-provisioning" };
+    }
+    return { kind: "current", subject, provisioning: marker.provisioning };
+  }
+  if (subject.kind === "errand") return { kind: "manual-only", reason: "legacy-transient" };
+  return { kind: "current", subject, provisioning: null };
 }
 
 /**
@@ -298,19 +363,23 @@ export async function writeWorktreeMarker(cwd: string, marker: WorktreeMarker): 
 }
 
 /** Inputs for {@link writeWorktreeOwnershipMarker}. */
-export interface WriteWorktreeOwnershipMarkerOptions {
+interface WriteWorktreeOwnershipMarkerBase {
   /**
    * Whether ARC created this worktree. When `false`, no marker is written —
    * the worktree is externally-created and its cleanup stays advisory.
    */
   createdByArc: boolean;
   /** Logical target the worktree was created to host. */
-  createdFor: WorktreeSubject;
   /** Identity that created the worktree. */
   spawningIdentity: string;
   /** Marker creation time in epoch millis; defaults to `Date.now()`. Injectable for tests. */
   now?: number;
 }
+
+export type WriteWorktreeOwnershipMarkerOptions = WriteWorktreeOwnershipMarkerBase & (
+  | { createdFor: WorktreeSubject; provisioning?: never }
+  | { createdFor: TransientWorktreeSubject; provisioning: "pending" | "ready" }
+);
 
 /**
  * Write the worktree-ownership marker when ARC created the worktree, and do
@@ -332,12 +401,14 @@ export async function writeWorktreeOwnershipMarker(
   const ownership = options.createdFor.kind === "work-unit"
     ? { wuName: options.createdFor.name, createdFor: options.createdFor }
     : { createdFor: options.createdFor };
-  await writeWorktreeMarker(cwd, {
+  const marker = {
     spawnedByArc: true,
     ...ownership,
     spawningIdentity: options.spawningIdentity,
     createdAt: new Date(options.now ?? Date.now()).toISOString(),
-  });
+    ...(options.provisioning === undefined ? {} : { provisioning: options.provisioning }),
+  } as WorktreeMarker;
+  await writeWorktreeMarker(cwd, marker);
 }
 
 /**

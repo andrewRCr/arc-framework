@@ -12,6 +12,7 @@ import { mkdtemp, rm, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 import {
+  decodeWorktreeMarkerOwnership,
   ensureWorktreeMarkerIgnored,
   decodeWorktreeHuskStamp,
   nodeWorktreeMarkerIgnoreFs,
@@ -121,6 +122,84 @@ describe("worktree-marker", () => {
 
     await writeFile(path, JSON.stringify(base), "utf8");
     expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
+  });
+
+  it.each(["errand", "groom", "housekeep"] as const)(
+    "round-trips exact %s claim provenance through pending and ready provisioning",
+    async (kind) => {
+      for (const provisioning of ["pending", "ready"] as const) {
+        const marker: WorktreeMarker = {
+          spawnedByArc: true,
+          createdFor: { kind, slug: "refresh-fixtures", claimId: "a".repeat(32) },
+          provisioning,
+          spawningIdentity: "andrew",
+          createdAt: "2026-05-25T00:00:00.000Z",
+        };
+        await writeWorktreeMarker(cwd, marker);
+
+        const read = await readWorktreeMarker(cwd);
+        expect(read).toEqual({ kind: "present", marker });
+        if (read.kind !== "present") throw new Error("expected marker");
+        expect(decodeWorktreeMarkerOwnership(read.marker)).toEqual({
+          kind: "current",
+          subject: marker.createdFor,
+          provisioning,
+        });
+      }
+    },
+  );
+
+  it("keeps claimless legacy and unknown transient provisioning manual-only", async () => {
+    const legacy: WorktreeMarker = {
+      spawnedByArc: true,
+      createdFor: { kind: "errand", slug: "refresh-fixtures" },
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    expect(decodeWorktreeMarkerOwnership(legacy)).toEqual({
+      kind: "manual-only",
+      reason: "legacy-transient",
+    });
+
+    const future = {
+      ...legacy,
+      createdFor: { ...legacy.createdFor, claimId: "a".repeat(32) },
+      provisioning: "future",
+    } as WorktreeMarker;
+    await writeWorktreeMarker(cwd, future);
+    const read = await readWorktreeMarker(cwd);
+    expect(read).toEqual({ kind: "present", marker: future });
+    if (read.kind !== "present") throw new Error("expected marker");
+    expect(decodeWorktreeMarkerOwnership(read.marker)).toEqual({
+      kind: "manual-only",
+      reason: "unknown-provisioning",
+    });
+  });
+
+  it("rejects incomplete or malformed transient claim provenance", async () => {
+    const path = resolveWorktreeMarkerPath(cwd);
+    await mkdir(dirname(path), { recursive: true });
+    const base = {
+      spawnedByArc: true,
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    for (const marker of [
+      { ...base, createdFor: { kind: "groom", slug: "anchor", claimId: "a".repeat(32) } },
+      {
+        ...base,
+        createdFor: { kind: "housekeep", slug: "sweep", claimId: "short" },
+        provisioning: "pending",
+      },
+      {
+        ...base,
+        createdFor: { kind: "errand", slug: "errand" },
+        provisioning: "pending",
+      },
+    ]) {
+      await writeFile(path, JSON.stringify(marker), "utf8");
+      expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
+    }
   });
 
   it("round-trips a complete husk stamp without changing its terminal identity or projection", async () => {
@@ -334,6 +413,24 @@ describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write",
         createdFor: { kind: "errand", slug: "refresh-fixtures" },
         spawningIdentity: "andrew",
         createdAt: "2026-05-27T12:00:00.000Z",
+      },
+    });
+  });
+
+  it("writes exact pending transient ownership for a newly created checkout", async () => {
+    await writeWorktreeOwnershipMarker(cwd, {
+      createdByArc: true,
+      createdFor: { kind: "groom", slug: "anchor", claimId: "a".repeat(32) },
+      provisioning: "pending",
+      spawningIdentity: "andrew",
+      now: Date.parse("2026-05-27T12:00:00.000Z"),
+    });
+
+    expect(await readWorktreeMarker(cwd)).toMatchObject({
+      kind: "present",
+      marker: {
+        createdFor: { kind: "groom", slug: "anchor", claimId: "a".repeat(32) },
+        provisioning: "pending",
       },
     });
   });

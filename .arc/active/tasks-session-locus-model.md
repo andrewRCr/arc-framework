@@ -355,16 +355,11 @@ transaction boundary before operation composers consume it.
 - _Goal:_ Every ARC-created transient checkout carries durable provenance and a matching role/lease generation, and
   a partial provisioning failure remains diagnosable rather than markerless.
 
-    - `[ ]` **4.2.a Extend worktree provenance for transient subjects**
-        - Evolve `packages/arc-framework/src/lib/git/worktree-marker.ts` so new Errand, groom, and housekeep subjects
-          carry their exact `claimId`, plus a transient-only `pending | ready` provisioning discriminant; keep
-          claimless legacy transient markers readable but manual-only.
-        - Preserve existing WU and husk marker compatibility and keep marker evidence distinct from the live locus
-          record. A primary transient role never writes an ownership marker because ARC did not create that checkout.
-        - Build `test-first` (one behavior at a time):
-            - Exact current subjects and pending/ready transitions round-trip while unknown, malformed, and claimless
-              legacy transient markers remain manual-only.
-            - WU/branch subjects, husk decoding, and ownership consistency retain their existing compatibility.
+    - `[x]` **4.2.a Extend worktree provenance for transient subjects**
+        - Added exact Errand, groom, and housekeep marker subjects carrying `claimId` plus transient-only provisioning
+          state. Pending/ready shapes round-trip as current; unknown provisioning and claimless legacy Errands remain
+          manual-only, while malformed claim/provisioning combinations reject. WU, branch, husk, and primary-marker
+          behavior remain unchanged, and legacy transient markers no longer satisfy managed-roster authority.
 
     - `[ ]` **4.2.b Extend canonical subject and retirement-receipt codecs**
         - Update `packages/arc-framework/src/lib/canonical/receipt-id.ts` and
