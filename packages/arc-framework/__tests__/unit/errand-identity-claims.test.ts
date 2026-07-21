@@ -11,6 +11,7 @@ import {
   type GroomIdentityRecord,
   housekeepClaimTransform,
   housekeepClaimConflictResolver,
+  housekeepAwaitMergeTransform,
   identityClaimRollbackTransform,
   mintHousekeepDispatchId,
   type HousekeepIdentityRecord,
@@ -284,6 +285,25 @@ describe("housekeep routing identity claims", () => {
       local: candidate,
       remote: otherPlan,
     })).toMatchObject({ kind: "refused" });
+  });
+
+  it("persists only an exact open routing generation as awaiting merge", () => {
+    const previous = housekeep();
+    const decision = housekeepAwaitMergeTransform({
+      previous,
+      changeRequest: { ...changeRequest, headRef: previous.branch },
+      updatedAt: "2026-07-20T00:01:00.000Z",
+    })(new Map([[previous.slug, previous]]));
+    expect(decision).toMatchObject({
+      kind: "applied",
+      value: { state: "awaiting-merge", dispatchId: previous.dispatchId, routingPlanDigest: previous.routingPlanDigest },
+    });
+    expect(housekeepAwaitMergeTransform({
+      previous,
+      changeRequest: { ...changeRequest, headRef: previous.branch },
+      updatedAt: "2026-07-20T00:01:00.000Z",
+    })(new Map([[previous.slug, housekeep({ claimId: "9".repeat(32) })]])))
+      .toMatchObject({ kind: "refused", reason: expect.stringContaining("changed") });
   });
 });
 

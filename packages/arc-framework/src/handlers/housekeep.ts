@@ -29,6 +29,7 @@ import { openHousekeepAtRuntime } from "../lib/housekeep/open-runtime.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
 import { formatErrandOpenResult } from "./errand.js";
+import { closeHousekeepAtRuntime, settleHousekeepAtRuntime } from "../lib/housekeep/lifecycle-runtime.js";
 
 export interface HousekeepCheckOptions {
   /** Emit the write-context classification as JSON (for skill consumption). */
@@ -39,6 +40,66 @@ export interface HousekeepOpenOptions {
   planFile: string;
   lane: string;
   json?: boolean;
+}
+
+export interface HousekeepCloseOptions { json?: boolean }
+export interface HousekeepAbandonOptions { json?: boolean }
+
+/** Close one exact routing occupancy or finalize its merged tail. */
+export async function handleHousekeepClose(slug: string, opts: HousekeepCloseOptions): Promise<void> {
+  await handleHousekeepLifecycle(slug, "close", opts.json === true);
+}
+
+/** Abandon one exact open or closed-unmerged routing generation. */
+export async function handleHousekeepAbandon(slug: string, opts: HousekeepAbandonOptions): Promise<void> {
+  await handleHousekeepLifecycle(slug, "abandon", opts.json === true);
+}
+
+async function handleHousekeepLifecycle(slug: string, action: "close" | "abandon", json: boolean): Promise<void> {
+  if (!json) p.intro(`arc housekeep ${action}`);
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) { emitHousekeepLifecycleError(action, "identity", "No identity resolved.", json); return; }
+  const io = createUserIOContext();
+  if (!io.execInput) {
+    emitHousekeepLifecycleError(action, "identity", "The stdin Git boundary is unavailable.", json); return;
+  }
+  const { settings } = await readConfigSettings(cwd);
+  const runtimeOptions = {
+    slug, base: settings["branch.base"], identity,
+    postCreateScript: settings["worktree.post_create"],
+    registeredHarnessDirs: settings["worktree.harness_dirs"], cwd,
+    io: { ...io, execInput: io.execInput },
+  };
+  let result;
+  try {
+    if (action === "abandon") result = await settleHousekeepAtRuntime({ ...runtimeOptions, action });
+    else {
+      result = await closeHousekeepAtRuntime(runtimeOptions);
+      if ((result.outcome === "applied" || result.outcome === "idempotent")
+        && result.identity?.kind === "errand" && result.identity.purpose === "housekeep-routing"
+        && result.identity.state === "awaiting-merge") {
+        const settled = await settleHousekeepAtRuntime({ ...runtimeOptions, action: "finalize" });
+        if (settled.outcome !== "refused" || !settled.recommendedPromptText.includes("not 'merged'")) result = settled;
+      }
+    }
+  } catch (error) {
+    result = createLocusMutationResult({
+      outcome: "error", operation: action === "close" ? "housekeep-close" : "housekeep-abandon",
+      error: { code: `locus.housekeep-${action}.handler`, message: error instanceof Error ? error.message : String(error) },
+      recommendedPromptText: "Inspect the retained housekeeping identity and locus before retrying.",
+    });
+  }
+  emitHousekeepResult(result, json);
+}
+
+function emitHousekeepLifecycleError(action: "close" | "abandon", suffix: string, message: string, json: boolean): void {
+  emitHousekeepResult(createLocusMutationResult({
+    outcome: "error", operation: action === "close" ? "housekeep-close" : "housekeep-abandon",
+    error: { code: `locus.housekeep-${action}.${suffix}`, message },
+    recommendedPromptText: "Resolve the housekeeping configuration error before retrying.",
+  }), json);
 }
 
 /** Open one confirmed, canonical routing sweep. */

@@ -60,6 +60,11 @@ export interface NextDispatchInboxEntry {
   dispatchId: string;
 }
 
+/** Exact well-formed captures belonging to one dispatch, in file order. */
+export interface DispatchInboxEntry extends NextDispatchInboxEntry {
+  sourceDigest: CanonicalDigest;
+}
+
 interface LocatedInboxEntry {
   start: number;
   end: number;
@@ -171,6 +176,14 @@ export function findNextDispatchInboxEntry(
     if (binding?.dispatchId === dispatchId) return { title: entry.title, dispatchId };
   }
   return null;
+}
+
+/** List every well-formed capture bound to one exact dispatch generation. */
+export function listDispatchInboxEntries(content: string, dispatchId: string): DispatchInboxEntry[] {
+  const lines = content.split("\n");
+  return locateInboxEntries(lines).flatMap((entry) => dispatchBinding(lines, entry)?.dispatchId === dispatchId
+    ? [{ title: entry.title, sourceDigest: unboundDigest(lines, entry), dispatchId }]
+    : []);
 }
 
 /** Apply one all-or-nothing title/digest-qualified inbox mutation batch. */

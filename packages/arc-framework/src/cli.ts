@@ -37,8 +37,12 @@ import {
 } from "./handlers/errand.js";
 import {
   handleHousekeepCheck,
+  handleHousekeepClose,
+  handleHousekeepAbandon,
   handleHousekeepOpen,
+  type HousekeepAbandonOptions,
   type HousekeepCheckOptions,
+  type HousekeepCloseOptions,
   type HousekeepOpenOptions,
 } from "./handlers/housekeep.js";
 import {
@@ -443,6 +447,18 @@ housekeep
   .requiredOption("--lane <lane>", "Strictest routing lane: auto | reviewed")
   .option("--json", "Emit the producer-validated locus mutation result")
   .action((slug: string, opts: HousekeepOpenOptions) => handleHousekeepOpen(slug, opts));
+
+housekeep
+  .command("close <slug>")
+  .description("Close one preserved routing sweep or finalize its exact merged tail")
+  .option("--json", "Emit the producer-validated locus mutation result")
+  .action((slug: string, opts: HousekeepCloseOptions) => handleHousekeepClose(slug, opts));
+
+housekeep
+  .command("abandon <slug>")
+  .description("Abandon one exact open or closed-unmerged routing generation")
+  .option("--json", "Emit the producer-validated locus mutation result")
+  .action((slug: string, opts: HousekeepAbandonOptions) => handleHousekeepAbandon(slug, opts));
 
 const baseCmd = program
   .command("base")

@@ -46,6 +46,13 @@ export interface GroomAwaitMergeRequest {
   readonly updatedAt: string;
 }
 
+/** Exact open-generation request to persist a housekeeping change-request tail. */
+export interface HousekeepAwaitMergeRequest {
+  readonly previous: HousekeepIdentityRecord;
+  readonly changeRequest: LocusChangeRequestV1;
+  readonly updatedAt: string;
+}
+
 /** Inputs for retiring a claim after local locus allocation fails. */
 export interface IdentityClaimRollbackParams {
   readonly remote: string | null;
@@ -226,6 +233,40 @@ export function groomAwaitMergeTransform(request: GroomAwaitMergeRequest) {
     });
     if (!parsed.success || !isGroom(parsed.data)) {
       return { kind: "refused", reason: "Awaiting-merge transition does not form a valid grooming identity" };
+    }
+    const desired = parsed.data;
+    const actual = basis.get(request.previous.slug);
+    if (actual !== undefined && sameRecord(actual, desired)) {
+      return { kind: "idempotent", value: desired };
+    }
+    if (actual === undefined || !sameRecord(actual, request.previous)) {
+      return { kind: "refused", reason: `Identity '${request.previous.slug}' changed before awaiting-merge` };
+    }
+    const records = new Map(basis);
+    records.set(desired.slug, desired);
+    return { kind: "applied", records, value: desired };
+  };
+}
+
+/** Build an exact-generation open-to-awaiting-merge housekeeping transition. */
+export function housekeepAwaitMergeTransform(request: HousekeepAwaitMergeRequest) {
+  return (
+    basis: ReadonlyMap<string, TransientIdentityRecord>,
+  ): IdentityTransformDecision<HousekeepIdentityRecord> => {
+    if (request.previous.state !== "open") {
+      return { kind: "refused", reason: "Only an open housekeeping identity can enter awaiting-merge" };
+    }
+    if (Date.parse(request.updatedAt) <= Date.parse(request.previous.updatedAt)) {
+      return { kind: "refused", reason: "updatedAt must advance monotonically" };
+    }
+    const parsed = TransientIdentityRecordV3Schema.safeParse({
+      ...request.previous,
+      state: "awaiting-merge",
+      changeRequest: request.changeRequest,
+      updatedAt: request.updatedAt,
+    });
+    if (!parsed.success || !isHousekeep(parsed.data)) {
+      return { kind: "refused", reason: "Awaiting-merge transition does not form a valid housekeeping identity" };
     }
     const desired = parsed.data;
     const actual = basis.get(request.previous.slug);

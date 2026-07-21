@@ -526,7 +526,7 @@ result so workflows consume verbs and precomposed verdicts.
 - _Outcome:_ Grooming now has one generation-bound fixed-set lifecycle across single and multi-member planning,
   protection-aware execution, path-pure review tails, exact abandonment/finalization, and safe stable-branch reuse.
 
-### `[ ]` **5.4 Compose one-sweep housekeeping open, close, resume, and abandon transitions** — D4, D7, D8
+### `[x]` **5.4 Compose one-sweep housekeeping open, close, resume, and abandon transitions** — D4, D7, D8
 
 - _Goal:_ A confirmed pure-routing drain has one recoverable occupancy and one review tail regardless of lanes or
   increments, and repeated sweep names cannot reuse stale branch generations or admit a second full-mode drain.
@@ -544,20 +544,17 @@ result so workflows consume verbs and precomposed verdicts.
           entry bindings refuse; full-mode identity claims monotonically escalate `auto` to `reviewed` without
           rotating the branch, claim, dispatch, or plan generation.
 
-    - `[ ]` **5.4.c Close, resume, finalize, or abandon the sweep**
-        - Close local occupancy only after the full routing sweep is preserved; retain one awaiting-merge identity
-          in full mode and retire the partial claim after direct-base completion.
-        - Add exact-host resume/finalize and explicit closed-unmerged abandonment; refuse an incomplete sweep at
-          handoff.
-        - On finalization or abandonment, clean the recorded local branch and lease-delete the remote head at its
-          expected `headSha`; refresh base before allowing the same slug/branch name to mint a new claim generation.
-        - Clear the exact dispatch bindings when an open sweep is explicitly abandoned before handoff. Once close
-          succeeds, the execute group is independent of the routing PR tail and later tail abandonment cannot erase
-          its confirmed siblings.
-        - Register close/abandon plus `--json` and render only their shared results.
-        - Build `test-first` (one behavior at a time):
-            - Cover repeated `inbox-drain` generations, moved/lingering remote heads, stale local branches, refreshed
-              base, and exact cleanup refusal without losing the completed tail.
+    - `[x]` **5.4.c Close, resume, finalize, or abandon the sweep**
+        - Added pure-routing diff enforcement, direct-base partial close, identity-first full review-tail persistence,
+          and retryable exact occupancy cleanup before merged-host finalization.
+        - Added open and closed-unmerged abandonment with exact local/remote generation cleanup and refreshed-base
+          proof; only open abandonment clears its dispatch group, leaving post-close sibling execution independent.
+        - Registered close and abandon through the shared human/JSON mutation result boundary, with exact transition,
+          path-policy, dispatch projection, type, lint, build, and built-command registration coverage.
+
+- _Outcome:_ Housekeeping now carries one immutable confirmed plan through a full cross-machine identity or a
+  machine-local partial role, preserves one strictest-lane review tail, and separates confirmed sibling dispatches
+  from later tail settlement while retaining exact rollback and branch-generation cleanup authority.
 
 ### `[ ]` **5.5 Preserve sequential sibling-Errand continuation through typed next-offers** — D4, D7, D8, D9
 

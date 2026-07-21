@@ -24,6 +24,7 @@ export { matchInboxEntryTitle, parseCrossWuEntries, shapeForFile } from "./parse
 export {
   inboxEntrySourceDigest,
   findNextDispatchInboxEntry,
+  listDispatchInboxEntries,
   inspectInboxEntry,
   listInboxEntryTitles,
   mutateInboxEntries,
@@ -33,6 +34,7 @@ export {
   type InboxEntryMutationOutcome,
   type InspectedInboxEntry,
   type NextDispatchInboxEntry,
+  type DispatchInboxEntry,
   type MutateInboxEntriesResult,
   type RemoveInboxEntryResult,
 } from "./inbox-writer.js";

@@ -14,6 +14,7 @@ import {
   findNextDispatchInboxEntry,
   inboxEntrySourceDigest,
   inspectInboxEntry,
+  listDispatchInboxEntries,
   listInboxEntryTitles,
   mutateInboxEntries,
   removeInboxEntry,
@@ -104,6 +105,20 @@ describe("mutateInboxEntries", () => {
       dispatchId: "dispatch-7",
     });
     expect(findNextDispatchInboxEntry(removed.content, "dispatch-8")).toBeNull();
+  });
+
+  it("lists an exact dispatch generation in stable file order", () => {
+    const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest: firstDigest, dispatchId: "dispatch-7" },
+      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest, dispatchId: "dispatch-7" },
+    ]);
+    expect(listDispatchInboxEntries(marked.content, "dispatch-7")).toEqual([
+      { title: "First atomic", sourceDigest: firstDigest, dispatchId: "dispatch-7" },
+      { title: "Second atomic", sourceDigest: secondDigest, dispatchId: "dispatch-7" },
+    ]);
+    expect(listDispatchInboxEntries(marked.content, "dispatch-8")).toEqual([]);
   });
 
   it("replays an exact mark, unmark, and removal without widening the write", () => {

@@ -193,8 +193,8 @@ async function unbindInbox(options: OpenHousekeepRuntimeOptions, dispatchId: str
   });
 }
 
-async function readHousekeepState(
-  options: OpenHousekeepRuntimeOptions,
+export async function readHousekeepState(
+  options: Pick<OpenHousekeepRuntimeOptions, "cwd" | "identity" | "base" | "io">,
   anchor: LocusProcessAnchor,
   inspector: ReturnType<typeof createPlatformProcessInspector>,
 ): Promise<LocusStateV1> {
@@ -213,13 +213,13 @@ async function readHousekeepState(
   });
 }
 
-function exactHousekeepRow(state: LocusStateV1, record: HousekeepIdentityRecord) {
+export function exactHousekeepRow(state: LocusStateV1, record: HousekeepIdentityRecord) {
   const rows = state.roster.rows.filter((row) => row.role?.subject.kind === "housekeep"
     && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId);
   return rows.length === 1 ? rows[0] ?? null : null;
 }
 
-function exactPartialHousekeepRow(state: LocusStateV1, slug: string) {
+export function exactPartialHousekeepRow(state: LocusStateV1, slug: string) {
   const rows = state.roster.rows.filter((row) => row.role?.subject.kind === "housekeep"
     && row.role.subject.key === slug && row.role.subject.claimId === null);
   return rows.length === 1 ? rows[0] ?? null : null;
