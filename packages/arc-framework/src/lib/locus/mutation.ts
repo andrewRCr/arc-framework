@@ -1,5 +1,6 @@
 /** Authority-derived locus role minting and expected-generation mutations. */
 
+import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 
 import type { LocusRecordReadResult } from "./record-store.js";
@@ -8,9 +9,11 @@ import {
   LocusRecordV1Schema,
   LocusRoleSchema,
   type LocusIdentityV1,
+  type LocusAnchor,
   type LocusRecordV1,
   type LocusRole,
 } from "./schema/index.js";
+import type { ProcessLiveness } from "./process-inspector.js";
 
 export type LocusRoleAuthority =
   | { readonly kind: "work-unit"; readonly key: string }
@@ -37,9 +40,28 @@ export interface LocusRoleMintIO {
   >;
 }
 
+export interface LocusLeaseMutationIO {
+  read(): Promise<LocusRecordReadResult>;
+  replace(expectedBytes: Buffer, record: LocusRecordV1): Promise<
+    { kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }
+  >;
+}
+
 export type LocusRoleMintResult =
   | { readonly kind: "applied" | "idempotent"; readonly record: LocusRecordV1; readonly bytes: Buffer }
   | { readonly kind: "refused"; readonly reason: "role-conflict" | "record-malformed" };
+
+export type LocusLeaseMutationResult =
+  | { readonly kind: "applied" | "idempotent"; readonly record: LocusRecordV1; readonly bytes: Buffer }
+  | {
+      readonly kind: "refused";
+      readonly reason:
+        | "record-malformed"
+        | "lease-live"
+        | "lease-unknown"
+        | "lease-generation-mismatch"
+        | "role-conflict";
+    };
 
 /**
  * Mint one durable role from trusted authority facts, preserving exact replay semantics.
@@ -70,6 +92,89 @@ export async function mintDurableLocusRole(options: {
   const minted = await options.io.mint(expected);
   if (minted.kind === "created") return { kind: "applied", record: expected, bytes: minted.bytes };
   return existingResult(await options.io.read(), expected);
+}
+
+/**
+ * Attach one session lease without replacing live, unknown, or transient-dead ownership.
+ * @param options - Expected record, session home, anchor, generation, liveness, and store port.
+ * @returns Applied/idempotent lease generation or a typed refusal.
+ */
+export async function attachLocusLease(options: {
+  recordId: string;
+  sessionHomePath: string;
+  anchor: LocusAnchor;
+  leaseId?: string;
+  attachedAt: string;
+  heartbeatAt: string;
+  observedLiveness: ProcessLiveness | null;
+  io: LocusLeaseMutationIO;
+}): Promise<LocusLeaseMutationResult> {
+  const existing = await options.io.read();
+  if (existing.kind !== "valid" || existing.record.recordId !== options.recordId) {
+    return { kind: "refused", reason: "record-malformed" };
+  }
+  const leaseId = options.leaseId ?? randomBytes(16).toString("hex");
+  const lease = existing.record.lease;
+  if (lease !== null && lease.leaseId === leaseId && isDeepStrictEqual(lease.anchor, options.anchor)) {
+    return { kind: "idempotent", record: existing.record, bytes: existing.bytes };
+  }
+  if (lease !== null) {
+    if (options.observedLiveness === "live") return { kind: "refused", reason: "lease-live" };
+    if (options.observedLiveness !== "dead") return { kind: "refused", reason: "lease-unknown" };
+    if (existing.record.role.kind !== "work-unit") return { kind: "refused", reason: "role-conflict" };
+  }
+  const parsed = LocusRecordV1Schema.safeParse({
+    ...existing.record,
+    lease: {
+      leaseId,
+      sessionHomePath: options.sessionHomePath,
+      anchor: options.anchor,
+      attachedAt: options.attachedAt,
+      heartbeatAt: options.heartbeatAt,
+    },
+  });
+  if (!parsed.success) return { kind: "refused", reason: "record-malformed" };
+  const replaced = await options.io.replace(existing.bytes, parsed.data);
+  return replaced.kind === "replaced"
+    ? { kind: "applied", record: parsed.data, bytes: replaced.bytes }
+    : { kind: "refused", reason: "lease-generation-mismatch" };
+}
+
+/**
+ * Refresh an exact lease generation only for a state-touching operation.
+ * @param options - Expected record/lease generation, anchor, heartbeat, call class, and store port.
+ * @returns Applied/idempotent heartbeat generation or a typed refusal.
+ */
+export async function refreshLocusLeaseHeartbeat(options: {
+  recordId: string;
+  leaseId: string;
+  anchor: LocusAnchor;
+  heartbeatAt: string;
+  stateTouching: boolean;
+  io: LocusLeaseMutationIO;
+}): Promise<LocusLeaseMutationResult> {
+  const existing = await options.io.read();
+  if (existing.kind !== "valid" || existing.record.recordId !== options.recordId) {
+    return { kind: "refused", reason: "record-malformed" };
+  }
+  const lease = existing.record.lease;
+  if (lease === null
+    || lease.leaseId !== options.leaseId
+    || !isDeepStrictEqual(lease.anchor, options.anchor)) {
+    return { kind: "refused", reason: "lease-generation-mismatch" };
+  }
+  if (!options.stateTouching || lease.heartbeatAt === options.heartbeatAt) {
+    return { kind: "idempotent", record: existing.record, bytes: existing.bytes };
+  }
+  const parsed = LocusRecordV1Schema.safeParse({
+    ...existing.record,
+    lease: { ...lease, heartbeatAt: options.heartbeatAt },
+  });
+  if (!parsed.success) return { kind: "refused", reason: "record-malformed" };
+  const replaced = await options.io.replace(existing.bytes, parsed.data);
+  return replaced.kind === "replaced"
+    ? { kind: "applied", record: parsed.data, bytes: replaced.bytes }
+    : { kind: "refused", reason: "lease-generation-mismatch" };
 }
 
 function deriveRole(

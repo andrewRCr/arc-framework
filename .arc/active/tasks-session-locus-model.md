@@ -251,14 +251,11 @@ roster and one generation-safe local mutation boundary.
           now receive only their legal claim, dispatch, origin, and routing-plan fields; same-key claims from another
           generation cannot join an existing role.
 
-    - `[ ]` **3.3.b Attach and refresh single-session leases**
-        - Mint at least 128-bit lease tokens; bind session home, process anchor, attached time, and heartbeat time.
-        - Accept a null lease or exact-token/anchor retry, replace a conclusively dead WU lease on entry, and refuse
-          a different live/unknown holder or dead transient residue.
-        - Refresh heartbeat only for state-touching calls whose resolved anchor matches the lease.
-        - Build `test-first` (one behavior at a time):
-            - Cover null attach, exact retry, dead-WU replacement, live/unknown holder refusal, dead transient
-              refusal, matching-anchor heartbeat, mismatched-anchor refusal, and read-only non-refresh.
+    - `[x]` **3.3.b Attach and refresh single-session leases**
+        - Added exact-generation lease attachment with cryptographic 128-bit-or-stronger default tokens, complete
+          session-home/anchor/timestamp binding, exact replay, dead-WU replacement, and live/unknown/dead-transient
+          refusal. Heartbeats now advance only for state-touching calls carrying the matching record, lease token,
+          and anchor; read-only calls preserve the observed generation.
 
     - `[ ]` **3.3.c Release and update only the expected generation**
         - Require record ID plus lease ID for release; return `lease-generation-mismatch` instead of clearing a
