@@ -543,12 +543,10 @@ that shapes review spend without producing satisfying evidence.
           Harness adapters return `ready | needs-authorization | unavailable | invalid`; only `ready` carries an
           execution capability, while authorization needs become a precomposed one-run offer without spending a pass.
 
-    - `[ ]` **5.2.b Normalize execution outcomes**
-        - Build `test-first` (one behavior at a time):
-            - Distinguish `clean`, `findings`, `unavailable`, `failed`, and `pass-cap-exhausted`.
-            - Bind the resolved source, exact target, and pass count to every completed outcome.
-            - Map rate limiting to `unavailable`; map ambiguous, partial, malformed, stale-head, or failed output to
-              `failed`, never `clean`.
+    - `[x]` **5.2.b Normalize execution outcomes**
+        - Added a validated provider-neutral outcome record binding every result to its typed source, exact review
+          target, and bounded pass. Explicit clean and finding results remain distinct; rate limits normalize to
+          unavailable, while ambiguous, partial, malformed, stale-head, and provider failures can never become clean.
 
     - `[ ]` **5.2.c Feed findings through the universal checkpoint**
         - Route normalized findings into `review-triage` / `review-response`, verify them against source, and obtain
