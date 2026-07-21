@@ -350,7 +350,7 @@ transaction boundary before operation composers consume it.
   commands can be directed to the returned locus without moving the agent process, human terminal, or ambient
   checkout.
 
-### `[ ]` **4.2 Provision ownership markers, transient roles, and materialized Errand loci recoverably** — D4, D7
+### `[x]` **4.2 Provision ownership markers, transient roles, and materialized Errand loci recoverably** — D4, D7
 
 - _Goal:_ Every ARC-created transient checkout carries durable provenance and a matching role/lease generation, and
   a partial provisioning failure remains diagnosable rather than markerless.
@@ -378,24 +378,17 @@ transaction boundary before operation composers consume it.
           role to its identity generation; every transient cleanup report remains blocked, while WU and branch husk
           cleanup retain their prior authority.
 
-    - `[ ]` **4.2.e Compose a recoverable transient provisioning transaction**
-        - Add `packages/arc-framework/src/lib/locus/provisioning.ts` with `provisionTransientLocus()`. For a spawned
-          target it calls `createLinkedWorktree()`, verifies the roster entry, writes the exact pending marker before
-          fallible post-create/harness setup, promotes only unchanged provenance to ready, then acquires the target
-          record lock and mints the exact role/entering lease through the owned-lock mutation seam after final
-          revalidation.
-        - For a primary target, acquire its record lock before any branch checkout, rerun target-local Git/state
-          guards, and mint role/lease in the same critical section without writing an ownership marker.
-        - Bind every full-mode transient role to the exact identity `claimId`; never adopt same-key residue from an
-          older generation as the newly provisioned role. Accept an already-claimed identity as input but perform no
-          identity-ref or other remote I/O while holding a record lock.
-        - Return a proof-bearing provisioning receipt containing branch/worktree ownership, marker bytes/state,
-          record generation, and lease token. On failure undo only unchanged invocation-owned state; otherwise
-          preserve and report identity-only, pending-marker, or marker/record mismatch evidence for reconciliation.
-        - Build `test-first` (one behavior at a time):
-            - Cover marker-write and post-create/harness failure, crash-visible pending provenance, changed-marker
-              rollback refusal, role-mint conflict, lease race, primary branch-checkout failure, exact cleanup,
-              incomplete-cleanup evidence, same-key/different-claim conflict, and retry idempotence.
+    - `[x]` **4.2.e Compose a recoverable transient provisioning transaction**
+        - Added `provisionTransientLocus()` as the staged spawn-or-primary composer. Spawned allocation verifies the
+          live roster, exposes exact pending provenance before setup, promotes only unchanged marker bytes, and mints
+          the role/lease generation after owned-lock revalidation; primary allocation keeps checkout and record
+          mutation in one markerless critical section. Receipts retain branch/worktree heads, marker bytes, record
+          bytes, and the lease token, while rollback removes only unchanged invocation-owned generations and returns
+          typed identity-only, pending-marker, or marker/record mismatch evidence for every incomplete path.
+
+- _Outcome:_ Transient checkout authority is now generation-bound end to end: marker decoding, status projection,
+  retirement refusal, and provisioning all preserve exact claim provenance, while partial failures remain visible
+  and cannot authorize adoption or cleanup across a raced generation.
 
 ### `[ ]` **4.3 Bind transient adoption after identity and marker provisioning exist** — D6, D9
 

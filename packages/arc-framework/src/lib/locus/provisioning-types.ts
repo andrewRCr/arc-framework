@@ -1,0 +1,142 @@
+/** Ports, receipts, and reconciliation evidence for transient locus provisioning. */
+
+import type {
+  LinkedWorktreeCreationOptions,
+  LinkedWorktreeCreationReceipt,
+  LinkedWorktreeCreationResult,
+} from "../git/linked-worktree.js";
+import type { WorktreeMarker } from "../git/worktree-marker.js";
+import type { RegisteredWorktreeScanResult } from "../git/worktree-roster.js";
+import type { LocusAllocationPlan } from "./allocator.js";
+import type { LocusRoleAuthority } from "./mutation.js";
+import type { LocusRecordReadResult } from "./record-store.js";
+import type { LocusAnchor, LocusIdentityV1, LocusRecordV1 } from "./schema/index.js";
+
+export type ProvisioningProposal = Extract<LocusAllocationPlan, { kind: "proposal" }>;
+
+export interface ProvisioningRecordLock {
+  readonly recordId: string;
+  readonly recordPath: string;
+  readonly token: string;
+}
+
+export type ProvisioningMarkerReadResult =
+  | { readonly kind: "absent" }
+  | { readonly kind: "present"; readonly marker: WorktreeMarker; readonly bytes: Buffer }
+  | { readonly kind: "malformed"; readonly message: string };
+
+export interface PrimaryCheckoutReceipt {
+  readonly kind: "applied" | "idempotent";
+  readonly branchCreated: boolean;
+  readonly previousBranch: string;
+  readonly head: string;
+}
+
+export interface ProvisionTransientLocusDependencies {
+  createLinkedWorktree(options: LinkedWorktreeCreationOptions): Promise<LinkedWorktreeCreationResult>;
+  scanWorktrees(): Promise<RegisteredWorktreeScanResult>;
+  readMarker(worktreePath: string): Promise<ProvisioningMarkerReadResult>;
+  createMarker(worktreePath: string, marker: WorktreeMarker): Promise<
+    { kind: "created"; bytes: Buffer } | { kind: "exists" }
+  >;
+  replaceMarker(worktreePath: string, expectedBytes: Buffer, marker: WorktreeMarker): Promise<
+    { kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }
+  >;
+  removeMarker(worktreePath: string, expectedBytes: Buffer): Promise<
+    { kind: "removed" } | { kind: "generation-mismatch" }
+  >;
+  setupWorktree(worktreePath: string, primaryPath: string): Promise<void>;
+  acquireRecordLock(checkoutPath: string): Promise<
+    { kind: "acquired"; handle: ProvisioningRecordLock }
+    | { kind: "refused"; reason: "live" | "unknown" | "timeout" }
+  >;
+  releaseRecordLock(handle: ProvisioningRecordLock): Promise<void>;
+  revalidateTarget(options: {
+    proposal: ProvisioningProposal;
+    checkoutPath: string;
+    handle: ProvisioningRecordLock;
+  }): Promise<{ kind: "ready" } | { kind: "refused"; reason: ProvisioningRefusalReason }>;
+  /** Checkout the requested branch, or prove a null-branch direct-base no-op. Throw only before changing Git. */
+  checkoutPrimary(checkoutPath: string, branch: string | null): Promise<PrimaryCheckoutReceipt>;
+  rollbackPrimary(checkoutPath: string, receipt: PrimaryCheckoutReceipt): Promise<
+    { kind: "rolled-back" } | { kind: "generation-mismatch" }
+  >;
+  readRecord(path: string, handle: ProvisioningRecordLock): Promise<LocusRecordReadResult>;
+  mintRecord(path: string, record: LocusRecordV1, handle: ProvisioningRecordLock): Promise<
+    { kind: "created"; bytes: Buffer } | { kind: "exists" }
+  >;
+  replaceRecord(
+    path: string,
+    expectedBytes: Buffer,
+    record: LocusRecordV1,
+    handle: ProvisioningRecordLock,
+  ): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }>;
+  removeRecord(path: string, expectedBytes: Buffer, handle: ProvisioningRecordLock): Promise<
+    { kind: "removed" } | { kind: "generation-mismatch" }
+  >;
+  rollbackSpawned(receipt: LinkedWorktreeCreationReceipt, rosterHead: string): Promise<
+    { kind: "rolled-back" } | { kind: "generation-mismatch" }
+  >;
+}
+
+export type ProvisioningRefusalReason =
+  | "identity-conflict"
+  | "full-protection-required"
+  | "path-collision"
+  | "topology-unknown"
+  | "marker-conflict"
+  | "lock-live"
+  | "lock-unknown"
+  | "role-conflict"
+  | "record-malformed"
+  | "lease-live"
+  | "lease-unknown"
+  | "lease-generation-mismatch";
+
+export type ProvisioningEvidence =
+  | { readonly kind: "identity-only" }
+  | { readonly kind: "pending-marker"; readonly checkoutPath: string; readonly markerBytes: Buffer }
+  | {
+      readonly kind: "marker-record-mismatch";
+      readonly checkoutPath: string;
+      readonly markerBytes: Buffer | null;
+      readonly recordBytes: Buffer | null;
+    };
+
+export interface TransientProvisioningReceipt {
+  readonly allocation: "primary" | "spawned";
+  readonly checkoutPath: string;
+  readonly branch: {
+    readonly name: string | null;
+    readonly created: boolean;
+    readonly head: string;
+    readonly base: string | null;
+  };
+  readonly worktree: { readonly path: string; readonly created: boolean; readonly head: string };
+  readonly marker: { readonly state: "ready"; readonly bytes: Buffer } | null;
+  readonly record: { readonly recordId: string; readonly bytes: Buffer };
+  readonly leaseToken: string;
+}
+
+export type ProvisionTransientLocusResult =
+  | { readonly kind: "provisioned"; readonly receipt: TransientProvisioningReceipt }
+  | { readonly kind: "refused"; readonly reason: ProvisioningRefusalReason; readonly evidence: ProvisioningEvidence }
+  | { readonly kind: "error"; readonly error: Error; readonly evidence: ProvisioningEvidence };
+
+export interface ProvisionTransientLocusOptions {
+  proposal: ProvisioningProposal;
+  protection: "full" | "partial";
+  identity: LocusIdentityV1 | null;
+  authority?: LocusRoleAuthority;
+  branch: string | null;
+  base: string;
+  locationTemplate: string;
+  repo: string;
+  spawningIdentity: string;
+  parentCheckoutPath: string | null;
+  sessionHomePath: string;
+  establishedAt: string;
+  anchor: LocusAnchor;
+  leaseId: string;
+  dependencies: ProvisionTransientLocusDependencies;
+}
