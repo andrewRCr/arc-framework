@@ -209,7 +209,7 @@ roster and one generation-safe local mutation boundary.
   deterministic provisional machine roster without collapsing first-use absence, malformed sources, transient
   identity tails, contributor metadata, physical aliases, or checkout-local workflow context.
 
-### `[ ]` **3.2 Derive frames, primary availability, recovery, and reconciliation verdicts** — D1, D4, D6, D9
+### `[x]` **3.2 Derive frames, primary availability, recovery, and reconciliation verdicts** — D1, D4, D6, D9
 
 - _Goal:_ Session entry and recovery receive one typed interpretation of active, suspended, idle, and residue
   frames instead of rebuilding occupancy or checkout safety from ambient branch state.
@@ -230,17 +230,15 @@ roster and one generation-safe local mutation boundary.
           now fail closed without mistaking valid in-place WU occupancy, dead replaceable WU leases, unrelated live
           roles, or transient residue for a free launchpad.
 
-    - `[ ]` **3.2.d Build deterministic reconciliation plans**
-        - Emit clean/apply/stop with only adopt-WU, adopt-transient, reap-stale-record, and break-dead-lock actions.
-        - Keep the wire actions as deterministic summaries; pair each applicable internal action with exact record
-          bytes/generation or lock token/anchor proof for the mutation driver.
-        - Stop rather than choose a winner when malformed, unsupported, live, unknown, duplicate, cross-identity,
-          unverified-markerless, or unresolved-subject evidence affects the current/primary/selected subject or
-          prevents safe alias resolution. Reserve the exact markerless physical-primary WU adoption for Task 6.1.b;
-          keep unrelated unmanaged worktrees diagnostic-only.
-        - Build `test-first` (one behavior at a time):
-            - Cover every action, deterministic ordering, proof attachment, target-scoped stops, unrelated unmanaged
-              checkouts, alias-wide ambiguity, and identity-malformed refusal.
+    - `[x]` **3.2.d Build deterministic reconciliation plans**
+        - Added a pure reconciliation reducer that emits byte-sorted clean/apply/stop summaries for verified
+          adoption, stale-record reap, and dead-lock break candidates while retaining exact absent/present record
+          generations or lock holder bytes, token, and anchor only in the internal plan. Target-scoped uncertainty,
+          duplicate aliases, malformed identity authority, and missing proofs stop without partial actions.
+
+- _Outcome:_ One deterministic state layer now derives frames, current-session selection, directed primary
+  allocation, identity actions, recovery, and proof-bearing reconciliation without turning diagnostics or public
+  summaries into mutation authority.
 
 ### `[ ]` **3.3 Implement lease attach, heartbeat, release, role update, and pop operations** — D3, D4, D6
 
