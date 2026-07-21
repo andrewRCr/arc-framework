@@ -1,17 +1,22 @@
 /** Process-level integration coverage for `arc config validate`. */
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { CONFIG_COMPATIBILITY_CASES } from "../fixtures/config/cases.js";
+
 const testDir = fileURLToPath(new URL(".", import.meta.url));
 const packageRoot = join(testDir, "..", "..");
 const cliPath = join(packageRoot, "src", "cli.ts");
 const tsxCliPath = fileURLToPath(import.meta.resolve("tsx/cli"));
+const packagedArcRoot = join(packageRoot, "arc");
+const launcherPath = join(packagedArcRoot, "system", ".internal", "scripts", "validate-config.sh");
+const verifyIntegrityPath = join(packagedArcRoot, "system", ".internal", "scripts", "verify-integrity.sh");
 const roots: string[] = [];
 
 function fixtureRoot(): string {
@@ -25,6 +30,27 @@ function runConfigValidate(cwd: string, args: string[] = []) {
     cwd,
     encoding: "utf8",
   });
+}
+
+function sourceCliEnvironment(root: string): NodeJS.ProcessEnv {
+  const binDir = join(root, "bin");
+  mkdirSync(binDir, { recursive: true });
+  writeFileSync(
+    join(binDir, "arc"),
+    [
+      "#!/usr/bin/env bash",
+      'exec "$ARC_TEST_NODE" "$ARC_TEST_TSX" "$ARC_TEST_CLI" "$@"',
+      "",
+    ].join("\n"),
+  );
+  chmodSync(join(binDir, "arc"), 0o755);
+  return {
+    ...process.env,
+    PATH: `${binDir}:${process.env.PATH ?? ""}`,
+    ARC_TEST_NODE: process.execPath,
+    ARC_TEST_TSX: tsxCliPath,
+    ARC_TEST_CLI: cliPath,
+  };
 }
 
 function expectOnlyDevelopmentBuildWarning(stderr: string): void {
@@ -78,5 +104,59 @@ describe("arc config validate", () => {
     expect(result.stdout).toContain(`PASS  Config file exists: ${selected}`);
     expect(result.stdout).toContain("ERROR branch.protection: 'impossible' is not valid");
     expectOnlyDevelopmentBuildWarning(result.stderr);
+  });
+});
+
+describe("configuration compatibility corpus — process boundaries", () => {
+  for (const fixture of CONFIG_COMPATIBILITY_CASES) {
+    it(`${fixture.id}: direct command and launcher agree`, () => {
+      const root = fixtureRoot();
+      if (fixture.config !== null) writeFileSync(join(root, "selected.yml"), fixture.config);
+
+      const direct = runConfigValidate(root, ["--file", "selected.yml"]);
+      const launcher = spawnSync("bash", [launcherPath], {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...sourceCliEnvironment(root),
+          ARC_CONFIG_FILE: "selected.yml",
+        },
+      });
+
+      expect(direct.status).toBe(fixture.expected.validator.exitCode);
+      expect(launcher.status).toBe(fixture.expected.validator.exitCode);
+      expect(launcher.stdout).toBe(direct.stdout);
+      for (const line of fixture.expected.validator.lineIncludes) {
+        expect(direct.stdout).toContain(line);
+      }
+      expectOnlyDevelopmentBuildWarning(direct.stderr);
+      expectOnlyDevelopmentBuildWarning(launcher.stderr);
+    });
+  }
+
+  it("validates a corpus config selected through a custom ARC_DIR", () => {
+    const fixture = CONFIG_COMPATIBILITY_CASES.find(({ id }) =>
+      id === "git-config-precedes-the-yaml-project-default");
+    expect(fixture?.config).toBeTypeOf("string");
+
+    const root = fixtureRoot();
+    const customArcRoot = join(root, "custom-arc");
+    cpSync(packagedArcRoot, customArcRoot, { recursive: true });
+    writeFileSync(join(customArcRoot, "system", "arc-config.yml"), fixture?.config ?? "");
+
+    const result = spawnSync("bash", [verifyIntegrityPath], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...sourceCliEnvironment(root),
+        ARC_DIR: customArcRoot,
+      },
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.stdout).toContain(`PASS  Config file exists: ${customArcRoot}/system/arc-config.yml`);
+    expect(result.stdout).toContain("PASS  user.notes_push: prompt");
+    expect(result.stdout).toContain("PASS  Config validation clean");
+    expect(result.stderr).toBe("");
   });
 });

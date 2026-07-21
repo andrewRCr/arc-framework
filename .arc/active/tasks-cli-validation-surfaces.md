@@ -244,7 +244,7 @@ the distinct recovery and precedence policies of existing adapters.
 - _Outcome:_ Configuration validation now has one typed, non-interactive policy authority behind both the direct CLI
   and stable installed-script path, with explicit path selection and compatibility output preserved end to end.
 
-### `[ ]` **3.4 Prove catalog completeness and compatibility behavior**
+### `[x]` **3.4 Prove catalog completeness and compatibility behavior**
 
 - _Goal:_ The catalog demonstrably covers the shipped configuration surface exactly once, and every existing
   adapter retains its intended observable policy.
@@ -270,9 +270,13 @@ the distinct recovery and precedence policies of existing adapters.
           pin hard finding order, omission fallbacks, first-definition masking, branch-token expansion, ordered harness
           deduplication, empty-list behavior, and invalid-template or reserved-directory throws.
 
-    - `[ ]` **3.4.e Prove validator and launcher compatibility**
-        - Run the shared corpus through full validation, direct command invocation, the installed launcher, and custom
-          `ARC_DIR` integrity validation, preserving diagnostics, selected path tokens, summary counts, and exit codes.
+    - `[x]` **3.4.e Prove validator and launcher compatibility**
+        - Ran every shared case through the validation service, source CLI, and installed launcher, pinning diagnostic
+          fragments, selected path tokens, counts, stream parity, and exit statuses. A copied package root with a corpus
+          config also proves integrity validation forwards its custom `ARC_DIR` selection to the real CLI boundary.
+
+- _Outcome:_ The packaged declaration, typed catalog, five adapter families, direct command, and installed compatibility
+  path are now guarded by one closed inventory and one reusable data corpus without retaining a parallel policy helper.
 
 ## **Phase 4:** User-state and cross-work-unit contracts
 
