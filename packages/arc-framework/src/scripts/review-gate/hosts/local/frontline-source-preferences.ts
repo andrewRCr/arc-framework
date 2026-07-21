@@ -2,9 +2,10 @@
 
 import { join } from "node:path";
 
-import { ARC_CONFIG_SEGMENTS } from "../../../../lib/constants.js";
+import { ARC_CONFIG_SUFFIX } from "../../../../lib/constants.js";
 import { parseArcConfig } from "../../../../lib/config/index.js";
 import { gitConfigGet, type GitExec } from "../../../../lib/git/index.js";
+import { materializeArcPath, resolveArcPath } from "../../../../lib/layout/index.js";
 import type { FrontlineSourcePreferenceReader } from "../../policy/frontline-source.js";
 
 export const FRONTLINE_SOURCE_GIT_CONFIG_KEY = "arc.frontlineSource";
@@ -23,7 +24,8 @@ export function createLocalFrontlineSourcePreferenceReader(input: {
     },
     async readProjectSourceId(): Promise<string | null> {
       try {
-        const path = join(input.cwd, ...ARC_CONFIG_SEGMENTS);
+        const arcRoot = materializeArcPath(input.cwd, resolveArcPath({ kind: "arc-root" }));
+        const path = join(arcRoot, ...ARC_CONFIG_SUFFIX);
         const value = parseArcConfig(await input.readFile(path))[FRONTLINE_SOURCE_YAML_KEY];
         return value === undefined || value === "" ? null : value;
       } catch {

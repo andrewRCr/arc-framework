@@ -19,6 +19,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import { parseDevRulesFrontmatter } from "../../lib/frontmatter/index.js";
+import { materializeArcPath, resolveArcPath } from "../../lib/layout/index.js";
 import type {
   DomainRulesEntry,
   DomainRulesSessionInitOptions,
@@ -30,7 +31,7 @@ const MISSING_BLOCK_ERROR = "missing frontmatter block";
 
 /** Locate the domain-rules directory inside an ARC install. */
 function constitutionDir(cwd: string): string {
-  return join(cwd, ".arc", "system", "rules");
+  return join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), "system", "rules");
 }
 
 /**

@@ -20,6 +20,8 @@
  */
 
 import type { GitExec } from "./exec.js";
+import { SlugSchema } from "../kernel/index.js";
+import { resolveArcPath } from "../layout/index.js";
 import { canonicalLocalPath } from "../local-path-identity.js";
 import type {
   InFlightEntry,
@@ -402,7 +404,12 @@ export function projectInFlightToOverlapRoster(entries: readonly InFlightEntry[]
       name: entry.name,
       ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
       ...(entry.worktreePath === undefined && !entry.remoteOnly ? { remoteOnly: false } : {}),
-      metaFilePath: `.arc/active/meta-${entry.name}.md`,
+      metaFilePath: resolveArcPath({
+        kind: "work-unit-artifact",
+        placement: { kind: "active", scope: { kind: "project" } },
+        slug: SlugSchema.parse(entry.name),
+        artifact: "meta",
+      }),
       state: entry.state,
       ...(entry.marks !== undefined ? { marks: entry.marks } : {}),
       ...(entry.scheduling !== undefined ? { scheduling: entry.scheduling } : {}),

@@ -2,6 +2,7 @@
 
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { parseMetaRecord } from "../../../../lib/active/meta-reader.js";
+import { resolveArcPath } from "../../../../lib/layout/index.js";
 import type {
   ForwardLifecycleTailProofResolutionInput,
   LifecycleTailProofAdapter,
@@ -20,6 +21,7 @@ const SHA = /^[a-f0-9]{40}$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const COHORT_PATH = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/u;
+const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 const DIAGNOSTIC_ORDER: LifecycleTailDiagnostic[] = [
   "invalid-predicate",
   "invalid-identity",
@@ -407,8 +409,7 @@ async function classifyTail(
     }
   }
 
-  const roadmap = ".arc/backlog/ROADMAP.md";
-  if (remaining.has(roadmap) && !consume(remaining, "M", roadmap)) {
+  if (remaining.has(ROADMAP_PATH) && !consume(remaining, "M", ROADMAP_PATH)) {
     return invalid(input, ["unrecognized-tail-change"], artifact);
   }
   for (const pair of cohortPairs(artifact, destination)) {

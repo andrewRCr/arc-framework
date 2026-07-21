@@ -1024,6 +1024,31 @@ describe("update integration — error cases", () => {
       }),
     );
   });
+
+  it("rejects an unsafe enumerated source before mutating installed files", async () => {
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: "# Existing\n", classification: "Framework" },
+    });
+    const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
+    const boundedTemplateDir = join(templateDir, "templates");
+    await ensureDir(boundedTemplateDir);
+    await writeFile(join(boundedTemplateDir, FRAMEWORK_FILE), "# Content\n", "utf-8");
+    await writeFile(join(templateDir, "outside.template.md"), "outside\n", "utf-8");
+
+    await expect(runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir: boundedTemplateDir,
+      recipe: makeRecipe([FRAMEWORK_FILE, "../outside.template.md"]),
+    })).rejects.toMatchObject({
+      name: "LayoutError",
+      code: "layout.invalid-template-path",
+    });
+
+    expect(await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8")).toBe("# Existing\n");
+    expect(await readFile(manifestPath(tempDir), "utf-8")).toBe(manifestBefore);
+    expect(await fileExists(join(tempDir, "outside.md"))).toBe(false);
+  });
 });
 
 // --- Update summary messaging ---

@@ -20,7 +20,7 @@
  * @module
  */
 
-import { join, posix } from "node:path";
+import { posix } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
 import { ensureDir, type MkdirFn } from "../../template/files.js";
@@ -106,7 +106,7 @@ export async function relocateArtifacts(
 
   await ensureDir(toDir, ctx.fs.mkdir);
   for (const name of names) {
-    await ctx.exec("git", ["mv", join(fromDir, name), join(toDir, name)]);
+    await ctx.exec("git", ["mv", posix.join(fromDir, name), posix.join(toDir, name)]);
   }
 
   await pruneEmptyBacklogSource(ctx.fs, fromDir);

@@ -147,6 +147,17 @@ describe("arc status --project", () => {
     remote = undefined;
   });
 
+  it("rejects invalid configured identity before composing status paths", async () => {
+    repo = await createTempRepo("arc-status-invalid-identity-");
+    await mkdir(join(repo, ".arc"), { recursive: true });
+    await execFileAsync("git", ["config", "arc.identity", " andrew "], { cwd: repo });
+
+    await expect(runProject(repo, { json: true })).rejects.toMatchObject({
+      code: "identity.invalid",
+      whatHappened: "Configured ARC identity is invalid",
+    });
+  });
+
   it("renders live ref-only active metas from a main checkout", async () => {
     repo = await createTempRepo("arc-status-project-");
     remote = `${repo}-origin.git`;

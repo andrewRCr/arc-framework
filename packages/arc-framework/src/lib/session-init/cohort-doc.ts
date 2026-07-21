@@ -18,8 +18,9 @@
 
 import { join } from "node:path";
 
-import { cohortLeaf } from "../active/cohort-path.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
+import { SlugSchema, type Slug } from "../kernel/index.js";
+import { resolveArcPath } from "../layout/index.js";
 
 /** The standalone-work-unit sentinel; carries no cohort grouping. */
 const NONE_SENTINEL = "[none]";
@@ -69,8 +70,15 @@ export async function resolveActiveCohortDocPath(
   const field = cohort.trim();
   if (field === "" || field === NONE_SENTINEL) return null;
 
-  const leaf = cohortLeaf(field);
-  const docPath = `.arc/backlog/planned/${field}/cohort-${leaf}.md`;
+  const segments = field.split("/").map((segment) => SlugSchema.safeParse(segment));
+  if (segments.some((segment) => !segment.success)) return null;
+  const slugs = field.split("/").map((segment) => SlugSchema.parse(segment));
+  let coordinate: [Slug] | [Slug, Slug];
+  if (slugs.length === 1 && slugs[0] !== undefined) coordinate = [slugs[0]];
+  else if (slugs.length === 2 && slugs[0] !== undefined && slugs[1] !== undefined) {
+    coordinate = [slugs[0], slugs[1]];
+  } else return null;
+  const docPath = resolveArcPath({ kind: "cohort-document", placement: { kind: "planned" }, cohort: coordinate });
 
   const exists = await fs.pathExists(join(cwd, docPath));
   return exists ? docPath : null;

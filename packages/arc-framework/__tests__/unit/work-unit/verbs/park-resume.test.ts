@@ -689,4 +689,17 @@ describe("park / resume reject a non-slug name", () => {
     expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
     expect(removals).toEqual([]);
   });
+
+  it("rejects park when the declared cohort is not a canonical slug path", async () => {
+    const { ctx, calls, writes } = buildCtx([ACTIVE]);
+
+    const result = await runPark(ctx, {
+      ...BASE_PARK,
+      sourceRecord: { ...recordFor(ACTIVE), Cohort: "Not-A-Slug" },
+    });
+
+    expect(result.status).toBe("rejected");
+    expect(calls.some((call) => call.startsWith("worktree:"))).toBe(false);
+    expect(writes).toEqual([]);
+  });
 });

@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { buildChangePlan } from "../../../src/lib/manifest/plan.js";
+import { LayoutError } from "../../../src/lib/layout/index.js";
 import type { Manifest, FileEntry } from "../../../src/lib/types.js";
 
 // --- Helpers ---
@@ -219,6 +220,33 @@ describe("buildChangePlan", () => {
         "reference/README.md": "reference/README.md",
         "reference/PROJECT-PRD.md": "reference/PROJECT-PRD.template.md",
       });
+    });
+
+    test.each(["", "/absolute.md", "../outside.md", "nested\\file.md"])(
+      "rejects unsafe enumerated template path %j before constructing a plan",
+      (templateFile) => {
+        const manifest = makeManifest({});
+
+        let thrown: unknown;
+        try {
+          buildChangePlan(manifest, [templateFile], {}, new Set());
+        } catch (error) {
+          thrown = error;
+        }
+        expect(thrown).toBeInstanceOf(LayoutError);
+        expect(thrown).toMatchObject({ code: "layout.invalid-template-path" });
+      },
+    );
+
+    test("rejects template paths that transform to the same output path", () => {
+      const manifest = makeManifest({});
+
+      expect(() => buildChangePlan(
+        manifest,
+        ["reference/foo.md", "reference/foo.template.md"],
+        {},
+        new Set(),
+      )).toThrow(expect.objectContaining({ code: "layout.invalid-template-path" }));
     });
   });
 });

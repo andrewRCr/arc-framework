@@ -25,7 +25,8 @@ import { fileURLToPath } from "node:url";
 import { renderTokens, renderConditionals } from "../../src/lib/template/render.js";
 import { readManifest } from "../../src/lib/manifest/index.js";
 import { buildConfigMap, buildTokenMap } from "../../src/lib/config/index.js";
-import { classifyFile, resolveFileList, toOutputPath } from "../../src/lib/classification.js";
+import { classifyFile, resolveFileList } from "../../src/lib/classification.js";
+import { resolveTemplateOutputPath } from "../../src/lib/layout/index.js";
 import type { Manifest, Recipe } from "../../src/lib/types.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -168,11 +169,11 @@ describe("framework sync (self-hosting drift check)", () => {
     const recipeText = await readFile(join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8");
     const recipe = JSON.parse(recipeText) as Recipe;
     const expected = resolveFileList(recipe, conditionals);
-    const expectedOutputs = expected.map((path) => toOutputPath(path)).sort();
+    const expectedOutputs = expected.map((path) => resolveTemplateOutputPath(path)).sort();
     expect(Object.keys(manifest.files).sort()).toEqual(expectedOutputs);
 
     for (const templatePath of expected) {
-      const outputPath = toOutputPath(templatePath);
+      const outputPath = resolveTemplateOutputPath(templatePath);
       expect(manifest.files[outputPath]?.classification, outputPath).toBe(classifyFile(templatePath));
     }
   });

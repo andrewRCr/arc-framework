@@ -42,6 +42,7 @@ import {
   type OrphanClassification,
 } from "../../lib/user-sync/index.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../../lib/user-surfaces.js";
+import { SlugSchema } from "../../lib/kernel/index.js";
 import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import {
@@ -197,7 +198,7 @@ export async function runUserLoad(
 ): Promise<UserLoadOutcome | null> {
   const { cwd, io, identity } = options;
   const currentWuName = options.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
-  const resolver = await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec });
+  const resolver = await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec });
   const snapshot = await buildUserLoadManifestSnapshot({
     cwd,
     io,
@@ -371,13 +372,17 @@ export async function serializeSplitUserManifest(options: {
 }): Promise<SerializeResult> {
   const { cwd, io, identity, currentWuName } = options;
   const resolver = options.resolver
-    ?? await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec });
+    ?? await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec });
   const identityResult = await serializeIdentityGlobalRoot(resolver, io);
   const files: Record<string, string> = { ...identityResult.manifest.files };
   const warnings: SkipWarning[] = [...identityResult.warnings];
 
   if (currentWuName !== undefined) {
-    const workUnitResult = await serialize(resolver.workUnitRoot(currentWuName), io.readDir, io.readFile);
+    const workUnitResult = await serialize(
+      resolver.workUnitRoot(SlugSchema.parse(currentWuName)),
+      io.readDir,
+      io.readFile,
+    );
     Object.assign(files, prefixManifestFiles(workUnitResult.manifest.files, currentWuName));
     warnings.push(...workUnitResult.warnings.map((warning) => ({
       ...warning,
@@ -500,7 +505,7 @@ async function deserializeSplitUserManifest(
   }
 
   if (currentWuName !== undefined && Object.keys(workUnitFiles).length > 0) {
-    const workUnitRoot = options.resolver.workUnitRoot(currentWuName);
+    const workUnitRoot = options.resolver.workUnitRoot(SlugSchema.parse(currentWuName));
     await ensureDir(workUnitRoot, options.io.mkdir);
     await deserialize(
       workUnitRoot,
@@ -698,7 +703,7 @@ function resolveMaterializedManifestPath(
   if (currentWuName === undefined) return null;
   const prefix = `${currentWuName}/`;
   if (!manifestPath.startsWith(prefix)) return null;
-  return join(options.resolver.workUnitRoot(currentWuName), manifestPath.slice(prefix.length));
+  return join(options.resolver.workUnitRoot(SlugSchema.parse(currentWuName)), manifestPath.slice(prefix.length));
 }
 
 async function formatLoadSourceCommit(
@@ -1156,7 +1161,7 @@ export async function listBackupFiles(
   io: UserIOContext,
   identity: string,
 ): Promise<string[]> {
-  const resolver = await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec });
+  const resolver = await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec });
   const roots = uniquePaths([resolver.identityGlobalRoot, join(cwd, ".arc", "user", identity)]);
   const internalDirs = uniquePaths([join(resolver.identityGlobalRoot, ".internal"), getUserInternalDir(cwd, identity)]);
   const backupFiles = [

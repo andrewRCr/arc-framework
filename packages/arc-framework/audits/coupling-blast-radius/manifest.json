@@ -50,6 +50,7 @@
       "scripts/worktree-post-create.sh"
     ],
     "excluded": [
+      { "path": "packages/arc-framework/audits/coupling-blast-radius/layout-migration-ledger.json", "reason": "Derived migration bookkeeping; never an audit input." },
       { "path": "packages/arc-framework/audits/coupling-blast-radius/routing-ledger.json", "reason": "Generated routing output; never an audit input." },
       { "path": "packages/arc-framework/audits/coupling-blast-radius/scan-result.json", "reason": "Generated scan output; excluding it prevents recursive self-enumeration." },
       { "path": "CONTRIBUTING.md", "reason": "Public project prose, not self-hosting tooling." },

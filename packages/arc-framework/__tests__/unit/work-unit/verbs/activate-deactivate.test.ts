@@ -178,6 +178,21 @@ describe("runActivate — raise a planning WU to Active", () => {
     expect(result.reason).toMatch(/activate|planning/i);
     expect(calls.some((c) => c.startsWith("setPhase:") || c.startsWith("branch:"))).toBe(false);
   });
+
+  it("rejects an invalid name before reading or dispatching", async () => {
+    const { ctx, calls } = buildCtx([PLANNING]);
+    let reads = 0;
+    ctx.indexFs.readFile = () => {
+      reads += 1;
+      return Promise.reject(new Error("unexpected read"));
+    };
+
+    const result = await runActivate(ctx, { ...params, name: "../foo" });
+
+    expect(result.status).toBe("rejected");
+    expect(reads).toBe(0);
+    expect(calls).toEqual([]);
+  });
 });
 
 const BASE: DeactivateParams = { name: "foo" };
@@ -225,5 +240,20 @@ describe("runDeactivate — illegal sources", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/deactivate|active/i);
     expect(calls.some((c) => c.startsWith("setPhase:") || c.startsWith("branch:"))).toBe(false);
+  });
+
+  it("rejects an invalid name before reading or dispatching", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+    let reads = 0;
+    ctx.indexFs.readFile = () => {
+      reads += 1;
+      return Promise.reject(new Error("unexpected read"));
+    };
+
+    const result = await runDeactivate(ctx, { name: "../foo" });
+
+    expect(result.status).toBe("rejected");
+    expect(reads).toBe(0);
+    expect(calls).toEqual([]);
   });
 });

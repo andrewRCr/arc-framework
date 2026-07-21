@@ -130,4 +130,15 @@ describe("resolveWorkUnitSessionNotesPath", () => {
       message: "Unable to access SESSION-NOTES: EACCES: permission denied",
     });
   });
+
+  it("rejects invalid semantic operands before filesystem access", async () => {
+    let accessed = false;
+    await expect(resolveWorkUnitSessionNotesPath(
+      CWD,
+      "bad/identity",
+      "feature-y",
+      { access: async () => { accessed = true; } },
+    )).rejects.toThrow();
+    expect(accessed).toBe(false);
+  });
 });

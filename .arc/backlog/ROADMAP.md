@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `32f3b8bc7`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `27c591842`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,14 +13,13 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit               | Priority | Owner  | Depends on | Cohort                 |
-| ---------- | ----------------------- | -------- | ------ | ---------- | ---------------------- |
-| `Active`   | review-architecture     | P1       | andrew | —          | —                      |
-| `Planning` | session-locus-model     | P1       | andrew | —          | —                      |
-| `Active`   | cli-command-inputs      | P2       | andrew | —          | cli-substrate-adoption |
-| `Active`   | cli-layout-resolver     | P2       | andrew | —          | cli-substrate-adoption |
-| `Active`   | cli-validation-surfaces | P2       | andrew | —          | cli-substrate-adoption |
-| `Active`   | markdown-formatting     | P3       | andrew | —          | —                      |
+| State         | Work unit               | Priority | Owner  | Depends on | Cohort                 |
+| ------------- | ----------------------- | -------- | ------ | ---------- | ---------------------- |
+| `Active`      | review-architecture     | P1       | andrew | —          | —                      |
+| `Active`      | session-locus-model     | P1       | andrew | —          | —                      |
+| `Integrating` | cli-command-inputs      | P2       | andrew | —          | cli-substrate-adoption |
+| `Active`      | cli-validation-surfaces | P2       | andrew | —          | cli-substrate-adoption |
+| `Active`      | markdown-formatting     | P3       | andrew | —          | —                      |
 
 ## Ready
 
@@ -88,17 +87,17 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                         | Priority | Owner  | Depends on                                                       | Cohort                     |
-| --------------------------------- | -------- | ------ | ---------------------------------------------------------------- | -------------------------- |
-| review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification                            | —                          |
-| unit-scoped-review                | P2       | andrew | commit-increments                                                | approval-flow-refinement   |
-| cli-substrate-complete-migration  | P2       | andrew | cli-layout-resolver, cli-validation-surfaces, cli-command-inputs | cli-substrate-adoption     |
-| operational-state-docs            | P2       | andrew | cli-validation-surfaces                                          | —                          |
-| documentation-surface-routing     | P3       | andrew | handoff-optimization                                             | agent-context-optimization |
-| instruction-optimization          | P3       | andrew | composable-workflows                                             | agent-context-optimization |
-| workflow-template-loads           | P3       | andrew | composable-workflows                                             | principle-anchored-core    |
-| docs-content-sweep                | P3       | andrew | docs-site-refresh                                                | release-readiness          |
-| comprehension-preservation        | P3       | andrew | execution-delegation-doctrine                                    | —                          |
+| Work unit                         | Priority | Owner  | Depends on                                  | Cohort                     |
+| --------------------------------- | -------- | ------ | ------------------------------------------- | -------------------------- |
+| review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification       | —                          |
+| unit-scoped-review                | P2       | andrew | commit-increments                           | approval-flow-refinement   |
+| cli-substrate-complete-migration  | P2       | andrew | cli-validation-surfaces, cli-command-inputs | cli-substrate-adoption     |
+| operational-state-docs            | P2       | andrew | cli-validation-surfaces                     | —                          |
+| documentation-surface-routing     | P3       | andrew | handoff-optimization                        | agent-context-optimization |
+| instruction-optimization          | P3       | andrew | composable-workflows                        | agent-context-optimization |
+| workflow-template-loads           | P3       | andrew | composable-workflows                        | principle-anchored-core    |
+| docs-content-sweep                | P3       | andrew | docs-site-refresh                           | release-readiness          |
+| comprehension-preservation        | P3       | andrew | execution-delegation-doctrine               | —                          |
 
 ### Depth 2
 

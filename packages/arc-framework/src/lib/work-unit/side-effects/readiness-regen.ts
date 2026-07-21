@@ -17,10 +17,13 @@
  * @module
  */
 
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
+import { materializeArcPath, resolveArcPath } from "../../layout/index.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import type { LifecyclePosition } from "../lifecycle-state.js";
+
+const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
 /** Dependencies for {@link reconcileStatusUser}. */
 export interface ReconcileStatusUserContext {
@@ -174,8 +177,8 @@ export async function reconcileRoadmap(
 ): Promise<string | undefined> {
   const move = `${positionLabel(params.from)} → ${positionLabel(params.to)}`;
   try {
-    const dir = join(params.cwd, ".arc", "backlog");
-    const path = join(dir, "ROADMAP.md");
+    const path = materializeArcPath(params.cwd, ROADMAP_PATH);
+    const dir = dirname(path);
     const view = await ctx.composeView();
     const body = view.content.endsWith("\n") ? view.content : `${view.content}\n`;
     await ensureDir(dir, ctx.mkdir);
