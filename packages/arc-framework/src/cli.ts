@@ -78,6 +78,7 @@ import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
 import { handleActiveStatus, handleActiveRoster, handleActiveInFlight } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
+import { handleLocus } from "./handlers/locus.js";
 import { handleView, type ViewCliOptions } from "./handlers/view.js";
 import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
@@ -648,6 +649,14 @@ program
   )
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);
+
+// --- Locus ---
+
+program
+  .command("locus")
+  .description("Inspect the local checkout and session locus roster")
+  .option("--json", "Emit one typed locus envelope as JSON")
+  .action(handleLocus);
 
 // --- Recover ---
 

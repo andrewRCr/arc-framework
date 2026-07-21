@@ -283,19 +283,16 @@ roster and one generation-safe local mutation boundary.
           exact-holder secondary-break operation, so breaking never acquires the lock being removed; byte/token/
           anchor changes, live/unknown holders, malformed records, races, and retries remain fail-closed or idempotent.
 
-### `[ ]` **3.5 Expose the read contract through `arc locus`** — D6
+### `[x]` **3.5 Expose the read contract through `arc locus`** — D6
 
 - _Goal:_ Humans and workflows can inspect complete locus state through a deterministic command without gaining a
   hidden mutation or heartbeat path.
 
-    - `[ ]` **3.5.a Add the read-only `arc locus [--json]` command**
-        - Add `packages/arc-framework/src/commands/locus.ts`, `src/handlers/locus.ts`, and CLI registration following
-          the existing status command/handler separation; call the single final reader assembled in Task 3.2.
-        - Render checkout path, role/subject, lease state, session home, active locus, and derived workflow/stage in
-          human mode; emit exactly one validated `LocusEnvelopeV1` in JSON mode.
-        - Build `test-first` (one behavior at a time):
-            - Cover deterministic output, stdout/stderr separation, diagnostic success, each root-error envelope,
-              exit behavior, first-use empty roots, and proof that reads never mutate records or refresh heartbeats.
+    - `[x]` **3.5.a Add the read-only `arc locus [--json]` command**
+        - Added the bounded evidence-to-roster reader, exact subject/meta joins, schema-validated JSON emission, plain
+          deterministic human rendering, and CLI registration. Successful diagnostics remain exit-zero; all four
+          root errors preserve one-envelope JSON or stderr-only human output with exit one, while empty first-use
+          roots and read-only heartbeat preservation are covered explicitly.
 
 ## **Phase 4:** Locus Allocation and Transient Provisioning Foundations
 
