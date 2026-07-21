@@ -8,7 +8,7 @@ import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import { createLocusEvidenceIO } from "../lib/locus/evidence.js";
 import { readLocusEnvelope } from "../lib/locus/reader.js";
 import { createPlatformProcessInspector } from "../lib/locus/platform-inspectors.js";
-import { gitConfigGet } from "../lib/git/index.js";
+import { resolveIdentity } from "../lib/git/index.js";
 import { gitExec } from "../lib/io-context.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
@@ -49,7 +49,7 @@ export async function runLocusCli(
 export async function handleLocus(options: LocusCliOptions): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (cwd === null) return;
-  const identity = normalizeIdentity(await gitConfigGet(gitExec, "arc.identity"));
+  const identity = await resolveIdentity({ exec: gitExec });
   const inspector = createPlatformProcessInspector();
   const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
   const identityGlobalUserDir = identity === null
@@ -76,9 +76,4 @@ export async function handleLocus(options: LocusCliOptions): Promise<void> {
       exit: (code) => { process.exitCode = code; },
     },
   });
-}
-
-function normalizeIdentity(value: string | undefined): string | null {
-  const trimmed = value?.trim() ?? "";
-  return trimmed === "" ? null : trimmed;
 }
