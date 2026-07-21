@@ -881,9 +881,12 @@ as their machine-local occupancy authority.
           orphan-branch sweeps, and materialize surfaces to consume managed-role and identity-only rows.
         - Stop classifying live `chore/groom-*` branches as unowned residue and surface open/paused/awaiting identities
           with their fixed action order.
+        - Treat a retained WU role as lifecycle authority throughout the archive-to-teardown interval even after its
+          active meta is gone; keep detached or branchless aftermath distinct from the state that emitted an advisory.
         - Build `test-first` (one behavior at a time):
             - Cover legacy branches, sanctioned grooming, all exact v3 protected branches, incomplete identity reads,
-              orphan-delete suppression, allocation gaps, and stale records.
+              archive-to-teardown WUs, detached aftermath, orphan-delete suppression, allocation gaps, and stale
+              records.
 
     - `[ ]` **6.6.b Render CLI-precomposed reconciliation and cleanup text**
         - Feed current frame, primary availability, recovery, reconciliation, and lease-aware cleanup results into

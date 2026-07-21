@@ -1186,6 +1186,12 @@ Every exact live v3 Errand, groom, or housekeep branch is protected by kind, key
 `chore/groom-*` branch is therefore never reclassified as a recordless cheap branch merely because the legacy
 Errand-only exclusion set does not contain it. An incomplete identity read suppresses branch cleanup offers.
 
+The same projection covers the intentional WU archive-to-teardown interval. Once archival removes the active meta,
+the retained WU role remains sufficient lifecycle authority for in-flight artifact classification until guarded
+teardown pops it; scanners must not warn merely because the meta is already archived. A later detached checkout or
+missing branch is aftermath evidence, not an explanation of the earlier advisory. Unknown or recordless artifacts
+remain warning-worthy, so this transition does not broaden branch-shape inference into ownership authority.
+
 Attach and physical removal share one linearization point. Cleanup may compute an advisory candidate outside the
 lock, but before deletion it acquires the target locus lock (derived from the roster path even when the record is
 absent), rereads the exact role/lease generation or confirmed absence and the live worktree roster, and revalidates
