@@ -198,6 +198,23 @@ describe("PR-open lifecycle extensions", () => {
     expect(overview).toContain("established manual integration path");
   });
 
+  it("documents the native reviewer-guidance adapter boundary", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/independent-analysis.md"), "utf8");
+      const strategy = await readFile(
+        resolve(base, "reference/strategies/arc/strategy-configurability-architecture.md"),
+        "utf8",
+      );
+      const normalized = `${method}\n${strategy}`.replaceAll("`", "").replace(/\s+/gu, " ");
+
+      expect(normalized).toContain("native instruction or configuration surface");
+      expect(normalized).toContain("validate the effective carrier content");
+      expect(normalized).toContain("record its guidanceDigest");
+      expect(normalized).toContain("projection is not rubric authority");
+      expect(method).not.toMatch(/AGENTS\.md|GitHub|CodeRabbit|Codex|controller command/iu);
+    }
+  });
+
   it("keeps adversarial review launch-neutral and mutation-read-only", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");

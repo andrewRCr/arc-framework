@@ -473,6 +473,18 @@ defines HOW:
    [commit-footer][arc-methods-ccf] methods
 ```
 
+### Reviewer-guidance adapters
+
+Native reviewer integrations consume the generic `independent-analysis` projector rather than copying rubric prose.
+An adapter may supply the projector's typed additive project-rubric input, then writes the result to its native
+instruction or configuration surface. For the exact target it must resolve and validate the effective carrier
+content, reject missing, stale, conflicting, or unverifiable projections, and record its `guidanceDigest` with the
+baseline `rubricVersion` and `rubricDigest`.
+
+The projection is not rubric authority: the typed baseline owns the standard, while the carrier digest proves only
+what instructions were delivered. Projection content is limited to rubric guidance; invocation, coordination,
+author findings and dispositions, evidence admission, and controller state remain outside this customization seam.
+
 ### Hook interaction
 
 For methods with mechanical enforcement (commit format, context footer), hooks read override configuration from

@@ -471,11 +471,10 @@ with adopter-facing contracts mirrored through the package source.
   activity runs, method overrides control how it runs, and generic extensions retain operation-boundary semantics.
   Closed-schema and corpus checks prevent the retired toggle or review-specific extension drift from returning.
 
-### `[ ]` **4.5 State the enforcement and rubric-delivery boundaries**
+### `[x]` **4.5 State the enforcement and rubric-delivery boundaries**
 
 - _Goal:_ Shipped guidance tells projects exactly which surfaces are ergonomics, which evidence satisfies review,
   and which host-side check can enforce merge safety—without claiming this repository's controller is operational.
-- _Context:_ Implements Design §§2.1, 7–8 and the current WORKING-MEMORY enforcement constraint.
 
     - `[x]` **4.5.a Document agent ergonomics versus host guarantee**
         - The ARC brief, session-operations strategy, and review method contracts now identify agent-side review as
@@ -489,10 +488,14 @@ with adopter-facing contracts mirrored through the package source.
           projection carries rubric identity and content only; its closed schema has no coordination, author-state,
           approval, receipt, or controller-state channel.
 
-    - `[ ]` **4.5.c Document the generic adapter boundary**
-        - Describe how native instruction/configuration surfaces consume the projector and prove guidance identity,
-          without naming self-hosting enablement or treating a carrier projection as rubric authority.
-        - Keep repository-specific `AGENTS.md`, provider bindings, and operator documentation in Phase 7 rollout.
+    - `[x]` **4.5.c Document the generic adapter boundary**
+        - Documented the provider-neutral delivery seam: adapters project the typed baseline plus optional additive
+          project dimensions into native instruction/configuration surfaces, validate effective exact-target content,
+          and record its guidance identity without making that projection rubric, evidence, or merge authority.
+
+- _Outcome:_ Review authority is now explicit end to end: the typed baseline owns the satisfying standard, native
+  projections prove delivered content, attestations establish eligible exact-target evidence, and only a configured
+  required host check can structurally block merge. Repository-specific carrier rollout remains unclaimed.
 
 ## **Phase 5:** Frontline execution and carrier binding
 

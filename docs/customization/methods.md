@@ -55,6 +55,13 @@ Method content loads when a workflow reaches the relevant operation, not at sess
 dependencies in `arc.methods`; the agent reads the method file at that trigger and applies its default or configured
 override.
 
+### Reviewer guidance delivery
+
+Reviewer integrations project the typed `independent-analysis` baseline into the reviewer's native instruction or
+configuration surface. Projects may add typed rubric dimensions, but cannot replace baseline dimensions. An adapter
+validates the effective exact-target content and records its guidance identity; that projection proves delivered
+content, not rubric authority or merge enforcement.
+
 ### Hook interaction
 
 Methods and configuration remain separate. For example, `commit-format` defines the convention while

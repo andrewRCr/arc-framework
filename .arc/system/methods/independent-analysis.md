@@ -35,6 +35,18 @@ and derived digest; editorial guidance in this method is not a second identity a
 - **Clean rule:** Return clean only after complete coverage and explicit treatment of every effective dimension.
   Unavailable, partial, ambiguous, or failed review is never clean.
 
+### Carrier delivery boundary
+
+A carrier adapter supplies an optional typed project-rubric augmentation to the generic projector, writes the
+resulting rubric content into the reviewer's native instruction or configuration surface, then resolves that
+surface for the exact target. It must validate the effective carrier content against the projection and record its
+`guidanceDigest` alongside the baseline `rubricVersion` and `rubricDigest`. Missing, stale, conflicting, or
+unverifiable content leaves the carrier non-satisfying.
+
+The projection is not rubric authority and contains no coordination procedure, author findings, dispositions,
+approvals, receipts, or controller state. The typed baseline remains rubric authority; the carrier projection proves
+only what guidance that evaluator received. Result normalization and attestation remain separate adapter concerns.
+
 A local fresh-context carrier may run this standard through `adversarial-review`; other qualified carriers apply the
 same contract. A result becomes satisfying evidence only after an authorized attestor revalidates the exact target,
 evaluator separation, rubric identity, and complete result. Findings remain advisory for mutation and return to the
