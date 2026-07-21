@@ -135,6 +135,7 @@ Use `--dry-run` to preview changes before applying.
 - `branch.base`, `branch.protection` — Branch model
 - `merge.strategy` — Integration strategy
 - `platform.type` — Agent platform awareness
+- `review.frontline_source` — Project default for the registered frontline review source
 
 ### Project-wide by design
 
@@ -230,6 +231,15 @@ Every setting in `arc-config.yml`, with its options and default.
 | Setting         | Options                                         | Default  | What it controls                                                   |
 |-----------------|-------------------------------------------------|----------|--------------------------------------------------------------------|
 | `platform.type` | `github`, `gitlab`, `bitbucket`, `azure-devops` | `github` | Git hosting platform (informational — affects command suggestions) |
+
+### Review
+
+| Setting                   | Options                        | Default   | What it controls                               |
+|---------------------------|--------------------------------|-----------|------------------------------------------------|
+| `review.frontline_source` | Lowercase registered source ID | *(empty)* | Default advisory pre-publication review source |
+
+The value names a source registered by the project; it is never a command or reviewer identity. Developers may
+override it locally with `git config arc.frontlineSource <source-id>`.
 
 ### Project management
 

@@ -127,6 +127,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "commit.context_pattern": "",
       "merge.strategy": "merge",
       "platform.type": "github",
+      "review.frontline_source": "",
       "pm.mode": "none",
       "team.mode": "false",
       "session.remote_sync": "enabled",

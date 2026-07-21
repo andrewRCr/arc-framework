@@ -508,13 +508,11 @@ that shapes review spend without producing satisfying evidence.
   `skip | offer | attempt` record without probing or executing the selected source.
 - _Context:_ Implements Design §3 and keeps developer preferences behind the storage abstraction.
 
-    - `[ ]` **5.1.a Implement the source fallback chain**
-        - Resolve invocation `sourceId` → developer `arc.frontlineSource` → project `review.frontline_source` →
-          unbound through the existing dual-scope setting pattern.
-        - Add an injected `FrontlineSourceRegistry` mapping safe IDs to typed agent handles or
-          executable-plus-argv command descriptors; never accept shell text from configuration.
-        - Build `test-first` coverage for each precedence arm, malformed/unregistered IDs, diagnostics, and the
-          unbound result; leave the self-hosting CodeRabbit registration to Phase 7 policy binding.
+    - `[x]` **5.1.a Implement the source fallback chain**
+        - Added deterministic invocation → developer → project → unbound resolution through an injected preference
+          port and local `arc.frontlineSource` / `review.frontline_source` adapter. The closed registry maps safe IDs
+          only to typed agent capability handles or direct executable-plus-argv descriptors; invalid values and
+          storage failures remain diagnosed, and no self-hosting provider binding ships here.
 
     - `[ ]` **5.1.b Apply invocation override precedence**
         - Model `inherit | force | skip` plus the legal optional-source combinations; let `force` temporarily

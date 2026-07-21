@@ -77,6 +77,25 @@ describe("validate-config.sh — retired review toggle", () => {
   });
 });
 
+describe("validate-config.sh — frontline review source", () => {
+  it("accepts an optional safe registry ID", async () => {
+    const result = await runValidateConfig("review.frontline_source: project-reviewer\n");
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("PASS  review.frontline_source is a safe registry ID");
+  });
+
+  it.each(["Review Agent", "review;agent", "review--agent", "review-agent-"])(
+    "rejects shell-shaped or malformed value %s",
+    async (value) => {
+      const result = await runValidateConfig(`review.frontline_source: ${value}\n`);
+
+      expect(result.code).toBe(2);
+      expect(result.stdout).toContain("ERROR review.frontline_source must be a lowercase registry ID");
+    },
+  );
+});
+
 describe("validate-config.sh — session.init_load.notes", () => {
   it.each(["manual", "prompt", "always"])("accepts %s", async (value) => {
     const result = await runValidateConfig(`session.init_load.notes: ${value}\n`);

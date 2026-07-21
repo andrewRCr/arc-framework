@@ -181,6 +181,13 @@ hooks.contributor_protected_paths: active/|backlog/
 #   github (default) | gitlab | bitbucket | azure-devops
 platform.type: github
 
+# --- Review ---
+
+# Default registered source for optional frontline pre-publication review.
+# One safe registry ID only; never a command, executable, or reviewer identity.
+# Empty means unbound. Per-developer override: `git config arc.frontlineSource <source-id>`.
+review.frontline_source:
+
 # --- Project Management ---
 
 # Project Management (PM) mode. Controls where project management lives.

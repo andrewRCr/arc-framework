@@ -222,18 +222,18 @@ where each developer configures them independently.
 - **Project-only settings** — `branch.*`, `commit.*`, `merge.*`, `hooks.*`, `platform.*`, `pm.mode`, `team.mode`,
   `archive.cadence`, `session.init_pull.*`, `session.init_load.notes`, `session.remote_sync`.
   These are inherently project-wide; per-developer variation would create inconsistency.
-- **Per-developer settings** — identity, role, autonomy interlocks, release-wrapper opt-in. These route through
+- **Per-developer settings** — identity, role, autonomy interlocks, review-source preference, release-wrapper
+  opt-in. These route through
   **git config** (`git config arc.<key>`). See [Personal Configuration via Git
   Config](#personal-configuration-via-git-config) below for the full key reference.
-- **Dual-scope (one key)** — `user.notes_push` is the lone setting carrying both a project-level default in
-  `arc-config.yml` and a per-developer git-config override (`arc.notesPush`). Other settings are exclusively
-  one tier or the other.
+- **Dual-scope** — `user.notes_push` / `arc.notesPush` and `review.frontline_source` / `arc.frontlineSource`
+  carry project defaults with per-developer git-config overrides. Other settings are exclusively one tier or the
+  other.
 
 ### Personal Configuration via Git Config
 
 Personal preferences live in git-config local rather than `arc-config.yml`. Each developer configures them
-independently; they have no project-level counterpart (with the lone exception of `arc.notesPush`, which
-overrides a yaml-side default).
+independently; they have no project-level counterpart except the dual-scope entries described below.
 
 | Git-config key        | Controls                                     | Values                                        | Default      |
 |-----------------------|----------------------------------------------|-----------------------------------------------|--------------|
@@ -244,10 +244,12 @@ overrides a yaml-side default).
 | `arc.pushInterlock`   | When the agent fires pushes                  | `manual` / `on-sync` / `on-workflow`          | `manual`     |
 | `arc.syncInterlock`   | When the agent invokes session sync          | `manual` / `on-handoff` / `on-workflow`       | `on-handoff` |
 | `arc.notesPush`       | Personal user-directory notes push behavior  | `manual` / `prompt` / `on-sync`               | `on-sync`    |
+| `arc.frontlineSource` | Preferred registered frontline review source | Lowercase registry ID                         | (project)    |
 | `arc.releaseOptedIn`  | Per-developer release-wrapper opt-in flag    | `true` / `false`                              | `false`      |
 
 `arc.notesPush` is dual-scope: it overrides the project-level `user.notes_push` value in `arc-config.yml`. The
-other entries are per-developer only — there is no project-level counterpart to override.
+`arc.frontlineSource` preference similarly overrides `review.frontline_source`; both values name a registered
+source and never contain a command or reviewer identity. The other entries are per-developer only.
 
 `arc.releaseOptedIn` is set by `arc release setup install` (per-harness setup + opt-in recording) or
 `arc release opt-in` (opt-in recording only). See [Interlock Release Wrappers
@@ -334,10 +336,12 @@ Config settings divide into two categories based on how changes take effect:
 - `branch.base`, `branch.protection` — Branch model
 - `merge.strategy` — Integration strategy
 - `platform.type` — Agent platform awareness
+- `review.frontline_source` — Registered frontline review source default
 
 **Personal settings** route through `git config` (identity, role, tools, autonomy interlocks, release-wrapper
-opt-in) and are managed by `arc init` / `arc join` (identity, role, tools), `arc release setup install` /
-`arc release opt-in` (release-wrapper opt-in), or direct `git config arc.<key>` edits (autonomy interlocks). See
+opt-in, frontline source) and are managed by `arc init` / `arc join` (identity, role, tools), `arc release setup
+install` / `arc release opt-in` (release-wrapper opt-in), or direct `git config arc.<key>` edits (autonomy
+interlocks and frontline source). See
 [Personal Configuration via Git Config](#personal-configuration-via-git-config) for the full key reference.
 
 ### Tier 3 in config

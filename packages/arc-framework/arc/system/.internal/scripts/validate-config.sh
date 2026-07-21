@@ -152,6 +152,22 @@ validate_enum "session.init_load.notes" "manual prompt always" "prompt"
 # User directory
 validate_enum "user.notes_push" "manual prompt on-sync" "on-sync"
 
+# Review source: optional safe registry ID, never shell text.
+frontline_source=$(arc_config_get "review.frontline_source" "")
+if [ -n "$frontline_source" ]; then
+    case "$frontline_source" in
+        [a-z]* )
+            case "$frontline_source" in
+                *[!a-z0-9-]* | *--* | *-)
+                    error "review.frontline_source must be a lowercase registry ID (got '$frontline_source')"
+                    ;;
+                *) pass "review.frontline_source is a safe registry ID" ;;
+            esac
+            ;;
+        *) error "review.frontline_source must be a lowercase registry ID (got '$frontline_source')" ;;
+    esac
+fi
+
 # Sync
 validate_enum "sync.auto_pull" "false true" "false"
 
@@ -221,7 +237,7 @@ fi
 # Unknown key detection (typo protection)
 # ============================================================================
 
-known_keys="branch.base branch.protection worktree.location_template worktree.post_create worktree.harness_dirs commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.pre_push hooks.task_numbering hooks.skip_extensions hooks.test_patterns hooks.meta_ref_patterns hooks.strict_meta_ref_patterns hooks.subject_max_length hooks.subject_warn_length hooks.body_max_lines hooks.body_max_line_length hooks.contributor_protected_paths platform.type pm.mode team.mode session.remote_sync session.init_pull.worktree session.init_pull.notes session.init_pull.base session.init_load.notes sync.auto_pull user.notes_push archive.cadence inbox.remind_after_days integration.stale_after_days"
+known_keys="branch.base branch.protection worktree.location_template worktree.post_create worktree.harness_dirs commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.pre_push hooks.task_numbering hooks.skip_extensions hooks.test_patterns hooks.meta_ref_patterns hooks.strict_meta_ref_patterns hooks.subject_max_length hooks.subject_warn_length hooks.body_max_lines hooks.body_max_line_length hooks.contributor_protected_paths platform.type review.frontline_source pm.mode team.mode session.remote_sync session.init_pull.worktree session.init_pull.notes session.init_pull.base session.init_load.notes sync.auto_pull user.notes_push archive.cadence inbox.remind_after_days integration.stale_after_days"
 
 for key in $(arc_config_keys); do
     found=false
