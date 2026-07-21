@@ -18,10 +18,18 @@ const target = createReviewTarget({
   headSha: oid("c"),
   headTree: oid("c"),
 });
-const cleanOutput = "CodeRabbit Review\nReview complete\nNo findings ✔\n1 file reviewed:\n- src/index.ts\n";
+const cleanOutput = [
+  JSON.stringify({ type: "status", phase: "analyzing", status: "reviewing" }),
+  JSON.stringify({
+    type: "complete",
+    status: "review_completed",
+    findings: 0,
+    reviewedFiles: ["src/index.ts"],
+  }),
+].join("\n");
 
 describe("CodeRabbit frontline execution", () => {
-  it("binds the project source to direct plain argv and the exact diff base", async () => {
+  it("binds the project source to structured agent argv and the exact diff base", async () => {
     const run = vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout: cleanOutput, stderr: "" });
     const readHead = vi.fn().mockResolvedValue(target.headSha);
 
@@ -37,9 +45,47 @@ describe("CodeRabbit frontline execution", () => {
       target: { targetId: target.targetId },
     });
     expect(run).toHaveBeenCalledWith("coderabbit", [
-      "review", "--plain", "--type", "committed", "--base-commit", target.diffBaseSha,
+      "review", "--agent", "--type", "committed", "--base-commit", target.diffBaseSha,
     ]);
     expect(readHead).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves structured findings for author-side triage", async () => {
+    const finding = {
+      type: "finding",
+      severity: "major",
+      fileName: "src/index.ts",
+      codegenInstructions: "In src/index.ts around line 5, preserve the exact target binding.",
+      suggestions: [],
+    };
+    const stdout = [
+      JSON.stringify(finding),
+      JSON.stringify({
+        type: "complete",
+        status: "review_completed",
+        findings: 1,
+        reviewedFiles: [finding.fileName],
+      }),
+    ].join("\n");
+
+    await expect(executeCodeRabbitFrontline({
+      source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      cliVersion: "0.6.5",
+    }, {
+      run: vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout, stderr: "" }),
+      readHead: vi.fn().mockResolvedValue(target.headSha),
+    })).resolves.toMatchObject({
+      outcome: "findings",
+      findings: [{
+        findingId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+        severity: "major",
+        locus: finding.fileName,
+        evidenceUrlOrId: finding.codegenInstructions,
+      }],
+    });
   });
 
   it("surfaces rate limiting as unavailable and keeps the hosted provider identity separate", async () => {

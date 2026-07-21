@@ -129,9 +129,12 @@ describe("local forward receipt authority", () => {
     const records = await fixture();
     await records.store.appendReceipt(records.receipt, 0);
     await records.store.appendReceipt({ ...records.receipt, reviewRunId: "run-2" }, 1);
+    const path = join(records.commonDir, "arc", "review-gate", "evidence", "receipts-v2.json");
+    const before = await readFile(path, "utf8");
 
     await expect(records.store.appendReceipt(records.receipt, 2))
       .resolves.toMatchObject({ ledgerVersion: 2 });
+    await expect(readFile(path, "utf8")).resolves.toBe(before);
   });
 
   it("refuses conflicting replay and stale versions without changing durable state", async () => {

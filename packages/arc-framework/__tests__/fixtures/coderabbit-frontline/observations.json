@@ -7,8 +7,9 @@
   },
   "qualification": {
     "bounded": true,
-    "structuredContractInferred": false,
-    "selectedMode": "plain-compatibility",
+    "structuredContractInferred": true,
+    "selectedMode": "agent",
+    "agentFindingsQualified": true,
     "plainFindingsQualified": false
   },
   "observations": [
@@ -53,20 +54,32 @@
     },
     {
       "shape": "findings",
-      "observed": false,
-      "boundedProbe": {
-        "command": [
-          "review",
-          "--agent",
-          "--light",
-          "--type",
-          "committed",
-          "--dir",
-          "packages/arc-framework/src/scripts/review-gate/policy"
-        ],
-        "lastEvent": { "type": "heartbeat", "status": "reviewing" },
-        "termination": "bounded-observation-window-exhausted"
-      }
+      "observed": true,
+      "command": [
+        "review",
+        "--agent",
+        "--base-commit",
+        "b35c2ffc0",
+        "--dir",
+        "packages/arc-framework/__tests__"
+      ],
+      "events": [
+        {
+          "type": "finding",
+          "severity": "minor",
+          "fileName": "packages/arc-framework/__tests__/unit/scripts/review-gate/policy/routing.test.ts",
+          "codegenInstructions": "Verify each finding against current code. In routing.test.ts around lines 106 - 113, assert the complete normalized facts and diagnostics.",
+          "suggestions": []
+        },
+        {
+          "type": "complete",
+          "status": "review_completed",
+          "findings": 1,
+          "reviewedFiles": [
+            "packages/arc-framework/__tests__/unit/scripts/review-gate/policy/routing.test.ts"
+          ]
+        }
+      ]
     }
   ],
   "plainObservations": [

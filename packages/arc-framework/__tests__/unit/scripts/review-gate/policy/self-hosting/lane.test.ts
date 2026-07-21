@@ -88,6 +88,14 @@ describe("self-hosting ownership", () => {
     })).resolves.toEqual({ relation: "ownerless" });
   });
 
+  it("rejects a lifecycle-root sibling that only shares the active prefix", async () => {
+    await expect(resolveOwnership({
+      ...common,
+      exec: execWith({}),
+      changes: [{ status: "modified", path: ".arc/active-old/cohort-sample.md" }],
+    })).resolves.toEqual({ relation: "not-applicable" });
+  });
+
   it("treats non-applicable and ownerless members as neutral beside one known owner", async () => {
     await expect(resolveOwnership({
       ...common,

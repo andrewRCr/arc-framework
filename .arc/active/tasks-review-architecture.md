@@ -568,24 +568,25 @@ that shapes review spend without producing satisfying evidence.
 
     - `[x]` **5.3.a Capture bounded `--agent` qualification fixtures**
         - Recorded sanitized CodeRabbit CLI `0.6.5` agent observations for empty-uncommitted and clean scoped-directory
-          completion, plus synthetic injected-command cases for rate limit, malformed output, stale head, refusal,
-          and process failure. A single bounded committed probe never reached a findings result, so that required
-          success shape remains explicitly unobserved rather than inferred or pursued through wider repeated probes.
+          completion, then added the findings shape observed during a bounded committed fix-delta review. Synthetic
+          injected-command cases cover rate limit, malformed output, stale head, refusal, and process failure without
+          deliberately provoking those live-provider states.
 
     - `[x]` **5.3.b Select structured or plain compatibility parsing**
-        - Selected version-pinned `--plain` compatibility because the bounded agent probe did not establish a findings
-          contract. The CLI `0.6.5` parser emits clean only for the fixture-proven `Review complete` plus `No findings`
-          and reviewed-file markers; version drift, unknown/empty output, rate limit, stale head, refusal, or process
-          failure stays non-clean. Findings parsing remains disabled until an explicit provider shape is observed.
+        - Selected version-pinned `--agent` parsing after bounded observations established both clean and findings
+          contracts. The CLI `0.6.5` NDJSON parser accepts validated finding events plus one successful terminal event;
+          count mismatch, duplicate completion or finding identity, skipped/unknown/empty output, version drift, rate
+          limit, stale head, refusal, and process failure stay non-clean. The plain parser remains compatibility code.
 
     - `[x]` **5.3.c Integrate CodeRabbit frontline execution**
-        - Bound self-hosting source `coderabbit-cli` to a direct `coderabbit review --plain --type committed` adapter
+        - Bound self-hosting source `coderabbit-cli` to a direct `coderabbit review --agent --type committed` adapter
           with exact diff-base argv and before/after HEAD checks. Pinned parsing feeds provider-neutral outcomes,
-          including truthful rate-limit unavailability; hosted `coderabbit-pr` remains a separate provider identity.
+          preserves structured findings for author-side triage, and reports truthful rate-limit unavailability;
+          hosted `coderabbit-pr` remains a separate provider identity.
 
-- _Outcome:_ Bounded qualification selected a conservative plain-mode adapter: exact clean output is useful now,
-  while findings await an observed contract and every unknown or failed shape stays non-clean. The project binding
-  activates only the local CLI source and does not alter hosted review capacity or evidence authority.
+- _Outcome:_ Bounded qualification selected the structured agent-mode adapter for both exact clean and findings
+  outcomes while every unknown or failed shape stays non-clean. The project binding activates only the local CLI
+  source and does not alter hosted review capacity or evidence authority.
 
 ### `[x]` **5.4 Wire frontline into work-unit and Errand publication**
 

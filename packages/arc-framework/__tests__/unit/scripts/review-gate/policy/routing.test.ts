@@ -103,13 +103,33 @@ describe("review routing bases", () => {
       activity: { selfReview: true, frontlineReview: true },
     }));
 
-    expect(result.facts).toMatchObject({
+    expect(result.facts).toEqual({
       changeSetState: "unknown",
       contentKind: "code-bearing",
       reviewRisk: "sensitive",
+      changeDeterminacy: "ordinary",
+      ownership: "unknown",
+      surfaceAuthority: "unknown",
       assurance: { workContext: "unscoped", workClass: "Heavy" },
+      activity: { selfReview: true, frontlineReview: true },
+      schemaVersion: 1,
     });
-    expect(result.diagnostics).toContain("$");
+    expect(result.diagnostics).toEqual([
+      "$",
+      "activity",
+      "activity.frontlineReview",
+      "activity.selfReview",
+      "assurance",
+      "assurance.workClass",
+      "assurance.workContext",
+      "changeDeterminacy",
+      "changeSetState",
+      "contentKind",
+      "ownership",
+      "reviewRisk",
+      "schemaVersion",
+      "surfaceAuthority",
+    ]);
   });
 
   it("keeps the sensitive floor above determinacy", () => {

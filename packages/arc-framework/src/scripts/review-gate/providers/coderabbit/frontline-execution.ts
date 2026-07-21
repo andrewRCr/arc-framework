@@ -6,14 +6,14 @@ import type {
   FrontlineSourceDescriptor,
   FrontlineSourceRegistration,
 } from "../../policy/frontline-source.js";
-import { parseCodeRabbitPlainResult } from "./frontline-plain.js";
+import { parseCodeRabbitAgentResult } from "./frontline-agent.js";
 
 export const CODERABBIT_FRONTLINE_REGISTRATION: FrontlineSourceRegistration = {
   sourceId: "coderabbit-cli",
   descriptor: {
     kind: "command",
     executable: "coderabbit",
-    argv: ["review", "--plain", "--type", "committed"],
+    argv: ["review", "--agent", "--type", "committed"],
   },
 };
 
@@ -25,7 +25,7 @@ interface CodeRabbitProcessResult {
 }
 
 /**
- * Execute the pinned plain adapter against one exact diff base and normalize its truthful outcome.
+ * Execute the pinned structured adapter against one exact diff base and normalize its truthful outcome.
  *
  * @param input - Resolved CodeRabbit source, exact target, pass, and observed CLI version.
  * @param dependencies - Direct process and current-HEAD ports.
@@ -62,7 +62,7 @@ export async function executeCodeRabbitFrontline(input: {
     processResult = { exitCode: null, signal: "process-error", stdout: "", stderr: "" };
   }
   const after = await dependencies.readHead();
-  const providerResult = parseCodeRabbitPlainResult({
+  const providerResult = parseCodeRabbitAgentResult({
     cliVersion: input.cliVersion,
     ...processResult,
     expectedHead: input.target.headSha,

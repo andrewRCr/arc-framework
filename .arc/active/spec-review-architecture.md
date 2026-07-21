@@ -786,13 +786,13 @@ but is not a review receipt and cannot enter gate reduction. Publication orderin
 resolution/preparation/execution → approved fix, gates, commit, and push → optional bounded follow-up → generic
 `pre-pr-open` → change-request creation.
 
-The self-hosting CodeRabbit adapter uses `--agent` only after bounded live probes establish the naturally observable
-clean/findings/empty/scoped response shapes for the pinned version. Sanitized recorded or synthetic injected-command
-fixtures prove rate-limit, malformed, stale-head, refusal, and process-failure handling; qualification never depends
-on deliberately provoking those live-provider states. If a required success shape cannot be observed within the
-bounded probe, the adapter keeps `--plain` compatibility rather than inferring the structured contract. The plain
-parser may emit `findings` from explicit parsed findings, but may emit `clean` only for a fixture-proven explicit
-clean marker. Empty output, unknown prose, parse drift, refusal, and command failure remain non-clean.
+The self-hosting CodeRabbit adapter uses version-pinned `--agent` output after bounded live probes established the
+naturally observable clean, findings, empty, and scoped response shapes. Sanitized recorded or synthetic
+injected-command fixtures prove rate-limit, malformed, stale-head, refusal, and process-failure handling;
+qualification never depends on deliberately provoking those live-provider states. The NDJSON parser emits findings
+only from validated finding events and clean only from one complete successful terminal event whose declared count
+matches the parsed findings. Missing, duplicate, unknown, malformed, partial, skipped, stale-head, refused, and
+failed output remains non-clean. The `--plain` parser remains compatibility code but is not the selected adapter.
 
 ### 4. `review-triage` contract upgrade — the disposition invariant and two axes
 
@@ -1123,10 +1123,4 @@ Validated at work-unit completion:
 
 ## Open Questions
 
-- **CodeRabbit `--agent` structured output** (bounded implementation validation, not architecture). CLI 0.6.5
-  advertises `--agent` as structured findings but does not publish its schema through `--help`; no stored review
-  exists in this worktree to inspect without spending a review. Bound live probes to naturally observable
-  clean/findings/empty/scoped shapes; qualify rate-limit, malformed, stale-head, refusal, and process-failure paths
-  through sanitized recorded or synthetic injected-command fixtures. Retain `--plain` as compatibility fallback
-  whenever a required structured success shape cannot be observed within the bound. This cannot reopen the
-  architecture or block the existing project binding.
+[none]

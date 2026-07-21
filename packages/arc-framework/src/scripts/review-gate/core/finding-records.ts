@@ -53,7 +53,7 @@ export type ProviderFindingSeverity = z.infer<typeof ProviderFindingSeveritySche
  */
 export function hasExplicitPurePolishMarker(body: string): boolean {
   return /\[nit\]/iu.test(body)
-    || /(?:^|\n)[^\w\n]*(?:nitpick|pure[- ]polish)\b/iu.test(body);
+    || /(?:^|\n)[^\w\n]*(?:(?:nitpick|pure[- ]polish)\s*(?::|[-—])|(?:nitpick|pure[- ]polish)(?:\s+comments?\s*(?:\(\d+\))?)?\s*(?=\r?(?:\n|$)))/iu.test(body);
 }
 
 /**

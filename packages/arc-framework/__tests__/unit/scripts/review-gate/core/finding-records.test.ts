@@ -111,6 +111,8 @@ describe("normalized finding records", () => {
     "This is not a nitpick — it drops a required guard.",
     "Beyond pure polish, this breaks the version contract.",
     "The nitpick threshold does not apply to this finding.",
+    "Nitpick is not applicable here.",
+    "pure polish is not applicable here.",
   ])("does not treat prose mentioning polish as a marker: %j", (body) => {
     expect(hasExplicitPurePolishMarker(body)).toBe(false);
   });
