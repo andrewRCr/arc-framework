@@ -142,7 +142,7 @@ grooming, or housekeeping state.
 - _Outcome:_ Transient identity now has one strict compatibility authority: v3 records project losslessly into the
   locus model, invalid tree entries remain visible, and legacy generations cannot acquire new mutation rights.
 
-### `[ ]` **2.2 Implement complete-basis identity CAS transitions and claim retirement** — D8
+### `[x]` **2.2 Implement complete-basis identity CAS transitions and claim retirement** — D8
 
 - _Goal:_ Every identity transition and cross-key exclusion claim is based on the complete remote/local tree,
   preserves unrelated keys, and cannot blind-upsert over another session or retire an unproven review tail.
@@ -167,17 +167,16 @@ grooming, or housekeeping state.
           monotonic lane escalation. Narrow conflict resolvers preserve default divergent-key refusal, while exact
           rollback and recovery-required outcomes retain failed allocations for explicit resume or abandon work.
 
-    - `[ ]` **2.2.d Gate tail retirement and abandonment on exact host truth**
-        - Add a narrow developer-authenticated change-request lifecycle port in shared CLI code rather than treating
-          `ReviewProviderAdapter` as lifecycle authority; reuse the argument-array `gh` process seam and validated
-          GitHub parsing without pulling review-gate App composition into ordinary commands.
-        - Validate the configured repository/base against stored repository/host/base/head coordinates and return
-          exactly `merged | open | closed-unmerged | changed-head | missing | ambiguous | unreachable`.
-        - Retire only a matching merged change request; allow awaiting-merge abandonment only for exact
-          closed-unmerged truth, and refuse every other result.
-        - Build `test-first` (one behavior at a time):
-            - Cover every lifecycle result, repository/base mismatch, moved head/ref, authentication failure,
-              malformed host data, and squash/rebase merge truth independent of branch containment.
+    - `[x]` **2.2.d Gate tail retirement and abandonment on exact host truth**
+        - Added a shared, developer-authenticated `gh` lifecycle port that validates configured and stored coordinates,
+          detects moved heads or refs, and emits only the closed seven-state truth vocabulary. Nominal evidence now
+          authorizes exact-generation retirement only for matching merged truth, or explicit tail abandonment only
+          for matching closed-unmerged truth; malformed, ambiguous, missing, open, changed, and unreachable reads
+          retain the claim without relying on branch containment or review-provider state.
+
+- _Outcome:_ Transient identities now mutate through one complete-basis CAS authority with narrow, domain-specific
+  conflict adoption. Every generation, exclusion claim, remote-backed pause, and review-tail retirement remains
+  exact and retry-safe, while incomplete storage or host evidence fails closed without dropping unrelated identities.
 
 ## **Phase 3:** Locus Reader and Mutation Core
 

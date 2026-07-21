@@ -96,6 +96,17 @@ export {
 } from "./identity-claims.js";
 
 export {
+  createGhChangeRequestLifecyclePort,
+  transientTailRetirementTransform,
+  type ChangeRequestLifecycleConfiguration,
+  type ChangeRequestLifecycleTruth,
+  type ChangeRequestLifecycleEvidence,
+  type ChangeRequestLifecyclePort,
+  type TransientIdentityTailRecord,
+  type TransientTailRetirementRequest,
+} from "./change-request-lifecycle.js";
+
+export {
   mergeErrandTrees,
   reconcileErrandPush,
   incomingErrandRef,

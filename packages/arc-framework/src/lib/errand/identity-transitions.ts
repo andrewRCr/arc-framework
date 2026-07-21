@@ -10,6 +10,7 @@ import { uniqueRefToken } from "../git/ref-tree.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import type { GitExec } from "../git/exec.js";
 import type { IdentityTransformDecision } from "./identity-transaction.js";
+import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
 import type { LocusChangeRequestV1 } from "../locus/schema/index.js";
 
 const pauseHeadEvidenceBrand: unique symbol = Symbol("PauseHeadEvidence");
@@ -73,12 +74,10 @@ export type OrdinaryErrandTransition =
       updatedAt: string;
     }
   | { kind: "resume"; previous: OrdinaryErrandRecord; updatedAt: string }
-  | {
-      kind: "retire";
-      previous: OrdinaryErrandRecord;
-      reason: "promotion" | "close" | "abandon";
-      authorization: "local" | "merged" | "closed-unmerged";
-    };
+  | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "promotion"; authorization: "local" }
+  | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "close"; lifecycle: ChangeRequestLifecycleEvidence }
+  | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "abandon"; authorization: "local" }
+  | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "abandon"; lifecycle: ChangeRequestLifecycleEvidence };
 
 /** Synchronous pure transform for an ordinary Errand request. */
 export type OrdinaryErrandTransform = (
@@ -314,19 +313,37 @@ function desiredRecord(request: Exclude<OrdinaryErrandTransition, { kind: "creat
 function retirementDesired(
   request: Extract<OrdinaryErrandTransition, { kind: "retire" }>,
 ): DesiredResult {
-  const { previous, reason, authorization } = request;
-  if (reason === "promotion" && previous.state === "open" && authorization === "local") {
+  const { previous, reason } = request;
+  if (reason === "promotion" && previous.state === "open" && hasLocalAuthorization(request)) {
     return { kind: "desired", record: null };
   }
-  if (reason === "close" && previous.state === "awaiting-merge" && authorization === "merged") {
+  if (reason === "close" && previous.state === "awaiting-merge"
+    && lifecycleAuthorizes(request.lifecycle, previous.changeRequest, "merged")) {
     return { kind: "desired", record: null };
   }
-  if (reason === "abandon"
-    && ((previous.state !== "awaiting-merge" && authorization === "local")
-      || (previous.state === "awaiting-merge" && authorization === "closed-unmerged"))) {
+  if (reason === "abandon" && previous.state !== "awaiting-merge"
+    && hasLocalAuthorization(request)) {
+    return { kind: "desired", record: null };
+  }
+  if (reason === "abandon" && previous.state === "awaiting-merge"
+    && "lifecycle" in request
+    && lifecycleAuthorizes(request.lifecycle, previous.changeRequest, "closed-unmerged")) {
     return { kind: "desired", record: null };
   }
   return { kind: "refused", reason: `Retirement authorization is invalid for ${reason}@${previous.state}` };
+}
+
+function hasLocalAuthorization(request: object): boolean {
+  return "authorization" in request
+    && (request as { authorization?: unknown }).authorization === "local";
+}
+
+function lifecycleAuthorizes(
+  evidence: ChangeRequestLifecycleEvidence,
+  changeRequest: LocusChangeRequestV1,
+  required: "merged" | "closed-unmerged",
+): boolean {
+  return evidence.kind === required && changeRequestsEqual(evidence.changeRequest, changeRequest);
 }
 
 function isOrdinaryErrand(record: TransientIdentityRecord): record is OrdinaryErrandRecord {

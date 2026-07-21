@@ -11,6 +11,10 @@ import {
   type OrdinaryErrandRecord,
   type PauseHeadEvidence,
 } from "../../src/lib/errand/identity-transitions.js";
+import type {
+  ChangeRequestLifecycleEvidence,
+  ChangeRequestLifecycleTruth,
+} from "../../src/lib/errand/change-request-lifecycle.js";
 
 const createdAt = "2026-07-18T00:00:00.000Z";
 const updatedAt = "2026-07-18T00:01:00.000Z";
@@ -60,6 +64,13 @@ function pauseEvidence(overrides: Partial<PauseHeadEvidence> = {}): PauseHeadEvi
     savedHeadIsAncestor: true,
     ...overrides,
   } as PauseHeadEvidence;
+}
+
+function lifecycleEvidence(
+  kind: ChangeRequestLifecycleTruth,
+  coordinates = changeRequest,
+): ChangeRequestLifecycleEvidence {
+  return { kind, changeRequest: coordinates } as ChangeRequestLifecycleEvidence;
 }
 
 describe("ordinary Errand identity transitions", () => {
@@ -198,19 +209,22 @@ describe("ordinary Errand identity transitions", () => {
       kind: "retire" as const,
       previous: awaiting,
       reason: "close" as const,
-      authorization: "merged" as const,
+      lifecycle: lifecycleEvidence("merged"),
     };
     expect(apply(new Map([[awaiting.slug, awaiting]]), close)).toMatchObject({ kind: "applied" });
     expect(apply(new Map(), close)).toMatchObject({ kind: "idempotent" });
-    expect(apply(new Map([[awaiting.slug, awaiting]]), {
-      kind: "retire", previous: awaiting, reason: "close", authorization: "merged",
-    })).toMatchObject({ kind: "applied" });
     const abandonTail = { kind: "retire" as const, previous: awaiting, reason: "abandon" as const,
-      authorization: "closed-unmerged" as const };
+      lifecycle: lifecycleEvidence("closed-unmerged") };
     expect(apply(new Map([[awaiting.slug, awaiting]]), abandonTail)).toMatchObject({ kind: "applied" });
     expect(apply(new Map(), abandonTail)).toMatchObject({ kind: "idempotent" });
     expect(apply(new Map([[awaiting.slug, awaiting]]), {
-      kind: "retire", previous: awaiting, reason: "close", authorization: "local",
+      kind: "retire", previous: awaiting, reason: "close", lifecycle: lifecycleEvidence("open"),
+    })).toMatchObject({ kind: "refused" });
+    expect(apply(new Map([[awaiting.slug, awaiting]]), {
+      kind: "retire",
+      previous: awaiting,
+      reason: "close",
+      lifecycle: lifecycleEvidence("merged", { ...changeRequest, headSha: remoteTip }),
     })).toMatchObject({ kind: "refused" });
   });
 
