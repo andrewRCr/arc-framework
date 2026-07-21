@@ -140,9 +140,9 @@ onto stable code-facing fields without losing tolerant recovery.
         - Moved cohort and current-workflow consistency onto semantic cohort values and parsed design arrays while
           retaining active-status narrative parsing and the established warning text.
 
-    - `[ ]` **2.5.c Migrate Git roster and in-flight derivation**
-        - Update `git/worktree-roster.ts` and `git/in-flight-derivation.ts` while retaining field-level degradation:
-          invalid state becomes `unknown` without discarding other scheduling or path evidence.
+    - `[x]` **2.5.c Migrate Git roster and in-flight derivation**
+        - Moved worktree roster and in-flight derivation onto semantic records while preserving display-facing
+          unresolved values and field-level degradation when state is invalid or metadata is unreadable.
 
     - `[ ]` **2.5.d Migrate base and session-resolution adapters**
         - Update `base-drift/current-adapters.ts` and `session-init/cohort-doc.ts`, preserving their current fail or

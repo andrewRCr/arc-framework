@@ -12,9 +12,8 @@
 
 import { validateState, type WorkUnitState } from "../../commands/active/types.js";
 import {
-  parseIdentifierList,
-  parseMetaProjectionRecord,
-  type MetaProjectionRecord,
+  parseMetaRecord,
+  type ParsedMetaRecord,
 } from "../active/meta-reader.js";
 
 import type { GitExec } from "./exec.js";
@@ -253,7 +252,7 @@ interface MetaCandidate {
   name: string;
   metaFilePath: string;
   /** Parsed record — present iff the meta was read and parsed without error. */
-  record?: MetaProjectionRecord;
+  record?: ParsedMetaRecord;
   /** Set when the meta file could not be read. */
   readError?: string;
   /** Set when the meta was read but its core-block table is malformed. */
@@ -297,12 +296,12 @@ async function resolveEntry(
   // branch. Disambiguates active/ states where stale or unrelated meta files
   // coexist with the live one.
   const readable = candidates.filter(
-    (c): c is MetaCandidate & { record: MetaProjectionRecord } => c.record !== undefined,
+    (c): c is MetaCandidate & { record: ParsedMetaRecord } => c.record !== undefined,
   );
   const candidateWarnings = candidates
     .filter((c) => c.record === undefined)
     .map(unreadableWarning);
-  const matches = readable.filter((c) => c.record.Branch === wt.branch);
+  const matches = readable.filter((c) => c.record.branch === wt.branch);
   const activeDir = `${wt.path}/.arc/active`;
   const inventory = metaFiles.join(", ");
 
@@ -359,7 +358,7 @@ async function readCandidate(
     };
   }
   try {
-    return { name, metaFilePath, record: parseMetaProjectionRecord(content) };
+    return { name, metaFilePath, record: parseMetaRecord(content) };
   } catch (err) {
     return {
       name,
@@ -384,23 +383,20 @@ function unreadableWarning(c: MetaCandidate): string {
 function buildEntry(
   wt: { path: string; branch: string },
   metaFilePath: string,
-  record: MetaProjectionRecord,
+  record: ParsedMetaRecord,
 ): WorktreeRosterEntry {
-  const identity = record.Owner;
-  const stateRaw = record.State;
-  const cohortRaw = record.Cohort;
-  const classRaw = record.Class;
-  const priorityRaw = record.Priority;
-  const dependsOn = parseIdentifierList(record["Depends On"]);
+  const { owner: identity, state: stateRaw, cohort: cohortRaw, dependsOn } = record;
+  const classRaw = record.workClass === "TBD" ? "[TBD]" : record.workClass;
+  const priorityRaw = record.priority === "TBD" ? "[TBD]" : record.priority;
   return {
     worktreePath: wt.path,
     branch: wt.branch,
     metaFilePath,
     ...(identity !== null ? { identity } : {}),
     ...(stateRaw !== null ? { state: validateState(stateRaw) } : {}),
-    ...(cohortRaw !== null && cohortRaw !== "[none]" ? { cohort: cohortRaw } : {}),
+    ...(cohortRaw !== null ? { cohort: cohortRaw } : {}),
     ...(classRaw !== null ? { class: classRaw } : {}),
-    ...(priorityRaw !== null && priorityRaw !== "[none]" ? { priority: priorityRaw } : {}),
+    ...(priorityRaw !== null ? { priority: priorityRaw } : {}),
     ...(dependsOn.length > 0 ? { dependsOn } : {}),
   };
 }
