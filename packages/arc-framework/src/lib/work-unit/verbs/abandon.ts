@@ -34,7 +34,7 @@
 
 import { basename, join, posix } from "node:path";
 
-import { parseMetaProjectionRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
 import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
 import { DISCARD_RESULT, receiptId } from "../../canonical/receipt-id.js";
@@ -179,7 +179,7 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
   const inputs: TransitionInputs = { confirmed };
 
   if (IN_VERB_BRANCH_DELETE.has(state) && meta !== null) {
-    inputs.branchOp = { mutation: "delete", branch: meta.Branch ?? "[none]" };
+    inputs.branchOp = { mutation: "delete", branch: meta.branch ?? "[none]" };
   }
 
   const scaffoldOrRemove = buildRemoveRunner(executor.cwd, fs);
@@ -197,7 +197,7 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
     source = await retirement.captureSource({
       name,
       sourceDir: posix.dirname(entry.path),
-      expectedBranch: STARTED.has(state) ? meta?.Branch ?? null : null,
+      expectedBranch: STARTED.has(state) ? meta?.branch ?? null : null,
     });
   } catch (err) {
     return {
@@ -333,8 +333,8 @@ async function rollbackAbandon(
 async function readMeta(
   executor: AbandonContext["executor"],
   relPath: string,
-): Promise<Record<MetaFieldName, string | null>> {
-  return parseMetaProjectionRecord(await executor.indexFs.readFile(join(executor.cwd, relPath)));
+): Promise<ParsedMetaRecord> {
+  return parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, relPath)));
 }
 
 /**

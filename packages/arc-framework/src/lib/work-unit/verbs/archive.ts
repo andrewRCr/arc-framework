@@ -35,7 +35,7 @@
 import { join } from "node:path";
 
 import { cohortLeaf, cohortParent, isSafeCohortPath } from "../../active/cohort-path.js";
-import { parseMetaProjectionRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
 import {
   computeArchiveDestination,
   type ArchiveDestination,
@@ -125,9 +125,9 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   const { executor, fs, clock } = ctx;
 
   const sourceMetaPath = `${ACTIVE_DIR}/meta-${name}.md`;
-  let record: Record<MetaFieldName, string | null>;
+  let record: ParsedMetaRecord;
   try {
-    record = parseMetaProjectionRecord(await executor.indexFs.readFile(join(executor.cwd, sourceMetaPath)));
+    record = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, sourceMetaPath)));
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not a started WU in \`active/\` — nothing to archive.` };
   }
@@ -182,7 +182,7 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   // last member to ship.
   const postIndex = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
   const sweepArgs = {
-    cohort: record.Cohort,
+    cohort: record.cohort,
     quarter: destination.quarter,
     sequence: destination.sequence,
   };

@@ -29,7 +29,7 @@
 
 import { join } from "node:path";
 
-import { parseMetaProjectionRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
 import {
   executeTransition,
   type ExecuteTransitionContext,
@@ -81,15 +81,15 @@ export async function runActivate(ctx: ExecuteTransitionContext, params: Activat
   const { name, toBranch, nextTask, nextAction } = params;
   const metaPath = `${ACTIVE_DIR}/meta-${name}.md`;
 
-  let record: Record<MetaFieldName, string | null>;
+  let record: ParsedMetaRecord;
   try {
-    record = parseMetaProjectionRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
+    record = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not a planning WU in \`active/\` — nothing to activate.` };
   }
 
-  const branch = record.Branch;
-  if (branch === null || branch.trim() === "" || branch === "[none]") {
+  const branch = record.branch;
+  if (branch === null || branch.trim() === "") {
     return { status: "rejected", reason: `\`${name}\` has no tracked branch in meta — refusing to activate.` };
   }
   const outcome = await executeTransition(ctx, {
@@ -121,15 +121,15 @@ export async function runDeactivate(
   const { name } = params;
   const metaPath = `${ACTIVE_DIR}/meta-${name}.md`;
 
-  let record: Record<MetaFieldName, string | null>;
+  let record: ParsedMetaRecord;
   try {
-    record = parseMetaProjectionRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
+    record = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not an active WU in \`active/\` — nothing to deactivate.` };
   }
 
-  const branch = record.Branch;
-  if (branch === null || branch.trim() === "" || branch === "[none]") {
+  const branch = record.branch;
+  if (branch === null || branch.trim() === "") {
     return { status: "rejected", reason: `\`${name}\` has no tracked branch in meta — refusing to deactivate.` };
   }
   const outcome = await executeTransition(ctx, {

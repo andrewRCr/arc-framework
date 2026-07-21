@@ -102,9 +102,9 @@ onto stable code-facing fields without losing tolerant recovery.
         - Moved lifecycle and explicit-view reads onto semantic fields and parsed design arrays, including the typed
           park handoff, while preserving transition selection, output text, narrow results, and warning behavior.
 
-    - `[ ]` **2.4.c Migrate activation and terminal transitions**
-        - Update `verbs/activate-deactivate.ts`, `verbs/archive.ts`, and `verbs/abandon.ts` in one characterized
-          transition group, retaining projection writes and existing refusal behavior.
+    - `[x]` **2.4.c Migrate activation and terminal transitions**
+        - Migrated activation, deactivation, archive, and abandon reads to semantic branch and cohort fields while
+          retaining localized projection writes and established transition refusals.
 
     - `[ ]` **2.4.d Migrate decomposition readers and rewrites**
         - Update `verbs/decompose.ts`, `decompose-sweep.ts`, and `decompose-retirement-driver.ts` to semantic lists
