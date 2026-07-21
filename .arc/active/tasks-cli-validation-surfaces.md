@@ -203,14 +203,11 @@ the distinct recovery and precedence policies of existing adapters.
           Config rendering and generic YAML override resolution now use catalog-owned keys and defaults without
           introducing YAML tiers for per-developer-only settings.
 
-    - `[ ]` **3.2.c Migrate strict commit-check configuration**
-        - Derive the commit-check key subset and `COMMIT_CHECK_DEFAULTS` from catalog descriptors, then reuse the
-          relevant leaves without moving commit-message policy into the authorable record schema.
-        - Preserve the disabled-hook short circuit, numeric normalization, custom-pattern pass-through, and exact
-          `config.invalid-value` / `config.invalid-number` findings.
-        - Build `test-first` (one behavior at a time):
-            - preserve disabled, active, and invalid policy resolutions;
-            - preserve numeric boundary normalization and exact configuration findings.
+    - `[x]` **3.2.c Migrate strict commit-check configuration**
+        - Derived the eight-key projection, defaults, enum types and domains, and exact positive-integer validation
+          from catalog descriptors while retaining commit-check-owned normalization and findings. Disabled hooks
+          still short-circuit unrelated failures, custom patterns pass through unchanged, and invalid domains retain
+          their existing `config.invalid-value` and `config.invalid-number` contracts.
 
     - `[ ]` **3.2.d Migrate worktree configuration adapters**
         - Reuse catalog leaves in `git/worktree-location.ts` and `git/worktree-harness-dirs.ts` while retaining token

@@ -212,6 +212,12 @@ export type ArcConfigField = (typeof ARC_CONFIG_FIELDS)[number];
 /** Every active project-level configuration key. */
 export type ArcConfigKey = ArcConfigField["key"];
 
+/** Enum-domain value registered for one enum-backed configuration key. */
+export type ArcConfigEnumValue<Key extends ArcConfigKey> = Extract<
+  Extract<ArcConfigField, { key: Key }>["policy"],
+  { kind: "enum" }
+>["values"][number];
+
 /**
  * Resolve one catalog descriptor while preserving its key-specific type.
  *
@@ -227,6 +233,21 @@ export function getArcConfigField<Key extends ArcConfigKey>(
   }
   return field as Extract<ArcConfigField, { key: Key }>;
 }
+
+/** Ordered project fields consumed by commit-message validation. */
+export const COMMIT_CHECK_CONFIG_FIELDS = [
+  getArcConfigField("hooks.commit_msg"),
+  getArcConfigField("commit.format"),
+  getArcConfigField("commit.context_footer"),
+  getArcConfigField("commit.custom_pattern"),
+  getArcConfigField("commit.context_pattern"),
+  getArcConfigField("hooks.subject_max_length"),
+  getArcConfigField("hooks.body_max_lines"),
+  getArcConfigField("hooks.body_max_line_length"),
+] as const;
+
+/** Project-configuration key consumed by commit-message validation. */
+export type CommitCheckConfigKey = (typeof COMMIT_CHECK_CONFIG_FIELDS)[number]["key"];
 
 type KnownConfigShape = {
   [Key in ArcConfigKey]: Extract<ArcConfigField, { key: Key }>["schema"];
