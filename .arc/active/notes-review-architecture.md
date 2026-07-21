@@ -6,6 +6,7 @@
 - Touched-surface map (task-gen scoping)
 - Key implementation loci
 - Pre-integration review record
+- Integration review closure
 
 ## Scope and proportionality boundaries
 
@@ -167,3 +168,23 @@ The decomposition's own failure modes were recorded and routed to the work unit 
 mechanism's cost profile is captured rather than rediscovered. In short: chunk cohesion predicts accuracy far
 better than chunk size, cross-boundary claims concentrate the false positives, a full type check refutes an entire
 class of them in seconds, and excluding tests from a chunk makes its verification-dimension findings unreliable.
+
+## Integration review closure
+
+The pre-PR aggregate self-review covered the complete `main...HEAD` change for cross-task consistency, scope,
+cleanup, documentation drift, boundary behavior, and unresolved markers; it found no additional actionable issue.
+The previously unreviewed fix delta then received two scoped CodeRabbit CLI `--agent` passes over its source and test
+surfaces. Those passes returned six findings: four were source-verified and fixed, while two conflicted with the
+implemented identity or applicability contracts and were rejected. A seventh concern raised during disposition
+review replaced the provisional plain-mode CodeRabbit adapter with version-pinned structured agent output.
+
+Disposition set `RA-8ca200585-01` closed as one review-fix increment. The resulting parser accepts qualified clean
+and findings NDJSON shapes, preserves findings for author-side triage, and fails closed on version drift, malformed
+or unknown events, skipped or incomplete reviews, count disagreement, duplicate terminal events or finding
+identities, stale heads, rate limits, signals, and process failures. The same increment tightened explicit-polish
+classification and added ownership-prefix, routing-normalization, and durable replay regression coverage.
+
+The final local gate passed Markdown, TypeScript, and shell linting; source and test typechecking; build; 68 ARC
+contract tests; and the full 7,632-test suite with one expected skip. No additional provider pass was run after the
+approved review-fix increment: the remaining risk is concentrated in that directly tested 13-file delta, while a
+whole-diff hosted pass over the 309-file aggregate was judged more likely to dilute or fail than improve coverage.
