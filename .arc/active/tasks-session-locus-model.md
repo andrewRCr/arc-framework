@@ -245,19 +245,11 @@ roster and one generation-safe local mutation boundary.
 - _Goal:_ All role and lease changes linearize through one expected-generation API that preserves newer sessions
   and returns one command-independent result shape.
 
-    - `[ ]` **3.3.a Mint durable roles from trusted topology evidence**
-        - Add `packages/arc-framework/src/lib/locus/mutation.ts` with mint inputs derived from markers, metas, and
-          identity records rather than caller-supplied role/subject values.
-        - Copy the exact `claimId` into identity-backed role subjects, including partial grooms, and require null
-          for WU, partial-Errand, and partial-housekeep roles; a stale same-key role from another claim generation
-          is a conflict rather than an idempotent mint.
-        - Carry dispatch ID and origin entry only in partial Errand roles, and dispatch ID plus immutable
-          routing-plan digest only in partial housekeep roles; full roles derive that context from identity and
-          WU/groom roles require null fields.
-        - Make same-role mint idempotent and incompatible existing state a typed refusal.
-        - Build `test-first` (one behavior at a time):
-            - Cover work-unit, Errand, partial-Errand, groom, and housekeep role pairs, including same-key roles from
-              different claim generations and every legal/illegal dispatch-origin-plan pairing.
+    - `[x]` **3.3.a Mint durable roles from trusted topology evidence**
+        - Added an authority-derived role mint boundary with exact applied/idempotent replay and typed malformed or
+          role-generation refusal. WU, full identity-backed, partial Errand, groom, and full/partial housekeep roles
+          now receive only their legal claim, dispatch, origin, and routing-plan fields; same-key claims from another
+          generation cannot join an existing role.
 
     - `[ ]` **3.3.b Attach and refresh single-session leases**
         - Mint at least 128-bit lease tokens; bind session home, process anchor, attached time, and heartbeat time.
