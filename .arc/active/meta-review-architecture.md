@@ -1,8 +1,8 @@
 # Metadata: review-architecture
 
-| **State** | **Owner** | **Branch**                 | **Class** | **Priority** |
-| --------- | --------- | -------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/review-architecture` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                 | **Class** | **Priority** |
+| ------------- | --------- | -------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/review-architecture` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,8 +16,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none] — one success criterion deferred to `review-surface-binding`, not blocking
 
-- **Next Action:** integrate-work-unit Step 1 — begin integration; Steps 2–3 carry the two remaining review
-  passes, and no review runs after them
+- **Next Action:** open the PR after aggregate self-review and fix-delta frontline review
 
 - **PR URL:** [none]
 - **Completed:** [none]
