@@ -308,6 +308,53 @@ export async function popLocusRole(options: {
   }
 }
 
+/** Pop one live role only when its lease is owned by the entering process anchor. */
+export async function popOwnedLocusRole(options: {
+  operation: LocusOperation;
+  recommendedPromptText: string;
+  recordId: string;
+  checkoutPath: string;
+  expectedSubject: LocusRole["subject"];
+  expectedLeaseId: string;
+  enteringAnchor: LocusAnchor;
+  io: LocusRolePopIO;
+}): Promise<LocusMutationResultV1> {
+  let existing: LocusRecordReadResult;
+  try {
+    existing = await options.io.read();
+  } catch (error) {
+    return failure(options, error);
+  }
+  if (existing.kind === "absent") return popSuccess(options, "idempotent");
+  if (existing.kind !== "valid"
+    || existing.record.recordId !== options.recordId
+    || existing.record.checkoutPath !== options.checkoutPath) {
+    return refusal(options, "record-malformed");
+  }
+  if (!isDeepStrictEqual(existing.record.role.subject, options.expectedSubject)) {
+    return refusal(options, "role-conflict");
+  }
+  const lease = existing.record.lease;
+  if (lease === null
+    || lease.leaseId !== options.expectedLeaseId
+    || !isDeepStrictEqual(lease.anchor, options.enteringAnchor)) {
+    return refusal(options, "lease-generation-mismatch");
+  }
+  try {
+    const removed = await options.io.remove(existing.bytes);
+    if (removed.kind === "removed") return popSuccess(options, "applied");
+    const raced = await options.io.read();
+    if (raced.kind === "absent") return popSuccess(options, "idempotent");
+    if (raced.kind !== "valid") return refusal(options, "record-malformed");
+    if (!isDeepStrictEqual(raced.record.role.subject, options.expectedSubject)) {
+      return refusal(options, "role-conflict");
+    }
+    return refusal(options, "lease-generation-mismatch");
+  } catch (error) {
+    return failure(options, error);
+  }
+}
+
 function popSuccess(
   options: Pick<Parameters<typeof popLocusRole>[0], "operation" | "recommendedPromptText" | "recordId">,
   outcome: "applied" | "idempotent",

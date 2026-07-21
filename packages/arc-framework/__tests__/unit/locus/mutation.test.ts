@@ -6,6 +6,7 @@ import {
   attachLocusLease,
   createLocusMutationResult,
   mintDurableLocusRole,
+  popOwnedLocusRole,
   popLocusRole,
   refreshLocusLeaseHeartbeat,
   releaseLocusLease,
@@ -577,6 +578,44 @@ describe("durable locus role minting", () => {
       outcome: "idempotent",
       recordId: BASE.recordId,
     });
+  });
+
+  it("pops a live transient role only for its exact entering lease anchor", async () => {
+    const store = memoryIO();
+    await mintDurableLocusRole({
+      ...BASE,
+      authority: { kind: "identity", identity: errandIdentity("errand") },
+      io: store.io,
+    });
+    const anchor = {
+      kind: "process" as const,
+      pid: 42,
+      startToken: "start",
+      inspector: "test",
+      selector: "codex",
+    };
+    await attachLocusLease({
+      recordId: BASE.recordId,
+      sessionHomePath: BASE.checkoutPath,
+      anchor,
+      leaseId: "a".repeat(32),
+      attachedAt: "2026-07-20T01:00:00.000Z",
+      heartbeatAt: "2026-07-20T01:00:00.000Z",
+      observedLiveness: null,
+      io: store.io,
+    });
+
+    expect(await popOwnedLocusRole({
+      operation: "errand-leave",
+      recommendedPromptText: "Errand occupancy removed.",
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedSubject: { kind: "errand", key: "demo", claimId: "2".repeat(32) },
+      expectedLeaseId: "a".repeat(32),
+      enteringAnchor: anchor,
+      io: store.io,
+    })).toMatchObject({ outcome: "applied", recordId: BASE.recordId });
+    expect(store.current()).toEqual({ kind: "absent" });
   });
 
   it("refuses duplicate, newer role/lease, and live or unknown pop targets", async () => {

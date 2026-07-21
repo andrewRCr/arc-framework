@@ -481,6 +481,34 @@ describe("arc errand retire", () => {
   });
 });
 
+describe("arc errand leave", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("refuses partial mode through the shared JSON result", async () => {
+    const result = await runArc([
+      "errand", "leave", "anything", "--state", "paused", "--json",
+    ], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      outcome: "refused",
+      operation: "errand-leave",
+      reason: "full-protection-required",
+    });
+  });
+});
+
 describe("arc errand promote", () => {
   let tmpDir: string;
 

@@ -2,7 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { formatErrandLinkResult, formatErrandOpenResult } from "../../../src/handlers/errand.js";
+import {
+  formatErrandLeaveResult,
+  formatErrandLinkResult,
+  formatErrandOpenResult,
+} from "../../../src/handlers/errand.js";
 import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
 
 const refusal = createLocusMutationResult({
@@ -70,6 +74,26 @@ describe("errand link result rendering", () => {
       stream: "stdout",
       text: linked.recommendedPromptText,
       exitCode: 0,
+    });
+  });
+});
+
+describe("errand leave result rendering", () => {
+  const refusal = createLocusMutationResult({
+    outcome: "refused",
+    operation: "errand-leave",
+    reason: "preservation-unproven",
+    recommendedPromptText: "Push the exact Errand head before leaving.",
+  });
+
+  it("keeps JSON and human refusal output on the same producer result", () => {
+    const json = formatErrandLeaveResult(refusal, true);
+    expect(JSON.parse(json.text)).toStrictEqual(refusal);
+    expect(json).toMatchObject({ stream: "stdout", exitCode: 1 });
+    expect(formatErrandLeaveResult(refusal, false)).toEqual({
+      stream: "stderr",
+      text: "Refused [preservation-unproven]: Push the exact Errand head before leaving.",
+      exitCode: 1,
     });
   });
 });

@@ -440,17 +440,12 @@ result so workflows consume verbs and precomposed verdicts.
         - Added the shared `errand-link` mutation result and `--json` boundary, with unit, real-Git integration,
           remote-only reconciliation, and E2E coverage proving JSON/human parity and legacy compatibility refusal.
 
-    - `[ ]` **5.1.c Implement full-mode leave to paused or awaiting-merge**
-        - Add `arc errand leave <slug> --state paused|awaiting-merge` and validate the exact remote-preserved WIP
-          head or change request before closing local occupancy.
-        - Register leave plus `--json` in `packages/arc-framework/src/cli.ts` and render only the shared result.
-        - Return the primary to base or tear down the spawned checkout, release/pop the exact role, and report the
-          freshly restored parent frame in that order.
-        - Refuse partial-mode leave. Keep wrapper-floor classification in the workflow; the command never guesses
-          whether work is promotion-worthy.
-        - Build `test-first` (one behavior at a time):
-            - Cover exact pause/review preservation, primary/spawned cleanup, restored warm/cold parents, failed
-              identity persistence, failed role pop, partial refusal, and replay after a lost response.
+    - `[x]` **5.1.c Implement full-mode leave to paused or awaiting-merge**
+        - Added `errand leave --state paused|awaiting-merge` with exact remote-head or open-change-request proof,
+          identity-first persistence, and shared JSON/human results; partial mode refuses before identity access.
+        - Primary and spawned occupancies restore base or remove the owned worktree before atomically popping the
+          entering process's exact role/lease generation, retaining recoverable tails and supporting replay across
+          failed persistence, failed role cleanup, and lost responses with warm or cold parent restoration.
 
     - `[ ]` **5.1.d Resume identity tails through the ordinary open driver**
         - Permit paused resume after preservation proof and awaiting-merge resume only when exact host truth reports

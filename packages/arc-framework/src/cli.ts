@@ -21,12 +21,14 @@ import {
   handleErrandCheck,
   handleErrandOpen,
   handleErrandLink,
+  handleErrandLeave,
   handleErrandClose,
   handleErrandRetire,
   handleErrandPromote,
   type ErrandCheckOptions,
   type ErrandOpenOptions,
   type ErrandLinkOptions,
+  type ErrandLeaveOptions,
   type ErrandCloseOptions,
   type ErrandPromoteOptions,
 } from "./handlers/errand.js";
@@ -366,6 +368,13 @@ errand
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .option("--json", "Emit the producer-validated locus mutation result")
   .action((slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts));
+
+errand
+  .command("leave <slug>")
+  .description("Preserve an Errand tail and close its local occupancy")
+  .requiredOption("--state <state>", "Tail state: paused | awaiting-merge")
+  .option("--json", "Emit the producer-validated locus mutation result")
+  .action((slug: string, opts: ErrandLeaveOptions) => handleErrandLeave(slug, opts));
 
 errand
   .command("close <slug>")

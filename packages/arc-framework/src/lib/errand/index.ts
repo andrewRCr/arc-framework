@@ -145,6 +145,19 @@ export {
 } from "./link-runtime.js";
 
 export {
+  leaveOrdinaryErrand,
+  type LeaveAuthorization,
+  type LeaveCleanupResult,
+  type LeaveOrdinaryErrandDependencies,
+  type LeaveOrdinaryErrandOptions,
+} from "./leave.js";
+
+export {
+  leaveOrdinaryErrandAtRuntime,
+  type LeaveOrdinaryErrandRuntimeOptions,
+} from "./leave-runtime.js";
+
+export {
   closeErrand,
   type CloseErrandParams,
   type CloseErrandResult,

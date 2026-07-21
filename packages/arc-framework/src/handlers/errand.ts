@@ -49,6 +49,7 @@ import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
 import { openOrdinaryErrandAtRuntime } from "../lib/errand/open-runtime.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
+import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
 import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
@@ -547,6 +548,115 @@ function emitErrandLinkFailure(
     operation: "errand-link",
     reason,
     recommendedPromptText: message,
+  }), json);
+}
+
+/** Options for the `arc errand leave` subcommand. */
+export interface ErrandLeaveOptions {
+  /** Durable identity tail to retain after local occupancy closes. */
+  state: string;
+  /** Emit the producer-validated mutation result without human decoration. */
+  json?: boolean;
+}
+
+/** Preserve an exact Errand head or change request, then close its local occupancy. */
+export async function handleErrandLeave(slug: string, opts: ErrandLeaveOptions): Promise<void> {
+  if (opts.json !== true) p.intro("arc errand leave");
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+  if (opts.state !== "paused" && opts.state !== "awaiting-merge") {
+    emitErrandLeaveFailure(
+      "locus.errand-leave.input",
+      "--state must be 'paused' or 'awaiting-merge'.",
+      opts.json === true,
+    );
+    return;
+  }
+  const { settings } = await readConfigSettings(cwd);
+  const protection = settings["branch.protection"];
+  if (protection !== "full" && protection !== "partial") {
+    emitErrandLeaveFailure(
+      "locus.errand-leave.config",
+      `Unsupported branch.protection value '${protection}'.`,
+      opts.json === true,
+    );
+    return;
+  }
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) {
+    emitErrandLeaveFailure(
+      "locus.errand-leave.identity",
+      "No identity resolved — set arc.identity before leaving an Errand.",
+      opts.json === true,
+    );
+    return;
+  }
+  const io = createUserIOContext();
+  if (!io.execInput) {
+    emitErrandLeaveFailure(
+      "locus.errand-leave.identity",
+      "The stdin Git boundary is unavailable.",
+      opts.json === true,
+    );
+    return;
+  }
+  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
+  const identityGlobalUserDir = (await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec }))
+    .identityGlobalRoot;
+  let result: LocusMutationResultV1;
+  try {
+    result = await leaveOrdinaryErrandAtRuntime({
+      slug,
+      state: opts.state,
+      protection,
+      base: settings["branch.base"],
+      updatedAt: new Date().toISOString(),
+      identity,
+      identityGlobalUserDir,
+      activeExtensions: activeExtensions.active,
+      postCreateScript: settings["worktree.post_create"],
+      registeredHarnessDirs: settings["worktree.harness_dirs"],
+      exec: io.exec,
+      execInput: io.execInput,
+    });
+  } catch (error) {
+    result = createLocusMutationResult({
+      outcome: "error",
+      operation: "errand-leave",
+      error: {
+        code: "locus.errand-leave.handler",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      recommendedPromptText: "Inspect the preserved identity tail and local locus residue before retrying.",
+    });
+  }
+  emitErrandLeaveResult(result, opts.json === true);
+}
+
+export function formatErrandLeaveResult(
+  result: LocusMutationResultV1,
+  json: boolean,
+): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
+  return formatErrandOpenResult(result, json);
+}
+
+function emitErrandLeaveResult(result: LocusMutationResultV1, json: boolean): void {
+  const formatted = formatErrandLeaveResult(result, json);
+  if (json) process.stdout.write(formatted.text);
+  else if (formatted.stream === "stderr") p.log.error(formatted.text);
+  else {
+    p.log.success(formatted.text);
+    p.outro("Done.");
+  }
+  process.exitCode = formatted.exitCode;
+}
+
+function emitErrandLeaveFailure(code: string, message: string, json: boolean): void {
+  emitErrandLeaveResult(createLocusMutationResult({
+    outcome: "error",
+    operation: "errand-leave",
+    error: { code, message },
+    recommendedPromptText: "Resolve the reported input or configuration error before retrying.",
   }), json);
 }
 
