@@ -60,6 +60,18 @@ export {
 } from "./identity-transaction.js";
 
 export {
+  ordinaryErrandTransform,
+  provePauseHead,
+  type OrdinaryErrandRecord,
+  type PauseHeadEvidence,
+  type ProvePauseHeadParams,
+  type ProvePauseHeadOutcome,
+  type AwaitMergeConfiguredCoordinates,
+  type OrdinaryErrandTransition,
+  type OrdinaryErrandTransform,
+} from "./identity-transitions.js";
+
+export {
   mergeErrandTrees,
   reconcileErrandPush,
   incomingErrandRef,

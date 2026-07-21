@@ -153,16 +153,12 @@ grooming, or housekeeping state.
           locally, retries ambiguous/contended pushes idempotently, and treats remote absence, outage, and temporary-
           ref cleanup as distinct outcomes; the same transform contract also serves local-only authority.
 
-    - `[ ]` **2.2.b Implement exact ordinary-Errand transitions**
-        - Add create, late inbox link, pause, await-merge, resume-to-open, promotion retirement, close, and abandon
-          transforms requiring the exact previous same-slug record and immutable `claimId`.
-        - Prove `savedHead` is the exact terminal head and an ancestor of the fetched remote branch tip before pause;
-          validate configured repository/base plus exact current host/base/head coordinates before await-merge.
-        - Build `test-first` (one behavior at a time):
-            - Cover every legal transition, idempotent replay, stale generation, illegal state edge, and timestamp
-              advance without rotating the claim ID.
-            - Refuse changed inbox origin/dispatch, unpushed/changed saved heads, stale change-request heads, and
-              incomplete identity bases.
+    - `[x]` **2.2.b Implement exact ordinary-Errand transitions**
+        - Added complete-basis, exact-generation transforms for every ordinary Errand edge with immutable claims,
+          monotonic timestamps, replay adoption, configured/observed change-request matching, and state-specific
+          retirement authority. Pause now requires nominal evidence from a caller-unique fresh remote fetch proving
+          the exact terminal head is remote-backed; invalid branches, missing/unpushed heads, and cleanup uncertainty
+          remain explicit non-mutating outcomes.
 
     - `[ ]` **2.2.c Implement generation-owned first-writer claims**
         - Make `groom-<anchorStub>` create-if-absent in the global identity-key namespace and scan every live groom's
