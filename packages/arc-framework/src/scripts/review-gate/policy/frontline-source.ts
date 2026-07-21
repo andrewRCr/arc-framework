@@ -10,12 +10,14 @@ const FrontlineAgentDescriptorSchema = z.strictObject({
   kind: z.literal("agent"),
   handle: FrontlineAgentHandleSchema,
 }).readonly();
+const FrontlineExecutableSchema = z.string().regex(/^[A-Za-z0-9._/+:-]+$/u);
+const FrontlineArgvSchema = z.array(z.string().refine((value) => !value.includes("\0"), {
+  message: "argv entries cannot contain NUL",
+})).readonly();
 const FrontlineCommandDescriptorSchema = z.strictObject({
   kind: z.literal("command"),
-  executable: z.string().regex(/^[A-Za-z0-9._/+:-]+$/u),
-  argv: z.array(z.string().refine((value) => !value.includes("\0"), {
-    message: "argv entries cannot contain NUL",
-  })).readonly(),
+  executable: FrontlineExecutableSchema,
+  argv: FrontlineArgvSchema,
 }).readonly();
 const FrontlineSourceRegistrationSchema = z.strictObject({
   sourceId: FrontlineSourceIdSchema,
@@ -25,10 +27,22 @@ const FrontlineSourceRegistrationSchema = z.strictObject({
   ]),
 }).readonly();
 
+export const FrontlineSourceDescriptorSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    sourceId: FrontlineSourceIdSchema,
+    kind: z.literal("agent"),
+    handle: FrontlineAgentHandleSchema,
+  }).readonly(),
+  z.strictObject({
+    sourceId: FrontlineSourceIdSchema,
+    kind: z.literal("command"),
+    executable: FrontlineExecutableSchema,
+    argv: FrontlineArgvSchema,
+  }).readonly(),
+]);
+
 export type FrontlineSourceRegistration = z.input<typeof FrontlineSourceRegistrationSchema>;
-export type FrontlineSourceDescriptor =
-  | { sourceId: string; kind: "agent"; handle: { capabilityId: string } }
-  | { sourceId: string; kind: "command"; executable: string; argv: readonly string[] };
+export type FrontlineSourceDescriptor = z.infer<typeof FrontlineSourceDescriptorSchema>;
 
 /** Closed, injected mapping from safe source IDs to non-shell carrier descriptors. */
 export class FrontlineSourceRegistry {

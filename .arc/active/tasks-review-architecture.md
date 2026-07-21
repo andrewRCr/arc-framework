@@ -519,11 +519,10 @@ that shapes review spend without producing satisfying evidence.
           an attempt for one run, `skip` rejects source input, and `inherit` preserves smart routing while allowing
           source selection without persisting either override.
 
-    - `[ ]` **5.1.c Produce the complete semantic result**
-        - Emit `schemaVersion: 1`, `semanticsVersion: frontline-review/v1`, action, stable reasons, selected
-          source/null, `maxPasses`, and precomposed prompt/remedy text from the CLI; downgrade source-less `attempt`
-          to an actionable `offer`.
-        - Prove `skip` always has null source/zero passes and V1 never exceeds initial plus one follow-up.
+    - `[x]` **5.1.c Produce the complete semantic result**
+        - Composed invocation and source resolution into a validated `frontline-review/v1` record with stable reasons,
+          typed source descriptors, bounded pass allowance, and precomposed review or binding text. Source-less
+          attempts become actionable offers; skip and attempt invariants are schema-enforced, and diagnostics survive.
 
     - `[ ]` **5.1.d Expose a workflow-facing resolution verb**
         - Add a machine-readable command/API for integration and Errand callers, with explicit change-set and
