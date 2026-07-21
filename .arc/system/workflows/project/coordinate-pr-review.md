@@ -83,6 +83,8 @@ continues to the fallback layer and never licenses use of the current controller
 At the fallback layer, arm an injected harness-native schedule no later than the suspension deadline. If unavailable,
 leave the vehicle suspended and report the exact source-state/deadline resume condition plus the WU-or-Errand
 integration entrypoint. Timeout and failed/unavailable provider state use this same explicit human re-entry shape.
+Reject a scheduled action whose operation, target/request, generation, or wakeup token is stale. Repeated current-token
+wakeups simply perform the same canonical re-read and do not advance durable operation state.
 
 ## 2. Coordinate Findings Through `review-response`
 

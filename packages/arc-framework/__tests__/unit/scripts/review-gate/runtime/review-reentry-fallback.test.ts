@@ -7,6 +7,7 @@ import type { ReviewReentryResult } from "../../../../../src/scripts/review-gate
 import {
   armReviewWakeupFallback,
   humanReentryForTerminalWait,
+  validateScheduledReviewWakeup,
 } from "../../../../../src/scripts/review-gate/runtime/review-reentry-fallback.js";
 
 const digest = (value: string): string => canonicalDigest({ value });
@@ -89,5 +90,28 @@ describe("scheduled and human review re-entry fallbacks", () => {
     expect(failed).toMatchObject({ kind: "human", reason: "provider-failed" });
     expect(timeout.resumeWhen).toBe(failed.resumeWhen);
     expect(timeout.resumeHow).toBe(failed.resumeHow);
+  });
+
+  it("accepts duplicate current wakeups idempotently and rejects stale scheduled actions", () => {
+    const invocation = {
+      operationId: suspension.operationId,
+      targetId: suspension.targetId,
+      requestId: suspension.requestId,
+      generation: suspension.generation,
+      wakeupToken: suspension.wakeupToken,
+    };
+
+    expect(validateScheduledReviewWakeup(invocation, suspension)).toEqual({ current: true });
+    expect(validateScheduledReviewWakeup(invocation, suspension)).toEqual({ current: true });
+    for (const stale of [
+      { ...invocation, targetId: digest("new-target") },
+      { ...invocation, generation: suspension.generation + 1 },
+      { ...invocation, wakeupToken: digest("new-wakeup") },
+    ]) {
+      expect(validateScheduledReviewWakeup(stale, suspension)).toEqual({
+        current: false,
+        reason: "stale-wakeup",
+      });
+    }
   });
 });

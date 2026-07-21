@@ -18,6 +18,13 @@ const ScheduledWakeupSchema = z.strictObject({
   status: z.literal("scheduled"),
   wakeupRef: z.string().trim().min(1),
 });
+const ScheduledWakeupInvocationSchema = z.strictObject({
+  operationId: z.string().trim().min(1),
+  targetId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  requestId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  generation: z.number().int().nonnegative(),
+  wakeupToken: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+});
 
 export interface HumanReviewReentry {
   kind: "human";
@@ -29,6 +36,10 @@ export interface HumanReviewReentry {
 export type ReviewWakeupFallback =
   | { kind: "scheduled"; scheduledFor: string; wakeupRef: string }
   | HumanReviewReentry;
+
+export type ScheduledReviewWakeupValidation =
+  | { current: true }
+  | { current: false; reason: "stale-wakeup" };
 
 function humanReentry(
   suspension: ReviewSuspensionState,
@@ -75,4 +86,20 @@ export function humanReentryForTerminalWait(
   if (result.state === "timed-out") return humanReentry(suspension, "review-timed-out");
   if (result.state === "provider-failed") return humanReentry(suspension, "provider-failed");
   throw new Error("review result does not require terminal human re-entry");
+}
+
+/** Validate a scheduled action against the current suspension before any live re-read. */
+export function validateScheduledReviewWakeup(
+  invocationInput: unknown,
+  suspensionInput: ReviewSuspensionState,
+): ScheduledReviewWakeupValidation {
+  const invocation = ScheduledWakeupInvocationSchema.parse(invocationInput);
+  const suspension = ReviewSuspensionStateSchema.parse(suspensionInput);
+  return invocation.operationId === suspension.operationId
+    && invocation.targetId === suspension.targetId
+    && invocation.requestId === suspension.requestId
+    && invocation.generation === suspension.generation
+    && invocation.wakeupToken === suspension.wakeupToken
+    ? { current: true }
+    : { current: false, reason: "stale-wakeup" };
 }

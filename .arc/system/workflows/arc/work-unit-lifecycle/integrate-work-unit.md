@@ -105,7 +105,9 @@ selects the ordinary fallback path; do not probe, invoke, await, or infer it fro
 On fallback, arm a harness-native scheduled wakeup only when that capability is injected and its run time is no later
 than the suspension deadline. Otherwise leave the vehicle in `Integrating` and state the exact human resume condition:
 which source state change or deadline should trigger re-entry, and which WU or Errand integration to resume. A bounded
-wait timeout or failed/unavailable provider result enters this same explicit human-reentry path.
+wait timeout or failed/unavailable provider result enters this same explicit human-reentry path. Before any scheduled
+action rereads live state, reject it unless operation, target/request, generation, and wakeup token still match the
+current suspension; duplicate current wakeups are harmless canonical rereads.
 
 | Observed state               | Demonstrably already ran   | Resume at                                                          |
 |------------------------------|----------------------------|--------------------------------------------------------------------|

@@ -284,7 +284,7 @@ export interface ReviewWakeupCapability {
   arm(request: ReviewWakeupRequest): Promise<{ status: "armed"; wakeupRef: string }>;
 }
 
-/** Bounded request accepted only by an injected harness-native scheduler. */
+/** Bounded request accepted only by an injected scheduler. */
 export interface ReviewScheduledWakeupRequest extends ReviewWakeupRequest {
   scheduledFor: string;
 }

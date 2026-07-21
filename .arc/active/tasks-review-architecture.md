@@ -705,11 +705,10 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
   review churn while remaining unable to weaken blocking severity, recurrence, provider-native state, or conversation
   authority.
 
-### `[ ]` **6.3 Add resilient review suspend-and-reenter behavior**
+### `[x]` **6.3 Add resilient review suspend-and-reenter behavior**
 
 - _Goal:_ Asynchronous review can outlive the current process, context window, or machine and resume from durable
   `Integrating` state without a live-session pin or silent stall.
-- _Context:_ Implements Design §2.2's watcher → scheduled wakeup → human re-entry capability order.
 
     - `[x]` **6.3.a Define the durable suspension record and re-entry check**
         - Added a registered, non-persistent re-entry result over the existing strict suspension record and
@@ -732,9 +731,16 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
         - Timeout and failed/unavailable provider results now map to the same human-reentry record shape without being
           mistaken for clean review or silently retried.
 
-    - `[ ]` **6.3.d Validate session and machine resilience**
-        - Add workflow/session tests for WU and Errand re-entry, handoff during review, next-session and new-machine
-          reconstruction, duplicate wakeups, stale scheduled actions, and idempotent canonical rereads.
+    - `[x]` **6.3.d Validate session and machine resilience**
+        - Added Git-common integration coverage for WU handoff, next-session store reuse, Errand reconstruction on an
+          absent machine-local store, explicit suspended fallback, and duplicate idempotent canonical rereads.
+        - Scheduled actions now validate operation, target/request, generation, and deduplication token against the
+          current suspension; stale actions refuse before observing live review state.
+
+- _Outcome:_ Review waits now persist only invalidation-safe suspension facts and re-enter through freshly observed
+  target/provider state. The promoted-watcher → bounded-schedule → explicit-human hierarchy survives session and
+  machine loss for both WUs and Errands, while conflicts, stale wakeups, timeouts, and provider failures remain visible
+  non-clean states.
 
 ### `[ ]` **6.4 Reshape work-unit composition and late base reconcile**
 
