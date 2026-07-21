@@ -24,7 +24,39 @@ function acceptance(transform: (cell: ReturnType<typeof qualificationCell>) => R
   return finalizeQualification(scope, checkpoint);
 }
 
+function unicodeAcceptance(composed: boolean) {
+  const scope = { ...qualificationScope(), defaultBranch: "e\u0301" };
+  let checkpoint = createQualificationCheckpoint(scope);
+  for (const cellId of QUALIFICATION_CELL_IDS) {
+    const cell = qualificationCell(cellId);
+    checkpoint = appendQualificationCell(scope, checkpoint, cellId === "pending-first"
+      ? { ...cell, evidenceRef: `https://github.com/o/r/actions/${composed ? "é" : "e\u0301"}` }
+      : cell);
+  }
+  return finalizeQualification(scope, checkpoint);
+}
+
 describe("qualification activation compiler", () => {
+  it("preserves literal pre-cutover candidate and operation identities", () => {
+    const acceptanceCandidate = unicodeAcceptance(false);
+    const candidate = compileQualificationActivation(acceptanceCandidate);
+
+    expect(acceptanceCandidate.matrixDigest).toBe(
+      "dcc3abb0069cf1ab4d6f640291901cbff79468b32f72cce61a21e035d15afcfe",
+    );
+    expect(candidate.candidateDigest).toBe("2477a565c316d0f9741d6d180636dd89ccbb42acc07f430135d0211c427022ea");
+    expect(candidate.operations.map(({ valueDigest }) => valueDigest)).toEqual([
+      "7e38142a3f981094abe45b7f24f4c3f356e7ea8c67431950fee116f4948467f6",
+      "316f4929887e8d3f3246b527eb454ac913daa9e75e360d16abb4aaea413ad808",
+      "25ff61378f0119eb8c58742937c140fee49f43169ad551b918f59da11f35c849",
+    ]);
+    expect(validateQualificationActivationDiff(candidate, candidate.operations)).toEqual([]);
+
+    const kernelEquivalent = compileQualificationActivation(unicodeAcceptance(true));
+    expect(validateQualificationActivationDiff(candidate, kernelEquivalent.operations))
+      .toContain("activation-operation-mismatch:2");
+  });
+
   it("derives exact policy declarations and a provisional sanitized manifest slot", () => {
     const candidate = compileQualificationActivation(acceptance());
     expect(candidate.operations).toHaveLength(3);

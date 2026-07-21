@@ -1,7 +1,7 @@
 /** Deterministic provider-policy and provisional-manifest activation candidate compiler. */
 
 import { hashContent } from "../../../lib/manifest/hash.js";
-import { canonicalizePlainJson } from "../core/identity.js";
+import { canonicalizeReviewGateV1 } from "../core/legacy-canonical-v1.js";
 import {
   deriveHostedProviderDeclaration,
   type HostedProviderBaselineResult,
@@ -31,7 +31,7 @@ const POLICY_PATH = "packages/arc-framework/src/scripts/review-gate/policy/self-
 const MANIFEST_PATH = ".arc/reference/supplemental/analysis/analysis-review-gate-cutover-evidence.md";
 
 function digest(value: unknown): string {
-  return hashContent(canonicalizePlainJson(value));
+  return hashContent(canonicalizeReviewGateV1(value));
 }
 
 function operation(path: string, pointer: string, value: unknown): QualificationActivationOperation {
@@ -139,7 +139,7 @@ export function validateQualificationActivationDiff(
       || candidate.path !== operationValue.path
       || candidate.pointer !== operationValue.pointer
       || candidate.valueDigest !== digest(candidate.value)
-      || canonicalizePlainJson(candidate) !== canonicalizePlainJson(operationValue)) {
+      || canonicalizeReviewGateV1(candidate) !== canonicalizeReviewGateV1(operationValue)) {
       errors.push(`activation-operation-mismatch:${index}`);
     }
   });

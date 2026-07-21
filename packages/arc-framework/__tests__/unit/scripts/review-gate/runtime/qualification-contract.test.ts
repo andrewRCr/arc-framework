@@ -15,6 +15,46 @@ import { qualificationCell, qualificationScope } from "./qualification-fixtures.
 const HASH = "b".repeat(64);
 
 describe("qualification acceptance contract", () => {
+  it("resumes a literal pre-cutover Unicode checkpoint and extends its chain", () => {
+    const scope = { ...qualificationScope(), defaultBranch: "e\u0301" };
+    const firstCell = {
+      ...qualificationCell("pending-first"),
+      evidenceRef: "https://github.com/o/r/actions/e\u0301",
+    };
+    const checkpoint = {
+      schemaVersion: 1,
+      scopeDigest: "4cca5212d40b4c500595d1137c66f740fc65ab685b42f5b6493709f320a1aec7",
+      completed: [firstCell],
+      chainHash: "6e08ec08af64ed831d86d8f25a0a08a0d4170b442bdcd3c7c442607933a267de",
+      blockedCell: null,
+      blockedReason: null,
+    };
+
+    expect(validateQualificationCheckpoint(scope, checkpoint)).toEqual([]);
+    const extended = appendQualificationCell(scope, checkpoint, qualificationCell("coderabbit-label-trigger"));
+    expect(extended.scopeDigest).toBe(checkpoint.scopeDigest);
+    expect(extended.completed[0]).toEqual(firstCell);
+    expect(extended.chainHash).toBe("a1bc419e29e085810b3101e37518b5729e324b43e0519940e1790f6032ea4558");
+  });
+
+  it("validates literal pre-cutover acceptance digests", () => {
+    const scope = { ...qualificationScope(), defaultBranch: "e\u0301" };
+    let checkpoint = createQualificationCheckpoint(scope);
+    for (const cellId of QUALIFICATION_CELL_IDS) {
+      const cell = qualificationCell(cellId);
+      checkpoint = appendQualificationCell(scope, checkpoint, cellId === "pending-first"
+        ? { ...cell, evidenceRef: "https://github.com/o/r/actions/e\u0301" }
+        : cell);
+    }
+    const candidate = {
+      ...finalizeQualification(scope, checkpoint),
+      matrixDigest: "dcc3abb0069cf1ab4d6f640291901cbff79468b32f72cce61a21e035d15afcfe",
+      checkpointChainHash: "ca185354d446985d5e0a486b397f5df8ed292b51bd147a0da7b8d76952442274",
+    };
+
+    expect(validateQualificationAcceptanceCandidate(candidate)).toEqual([]);
+  });
+
   it("accepts only the exact complete matrix and emits stable sanitized identity", () => {
     const scope = qualificationScope();
     let checkpoint = createQualificationCheckpoint(scope);

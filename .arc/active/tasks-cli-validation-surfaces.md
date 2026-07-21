@@ -474,7 +474,7 @@ registry discovery independent from kernel artifact publication.
 _Purpose:_ Adopt kernel canonical bytes for safely recomputable identities while preserving every durable
 version-1 review-gate identity behind a repository-private frozen serializer.
 
-### `[ ]` **7.1 Freeze the version-1 canonicalization seam**
+### `[x]` **7.1 Freeze the version-1 canonicalization seam**
 
 - _Goal:_ Existing receipts, attestation event ids, checkpoints, and activation candidates remain verifiable with
   their original bytes after the shared helper adopts kernel canonicalization.
@@ -489,19 +489,13 @@ version-1 review-gate identity behind a repository-private frozen serializer.
           decomposed-Unicode receipt and attestation constants remain valid, exact replay and changed-run conflict
           behavior is preserved, and later payloads carry existing receipt hashes as opaque references.
 
-    - `[ ]` **7.1.c Route qualification identities through the frozen seam**
-        - In `runtime/qualification-contract.ts`, use `canonicalizeReviewGateV1()` for scope digests, empty and
-          appended checkpoint-chain hashes, resumed-chain verification, matrix digests, and serialized acceptance
-          validation.
-        - In `runtime/qualification-activation.ts`, use the frozen serializer for operation value digests, candidate
-          digests, and the exact activation-operation equality check.
-        - Build `test-first` (one behavior at a time):
-            - resume and extend a literal pre-cutover checkpoint containing a Unicode divergence value without
-              changing its scope or prior-chain hashes;
-            - validate literal pre-cutover matrix and activation-candidate digests rather than regenerating expected
-              values through the code under test;
-            - accept byte-equivalent legacy activation operations and reject edits, additions, omissions, and values
-              that are kernel-equivalent but distinct under legacy serialization.
+    - `[x]` **7.1.c Route qualification identities through the frozen seam**
+        - Routed qualification scope, checkpoint-chain, matrix, operation, and candidate identities plus exact
+          operation equality through the frozen serializer. Literal decomposed-Unicode checkpoints resume and extend,
+          stored acceptance and activation digests validate, and kernel-equivalent legacy-distinct edits are rejected.
+
+- _Outcome:_ Every durable version-1 receipt, attestation, checkpoint, matrix, and activation identity remains on its
+  original byte contract, with literal divergence fixtures proving replay and resume compatibility without rewrite.
 
 ### `[ ]` **7.2 Move recomputable identities to kernel canonical bytes**
 

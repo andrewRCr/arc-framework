@@ -1,7 +1,7 @@
 /** Closed sanitized acceptance-matrix and checkpoint contracts. */
 
 import { hashContent } from "../../../lib/manifest/hash.js";
-import { canonicalizePlainJson } from "../core/identity.js";
+import { canonicalizeReviewGateV1 } from "../core/legacy-canonical-v1.js";
 
 export const QUALIFICATION_CELL_IDS = [
   "pending-first",
@@ -166,7 +166,7 @@ function credentialShaped(value: unknown, key = "root"): boolean {
 }
 
 function digest(value: unknown): string {
-  return hashContent(canonicalizePlainJson(value));
+  return hashContent(canonicalizeReviewGateV1(value));
 }
 
 function hasExactKeys(value: object, expected: string[]): boolean {
