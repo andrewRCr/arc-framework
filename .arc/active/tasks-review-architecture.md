@@ -797,12 +797,11 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
   without inheriting WU composition or task-list ceremony.
 - _Context:_ Implements Design §§3, 5, and 8.
 
-    - `[ ]` **6.5.a Recompose Errand review around the shared methods**
-        - Replace inline provider/triage procedure in `run-errand.md` with review routing, optional frontline,
-          independent-analysis coordination, and `review-response`.
-        - Reuse the vehicle-neutral response-state store and wakeup fallbacks without inventing WU meta or task-list
-          state for Errands.
-        - Preserve atomic determinacy as a routing fact and auto/reviewed merge lane as downstream presentation.
+    - `[x]` **6.5.a Recompose Errand review around the shared methods**
+        - Declared the shared independent-analysis/audit/triage methods and routed exact Errand targets through optional
+          frontline, source-neutral coordination, approved response, and vehicle-neutral suspension/re-entry state.
+        - Atomic determinacy is now an explicit routing fact while auto/reviewed lanes resolve only after settlement as
+          presentation; suspension uses watcher/schedule/human fallbacks without synthesizing WU lifecycle state.
 
     - `[ ]` **6.5.b Preserve exact final-head settlement and merge authority**
         - Apply retrigger/carry-forward, generic extensions, and final `pre-merge` ordering before the existing

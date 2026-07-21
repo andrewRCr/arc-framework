@@ -463,6 +463,21 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("routes Errand review through the shared vehicle-neutral cycle", async () => {
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
+    ]);
+    expect(project).toBe(packaged);
+    expect(packaged).toMatch(/atomic determinacy[\s\S]*routing fact/iu);
+    expect(packaged).toMatch(/source-neutral independent-analysis cycle[\s\S]*review-response/u);
+    expect(packaged).toContain("vehicle-neutral response-state store");
+    expect(packaged).toMatch(/review-suspension[\s\S]*`vehicle: errand`/u);
+    expect(packaged).toMatch(/promoted watcher[\s\S]*bounded schedule[\s\S]*explicit human re-entry/u);
+    expect(packaged).toMatch(/merge lane[\s\S]*downstream presentation/u);
+    expect(packaged).toMatch(/never invent[\s\S]*WU meta[\s\S]*task-list state/iu);
+  });
+
   it("uses one late authoritative base-reconcile mutation site", async () => {
     const [packageIntegration, instanceIntegration] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),

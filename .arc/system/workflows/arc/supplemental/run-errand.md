@@ -6,6 +6,9 @@ arc:
     - assess-parallel-fit
     - commit-footer
     - frontline-review
+    - independent-analysis
+    - implementation-audit
+    - review-triage
     - review-response
   extensions:
     - post-task-quality
@@ -115,8 +118,8 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
 
 ### Ship — full protection
 
-1. **Classify the merge lane** by what the errand touched ([§ Auto-Merge Lane][auto-lane]): a code errand is
-   **reviewed-lane** and ships on its own PR; a pure planning- or doc-grooming errand may be **auto-merge-lane**.
+1. **Compose Errand review facts.** Atomic determinacy is a routing fact alongside the canonical change facts and
+   `vehicle: errand`; it can scale the obligation only through registered policy. Do not select a merge lane yet.
 
 2. **Push** the errand branch upstream.
 
@@ -130,8 +133,8 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
 
-   From the pushed branch, compose the exact aggregate review target and canonical change facts. The resolved merge
-   lane is publication presentation, not a routing input. Run `arc review frontline resolve -` with
+   From the pushed branch, compose the exact aggregate review target and canonical change facts. The future merge
+   lane is downstream presentation, not a routing input. Run `arc review frontline resolve -` with
    `invocation: inherit`, then execute only its selected action:
 
    - `skip` — continue.
@@ -192,6 +195,16 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    normalizes the admitted carrier, reduces its result, and sends findings through [`review-response`][review-response].
    If the selected source is unavailable, partial, or failed, only a required obligation blocks; recommended work
    stays visible and non-blocking. Recompose and repeat the cycle after any approved fix changes the target.
+
+   When the cycle suspends, publish the strict `review-suspension` through the vehicle-neutral response-state store
+   with `vehicle: errand`, exact target/request, source/policy, deadline, generation, and wakeup token. Re-entry reads
+   current host/provider state and follows the shared promoted watcher → bounded schedule → explicit human re-entry
+   hierarchy. Never invent WU meta or task-list state from absent or malformed WU state; the Errand branch, PR, and
+   operation record are sufficient continuity.
+
+   After the shared cycle settles, classify the merge lane by what the Errand touched ([§ Auto-Merge Lane][auto-lane]):
+   code uses the **reviewed-lane**; pure planning or doc grooming may use the **auto-merge-lane**. This merge lane is
+   downstream presentation only and cannot change routing, response, or evidence authority.
 
 5. **Settle the final head.** For reviewed and auto lanes, run review coordination and fire `pre-merge` before
    merge authorization. If any fix/request action changes the head, repeat base freshness, current-head coordination,
