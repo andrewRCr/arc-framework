@@ -115,7 +115,6 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
       status: {
         settings: {
           "commit.format": "any",
-          "hooks.subject_max_length": "00080",
           "user.notes_push": "prompt",
           "sync.auto_pull": "true",
           "worktree.location_template": "../{repo}.{branch}",
@@ -124,7 +123,6 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         defaulted: [],
         notDefaulted: [
           "commit.format",
-          "hooks.subject_max_length",
           "user.notes_push",
           "sync.auto_pull",
           "worktree.location_template",
@@ -163,7 +161,6 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
       status: {
         settings: {
           "commit.format": "strict",
-          "hooks.subject_max_length": "9",
           "user.notes_push": "never",
           "sync.auto_pull": "false",
           "worktree.location_template": "",
@@ -275,7 +272,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
       },
       resolved: {
         notesPush: { value: "on-sync", source: "default" },
-        warningIncludes: ["user.notes_push"],
+        warningIncludes: ["sync.auto_pull"],
       },
       commitCheck: { kind: "invalid", findingCodes: ["config.invalid-value"] },
       worktree: {

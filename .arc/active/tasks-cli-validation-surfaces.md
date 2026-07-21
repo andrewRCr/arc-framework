@@ -260,9 +260,10 @@ the distinct recovery and precedence policies of existing adapters.
           duplicate, and git-over-yaml precedence inputs. Each stable case records expected tolerant-reader, resolved,
           commit-check, worktree, and validator observations, with a structural test guarding coverage and uniqueness.
 
-    - `[ ]` **3.4.c Prove tolerant and precedence-aware compatibility**
-        - Run the shared corpus through status reads and resolved settings, preserving warning subsets, raw-value
-          compatibility, defaults-applied semantics, override precedence, and provenance.
+    - `[x]` **3.4.c Prove tolerant and precedence-aware compatibility**
+        - Drove every shared case through real temporary config files, asserting tolerant raw-value pass-through,
+          omission-only default accounting, warning subsets, and resolved notes-push value/provenance. Git-config
+          overrides remain authoritative over YAML while invalid and empty values retain their adapter fallbacks.
 
     - `[ ]` **3.4.d Prove strict and worktree-adapter compatibility**
         - Run the shared corpus through commit checks, worktree location, and harness-directory parsing, preserving
