@@ -15,7 +15,7 @@ import { validateManagedPath, type ManagedPath } from "../canonical/managed-path
 import { artifactGroupDigest } from "../canonical/receipt-id.js";
 import { getCurrentBranch } from "../git/exec.js";
 import { SlugSchema, type Slug } from "../kernel/index.js";
-import { resolveArcPath, type WorkUnitArtifactKind } from "../layout/index.js";
+import { resolveArcPath, WorkUnitArtifactKindSchema } from "../layout/index.js";
 import type { DecomposeAllocationEntry, DecomposeAllocationMap } from "./decompose-cut-map.js";
 import type { DecomposeFinalTarget } from "./decompose-finalization.js";
 import {
@@ -147,8 +147,9 @@ function cohortDocumentPath(cohort: string): ManagedPath {
 
 function conventionalMemberArtifactPath(slugValue: string, cohortValue: string, artifact: string): ManagedPath | null {
   const slug = SlugSchema.parse(slugValue);
-  const kinds: WorkUnitArtifactKind[] = ["meta", "draft", "spec", "tasks", "notes"];
-  const kind = kinds.find((candidate) => artifact === `${candidate}-${slug}.md`);
+  const kind = WorkUnitArtifactKindSchema.options.find(
+    (candidate) => artifact === `${candidate}-${slug}.md`,
+  );
   if (kind === undefined) return null;
   return resolveArcPath({
     kind: "work-unit-artifact",

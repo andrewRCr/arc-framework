@@ -91,8 +91,7 @@ describe("direct retirement branch resolution", () => {
   });
 
   it("omits unchanged readiness blobs from the retirement patch", async () => {
-    const content = bytes("same");
-    const operations = await readRoadmapPatch(content, content);
+    const operations = await readRoadmapPatch(bytes("same"), bytes("same"));
 
     expect(operations).not.toContainEqual(expect.objectContaining({ path: ROADMAP_PATH }));
   });
