@@ -1,8 +1,8 @@
 # Metadata: review-surface-binding
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| **State**  | **Owner** | **Branch**                    | **Class** | **Priority** |
+| ---------- | --------- | ----------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/review-surface-binding` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** review-architecture
@@ -12,12 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `draft-design`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
