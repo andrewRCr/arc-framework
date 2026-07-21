@@ -130,6 +130,17 @@ function makeSessionInitResult(
   return {
     mode: "session-init",
     identity: { identity: "andrew", role: "maintainer" },
+    locusState: {
+      ok: true,
+      value: {
+        roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
+        current: { kind: "none" },
+        primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+        inFlightIdentities: [],
+        recovery: { kind: "none" },
+        reconciliation: { kind: "clean" },
+      },
+    },
     user: {
       ok: true,
       value: {

@@ -23,6 +23,8 @@ import { OrphanBranchSweepResultSchema } from "../../../src/lib/session-init/orp
 import { PartialPushMarkerSurfaceResultSchema } from "../../../src/lib/session-init/partial-push-marker-surface.js";
 import { RetiredSubdirDetectionResultSchema } from "../../../src/lib/session-init/retired-subdir-detection.js";
 import { ClassCompositionSchema } from "../../../src/lib/status/class-composition.js";
+import { LOCUS_SCHEMA_IDS } from "../../../src/lib/locus/registry.js";
+import { LocusEnvelopeV1Schema, LocusStateV1Schema } from "../../../src/lib/locus/schema/index.js";
 import { TaskListCursorSchema } from "../../../src/lib/task-list/cursor.js";
 import { TaskListCursorFileResultSchema } from "../../../src/lib/task-list/file-cursor.js";
 import {
@@ -44,6 +46,11 @@ describe("session-envelope schema registry", () => {
       "inbox-state",
       "load-set-audit-verdict",
       "load-set-manifest",
+      "locus-envelope",
+      "locus-identity",
+      "locus-mutation-result",
+      "locus-record",
+      "locus-state",
       "materializable-work-units",
       "notes-compaction-session-advisory",
       "orphan-branch-sweep",
@@ -70,6 +77,8 @@ describe("session-envelope schema registry", () => {
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditReport)).toBe(RecoverAuditReportSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope)).toBe(SessionInitProbeResultSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.sessionRecoverEnvelope)).toBe(SessionRecoverProbeResultSchema);
+    expect(first.get(LOCUS_SCHEMA_IDS.envelope)).toBe(LocusEnvelopeV1Schema);
+    expect(first.get(LOCUS_SCHEMA_IDS.state)).toBe(LocusStateV1Schema);
     const advisorySchemas = [
       [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep, ErrandStalenessSweepResultSchema],

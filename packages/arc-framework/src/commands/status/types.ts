@@ -64,6 +64,7 @@ import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
+import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
 
 export type { RecommendedAction, WorktreeIdentity };
 
@@ -206,6 +207,8 @@ export interface StatusResult {
 export interface SessionInitProbeResult {
   mode: "session-init";
   identity: StatusIdentity;
+  /** Shared network-free interpretation of machine-local session occupancy. */
+  locusState: Probe<LocusStateV1>;
   user: Probe<SessionInitUserValue>;
   worktree: Probe<SessionInitWorktreeValue>;
   /**
@@ -399,6 +402,8 @@ export interface SessionRecoverWorktreeValue extends WorktreeSyncStatusResult {
 export interface SessionRecoverProbeResult {
   mode: "recover";
   identity: StatusIdentity;
+  /** Shared network-free interpretation of machine-local session occupancy. */
+  locusState: Probe<LocusStateV1>;
   worktree: Probe<SessionRecoverWorktreeValue>;
   dirty: Probe<DirtyStateResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
@@ -460,6 +465,8 @@ export interface HandoffSyncInterlock {
 export interface SessionHandoffResult {
   mode: "session-handoff";
   identity: StatusIdentity;
+  /** Shared network-free interpretation of machine-local session occupancy. */
+  locusState: Probe<LocusStateV1>;
   /**
    * Current branch name from the worktree probe; `null` on detached HEAD or
    * when the worktree probe failed.
@@ -520,6 +527,8 @@ export interface SessionHandoffResult {
  * identity-missing primitive because its `user` / `active` signatures differ.
  */
 export interface SessionSharedProbes {
+  /** Resolve the shared, network-free machine-local locus interpretation. */
+  locusState: (identity: string) => Promise<LocusStateV1>;
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   dirty: () => Promise<DirtyStateResult>;
@@ -684,6 +693,8 @@ export interface SessionInitProbes extends SessionSharedProbes {
 
 /** Probe functions in recover mode — the lean subset recovery needs. */
 export interface SessionRecoverProbes {
+  /** Resolve the shared, network-free machine-local locus interpretation. */
+  locusState: (identity: string) => Promise<LocusStateV1>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;

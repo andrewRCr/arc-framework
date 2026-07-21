@@ -75,6 +75,7 @@ import type { PartialPushMarkerSurfaceResult } from "../../../src/lib/session-in
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js";
+import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
 
 // --- Fixtures ---
 
@@ -86,6 +87,17 @@ function materializableResult(
   candidates: Array<{ name: string; branch: string }>,
 ): MaterializableWorkUnitsResult {
   return MaterializableWorkUnitsResultSchema.parse({ candidates });
+}
+
+function locusState(): LocusStateV1 {
+  return {
+    roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
+    current: { kind: "none" },
+    primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+    inFlightIdentities: [],
+    recovery: { kind: "none" },
+    reconciliation: { kind: "clean" },
+  };
 }
 
 function userResult(overrides: Partial<UserStatusResult> = {}): UserStatusResult {
@@ -384,6 +396,7 @@ function fullProbes(overrides: Partial<StatusProbes> = {}): StatusProbes {
 
 function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionInitProbes {
   return {
+    locusState: vi.fn(async () => locusState()),
     user: vi.fn(async () => userSessionInit()),
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
@@ -421,6 +434,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
 
 function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): SessionRecoverProbes {
   return {
+    locusState: vi.fn(async () => locusState()),
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     dirty: vi.fn(async () => dirtyState()),
@@ -477,6 +491,7 @@ function sessionHandoffProbes(
   overrides: Partial<SessionHandoffProbes> = {},
 ): SessionHandoffProbes {
   return {
+    locusState: vi.fn(async () => locusState()),
     dirty: vi.fn(async () => dirtyState()),
     worktree: vi.fn(async () => worktreeSync()),
     user: vi.fn(async () => userSessionInit()),
@@ -629,6 +644,74 @@ describe("runStatus — per-probe error isolation", () => {
     expect(result.extensions.ok).toBe(false);
     expect(result.config.ok).toBe(false);
     expect(result.active.ok).toBe(false);
+  });
+});
+
+describe("session operation locus-state orchestration", () => {
+  it("computes one exact locus interpretation for init, recovery, and handoff", async () => {
+    const state = locusState();
+    const init = sessionInitProbes({ locusState: vi.fn(async () => state) });
+    const recover = sessionRecoverProbes({ locusState: vi.fn(async () => state) });
+    const handoff = sessionHandoffProbes({ locusState: vi.fn(async () => state) });
+
+    const [initResult, recoverResult, handoffResult] = await Promise.all([
+      runSessionInitStatus({ identity: "andrew", role: "maintainer", probes: init }),
+      runRecoverStatus({ identity: "andrew", role: "maintainer", probes: recover }),
+      runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes: handoff }),
+    ]);
+
+    expect(initResult.locusState).toEqual({ ok: true, value: state });
+    expect(recoverResult.locusState).toEqual({ ok: true, value: state });
+    expect(handoffResult.locusState).toEqual({ ok: true, value: state });
+    for (const probes of [init, recover, handoff]) {
+      expect(probes.locusState).toHaveBeenCalledOnce();
+      expect(probes.locusState).toHaveBeenCalledWith("andrew");
+    }
+  });
+
+  it("projects missing identity without invoking any locus reader", async () => {
+    const init = sessionInitProbes();
+    const recover = sessionRecoverProbes();
+    const handoff = sessionHandoffProbes();
+
+    const results = await Promise.all([
+      runSessionInitStatus({ identity: null, role: null, probes: init }),
+      runRecoverStatus({ identity: null, role: null, probes: recover }),
+      runSessionHandoffStatus({ identity: null, role: null, probes: handoff }),
+    ]);
+
+    for (const [result, probes] of results.map((result, index) => [result, [init, recover, handoff][index]] as const)) {
+      expect(result.locusState).toMatchObject({ ok: false, error: { kind: "identity-missing" } });
+      expect(probes?.locusState).not.toHaveBeenCalled();
+    }
+  });
+
+  it("isolates a locus reader failure in the required runtime error arm", async () => {
+    const probes = sessionRecoverProbes({
+      locusState: vi.fn(async () => { throw new Error("topology unavailable"); }),
+    });
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.locusState).toEqual({
+      ok: false,
+      error: { kind: "runtime", message: "topology unavailable" },
+    });
+  });
+
+  it("preserves an ambiguous reader verdict without selecting a record", async () => {
+    const state: LocusStateV1 = {
+      ...locusState(),
+      current: {
+        kind: "ambiguous",
+        recordIds: [`sha256:${"a".repeat(64)}`, `sha256:${"b".repeat(64)}`],
+        reasons: ["role-conflict"],
+      },
+    };
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: sessionInitProbes({ locusState: vi.fn(async () => state) }),
+    });
+    expect(result.locusState).toEqual({ ok: true, value: state });
   });
 });
 
@@ -939,6 +1022,7 @@ describe("runRecoverStatus — lean recover envelope", () => {
       "extensions",
       "identity",
       "loadSet",
+      "locusState",
       "mode",
       "releaseRouting",
       "worktree",
@@ -1765,6 +1849,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "identity",
       "inboxState",
       "loadSet",
+      "locusState",
       "mode",
       "orphanBranchSweep",
       "partialPushMarker",
@@ -2588,6 +2673,16 @@ describe("JSON wire shape — discriminated union survives serialization", () =>
       expect(roundTripped.extensions.error.message).toBe("boom");
     }
   });
+
+  it("preserves the required locus-state slot through JSON.stringify/parse", async () => {
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: sessionRecoverProbes(),
+    });
+    const roundTripped = JSON.parse(JSON.stringify(result)) as typeof result;
+    expect(roundTripped.locusState).toEqual({ ok: true, value: locusState() });
+  });
 });
 
 describe("runSessionHandoffStatus — orchestration", () => {
@@ -2652,6 +2747,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "head",
       "identity",
       "inboxState",
+      "locusState",
       "mode",
       "pushability",
       "recommendedSummaryLine",

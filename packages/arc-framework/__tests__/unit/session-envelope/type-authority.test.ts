@@ -52,6 +52,7 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
         type: "CascadeResolution",
     },
     { file: "lib/git/base-branch-sync.ts", type: "BaseBranchSyncStatusResult" },
+    { file: "lib/locus/schema/state.ts", type: "LocusStateV1" },
     { file: "commands/status/types.ts", type: "StatusIdentity" },
     { file: "commands/status/types.ts", type: "CompactionSeedWriteStatus" },
 ];
@@ -88,6 +89,7 @@ const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
     { file: "lib/release/routing.ts", type: "ReleaseRoutingValue" },
     { file: "commands/status/types.ts", type: "SessionInitProbeResult" },
     { file: "commands/status/types.ts", type: "SessionRecoverProbeResult" },
+    { file: "commands/status/types.ts", type: "SessionHandoffResult" },
 ];
 
 function exportedTypeDeclaration({ file, type }: TypeLocus): string {
@@ -143,4 +145,12 @@ describe("session-envelope type authority", () => {
             "SessionRecoverProbeResultSchemaInputCompatibility<",
         );
     });
+
+    it.each(["SessionInitProbeResult", "SessionRecoverProbeResult", "SessionHandoffResult"])(
+        "uses the shared locus-state authority in %s",
+        (type) => {
+            expect(exportedTypeDeclaration({ file: "commands/status/types.ts", type }))
+                .toContain("locusState: Probe<LocusStateV1>");
+        },
+    );
 });

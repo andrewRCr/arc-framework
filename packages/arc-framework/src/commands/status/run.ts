@@ -43,6 +43,7 @@ import type {
 import {
   buildSessionSharedSlots,
   gatedSlot,
+  locusStateSlot,
   safeProbe,
   SessionCompositionError,
   toProbe,
@@ -157,10 +158,11 @@ export async function runSessionInitStatus(
     : safeProbe("compactionAdvisory", () => compactionAdvisoryProbe(identity));
 
   const [
-    user, worktree, dirty, active, releaseRouting,
+    locusState, user, worktree, dirty, active, releaseRouting,
     worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
     retiredSubdirs, errandSweep, inboxState, partialPushMarker, compactionAdvisory,
   ] = await Promise.all([
+    shared.locusState,
     shared.user,
     shared.worktree,
     shared.dirty,
@@ -426,6 +428,7 @@ export async function runSessionInitStatus(
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
+    locusState: toProbe(locusState),
     user: toProbe(enrichedUser),
     worktree: toProbe(enrichedWorktree),
     baseDistance: toProbe(enrichedBaseDistance),
@@ -468,6 +471,7 @@ export async function runRecoverStatus(
   const { identity, role, probes, workingMemoryPath } = options;
 
   const worktreeTask = safeProbe("worktree", () => probes.worktree());
+  const locusStateTask = locusStateSlot(identity, (id) => probes.locusState(id));
   const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
   const extensionsTask = safeProbe("extensions", () => probes.extensions());
@@ -476,6 +480,7 @@ export async function runRecoverStatus(
   const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
 
   const [
+    locusState,
     worktree,
     worktreeIdentitySlot,
     dirty,
@@ -484,6 +489,7 @@ export async function runRecoverStatus(
     active,
     releaseRouting,
   ] = await Promise.all([
+    locusStateTask,
     worktreeTask,
     worktreeIdentityTask,
     dirtyTask,
@@ -525,6 +531,7 @@ export async function runRecoverStatus(
   return {
     mode: "recover",
     identity: buildIdentity(identity, role),
+    locusState: toProbe(locusState),
     worktree: toProbe(enrichedWorktree),
     dirty: toProbe(dirty),
     extensions: toProbe(extensions),
@@ -675,9 +682,10 @@ export async function runSessionHandoffStatus(
     : safeProbe("inboxState", () => probes.inboxState(identity));
 
   const [
-    user, worktree, dirty, active, releaseRouting,
+    locusState, user, worktree, dirty, active, releaseRouting,
     syncInterlock, head, pushability, restateCandidates, inboxState,
   ] = await Promise.all([
+    shared.locusState,
     shared.user,
     shared.worktree,
     shared.dirty,
@@ -715,6 +723,7 @@ export async function runSessionHandoffStatus(
   return {
     mode: "session-handoff",
     identity: buildIdentity(identity, role),
+    locusState: toProbe(locusState),
     branch,
     dirty: toProbe(dirty),
     worktree: toProbe(worktree),

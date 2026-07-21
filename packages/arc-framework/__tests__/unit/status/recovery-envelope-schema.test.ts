@@ -21,7 +21,19 @@ const READY_PATH = join(
 
 function recovery(): Record<string, unknown> {
   const report = JSON.parse(readFileSync(READY_PATH, "utf8")) as { recover: Record<string, unknown> };
-  return structuredClone(report.recover);
+  const value = structuredClone(report.recover);
+  value.locusState = {
+    ok: true,
+    value: {
+      roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
+      current: { kind: "none" },
+      primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+      inFlightIdentities: [],
+      recovery: { kind: "none" },
+      reconciliation: { kind: "clean" },
+    },
+  };
+  return value;
 }
 
 function withoutKey(value: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -51,6 +63,7 @@ describe("lean recovery envelope schema", () => {
     "config",
     "active",
     "releaseRouting",
+    "locusState",
     "loadSet",
   ])("requires the %s slot", (key) => {
     expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), key)).success).toBe(false);

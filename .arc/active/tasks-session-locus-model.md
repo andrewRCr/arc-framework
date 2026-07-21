@@ -638,33 +638,24 @@ as their machine-local occupancy authority.
 - _Outcome:_ Managed WU checkouts now carry one machine-local role from trusted creation/adoption through guarded
   physical retirement, while spawned entry stays idle and explicit in-place entry owns the entering lease.
 
-### `[ ]` **6.2 Add `locusState` to session entry, recovery, and handoff orchestration** — D6, D9
+### `[x]` **6.2 Add `locusState` to session entry, recovery, and handoff orchestration** — D6, D9
 
 - _Goal:_ Every session operation receives one shared locus interpretation and dispatches on its typed verdicts
   instead of recomputing frame or machine-state conditions in handlers and workflow prose.
 
-    - `[ ]` **6.2.a Extend the session-envelope schema and registry composition**
-        - Add required `locusState: probe(LocusStateV1Schema)` fields to `SessionInitProbeResultSchema` and
-          `SessionRecoverProbeResultSchema`, their handwritten producer interfaces, and compile-time compatibility
-          proofs; add the same required typed probe to `SessionHandoffResult` without inventing another value shape.
-        - Project missing identity as `identity-missing` without invoking the reader and root/topology failure as
-          `runtime`; the slot is always present rather than conflating failure with an omitted probe.
-        - Compose the locus registry roots with `createSessionEnvelopeRegistry()` without weakening the strict
-          session-init object or duplicating schema definitions.
-        - Build `test-first` (one behavior at a time):
-            - Extend fixtures, exact-presence failures, identity/runtime error arms, producer compatibility,
-              registry composition, and type-authority tests across init, recover, and handoff producers.
+    - `[x]` **6.2.a Extend the session-envelope schema and registry composition**
+        - Made the shared `Probe<LocusStateV1>` slot required across init, recover, and handoff producers; strict
+          init/recover contracts validate it from the locus schema authority, while the session registry now
+          composes the complete locus family without duplicate definitions.
 
-    - `[ ]` **6.2.b Add the shared locus probe to session-operation orchestration**
-        - Extend `SessionInitProbes`, `SessionRecoverProbes`, `SessionHandoffProbes`, and their status handlers to
-          compute the network-free locus reader once per operation and thread that exact state into downstream
-          entry, recovery, cleanup, and materialization consumers.
-        - Extend the existing inbox-state probe with ordered execute-dispatch group summaries and malformed-group
-          diagnostics so pending dispatches remain visible without counting as routable housekeep entries.
-        - Keep read-only status from attaching, heartbeating, reconciling, or reaping records.
-        - Build `test-first` (one behavior at a time):
-            - Cover success, identity-missing, root failure, ambiguous current state, zero/one/multiple dispatch
-              groups, malformed bindings, and stable JSON output.
+    - `[x]` **6.2.b Add the shared locus probe to session-operation orchestration**
+        - Added one identity-gated, network-free locus read to each session operation, preserving exact success,
+          ambiguity, identity-missing, and runtime verdicts in stable JSON without mutation. Reused the existing
+          ordered execute-dispatch summaries and malformed-binding diagnostics that exclude pending groups from
+          routable housekeep counts.
+
+- _Outcome:_ Session init, recovery, and handoff now expose one schema-validated occupancy interpretation from the
+  same reader and registry family, so later workflow dispatch can consume locus authority without recomputation.
 
 ### `[ ]` **6.3 Recover active and suspended frames from locus-aware compaction state** — D4, D9
 

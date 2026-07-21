@@ -22,6 +22,7 @@ import { PartialPushMarkerSurfaceResultSchema } from "../../lib/session-init/par
 import { RetiredSubdirDetectionResultSchema } from "../../lib/session-init/retired-subdir-detection.js";
 import { ClassCompositionSchema } from "../../lib/status/class-composition.js";
 import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.js";
+import { LocusStateV1Schema } from "../../lib/locus/schema/index.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
 
 const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "value must not be empty");
@@ -323,6 +324,7 @@ export const CompactionSeedWriteStatusSchema = z.discriminatedUnion("status", [
 const SessionInitEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("session-init"),
   identity: StatusIdentitySchema,
+  locusState: probe(LocusStateV1Schema),
   user: probe(SessionInitUserValueViewSchema),
   worktree: probe(SessionInitWorktreeValueViewSchema),
   baseDistance: probe(SessionInitBaseDistanceValueViewSchema),
@@ -476,6 +478,7 @@ export const SessionRecoverWorktreeValueViewSchema = WorktreeSyncValueViewSchema
 const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("recover"),
   identity: StatusIdentitySchema,
+  locusState: probe(LocusStateV1Schema),
   worktree: probe(SessionRecoverWorktreeValueViewSchema),
   dirty: probe(DirtyStateValueViewSchema),
   extensions: probe(ExtensionsSessionInitValueViewSchema),

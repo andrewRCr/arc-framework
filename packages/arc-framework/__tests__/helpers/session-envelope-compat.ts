@@ -315,6 +315,9 @@ export function normalizeSessionEnvelope(
       );
       next = next.replace(/\b\d{4}-\d{2}-\d{2}\b/gu, (date) => tokenFor(dates, date, "DATE"));
       if (key === "machineId") return "<MACHINE_ID>";
+      if (next.startsWith("Unrecognized process boundary:")) {
+        return "Unrecognized process boundary: <PROCESS_BOUNDARY>";
+      }
       return normalizeDegradedCommandWarning(next);
     }
     if (Array.isArray(value)) {

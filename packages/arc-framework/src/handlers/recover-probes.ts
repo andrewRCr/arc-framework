@@ -19,6 +19,7 @@ import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
+import { runLocusStateProbe } from "./locus-state-probe.js";
 
 export interface RecoverStatusProbeOptions {
   cwd: string;
@@ -32,7 +33,18 @@ export function createRecoverStatusProbes(
   const { cwd, dirty } = options;
   const io = createUserIOContext();
   const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+  const extensionsP = runExtensionsSessionInitStatus({ cwd });
   return {
+    locusState: async (identity) => {
+      const [resolved, extensions] = await Promise.all([resolvedSettingsP, extensionsP]);
+      return runLocusStateProbe({
+        cwd,
+        identity,
+        baseBranch: resolved.settings["branch.base"],
+        activeExtensions: extensions.active,
+        exec: gitExec,
+      });
+    },
     worktree: async () => {
       const resolved = await resolvedSettingsP;
       const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
@@ -40,7 +52,7 @@ export function createRecoverStatusProbes(
     },
     worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
     dirty,
-    extensions: () => runExtensionsSessionInitStatus({ cwd }),
+    extensions: () => extensionsP,
     config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
     active: (identity, role) => runActiveSessionInitStatus({ cwd, identity, role, exec: gitExec }),
     releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),

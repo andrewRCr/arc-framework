@@ -109,6 +109,7 @@ import {
 } from "../lib/errand/record.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
+import { runLocusStateProbe } from "./locus-state-probe.js";
 import {
   emitCompactionSeed,
   parseUncommittedFiles,
@@ -330,7 +331,18 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // early-return above runs first to avoid leaving an unawaited rejection on
     // the non-JSON exit path.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const locusExtensionsP = runExtensionsSessionInitStatus({ cwd });
     const probes: SessionHandoffProbes = {
+      locusState: async (id) => {
+        const [resolved, extensions] = await Promise.all([resolvedSettingsP, locusExtensionsP]);
+        return runLocusStateProbe({
+          cwd,
+          identity: id,
+          baseBranch: resolved.settings["branch.base"],
+          activeExtensions: extensions.active,
+          exec: gitExec,
+        });
+      },
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
       worktree: async () => {
         const resolved = await resolvedSettingsP;
@@ -402,6 +414,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const extensionsP = runExtensionsSessionInitStatus({ cwd });
     const compactionSeedGitSnapshotP = opts.writeCompactionSeed
       ? readCompactionSeedGitSnapshot(cwd)
       : null;
@@ -481,6 +494,16 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       return oraclePromise;
     };
     const probes: SessionInitProbes = {
+      locusState: async (id) => {
+        const [resolved, extensions] = await Promise.all([resolvedSettingsP, extensionsP]);
+        return runLocusStateProbe({
+          cwd,
+          identity: id,
+          baseBranch: resolved.settings["branch.base"],
+          activeExtensions: extensions.active,
+          exec: gitExec,
+        });
+      },
       user: async (id) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
@@ -545,7 +568,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         compactionSeedGitSnapshotP,
         fallback: () => runDirtyStateStatus({ exec: gitExec }),
       }),
-      extensions: () => runExtensionsSessionInitStatus({ cwd }),
+      extensions: () => extensionsP,
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
