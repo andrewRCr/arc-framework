@@ -103,4 +103,30 @@ describe("validation-surfaces schema registry", () => {
       $ref: "work-unit-state.schema.json",
     });
   });
+
+  it("projects deterministic composed bytes with closed resolvable identities", () => {
+    const first = projectKernelSchemas(createValidationSurfacesRegistry());
+    const second = projectKernelSchemas(createValidationSurfacesRegistry());
+    const ids = Object.keys(first.schemas);
+
+    expect(serializeKernelSchemaBundle(second)).toBe(serializeKernelSchemaBundle(first));
+    expect(ids).toEqual([
+      "arc-config",
+      "audit-entry",
+      "local-sync-state",
+      "meta-record",
+      "priority",
+      "slug",
+      "work-class",
+      "work-unit-state",
+    ]);
+    for (const id of ids) expect(first.schemas[id]?.$id).toBe(`${id}.schema.json`);
+
+    const references = [...serializeKernelSchemaBundle(first).matchAll(/"\$ref": "([^"]+)"/gu)]
+      .map((match) => match[1]);
+    expect(references.length).toBeGreaterThan(0);
+    for (const reference of references) {
+      expect(ids.map((id) => `${id}.schema.json`)).toContain(reference);
+    }
+  });
 });

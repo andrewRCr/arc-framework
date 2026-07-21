@@ -451,7 +451,7 @@ registry discovery independent from kernel artifact publication.
 - _Outcome:_ Durable validation roots are discoverable through an isolated internal registry without expanding the
   CLI entry surface or changing the kernel artifact publication contract.
 
-### `[ ]` **6.2 Prove registry projection fidelity and closed membership**
+### `[x]` **6.2 Prove registry projection fidelity and closed membership**
 
 - _Goal:_ Registry metadata, ordering, and JSON Schema acceptance are deterministic and cannot drift beyond the
   declared root set.
@@ -461,13 +461,13 @@ registry discovery independent from kernel artifact publication.
           Shared literal corpora now require matching Zod and Ajv results across audit cross-products, semantic meta
           strictness, config key/value policy, and backward-compatible sync-state versions and extensions.
 
-    - `[ ]` **6.2.b Prove closed membership and publication isolation**
-        - Assert the exact sorted registry set is `arc-config`, `audit-entry`, `local-sync-state`, `meta-record`,
-          `priority`, `slug`, `work-class`, and `work-unit-state`; this closed set proves exclusion without minting ids
-          for unregistered cut-map, worktree-porcelain, cold-start, cross-WU, projection, or completed-config schemas.
-        - Project the composed registry only in memory and verify its deterministic bytes and `$id` references.
-        - Run the package build and confirm no composed artifact or additional schema file is emitted and the existing
-          kernel-only artifact remains byte-identical.
+    - `[x]` **6.2.b Prove closed membership and publication isolation**
+        - Pinned the exact eight-schema closed set, byte-identical fresh projections, canonical `$id` values, and
+          resolvable internal references. A real clean package build still emits only the byte-stable kernel artifact;
+          no unregistered validation surface receives an identity or publication path.
+
+- _Outcome:_ The composed registry is closed, deterministic, acceptance-equivalent across independent evaluators,
+  and isolated from package publication; registration remains discovery metadata rather than an artifact side effect.
 
 ## **Phase 7:** Review-gate canonicalization cutover
 
