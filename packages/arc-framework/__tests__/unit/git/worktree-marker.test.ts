@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 
 import {
   decodeWorktreeMarkerOwnership,
+  classifyTransientWorktreeProvenance,
   ensureWorktreeMarkerIgnored,
   decodeWorktreeHuskStamp,
   nodeWorktreeMarkerIgnoreFs,
@@ -22,6 +23,7 @@ import {
   writeWorktreeOwnershipMarker,
   resolveWorktreeMarkerPath,
   type WorktreeMarker,
+  type WorktreeMarkerReadResult,
   type WorktreeHuskStamp,
   type LegacyWorktreeSubject,
 } from "../../../src/lib/git/worktree-marker.js";
@@ -174,6 +176,40 @@ describe("worktree-marker", () => {
       kind: "manual-only",
       reason: "unknown-provisioning",
     });
+  });
+
+  it("classifies transient provisioning and exact claim mismatches without granting authority", () => {
+    const subject = { kind: "errand", slug: "refresh-fixtures", claimId: "a".repeat(32) } as const;
+    const marker = (provisioning: "pending" | "ready" | "future"): WorktreeMarkerReadResult => ({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        createdFor: subject,
+        provisioning,
+        spawningIdentity: "andrew",
+        createdAt: "2026-05-25T00:00:00.000Z",
+      },
+    });
+
+    expect(classifyTransientWorktreeProvenance(marker("pending"), subject)).toEqual({ kind: "pending", subject });
+    expect(classifyTransientWorktreeProvenance(marker("ready"), subject)).toEqual({ kind: "ready", subject });
+    expect(classifyTransientWorktreeProvenance(marker("ready"), {
+      ...subject,
+      claimId: "b".repeat(32),
+    })).toEqual({
+      kind: "claim-mismatch",
+      subject,
+      expected: { ...subject, claimId: "b".repeat(32) },
+    });
+    expect(classifyTransientWorktreeProvenance(marker("future"))).toEqual({
+      kind: "unknown",
+      reason: "unknown-provisioning",
+    });
+    expect(classifyTransientWorktreeProvenance({
+      kind: "malformed",
+      path: "/work/marker.json",
+      message: "invalid marker",
+    })).toEqual({ kind: "malformed", message: "invalid marker" });
   });
 
   it("rejects incomplete or malformed transient claim provenance", async () => {

@@ -20,7 +20,7 @@ import {
   type InFlightWarning,
   type PrSource,
 } from "../../lib/git/in-flight-derivation.js";
-import { readErrandSlugByBranch } from "../../lib/errand/record.js";
+import { readErrandSlugByBranch, readTransientInFlightIndexes } from "../../lib/errand/record.js";
 
 export interface ActiveInFlightOptions {
   exec: GitExec;
@@ -65,7 +65,10 @@ export async function runActiveInFlight(
   options: ActiveInFlightOptions,
 ): Promise<ActiveInFlightResult> {
   const { exec, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
-  const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
+  const [legacySlugByBranch, indexes] = await Promise.all([
+    readErrandSlugByBranch({ exec, identity }),
+    readTransientInFlightIndexes({ exec, identity }),
+  ]);
   const result = await deriveInFlight({
     exec,
     localOnly,
@@ -73,7 +76,8 @@ export async function runActiveInFlight(
     timeoutMs,
     identity,
     teamMode,
-    errandSlugByBranch,
+    errandSlugByBranch: new Map([...legacySlugByBranch, ...indexes.slugByBranch]),
+    expectedTransientByBranch: indexes.expectedByBranch,
     parkedSlugs,
     prSource,
   });

@@ -254,9 +254,9 @@ export interface SessionInitProbeResult {
    */
   sweep?: Probe<StaleWorktreeSweepResult>;
   /**
-   * Derived orientation for a linked branchless checkout that is an exact,
-   * locally completed stamped WU husk. This interim advisory is separate from
-   * worktree sync state and may be superseded by a durable locus record.
+   * Derived orientation for a linked branchless checkout that is either an
+   * exact stamped WU husk or carries diagnostic-only transient provenance.
+   * This interim advisory is separate from worktree sync state.
    * Omitted on ordinary branched/primary paths and when the probe degrades.
    */
   currentHusk?: Probe<CurrentHuskAdvisory | null>;

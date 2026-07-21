@@ -58,19 +58,33 @@ export const BaseDistanceValueViewSchema = z
 export const WorktreeRosterValueViewSchema = z.object({}).loose();
 
 const WorktreeSubjectViewSchema = z
-  .object({ kind: z.enum(["work-unit", "errand", "branch"]) })
+  .object({ kind: z.enum(["work-unit", "errand", "groom", "housekeep", "branch"]) })
   .loose();
 const HuskStampViewSchema = z
   .object({ kind: z.enum(["legacy", "current", "manual-only"]) })
   .loose();
 
 /** Thin routing view of the current-worktree husk advisory. */
-export const CurrentHuskAdvisoryViewSchema = z
-  .object({
-    subject: z.object({ kind: z.literal("work-unit") }).loose(),
-    stamp: HuskStampViewSchema,
-  })
-  .loose();
+const TransientProvenanceViewSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.enum(["ready", "pending"]), subject: WorktreeSubjectViewSchema }).loose(),
+  z.object({ kind: z.literal("legacy"), subject: WorktreeSubjectViewSchema }).loose(),
+  z.object({
+    kind: z.literal("claim-mismatch"),
+    subject: WorktreeSubjectViewSchema,
+    expected: WorktreeSubjectViewSchema,
+  }).loose(),
+  z.object({ kind: z.literal("unknown"), reason: z.literal("unknown-provisioning") }).loose(),
+  z.object({ kind: z.literal("malformed"), message: z.string() }).loose(),
+]);
+export const CurrentHuskAdvisoryViewSchema = z.object({
+  subject: z.object({ kind: z.literal("work-unit") }).loose().optional(),
+  stamp: HuskStampViewSchema.optional(),
+  provenance: TransientProvenanceViewSchema.optional(),
+}).loose().superRefine((value, context) => {
+  const husk = value.subject !== undefined && value.stamp !== undefined && value.provenance === undefined;
+  const transient = value.subject === undefined && value.stamp === undefined && value.provenance !== undefined;
+  if (!husk && !transient) context.addIssue({ code: "custom", message: "Expected one husk or transient advisory" });
+});
 
 const BranchedCleanupDecisionViewSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("removable") }).loose(),
@@ -98,6 +112,11 @@ const StaleWorktreeReportViewSchema = z.discriminatedUnion("kind", [
       decision: HuskCleanupDecisionViewSchema,
     })
     .loose(),
+  z.object({
+    kind: z.literal("transient"),
+    provenance: TransientProvenanceViewSchema,
+    decision: z.object({ action: z.literal("blocked"), reason: z.literal("transient-provenance") }).loose(),
+  }).loose(),
 ]);
 
 /** Thin routing view of the stale-worktree cleanup advisory. */

@@ -104,6 +104,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec, readGitBlobBytes } from "../lib/io-context.js";
 import {
   listErrandRecordsResult,
+  readTransientInFlightIndexes,
   type ErrandRecord,
   type ListErrandRecordsResult,
 } from "../lib/errand/record.js";
@@ -440,6 +441,11 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // (resume + discovery). Identity-scoped and local, so read once and reused;
     // empty when no identity resolved (no record ref exists).
     let errandRecordsPromise: Promise<ListErrandRecordsResult> | undefined;
+    let transientIndexesPromise: ReturnType<typeof readTransientInFlightIndexes> | undefined;
+    const getTransientIndexes = () => {
+      transientIndexesPromise ??= readTransientInFlightIndexes({ exec: gitExec, identity });
+      return transientIndexesPromise;
+    };
     const getErrandRecordsResult = (): Promise<ListErrandRecordsResult> => {
       errandRecordsPromise ??= identity === null
         ? Promise.resolve({ records: [], complete: true, warnings: [] })
@@ -459,12 +465,16 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         await pruneRemoteTrackingRefs(gitExec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const [recordResult, parkedSlugs] = await Promise.all([
+        const [recordResult, transientIndexes, parkedSlugs] = await Promise.all([
           getErrandRecordsResult(),
+          getTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
         ]);
         const records = recordResult.records;
-        const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
+        const errandSlugByBranch = new Map([
+          ...records.map((record) => [record.branch, record.slug] as const),
+          ...transientIndexes.slugByBranch,
+        ]);
         const result = await deriveInFlight({
           exec: gitExec,
           localOnly: false,
@@ -472,6 +482,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           identity,
           teamMode,
           errandSlugByBranch,
+          expectedTransientByBranch: transientIndexes.expectedByBranch,
           errandRecordsComplete: recordResult.complete,
           parkedSlugs,
         });
@@ -502,16 +513,22 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       },
       worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
       currentHusk: async (worktreePath) => {
-        const [marker, headResult, resolved] = await Promise.all([
+        const [marker, headResult, resolved, transientIndexes] = await Promise.all([
           readWorktreeMarker(worktreePath),
           gitExec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
           resolvedSettingsP,
+          getTransientIndexes(),
         ]);
+        const markerSubject = marker.kind === "present" ? marker.marker.createdFor : undefined;
+        const expectedTransient = markerSubject !== undefined && "slug" in markerSubject
+          ? transientIndexes.expectedBySlug.get(markerSubject.slug)
+          : undefined;
         return await resolveCurrentHuskAdvisory({
           worktreePath,
           branch: null,
           head: headResult.stdout,
           marker,
+          ...(expectedTransient === undefined ? {} : { expectedTransient }),
         }, async (stamp, decoded) => {
           const baseBranch = resolved.settings["branch.base"];
           return await revalidateDecodedHuskRetirementEvidence(
@@ -593,7 +610,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
       },
       sweep: async (roster, worktreeIdentity) => {
-        const resolved = await resolvedSettingsP;
+        const [resolved, transientIndexes] = await Promise.all([resolvedSettingsP, getTransientIndexes()]);
         return runStaleWorktreeSweep({
           roster,
           worktreeIdentity,
@@ -604,6 +621,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
           excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
           readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
+          expectedTransientByBranch: transientIndexes.expectedByBranch,
         });
       },
       orphanBranchSweep: async (worktreeIdentity) => {

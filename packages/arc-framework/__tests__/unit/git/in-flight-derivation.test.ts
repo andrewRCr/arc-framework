@@ -784,6 +784,38 @@ describe("deriveInFlight", () => {
     ]);
   });
 
+  it("joins local transient marker provenance to the exact identity generation", async () => {
+    const branch = "chore/fix-typo";
+    const expected = { kind: "errand", slug: "fix-typo", claimId: "a".repeat(32) } as const;
+    const exec = makeExec({ worktrees: [{ path: "/wt/fix-typo", branch }], metas: {} });
+
+    const { entries } = await deriveInFlight({
+      exec,
+      branches: [branch],
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([[branch, expected.slug]]),
+      expectedTransientByBranch: new Map([[branch, expected]]),
+      readMarker: async () => ({
+        kind: "present",
+        marker: {
+          spawnedByArc: true,
+          createdFor: { ...expected, claimId: "b".repeat(32) },
+          provisioning: "ready",
+          spawningIdentity: "andrew",
+          createdAt: "2026-07-20T00:00:00.000Z",
+        },
+      }),
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.transientProvenance).toEqual({
+      kind: "claim-mismatch",
+      subject: { ...expected, claimId: "b".repeat(32) },
+      expected,
+    });
+  });
+
   it("classifies an unpushed local errand branch with no worktree as local in-flight work", async () => {
     const sha = "2".repeat(40);
     const refs = { localHeads: { "chore/local-errand": sha } };

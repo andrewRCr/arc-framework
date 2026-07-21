@@ -2,7 +2,11 @@
 
 import type { TransientIdentitySnapshot } from "../errand/identity-snapshot.js";
 import type { RegisteredWorktree } from "../git/worktree-roster.js";
-import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
+import {
+  classifyTransientWorktreeProvenance,
+  type TransientWorktreeSubject,
+  type WorktreeMarkerReadResult,
+} from "../git/worktree-marker.js";
 import type {
   CheckoutEvidence,
   LocusEvidenceResult,
@@ -244,24 +248,34 @@ function markerMustAgree(
 function transientMarker(
   identity: LocusIdentityV1 | null,
   key: string,
-): { kind: "errand" | "branch"; key: string } {
-  return identity?.kind === "errand"
-    ? { kind: "errand", key }
-    : { kind: "branch", key: identity === null ? "" : identityBranch(identity) ?? "" };
+): TransientWorktreeSubject | { kind: "branch"; key: string } {
+  if (identity === null) return { kind: "branch", key: "" };
+  if (identity.kind === "groom") {
+    return { kind: "groom", slug: key, claimId: identity.claimId };
+  }
+  return {
+    kind: identity.purpose === "housekeep-routing" ? "housekeep" : "errand",
+    slug: key,
+    claimId: identity.claimId,
+  };
 }
 
 function markerMatches(
   result: WorktreeMarkerReadResult | { kind: "error"; message: string },
   identity: string,
-  expected: { kind: "work-unit" | "errand" | "branch"; key: string },
+  expected:
+    | { kind: "work-unit" | "branch"; key: string }
+    | TransientWorktreeSubject,
 ): boolean {
   if (result.kind !== "present" || result.marker.spawningIdentity !== identity) return false;
+  if (expected.kind === "errand" || expected.kind === "groom" || expected.kind === "housekeep") {
+    return classifyTransientWorktreeProvenance(result, expected)?.kind === "ready";
+  }
   const subject = result.marker.createdFor
     ?? (result.marker.wuName === undefined ? undefined : { kind: "work-unit" as const, name: result.marker.wuName });
   if (subject === undefined || subject.kind !== expected.kind) return false;
   if (subject.kind === "work-unit") return subject.name === expected.key;
-  if (subject.kind === "branch") return subject.ref === expected.key;
-  return false;
+  return subject.ref === expected.key;
 }
 
 function addMarkerReason(

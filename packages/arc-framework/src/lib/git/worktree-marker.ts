@@ -108,6 +108,18 @@ export type DecodedWorktreeMarkerOwnership =
       reason: "legacy-transient" | "unknown-provisioning" | "malformed-ownership";
     };
 
+/** Diagnostic-only trust projection for transient ownership provenance. */
+export type TransientWorktreeProvenance =
+  | { kind: "ready" | "pending"; subject: TransientWorktreeSubject }
+  | { kind: "legacy"; subject: Extract<LegacyWorktreeSubject, { kind: "errand" }> }
+  | {
+      kind: "claim-mismatch";
+      subject: TransientWorktreeSubject;
+      expected: TransientWorktreeSubject;
+    }
+  | { kind: "unknown"; reason: "unknown-provisioning" }
+  | { kind: "malformed"; message: string };
+
 /** Outcome of reading the marker: present, absent, or present-but-invalid. */
 export type WorktreeMarkerReadResult =
   | { kind: "present"; marker: WorktreeMarker }
@@ -352,6 +364,44 @@ export function decodeWorktreeMarkerOwnership(marker: WorktreeMarker): DecodedWo
   }
   if (subject.kind === "errand") return { kind: "manual-only", reason: "legacy-transient" };
   return { kind: "current", subject, provisioning: null };
+}
+
+/**
+ * Preserve transient marker state without turning diagnostic evidence into ownership authority.
+ *
+ * @param result - Marker read result at the checkout boundary
+ * @param expected - Optional exact identity generation to compare with the marker
+ * @returns A transient provenance classification, or `null` for absent/non-transient markers
+ */
+export function classifyTransientWorktreeProvenance(
+  result: WorktreeMarkerReadResult,
+  expected?: TransientWorktreeSubject,
+): TransientWorktreeProvenance | null {
+  if (result.kind === "absent") return null;
+  if (result.kind === "malformed") return { kind: "malformed", message: result.message };
+  const decoded = decodeWorktreeMarkerOwnership(result.marker);
+  if (decoded.kind === "manual-only") {
+    if (decoded.reason === "legacy-transient") {
+      const subject = result.marker.createdFor;
+      return subject?.kind === "errand" && !("claimId" in subject)
+        ? { kind: "legacy", subject }
+        : { kind: "malformed", message: "Legacy transient ownership is incomplete" };
+    }
+    return decoded.reason === "unknown-provisioning"
+      ? { kind: "unknown", reason: decoded.reason }
+      : null;
+  }
+  if (!isTransientWorktreeSubject(decoded.subject)) return null;
+  if (expected !== undefined && !transientSubjectsEqual(decoded.subject, expected)) {
+    return { kind: "claim-mismatch", subject: decoded.subject, expected };
+  }
+  return decoded.provisioning === "ready"
+    ? { kind: "ready", subject: decoded.subject }
+    : { kind: "pending", subject: decoded.subject };
+}
+
+function transientSubjectsEqual(left: TransientWorktreeSubject, right: TransientWorktreeSubject): boolean {
+  return left.kind === right.kind && left.slug === right.slug && left.claimId === right.claimId;
 }
 
 /**

@@ -37,6 +37,13 @@ import {
   type RefTipMap,
 } from "./remote-ref-reader.js";
 import { resolveWorktreePathsByBranchResult } from "./worktree-roster.js";
+import {
+  classifyTransientWorktreeProvenance,
+  readWorktreeMarker,
+  type TransientWorktreeProvenance,
+  type TransientWorktreeSubject,
+  type WorktreeMarkerReadResult,
+} from "./worktree-marker.js";
 
 /** Default remote whose tracking refs back the no-checkout meta reads. */
 const DEFAULT_REMOTE = "origin";
@@ -128,6 +135,8 @@ interface InFlightLocation {
   pr?: OpenPrSignal;
   /** Degradation/indeterminacy marks; absent on healthy entries. */
   marks?: readonly InFlightEntryMark[];
+  /** Diagnostic-only ownership-marker state for a locally materialized transient checkout. */
+  transientProvenance?: TransientWorktreeProvenance;
 }
 
 /** A work unit in flight — a branch/ref candidate backed by an active meta. */
@@ -238,6 +247,10 @@ export interface DeriveInFlightOptions {
    * meta presence alone.
    */
   errandSlugByBranch?: ReadonlyMap<string, string>;
+  /** Exact current transient identity generation keyed by branch. */
+  expectedTransientByBranch?: ReadonlyMap<string, TransientWorktreeSubject>;
+  /** Ownership-marker read seam for local transient provenance projection. */
+  readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
   /** Whether the record index was read completely; false degrades record-dependent classification. */
   errandRecordsComplete?: boolean;
   /** Work-unit slugs parked in the scheduling axis; matching entries are classified, not marked. */
@@ -375,8 +388,14 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   const entriesWithWorktreeMarks = worktreeResult.ok ? candidateEntries : candidateEntries.map(markEntryDegraded);
   const entriesForIdentity = entriesWithWorktreeMarks
     .filter((entry) => keepForIdentity(entry, identity, teamMode));
-
-  const entries = prSource === undefined ? entriesForIdentity : await enrichWithPrState(entriesForIdentity, prSource);
+  const entriesWithProvenance = await enrichWithTransientProvenance(
+    entriesForIdentity,
+    options.expectedTransientByBranch ?? new Map(),
+    options.readMarker ?? readWorktreeMarker,
+  );
+  const entries = prSource === undefined
+    ? entriesWithProvenance
+    : await enrichWithPrState(entriesWithProvenance, prSource);
   return {
     entries,
     residue,
@@ -386,6 +405,28 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
     liveRefs: branchSet.liveRefs,
     reachable: branchSet.reachable,
   };
+}
+
+async function enrichWithTransientProvenance(
+  entries: InFlightEntry[],
+  expectedByBranch: ReadonlyMap<string, TransientWorktreeSubject>,
+  readMarker: (worktreePath: string) => Promise<WorktreeMarkerReadResult>,
+): Promise<InFlightEntry[]> {
+  return Promise.all(entries.map(async (entry) => {
+    if (entry.worktreePath === undefined) return entry;
+    let marker: WorktreeMarkerReadResult;
+    try {
+      marker = await readMarker(entry.worktreePath);
+    } catch (error) {
+      marker = {
+        kind: "malformed",
+        path: entry.worktreePath,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+    const provenance = classifyTransientWorktreeProvenance(marker, expectedByBranch.get(entry.branch));
+    return provenance === null ? entry : { ...entry, transientProvenance: provenance };
+  }));
 }
 
 interface InputResolution {

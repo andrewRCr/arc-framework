@@ -371,17 +371,12 @@ transaction boundary before operation composers consume it.
           exact kind, slug, and claim generation, while every transient kind is refused before WU teardown effects.
           Legacy husk/status shapes remain narrow until transient cleanup projection is introduced.
 
-    - `[ ]` **4.2.d Project transient provenance into status and cleanup classification**
-        - Update `packages/arc-framework/src/lib/session-init/stale-worktree-sweep.ts`,
-          `packages/arc-framework/src/lib/session-init/current-husk-advisory.ts`, status projection, and
-          `packages/arc-framework/src/lib/git/in-flight-derivation.ts` to preserve pending, ready, legacy, and
-          claim-mismatched transient evidence.
-        - Keep pending and claimless markers diagnosable but non-adoptable/non-removable; only exact ready provenance
-          may participate in the later owned-lock adoption path.
-        - Build `test-first` (one behavior at a time):
-            - Status and cleanup classify exact ready, pending, legacy, malformed, and claim-mismatched subjects
-              without offering unsafe adoption or removal.
-            - Existing WU and husk cleanup behavior remains unchanged.
+    - `[x]` **4.2.d Project transient provenance into status and cleanup classification**
+        - Added one diagnostic-only transient provenance classifier and projected ready, pending, legacy, unknown,
+          malformed, and claim-mismatched marker evidence through local in-flight entries, current branchless
+          orientation, locus subject joins, and stale cleanup status. Only an exact ready marker joins an existing
+          role to its identity generation; every transient cleanup report remains blocked, while WU and branch husk
+          cleanup retain their prior authority.
 
     - `[ ]` **4.2.e Compose a recoverable transient provisioning transaction**
         - Add `packages/arc-framework/src/lib/locus/provisioning.ts` with `provisionTransientLocus()`. For a spawned

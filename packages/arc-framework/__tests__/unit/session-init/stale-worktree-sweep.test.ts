@@ -321,7 +321,7 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "uncommitted" });
   });
 
-  it("reports recordless and errand husks without claiming WU completion", async () => {
+  it("keeps recordless husks removable but legacy transient husks diagnostic-only", async () => {
     const markers = new Map<string, WorktreeMarkerReadResult>([
       ["/wt/recordless", stampedMarker({ kind: "branch", ref: "review/orphan" }, { branch: "review/orphan" })],
       ["/wt/errand", stampedMarker({ kind: "errand", slug: "tidy-hooks" }, { branch: "chore/tidy-hooks" })],
@@ -353,16 +353,62 @@ describe("runStaleWorktreeSweep", () => {
         decision: { action: "removable" },
       },
       {
-        kind: "husk",
+        kind: "transient",
         worktreePath: "/wt/errand",
         branch: null,
-        subject: { kind: "errand", slug: "tidy-hooks" },
-        stampedBranch: "chore/tidy-hooks",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
-        completedWorkUnit: null,
-        decision: { action: "removable" },
+        provenance: { kind: "legacy", subject: { kind: "errand", slug: "tidy-hooks" } },
+        decision: { action: "blocked", reason: "transient-provenance" },
       },
     ]);
+  });
+
+  it("classifies ready, pending, malformed, and claim-mismatched transient cleanup evidence", async () => {
+    const expected = { kind: "errand", slug: "exact", claimId: "a".repeat(32) } as const;
+    const marker = (
+      subject: typeof expected,
+      provisioning: "pending" | "ready",
+    ): WorktreeMarkerReadResult => ({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        createdFor: subject,
+        provisioning,
+        spawningIdentity: "andrew",
+        createdAt: "2026-07-20T00:00:00.000Z",
+      },
+    });
+    const markers = new Map<string, WorktreeMarkerReadResult>([
+      ["/wt/ready", marker(expected, "ready")],
+      ["/wt/pending", marker(expected, "pending")],
+      ["/wt/mismatch", marker({ ...expected, claimId: "b".repeat(32) }, "ready")],
+      ["/wt/malformed", { kind: "malformed", path: "/wt/malformed/marker", message: "invalid marker" }],
+    ]);
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async (path) => markers.get(path) ?? { kind: "absent" },
+      expectedTransientByBranch: new Map([
+        ["chore/ready", expected],
+        ["chore/pending", expected],
+        ["chore/mismatch", expected],
+      ]),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: ["ready", "pending", "mismatch", "malformed"].map((name) => ({
+          path: `/wt/${name}`,
+          head: "head",
+          branch: `chore/${name}`,
+          detached: false,
+          primary: false,
+        })),
+      }),
+    });
+
+    expect(result.worktrees.map((entry) => entry.kind === "transient" ? entry.provenance.kind : entry.kind))
+      .toEqual(["ready", "pending", "claim-mismatch", "malformed"]);
+    expect(result.worktrees.every((entry) => entry.decision.action === "blocked")).toBe(true);
   });
 
   it("marks a structurally current husk manual-only when committed evidence does not revalidate", async () => {
@@ -424,7 +470,7 @@ describe("runStaleWorktreeSweep", () => {
     expect(soloResult.worktrees).toHaveLength(1);
   });
 
-  it("excludes absent and malformed detached markers", async () => {
+  it("excludes absent markers while preserving malformed cleanup evidence", async () => {
     const markers = new Map<string, WorktreeMarkerReadResult>([
       ["/wt/absent", { kind: "absent" }],
       ["/wt/malformed", { kind: "malformed", path: "/wt/malformed/.arc/marker", message: "invalid JSON" }],
@@ -444,7 +490,13 @@ describe("runStaleWorktreeSweep", () => {
       }),
     });
 
-    expect(result.worktrees).toEqual([]);
+    expect(result.worktrees).toEqual([{
+      kind: "transient",
+      worktreePath: "/wt/malformed",
+      branch: null,
+      provenance: { kind: "malformed", message: "invalid JSON" },
+      decision: { action: "blocked", reason: "transient-provenance" },
+    }]);
   });
 
   it("warns and continues when one detached marker cannot be read", async () => {
@@ -469,7 +521,7 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees).toHaveLength(1);
     expect(result.worktrees[0]?.worktreePath).toBe("/wt/readable");
     expect(result.warnings).toEqual([
-      "Could not read detached worktree marker at /wt/unreadable: permission denied",
+      "Could not read registered worktree marker at /wt/unreadable: permission denied",
     ]);
   });
 
@@ -486,7 +538,7 @@ describe("runStaleWorktreeSweep", () => {
 
     expect(result.worktrees).toHaveLength(1);
     expect(result.worktrees[0]?.kind).toBe("branched");
-    expect(result.warnings).toEqual(["Could not scan detached worktrees: topology unavailable"]);
+    expect(result.warnings).toEqual(["Could not scan registered worktrees: topology unavailable"]);
   });
 
   it("scans sibling husks from a linked worktree and excludes the exact current path", async () => {

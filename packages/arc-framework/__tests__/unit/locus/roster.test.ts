@@ -286,6 +286,55 @@ describe("managed subject authority", () => {
       record: record({ kind: "errand", key: "demo", claimId: "4".repeat(32) }),
     })).toEqual({ kind: "unresolved", reasons: ["subject-unresolved"] });
   });
+
+  it("resolves only ready transient provenance for the exact identity generation", () => {
+    const claimId = "5".repeat(32);
+    const identity: LocusIdentityV1 = {
+      kind: "errand",
+      key: "demo",
+      claimId,
+      protection: "full",
+      branch: "chore/demo",
+      purpose: "errand",
+      origin: "description",
+      originEntry: null,
+      dispatchId: null,
+      state: "open",
+      savedHead: null,
+      changeRequest: null,
+    };
+    const project = (provisioning: "pending" | "ready", markerClaimId = claimId) => projectManagedSubject({
+      identity: "andrew",
+      checkout: { path: "/repo-wt", head: "a".repeat(40), branch: "chore/demo", detached: false, primary: false },
+      record: record({ kind: "errand", key: "demo", claimId }),
+      marker: {
+        kind: "present",
+        marker: {
+          spawnedByArc: true,
+          spawningIdentity: "andrew",
+          createdAt: "2026-07-20T00:00:00.000Z",
+          createdFor: { kind: "errand", slug: "demo", claimId: markerClaimId },
+          provisioning,
+        },
+      },
+      identities: {
+        kind: "complete",
+        tip: "3".repeat(40),
+        objects: new Map(),
+        records: new Map(),
+        projections: new Map([["demo", identity]]),
+        diagnostics: [],
+      },
+      meta: null,
+    });
+
+    expect(project("ready")).toEqual({ kind: "resolved", authority: "transient", identity, meta: null });
+    expect(project("pending")).toEqual({ kind: "unresolved", reasons: ["subject-unresolved"] });
+    expect(project("ready", "6".repeat(32))).toEqual({
+      kind: "unresolved",
+      reasons: ["subject-unresolved"],
+    });
+  });
 });
 
 describe("provisional roster classification", () => {

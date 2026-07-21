@@ -220,10 +220,8 @@ export async function runSessionInitStatus(
         supersession,
       } satisfies SessionInitWorktreeValue));
 
-  // Current-locus husk orientation is a linked + branchless refinement, not a
-  // new sync state. Ordinary branched resumes skip marker/archive reads. A
-  // degraded advisory probe is omitted so detached-head guidance remains the
-  // conservative fallback.
+  // Current-locus husk/transient provenance is a linked + branchless
+  // refinement, not a new sync state. Ordinary branched resumes skip the read.
   const currentHuskSlot =
     worktreeIdentity.kind === "linked" && worktree.isOk() && worktree.value.branch === null
       ? await safeProbe("currentHusk", () => probes.currentHusk(worktreeIdentity.path))

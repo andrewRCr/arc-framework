@@ -1,34 +1,44 @@
 /**
  * Current-locus husk orientation derived from detached checkout evidence.
  *
- * This advisory does not widen worktree sync state. It recognizes only an
- * exact stamped work-unit husk. Authorization-bearing stamps expose only the
- * decoder's validated evidence; malformed markers remain ordinary detached
- * HEAD.
+ * This advisory does not widen worktree sync state. It recognizes an exact
+ * stamped work-unit husk or preserves diagnostic-only transient ownership
+ * evidence. Authorization-bearing stamps expose only validated evidence.
  *
  * @module
  */
 
 import type {
   DecodedWorktreeHuskStamp,
+  TransientWorktreeProvenance,
+  TransientWorktreeSubject,
   WorktreeMarkerReadResult,
   WorktreeSubject,
 } from "../git/worktree-marker.js";
-import { decodeWorktreeHuskStamp } from "../git/worktree-marker.js";
+import { classifyTransientWorktreeProvenance, decodeWorktreeHuskStamp } from "../git/worktree-marker.js";
 
 /** Terminal orientation for a WU husk at the current worktree. */
-export interface CurrentHuskAdvisory {
+export interface CurrentWorkUnitHuskAdvisory {
   worktreePath: string;
   subject: Extract<WorktreeSubject, { kind: "work-unit" }>;
   branch: string;
   stamp: DecodedWorktreeHuskStamp;
 }
 
+/** Recoverable but never-removable transient ownership evidence at the current checkout. */
+export interface CurrentTransientProvenanceAdvisory {
+  worktreePath: string;
+  provenance: TransientWorktreeProvenance;
+}
+
+export type CurrentHuskAdvisory = CurrentWorkUnitHuskAdvisory | CurrentTransientProvenanceAdvisory;
+
 export interface DeriveCurrentHuskAdvisoryOptions {
   worktreePath: string;
   branch: string | null;
   head: string;
   marker: WorktreeMarkerReadResult;
+  expectedTransient?: TransientWorktreeSubject;
 }
 
 /**
@@ -41,7 +51,10 @@ export function deriveCurrentHuskAdvisory(
   options: DeriveCurrentHuskAdvisoryOptions,
 ): CurrentHuskAdvisory | null {
   const { branch, head, marker, worktreePath } = options;
-  if (branch !== null || marker.kind !== "present") return null;
+  if (branch !== null) return null;
+  const transient = classifyTransientWorktreeProvenance(marker, options.expectedTransient);
+  if (transient !== null) return { worktreePath, provenance: transient };
+  if (marker.kind !== "present") return null;
   const stamp = marker.marker.husk;
   if (
     stamp === undefined
@@ -73,7 +86,7 @@ export async function resolveCurrentHuskAdvisory(
   ) => Promise<boolean>,
 ): Promise<CurrentHuskAdvisory | null> {
   const advisory = deriveCurrentHuskAdvisory(options);
-  if (advisory?.stamp.kind !== "current") return advisory;
+  if (advisory === null || !("stamp" in advisory) || advisory.stamp.kind !== "current") return advisory;
   const stamp = options.marker.kind === "present" ? options.marker.marker.husk : undefined;
   if (stamp === undefined) return null;
   return await revalidateEvidence(stamp, advisory.stamp) ? advisory : null;

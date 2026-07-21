@@ -39,7 +39,7 @@ import {
   renderInFlightWarning,
   type PrSource,
 } from "../git/in-flight-derivation.js";
-import { readErrandSlugByBranch } from "../errand/record.js";
+import { readErrandSlugByBranch, readTransientInFlightIndexes } from "../errand/record.js";
 
 import { buildInFlightMineSlice } from "./in-flight-mine.js";
 import {
@@ -129,7 +129,10 @@ export async function runStatusUserView(
   // remote reachability so the unreachable path below never has to recompute it.
   const ready = await options.readReadyMine();
 
-  const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
+  const [legacySlugByBranch, indexes] = await Promise.all([
+    readErrandSlugByBranch({ exec, identity }),
+    readTransientInFlightIndexes({ exec, identity }),
+  ]);
   const remoteResult = await deriveInFlight({
     exec,
     localOnly,
@@ -137,7 +140,8 @@ export async function runStatusUserView(
     timeoutMs,
     identity,
     teamMode,
-    errandSlugByBranch,
+    errandSlugByBranch: new Map([...legacySlugByBranch, ...indexes.slugByBranch]),
+    expectedTransientByBranch: indexes.expectedByBranch,
     parkedSlugs,
     prSource,
   });

@@ -32,6 +32,7 @@ import {
 } from "./identity-snapshot.js";
 
 import type { GitExec } from "../git/exec.js";
+import type { TransientWorktreeSubject } from "../git/worktree-marker.js";
 
 /**
  * How an errand came to be — the discriminator carried uniformly by every
@@ -305,6 +306,39 @@ export async function readErrandSlugByBranch(
   if (io.identity === null) return new Map();
   const records = await listErrandRecords({ exec: io.exec, identity: io.identity });
   return new Map(records.map((record) => [record.branch, record.slug]));
+}
+
+/** Exact branch indexes for transient in-flight classification and marker-generation joins. */
+export async function readTransientInFlightIndexes(
+  io: { exec: GitExec; identity: string | null },
+): Promise<{
+  slugByBranch: Map<string, string>;
+  expectedByBranch: Map<string, TransientWorktreeSubject>;
+  expectedBySlug: Map<string, TransientWorktreeSubject>;
+}> {
+  const slugByBranch = new Map<string, string>();
+  const expectedByBranch = new Map<string, TransientWorktreeSubject>();
+  const expectedBySlug = new Map<string, TransientWorktreeSubject>();
+  if (io.identity === null) return { slugByBranch, expectedByBranch, expectedBySlug };
+  const snapshot = await readTransientIdentitySnapshot({ exec: io.exec, identity: io.identity });
+  if (snapshot.kind === "error") return { slugByBranch, expectedByBranch, expectedBySlug };
+  if (snapshot.kind === "absent") return { slugByBranch, expectedByBranch, expectedBySlug };
+  for (const record of snapshot.records.values()) {
+    if (record.version !== 3 || record.branch === null) {
+      if (record.version !== 3) slugByBranch.set(record.branch, record.slug);
+      continue;
+    }
+    slugByBranch.set(record.branch, record.slug);
+    const kind = record.kind === "groom"
+      ? "groom"
+      : record.purpose === "housekeep-routing"
+        ? "housekeep"
+        : "errand";
+    const subject = { kind, slug: record.slug, claimId: record.claimId } as TransientWorktreeSubject;
+    expectedByBranch.set(record.branch, subject);
+    expectedBySlug.set(record.slug, subject);
+  }
+  return { slugByBranch, expectedByBranch, expectedBySlug };
 }
 
 /**

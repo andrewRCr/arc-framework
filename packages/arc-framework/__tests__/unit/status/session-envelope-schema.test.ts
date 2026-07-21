@@ -521,6 +521,29 @@ describe("session-init envelope schema", () => {
     });
   });
 
+  it("accepts diagnostic-only transient provenance in current and sweep projections", () => {
+    const current = fixture("current-husk");
+    setPath(current, ["currentHusk", "value"], {
+      provenance: {
+        kind: "claim-mismatch",
+        subject: { kind: "errand", slug: "demo", claimId: "a".repeat(32) },
+        expected: { kind: "errand", slug: "demo", claimId: "b".repeat(32) },
+      },
+    });
+    expect(SessionInitProbeResultSchema.safeParse(current).success).toBe(true);
+
+    const orient = fixture("orient");
+    setPath(orient, ["sweep", "value", "worktrees"], [{
+      kind: "transient",
+      provenance: {
+        kind: "pending",
+        subject: { kind: "groom", slug: "demo", claimId: "a".repeat(32) },
+      },
+      decision: { action: "blocked", reason: "transient-provenance" },
+    }]);
+    expect(SessionInitProbeResultSchema.safeParse(orient).success).toBe(true);
+  });
+
   it("enforces orphan and identity-scoped advisory presence", () => {
     const missingOrphan = fixture("active-resume");
     delete missingOrphan.orphanBranchSweep;

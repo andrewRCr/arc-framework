@@ -3,8 +3,9 @@
  *
  * In the main worktree, the sweep cross-references the in-flight roster against
  * the base ref's `completed/` archive. In identity-known linked worktrees, a
- * private cleanup roster enables a local sibling-husk scan without widening
- * general discovery or completion consumers.
+ * private cleanup roster enables a local sibling scan without widening general
+ * discovery or completion consumers. Transient ownership evidence is retained
+ * as diagnostic-only and never enters either removal oracle.
  *
  * {@link findStaleWorktreeCandidates} selects *which* worktrees are shipped-WU
  * candidates; {@link runStaleWorktreeSweep} then gathers each candidate's
@@ -26,10 +27,13 @@ import {
 } from "../git/worktree-cleanup.js";
 import {
   decodeWorktreeHuskStamp,
+  classifyTransientWorktreeProvenance,
   readWorktreeMarker,
   type DecodedWorktreeHuskStamp,
   type WorktreeMarkerReadResult,
   type LegacyWorktreeSubject,
+  type TransientWorktreeProvenance,
+  type TransientWorktreeSubject,
 } from "../git/worktree-marker.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import type { ProtectionMode } from "../git/write-context.js";
@@ -107,6 +111,13 @@ export type StaleWorktreeReport =
       stamp: DecodedWorktreeHuskStamp;
       completedWorkUnit: string | null;
       decision: HuskCleanupDecision;
+    }
+  | {
+      kind: "transient";
+      worktreePath: string;
+      branch: string | null;
+      provenance: TransientWorktreeProvenance;
+      decision: { action: "blocked"; reason: "transient-provenance" };
     };
 
 export interface StaleWorktreeSweepResult {
@@ -145,6 +156,8 @@ export interface RunStaleWorktreeSweepOptions {
     stamp: NonNullable<Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"]["husk"]>,
     decoded: Extract<DecodedWorktreeHuskStamp, { kind: "current" }>,
   ) => Promise<boolean>;
+  /** Exact transient identity generation keyed by its branch projection. */
+  expectedTransientByBranch?: ReadonlyMap<string, TransientWorktreeSubject>;
 }
 
 /**
@@ -205,29 +218,42 @@ export async function runStaleWorktreeSweep(
 
   const scan = await (options.scanWorktrees ?? scanRegisteredWorktrees)(exec);
   if (!scan.ok) {
-    warnings.push(`Could not scan detached worktrees: ${scan.message}`);
+    warnings.push(`Could not scan registered worktrees: ${scan.message}`);
     return { worktrees, warnings };
   }
 
   for (const entry of scan.worktrees) {
-    if (!entry.detached || entry.path === options.excludeWorktreePath) continue;
+    if (entry.primary || entry.path === options.excludeWorktreePath) continue;
     let marker: WorktreeMarkerReadResult;
     try {
       marker = await readMarker(entry.path);
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      warnings.push(`Could not read detached worktree marker at ${entry.path}: ${detail}`);
+      warnings.push(`Could not read registered worktree marker at ${entry.path}: ${detail}`);
       continue;
     }
-    if (marker.kind !== "present" || marker.marker.husk === undefined) continue;
     if (
       options.teamMode === true
       && options.identity !== null
       && options.identity !== undefined
+      && marker.kind === "present"
       && marker.marker.spawningIdentity !== options.identity
     ) {
       continue;
     }
+    const expected = entry.branch === null ? undefined : options.expectedTransientByBranch?.get(entry.branch);
+    const transient = classifyTransientWorktreeProvenance(marker, expected);
+    if (transient !== null) {
+      worktrees.push({
+        kind: "transient",
+        worktreePath: entry.path,
+        branch: entry.branch,
+        provenance: transient,
+        decision: { action: "blocked", reason: "transient-provenance" },
+      });
+      continue;
+    }
+    if (!entry.detached || marker.kind !== "present" || marker.marker.husk === undefined) continue;
     const stamp = marker.marker.husk;
     const clean = await isWorktreeClean({ exec, cwd: entry.path });
     let decoded = decodeWorktreeHuskStamp(stamp);
