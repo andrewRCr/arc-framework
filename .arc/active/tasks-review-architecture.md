@@ -594,11 +594,10 @@ that shapes review spend without producing satisfying evidence.
 - **Additional Context:** `strategy-workflow-authoring.md` §§ Author-side Declaration Rule, Prose economy, and Verbs
   over mechanics.
 
-    - `[ ]` **5.4.a Add the work-unit frontline fire point**
-        - Starting from Phase 4's effective `self-review` callsite, add `review-routing` resolution followed by
-          conditional `frontline-review` execution at the final-push/pre-creation boundary.
-        - Order final push → frontline → approved fix/gates/commit/push → optional follow-up → generic
-          `pre-pr-open` → change-request creation; re-resolve the exact target after every fix.
+    - `[x]` **5.4.a Add the work-unit frontline fire point**
+        - The work-unit publication path now resolves the pushed aggregate target, executes only the selected
+          frontline action, routes findings through approved response and persistence, and re-resolves bounded
+          follow-up work before generic pre-creation extensions and change-request creation.
 
     - `[ ]` **5.4.b Add the Errand frontline fire point**
         - Apply the same resolver and response cycle in `run-errand.md`, preserving auto/reviewed merge-lane policy

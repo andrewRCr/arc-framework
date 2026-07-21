@@ -131,6 +131,19 @@ actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise,
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
 
+From the pushed branch, compose the exact aggregate review target and canonical change facts. Run
+`arc review frontline resolve -` with `invocation: inherit`, then execute only its selected action:
+
+- `skip` — continue.
+- `offer` — surface its preparation or authorization action; execute only when accepted and the carrier is ready.
+- `attempt` — prepare the registered source and run [`frontline-review`][frontline-review] against the exact target.
+
+Route normalized findings through [`review-response`][review-response]. Apply only the approved fix set, run Tier 1
+quality gates, commit through the applicable interlock, and push through the workflow-wide push contract. After every
+persisted fix, recompose the exact target and resolve frontline routing again; run only the bounded follow-up the
+result permits. Surface clean, unavailable, failed, and pass-cap outcomes as advisory publication orientation, then
+continue without treating them as review evidence.
+
 Immediately before creation, compose
 `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }` from the pushed branch. If `pre-pr-open`
 is active, execute its numbered `.actions` in authored order. Halt before later actions on failure. A failed
@@ -485,7 +498,9 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 
 [branch-format]: ../../../methods/branch-format.md
 [self-review]: ../../../methods/self-review.md
+[frontline-review]: ../../../methods/frontline-review.md
 [review-triage]: ../../../methods/review-triage.md
+[review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [archive-work-unit]: archive-work-unit.md

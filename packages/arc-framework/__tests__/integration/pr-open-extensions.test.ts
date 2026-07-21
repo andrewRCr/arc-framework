@@ -78,6 +78,28 @@ describe("PR-open lifecycle extensions", () => {
     expect(workflow).toContain("`post-pr-open` → review iteration");
   });
 
+  it("runs routed frontline review after the final WU push and before PR creation", async () => {
+    const workflow = await readFile(
+      resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      "utf8",
+    );
+    const push = workflow.indexOf("Push the WU branch upstream");
+    const resolveFrontline = workflow.indexOf("arc review frontline resolve -", push);
+    const preOpen = workflow.indexOf("Immediately before creation", resolveFrontline);
+    const create = workflow.indexOf("gh pr create", preOpen);
+
+    expect([push, resolveFrontline, preOpen, create].every((index) => index >= 0)).toBe(true);
+    expect(push).toBeLessThan(resolveFrontline);
+    expect(resolveFrontline).toBeLessThan(preOpen);
+    expect(preOpen).toBeLessThan(create);
+
+    const frontlineCycle = workflow.slice(resolveFrontline, preOpen);
+    expect(frontlineCycle).toContain("review-response");
+    expect(frontlineCycle).toContain("recompose the exact target");
+    expect(frontlineCycle).toContain("bounded follow-up");
+    expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("Tier 1 quality gates");
+  });
+
   it("fails closed across every Errand PR lookup state", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/supplemental/run-errand.md"),
