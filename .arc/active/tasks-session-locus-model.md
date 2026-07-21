@@ -625,17 +625,10 @@ as their machine-local occupancy authority.
           `reconcileWorkUnitWorktree()`, with idle spawned roles, explicit in-place attachment dispositions, exact
           replay, and failure-before-role coverage across start, resume, and materialize paths.
 
-    - `[ ]` **6.1.b Adopt and attach WU roles during session entry**
-        - Reconcile a recordless ARC-marked WU from its marker/meta, replace only a conclusively dead WU lease, and
-          attach the entering session's exact token/anchor.
-        - Reconcile a recordless markerless in-place WU only when the physical primary's current branch and one
-          resolved active WU meta match exactly; never infer WU authority from an arbitrary off-base branch.
-        - Refuse another live/unknown lease, missing primary topology, cross-identity ownership, or marker/meta
-          conflict with precomposed guidance.
-        - Build `test-first` (one behavior at a time):
-            - Cover marker-backed linked adoption, exact markerless in-place adoption, arbitrary off-base refusal,
-              same-session attach replay, dead-lease replacement, live/unknown refusal, missing topology, ownership
-              conflict, and changed marker/meta proof under the owned lock.
+    - `[x]` **6.1.b Adopt and attach WU roles during session entry**
+        - Proved the trusted attach runtime across marker-backed linked and exact markerless-primary adoption,
+          same-session idempotent replay, unsafe off-base refusal, exact lease mutation, topology failure, ownership
+          conflict, and live/dead/unknown replacement boundaries.
 
     - `[ ]` **6.1.c Bind WU role lifetime to physical checkout ownership**
         - Preserve the same role generation across activation, deactivation, integration, reopening, and archival;

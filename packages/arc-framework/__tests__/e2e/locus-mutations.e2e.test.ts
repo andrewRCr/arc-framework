@@ -116,14 +116,64 @@ describe("arc locus mutation commands", () => {
       "utf8",
     );
 
-    const attached = await runAnchored(["locus", "attach", "--checkout", linkedCheckout, "--json"], repository);
+    const attached = await runAnchoredSequence([
+      ["locus", "attach", "--checkout", linkedCheckout, "--json"],
+      ["locus", "attach", "--checkout", linkedCheckout, "--json"],
+    ], repository);
     expect(attached.exitCode, attached.stdout + attached.stderr).toBe(0);
-    expect(JSON.parse(attached.stdout.trim())).toMatchObject({
+    expect(attached.results).toHaveLength(2);
+    expect(attached.results[0]).toMatchObject({
       outcome: "applied",
       operation: "locus-attach",
       identity: null,
       activeLocusPath: linkedCheckout,
     });
+    expect(attached.results[1]).toMatchObject({
+      outcome: "idempotent",
+      operation: "locus-attach",
+      activeLocusPath: linkedCheckout,
+    });
+  });
+
+  it("adopts only an exact markerless primary work-unit match", async () => {
+    const slug = "primary-work-unit";
+    await git(repository, ["switch", "-c", "feat/unowned"]);
+    const refused = await runAnchored(["locus", "attach", "--json"], repository);
+    expect(refused.exitCode).toBe(1);
+    expect(JSON.parse(refused.stdout.trim())).toMatchObject({
+      outcome: "refused",
+      operation: "locus-attach",
+      reason: "role-conflict",
+    });
+
+    await git(repository, ["switch", "-c", `feat/${slug}`]);
+    await mkdir(join(repository, ".arc", "active"), { recursive: true });
+    await writeFile(join(repository, ".arc", "active", `meta-${slug}.md`), [
+      `# Metadata: ${slug}`,
+      "",
+      "- **State:** Active",
+      "- **Owner:** test-user",
+      `- **Branch:** feat/${slug}`,
+      "- **Class:** Light",
+      "- **Cohort:** [none]",
+      "- **Task List:** [none]",
+      "- **Current Workflow:** [none]",
+      "- **Last Completed:** [none]",
+      "- **Next Task:** [none]",
+      "- **Blockers:** [none]",
+      "- **Next Action:** Continue execution",
+      "",
+    ].join("\n"), "utf8");
+
+    const adopted = await runAnchored(["locus", "attach", "--json"], repository);
+    expect(adopted.exitCode, adopted.stdout + adopted.stderr).toBe(0);
+    expect(JSON.parse(adopted.stdout.trim())).toMatchObject({
+      outcome: "applied",
+      operation: "locus-attach",
+      identity: null,
+      activeLocusPath: repository,
+    });
+
   });
 
   it("keeps operational JSON on stdout and exposes the exact public operands", async () => {
@@ -208,6 +258,38 @@ async function runAnchored(args: string[], cwd: string): Promise<{
       exitCode: typeof failure.code === "number" ? failure.code : 1,
     };
   }
+}
+
+async function runAnchoredSequence(argsList: readonly string[][], cwd: string): Promise<{
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  results: unknown[];
+}> {
+  const commands = argsList.map((args) => [process.execPath, CLI_PATH, ...args].map(shellQuote).join(" "));
+  const interactiveCommand = `${commands.join("; ")}; command_status=$?; exit $command_status`;
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      "script",
+      ["-qec", `bash --noprofile --norc -ic ${shellQuote(interactiveCommand)}`, "/dev/null"],
+      { cwd, env: { ...process.env, NO_COLOR: "1", PS1: "" } },
+    );
+    const normalized = normalizeAnchoredOutput(stdout);
+    return { stdout: normalized, stderr, exitCode: 0, results: parseJsonLines(normalized) };
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
+    const normalized = normalizeAnchoredOutput(failure.stdout ?? "");
+    return {
+      stdout: normalized,
+      stderr: failure.stderr ?? "",
+      exitCode: typeof failure.code === "number" ? failure.code : 1,
+      results: parseJsonLines(normalized),
+    };
+  }
+}
+
+function parseJsonLines(output: string): unknown[] {
+  return output.split("\n").filter((line) => line.startsWith("{")).map((line) => JSON.parse(line));
 }
 
 function normalizeAnchoredOutput(value: string): string {
