@@ -98,6 +98,19 @@ describe("forward finding settlement", () => {
       settledBy: "author-1",
       settledAt: "2026-07-20T20:00:00Z",
       fixTargetId,
+      fixConsumption: {
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        fixAuthorizationId: canonicalDigest({ authorization: "fix-1" }),
+        dispositionSetId: approved.dispositionState.dispositionSet.dispositionSetId,
+        oldTargetId: targetId,
+        newTargetId: fixTargetId,
+        oldHeadSha: "a".repeat(40),
+        newHeadSha: "b".repeat(40),
+        appliedBy: "author-1",
+        consumedAt: "2026-07-20T19:59:30Z",
+        verificationRefs: ["ci:run-1"],
+      },
       verificationRefs: ["ci:run-1"],
     });
     expect(FindingSettlementV2Schema.parse(settlement)).toMatchObject({

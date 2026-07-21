@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { DispositionApprovalSchema } from "./disposition-records.js";
+import { FixAuthorizationConsumptionSchema } from "./fix-authorization-records.js";
 import {
   FindingClassificationSchema,
   FindingDispositionSchema,
@@ -72,6 +73,7 @@ export const FindingSettlementV2Schema = z.strictObject({
   settledBy: ReviewIdentifierSchema,
   settledAt: z.iso.datetime({ offset: true }),
   fixTargetId: ReviewCanonicalDigestSchema.nullable(),
+  fixConsumption: FixAuthorizationConsumptionSchema.nullable(),
   verificationRefs: z.array(EvidenceReferenceSchema),
 }).superRefine((settlement, context) => {
   const classification = FindingClassificationSchema.safeParse({
@@ -82,7 +84,9 @@ export const FindingSettlementV2Schema = z.strictObject({
     context.addIssue({ code: "custom", message: "nit is valid only for minor findings", path: ["nit"] });
   }
   const fixesTarget = settlement.fixTargetId !== null;
-  if ((settlement.disposition === "fix") !== fixesTarget) {
+  const consumesAuthorization = settlement.fixConsumption !== null;
+  if ((settlement.disposition === "fix") !== fixesTarget
+    || (settlement.disposition === "fix") !== consumesAuthorization) {
     context.addIssue({
       code: "custom",
       message: "only fix dispositions bind a resulting target",
@@ -95,6 +99,17 @@ export const FindingSettlementV2Schema = z.strictObject({
       message: "fix dispositions require verification evidence",
       path: ["verificationRefs"],
     });
+  }
+  if (settlement.fixConsumption !== null
+    && (settlement.fixConsumption.oldTargetId !== settlement.targetId
+      || settlement.fixConsumption.newTargetId !== settlement.fixTargetId
+      || settlement.fixConsumption.dispositionSetId !== settlement.dispositionSetId
+      || settlement.fixConsumption.appliedBy !== settlement.settledBy
+      || settlement.fixConsumption.verificationRefs.length !== settlement.verificationRefs.length
+      || settlement.fixConsumption.verificationRefs.some(
+        (reference, index) => reference !== settlement.verificationRefs[index],
+      ))) {
+    context.addIssue({ code: "custom", message: "fix consumption must bind the exact settlement", path: ["fixConsumption"] });
   }
 });
 export type FindingSettlementV2 = z.infer<typeof FindingSettlementV2Schema>;

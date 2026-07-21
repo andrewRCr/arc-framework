@@ -316,7 +316,9 @@ describe("PR-open lifecycle extensions", () => {
     for (const state of [
       "awaiting-approval", "ready-to-fix", "ready-to-persist", "ready-to-close", "reroute", "blocked",
     ]) expect(workflow).toContain(`\`${state}\``);
-    expect(workflow).toContain("review-gate:assert-head-mutable");
+    expect(workflow).not.toContain("review-gate:assert-head-mutable");
+    expect(workflow).toContain("`FixAuthorization`");
+    expect(workflow).toContain("consumption is canonical");
     expect(workflow).toContain("**FIX:**");
     expect(workflow).toContain("**DEFER or REJECT:**");
     expect(workflow).toContain("**Provider-owned closure:**");

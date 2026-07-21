@@ -86,12 +86,13 @@ planner state:
 
 - `awaiting-approval` — verify every finding against source, present the complete disposition set, and obtain exact
   approval. Do not mutate the target.
-- `ready-to-fix` — apply only the approved fix set as one bounded increment and run affected quality gates. Return
-  the candidate target and verification references without persisting it.
-- `ready-to-persist` — record the authorized `begin-fix` transition, then run
-  `npm run review-gate:assert-head-mutable -- <hostRef> HEAD <begin-fix-receipt-hash>`. The command revalidates the
-  current exact head and actor-owned authorization. Stop on refusal; otherwise commit atomically with a `(code
-  review)` context footer, run any active pre-push review action, and push.
+- `ready-to-fix` — require the returned `FixAuthorization` to be the one unconsumed record for the approved set and
+  exact old target before applying any edit. Apply only its approved fix findings as one bounded increment and run
+  affected quality gates. Return the candidate target and verification references without persisting it.
+- `ready-to-persist` — stop unless the exact authorization remains unconsumed and the affected gates passed. Commit
+  atomically with a `(code review)` context footer through the caller's commit interlock, then bind one consumption
+  record to the actual old/new targets, applying actor, and verification references. Run any active pre-push review
+  action and release the push interlock only after the consumption is canonical.
 - `ready-to-close` — pass only the returned closure work to § 3's authority-specific adapters.
 - `reroute` — recompose the exact target and return it to routing before another action.
 - `blocked` — stop with the planner's next action; do not infer a missing capability or transition.
@@ -104,9 +105,10 @@ provider state or prose. Run the resulting typed action/wait loop, then re-enter
 
 Settle each controller-normalized finding through exactly one authority path:
 
-- **FIX:** Record `begin-fix`, authorize and consume one old-head-to-new-head push, require successful exact-new-head
-  CI and a qualifying full-head follow-up review with no explicit recurrence, post an accurate direct reply, append
-  and confirm `fixed`, then resolve and canonically observe the conversation.
+- **FIX:** Retain the approved-set `FixAuthorization`, consume it once against the actual old/new target after the
+  affected gates and interlocked commit succeed, require successful exact-new-head CI and a qualifying full-head
+  follow-up review with no explicit recurrence, post an accurate direct reply, append and confirm `fixed`, then
+  resolve and canonically observe the conversation.
 - **DEFER or REJECT:** Keep the head unchanged, post the authorized developer's bounded rationale as a direct reply,
   append and confirm that disposition, then resolve and canonically observe the conversation.
 - **Provider-owned closure:** Accept only an explicit closure relation from the same qualified source that issued the

@@ -113,10 +113,17 @@ describe("review response planning", () => {
       verificationPassed: true,
       verificationRefs: ["ci:run-1"],
     })).toMatchObject({ state: "awaiting-approval", allowedCapabilities: ["approve"] });
-    expect(projectReviewResponse({ ...input(), dispositionState: approval.dispositionState })).toMatchObject({
+    const readyToFix = projectReviewResponse({ ...input(), dispositionState: approval.dispositionState });
+    expect(readyToFix).toMatchObject({
       state: "ready-to-fix",
       allowedCapabilities: ["fix"],
+      fixAuthorization: {
+        oldTargetId: currentTarget.targetId,
+        dispositionSetId: approval.dispositionState.dispositionSet.dispositionSetId,
+        authorizedFindingIds: ["finding-1"],
+      },
     });
+    expect(readyToFix.fixAuthorization).not.toHaveProperty("newTargetId");
     expect(projectReviewResponse({
       ...input(),
       dispositionState: approval.dispositionState,

@@ -45,9 +45,11 @@ in that state:
 - `blocked` — stop because an exact binding, evidence item, or required capability is absent.
 
 Every result returns the approved disposition state when one exists, verification references, the old target, an
-explicit nullable new target, and `blocking: true | false`. Past-tense finding actions are settlement evidence, not
-approval state. The method does not choose a provider, compose a provider command, resolve host conversations, persist
-controller conclusions, or infer authority from thread state.
+explicit nullable new target, and `blocking: true | false`. `ready-to-fix` additionally returns one single-use
+authorization over the old target, approved-set identity, and approved fix findings; it never predicts the resulting
+target. Past-tense finding actions are settlement evidence, not approval state. The method does not choose a provider,
+compose a provider command, resolve host conversations, persist controller conclusions, or infer authority from
+thread state.
 
 ### Execute only the selected author leaf
 
@@ -55,9 +57,12 @@ Follow the planner state; do not infer or combine transitions:
 
 - For `awaiting-approval`, verify and classify every finding with `review-triage`, present the complete proposal,
   and return the approval or blocking questions. Do not mutate the target.
-- For `ready-to-fix`, apply exactly the approved `fix` findings as one review increment, run the affected quality
-  gates, and return the candidate target plus verification evidence. Do not persist it inside this method.
-- For `ready-to-persist`, report the verified candidate and return control to the caller's commit/push interlock.
+- For `ready-to-fix`, require the planner's exact unconsumed authorization before the first mutation, apply exactly
+  the approved `fix` findings as one review increment, run the affected quality gates, and return the candidate target
+  plus verification evidence. Do not persist it inside this method.
+- For `ready-to-persist`, report the verified candidate and return control to the caller's commit interlock. Bind the
+  authorization consumption to the actual old/new target, applying actor, and verification references before any push
+  interlock can release.
 - For `ready-to-close`, return approved unchanged-target dispositions to the adapter; do not author replies or
   resolve conversations here.
 - For `reroute`, return the persisted changed target to the coordinator; do not choose or invoke a retrigger.

@@ -4,6 +4,7 @@ import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { registerChangeFactSchemas } from "../../../lib/change-facts.schema.js";
 import { registerReviewGateV2Schemas } from "./gate-contract-v2-schema.js";
 import { registerFindingRecordSchemas } from "./finding-records.js";
+import { registerFixAuthorizationSchemas } from "./fix-authorization-records.js";
 import { registerDispositionRecordSchemas } from "./disposition-records.js";
 import { registerReviewResponseSchemas } from "./response-plan-schema.js";
 import { registerReviewOperationStateSchemas } from "./operation-state-schema.js";
@@ -23,6 +24,7 @@ export function registerReviewDomainSchemas(registry: KernelRegistry): KernelReg
   registerReviewApplicabilitySchemas(registry);
   registerReviewGateV2Schemas(registry);
   registerFindingRecordSchemas(registry);
+  registerFixAuthorizationSchemas(registry);
   registerDispositionRecordSchemas(registry);
   registerReviewResponseSchemas(registry);
   registerReviewOperationStateSchemas(registry);

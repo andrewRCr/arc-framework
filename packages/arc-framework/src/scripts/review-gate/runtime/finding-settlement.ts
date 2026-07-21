@@ -3,6 +3,12 @@
 import { canonicalDigest } from "../../../lib/kernel/index.js";
 import type { Evidence } from "../core/evidence.js";
 import type { ApprovedDispositionSet } from "../core/disposition-records.js";
+import {
+  FixAuthorizationConsumptionSchema,
+  validateFixAuthorization,
+  type FixAuthorization,
+  type FixAuthorizationConsumption,
+} from "../core/fix-authorization.js";
 import { validateDispositionState } from "../core/dispositions.js";
 import {
   FindingConversationClosureV2Schema,
@@ -23,6 +29,7 @@ export function createFindingSettlementV2(input: {
   settledBy: string;
   settledAt: string;
   fixTargetId: string | null;
+  fixConsumption?: FixAuthorizationConsumption | null;
   verificationRefs: string[];
 }): FindingSettlementV2 {
   const dispositionState = validateDispositionState(input.dispositionState);
@@ -51,6 +58,7 @@ export function createFindingSettlementV2(input: {
     settledBy: input.settledBy,
     settledAt: input.settledAt,
     fixTargetId: input.fixTargetId,
+    fixConsumption: input.fixConsumption ?? null,
     verificationRefs: input.verificationRefs,
   });
 }
@@ -76,7 +84,10 @@ export function createFindingConversationClosureV2(input: {
   });
 }
 
-interface HeadUpdateProof { authorization: ReviewReceipt; consumption: ReviewReceipt }
+export interface HeadUpdateProof {
+  authorization: FixAuthorization;
+  consumption: FixAuthorizationConsumption;
+}
 
 interface SettlementReceiptPort {
   appendAndConfirm(receipt: ReviewReceipt, expectedLedgerVersion: number): Promise<ReviewReceipt>;
@@ -85,24 +96,37 @@ interface SettlementReceiptPort {
 function assertHeadUpdateProof(input: {
   proof: HeadUpdateProof;
   findingId: string;
+  dispositionState: ApprovedDispositionSet;
+  oldTargetId: string;
+  fixTargetId: string;
   oldHeadSha: string;
   fixHeadSha: string;
   actorIdentity: string;
+  verificationRefs: string[];
 }): void {
-  const authorization = input.proof.authorization;
-  const consumption = input.proof.consumption;
-  const authorized = authorization.action === "begin-fix"
-    && authorization.payload.kind === "head-update-authorization"
-    && authorization.payload.oldHeadSha === input.oldHeadSha
-    && authorization.payload.targetHeadSha === input.fixHeadSha
-    && authorization.payload.actorIdentity === input.actorIdentity
-    && authorization.findingIds.includes(input.findingId);
-  const consumed = consumption.action === "head-update-consumed"
-    && consumption.payload.kind === "head-update-consumption"
-    && consumption.payload.authorizationReceiptHash === authorization.receiptHash
-    && consumption.payload.oldHeadSha === input.oldHeadSha
-    && consumption.payload.newHeadSha === input.fixHeadSha
-    && consumption.findingIds.includes(input.findingId);
+  const dispositionState = validateDispositionState(input.dispositionState);
+  if (dispositionState.state !== "approved") throw new Error("invalid-head-update-proof");
+  let authorization: FixAuthorization;
+  let consumption: FixAuthorizationConsumption;
+  try {
+    authorization = validateFixAuthorization(input.proof.authorization);
+    consumption = FixAuthorizationConsumptionSchema.parse(input.proof.consumption);
+  } catch {
+    throw new Error("invalid-head-update-proof");
+  }
+  const authorized = authorization.oldTargetId === input.oldTargetId
+    && authorization.oldHeadSha === input.oldHeadSha
+    && authorization.dispositionSetId === dispositionState.dispositionSet.dispositionSetId
+    && authorization.authorizedFindingIds.includes(input.findingId);
+  const consumed = consumption.fixAuthorizationId === authorization.fixAuthorizationId
+    && consumption.dispositionSetId === authorization.dispositionSetId
+    && consumption.oldTargetId === input.oldTargetId
+    && consumption.newTargetId === input.fixTargetId
+    && consumption.oldHeadSha === input.oldHeadSha
+    && consumption.newHeadSha === input.fixHeadSha
+    && consumption.appliedBy === input.actorIdentity
+    && consumption.verificationRefs.length === input.verificationRefs.length
+    && consumption.verificationRefs.every((reference, index) => reference === input.verificationRefs[index]);
   if (!authorized || !consumed) throw new Error("invalid-head-update-proof");
 }
 
@@ -114,6 +138,9 @@ export async function settleFixedFinding(input: {
   threadId: string;
   oldHeadSha: string;
   fixHeadSha: string;
+  oldTargetId: string;
+  fixTargetId: string;
+  dispositionState: ApprovedDispositionSet;
   actorIdentity: string;
   ciState: "pending" | "failure" | "success";
   followUpEvidence: Evidence;
@@ -128,9 +155,13 @@ export async function settleFixedFinding(input: {
   assertHeadUpdateProof({
     proof: input.headUpdateProof,
     findingId: input.findingId,
+    dispositionState: input.dispositionState,
+    oldTargetId: input.oldTargetId,
+    fixTargetId: input.fixTargetId,
     oldHeadSha: input.oldHeadSha,
     fixHeadSha: input.fixHeadSha,
     actorIdentity: input.actorIdentity,
+    verificationRefs: input.verificationRefs,
   });
   const evidence = input.followUpEvidence;
   if (input.ciState !== "success"

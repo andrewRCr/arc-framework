@@ -675,15 +675,15 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
         - Test-first rejection coverage now holds missing, partial, stale, changed-finding, same-actor, and attempted
           pre-approval fixes outside mutation-capable planner states.
 
-    - `[ ]` **6.2.b Apply one authorized review-fix increment**
-        - Update `runtime/finding-settlement.ts`, head-mutability guards, receipt payloads, and local commit handling
-          so a pre-mutation `FixAuthorization` references the approved-set digest before a new head exists, then one
-          consumption record binds the actual old→new head, applying actor, and verification references.
-        - Define, infer, and register the `FixAuthorization` and consumption schemas, including their single-use and
-          old→new target invariants, instead of persisting an interface-only mutation token.
-        - Reject missing, stale, ambiguous, mismatched, or reused authorizations before persistence; affected gates
-          must pass before commit/push fire sites release.
-        - Keep defer/reject head-stable and preserve commit/push interlocks.
+    - `[x]` **6.2.b Apply one authorized review-fix increment**
+        - Added registered v2 authorization/preimage/consumption records: approval mints an old-target and approved-set
+          authorization without predicting a new head, while consumption binds the actual old/new targets, applying
+          actor, and affected-gate references exactly once.
+        - Forward response plans expose authorization only at `ready-to-fix`; semantic and persisted-set guards reject
+          missing, ambiguous, invalid, stale, mismatched, or reused authority before mutation.
+        - Local fix handling now orders exact-target reread → authorized mutation → affected gates → caller-interlocked
+          commit → consumption. Forward settlements retain the complete consumption; legacy schema-v1 receipt payloads
+          remain unchanged and ineligible, while non-fix dispositions never mint fix authority or move the target.
 
     - `[ ]` **6.2.c Close each channel with its own authority**
         - Preserve source-confirmed closure for controller findings; require provider decisive state/conversation

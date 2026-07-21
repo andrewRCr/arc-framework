@@ -1,6 +1,7 @@
 /** Deterministic state planning for one bounded review-response cycle. */
 
 import { validateDispositionState } from "./dispositions.js";
+import { createFixAuthorization } from "./fix-authorization.js";
 import {
   ReviewResponseInputSchema,
   ReviewResponsePlanSchema,
@@ -53,13 +54,18 @@ function plan(
     blocking: boolean;
   },
 ): ReviewResponsePlan {
+  const approved = input.dispositionState?.state === "approved" ? input.dispositionState : null;
+  const hasApprovedFix = approved?.dispositionSet.findings.some((finding) => finding.disposition === "fix") ?? false;
   return ReviewResponsePlanSchema.parse({
     schemaVersion: 2,
     semanticsVersion: "review-response/v1",
     state,
     oldTarget: input.currentTarget,
     newTarget: input.candidateTarget,
-    dispositionState: input.dispositionState?.state === "approved" ? input.dispositionState : null,
+    dispositionState: approved,
+    fixAuthorization: state === "ready-to-fix" && approved !== null && hasApprovedFix
+      ? createFixAuthorization({ dispositionState: approved, oldTarget: input.currentTarget })
+      : null,
     verificationRefs: input.verificationRefs,
     blocking: options.blocking,
     allowedCapabilities: options.allowedCapabilities,

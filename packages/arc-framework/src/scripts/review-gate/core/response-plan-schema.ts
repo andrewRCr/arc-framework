@@ -8,6 +8,7 @@ import {
   DispositionSetStateSchema,
 } from "./disposition-records.js";
 import { NormalizedReviewFindingSchema } from "./finding-records.js";
+import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 import { ReviewRoutingDecisionSchema } from "../policy/routing-schema.js";
 
@@ -111,6 +112,7 @@ export const ReviewResponsePlanSchema = z.strictObject({
   oldTarget: ReviewTargetSchema,
   newTarget: ReviewTargetSchema.nullable(),
   dispositionState: ApprovedDispositionSetSchema.nullable(),
+  fixAuthorization: FixAuthorizationSchema.nullable(),
   verificationRefs: z.array(z.string().trim().min(1)),
   blocking: z.boolean(),
   allowedCapabilities: z.array(ReviewResponseCapabilitySchema),
