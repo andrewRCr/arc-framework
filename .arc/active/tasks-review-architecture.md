@@ -903,7 +903,7 @@ architecture lands as one coherent forward contract.
   adapter and workflow boundaries, including explicit refusal of cross-channel, stale-head, legacy, and prospective
   authority substitutions.
 
-### `[ ]` **7.3 Audit package/project parity and legacy-reference removal**
+### `[x]` **7.3 Audit package/project parity and legacy-reference removal**
 
 - _Goal:_ Every shipped review surface is package-authoritative and mirrored accurately, while project-only policy
   remains local and no live file still teaches the retired architecture.
@@ -931,10 +931,13 @@ architecture lands as one coherent forward contract.
           the historical allowlist, preserving `independent-analysis/v1`, and pinning gate-v1 to its two compatibility
           files without weakening existing v1 parser fixtures.
 
-    - `[ ]` **7.3.c Validate corpus and package boundaries**
-        - Run framework-sync, package-neutrality, method/extension declarations, link/reference validation, ARC
-          contracts, Markdown lint, and package-list/build schema assertions.
-        - Confirm project-only CodeRabbit/controller bindings do not leak into packaged methodology defaults.
+    - `[x]` **7.3.c Validate corpus and package boundaries**
+        - Validated framework sync, package neutrality, method/extension declarations, links and section references,
+          ARC contracts, Markdown/TypeScript quality, the full test suite, and the built npm inventory/schema artifact;
+          packaged methodology contains no project-only CodeRabbit or controller bindings.
+
+- _Outcome:_ Package-authoritative review surfaces, the regenerated self-hosting inventory, legacy-term guards, and
+  distribution-boundary tests now agree on the current method/extension corpus while keeping self-hosting policy local.
 
 ## **Phase 8:** Verification
 
