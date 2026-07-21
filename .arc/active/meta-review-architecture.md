@@ -12,9 +12,9 @@
 - **Task List:** `tasks-review-architecture.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 7 — Rollout and cross-surface coherence
-- **Next Task:** Task 8.1 — Complete verification
-- **Blockers:** [none] — both deps (`classify-change-granularity`, `cli-schema-kernel`) shipped; base reconciled
+- **Last Completed:** Phase 8 — Verification (Task 8.1); all tasks complete
+- **Next Task:** [none]
+- **Blockers:** [none] — one success criterion deferred to `review-surface-binding`, not blocking
 
 - **Next Action:** integrate-work-unit Step 1 — verify completion
 
