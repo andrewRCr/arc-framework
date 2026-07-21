@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
-  approveDispositionSet,
+  approveDispositionState,
   createDispositionSet,
+  proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createFindingSettlementV2 } from "../../../../../src/scripts/review-gate/runtime/finding-settlement.js";
 import {
@@ -66,10 +67,10 @@ describe("settlement mutation adoption", () => {
         openQuestions: [],
       }],
     });
+    const proposed = proposeDispositionSet(dispositionSet);
     const settlement = createFindingSettlementV2({
-      dispositionSet,
-      approval: approveDispositionSet({
-        dispositionSet,
+      dispositionState: approveDispositionState({
+        proposed,
         approvedBy: "maintainer-1",
         approvedAt: "2026-07-20T19:59:00Z",
       }),

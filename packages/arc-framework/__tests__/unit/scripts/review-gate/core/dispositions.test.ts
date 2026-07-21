@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
+  approveDispositionState,
   approveDispositionSet,
   createDispositionSet,
+  proposeDispositionSet,
+  validateDispositionState,
   validateDispositionApproval,
   validateDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
@@ -38,6 +41,32 @@ function proposal() {
 }
 
 describe("complete disposition-set approval", () => {
+  it("moves one complete proposal to an exact distinctly approved state", () => {
+    const dispositionSet = proposal();
+    const proposed = proposeDispositionSet(dispositionSet);
+    expect(validateDispositionState(proposed)).toMatchObject({ state: "proposed", dispositionSet });
+
+    const approved = approveDispositionState({
+      proposed,
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-07-20T20:00:00Z",
+    });
+    expect(validateDispositionState(approved)).toMatchObject({
+      state: "approved",
+      dispositionSet,
+      approval: { approvedBy: "maintainer-1" },
+    });
+    expect(() => approveDispositionState({
+      proposed,
+      approvedBy: dispositionSet.proposedBy,
+      approvedAt: "2026-07-20T20:00:00Z",
+    })).toThrow(/distinct/iu);
+    expect(() => validateDispositionState({
+      action: "fixed",
+      payload: { kind: "finding-disposition" },
+    })).toThrow();
+  });
+
   it("binds report fields, policy, rubric, target, and proposing actor into one identity", () => {
     const set = proposal();
     const fields = {
@@ -73,13 +102,14 @@ describe("complete disposition-set approval", () => {
 
   it("refuses settlement before approval or when the approved finding changes", () => {
     const set = proposal();
-    const approval = approveDispositionSet({
-      dispositionSet: set,
+    const proposed = proposeDispositionSet(set);
+    const dispositionState = approveDispositionState({
+      proposed,
       approvedBy: "maintainer-1",
       approvedAt: "2026-07-20T20:00:00Z",
     });
     const base = {
-      dispositionSet: set,
+      dispositionState,
       finding: {
         findingId: finding.findingId,
         severity: finding.severity,
@@ -93,11 +123,13 @@ describe("complete disposition-set approval", () => {
     };
     expect(() => createFindingSettlementV2({
       ...base,
-      approval: { ...approval, dispositionSetId: canonicalDigest({ set: "other" }) },
+      dispositionState: {
+        ...dispositionState,
+        approval: { ...dispositionState.approval, dispositionSetId: canonicalDigest({ set: "other" }) },
+      },
     })).toThrow(/approval/iu);
     expect(() => createFindingSettlementV2({
       ...base,
-      approval,
       finding: { ...base.finding, locus: "src/other.ts:1" },
     })).toThrow(/approved disposition set/iu);
   });

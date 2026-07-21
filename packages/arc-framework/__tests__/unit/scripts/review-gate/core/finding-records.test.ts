@@ -9,8 +9,9 @@ import {
 } from "../../../../../src/scripts/review-gate/core/finding-records.js";
 import { reduceNormalizedFindings } from "../../../../../src/scripts/review-gate/core/findings.js";
 import {
-  approveDispositionSet,
+  approveDispositionState,
   createDispositionSet,
+  proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import {
   createFindingConversationClosureV2,
@@ -51,10 +52,10 @@ function approvedSet(disposition: "fix" | "defer" | "reject") {
       openQuestions: [],
     }],
   });
+  const proposed = proposeDispositionSet(dispositionSet);
   return {
-    dispositionSet,
-    approval: approveDispositionSet({
-      dispositionSet,
+    dispositionState: approveDispositionState({
+      proposed,
       approvedBy: "maintainer-1",
       approvedAt: "2026-07-20T19:59:00Z",
     }),
@@ -100,6 +101,8 @@ describe("forward finding settlement", () => {
       verificationRefs: ["ci:run-1"],
     });
     expect(FindingSettlementV2Schema.parse(settlement)).toMatchObject({
+      dispositionSetId: approved.dispositionState.dispositionSet.dispositionSetId,
+      approval: { approvedBy: "maintainer-1" },
       severity: "minor",
       nit: true,
       disposition: "fix",

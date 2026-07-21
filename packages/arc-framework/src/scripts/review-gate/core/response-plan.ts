@@ -1,6 +1,6 @@
 /** Deterministic state planning for one bounded review-response cycle. */
 
-import { validateDispositionApproval, validateDispositionSet } from "./dispositions.js";
+import { validateDispositionState } from "./dispositions.js";
 import {
   ReviewResponseInputSchema,
   ReviewResponsePlanSchema,
@@ -59,7 +59,7 @@ function plan(
     state,
     oldTarget: input.currentTarget,
     newTarget: input.candidateTarget,
-    approvedDispositionSet: input.dispositionSet,
+    dispositionState: input.dispositionState?.state === "approved" ? input.dispositionState : null,
     verificationRefs: input.verificationRefs,
     blocking: options.blocking,
     allowedCapabilities: options.allowedCapabilities,
@@ -73,9 +73,10 @@ function blocked(input: ReviewResponseInput, nextAction: string): ReviewResponse
 }
 
 function findingsMatch(input: ReviewResponseInput): boolean {
-  if (input.dispositionSet === null || input.dispositionSet.findings.length !== input.findings.length) return false;
+  if (input.dispositionState?.state !== "approved"
+    || input.dispositionState.dispositionSet.findings.length !== input.findings.length) return false;
   const normalized = new Map(input.findings.map((finding) => [finding.findingId, finding]));
-  return input.dispositionSet.findings.every((item) => {
+  return input.dispositionState.dispositionSet.findings.every((item) => {
     const finding = normalized.get(item.findingId);
     return finding !== undefined
       && finding.locus === item.locus
@@ -87,7 +88,7 @@ function findingsMatch(input: ReviewResponseInput): boolean {
 /** Project exactly one response state without provider commands or controller-private inputs. */
 export function projectReviewResponse(inputValue: unknown): ReviewResponsePlan {
   const input = ReviewResponseInputSchema.parse(inputValue);
-  if (input.dispositionSet === null || input.approval === null) {
+  if (input.dispositionState === null) {
     return input.capabilities.approve
       ? plan(input, "awaiting-approval", {
           allowedCapabilities: ["approve"],
@@ -97,17 +98,28 @@ export function projectReviewResponse(inputValue: unknown): ReviewResponsePlan {
       : blocked(input, "Approval capability is unavailable for the complete disposition set.");
   }
 
+  let dispositionState;
   try {
-    const dispositionSet = validateDispositionSet(input.dispositionSet);
-    validateDispositionApproval(dispositionSet, input.approval);
-    if (dispositionSet.targetId !== input.currentTarget.targetId || !findingsMatch(input)) {
-      return blocked(input, "The approved disposition set no longer matches the exact target and findings.");
-    }
+    dispositionState = validateDispositionState(input.dispositionState);
   } catch {
-    return blocked(input, "The disposition approval is invalid or stale.");
+    return blocked(input, "The disposition state is invalid or stale.");
+  }
+  if (dispositionState.state === "proposed") {
+    return input.capabilities.approve
+      ? plan(input, "awaiting-approval", {
+          allowedCapabilities: ["approve"],
+          nextAction: "Present the complete disposition set and obtain exact approval.",
+          blocking: true,
+        })
+      : blocked(input, "Approval capability is unavailable for the complete disposition set.");
   }
 
-  const hasFix = input.dispositionSet.findings.some((finding) => finding.disposition === "fix");
+  const dispositionSet = dispositionState.dispositionSet;
+  if (dispositionSet.targetId !== input.currentTarget.targetId || !findingsMatch(input)) {
+    return blocked(input, "The approved disposition set no longer matches the exact target and findings.");
+  }
+
+  const hasFix = input.dispositionState.dispositionSet.findings.some((finding) => finding.disposition === "fix");
   if (!hasFix) {
     return input.capabilities.close
       ? plan(input, "ready-to-close", {

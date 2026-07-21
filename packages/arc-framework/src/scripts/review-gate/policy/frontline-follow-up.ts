@@ -1,7 +1,7 @@
 /** Bounded material-fix policy for a single frontline follow-up pass. */
 
-import type { DispositionApproval, DispositionSet } from "../core/disposition-records.js";
-import { validateDispositionApproval, validateDispositionSet } from "../core/dispositions.js";
+import type { ApprovedDispositionSet } from "../core/disposition-records.js";
+import { validateDispositionState } from "../core/dispositions.js";
 import { ReviewTargetSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import { FrontlineExecutionOutcomeSchema } from "./frontline-outcome.js";
 
@@ -17,8 +17,7 @@ export type FrontlineFollowUpDecision =
  */
 export function resolveFrontlineFollowUp(input: {
   outcome: unknown;
-  dispositionSet: DispositionSet;
-  approval: DispositionApproval;
+  dispositionState: ApprovedDispositionSet;
   changedTarget: unknown;
 }): FrontlineFollowUpDecision {
   const outcome = FrontlineExecutionOutcomeSchema.parse(input.outcome);
@@ -26,8 +25,9 @@ export function resolveFrontlineFollowUp(input: {
     return { action: "stop", reason: `outcome-${outcome.outcome}` };
   }
 
-  const dispositionSet = validateDispositionSet(input.dispositionSet);
-  validateDispositionApproval(dispositionSet, input.approval);
+  const dispositionState = validateDispositionState(input.dispositionState);
+  if (dispositionState.state !== "approved") throw new Error("frontline follow-up requires approved dispositions");
+  const { dispositionSet } = dispositionState;
   if (dispositionSet.targetId !== outcome.target.targetId
     || dispositionSet.findings.length !== outcome.findings.length
     || !dispositionSet.findings.every((item) => {

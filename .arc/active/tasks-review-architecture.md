@@ -666,16 +666,14 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
   conversation closes without the authority that owns it.
 - _Context:_ Implements Design §§2.2 and 4–5 plus Success Criterion 6.
 
-    - `[ ]` **6.2.a Add an explicit disposition-set approval state**
-        - Add a canonical `DispositionSet` digest over exact old target, normalized finding identities/loci,
-          severity, disposition, rationale, policy/rubric identities, and proposer; approval binds the distinct
-          approving actor and time.
-        - Define, infer, and register the Zod-authoritative proposed/approved `DispositionSet` variants; keep the
-          digest input and approval transition strict at runtime.
-        - Represent proposed/approved states in the response runtime and adapter receipts without changing the exact
-          schema-v1 parser or treating its past-tense actions as v2 approval.
-        - Build `test-first` rejection cases for partial approval, stale approval, changed finding sets, or fixes
-          attempted without approval.
+    - `[x]` **6.2.a Add an explicit disposition-set approval state**
+        - Added registered, inferred proposed/approved disposition-state variants over the canonical set and approval
+          records. Approval now binds the exact target/set, distinct approving actor, and timestamp at the Zod and
+          semantic-validation boundaries.
+        - The response runtime consumes one strict state instead of nullable set/approval pairs; v2 settlement records
+          retain the approved-set identity and approval while schema-v1 past-tense actions remain ineligible.
+        - Test-first rejection coverage now holds missing, partial, stale, changed-finding, same-actor, and attempted
+          pre-approval fixes outside mutation-capable planner states.
 
     - `[ ]` **6.2.b Apply one authorized review-fix increment**
         - Update `runtime/finding-settlement.ts`, head-mutability guards, receipt payloads, and local commit handling

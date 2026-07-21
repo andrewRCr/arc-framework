@@ -3,7 +3,10 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
-import { DispositionApprovalSchema, DispositionSetSchema } from "./disposition-records.js";
+import {
+  ApprovedDispositionSetSchema,
+  DispositionSetStateSchema,
+} from "./disposition-records.js";
 import { NormalizedReviewFindingSchema } from "./finding-records.js";
 import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 import { ReviewRoutingDecisionSchema } from "../policy/routing-schema.js";
@@ -62,8 +65,7 @@ export const ReviewResponseInputSchema = z.strictObject({
   currentTarget: ReviewTargetSchema,
   findings: z.array(NormalizedReviewFindingSchema).min(1),
   routing: ReviewRoutingDecisionSchema,
-  dispositionSet: DispositionSetSchema.nullable(),
-  approval: DispositionApprovalSchema.nullable(),
+  dispositionState: DispositionSetStateSchema.nullable(),
   candidateTarget: ReviewTargetSchema.nullable(),
   persistedTargetId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).nullable(),
   verificationPassed: z.boolean(),
@@ -108,7 +110,7 @@ export const ReviewResponsePlanSchema = z.strictObject({
   state: ReviewResponseStateSchema,
   oldTarget: ReviewTargetSchema,
   newTarget: ReviewTargetSchema.nullable(),
-  approvedDispositionSet: DispositionSetSchema.nullable(),
+  dispositionState: ApprovedDispositionSetSchema.nullable(),
   verificationRefs: z.array(z.string().trim().min(1)),
   blocking: z.boolean(),
   allowedCapabilities: z.array(ReviewResponseCapabilitySchema),

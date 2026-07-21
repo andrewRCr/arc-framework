@@ -13,6 +13,7 @@ import {
 
 const kernelIdentities = ["priority", "slug", "work-class", "work-unit-state"];
 const reviewIdentities = [
+  "approved-disposition-set",
   "canonical-change",
   "canonical-change-set",
   "change-path-fact",
@@ -21,6 +22,7 @@ const reviewIdentities = [
   "disposition-report-item",
   "disposition-set",
   "disposition-set-preimage",
+  "disposition-set-state",
   "finding-classification",
   "finding-conversation-closure",
   "finding-disposition",
@@ -30,6 +32,7 @@ const reviewIdentities = [
   "independent-analysis-obligation-projection",
   "independent-analysis-rubric-digest-preimage",
   "project-routing-promotion",
+  "proposed-disposition-set",
   "normalized-review-finding",
   "review-applicability",
   "review-applicability-id-preimage",

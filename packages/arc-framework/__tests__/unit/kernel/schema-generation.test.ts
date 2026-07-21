@@ -43,6 +43,7 @@ describe("kernel schema artifact generation", () => {
     const firstBundle = projectKernelSchemas(first);
 
     expect(Object.keys(firstBundle.schemas)).toEqual([
+      "approved-disposition-set",
       "canonical-change",
       "canonical-change-set",
       "change-path-fact",
@@ -51,6 +52,7 @@ describe("kernel schema artifact generation", () => {
       "disposition-report-item",
       "disposition-set",
       "disposition-set-preimage",
+      "disposition-set-state",
       "finding-classification",
       "finding-conversation-closure",
       "finding-disposition",
@@ -62,6 +64,7 @@ describe("kernel schema artifact generation", () => {
       "normalized-review-finding",
       "priority",
       "project-routing-promotion",
+      "proposed-disposition-set",
       "review-applicability",
       "review-applicability-id-preimage",
       "review-assurance-input",

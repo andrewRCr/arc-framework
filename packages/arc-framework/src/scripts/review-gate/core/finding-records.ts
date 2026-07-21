@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import { DispositionApprovalSchema } from "./disposition-records.js";
 import {
   FindingClassificationSchema,
   FindingDispositionSchema,
@@ -60,6 +61,8 @@ export const FindingSettlementV2Schema = z.strictObject({
   schemaVersion: z.literal(2),
   semanticsVersion: ReviewGateV2SemanticsSchema,
   targetId: ReviewCanonicalDigestSchema,
+  dispositionSetId: ReviewCanonicalDigestSchema,
+  approval: DispositionApprovalSchema,
   findingId: FindingIdentitySchema,
   sourceIdentity: ReviewIdentifierSchema,
   severity: ReviewSeveritySchema,

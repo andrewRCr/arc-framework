@@ -28,7 +28,7 @@ The caller supplies:
 
 - the exact current target and source-normalized findings with immutable loci;
 - the effective `review-routing` result;
-- the complete disposition set and approval when they exist;
+- the strict disposition state — absent, complete proposed set, or exact approved set;
 - candidate-target, verification, and persistence evidence when fixes have run; and
 - opaque capability handles for approval, mutation, persistence, channel closure, and rerouting. Hosted controller
   findings carry receipt/reply/thread-state handles; provider-native findings carry provider-reply/thread-state/
@@ -44,9 +44,10 @@ in that state:
 - `reroute` — return the persisted changed target to `review-routing`.
 - `blocked` — stop because an exact binding, evidence item, or required capability is absent.
 
-Every result returns the approved disposition set when one exists, verification references, the old target, an
-explicit nullable new target, and `blocking: true | false`. The method does not choose a provider, compose a provider
-command, resolve host conversations, persist controller conclusions, or infer authority from thread state.
+Every result returns the approved disposition state when one exists, verification references, the old target, an
+explicit nullable new target, and `blocking: true | false`. Past-tense finding actions are settlement evidence, not
+approval state. The method does not choose a provider, compose a provider command, resolve host conversations, persist
+controller conclusions, or infer authority from thread state.
 
 ### Execute only the selected author leaf
 

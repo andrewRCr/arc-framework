@@ -73,6 +73,40 @@ export const DispositionApprovalSchema = z.strictObject({
 });
 export type DispositionApproval = z.infer<typeof DispositionApprovalSchema>;
 
+const DispositionStateFields = {
+  schemaVersion: z.literal(2),
+  semanticsVersion: z.literal("review-gate/v2"),
+  dispositionSet: DispositionSetSchema,
+};
+
+export const ProposedDispositionSetSchema = z.strictObject({
+  ...DispositionStateFields,
+  state: z.literal("proposed"),
+});
+export type ProposedDispositionSet = z.infer<typeof ProposedDispositionSetSchema>;
+
+const ApprovedDispositionSetObjectSchema = z.strictObject({
+  ...DispositionStateFields,
+  state: z.literal("approved"),
+  approval: DispositionApprovalSchema,
+});
+export const ApprovedDispositionSetSchema = ApprovedDispositionSetObjectSchema.superRefine((state, context) => {
+  if (state.approval.targetId !== state.dispositionSet.targetId
+    || state.approval.dispositionSetId !== state.dispositionSet.dispositionSetId) {
+    context.addIssue({ code: "custom", message: "approval must bind the exact disposition set and target" });
+  }
+  if (state.approval.approvedBy === state.dispositionSet.proposedBy) {
+    context.addIssue({ code: "custom", message: "approval actor must be distinct from the proposer" });
+  }
+});
+export type ApprovedDispositionSet = z.infer<typeof ApprovedDispositionSetSchema>;
+
+export const DispositionSetStateSchema = z.union([
+  ProposedDispositionSetSchema,
+  ApprovedDispositionSetSchema,
+]);
+export type DispositionSetState = z.infer<typeof DispositionSetStateSchema>;
+
 /** Register proposal and approval records at the review-disposition owner. */
 export function registerDispositionRecordSchemas(registry: KernelRegistry): KernelRegistry {
   registry.register(DispositionReportItemSchema, {
@@ -92,6 +126,21 @@ export function registerDispositionRecordSchemas(registry: KernelRegistry): Kern
   });
   registry.register(DispositionApprovalSchema, {
     id: "disposition-approval",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ProposedDispositionSetSchema, {
+    id: "proposed-disposition-set",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ApprovedDispositionSetSchema, {
+    id: "approved-disposition-set",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  registry.register(DispositionSetStateSchema, {
+    id: "disposition-set-state",
     version: 2,
     migrationPosture: "strict-current",
   });

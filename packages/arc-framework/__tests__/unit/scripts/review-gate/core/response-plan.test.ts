@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
-import { approveDispositionSet, createDispositionSet } from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import {
+  approveDispositionState,
+  createDispositionSet,
+  proposeDispositionSet,
+} from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { projectReviewResponse } from "../../../../../src/scripts/review-gate/core/response-plan.js";
 
@@ -63,10 +67,11 @@ function approved(disposition: "fix" | "defer" | "reject" = "fix") {
       openQuestions: [],
     }],
   });
+  const proposed = proposeDispositionSet(dispositionSet);
   return {
-    dispositionSet,
-    approval: approveDispositionSet({
-      dispositionSet,
+    proposed,
+    dispositionState: approveDispositionState({
+      proposed,
       approvedBy: "maintainer-1",
       approvedAt: "2026-07-20T20:00:00Z",
     }),
@@ -78,8 +83,7 @@ function input() {
     currentTarget,
     findings: [normalizedFinding],
     routing,
-    dispositionSet: null,
-    approval: null,
+    dispositionState: null,
     candidateTarget: null,
     persistedTargetId: null,
     verificationPassed: false,
@@ -98,20 +102,31 @@ describe("review response planning", () => {
       blocking: true,
     });
     const approval = approved();
-    expect(projectReviewResponse({ ...input(), ...approval })).toMatchObject({
+    expect(projectReviewResponse({ ...input(), dispositionState: approval.proposed })).toMatchObject({
+      state: "awaiting-approval",
+      allowedCapabilities: ["approve"],
+    });
+    expect(projectReviewResponse({
+      ...input(),
+      dispositionState: approval.proposed,
+      candidateTarget,
+      verificationPassed: true,
+      verificationRefs: ["ci:run-1"],
+    })).toMatchObject({ state: "awaiting-approval", allowedCapabilities: ["approve"] });
+    expect(projectReviewResponse({ ...input(), dispositionState: approval.dispositionState })).toMatchObject({
       state: "ready-to-fix",
       allowedCapabilities: ["fix"],
     });
     expect(projectReviewResponse({
       ...input(),
-      ...approval,
+      dispositionState: approval.dispositionState,
       candidateTarget,
       verificationPassed: true,
       verificationRefs: ["ci:run-1"],
     })).toMatchObject({ state: "ready-to-persist", allowedCapabilities: ["persist"] });
     expect(projectReviewResponse({
       ...input(),
-      ...approval,
+      dispositionState: approval.dispositionState,
       candidateTarget,
       persistedTargetId: candidateTarget.targetId,
       verificationPassed: true,
@@ -126,7 +141,7 @@ describe("review response planning", () => {
   });
 
   it("returns approved unchanged-target dispositions for channel closure", () => {
-    expect(projectReviewResponse({ ...input(), ...approved("reject") })).toMatchObject({
+    expect(projectReviewResponse({ ...input(), dispositionState: approved("reject").dispositionState })).toMatchObject({
       state: "ready-to-close",
       allowedCapabilities: ["close"],
       newTarget: null,
@@ -138,7 +153,7 @@ describe("review response planning", () => {
   it("emits only authenticated per-finding hosted conversation actions", () => {
     expect(projectReviewResponse({
       ...input(),
-      ...approved("defer"),
+      dispositionState: approved("defer").dispositionState,
       channel: "hosted",
       conversations: [{
         kind: "controller-finding",
@@ -162,7 +177,7 @@ describe("review response planning", () => {
     });
     expect(projectReviewResponse({
       ...input(),
-      ...approved("reject"),
+      dispositionState: approved("reject").dispositionState,
       channel: "hosted",
       conversations: [{
         kind: "provider-native",
@@ -186,7 +201,7 @@ describe("review response planning", () => {
     });
     expect(() => projectReviewResponse({
       ...input(),
-      ...approved("reject"),
+      dispositionState: approved("reject").dispositionState,
       conversations: [{
         kind: "controller-finding",
         findingId: "finding-1",
@@ -200,7 +215,7 @@ describe("review response planning", () => {
     })).toThrow(/local review/iu);
     expect(() => projectReviewResponse({
       ...input(),
-      ...approved("reject"),
+      dispositionState: approved("reject").dispositionState,
       channel: "hosted",
       conversations: [{
         kind: "provider-native",
@@ -218,14 +233,34 @@ describe("review response planning", () => {
     const approval = approved();
     expect(projectReviewResponse({
       ...input(),
-      ...approval,
+      dispositionState: approval.dispositionState,
+      findings: [normalizedFinding, {
+        findingId: "finding-2",
+        severity: "minor",
+        locus: "src/other.ts:2",
+        evidenceUrlOrId: "review:finding-2",
+      }],
+    })).toMatchObject({ state: "blocked", blocking: true, allowedCapabilities: [] });
+    expect(projectReviewResponse({
+      ...input(),
+      dispositionState: approval.dispositionState,
       findings: [{ ...normalizedFinding, locus: "src/other.ts:1" }],
     })).toMatchObject({ state: "blocked", blocking: true, allowedCapabilities: [] });
-    expect(projectReviewResponse({ ...input(), ...approval, candidateTarget }))
+    expect(() => projectReviewResponse({
+      ...input(),
+      dispositionState: {
+        ...approval.dispositionState,
+        approval: {
+          ...approval.dispositionState.approval,
+          targetId: candidateTarget.targetId,
+        },
+      },
+    })).toThrow(/exact disposition set and target/iu);
+    expect(projectReviewResponse({ ...input(), dispositionState: approval.dispositionState, candidateTarget }))
       .toMatchObject({ state: "blocked", nextAction: expect.stringMatching(/verification/iu) });
     expect(projectReviewResponse({
       ...input(),
-      ...approval,
+      dispositionState: approval.dispositionState,
       capabilities: { ...capabilities, fix: false },
     })).toMatchObject({ state: "blocked", nextAction: expect.stringMatching(/fix capability/iu) });
   });

@@ -2,12 +2,18 @@
 
 import { canonicalDigest, canonicalize, sortByCanonicalBytes } from "../../../lib/kernel/index.js";
 import {
+  ApprovedDispositionSetSchema,
   DispositionApprovalSchema,
+  DispositionSetStateSchema,
   DispositionSetPreimageSchema,
   DispositionSetSchema,
+  ProposedDispositionSetSchema,
+  type ApprovedDispositionSet,
   type DispositionApproval,
   type DispositionReportItem,
   type DispositionSet,
+  type DispositionSetState,
+  type ProposedDispositionSet,
 } from "./disposition-records.js";
 
 function normalizedFindings(findings: readonly DispositionReportItem[]): DispositionReportItem[] {
@@ -57,6 +63,9 @@ export function approveDispositionSet(input: {
   approvedAt: string;
 }): DispositionApproval {
   const set = validateDispositionSet(input.dispositionSet);
+  if (input.approvedBy === set.proposedBy) {
+    throw new Error("disposition approval actor must be distinct from the proposer");
+  }
   return DispositionApprovalSchema.parse({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -65,6 +74,48 @@ export function approveDispositionSet(input: {
     approvedBy: input.approvedBy,
     approvedAt: input.approvedAt,
   });
+}
+
+/** Wrap one canonical set as the only state eligible for approval. */
+export function proposeDispositionSet(dispositionSetInput: unknown): ProposedDispositionSet {
+  const dispositionSet = validateDispositionSet(dispositionSetInput);
+  return ProposedDispositionSetSchema.parse({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    state: "proposed",
+    dispositionSet,
+  });
+}
+
+/** Transition an exact proposed set to approval by a distinct actor. */
+export function approveDispositionState(input: {
+  proposed: ProposedDispositionSet;
+  approvedBy: string;
+  approvedAt: string;
+}): ApprovedDispositionSet {
+  const proposed = validateDispositionState(input.proposed);
+  if (proposed.state !== "proposed") throw new Error("only a proposed disposition set can be approved");
+  const approval = approveDispositionSet({
+    dispositionSet: proposed.dispositionSet,
+    approvedBy: input.approvedBy,
+    approvedAt: input.approvedAt,
+  });
+  return ApprovedDispositionSetSchema.parse({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    state: "approved",
+    dispositionSet: proposed.dispositionSet,
+    approval,
+  });
+}
+
+/** Validate one strict proposed/approved state and every canonical cross-record binding. */
+export function validateDispositionState(input: unknown): DispositionSetState {
+  const state = DispositionSetStateSchema.parse(input);
+  const dispositionSet = validateDispositionSet(state.dispositionSet);
+  if (state.state === "proposed") return { ...state, dispositionSet };
+  const approval = validateDispositionApproval(dispositionSet, state.approval);
+  return { ...state, dispositionSet, approval };
 }
 
 /** Validate that approval still names the exact proposal and target. */
@@ -76,6 +127,9 @@ export function validateDispositionApproval(
   const approval = DispositionApprovalSchema.parse(approvalInput);
   if (approval.targetId !== set.targetId || approval.dispositionSetId !== set.dispositionSetId) {
     throw new Error("disposition approval does not match its exact set and target");
+  }
+  if (approval.approvedBy === set.proposedBy) {
+    throw new Error("disposition approval actor must be distinct from the proposer");
   }
   return approval;
 }

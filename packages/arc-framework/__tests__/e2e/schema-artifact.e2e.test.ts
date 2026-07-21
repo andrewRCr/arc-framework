@@ -14,6 +14,7 @@ describe("production schema artifact", () => {
     };
 
     expect(Object.keys(bundle.schemas)).toEqual([
+      "approved-disposition-set",
       "canonical-change",
       "canonical-change-set",
       "change-path-fact",
@@ -22,6 +23,7 @@ describe("production schema artifact", () => {
       "disposition-report-item",
       "disposition-set",
       "disposition-set-preimage",
+      "disposition-set-state",
       "finding-classification",
       "finding-conversation-closure",
       "finding-disposition",
@@ -33,6 +35,7 @@ describe("production schema artifact", () => {
       "normalized-review-finding",
       "priority",
       "project-routing-promotion",
+      "proposed-disposition-set",
       "review-applicability",
       "review-applicability-id-preimage",
       "review-assurance-input",

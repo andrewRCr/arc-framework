@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
-import { approveDispositionSet, createDispositionSet } from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import {
+  approveDispositionState,
+  createDispositionSet,
+  proposeDispositionSet,
+} from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { resolveFrontlineFollowUp } from "../../../../../src/scripts/review-gate/policy/frontline-follow-up.js";
 
@@ -72,10 +76,10 @@ function approved(severity: "blocker" | "major" | "minor", disposition: "fix" | 
       openQuestions: [],
     }],
   });
+  const proposed = proposeDispositionSet(dispositionSet);
   return {
-    dispositionSet,
-    approval: approveDispositionSet({
-      dispositionSet,
+    dispositionState: approveDispositionState({
+      proposed,
       approvedBy: "maintainer-1",
       approvedAt: "2026-07-20T20:00:00Z",
     }),

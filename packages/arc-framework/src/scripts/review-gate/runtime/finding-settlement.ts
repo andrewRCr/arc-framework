@@ -2,8 +2,8 @@
 
 import { canonicalDigest } from "../../../lib/kernel/index.js";
 import type { Evidence } from "../core/evidence.js";
-import type { DispositionApproval, DispositionSet } from "../core/disposition-records.js";
-import { validateDispositionApproval, validateDispositionSet } from "../core/dispositions.js";
+import type { ApprovedDispositionSet } from "../core/disposition-records.js";
+import { validateDispositionState } from "../core/dispositions.js";
 import {
   FindingConversationClosureV2Schema,
   FindingSettlementV2Schema,
@@ -18,16 +18,16 @@ import type { SettlementReply, SettlementThread } from "../hosts/github/settleme
 
 /** Create one forward settlement from a normalized finding; host closure remains a separate record. */
 export function createFindingSettlementV2(input: {
-  dispositionSet: DispositionSet;
-  approval: DispositionApproval;
+  dispositionState: ApprovedDispositionSet;
   finding: NormalizedReviewFinding;
   settledBy: string;
   settledAt: string;
   fixTargetId: string | null;
   verificationRefs: string[];
 }): FindingSettlementV2 {
-  const dispositionSet = validateDispositionSet(input.dispositionSet);
-  validateDispositionApproval(dispositionSet, input.approval);
+  const dispositionState = validateDispositionState(input.dispositionState);
+  if (dispositionState.state !== "approved") throw new Error("finding settlement requires approved dispositions");
+  const { dispositionSet, approval } = dispositionState;
   const finding = NormalizedReviewFindingSchema.parse(input.finding);
   const disposition = dispositionSet.findings.find((candidate) => candidate.findingId === finding.findingId);
   if (disposition === undefined
@@ -40,6 +40,8 @@ export function createFindingSettlementV2(input: {
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     targetId: dispositionSet.targetId,
+    dispositionSetId: dispositionSet.dispositionSetId,
+    approval,
     findingId: finding.findingId,
     sourceIdentity: disposition.sourceIdentity,
     severity: finding.severity,
