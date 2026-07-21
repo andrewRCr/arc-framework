@@ -1,9 +1,17 @@
-# Draft: cohortless-decomposition — support cohort-less multi-WU decomposition (flat siblings + dependency edge)
+# Draft: cohortless-decomposition — make WU decomposition a first-class parallel-era primitive
 
 - **Origin:** [internal] — routed from `USER-INBOX § Work Unit` at the housekeep drain (2026-07-07); captured
-  during `roadmap-tooling` grooming, 2026-07-06.
-- **Purpose:** Add a first-class cohort-less multi-WU decomposition outcome — N flat siblings joined only by a
-  dependency edge, no cohort node — so a split with no shared coordination isn't forced into a vacuous cohort.
+  during `roadmap-tooling` grooming, 2026-07-06. **Intended retitle: `decomposition-machinery`** — decided on
+  the decomposition-program grooming branch (2026-07-21) when the 2026-07-19 consolidation (the retired
+  `decomposition-machinery-hardening` slug's three transform-hardening captures folded into this stub's buffer)
+  widened its real scope past the original cohort-less-split concern; deferred because no sanctioned slug-rename
+  transition exists (see the rename-transition buffer entry below). Execute the rename once this WU ships one.
+- **Purpose:** Make `decompose-work-unit` + `arc decompose` a first-class primitive that is correct under
+  parallel multi-worktree operation. Four concerns, all live-run evidence: a cohort-less multi-WU split shape
+  (flat siblings + dependency edge, no vacuous cohort node); authoritative-source resolution for base-run
+  transforms; topology-aware incoming-edge conservation across linked worktrees; and a lifecycle-complete
+  terminal with a successor-launch bridge. The transform was designed in a pre-parallel ARC; the
+  `cli-substrate-adoption` decomposition (2026-07-18) proved each gap in one run.
 
 ---
 
@@ -62,6 +70,22 @@
   as a required pre-transform repoint receipt, a blocked dependent list, or another verifiable two-branch protocol.
 - _Scope:_ extend dependency discovery, cut-map validation, conservation receipts, diagnostics, and linked-worktree
   tests without weakening branch isolation.
+
+### `[ ]` **Give lifecycle slugs a sanctioned rename transition**
+
+- _Routed directly at capture_ — decomposition-program grooming branch session (2026-07-21); live evidence from
+  this stub's own attempted retitle.
+- _Observation:_ renaming a backlog stub (`git mv` of its directory and `meta-*`/`draft-*` files) is refused by
+  the pre-commit retirement gate: a lifecycle meta slug that disappears from the staged tree must be covered by
+  a finalized `decompose`/`abandon` retirement receipt, and no rename verb or receipt kind exists. The only
+  receipt-producing verbs are semantically wrong (`abandon` destroys; `decompose` splits), so a pure retitle —
+  scope unchanged, artifacts unchanged — has no sanctioned shape at any lifecycle tier.
+- _Approach:_ add a rename transition to the retirement-record model (a `rename` receipt kind binding old and
+  new slugs, or a dedicated `arc rename` verb producing one) and teach the commit gate to accept it; sweep the
+  reference surface (ROADMAP regen, cross-stub mentions, `Depends On` edges) in the same transform. Coordinate
+  with `wu-lifecycle-state-model` (transition vocabulary) and `retirement-record-relocation` (record store
+  location), the same two seams the terminal-bridge entry below already names.
+- _Captured during:_ the deferred `cohortless-decomposition` → `decomposition-machinery` retitle (2026-07-21).
 
 ### `[ ]` **Give decomposition a lifecycle-complete terminal and successor bridge**
 

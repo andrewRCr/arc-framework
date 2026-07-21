@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `8b8a8a086`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `25080c5f7`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -15,7 +15,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State         | Work unit               | Priority | Owner  | Depends on | Cohort                 |
 | ------------- | ----------------------- | -------- | ------ | ---------- | ---------------------- |
-| `Active`      | review-architecture     | P1       | andrew | —          | —                      |
+| `Integrating` | review-architecture     | P1       | andrew | —          | —                      |
 | `Active`      | session-locus-model     | P1       | andrew | —          | —                      |
 | `Integrating` | cli-command-inputs      | P2       | andrew | —          | cli-substrate-adoption |
 | `Active`      | cli-validation-surfaces | P2       | andrew | —          | cli-substrate-adoption |
@@ -26,6 +26,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                             | Priority | Owner  | Depends on | Cohort                     |
 | ------------------------------------- | -------- | ------ | ---------- | -------------------------- |
 | interlock-release-refinement          | P1       | andrew | —          | approval-flow-refinement   |
+| cohortless-decomposition              | P1       | andrew | —          | —                          |
+| decomposition-doctrine                | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | pr-decomposition                      | P1       | andrew | —          | —                          |
 | recovery-hardening                    | P1       | andrew | —          | —                          |
@@ -65,7 +67,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | arc-backend                           | P3       | andrew | —          | —                          |
 | arc-reinforce                         | P3       | andrew | —          | —                          |
 | cohort-cut-coherence                  | P3       | andrew | —          | —                          |
-| cohortless-decomposition              | P3       | andrew | —          | —                          |
 | cold-start-init-polish                | P3       | andrew | —          | —                          |
 | contributor-path                      | P3       | andrew | —          | —                          |
 | external-coord-probe                  | P3       | andrew | —          | —                          |
