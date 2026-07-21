@@ -80,12 +80,16 @@ export function digestMemberSet(candidateDigests: readonly string[]): string {
       throw new CouplingAuditValidationError("memberSet", `invalid candidate digest: ${digest}`);
     }
   }
-  unique.sort((left, right) => left.localeCompare(right));
+  unique.sort(compareCanonicalBytes);
   return digestCanonicalJson(unique);
 }
 
 function lexical(left: string, right: string): number {
-  return left.localeCompare(right);
+  return compareCanonicalBytes(left, right);
+}
+
+function compareCanonicalBytes(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 function canonicalCandidate<T extends CandidateEvidence>(candidate: T): T {
