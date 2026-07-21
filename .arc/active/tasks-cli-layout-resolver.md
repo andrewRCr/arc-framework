@@ -473,32 +473,29 @@ layout hit has exactly one semantic owner.
 - _Outcome:_ The migration assertion is bound exclusively to the pending index, shares corpus membership rules with the
   historical audit, and fails closed unless canonical source receipts and exactly-once residual ownership both hold.
 
-### `[ ]` **5.3 Populate exact and bulk dispositions for the final selected-hit universe**
+### `[x]` **5.3 Populate exact and bulk dispositions for the final selected-hit universe**
 
 - _Goal:_ Every current hit in the fifteen audited layout classes is either migrated or assigned one precise,
   reproducible residual owner with no catch-all omissions.
 
-    - `[ ]` **5.3.a Refresh the final selected-class evidence from the indexed tree**
-        - Record the fixed historical result digest plus final manifest, corpus, class-inventory, selected-count, and
-          selected-hit-set digests in `audits/coupling-blast-radius/layout-migration-ledger.json`.
-        - Use authoritative class hit inventories rather than `candidates.classified`.
+    - `[x]` **5.3.a Refresh the final selected-class evidence from the indexed tree**
+        - Recorded the historical result identity and final manifest, corpus, class-inventory, selected-count, and
+          selected-hit-set receipts for 10,313 authoritative class-specific hits from the committed index corpus.
 
-    - `[ ]` **5.3.b Populate closed bulk residual cohorts**
-        - Group independently verifiable layout definitions, root-only owners, pre-resolved paths,
-          scanner false-positives, independent evidence, and external owners only where closed predicates express a
-          stable semantic cohort.
-        - Bind every bulk rule to its exact member-set digest so future hits cannot be silently absorbed.
+    - `[x]` **5.3.b Populate closed bulk residual cohorts**
+        - Added digest-bound cohorts for test evidence, template evidence, layout definitions, and coupling-audit
+          self-evidence; each predicate is non-empty, non-overlapping, and fails closed on membership change.
 
-    - `[ ]` **5.3.c Populate semantic and exact residual dispositions**
-        - Assign `layout-definition`, `root-only-owner`, `pre-resolved-path`, `semantic-policy-owner`,
-          `scanner-false-positive`, `independent-evidence`, or `external-owner` with explicit owner and reason.
-        - Use exact entries wherever a hit does not belong to a stable closed cohort; do not create a broad residual
-          rule merely to reduce ledger size.
+    - `[x]` **5.3.c Populate semantic and exact residual dispositions**
+        - Assigned 2,186 irregular hits exact dispositions with explicit semantic owners and reasons, reserving bulk
+          rules for the four stable cohorts rather than absorbing diverse runtime, configuration, prose, or workflow hits.
 
-    - `[ ]` **5.3.d Close all unexplained construction and verify the ledger**
-        - Migrate any remaining covered semantic producer, narrow an overbroad rule, or record a justified residual
-          until the assertion reports exactly one disposition for every selected hit.
-        - Preserve no generic compatibility shim or second reusable layout-construction surface.
+    - `[x]` **5.3.d Close all unexplained construction and verify the ledger**
+        - The index-pinned assertion certifies all 10,313 selected hits exactly once across the four bulk cohorts and
+          exact residuals, with no unmatched construction, overlapping disposition, or generic compatibility surface.
+
+- _Outcome:_ The canonical final ledger freezes the post-migration evidence universe while preserving precise
+  residual ownership: high-volume independent evidence is cohort-bound and every irregular survivor remains explicit.
 
 ### `[ ]` **5.4 Reconcile the tracked-planning Git packet and external-owner residuals**
 
