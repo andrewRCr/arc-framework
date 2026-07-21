@@ -10,6 +10,7 @@ import type {
 } from "./evidence.js";
 import type {
   LocusDiagnosticV1,
+  LocusAnchor,
   LocusIdentityV1,
   LocusRecordV1,
   LocusRowV1,
@@ -29,16 +30,18 @@ export type ManagedSubjectProjection =
     };
 
 export interface ProvisionalRoster {
-  readonly rows: readonly LocusRowV1[];
+  readonly rows: readonly ProvisionalLocusRow[];
   readonly diagnostics: readonly LocusDiagnosticV1[];
 }
+
+export type ProvisionalLocusRow = LocusRowV1 & { readonly leaseAnchor: LocusAnchor | null };
 
 /** Classify complete evidence into deterministic provisional rows and diagnostics. */
 export function projectProvisionalRoster(options: {
   evidence: Extract<LocusEvidenceResult, { kind: "complete" }>;
   subjects: ReadonlyMap<string, ManagedSubjectProjection>;
 }): ProvisionalRoster {
-  const rows: LocusRowV1[] = [];
+  const rows: ProvisionalLocusRow[] = [];
   const diagnostics: LocusDiagnosticV1[] = [];
   const consumedRecords = new Set<RecordEntryEvidence>();
   const consumedIdentities = new Set<string>();
@@ -314,7 +317,7 @@ function emptyCheckoutRow(
   kind: "free-primary" | "unmanaged-checkout" | "duplicate-locus",
   checkout: CheckoutEvidence,
   diagnostics: readonly LocusDiagnosticV1[],
-): LocusRowV1 {
+): ProvisionalLocusRow {
   return {
     ...bareRow(kind, checkout.worktree.path, null, diagnostics),
     primary: checkout.worktree.primary,
@@ -327,7 +330,7 @@ function recordRow(
   entry: Extract<RecordEntryEvidence, { kind: "record" }>,
   subject: ManagedSubjectProjection | null,
   diagnostics: readonly LocusDiagnosticV1[],
-): LocusRowV1 {
+): ProvisionalLocusRow {
   if (entry.result.kind !== "valid") {
     return {
       ...bareRow(kind, checkout?.worktree.path ?? null, null, diagnostics),
@@ -358,6 +361,7 @@ function recordRow(
       attachedAt: record.lease.attachedAt,
       heartbeatAt: record.lease.heartbeatAt,
     },
+    leaseAnchor: record.lease?.anchor ?? null,
     frame: null,
     derived: resolved?.meta === null || resolved?.meta === undefined ? null : {
       workflow: resolved.meta.workflow,
@@ -375,7 +379,7 @@ function bareRow(
   checkoutPath: string | null,
   identity: LocusIdentityV1 | null,
   diagnostics: readonly LocusDiagnosticV1[],
-): LocusRowV1 {
+): ProvisionalLocusRow {
   return {
     kind,
     checkoutPath,
@@ -384,6 +388,7 @@ function bareRow(
     role: null,
     identity,
     lease: null,
+    leaseAnchor: null,
     frame: null,
     derived: null,
     diagnostics: [...diagnostics],
@@ -436,7 +441,7 @@ function diagnostic(
   return { code, source: { kind, key }, message: message.slice(0, 4096) || code };
 }
 
-function compareRows(left: LocusRowV1, right: LocusRowV1): number {
+function compareRows(left: ProvisionalLocusRow, right: ProvisionalLocusRow): number {
   const leftIdentityOnly = left.kind === "identity-only";
   const rightIdentityOnly = right.kind === "identity-only";
   if (leftIdentityOnly !== rightIdentityOnly) return leftIdentityOnly ? 1 : -1;
@@ -449,7 +454,7 @@ function compareRows(left: LocusRowV1, right: LocusRowV1): number {
   return compareUtf8(rowSortKey(left), rowSortKey(right));
 }
 
-function rowSortKey(row: LocusRowV1): string {
+function rowSortKey(row: ProvisionalLocusRow): string {
   return row.checkoutPath ?? row.recordId ?? row.diagnostics[0]?.source.key ?? "";
 }
 

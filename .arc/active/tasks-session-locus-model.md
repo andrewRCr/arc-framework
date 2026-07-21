@@ -214,17 +214,10 @@ roster and one generation-safe local mutation boundary.
 - _Goal:_ Session entry and recovery receive one typed interpretation of active, suspended, idle, and residue
   frames instead of rebuilding occupancy or checkout safety from ambient branch state.
 
-    - `[ ]` **3.2.a Resolve the current frame graph and bounded parent edge**
-        - Add a pure `packages/arc-framework/src/lib/locus/state.ts` derivation over provisional rows and the entering
-          process anchor, then assemble the final `LocusEnvelopeV1` and `LocusStateV1` through one public reader.
-        - Mark only conclusively live roles active/suspended; classify a null-lease WU and identity-only tail idle,
-          and classify any other non-live managed lease residue while recovery separately treats dead WU replacement
-          as safe and unknown liveness as a stop.
-        - Resolve current state in D9 order: matching live transient first, then its one legal parent edge, otherwise
-          the matching live WU; return explicit none, resolved, or ambiguous without choosing among siblings.
-        - Build `test-first` (one behavior at a time):
-            - Cover live/null/dead/unknown WU and transient leases, an identity-only tail, warm WU→Errand, cold and
-              between-WUs transients, multiple plausible children, invalid parent depth, and unknown liveness.
+    - `[x]` **3.2.a Resolve the current frame graph and bounded parent edge**
+        - Added pure frame/current derivation and one public state assembler. Private lease anchors survive only until
+          exact entering-process selection, live transient children suspend their single live WU parent, and null,
+          dead, unknown, identity-only, cold, ambiguous-sibling, and invalid-parent cases remain explicit.
 
     - `[ ]` **3.2.b Read directed primary-checkout safety facts**
         - Add a tri-state primary safety probe that pins Git reads to the resolved primary `cwd` and consumes the
