@@ -219,14 +219,10 @@ roster and one generation-safe local mutation boundary.
           exact entering-process selection, live transient children suspend their single live WU parent, and null,
           dead, unknown, identity-only, cold, ambiguous-sibling, and invalid-parent cases remain explicit.
 
-    - `[ ]` **3.2.b Read directed primary-checkout safety facts**
-        - Add a tri-state primary safety probe that pins Git reads to the resolved primary `cwd` and consumes the
-          configured base branch rather than ambient process state.
-        - Distinguish clean/dirty and on-base/off-base facts; map an unavailable required Git fact to the envelope's
-          `git-topology-unavailable` error instead of fabricating dirty or off-base state.
-        - Build `test-first` (one behavior at a time):
-            - Cover all clean/dirty × on-base/off-base combinations, detached HEAD, configured-base mismatch,
-              cross-directory invocation, and each required Git read failure.
+    - `[x]` **3.2.b Read directed primary-checkout safety facts**
+        - Added a fail-closed primary safety probe whose status and branch reads are pinned to the resolved primary
+          checkout and compared with the configured base. Clean/dirty, on/off-base, detached, mismatched/missing
+          base, cross-directory, and unavailable Git facts remain distinct.
 
     - `[ ]` **3.2.c Derive allocation, in-flight identity, and recovery surfaces**
         - Combine the record-free primary rule with the directed safety facts to produce free, occupied, or unsafe
