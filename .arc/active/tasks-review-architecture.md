@@ -865,7 +865,7 @@ architecture lands as one coherent forward contract.
   forward contract with explicit source/admission identities and closed surface coverage, while qualification,
   promotion, lifecycle readiness, and merge authority remain outside the dormant controller.
 
-### `[ ]` **7.2 Prove routing-to-gate behavior across adapters and workflows**
+### `[x]` **7.2 Prove routing-to-gate behavior across adapters and workflows**
 
 - _Goal:_ Cross-module tests demonstrate that the architecture preserves its contracts from Git facts through
   routing, review execution, evidence, response, lifecycle re-entry, and merge authorization.
@@ -894,9 +894,14 @@ architecture lands as one coherent forward contract.
           strict schema-v1 exclusion; locked the release-note rejection classes for internal identifiers, process and
           provider machinery, and unshipped plans while retaining shipped public review concepts.
 
-    - `[ ]` **7.2.d Run the affected integration checkpoint**
-        - Run focused unit/integration/controller/workflow suites plus source/test typecheck and build; fix all
-          failures before the verification phase.
+    - `[x]` **7.2.d Run the affected integration checkpoint**
+        - Exercised the complete package test suite and both TypeScript configurations, then validated TypeScript and
+          Markdown lint plus the distributable build before closing the cross-layer proof.
+
+- _Outcome:_ Routing, exact evidence admission, finding response, suspension/re-entry, lifecycle candidate assembly,
+  applicability, and merge authorization now have joined behavioral proofs from canonical facts through their public
+  adapter and workflow boundaries, including explicit refusal of cross-channel, stale-head, legacy, and prospective
+  authority substitutions.
 
 ### `[ ]` **7.3 Audit package/project parity and legacy-reference removal**
 
