@@ -12,11 +12,11 @@
 - **Task List:** `tasks-markdown-formatting.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task list finalized and work unit activated
-- **Next Task:** Begin Task 1.1 — Centralize authoritative Markdown selection and path routing
-- **Blockers:** [none]
+- **Last Completed:** Task 3.1 — Build the table migration proof audit
+- **Next Task:** Task 3.2 — Enable aligned `MD060` with source-first normalization and regeneration
+- **Blockers:** Task 3.2 waits for `review-architecture` integration; three migration table hunks overlap.
 
-- **Next Action:** Start Task 1.1 — Centralize authoritative Markdown selection and path routing
+- **Next Action:** After `review-architecture` integrates, merge the updated base and start Task 3.2.
 
 - **PR URL:** [none]
 - **Completed:** [none]
