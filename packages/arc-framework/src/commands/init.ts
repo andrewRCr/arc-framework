@@ -42,7 +42,6 @@ import {
   materializeArcPath,
   resolveArcPath,
   resolveTemplateOutputPath,
-  TemplateRelativePathSchema,
 } from "../lib/layout/index.js";
 
 // --- Types ---
@@ -182,10 +181,10 @@ export async function runInit(
 
     // Resolve file list
     const templateFiles = resolveFileList(recipe, config);
-    const templateBindings = templateFiles.map((templateFile) => {
-      const templatePath = TemplateRelativePathSchema.parse(templateFile);
-      return { templatePath, outputPath: resolveTemplateOutputPath(templatePath) };
-    });
+    const templateBindings = templateFiles.map((templatePath) => ({
+      templatePath,
+      outputPath: resolveTemplateOutputPath(templatePath),
+    }));
 
     // Build config_key overrides for arc-config.yml
     const configKeyOverrides = buildConfigKeyOverrides(prompts);

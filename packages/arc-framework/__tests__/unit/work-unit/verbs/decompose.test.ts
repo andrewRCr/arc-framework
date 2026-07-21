@@ -218,8 +218,9 @@ describe("scaffoldCohortMembers — the three parent-position placement arms", (
     for (const params of [
       { cohort: "Not-A-Slug", members: [member("alpha")] },
       { cohort: "neo", members: [member("../alpha")] },
+      { cohort: "neo", members: [member("alpha"), member("../beta")] },
     ]) {
-      const { ctx, writes } = buildHarness();
+      const { ctx, writes, mkdirs } = buildHarness();
 
       await expect(scaffoldCohortMembers(ctx, {
         ...params,
@@ -227,6 +228,7 @@ describe("scaffoldCohortMembers — the three parent-position placement arms", (
         internalEdges: [],
       })).rejects.toThrow();
       expect(writes).toEqual([]);
+      expect(mkdirs).toEqual([]);
     }
   });
 });

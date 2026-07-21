@@ -571,8 +571,8 @@ export type ColdStartOutcome =
  * Derive the cold-start WU name: an explicit name wins, else the branch's slug
  * (`feat/foo` → `foo`), else a prefixless branch verbatim (`foo` → `foo`).
  *
- * Returns `null` when the result is empty or not filename-safe (a multi-segment
- * branch like `team/sub/foo`), signaling the caller to require an explicit name.
+ * Returns `null` when the result is not a canonical work-unit slug, signaling
+ * the caller to require an explicit name.
  *
  * @param explicit - Operator-supplied name, if any.
  * @param branch - The current branch short-name.
@@ -583,8 +583,8 @@ export function deriveColdStartWuName(
   branch: string,
 ): string | null {
   const candidate = (explicit ?? branchToWorkUnitSlug(branch) ?? branch).trim();
-  if (candidate === "" || candidate.includes("/")) return null;
-  return candidate;
+  const parsed = SlugSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : null;
 }
 
 /**

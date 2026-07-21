@@ -156,11 +156,12 @@ describe("runIntegrate — the illegal-edge lookup", () => {
   });
 
   it("rejects an invalid work-unit name without mutation", async () => {
-    const { ctx, calls } = buildCtx([ACTIVE]);
+    const { ctx, calls, softWrites } = buildCtx([ACTIVE]);
 
     const result = await runIntegrate(ctx, { ...BASE, name: "../foo" });
 
     expect(result.status).toBe("rejected");
-    expect(calls.some((c) => c.startsWith("setPhase:"))).toBe(false);
+    expect(calls).toEqual([]);
+    expect(softWrites).toEqual([]);
   });
 });

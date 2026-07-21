@@ -40,6 +40,9 @@ function isQualifiedWindowsRoot(root: string): boolean {
 }
 
 function validateRoot(root: string, semantics: PathSemantics, windows: boolean): string {
+  if (typeof root !== "string") {
+    throw new LayoutError("Invalid materialization root", "layout.invalid-materialization-root");
+  }
   const qualified = windows
     ? isQualifiedWindowsRoot(root)
     : root.startsWith("/") && semantics.isAbsolute(root);

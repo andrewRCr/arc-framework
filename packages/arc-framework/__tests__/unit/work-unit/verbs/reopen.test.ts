@@ -97,10 +97,19 @@ function buildCtx(metas: MetaSpec[]): Harness {
     reconcileBranch: async (op) => {
       calls.push(`branch:${op.mutation}`);
     },
-    reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
-    writeBranchField: async () => {},
-    writeCurrentWorkflowField: async () => {},
-    writeDesignField: async () => {},
+    reconcileWorktree: async () => {
+      calls.push("worktree:spawn");
+      return { mutation: "spawn", worktreePath: "/wt", branch: "x" };
+    },
+    writeBranchField: async () => {
+      calls.push("write:branch");
+    },
+    writeCurrentWorkflowField: async () => {
+      calls.push("write:current-workflow");
+    },
+    writeDesignField: async () => {
+      calls.push("write:design");
+    },
     writeSoftFields: async (_path, updates) => {
       softWrites.push(updates as Record<string, string>);
     },
@@ -195,11 +204,12 @@ describe("runReopen — the pr-unmerged guard", () => {
   });
 
   it("rejects an invalid work-unit name without mutation or PR withdrawal", async () => {
-    const { ctx, calls } = buildCtx([INTEGRATING]);
+    const { ctx, calls, softWrites } = buildCtx([INTEGRATING]);
 
     const result = await runReopen(ctx, { ...BASE, name: "../foo" });
 
     expect(result.status).toBe("rejected");
-    expect(calls.some((c) => c.startsWith("setPhase:") || c === "side:withdraw-pr")).toBe(false);
+    expect(calls).toEqual([]);
+    expect(softWrites).toEqual([]);
   });
 });

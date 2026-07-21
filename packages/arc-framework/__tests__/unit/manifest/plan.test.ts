@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { buildChangePlan } from "../../../src/lib/manifest/plan.js";
+import { LayoutError } from "../../../src/lib/layout/index.js";
 import type { Manifest, FileEntry } from "../../../src/lib/types.js";
 
 // --- Helpers ---
@@ -226,7 +227,14 @@ describe("buildChangePlan", () => {
       (templateFile) => {
         const manifest = makeManifest({});
 
-        expect(() => buildChangePlan(manifest, [templateFile], {}, new Set())).toThrow();
+        let thrown: unknown;
+        try {
+          buildChangePlan(manifest, [templateFile], {}, new Set());
+        } catch (error) {
+          thrown = error;
+        }
+        expect(thrown).toBeInstanceOf(LayoutError);
+        expect(thrown).toMatchObject({ code: "layout.invalid-template-path" });
       },
     );
   });

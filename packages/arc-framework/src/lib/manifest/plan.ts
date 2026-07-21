@@ -9,7 +9,7 @@
  */
 
 import { classifyFile, fileLayer } from "../classification.js";
-import { resolveTemplateOutputPath, TemplateRelativePathSchema } from "../layout/index.js";
+import { resolveTemplateOutputPath } from "../layout/index.js";
 import { diffFileLists } from "./update-files.js";
 import type { Classification, Layer, FileEntry, Manifest } from "../types.js";
 
@@ -76,10 +76,10 @@ export function buildChangePlan(
   pristineStore: Record<string, string>,
   arcInGitFiles: ReadonlySet<string>,
 ): FileChangePlan {
-  const templateBindings = templateFiles.map((templateFile) => {
-    const templatePath = TemplateRelativePathSchema.parse(templateFile);
-    return { templatePath, outputPath: resolveTemplateOutputPath(templatePath) };
-  });
+  const templateBindings = templateFiles.map((templatePath) => ({
+    templatePath,
+    outputPath: resolveTemplateOutputPath(templatePath),
+  }));
 
   // Build output→template mapping
   const outputToTemplate: Record<string, string> = {};

@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { stat } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 
 import {
   createTempRepo,
@@ -119,11 +119,15 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(briefing).toContain("Integration Test Project");
   });
 
-  it("installs literal transformed outputs beneath the supplied root, independent of ambient cwd", () => {
+  it("installs literal transformed outputs beneath the supplied root, independent of ambient cwd", async () => {
     expect(tempDir).not.toBe(process.cwd());
     expect(result.filesWritten).toContain("reference/briefs/AGENT-BRIEF.PROJECT.md");
     expect(result.filesWritten).toContain("system/rules/DEV-RULES.ARC.md");
     expect(result.filesWritten).not.toContain("reference/briefs/AGENT-BRIEF.PROJECT.template.md");
+    expect((await stat(join(arcDir, "reference/briefs/AGENT-BRIEF.PROJECT.md"))).isFile()).toBe(true);
+    expect((await stat(join(arcDir, "system/rules/DEV-RULES.ARC.md"))).isFile()).toBe(true);
+    await expect(stat(join(arcDir, "reference/briefs/AGENT-BRIEF.PROJECT.template.md")))
+      .rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("leaves no init-time token residuals in rendered files", async () => {
@@ -698,6 +702,9 @@ describe("init integration — template path boundary", () => {
   });
 
   it("rejects an unsafe enumerated source before creating installation files", async () => {
+    const boundedTemplateDir = join(tempDir, "templates");
+    await mkdir(boundedTemplateDir, { recursive: true });
+    await writeFile(join(tempDir, "outside.template.md"), "outside\n", "utf-8");
     const unsafeRecipe: Recipe = {
       include_files: ["../outside.template.md"],
       prompts: [],
@@ -707,12 +714,15 @@ describe("init integration — template path boundary", () => {
     await expect(runInit({
       cwd: tempDir,
       io: makeIOContext(tempDir),
-      templateDir,
+      templateDir: boundedTemplateDir,
       internalTemplateDir,
       recipe: unsafeRecipe,
       prompts,
       identityResult: "test-user",
-    })).rejects.toThrow();
+    })).rejects.toMatchObject({
+      name: "LayoutError",
+      code: "layout.invalid-template-path",
+    });
 
     await expect(stat(join(tempDir, ".arc"))).rejects.toMatchObject({ code: "ENOENT" });
     await expect(stat(join(tempDir, "outside.md"))).rejects.toMatchObject({ code: "ENOENT" });

@@ -1029,13 +1029,20 @@ describe("update integration — error cases", () => {
       [FRAMEWORK_FILE]: { content: "# Existing\n", classification: "Framework" },
     });
     const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
+    const boundedTemplateDir = join(templateDir, "templates");
+    await ensureDir(boundedTemplateDir);
+    await writeFile(join(boundedTemplateDir, FRAMEWORK_FILE), "# Content\n", "utf-8");
+    await writeFile(join(templateDir, "outside.template.md"), "outside\n", "utf-8");
 
     await expect(runUpdate({
       cwd: tempDir,
       io: makeIOContext(tempDir),
-      templateDir,
+      templateDir: boundedTemplateDir,
       recipe: makeRecipe([FRAMEWORK_FILE, "../outside.template.md"]),
-    })).rejects.toThrow();
+    })).rejects.toMatchObject({
+      name: "LayoutError",
+      code: "layout.invalid-template-path",
+    });
 
     expect(await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8")).toBe("# Existing\n");
     expect(await readFile(manifestPath(tempDir), "utf-8")).toBe(manifestBefore);

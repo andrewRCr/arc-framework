@@ -49,6 +49,13 @@ describe("materializeArcPathWithSemantics", () => {
     );
   });
 
+  it("normalizes a non-string root into the public layout error contract", () => {
+    expectLayoutError(
+      () => materializeArcPathWithSemantics(posix, null as unknown as string, managed(".arc/active")),
+      "layout.invalid-materialization-root",
+    );
+  });
+
   it.each([
     "C:repo",
     "\\repo",

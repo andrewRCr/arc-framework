@@ -188,7 +188,7 @@ describe("runStub — cohort placement", () => {
 
   it("rejects an unsafe cohort path without scaffolding", async () => {
     for (const cohort of ["../escape", "/abs"]) {
-      const { ctx, writes } = buildHarness();
+      const { ctx, writes, mkdirs } = buildHarness();
 
       const result = await runStub(ctx, { ...BASE, cohort });
 
@@ -196,16 +196,18 @@ describe("runStub — cohort placement", () => {
       if (result.status !== "rejected") continue;
       expect(result.reason).toMatch(/cohort/i);
       expect(writes).toEqual([]);
+      expect(mkdirs).toEqual([]);
     }
   });
 
   it("rejects a cohort segment outside the canonical slug grammar", async () => {
-    const { ctx, writes } = buildHarness();
+    const { ctx, writes, mkdirs } = buildHarness();
 
     const result = await runStub(ctx, { ...BASE, cohort: "Not-A-Slug" });
 
     expect(result.status).toBe("rejected");
     expect(writes).toEqual([]);
+    expect(mkdirs).toEqual([]);
   });
 });
 

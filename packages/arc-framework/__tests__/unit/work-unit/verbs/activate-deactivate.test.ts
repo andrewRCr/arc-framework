@@ -181,11 +181,16 @@ describe("runActivate — raise a planning WU to Active", () => {
 
   it("rejects an invalid name before reading or dispatching", async () => {
     const { ctx, calls } = buildCtx([PLANNING]);
-    ctx.indexFs.readFile = () => Promise.reject(new Error("unexpected read"));
+    let reads = 0;
+    ctx.indexFs.readFile = () => {
+      reads += 1;
+      return Promise.reject(new Error("unexpected read"));
+    };
 
     const result = await runActivate(ctx, { ...params, name: "../foo" });
 
     expect(result.status).toBe("rejected");
+    expect(reads).toBe(0);
     expect(calls).toEqual([]);
   });
 });
@@ -239,11 +244,16 @@ describe("runDeactivate — illegal sources", () => {
 
   it("rejects an invalid name before reading or dispatching", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
-    ctx.indexFs.readFile = () => Promise.reject(new Error("unexpected read"));
+    let reads = 0;
+    ctx.indexFs.readFile = () => {
+      reads += 1;
+      return Promise.reject(new Error("unexpected read"));
+    };
 
     const result = await runDeactivate(ctx, { name: "../foo" });
 
     expect(result.status).toBe("rejected");
+    expect(reads).toBe(0);
     expect(calls).toEqual([]);
   });
 });
