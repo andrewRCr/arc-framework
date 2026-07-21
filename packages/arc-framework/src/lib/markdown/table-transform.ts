@@ -41,6 +41,14 @@ export interface TransformGfmTablesResult {
   readonly changedRanges: readonly MarkdownChangedRange[];
 }
 
+/** Evidence to verify for one completed table-only migration. */
+export interface VerifyGfmTableRewriteInput {
+  readonly path: string;
+  readonly baseline: Uint8Array;
+  readonly candidate: Uint8Array;
+  readonly changedRanges: readonly MarkdownChangedRange[];
+}
+
 const encoder = new TextEncoder();
 
 function parseGfm(content: string): ReturnType<typeof fromMarkdown> {
@@ -115,6 +123,105 @@ function positionFree(value: unknown): unknown {
   );
 }
 
+function decodeGfmBytes(path: ManagedPath, bytes: Uint8Array): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch (error) {
+    throw new ArcError(`Cannot format ${path}: input is not valid UTF-8`, "markdown.invalid-utf8", { cause: error });
+  }
+}
+
+function tableSourceRanges(path: ManagedPath, content: string, tree: AstNode): readonly {
+  start: number;
+  end: number;
+  byteStart: number;
+  byteEnd: number;
+}[] {
+  const tables: AstNode[] = [];
+  collectTableNodes(tree, tables);
+  const offsetAdjustment = content.startsWith("\uFEFF") ? 1 : 0;
+  return tables.map((table) => {
+    const { start, end } = requireTableRange(path, table, offsetAdjustment);
+    return {
+      start,
+      end,
+      byteStart: encoder.encode(content.slice(0, start)).length,
+      byteEnd: encoder.encode(content.slice(0, end)).length,
+    };
+  });
+}
+
+function equalByteSlice(
+  left: Uint8Array,
+  leftStart: number,
+  leftEnd: number,
+  right: Uint8Array,
+  rightStart: number,
+  rightEnd: number,
+): boolean {
+  const leftSlice = left.subarray(leftStart, leftEnd);
+  const rightSlice = right.subarray(rightStart, rightEnd);
+  return leftSlice.length === rightSlice.length && leftSlice.every((value, index) => value === rightSlice[index]);
+}
+
+/** Verify syntax, evidence completeness, and exact outside-table bytes for a completed rewrite. */
+export function verifyGfmTableRewrite(input: VerifyGfmTableRewriteInput): void {
+  const path = validateMarkdownPath(input.path);
+  const baselineContent = decodeGfmBytes(path, input.baseline);
+  const candidateContent = decodeGfmBytes(path, input.candidate);
+  const baselineTree = parseGfm(baselineContent);
+  const candidateTree = parseGfm(candidateContent);
+  const baselineRanges = tableSourceRanges(path, baselineContent, baselineTree);
+  const candidateRanges = tableSourceRanges(path, candidateContent, candidateTree);
+  const actualChangedRanges: MarkdownChangedRange[] = [];
+  let baselineCursor = 0;
+  let candidateCursor = 0;
+  for (const [index, baselineRange] of baselineRanges.entries()) {
+    const candidateRange = candidateRanges[index];
+    if (candidateRange === undefined) {
+      throw new ArcError(`Cannot audit ${path}: GFM table count changed`, "markdown.table-semantics");
+    }
+    if (!equalByteSlice(
+      input.baseline,
+      baselineCursor,
+      baselineRange.byteStart,
+      input.candidate,
+      candidateCursor,
+      candidateRange.byteStart,
+    )) {
+      throw new ArcError(`Cannot audit ${path}: bytes outside table ranges changed`, "markdown.table-boundary");
+    }
+    if (!equalByteSlice(
+      input.baseline,
+      baselineRange.byteStart,
+      baselineRange.byteEnd,
+      input.candidate,
+      candidateRange.byteStart,
+      candidateRange.byteEnd,
+    )) {
+      actualChangedRanges.push({ start: baselineRange.byteStart, end: baselineRange.byteEnd });
+    }
+    baselineCursor = baselineRange.byteEnd;
+    candidateCursor = candidateRange.byteEnd;
+  }
+  if (!equalByteSlice(
+    input.baseline,
+    baselineCursor,
+    input.baseline.length,
+    input.candidate,
+    candidateCursor,
+    input.candidate.length,
+  )) {
+    throw new ArcError(`Cannot audit ${path}: bytes outside table ranges changed`, "markdown.table-boundary");
+  }
+  if (!isDeepStrictEqual(positionFree(baselineTree), positionFree(candidateTree))) {
+    throw new ArcError(`Cannot audit ${path}: GFM syntax changed`, "markdown.table-semantics");
+  }
+  if (!isDeepStrictEqual(input.changedRanges, actualChangedRanges)) {
+    throw new ArcError(`Cannot audit ${path}: changed table range evidence is incomplete`, "markdown.table-evidence");
+  }
+}
+
 function assertNonOverlapping(path: ManagedPath, replacements: readonly TableReplacement[]): void {
   for (let index = 1; index < replacements.length; index += 1) {
     const previous = replacements[index - 1];
@@ -149,12 +256,7 @@ function assertOutsideRangesUnchanged(
 /** Parse, serialize, validate, and re-encode only the GFM table ranges in one Markdown file. */
 export function transformGfmTables(input: TransformGfmTablesInput): TransformGfmTablesResult {
   const path = validateMarkdownPath(input.path);
-  let content: string;
-  try {
-    content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(input.bytes);
-  } catch (error) {
-    throw new ArcError(`Cannot format ${path}: input is not valid UTF-8`, "markdown.invalid-utf8", { cause: error });
-  }
+  const content = decodeGfmBytes(path, input.bytes);
 
   const originalTree = parseGfm(content);
   const offsetAdjustment = content.startsWith("\uFEFF") ? 1 : 0;

@@ -92,21 +92,14 @@ that migrates every selected authority class and regenerates derived output.
 _Design decisions:_ The generic formatter never rewrites rendered Framework instances, managed meta tables, or
 derived readiness output through the ordinary AST path; each class follows its owning writer.
 
-### `[ ]` **3.1 Build the table migration proof audit**
+### `[x]` **3.1 Build the table migration proof audit**
 
 - _Goal:_ Mechanical table passes carry reproducible evidence that all accepted changes are confined to table
   ranges and preserve rendered GFM structure.
 
-    - Accept explicit tracked paths or the selector's emitted path list, resolve `HEAD` to one commit OID at audit
-      start, and load every immutable baseline through `readGitBlobBytes()` against that OID.
-    - Reuse the table transform's range reporting and position-free tree comparison while independently verifying
-      bytes outside original table ranges.
-    - Fail on untracked or unreadable baselines, missing range evidence, structural drift, or an unreported changed
-      table.
-    - Build `test-first` (one behavior at a time):
-        - No-op, multiple-table, nested-table, and serializer-canonicalization fixtures pass with complete evidence.
-        - Outside-range tampering, missing reports, and structural drift fail.
-        - A settled migration reruns idempotently against its baseline.
+- _Outcome:_ Added `audit:tables` with explicit-path or complete-selector input, one pinned `HEAD` baseline, exact Git
+  blob loading, shared position-free GFM comparison, complete changed-range evidence, and independent outside-table
+  byte verification. Real-Git and focused fixtures cover retries, nested/canonicalized tables, and fail-closed drift.
 
 ### `[ ]` **3.2 Enable aligned `MD060` with source-first normalization and regeneration**
 
