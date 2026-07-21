@@ -323,9 +323,10 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
           prove invalid output leaves no state file and valid output persists as a strict record; the existing 75-case
           save/load and marker corpus remains green across carry, replace, clear, legacy-drop, and concurrent updates.
 
-    - `[ ]` **4.2.c Exercise the local record lifecycle in integration**
-        - Cover preferred and legacy migrations, save/load rewrites, concurrent compare-and-swap mutation, and both
-          marker families against real temporary files while preserving failure and carry-forward behavior.
+    - `[x]` **4.2.c Exercise the local record lifecycle in integration**
+        - Added real-filesystem lifecycle coverage that hydrates a legacy version-2 record, rewrites save/load state at
+          the preferred path while carrying file-list and provenance extensions, and races notes/errand marker updates
+          through the actual advisory-lock and compare-and-swap path without losing either marker or sibling state.
 
     - `[ ]` **4.2.d Exercise state-producing command and ref flows**
         - Extend built-CLI and ref-backed coverage for save/load production, partial-push publication, reconciliation,
