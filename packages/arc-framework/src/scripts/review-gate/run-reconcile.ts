@@ -5,7 +5,11 @@ import { appendFile, readFile } from "node:fs/promises";
 import { SELF_HOSTING_POLICY } from "./policy/self-hosting/schema.js";
 import { selectReconcilePolicy } from "./policy/self-hosting/qualification.js";
 import { SELF_HOSTING_REVIEW_GATE } from "./runtime/entrypoints.js";
-import { createAuthenticatedGitExec, productionFetch } from "./runtime/production-io.js";
+import {
+  createAuthenticatedGitExec,
+  createAuthenticatedRawGitExec,
+  productionFetch,
+} from "./runtime/production-io.js";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -45,6 +49,7 @@ async function main(): Promise<void> {
       createRuntime: SELF_HOSTING_REVIEW_GATE.createReconcileRuntime,
       fetch: productionFetch,
       createGitExec: (gitToken) => createAuthenticatedGitExec(gitToken),
+      createRawGitExec: (gitToken) => createAuthenticatedRawGitExec(gitToken),
       policy,
       now: new Date(),
     });

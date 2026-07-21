@@ -2,12 +2,18 @@
 
 import type { ReviewRequest, SourceCapacity } from "../../core/execution.js";
 import { parseEvidence, type Evidence, type FindingSeverity } from "../../core/evidence.js";
+import {
+  NormalizedReviewFindingSchema,
+  type NormalizedReviewFinding,
+} from "../../core/finding-records.js";
+import type { ReviewSeverity } from "../../core/review-primitives.js";
 import type {
   ProviderObservation,
   RequestAcknowledgement,
   ReviewProviderAdapter,
 } from "../../core/ports.js";
 import { computeRequestKey } from "../../core/request-key.js";
+import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../../policy/independent-analysis.js";
 import { CODEX_RUBRIC_VERSION } from "./guidance.js";
 
 export interface CodexCapabilities {
@@ -56,7 +62,8 @@ export type CodexSignal =
     reviewNodeId: string;
     botUserId: string;
     locus: string;
-    severity: FindingSeverity;
+    severity: ReviewSeverity;
+    nit?: true;
     url: string;
   }
   | {
@@ -79,7 +86,13 @@ export type CodexTriggerOutcome =
 export interface CodexApi {
   validateCurrent(request: ReviewRequest): Promise<"current" | "replay" | "stale">;
   resolveRequestGuidance(request: ReviewRequest): Promise<
-    | { qualified: true; guidanceDigest: string }
+    | {
+      qualified: true;
+      guidanceDigest: string;
+      forwardGuidanceDigest: string;
+      rubricVersion: string;
+      rubricDigest: string;
+    }
     | { qualified: false; reasons: string[] }
   >;
   acknowledgeUserTrigger(request: ReviewRequest): Promise<CodexTriggerOutcome>;
@@ -92,6 +105,7 @@ export interface CodexRunResult {
   state: "queued" | "clean" | "findings" | "unavailable";
   qualifying: boolean;
   evidence: Evidence | null;
+  findings: NormalizedReviewFinding[];
   reasons: string[];
 }
 
@@ -148,6 +162,10 @@ function evidenceFrom(
   });
 }
 
+function legacyDiagnosticSeverity(severity: ReviewSeverity): FindingSeverity {
+  return severity === "blocker" ? "critical" : severity === "major" ? "high" : "low";
+}
+
 function pinnedComment(
   signal: Extract<CodexSignal, { kind: "issue-comment" }>,
   context: CodexRunContext,
@@ -194,13 +212,14 @@ export function normalizeCodexRun(
   const unavailable = comments.filter((comment) => connectedAccountResponse(comment.body));
   const cleanComments = comments.filter((comment) => cleanResponse(comment, context));
   if (unavailable.length + cleanComments.length > 1) {
-    return { state: "queued", qualifying: false, evidence: null, reasons: ["ambiguous-terminal-comments"] };
+    return { state: "queued", qualifying: false, evidence: null, findings: [], reasons: ["ambiguous-terminal-comments"] };
   }
   if (unavailable.length === 1) {
     return {
       state: "unavailable",
       qualifying: capabilities.connectedAccountTerminal,
       evidence: null,
+      findings: [],
       reasons: capabilities.connectedAccountTerminal ? ["terminal-capability-has-no-satisfying-evidence"] : ["connected-account-parser-only"],
     };
   }
@@ -225,17 +244,25 @@ export function normalizeCodexRun(
         && finding.locus.length > 0
         && finding.url.length > 0);
     if (!valid) {
-      return { state: "findings", qualifying: false, evidence: null, reasons: ["finding-artifact-unqualified"] };
+      return { state: "findings", qualifying: false, evidence: null, findings: [], reasons: ["finding-artifact-unqualified"] };
     }
+    const normalizedFindings = findings.map((finding) => NormalizedReviewFindingSchema.parse({
+      findingId: finding.findingId,
+      severity: finding.severity,
+      ...(finding.nit === undefined ? {} : { nit: finding.nit }),
+      locus: finding.locus,
+      evidenceUrlOrId: finding.url,
+    }));
     return {
       state: "findings",
       qualifying: true,
       evidence: evidenceFrom(context, "findings", review.url, findings.map((finding) => ({
         findingId: finding.findingId,
-        severity: finding.severity,
+        severity: legacyDiagnosticSeverity(finding.severity),
         locus: finding.locus,
         evidenceUrlOrId: finding.url,
       })), review.observedAt),
+      findings: normalizedFindings,
       reasons: [],
     };
   }
@@ -243,16 +270,17 @@ export function normalizeCodexRun(
   const clean = cleanComments[0];
   if (clean !== undefined) {
     if (!exactCoverage || !capabilities.durableCleanResults) {
-      return { state: "clean", qualifying: false, evidence: null, reasons: ["clean-artifact-unqualified"] };
+      return { state: "clean", qualifying: false, evidence: null, findings: [], reasons: ["clean-artifact-unqualified"] };
     }
     return {
       state: "clean",
       qualifying: true,
       evidence: evidenceFrom(context, "clean", clean.url, [], clean.createdAt),
+      findings: [],
       reasons: [],
     };
   }
-  return { state: "queued", qualifying: false, evidence: null, reasons: ["result-unproven"] };
+  return { state: "queued", qualifying: false, evidence: null, findings: [], reasons: ["result-unproven"] };
 }
 
 /** Neutral provider-port implementation for hosted Codex. */
@@ -294,6 +322,11 @@ export class CodexProviderAdapter implements ReviewProviderAdapter {
     }
     const guidance = await this.api.resolveRequestGuidance(request);
     if (!guidance.qualified) return { qualified: false, reason: guidance.reasons[0] ?? "guidance-unresolved" };
+    if (guidance.rubricVersion !== INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version
+      || guidance.rubricDigest !== INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest
+      || !/^sha256:[0-9a-f]{64}$/u.test(guidance.forwardGuidanceDigest)) {
+      return { qualified: false, reason: "guidance-contract-mismatch" };
+    }
     if (request.requestCommand !== buildCodexReviewCommand(guidance.guidanceDigest)) {
       return { qualified: false, reason: "guidance-command-mismatch" };
     }

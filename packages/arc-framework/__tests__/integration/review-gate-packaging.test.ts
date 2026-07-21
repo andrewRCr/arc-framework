@@ -5,10 +5,22 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { admitSelfHostingGuidanceCarrier } from "../../src/scripts/review-gate/policy/self-hosting/guidance.js";
+
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "../../../..");
 
 describe("review-gate package boundary", () => {
+  it("keeps hosted Codex guidance repository-owned and inherited by Claude", async () => {
+    const [agents, claude] = await Promise.all([
+      readFile(resolve(root, "AGENTS.md"), "utf8"),
+      readFile(resolve(root, "CLAUDE.md"), "utf8"),
+    ]);
+
+    expect(claude.trim()).toBe("@AGENTS.md");
+    expect(admitSelfHostingGuidanceCarrier("hosted-codex", agents)).toMatchObject({ admitted: true });
+  });
+
   it("ships extension shells without repository controller implementation", async () => {
     const { stdout } = await run("npm", ["pack", "--dry-run", "--json", "--workspace", "@arc-framework/cli"], {
       cwd: root, maxBuffer: 10 * 1024 * 1024, timeout: 30_000,

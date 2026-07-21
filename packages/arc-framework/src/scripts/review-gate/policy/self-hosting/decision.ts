@@ -2,8 +2,13 @@
 
 import type { NormalizedChangeRequest, ReviewRequirement } from "../../core/contracts.js";
 import { computePolicyVersion } from "../../core/identity.js";
-import type { LaneDecision, LaneReason } from "./lane.js";
-import type { ReviewRiskDecision, ReviewRiskReason } from "./risk.js";
+import {
+  ReviewRoutingDecisionSchema,
+  ReviewRoutingFactsSchema,
+  type ReviewRoutingDecision,
+  type ReviewRoutingFacts,
+  type ReviewRoutingReason,
+} from "../routing-schema.js";
 import { parseSelfHostingPolicy, type SelfHostingPolicy } from "./schema.js";
 
 /** Explanatory aggregate over independently retained requirements. */
@@ -12,10 +17,12 @@ export type ReviewDisposition = "required" | "recommended" | "exempt";
 /** Stable policy decision bound to one exact change set. */
 export interface SelfHostingDecision {
   schemaVersion: 1;
+  routingFacts: ReviewRoutingFacts;
+  routing: ReviewRoutingDecision;
   lane: "auto" | "reviewed";
   reviewRisk: "routine" | "sensitive";
   disposition: ReviewDisposition;
-  reasons: Array<LaneReason | ReviewRiskReason>;
+  reasons: ReviewRoutingReason[];
   policyVersion: string;
   baseRef: string;
   baseSha: string;
@@ -29,18 +36,19 @@ export interface SelfHostingDecision {
 export interface SelfHostingDecisionInput {
   policy: SelfHostingPolicy;
   changeRequest: NormalizedChangeRequest;
-  lane: LaneDecision;
-  risk: ReviewRiskDecision;
+  routingFacts: ReviewRoutingFacts;
+  routing: ReviewRoutingDecision;
 }
 
-/** Bind lane, risk, requirements, and stable identities into one decision. */
+/** Bind normalized routing, compatibility presentation, requirements, and stable identities into one decision. */
 export function resolveSelfHostingDecision(input: SelfHostingDecisionInput): SelfHostingDecision {
   const policy = parseSelfHostingPolicy(input.policy);
+  const routingFacts = ReviewRoutingFactsSchema.parse(input.routingFacts);
+  const routing = ReviewRoutingDecisionSchema.parse(input.routing);
   const policyVersion = computePolicyVersion({ policy });
-  const reasons = [...input.lane.reasons, ...input.risk.reasons];
-  const disposition: ReviewDisposition = input.lane.lane === "auto"
-    ? "exempt"
-    : input.risk.risk === "sensitive" ? "required" : "recommended";
+  const reasons = [...routing.reasons];
+  const disposition = routing.independentAnalysis;
+  const lane = disposition === "exempt" ? "auto" : "reviewed";
   const requirements: ReviewRequirement[] = disposition === "exempt"
     ? []
     : policy.requirementTemplates.map((template) => ({
@@ -55,8 +63,10 @@ export function resolveSelfHostingDecision(input: SelfHostingDecisionInput): Sel
 
   return {
     schemaVersion: 1,
-    lane: input.lane.lane,
-    reviewRisk: input.risk.risk,
+    routingFacts,
+    routing,
+    lane,
+    reviewRisk: routingFacts.reviewRisk,
     disposition,
     reasons,
     policyVersion,

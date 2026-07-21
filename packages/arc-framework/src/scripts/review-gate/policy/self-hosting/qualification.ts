@@ -1,6 +1,7 @@
 /** Qualification rules for the repository-owned independent-analysis rubric. */
 
 import { parseSelfHostingPolicy, type SelfHostingPolicy, type SourceQualificationDeclaration } from "./schema.js";
+import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../independent-analysis.js";
 
 /** Version of the shared independent-analysis rubric. */
 export const INDEPENDENT_ANALYSIS_RUBRIC_VERSION = "independent-analysis/v1";
@@ -64,6 +65,16 @@ export function deriveHostedProviderDeclaration(
     qualifier: INDEPENDENT_ANALYSIS_RUBRIC_VERSION,
     sourceIdentity: baseline.sourceIdentity,
     rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_VERSION,
+    channel: "hosted",
+    guidance: {
+      baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+      baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+      projectAugmentationId: "self-hosting-review/v1",
+    },
+    admissionMode: baseline.requestActor === "controller" ? "automatic" : "checkpoint",
+    requestMechanism: baseline.requestActor === "controller" ? "provider-automatic" : "pr-author-command",
+    attestationAuthority: "arc-review-gate-app",
+    hostedImportAuthority: null,
     mode: satisfying ? "enabled" : partial ? "partial" : "disabled",
     exactCoverage: baseline.exactCoverage,
     durableResults: baseline.durableResults,
@@ -77,7 +88,6 @@ export function deriveHostedProviderDeclaration(
     providerBotUserId: baseline.providerBotUserId,
     guidanceDigest: baseline.guidanceDigest,
     terminalUnavailableMode: baseline.terminalUnavailableMode,
-    requestActor: baseline.requestActor,
   };
 }
 

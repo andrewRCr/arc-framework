@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { computePolicyVersion } from "../../../../../../src/scripts/review-gate/core/identity.js";
+import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../../../../../../src/scripts/review-gate/policy/independent-analysis.js";
 import {
   deriveAcceptedReviewerClaims,
   parseSelfHostingPolicy,
@@ -8,6 +9,58 @@ import {
 } from "../../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
 
 describe("self-hosting review policy document", () => {
+  it("binds explicit channels and keeps live controller authority inactive", () => {
+    const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
+
+    expect(parsed.reviewChannel).toBe("both");
+    expect(parsed.controllerAuthority).toBe("inactive");
+    expect(parsed.mergeAuthority).toBe("manual");
+  });
+
+  it("binds every source to native guidance, admission, request, and attestation identities", () => {
+    const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
+    const byIdentity = new Map(parsed.qualifications.map((source) => [source.sourceIdentity, source]));
+
+    expect(byIdentity.get("codex-cli")).toMatchObject({
+      channel: "local",
+      guidance: {
+        baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+        baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        projectAugmentationId: "self-hosting-review/v1",
+      },
+      admissionMode: "checkpoint",
+      requestMechanism: "local-attestation",
+      attestationAuthority: "local-receipt-store",
+      hostedImportAuthority: "arc-review-gate-app",
+      closureCapability: true,
+    });
+    expect(byIdentity.get("coderabbit-pr")).toMatchObject({
+      channel: "hosted",
+      admissionMode: "automatic",
+      requestMechanism: "provider-automatic",
+      attestationAuthority: "arc-review-gate-app",
+      hostedImportAuthority: null,
+    });
+    expect(byIdentity.get("codex-pr")).toMatchObject({
+      channel: "hosted",
+      admissionMode: "checkpoint",
+      requestMechanism: "pr-author-command",
+      attestationAuthority: "arc-review-gate-app",
+    });
+    expect(byIdentity.get("qualified-non-author-human")).toMatchObject({
+      channel: "local",
+      admissionMode: "checkpoint",
+      requestMechanism: "human-attestation",
+      attestationAuthority: "local-receipt-store",
+    });
+  });
+
+  it("binds ordinary minor findings to the package-default record-only policy", () => {
+    const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
+
+    expect(parsed.minorGating).toBe("record-only");
+  });
+
   it("returns the closed lifecycle-tail predicate", () => {
     const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
 
@@ -142,10 +195,11 @@ describe("self-hosting review policy document", () => {
   });
 
   it.each([
-    ["lane predicate", { lanePredicate: { ...SELF_HOSTING_POLICY.lanePredicate, id: "owner/v2" } }],
-    ["risk predicate", { riskPredicate: { ...SELF_HOSTING_POLICY.riskPredicate, id: "risk/v2" } }],
-    ["lane parameters", { lanePredicate: { ...SELF_HOSTING_POLICY.lanePredicate, artifactKinds: ["spec"] } }],
+    ["ownership policy", { ownershipPolicy: { ...SELF_HOSTING_POLICY.ownershipPolicy, id: "owner/v2" } }],
+    ["review-risk policy", { reviewRiskPolicy: { ...SELF_HOSTING_POLICY.reviewRiskPolicy, id: "risk/v2" } }],
+    ["ownership parameters", { ownershipPolicy: { ...SELF_HOSTING_POLICY.ownershipPolicy, artifactKinds: ["spec"] } }],
     ["semantics version", { semanticsVersion: "" }],
+    ["minor gating", { minorGating: "advisory" }],
     ["rollout mode", { rolloutMode: "shadow" }],
     ["capacity", { capacity: "available" }],
     ["provider identity", { providerIdentities: { coderabbitBotUserId: "coderabbitai[bot]" } }],

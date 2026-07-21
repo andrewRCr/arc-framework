@@ -1,6 +1,7 @@
 /** Dependency-injectable authenticated-attestation entry composition. */
 
 import type { GitExec } from "../../../lib/git/exec.js";
+import type { RawGitExec } from "../../../lib/change-facts.js";
 import { ingestAttestation } from "../core/attestations.js";
 import { integerAt, objectAt, stringAt } from "../core/validation.js";
 import type { HttpFetch } from "../hosts/github/api/http.js";
@@ -31,6 +32,7 @@ export interface AttestMainDependencies {
   ) => Promise<AttestComposition>;
   fetch: HttpFetch;
   createGitExec: (gitToken: string) => GitExec;
+  createRawGitExec?: (gitToken: string) => RawGitExec;
   policy: SelfHostingPolicy;
   now: Date;
 }
@@ -110,7 +112,12 @@ export async function runAttestMain(
     dispatchActorId: requireEnv(env, "ARC_DISPATCH_ACTOR_ID"),
     policy: deps.policy,
   };
-  const io: CompositionIo = { fetch: deps.fetch, exec: deps.createGitExec(requireEnv(env, "GITHUB_TOKEN")) };
+  const gitToken = requireEnv(env, "GITHUB_TOKEN");
+  const io: CompositionIo = {
+    fetch: deps.fetch,
+    exec: deps.createGitExec(gitToken),
+    ...(deps.createRawGitExec === undefined ? {} : { rawExec: deps.createRawGitExec(gitToken) }),
+  };
   const composition = await deps.createRuntime(config, io);
   const resolved = await composition.resolveValidationContext();
   const ledger = await composition.store.readLedger(resolved.changeRequestId);

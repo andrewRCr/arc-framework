@@ -88,14 +88,14 @@ the override path.
 | `issue-triage` | `3_process-task-loop.md` | DEV-RULES.ARC § Discovered Work Routing | — |
 | `test-first` | `3_process-task-loop.md` | DEV-RULES.ARC § Test-first | `2_generate-tasks.md`, `manage-incidental-work.md` |
 | `session-state` | `session-init.md`, `session-handoff.md` | DEV-RULES.ARC § Session state | Templates, `integrate-external-content.md` |
-| `diff-review` | `integrate-work-unit.md` | — | `pre-merge.md`, `arc-config.yml` (gated) |
+| `self-review` | `integrate-work-unit.md` | — | `pre-merge.md`, `arc-config.yml` (gated) |
 | `review-triage` | `integrate-work-unit.md` | — | `pre-merge.md` |
 | `quality-gate-commands` | `3_process-task-loop.md` | DEV-RULES.PROJECT § Quality Gates | — |
 
 **Override coupling** (from arc-methods.md § Method Dependencies):
 
 - `commit-format` ↔ `commit-context-format` — both govern commit messages
-- `diff-review` → `review-triage` — review uses triage for finding classification
+- `self-review` → `review-triage` — review uses triage for finding classification
 
 ---
 

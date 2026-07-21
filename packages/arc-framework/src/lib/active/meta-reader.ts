@@ -22,6 +22,7 @@ import { join, relative, sep } from "node:path";
 import { readdir, readFile, stat } from "node:fs/promises";
 
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
+import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
 
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
 const LITE_FILENAME = "status.md";
@@ -260,6 +261,7 @@ export const META_FIELDS = [
   { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "url" },
   { name: "Design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
   { name: "Task List", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Review Rubric", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Current Workflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
   { name: "Last Completed", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Task", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
@@ -305,6 +307,14 @@ export type MetaFieldOverrides = Partial<Record<MetaFieldName, string>>;
 
 /** The structured field record recovered from a meta projection by {@link parseMetaRecord}. */
 export type MetaRecord = Record<MetaFieldName, string | null>;
+
+/** Resolve the optional WU review-rubric overlay to one safe method identity. */
+export function parseReviewRubric(value: string | null): Slug | null {
+  if (value === null || value === "[none]") return null;
+  const parsed = SlugSchema.safeParse(value);
+  if (!parsed.success) throw new Error("Review Rubric must be one safe rubric or method identity");
+  return parsed.data;
+}
 
 /** The em-dash placeholder for a required-but-unset field (distinct from a `[…]` sentinel). */
 const PLACEHOLDER = "—";

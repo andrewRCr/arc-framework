@@ -59,6 +59,7 @@ describe("review-gate outage runbook contract", () => {
     const rehearsal = JSON.parse(await readFile(rehearsalPath, "utf8")) as Record<string, unknown>;
     expect(rehearsal).toMatchObject({
       schemaVersion: 1,
+      reviewContractPosture: "legacy-v1-operational",
       scope: "non-mutating",
       containsLiveValues: false,
       existingAuthorityRequiredThroughout: true,

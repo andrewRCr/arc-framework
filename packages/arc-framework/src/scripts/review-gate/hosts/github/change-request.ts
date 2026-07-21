@@ -15,6 +15,7 @@
  */
 
 import type { GitExec } from "../../../../lib/git/exec.js";
+import type { RawGitExec } from "../../../../lib/change-facts.js";
 import { parseNormalizedChangeRequest, type NormalizedChangeRequest } from "../../core/contracts.js";
 import type { ChangedPath } from "../../policy/self-hosting/lane.js";
 import type { NormalizedActor } from "./actor.js";
@@ -58,6 +59,7 @@ export interface ChangeContext {
 export interface GitHubChangeRequestDeps {
   rest: GitHubRestClient;
   exec: GitExec;
+  rawExec?: RawGitExec;
   /** Trusted base-repository remote name (never a fork URL). */
   baseRemote: string;
 }
@@ -96,6 +98,7 @@ export async function resolveChangeRequest(
 
   const coverage = await resolveCoverageIdentity({
     exec: deps.exec,
+    ...(deps.rawExec === undefined ? {} : { rawExec: deps.rawExec }),
     baseRemote: deps.baseRemote,
     baseRef: pr.baseRef,
     headSha: pr.headSha,

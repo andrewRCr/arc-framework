@@ -2,20 +2,32 @@
  * Method-file frontmatter schema parser.
  *
  * Validates the required fields (name, description, override-active) and
- * optional `related` (array) and `override-mode` (`replace` | `extend`).
+ * optional `related` (array), `override-mode` (`replace` | `extend`), and
+ * registry-scoped `active` boolean.
  * Enforces that `name` matches the file basename — the structural contract
  * that ties registration to filesystem location.
  *
  * @module
  */
 
-import { isStringArray, validateFrontmatterShape } from "./generic.js";
+import { isStringArray, unknownFrontmatterFields, validateFrontmatterShape } from "./generic.js";
+import { isActivatableMethodName } from "../method-activation-registry.js";
+
+const METHOD_FRONTMATTER_FIELDS = new Set([
+  "name",
+  "description",
+  "override-active",
+  "active",
+  "related",
+  "override-mode",
+]);
 
 /** Validated method frontmatter. */
 export interface MethodFrontmatter {
   name: string;
   description: string;
   "override-active": boolean;
+  active?: boolean;
   related?: string[];
   "override-mode"?: "replace" | "extend";
 }
@@ -40,17 +52,25 @@ export function parseMethodFrontmatter(
   const shape = validateFrontmatterShape(content);
   if (!shape.ok) return { errors: shape.errors };
   const data = shape.data;
-  const errors: string[] = [];
+  const errors = unknownFrontmatterFields(data, METHOD_FRONTMATTER_FIELDS);
 
   const name = data.name;
   const description = data.description;
   const overrideActive = data["override-active"];
+  const active = data.active;
   const related = data.related;
   const overrideMode = data["override-mode"];
 
   if (typeof name !== "string") errors.push("missing or invalid `name` (expected string)");
   if (typeof description !== "string") errors.push("missing or invalid `description` (expected string)");
   if (typeof overrideActive !== "boolean") errors.push("missing or invalid `override-active` (expected boolean)");
+  if (active !== undefined) {
+    if (!isActivatableMethodName(basename)) {
+      errors.push("`active` is only valid for a registered activatable method");
+    } else if (typeof active !== "boolean") {
+      errors.push("invalid `active` (expected boolean)");
+    }
+  }
   if (related !== undefined && !isStringArray(related)) {
     errors.push("invalid `related` (expected array of strings)");
   }
@@ -68,6 +88,7 @@ export function parseMethodFrontmatter(
     description: description as string,
     "override-active": overrideActive as boolean,
   };
+  if (active !== undefined) frontmatter.active = active as boolean;
   if (related !== undefined) frontmatter.related = related as string[];
   if (overrideMode !== undefined) frontmatter["override-mode"] = overrideMode as "replace" | "extend";
   return { frontmatter, errors: [] };

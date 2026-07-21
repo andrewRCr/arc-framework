@@ -62,7 +62,7 @@ Adoption flexibility has two independent axes:
 
 | Axis                 | What varies                   | Mechanism                     |
 |----------------------|-------------------------------|-------------------------------|
-| Method customization | ARC defaults vs. team methods | Overrides in `arc-methods.md` |
+| Method customization | ARC defaults vs. team methods | Per-file method overrides     |
 | Functionality scope  | What features are installed   | PM mode selection (`pm.mode`) |
 
 Enforcement depth — how strictly conventions are applied — is not a named axis. It is simply
@@ -135,7 +135,7 @@ Use `--dry-run` to preview changes before applying.
 - `branch.base`, `branch.protection` — Branch model
 - `merge.strategy` — Integration strategy
 - `platform.type` — Agent platform awareness
-- `review.pre_merge` — Pre-merge review toggle
+- `review.frontline_source` — Project default for the registered frontline review source
 
 ### Project-wide by design
 
@@ -226,17 +226,20 @@ Every setting in `arc-config.yml`, with its options and default.
 | `hooks.meta_ref_patterns`           | Pipe-separated patterns   | *(see below)*        | Patterns flagged as meta-project references   |
 | `hooks.contributor_protected_paths` | Pipe-separated patterns   | `active/\|backlog/`  | Directories that warn when staged by contrib  |
 
-### Review
-
-| Setting            | Options               | Default   | What it controls                                        |
-|--------------------|-----------------------|-----------|---------------------------------------------------------|
-| `review.pre_merge` | `enabled`, `disabled` | `enabled` | Whether the agent reviews aggregate diff before pushing |
-
 ### Platform
 
 | Setting         | Options                                         | Default  | What it controls                                                   |
 |-----------------|-------------------------------------------------|----------|--------------------------------------------------------------------|
 | `platform.type` | `github`, `gitlab`, `bitbucket`, `azure-devops` | `github` | Git hosting platform (informational — affects command suggestions) |
+
+### Review
+
+| Setting                   | Options                        | Default   | What it controls                               |
+|---------------------------|--------------------------------|-----------|------------------------------------------------|
+| `review.frontline_source` | Lowercase registered source ID | *(empty)* | Default advisory pre-publication review source |
+
+The value names a source registered by the project; it is never a command or reviewer identity. Developers may
+override it locally with `git config arc.frontlineSource <source-id>`.
 
 ### Project management
 

@@ -15,12 +15,12 @@ import {
   SELF_HOSTING_POLICY,
   type SourceQualificationDeclaration,
 } from "../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
-import { qualificationCell, qualificationScope } from "./qualification-fixtures.js";
+import { legacyV1QualificationCell, legacyV1QualificationScope } from "./qualification-fixtures.js";
 
-function acceptance(transform: (cell: ReturnType<typeof qualificationCell>) => ReturnType<typeof qualificationCell> = (cell) => cell) {
-  const scope = qualificationScope();
+function acceptance(transform: (cell: ReturnType<typeof legacyV1QualificationCell>) => ReturnType<typeof legacyV1QualificationCell> = (cell) => cell) {
+  const scope = legacyV1QualificationScope();
   let checkpoint = createQualificationCheckpoint(scope);
-  for (const cellId of QUALIFICATION_CELL_IDS) checkpoint = appendQualificationCell(scope, checkpoint, transform(qualificationCell(cellId)));
+  for (const cellId of QUALIFICATION_CELL_IDS) checkpoint = appendQualificationCell(scope, checkpoint, transform(legacyV1QualificationCell(cellId)));
   return finalizeQualification(scope, checkpoint);
 }
 

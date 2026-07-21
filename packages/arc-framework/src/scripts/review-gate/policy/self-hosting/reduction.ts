@@ -7,10 +7,9 @@ import {
   type ReviewSourceQualification,
 } from "../../core/reduction.js";
 import { resolveSelfHostingDecision } from "./decision.js";
-import type { LaneDecision } from "./lane.js";
+import type { ReviewRoutingDecision, ReviewRoutingFacts } from "../routing-schema.js";
 import { qualifyIndependentAnalysisSource } from "./qualification.js";
 import { buildCodexReviewCommand } from "../../providers/codex/adapter.js";
-import type { ReviewRiskDecision } from "./risk.js";
 import type { SelfHostingPolicy, SourceQualificationDeclaration } from "./schema.js";
 
 /** Inputs retained by this repository's policy composition. */
@@ -19,8 +18,8 @@ export interface SelfHostingGateReductionInput extends Omit<
   "policyDecision" | "qualifications" | "lifecycleTailPredicateId"
 > {
   policy: SelfHostingPolicy;
-  lane: LaneDecision;
-  risk: ReviewRiskDecision;
+  routingFacts: ReviewRoutingFacts;
+  routing: ReviewRoutingDecision;
   prAuthorIdentity?: string;
 }
 
@@ -29,7 +28,7 @@ function qualification(
   prAuthorIdentity: string,
 ): ReviewSourceQualification {
   const qualified = qualifyIndependentAnalysisSource(declaration, declaration.rubricVersion).qualified;
-  const userTriggered = declaration.requestActor === "pr-author";
+  const userTriggered = declaration.requestMechanism === "pr-author-command";
   const base = {
     sourceKind: declaration.sourceKind,
     qualifier: declaration.qualifier,

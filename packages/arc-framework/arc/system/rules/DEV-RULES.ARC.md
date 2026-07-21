@@ -33,6 +33,14 @@ Every review increment closes with a structured approval gate that precedes any 
 invocation, wrapped or raw. The release wrapper bypasses the harness's per-invocation prompt;
 it does **not** bypass the user's approval gate.
 
+The sole bounded exception assembles a provisional integration candidate after the WU's routed review obligation
+is authoritatively settled. Candidate-tail cleanup, archive composition and closeout, lifecycle sweep/readiness
+regeneration, and a typed safe base reconcile may commit and push before their structured review at the final
+integration interlock. An implementation or finding-driven fix still requires its structured approval gate before
+commit, and no provisional candidate may merge without exact-head integration authorization. A pre-composition
+direction may authorize autonomous advance to that final interlock, but never prospective merge authority over a
+head that does not yet exist.
+
 ---
 
 ## Scaled Process, Invariant Discipline
@@ -227,6 +235,12 @@ delegates: the human's formative involvement in changes, and judgment staying wi
 fresh subagent when the harness supports one — fresh context, at the primary's own capability by
 default. When subagents are unavailable, skip with a note (delegated review is advisory) or run a
 manual fresh-session pass; never a primary-context self-pass presented as independent.
+
+### Review finding mutation guard
+
+Verify every review finding against source with your own judgment; reviewer or delegated output remains advisory.
+Present the complete proposed disposition set and obtain approval before applying any finding-driven fix. This
+constraint applies regardless of who reviewed the change or where the findings arrived.
 
 ### Task granularity
 

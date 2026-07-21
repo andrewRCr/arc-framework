@@ -9,14 +9,14 @@ import {
   FileQualificationCheckpointStore,
   FileQualificationRawStore,
 } from "../../../../../src/scripts/review-gate/runtime/qualification-storage.js";
-import { qualificationScope } from "./qualification-fixtures.js";
+import { legacyV1QualificationScope } from "./qualification-fixtures.js";
 
 describe("private qualification storage", () => {
   it("round-trips checkpoints and writes raw evidence with private modes", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-qualification-"));
     const checkpoints = new FileQualificationCheckpointStore(root);
     const raw = new FileQualificationRawStore(root);
-    const checkpoint = createQualificationCheckpoint(qualificationScope());
+    const checkpoint = createQualificationCheckpoint(legacyV1QualificationScope());
     expect(await checkpoints.load()).toBeNull();
     await checkpoints.save(checkpoint);
     await expect(checkpoints.load()).resolves.toEqual(checkpoint);
