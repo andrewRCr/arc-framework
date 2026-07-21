@@ -132,9 +132,9 @@ onto stable code-facing fields without losing tolerant recovery.
 - _Goal:_ Read-heavy consumers share semantic field names while preserving each caller's independent degradation
   and warning authority.
 
-    - `[ ]` **2.5.a Migrate project and ready-work status sources**
-        - Update `status/project-view.ts` and `status/ready-mine-source.ts` to semantic fields and parsed dependency
-          arrays, preserving public result shapes, ordering, and fallbacks.
+    - `[x]` **2.5.a Migrate project and ready-work status sources**
+        - Moved project-readiness and ready-work sources onto semantic fields and parsed dependency arrays while
+          preserving public row shapes, ordering, malformed-record degradation, and validation fallbacks.
 
     - `[ ]` **2.5.b Migrate active-work consistency readers**
         - Update `commands/active/status.ts`, `active/cohort-consistency.ts`, and
