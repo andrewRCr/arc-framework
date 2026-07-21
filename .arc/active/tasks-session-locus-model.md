@@ -147,21 +147,11 @@ grooming, or housekeeping state.
 - _Goal:_ Every identity transition and cross-key exclusion claim is based on the complete remote/local tree,
   preserves unrelated keys, and cannot blind-upsert over another session or retire an unproven review tail.
 
-    - `[ ]` **2.2.a Generalize identity-tree reads and complete-basis CAS writes**
-        - Add a focused identity-transaction module over the Errand ref-tree/CAS seams. With a configured remote,
-          fetch the exact ref into a caller-unique temporary ref; treat proven remote-ref absence as an empty basis
-          and transport, tip, tree, blob, or cleanup uncertainty as an operational result rather than absence.
-        - Reconcile tip-pinned local and remote snapshots per key from their common history so independent additions,
-          updates, and deletions survive; refuse divergent changes to the same key. With no configured remote, use
-          the same expected-state transform over local CAS only.
-        - Let transforms return typed `applied`, `idempotent`, `refused`, or `error` outcomes. CAS-move local state,
-          push, and re-enter the idempotent transform from a fresh basis after bounded non-fast-forward or ambiguous
-          push outcomes; perform no remote I/O while a locus record lock is held.
-        - Build `test-first` (one behavior at a time):
-            - Cover independent add/update/delete preservation, same-key divergence, absent remote ref, configured
-              remote outage, malformed basis refusal, concurrent retries, and exhausted contention.
-            - Cover temporary-ref isolation/cleanup, an ambiguous push that actually landed, retry idempotence, and
-              distinct local-only behavior when no remote is configured.
+    - `[x]` **2.2.a Generalize identity-tree reads and complete-basis CAS writes**
+        - Added a common-history, per-key three-way transaction engine over tip-pinned local and fetched-remote
+          snapshots. It preserves independent changes, refuses same-key divergence or invalid bases, CAS-publishes
+          locally, retries ambiguous/contended pushes idempotently, and treats remote absence, outage, and temporary-
+          ref cleanup as distinct outcomes; the same transform contract also serves local-only authority.
 
     - `[ ]` **2.2.b Implement exact ordinary-Errand transitions**
         - Add create, late inbox link, pause, await-merge, resume-to-open, promotion retirement, close, and abandon

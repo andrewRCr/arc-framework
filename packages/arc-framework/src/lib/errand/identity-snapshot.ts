@@ -31,6 +31,7 @@ export type TransientIdentitySnapshot =
   | {
       kind: "complete";
       tip: string;
+      objects: ReadonlyMap<string, string>;
       records: ReadonlyMap<string, TransientIdentityRecord>;
       projections: ReadonlyMap<string, LocusIdentityV1>;
       diagnostics: readonly IdentitySnapshotDiagnostic[];
@@ -51,7 +52,20 @@ interface TreeBlobEntry {
 export async function readTransientIdentitySnapshot(
   io: IdentitySnapshotIO,
 ): Promise<TransientIdentitySnapshot> {
-  const ref = errandsRef(io.identity);
+  return readTransientIdentitySnapshotAtRef(io, errandsRef(io.identity));
+}
+
+/**
+ * Read an exact identity-tree snapshot from an explicitly selected ref.
+ *
+ * @param io - Identity plus injected Git process boundary.
+ * @param ref - Local, fetched, or immutable identity ref to inspect.
+ * @returns Clean absence, a root-level failure, or the complete pinned snapshot.
+ */
+export async function readTransientIdentitySnapshotAtRef(
+  io: IdentitySnapshotIO,
+  ref: string,
+): Promise<TransientIdentitySnapshot> {
   let tip: string;
   try {
     const result = await io.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`]);
@@ -73,6 +87,7 @@ export async function readTransientIdentitySnapshot(
   }
 
   const records = new Map<string, TransientIdentityRecord>();
+  const objects = new Map(entries.map((entry) => [entry.key, entry.oid]));
   const projections = new Map<string, LocusIdentityV1>();
   const diagnostics: IdentitySnapshotDiagnostic[] = [];
   for (const entry of entries) {
@@ -104,7 +119,7 @@ export async function readTransientIdentitySnapshot(
     }
   }
 
-  return { kind: "complete", tip, records, projections, diagnostics };
+  return { kind: "complete", tip, objects, records, projections, diagnostics };
 }
 
 function parseStrictRootTree(stdout: string): TreeBlobEntry[] {

@@ -43,10 +43,21 @@ export {
 
 export {
   readTransientIdentitySnapshot,
+  readTransientIdentitySnapshotAtRef,
   type IdentitySnapshotIO,
   type IdentitySnapshotDiagnostic,
   type TransientIdentitySnapshot,
 } from "./identity-snapshot.js";
+
+export {
+  reconcileIdentityObjects,
+  transactTransientIdentities,
+  type IdentityObjectReconcile,
+  type IdentityTransformDecision,
+  type IdentityTransform,
+  type IdentityTransactionParams,
+  type IdentityTransactionOutcome,
+} from "./identity-transaction.js";
 
 export {
   mergeErrandTrees,
