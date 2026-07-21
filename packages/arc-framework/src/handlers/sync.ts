@@ -91,6 +91,7 @@ import { resolveArcRoot } from "../lib/paths.js";
 import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
 import { appendAuditEntry, toAuditWorkUnit } from "../lib/release/audit-log.js";
 import type { AuditEntry, AuditOutcome } from "../lib/release/types.js";
+import { AuditEntrySchema } from "../lib/release/schema.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
@@ -1315,7 +1316,7 @@ async function writeSyncAuditEntry(args: {
     exitCode: args.outcome.exitCode,
   };
 
-  const entry: AuditEntry = {
+  const entry: AuditEntry = AuditEntrySchema.parse({
     schemaVersion: 2,
     timestamp: new Date().toISOString(),
     command: "sync",
@@ -1325,7 +1326,7 @@ async function writeSyncAuditEntry(args: {
     decision: refused ? "refused" : "proceeded",
     refusalCode: refused ? SYNC_REFUSAL_CODE_PUSHABILITY : null,
     outcome: auditOutcome,
-  };
+  });
 
   await appendAuditEntry({ cwd: args.cwd, identity: args.identity, entry });
 }

@@ -10,13 +10,32 @@
  */
 
 import { join } from "node:path";
+import { z } from "zod";
 
 import { ARC_CONFIG_SEGMENTS } from "../constants.js";
 import { gitConfigGet, type GitExec } from "../git/index.js";
 import { parseArcConfig } from "./index.js";
 
+/** Runtime authority for the source tier that supplied a resolved value. */
+export const ConfigOverrideSourceSchema = z.enum(["git-config", "yaml", "default"]);
+
 /** Source tier that supplied the resolved value. */
-export type ConfigOverrideSource = "git-config" | "yaml" | "default";
+export type ConfigOverrideSource = z.infer<typeof ConfigOverrideSourceSchema>;
+
+/**
+ * Build the provenance-bearing schema for a resolved configuration value.
+ *
+ * @param valueSchema - Runtime authority for the setting-specific value
+ * @returns A strict `{ value, source }` record schema
+ */
+export function createResolvedConfigOverrideSchema<T extends z.ZodType<string>>(
+  valueSchema: T,
+) {
+  return z.strictObject({
+    value: valueSchema,
+    source: ConfigOverrideSourceSchema,
+  });
+}
 
 /** Resolved override value with provenance metadata. */
 export interface ResolvedConfigOverride<T extends string> {

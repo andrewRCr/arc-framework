@@ -195,7 +195,7 @@ describe("toAuditWorkUnit — resolver-result mapping", () => {
   });
 });
 
-function commitEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
+function commitEntry(overrides: Record<string, unknown> = {}): AuditEntry {
   return {
     schemaVersion: 2,
     timestamp: "2026-05-08T12:00:00.000Z",
@@ -211,10 +211,10 @@ function commitEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
     refusalCode: null,
     outcome: { kind: "commit", hash: "abc1234" },
     ...overrides,
-  };
+  } as unknown as AuditEntry;
 }
 
-function pushEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
+function pushEntry(overrides: Record<string, unknown> = {}): AuditEntry {
   return {
     schemaVersion: 2,
     timestamp: "2026-05-08T12:00:01.000Z",
@@ -230,10 +230,10 @@ function pushEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
     refusalCode: null,
     outcome: { kind: "push", refStatus: "fast-forward" },
     ...overrides,
-  };
+  } as unknown as AuditEntry;
 }
 
-function syncEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
+function syncEntry(overrides: Record<string, unknown> = {}): AuditEntry {
   return {
     schemaVersion: 2,
     timestamp: "2026-05-08T12:00:02.000Z",
@@ -250,7 +250,7 @@ function syncEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
     refusalCode: null,
     outcome: { kind: "sync", cell: "clean", worktree: "ran", notes: "ran", exitCode: 0 },
     ...overrides,
-  };
+  } as unknown as AuditEntry;
 }
 
 describe("appendAuditEntry — append + round-trip", () => {

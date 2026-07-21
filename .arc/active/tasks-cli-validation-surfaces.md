@@ -14,25 +14,10 @@ registry to include it.
 - _Goal:_ Every valid version-2 audit cell has one runtime and TypeScript authority, and invalid cross-products
   are unrepresentable at the persistence boundary.
 
-    - `[ ]` **1.1.a Define the complete audit-entry schema family**
-        - Add `src/lib/release/schema.ts` with strict command-keyed and decision/outcome-keyed unions for
-          `release-commit`, `release-push`, and `sync`.
-        - Add the source enum and reusable resolved-override schema factory to config-owned
-          `src/lib/config/resolve-override.ts`; compose each audit interlock snapshot from the factory and its
-          setting-specific value schema without coupling this work to the authorable-config catalog.
-        - Derive the refusal-code domain from the schema while retaining `AuthorizationDecision` and its
-          code-specific domain payloads as the existing handwritten decision union.
-        - Derive `AuditEntry`, `AuditCommand`, `AuditInterlockState`, `AuditOutcome`, and `AuditWorkUnit` with
-          `z.infer`, preserving established import paths through compatibility re-exports.
-        - Build `test-first` (one behavior at a time):
-            - accept proceeded commit records only with `commit` or `hook-failed`, codes 10–13 only with `refused`,
-              and code 16 only with `preflight-failed`;
-            - accept proceeded push records only with `push` or `hook-failed`, and codes 10–15 only with `refused`;
-            - accept proceeded sync and code-14-refused sync records with the same `sync` outcome shape;
-            - reject command/interlock, decision/code, code/outcome, and command/outcome mismatches;
-            - reject unknown keys, unsupported schema versions, and malformed nested records;
-            - project the schema without transforms or refinements, retaining the refused-sync structure in the
-              emitted contract; composed runtime/projection parity remains owned by Phase 6.
+    - `[x]` **1.1.a Define the complete audit-entry schema family**
+        - Added strict, projectable command/decision/outcome schemas, schema-derived compatibility types and refusal
+          codes, and a reusable resolved-override schema factory. Producers now parse assembled entries so forbidden
+          cross-products remain unrepresentable at compile time as well as runtime.
 
 ### `[ ]` **1.2 Cut audit persistence over to the schema contract**
 
