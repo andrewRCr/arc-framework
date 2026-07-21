@@ -719,11 +719,11 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
           observer, and distinguishes pending, clean, findings, stale target, timeout, and failed/unavailable states
           without persisting conclusions or consulting narrative meta fields.
 
-    - `[ ]` **6.3.b Prefer the promoted watcher capability when available**
-        - Add an injected `ReviewWakeupCapability` seam, exercise it with fakes, and leave the production binding
-          absent until review-gate enforcement promotion.
-        - Never invoke, await, or infer availability from the current controller/wakeup modules before promotion.
-        - Keep watcher absence an ordinary fallback, not a degraded clean result.
+    - `[x]` **6.3.b Prefer the promoted watcher capability when available**
+        - Added an injected `ReviewWakeupCapability` that arms only from the strict suspension's operation, vehicle,
+          target/request, generation, deadline, and deduplication token; fake coverage proves the complete binding.
+        - A null capability returns the ordinary fallback without provider conclusions. Production assembly remains
+          unbound, and source-contract coverage prevents coupling to the current controller/wakeup runtime.
 
     - `[ ]` **6.3.c Support scheduled and human re-entry fallbacks**
         - Let harness-native scheduling arm a bounded wake/recheck where supported; otherwise emit the exact human

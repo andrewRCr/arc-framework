@@ -76,6 +76,10 @@ version-checked store. On re-entry, reconstruct an absent local record from cano
 re-read the current target and provider state. Derive the response plan and resume text in memory; never persist a
 controller conclusion or treat the meta's free-form `Next Action` as review authority.
 
+Prefer a promoted review watcher only through the injected `ReviewWakeupCapability`. Arm it with the suspension's
+exact wakeup token and invalidation facts. The production binding remains absent until enforcement promotion; absence
+continues to the fallback layer and never licenses use of the current controller or its wakeup workflow.
+
 ## 2. Coordinate Findings Through `review-response`
 
 Fetch controller-normalized findings and provider-native conversations, retaining source-scoped immutable ids and

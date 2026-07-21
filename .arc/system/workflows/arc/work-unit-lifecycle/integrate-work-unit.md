@@ -98,6 +98,10 @@ policy/rubric, deadline, and wakeup-token facts, then publish with expected vers
 The re-entry check re-reads current host/provider state and derives any `review-response` plan and resume text afresh;
 the meta's narrative `Next Action` and persisted controller conclusions are never operational authority.
 
+After persisting a suspension, prefer an injected promoted watcher capability when one is explicitly available. Arm
+it with the exact operation, target/request, generation, deadline, and wakeup-deduplication token. An absent capability
+selects the ordinary fallback path; do not probe, invoke, await, or infer it from controller or workflow modules.
+
 | Observed state               | Demonstrably already ran   | Resume at                                                          |
 |------------------------------|----------------------------|--------------------------------------------------------------------|
 | No PR open for the WU branch | transition                 | Step 2 (local preflight → creation path)                           |
