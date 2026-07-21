@@ -208,17 +208,11 @@ The WU stays in `**State:** Integrating` throughout this phase. Composition + sw
 
 ## Phase 2: Compose, sweep, ship
 
-### 5) WU content cleanup
+### 5) Candidate-entry requirement
 
-**Always:** If `notes-{name}.md` exists, decide disposition:
-
-- **keep + clean** — follow [`clean-work-unit.md`][clean] `§ Notes File Consolidation`.
-- **keep as-is** — rare; only when the notes file is already reference-ready.
-- **delete** — `git rm notes-{name}.md`; remove references from the task file.
-
-**On signal:** Survey the task list for temporal markers, ad-hoc inline status, or accumulated scratchpad
-content. If present, propose [`clean-work-unit.md`][clean] `§ Task List Temporal-Noise Pass` before proceeding
-to Step 6.
+Do not begin candidate assembly until Step 6 reduces the WU's routed review obligation to `review-settled`.
+`review-settled` is the candidate-entry state, never merge readiness. A raw local clean report, a launched review
+pass, or an unattested result does not establish it.
 
 ### 6) Confirm review coordination
 
@@ -269,20 +263,33 @@ never reverse the current/outgoing head order.
 After the push, return to Step 4. Do not declare review settled against the pre-reconciliation head. On re-entry,
 repeat this step.
 
-Confirm the open-PR review cycle is settled before alignment and composition. This is not the final-head checkpoint;
-composition, sweep, or final base reconciliation can still change the branch.
+With mergeability conflict-free, confirm required approvals, open threads, and checks green through the open-PR
+review cycle before alignment and composition. This is not the final-head checkpoint; composition, sweep, or final
+base reconciliation can still change the branch.
+
+Only the source-neutral WU review cycle's settled reduction establishes `review-settled`. Any pre-composition
+direction to merge once review settles authorizes autonomous advance through candidate assembly to the final
+integration interlock; it is not prospective merge authority over the candidate's not-yet-known head.
+
+After settlement, clean the WU content:
+
+- If `notes-{name}.md` exists, decide its disposition: follow [`clean-work-unit.md`][clean] `§ Notes File
+  Consolidation`, keep it as-is only when already reference-ready, or delete it and remove task-file references.
+- Survey the task list for temporal markers, ad-hoc inline status, or accumulated scratchpad content. When present,
+  apply [`clean-work-unit.md`][clean] `§ Task List Temporal-Noise Pass`.
+
+Candidate assembly now advances without another proceed turn. Stop only for a material alignment disagreement,
+failed quality gate, base conflict, or unexpected state.
 
 ### 7) Spec-presence + alignment checks
-
-> [!IMPORTANT]
-> `workflow-interlock`: Stop before composition begins. Surface that review is settled (open threads resolved,
-> required approvals received, checks green); await approval before proceeding to alignment + composition.
 
 First confirm the WU's `**Design:**` field resolves to a spec present in `active/` — a `spec-{name}.md` or the
 layered `spec-{name}-prd.md` / `spec-{name}-rfc.md` pair; if absent, stop and surface.
 
-The alignment checks below are soft; rarely block if [`create-spec.md`][create-spec]'s alignment checks passed.
-Surface any conflicts discovered against final reviewed scope.
+Bind alignment and composition to the canonical settled WU change set, completed task outcomes, spec intent and
+non-goals, success-criteria disposition, and verification evidence. The alignment checks below are soft; rarely
+block if [`create-spec.md`][create-spec]'s alignment checks passed. Stop on material disagreement with final reviewed
+scope; correct the source of truth before recomposing.
 
 #### PROJECT-PRD
 
@@ -302,29 +309,19 @@ Changelog set — **Added**, **Changed**, **Removed**, **Fixed**, **Infrastructu
 stability-contract breaks. Neutral voice, no internal work-unit names or roadmap pointers. Omit the section
 entirely when nothing user-facing ships (a mechanical or internal-only change); otherwise size it to what shipped.
 
-Leave the edit uncommitted — Step 10's interlock surfaces it alongside the rest of the composition for review
-before the commit fires.
+Leave the edit uncommitted for the candidate-tail commit in Step 10.
 
 ### 9) Compose Completion Notes — uncommitted
 
 Compose narrative Completion Notes into the meta file's archive-phase `## Completion Notes` section — a
 synthesis of design intent, what actually shipped, key deviations / supersessions from plan, and verification
 outcome; it complements, never repeats, the task list's verbatim record and git history. Sized to what there is
-to say. Always present — not omittable, unlike Step 8's Release Notes. Same uncommitted-surfacing pattern as Step 8.
+to say. Always present — not omittable, unlike Step 8's Release Notes. Leave it uncommitted until Step 10.
 
 ### 10) Commit completion content
 
-> [!IMPORTANT]
-> `workflow-interlock`: Stop before commit + sweep + push. Surface:
->
-> 1. Composed completion content — Completion Notes, plus the Release Notes Entry when present (Steps 8–9)
-> 2. Planned sweep target: `active/meta-{name}.md` → `completed/<dated>/{NN}_{name}/meta-{name}.md` (Step 11 under
->    `with-integration`)
-> 3. ROADMAP delta the upcoming regen will produce (Step 11 under `with-integration`)
->
-> Await explicit "proceed to commit + sweep + push" direction.
-
-Bundle the composition edits.
+Run the applicable quality gates and stop on failure. Bundle the composition edits under the provisional-candidate
+exception; this commit does not make the branch merge-ready.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -372,7 +369,9 @@ never reverse the current/outgoing head order.
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
-After push, the PR is ready for merge per `merge.strategy` in [`arc-config.yml`][arc-config].
+After push, this is a provisional integration candidate, never merge readiness.
+Always recompose the candidate after any correction or interacting reconcile; only Step 13's exact-head integration
+authorization can release the merge.
 
 ### 13) Behind-base reconcile gate and merge
 

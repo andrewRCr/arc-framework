@@ -750,21 +750,13 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
 - **Additional Context:** `strategy-workflow-authoring.md` §§ Prose economy, Verbs over mechanics, and Interlock
   markers; `strategy-procedure-evolution.md` §§ Forward-Compat Principles 1–6.
 
-    - `[ ]` **6.4.a Define and assemble the provisional integration candidate**
-        - Update the Review-Increment Invariant and `integrate-work-unit.md` with the sole bounded exception: after
-          implementation findings settle, cleanup, archive composition/closeout, lifecycle sweep/readiness regen,
-          and typed safe reconcile may commit/push before their structured review, but no implementation or finding
-          fix may do so and no candidate may merge without exact-head authorization.
-        - Name `review-settled` as candidate-entry state, never merge readiness. Treat any pre-composition “merge once
-          review settles” direction as permission to advance autonomously to the final interlock, not as authority
-          over the not-yet-known candidate head.
-        - Remove both composition `proceed` turns; retain exception stops for alignment disagreement, failed gates,
-          conflict, or unexpected state.
-        - Bind composition to the canonical settled WU change set, completed task outcomes, spec intent/non-goals,
-          success-criteria disposition, and verification evidence; stop on material disagreement and recompose after
-          a fix or interacting reconcile.
-        - Enter candidate assembly only after the source-neutral WU review cycle has reduced the routed obligation
-          to settled; a raw local clean report, launched pass, or unattested result is not `review-settled`.
+    - `[x]` **6.4.a Define and assemble the provisional integration candidate**
+        - Added the sole bounded review-increment exception for the post-settlement candidate tail while preserving
+          structured approval for implementation/finding fixes and exact-head authorization as the only merge release.
+        - Made the source-neutral cycle's `review-settled` reduction the candidate-entry state, removed both composition
+          proceed turns, and retained stops for material disagreement, failed gates, conflicts, and unexpected state.
+        - Bound autonomous cleanup and composition to the settled change set, completed outcomes, spec intent,
+          success-criteria disposition, and verification evidence, with recomposition after corrections or interaction.
 
     - `[ ]` **6.4.b Harden public release notes and completion composition**
         - Require release notes to describe only shipped reader/operator-visible outcomes in public language: never

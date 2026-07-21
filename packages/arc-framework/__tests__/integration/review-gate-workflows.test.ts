@@ -381,6 +381,37 @@ describe("trusted review-gate workflows", () => {
     expect(coordination).not.toMatch(/provider command|without polling/iu);
   });
 
+  it("assembles a provisional candidate only after authoritative review settlement", async () => {
+    const [packaged, project, packagedRules, projectRules] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile("packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md"),
+      readRepositoryFile(".arc/system/rules/DEV-RULES.ARC.md"),
+    ]);
+    expect(project).toBe(packaged);
+    expect(projectRules).toBe(packagedRules);
+    expect(packagedRules).toMatch(/sole bounded exception[\s\S]*provisional integration candidate/iu);
+    expect(packagedRules).toMatch(/implementation or finding-driven fix[\s\S]*structured approval gate/iu);
+    expect(packagedRules).toMatch(/exact-head integration authorization/iu);
+
+    const candidate = packaged.slice(
+      packaged.indexOf("## Phase 2: Compose, sweep, ship"),
+      packaged.indexOf("### 13) Behind-base reconcile gate and merge"),
+    );
+    expect(candidate).toContain("`review-settled`");
+    expect(candidate).toContain("candidate-entry state");
+    expect(candidate).toContain("never merge readiness");
+    expect(candidate).toMatch(/raw local clean report[\s\S]*unattested/iu);
+    expect(candidate).toMatch(/canonical settled WU change set[\s\S]*completed task outcomes/u);
+    expect(candidate).toMatch(/spec intent and\s+non-goals[\s\S]*success-criteria disposition/u);
+    expect(candidate).toContain("verification evidence");
+    expect(candidate).toMatch(/alignment disagreement|failed quality gate|base conflict|unexpected state/u);
+    expect(candidate).toContain("recompose the candidate after any correction");
+    expect(candidate).toMatch(/pre-composition\s+direction[\s\S]*not prospective merge authority/u);
+    expect(candidate).not.toContain("Stop before composition begins");
+    expect(candidate).not.toContain("proceed to commit + sweep + push");
+  });
+
   it("keeps frontline publication operational, advisory, and provider-neutral", async () => {
     const paths = [
       "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
