@@ -346,15 +346,10 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
           entry/result types through compatibility re-exports while retaining handwritten `CrossWuShape`. Focused
           coverage pins all section and result arms plus rejection of empty, unknown, and additive fields.
 
-    - `[ ]` **4.3.b Cut cross-work-unit parsers over to schema-owned payloads**
-        - Validate each internally assembled success or failure through the result schema immediately before return;
-          schema failure remains a programming defect while malformed authored entries remain no-throw data outcomes.
-        - Preserve HTML-comment removal, section boundaries, Working Memory full-header identity, User Inbox bold-title
-          identity scoped by section, and exact malformed-entry reasons.
-        - Build `test-first` (one behavior at a time):
-            - preserve malformed header and missing-trigger reasons without throwing;
-            - preserve Working Memory header keys and User Inbox title/section keys exactly;
-            - preserve raw entry blocks byte-for-byte apart from the existing trailing-blank trim.
+    - `[x]` **4.3.b Cut cross-work-unit parsers over to schema-owned payloads**
+        - Routed every internally assembled success and failure through `CrossWuEntryParseSchema` immediately before
+          exposure, keeping authored malformation as no-throw data while schema defects throw. Characterization coverage
+          pins exact reasons, full-header and section-scoped title identity, and raw bytes apart from trailing blanks.
 
     - `[ ]` **4.3.c Migrate merge and downstream parser consumers**
         - Move merge, inbox/session probes, and baseline entry extraction onto the inferred payloads without changing

@@ -15,6 +15,7 @@
  */
 
 import type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";
+import { CrossWuEntryParseSchema } from "./schema.js";
 
 /** Bold-field header line: starts with `**`, ends with `:**`. */
 const WM_HEADER = /^\*\*.+:\*\*\s*$/;
@@ -26,6 +27,11 @@ const H3_BOUNDARY = /^###\s/;
 const H3_KEY = /^###\s+(?:`?\[[ xX]\]`?\s+)?\*\*(.+?)\*\*/;
 /** HTML comment block — guidance and shape examples that are not entries. */
 const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+
+/** Validate one internally assembled parse outcome immediately before exposure. */
+function validatedEntryParse(value: EntryParse): EntryParse {
+  return CrossWuEntryParseSchema.parse(value);
+}
 
 /**
  * Extract the bold title of a `USER-INBOX` H3 managed-entry heading line, or
@@ -97,9 +103,14 @@ function parseWorkingMemory(content: string): EntryParse[] {
     if (header === null) return;
     const raw = trimBlock(block);
     if (block.some((line) => WM_REMOVE_WHEN.test(line.trim()))) {
-      out.push({ ok: true, entry: { section: "Memories", key: header, raw } });
+      out.push(validatedEntryParse({ ok: true, entry: { section: "Memories", key: header, raw } }));
     } else {
-      out.push({ ok: false, reason: `WORKING-MEMORY entry missing '_Remove when:_' trigger: ${header}` });
+      out.push(
+        validatedEntryParse({
+          ok: false,
+          reason: `WORKING-MEMORY entry missing '_Remove when:_' trigger: ${header}`,
+        }),
+      );
     }
   };
 
@@ -149,9 +160,14 @@ function parseH3Section(
     const raw = trimBlock(block);
     const key = block[0]?.match(H3_KEY)?.[1];
     if (key !== undefined) {
-      out.push({ ok: true, entry: { section, key: key.trim(), raw } });
+      out.push(validatedEntryParse({ ok: true, entry: { section, key: key.trim(), raw } }));
     } else {
-      out.push({ ok: false, reason: `${label} entry missing bold title: ${(block[0] ?? "").trim()}` });
+      out.push(
+        validatedEntryParse({
+          ok: false,
+          reason: `${label} entry missing bold title: ${(block[0] ?? "").trim()}`,
+        }),
+      );
     }
     block = [];
   };
