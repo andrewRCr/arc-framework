@@ -55,6 +55,8 @@ export const ProjectRoutingReasonSchema = z.string().regex(
   /^project:[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/u,
 );
 export type ProjectRoutingReason = z.infer<typeof ProjectRoutingReasonSchema>;
+export const ReviewRoutingReasonSchema = z.union([CoreRoutingReasonSchema, ProjectRoutingReasonSchema]);
+export type ReviewRoutingReason = z.infer<typeof ReviewRoutingReasonSchema>;
 
 export const ChangeSetStateSchema = z.enum(["known", "unknown"]);
 export type ChangeSetState = z.infer<typeof ChangeSetStateSchema>;
@@ -108,7 +110,7 @@ export const ReviewRoutingDecisionSchema = z.strictObject({
   independentAnalysis: ReviewObligationSchema,
   retrigger: ReviewRetriggerSchema,
   assuranceMode: AssuranceModeSchema,
-  reasons: z.array(z.union([CoreRoutingReasonSchema, ProjectRoutingReasonSchema])).min(1),
+  reasons: z.array(ReviewRoutingReasonSchema).min(1),
 }).refine((decision) => (
   (decision.independentAnalysis === "exempt" && decision.retrigger === "none")
   || (decision.independentAnalysis !== "exempt" && decision.retrigger !== "none")

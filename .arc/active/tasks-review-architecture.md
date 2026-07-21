@@ -502,11 +502,10 @@ with adopter-facing contracts mirrored through the package source.
 _Purpose:_ Turn the router's frontline decision into a provider-neutral, authorization-preserving execution path
 that shapes review spend without producing satisfying evidence.
 
-### `[ ]` **5.1 Resolve source fallback and invocation precedence**
+### `[x]` **5.1 Resolve source fallback and invocation precedence**
 
 - _Goal:_ One pure resolver turns activation, smart routing, source binding, and a one-run override into a complete
   `skip | offer | attempt` record without probing or executing the selected source.
-- _Context:_ Implements Design §3 and keeps developer preferences behind the storage abstraction.
 
     - `[x]` **5.1.a Implement the source fallback chain**
         - Added deterministic invocation → developer → project → unbound resolution through an injected preference
@@ -524,10 +523,14 @@ that shapes review spend without producing satisfying evidence.
           typed source descriptors, bounded pass allowance, and precomposed review or binding text. Source-less
           attempts become actionable offers; skip and attempt invariants are schema-enforced, and diagnostics survive.
 
-    - `[ ]` **5.1.d Expose a workflow-facing resolution verb**
-        - Add a machine-readable command/API for integration and Errand callers, with explicit change-set and
-          invocation inputs and no shell-fragment execution.
-        - Keep project activation from granting standing process-creation permission.
+    - `[x]` **5.1.d Expose a workflow-facing resolution verb**
+        - Added `arc review frontline resolve <file | ->` and an injectable API that accept explicit versioned
+          change-set facts and invocation intent, fail malformed facts closed, and emit one JSON result. The CLI
+          installs no carrier bindings, while the API only resolves closed typed descriptors and never executes one.
+
+- _Outcome:_ Frontline resolution is now one provider-neutral path from normalized change facts through smart action,
+  one-run precedence, private/project source fallback, and a versioned workflow result. Configuration can select safe
+  source IDs, but carrier preparation and process authorization remain separate downstream stages.
 
 ### `[ ]` **5.2 Execute frontline carriers with typed outcomes**
 

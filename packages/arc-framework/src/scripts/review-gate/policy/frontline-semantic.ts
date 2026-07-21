@@ -17,8 +17,10 @@ import {
 import {
   CoreRoutingReasonSchema,
   FrontlineActionSchema,
+  ReviewRoutingReasonSchema,
   type CoreRoutingReason,
   type FrontlineAction,
+  type ReviewRoutingReason,
 } from "./routing-schema.js";
 
 export const FRONTLINE_REVIEW_PROMPT =
@@ -31,7 +33,7 @@ const FrontlineSemanticRecordSchemaBase = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("frontline-review/v1"),
   action: FrontlineActionSchema,
-  reasons: z.array(CoreRoutingReasonSchema).min(1),
+  reasons: z.array(ReviewRoutingReasonSchema).min(1),
   source: FrontlineSourceDescriptorSchema.nullable(),
   maxPasses: z.union([z.literal(0), z.literal(1), z.literal(2)]),
   promptText: z.string().min(1).nullable(),
@@ -72,6 +74,13 @@ function promptFor(action: Exclude<FrontlineAction, "skip">, sourceBound: boolea
   return action === "offer" && !sourceBound ? FRONTLINE_BINDING_REMEDY : FRONTLINE_REVIEW_PROMPT;
 }
 
+function stableReasons(
+  routed: readonly ReviewRoutingReason[],
+  resolved: readonly CoreRoutingReason[],
+): ReviewRoutingReason[] {
+  return [...new Set([...routed, ...resolved])];
+}
+
 /**
  * Resolve activation, invocation precedence, and source fallback without probing or execution.
  *
@@ -81,6 +90,7 @@ function promptFor(action: Exclude<FrontlineAction, "skip">, sourceBound: boolea
 export async function resolveFrontlineReview(input: {
   methodActive: boolean;
   routerAction: FrontlineAction;
+  routerReasons?: readonly ReviewRoutingReason[];
   invocation?: FrontlineInvocationOverride;
   preferences: FrontlineSourcePreferenceReader;
   registry: FrontlineSourceRegistry;
@@ -92,6 +102,7 @@ export async function resolveFrontlineReview(input: {
     routerAction: input.routerAction,
     invocation: input.invocation,
   });
+  const invocationReasons = stableReasons(input.routerReasons ?? [], invocation.reasons);
 
   if (invocation.action === "skip") {
     return {
@@ -99,7 +110,7 @@ export async function resolveFrontlineReview(input: {
         schemaVersion: 1,
         semanticsVersion: "frontline-review/v1",
         action: "skip",
-        reasons: invocation.reasons,
+        reasons: invocationReasons,
         source: null,
         maxPasses: 0,
         promptText: null,
@@ -116,7 +127,7 @@ export async function resolveFrontlineReview(input: {
   const action = invocation.action === "attempt" && source.source === null
     ? "offer"
     : invocation.action;
-  const reasons = [...invocation.reasons, sourceReason(source.sourceTier)];
+  const reasons = stableReasons(invocationReasons, [sourceReason(source.sourceTier)]);
 
   return {
     frontlineReview: FrontlineSemanticRecordSchema.parse({
