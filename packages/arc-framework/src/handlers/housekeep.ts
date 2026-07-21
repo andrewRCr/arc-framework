@@ -81,7 +81,16 @@ async function handleHousekeepLifecycle(slug: string, action: "close" | "abandon
         && result.identity?.kind === "errand" && result.identity.purpose === "housekeep-routing"
         && result.identity.state === "awaiting-merge") {
         const settled = await settleHousekeepAtRuntime({ ...runtimeOptions, action: "finalize" });
-        if (settled.outcome !== "refused" || !settled.recommendedPromptText.includes("not 'merged'")) result = settled;
+        if (settled.outcome !== "refused" || !settled.recommendedPromptText.includes("not 'merged'")) {
+          result = settled.outcome === "applied" || settled.outcome === "idempotent"
+            ? createLocusMutationResult({
+                ...settled,
+                sessionHomePath: result.sessionHomePath,
+                restoredParent: result.restoredParent,
+                nextOffer: result.nextOffer,
+              })
+            : settled;
+        }
       }
     }
   } catch (error) {

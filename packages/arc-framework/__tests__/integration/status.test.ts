@@ -1228,7 +1228,9 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 2, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({
+        routableCount: 2, housekeepNeeded: true, pendingDispatchGroups: [], dispatchDiagnostics: [],
+      });
     }
   });
 
@@ -1241,7 +1243,9 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 0, housekeepNeeded: false });
+      expect(result.inboxState.value).toEqual({
+        routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [], dispatchDiagnostics: [],
+      });
     }
   });
 
@@ -1315,7 +1319,9 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 2, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({
+        routableCount: 2, housekeepNeeded: true, pendingDispatchGroups: [], dispatchDiagnostics: [],
+      });
     }
   });
 
@@ -1328,7 +1334,9 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 0, housekeepNeeded: false });
+      expect(result.inboxState.value).toEqual({
+        routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [], dispatchDiagnostics: [],
+      });
     }
   });
 

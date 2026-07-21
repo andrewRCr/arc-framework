@@ -43,11 +43,15 @@ describe("runInboxState", () => {
   it("reports an empty inbox as zero count with housekeepNeeded false", () => {
     const content = ["# User Inbox", "", "## Errand", "", "## Work Unit", ""].join("\n");
 
-    expect(runInboxState({ content })).toEqual({ routableCount: 0, housekeepNeeded: false });
+    expect(runInboxState({ content })).toEqual({
+      routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [], dispatchDiagnostics: [],
+    });
   });
 
   it("treats empty content as zero count with housekeepNeeded false", () => {
-    expect(runInboxState({ content: "" })).toEqual({ routableCount: 0, housekeepNeeded: false });
+    expect(runInboxState({ content: "" })).toEqual({
+      routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [], dispatchDiagnostics: [],
+    });
   });
 
   it("does not count malformed entries (H3 with no bold title)", () => {
@@ -87,7 +91,39 @@ describe("runInboxState", () => {
       "",
     ].join("\n");
 
-    expect(runInboxState({ content })).toEqual({ routableCount: 0, housekeepNeeded: false });
+    expect(runInboxState({ content })).toEqual({
+      routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [], dispatchDiagnostics: [],
+    });
+  });
+
+  it("surfaces pending dispatch groups separately without reoffering them for routing", () => {
+    const bound = (title: string, dispatchId: string): string => [
+      `### \`[ ]\` **${title}**`, "", "- _Disposition:_ `execute-bound`", `- _Dispatch:_ \`${dispatchId}\``,
+      "- _Observation:_ queued.", "",
+    ].join("\n");
+    const content = [
+      "## Errand", "", bound("first", "dispatch-7"), bound("second", "dispatch-7"),
+      bound("other", "dispatch-8"), "## Work Unit", "",
+    ].join("\n");
+
+    expect(runInboxState({ content })).toMatchObject({
+      routableCount: 0,
+      housekeepNeeded: false,
+      pendingDispatchGroups: [
+        { dispatchId: "dispatch-7", titles: ["first", "second"] },
+        { dispatchId: "dispatch-8", titles: ["other"] },
+      ],
+      dispatchDiagnostics: [],
+    });
+  });
+
+  it("reports malformed partial dispatch state without making it routable", () => {
+    const content = [
+      "## Errand", "", "### `[ ]` **broken**", "", "- _Disposition:_ `execute-bound`", "- body", "",
+    ].join("\n");
+    const result = runInboxState({ content });
+    expect(result).toMatchObject({ routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [] });
+    expect(result.dispatchDiagnostics?.[0]).toContain("Malformed");
   });
 });
 

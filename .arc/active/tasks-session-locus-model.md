@@ -556,29 +556,28 @@ result so workflows consume verbs and precomposed verdicts.
   machine-local partial role, preserves one strictest-lane review tail, and separates confirmed sibling dispatches
   from later tail settlement while retaining exact rollback and branch-generation cleanup authority.
 
-### `[ ]` **5.5 Preserve sequential sibling-Errand continuation through typed next-offers** — D4, D7, D8, D9
+### `[x]` **5.5 Preserve sequential sibling-Errand continuation through typed next-offers** — D4, D7, D8, D9
 
 - _Goal:_ Execute-now captures remain a durable inbox queue, while each completed transient operation can offer the
   next sibling without persisting an Errand queue or nesting a housekeeping frame.
 
-    - `[ ]` **5.5.a Derive generation-bound next-offers after transient close**
-        - Add a pure offer resolver over well-formed execute-bound captures carrying the caller's exact dispatch ID,
-          the completed subject, and the original WU parent path or null cold parent.
-        - Populate only the shared mutation result's typed `nextOffer`; never delete an execute-now capture before
-          its own Errand completes, scan unrelated dispatches, or skip malformed/unreadable state.
-        - Build `test-first` (one behavior at a time):
-            - Cover zero/one/many same-dispatch captures, stable file order, unrelated groups, warm/cold parents,
-              resumed Errands, and malformed/partial group refusal.
+    - `[x]` **5.5.a Derive generation-bound next-offers after transient close**
+        - Added a pure exact-dispatch offer resolver that preserves file order, excludes the completed subject,
+          carries the active WU parent or cold null parent, returns exhaustion as no offer, and refuses malformed or
+          partially completed groups instead of scanning into another generation.
+        - Wired housekeep and ordinary-Errand close results to the same typed `nextOffer` boundary while retaining
+          each execute-now capture until its own completion.
 
-    - `[ ]` **5.5.b Enforce the housekeep-close-before-Errand-open boundary**
-        - Make the first sibling Errand open only after routing occupancy has popped and the WU frame is active
-          again.
-        - Ensure compaction at either side of the close/open boundary rederives one child or none, never a third
-          frame. Session-init surfaces pending dispatch groups separately from routable housekeep entries; another
-          drain may report but cannot consume/rebind one without a newly confirmed plan.
-        - Build `test-first` (one behavior at a time):
-            - Cover interruption before/after housekeep close, fresh-session dispatch resume, open-sweep abandon,
-              Errand abandon, unrelated later housekeep, and exact group exhaustion.
+    - `[x]` **5.5.b Enforce the housekeep-close-before-Errand-open boundary**
+        - Housekeep close now computes but emits its first sibling only after exact occupancy cleanup restores the
+          parent frame; interrupted retries rederive the same group from visible inbox bindings.
+        - Session-init excludes execute-bound captures from routable housekeep count, projects stable pending groups
+          separately, and surfaces malformed partial bindings as diagnostics so later drains cannot silently consume
+          or rebind them.
+
+- _Outcome:_ Execute-now continuation is now a visible inbox-backed sequence: every close can offer at most the next
+  exact-generation sibling with its direct parent, while exhaustion, interruption, unrelated drains, and malformed
+  groups remain deterministic without introducing a stored Errand queue or nested housekeeping frame.
 
 ### `[ ]` **5.6 Expose state-touching locus companions after subject drivers exist** — D6, D7, D9
 

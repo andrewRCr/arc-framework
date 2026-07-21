@@ -25,6 +25,7 @@ export {
   inboxEntrySourceDigest,
   findNextDispatchInboxEntry,
   listDispatchInboxEntries,
+  listInboxDispatchGroups,
   inspectInboxEntry,
   listInboxEntryTitles,
   mutateInboxEntries,
@@ -35,6 +36,7 @@ export {
   type InspectedInboxEntry,
   type NextDispatchInboxEntry,
   type DispatchInboxEntry,
+  type InboxDispatchGroup,
   type MutateInboxEntriesResult,
   type RemoveInboxEntryResult,
 } from "./inbox-writer.js";

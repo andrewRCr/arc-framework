@@ -62,10 +62,13 @@ import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
   clearErrandPartialPushMarker,
-  findNextDispatchInboxEntry,
   inspectInboxEntry,
   recordErrandPartialPushMarker,
 } from "../lib/user-sync/index.js";
+import { resolveDispatchNextOffer } from "../lib/housekeep/dispatch-offer.js";
+import { readHousekeepState } from "../lib/housekeep/open-runtime.js";
+import { acquireSessionAnchor } from "../lib/locus/process-inspector.js";
+import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "../lib/locus/platform-inspectors.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
@@ -876,6 +879,7 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
   try {
     const snapshot = await readTransientIdentitySnapshot({ exec: io.exec, identity });
     const localRecord = snapshot.kind === "complete" ? snapshot.records.get(slug) : undefined;
+    const parentCheckoutPath = await resolveCurrentWorkUnitPath(cwd, identity, base, io);
     result = localRecord?.version === 1 || localRecord?.version === 2
       ? await closeLegacyErrandResult(cwd, io, identity, slug, base, opts)
       : await closeOrdinaryErrandAtRuntime({
@@ -889,17 +893,19 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
         removeInbox: async (record) => {
           if (record.originEntry === null) return { kind: "absent", nextOffer: null };
           const removed = await removeCurrentInboxEntry({ cwd, io, identity, title: record.originEntry });
-          const next = record.dispatchId !== null && removed.postImage.state === "present"
-            ? findNextDispatchInboxEntry(removed.postImage.content, record.dispatchId)
-            : null;
+          if (record.dispatchId === null || removed.postImage.state !== "present") {
+            return { kind: removed.removed ? "removed" : "absent", nextOffer: null };
+          }
+          const offer = resolveDispatchNextOffer({
+            content: removed.postImage.content,
+            dispatchId: record.dispatchId,
+            completedTitle: record.originEntry,
+            parentCheckoutPath,
+          });
+          if (offer.kind === "refused") return offer;
           return {
             kind: removed.removed ? "removed" : "absent",
-            nextOffer: next === null ? null : {
-              kind: "errand",
-              key: next.title,
-              dispatchId: next.dispatchId,
-              parentCheckoutPath: null,
-            },
+            nextOffer: offer.nextOffer,
           };
         },
       });
@@ -912,6 +918,26 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
     });
   }
   emitErrandCloseResult(result, opts.json === true);
+}
+
+async function resolveCurrentWorkUnitPath(
+  cwd: string,
+  identity: string,
+  base: string,
+  io: ReturnType<typeof createUserIOContext>,
+): Promise<string | null> {
+  if (!io.execInput) return null;
+  const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
+  if (anchor.kind !== "process") return null;
+  const state = await readHousekeepState(
+    { cwd, identity, base, io: { ...io, execInput: io.execInput } },
+    anchor,
+    createPlatformProcessInspector(),
+  );
+  if (state.current.kind !== "resolved") return null;
+  const activeRecordId = state.current.activeRecordId;
+  return state.roster.rows.find((row) => row.recordId === activeRecordId
+    && row.role?.kind === "work-unit")?.checkoutPath ?? null;
 }
 
 export function formatErrandCloseResult(

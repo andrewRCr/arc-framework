@@ -122,7 +122,12 @@ export async function openHousekeepAtRuntime(options: OpenHousekeepRuntimeOption
     if (record !== null && claimApplied) await rollbackClaim(options, record);
     return refusal(proposal.reason, `Housekeeping allocation refused: ${proposal.reason}.`);
   }
-  const sessionHomePath = state.roster.primaryPath;
+  const activeRecordId = state.current.kind === "resolved" ? state.current.activeRecordId : null;
+  const parentCheckoutPath = activeRecordId === null
+    ? null
+    : state.roster.rows.find((row) => row.recordId === activeRecordId && row.role?.kind === "work-unit")
+      ?.checkoutPath ?? null;
+  const sessionHomePath = parentCheckoutPath ?? state.roster.primaryPath;
   const provisioned = await provisionTransientLocus({
     proposal, protection: options.protection,
     identity: record === null ? null : projectLocusIdentity(record),
@@ -132,7 +137,7 @@ export async function openHousekeepAtRuntime(options: OpenHousekeepRuntimeOption
     } } : {}),
     branch: record?.branch ?? null, expectedBranchHead: null, base: options.base,
     locationTemplate: options.locationTemplate, repo: options.repo, spawningIdentity: options.identity,
-    parentCheckoutPath: null, sessionHomePath, establishedAt: now, anchor,
+    parentCheckoutPath, sessionHomePath, establishedAt: now, anchor,
     leaseId: crypto.randomUUID().replaceAll("-", ""),
     dependencies: createNodeProvisioningDependencies({
       exec: options.io.exec, identity: options.identity, anchor, inspector,

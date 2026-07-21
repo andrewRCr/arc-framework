@@ -24,6 +24,7 @@ export type CloseInboxResult =
       kind: "removed" | "absent";
       nextOffer: Extract<LocusMutationResultV1, { outcome: "applied" | "idempotent" }>["nextOffer"];
     }
+  | { kind: "refused"; reason: string }
   | { kind: "error"; message: string };
 
 type RetirementResult =
@@ -102,6 +103,7 @@ export async function closeOrdinaryErrand(
     return failure("locus.errand-close.inbox", message(error));
   }
   if (inbox.kind === "error") return failure("locus.errand-close.inbox", inbox.message);
+  if (inbox.kind === "refused") return refusal("identity-conflict", inbox.reason);
 
   let retired: RetirementResult;
   try {

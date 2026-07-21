@@ -65,6 +65,12 @@ export interface DispatchInboxEntry extends NextDispatchInboxEntry {
   sourceDigest: CanonicalDigest;
 }
 
+/** One pending execute group in first-occurrence order. */
+export interface InboxDispatchGroup {
+  dispatchId: string;
+  titles: string[];
+}
+
 interface LocatedInboxEntry {
   start: number;
   end: number;
@@ -184,6 +190,20 @@ export function listDispatchInboxEntries(content: string, dispatchId: string): D
   return locateInboxEntries(lines).flatMap((entry) => dispatchBinding(lines, entry)?.dispatchId === dispatchId
     ? [{ title: entry.title, sourceDigest: unboundDigest(lines, entry), dispatchId }]
     : []);
+}
+
+/** Group every well-formed execute binding by exact dispatch generation. */
+export function listInboxDispatchGroups(content: string): InboxDispatchGroup[] {
+  const lines = content.split("\n");
+  const groups = new Map<string, string[]>();
+  for (const entry of locateInboxEntries(lines)) {
+    const binding = dispatchBinding(lines, entry);
+    if (binding === null) continue;
+    const titles = groups.get(binding.dispatchId) ?? [];
+    titles.push(entry.title);
+    groups.set(binding.dispatchId, titles);
+  }
+  return [...groups].map(([dispatchId, titles]) => ({ dispatchId, titles }));
 }
 
 /** Apply one all-or-nothing title/digest-qualified inbox mutation batch. */

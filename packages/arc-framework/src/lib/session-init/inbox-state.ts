@@ -19,7 +19,7 @@
 
 import { z } from "zod";
 
-import { parseCrossWuEntries } from "../user-sync/index.js";
+import { listInboxDispatchGroups, parseCrossWuEntries } from "../user-sync/index.js";
 import { managedFlagIsTrue } from "./managed-field.js";
 
 /** Runtime authority for the inbox-state advisory result. */
@@ -27,6 +27,11 @@ export const InboxStateResultSchema = z
   .object({
     routableCount: z.number().int().nonnegative(),
     housekeepNeeded: z.boolean(),
+    pendingDispatchGroups: z.array(z.strictObject({
+      dispatchId: z.string().min(1),
+      titles: z.array(z.string().min(1)).min(1),
+    })).optional(),
+    dispatchDiagnostics: z.array(z.string().min(1)).optional(),
   })
   .strict()
   .refine((value) => value.housekeepNeeded === (value.routableCount > 0), {
@@ -49,8 +54,24 @@ export interface RunInboxStateOptions {
  * @returns The routable-entry count and the housekeep-needed flag.
  */
 export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
-  const routableCount = parseCrossWuEntries(options.content, "user-inbox").filter(
-    (parse) => parse.ok && !managedFlagIsTrue(parse.entry.raw, "Hold"),
+  const entries = parseCrossWuEntries(options.content, "user-inbox");
+  const routableCount = entries.filter(
+    (parse) => parse.ok
+      && !managedFlagIsTrue(parse.entry.raw, "Hold")
+      && !parse.entry.raw.includes("- _Disposition:_ `execute-bound`")
+      && !parse.entry.raw.includes("- _Dispatch:_"),
   ).length;
-  return { routableCount, housekeepNeeded: routableCount > 0 };
+  let pendingDispatchGroups: ReturnType<typeof listInboxDispatchGroups> = [];
+  const dispatchDiagnostics: string[] = [];
+  try {
+    pendingDispatchGroups = listInboxDispatchGroups(options.content);
+  } catch (error) {
+    dispatchDiagnostics.push(error instanceof Error ? error.message : String(error));
+  }
+  return {
+    routableCount,
+    housekeepNeeded: routableCount > 0,
+    pendingDispatchGroups,
+    dispatchDiagnostics,
+  };
 }
