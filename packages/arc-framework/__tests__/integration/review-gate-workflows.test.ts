@@ -507,6 +507,47 @@ describe("trusted review-gate workflows", () => {
     expect(partial).not.toContain("integration-interlock");
   });
 
+  it("covers Errand review outcomes and exact-target re-entry", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+    );
+    const frontline = packaged.slice(
+      packaged.indexOf("Run `arc review frontline resolve -`"),
+      packaged.indexOf("3. **Resolve the Errand PR**"),
+    );
+    expect(frontline).toMatch(/normalized findings[\s\S]*approved fix set[\s\S]*Tier\s+1 quality gates/iu);
+    expect(frontline).toMatch(/recompose the exact target[\s\S]*resolve frontline routing again/iu);
+    expect(frontline).toMatch(/clean, unavailable, failed, and pass-cap outcomes[\s\S]*continue/iu);
+
+    const openPr = packaged.slice(
+      packaged.indexOf("4. **Enter the open PR.**"),
+      packaged.indexOf("5. **Settle the final head.**"),
+    );
+    expect(openPr).toMatch(/unavailable, partial, or failed[\s\S]*required obligation blocks/iu);
+    expect(openPr).toMatch(/recommended work[\s\S]*visible and non-blocking/iu);
+    expect(openPr).toMatch(/recompose and repeat[\s\S]*approved fix changes the target/iu);
+    expect(openPr).toMatch(/review-suspension[\s\S]*promoted watcher[\s\S]*bounded schedule[\s\S]*human re-entry/u);
+  });
+
+  it("covers Errand merge lanes and already-merged cleanup", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+    );
+    const prResolution = packaged.slice(
+      packaged.indexOf("3. **Resolve the Errand PR**"),
+      packaged.indexOf("4. **Enter the open PR.**"),
+    );
+    expect(prResolution).toMatch(/one merged match at the current head[\s\S]*skip review\/merge[\s\S]*Complete cleanup/iu);
+
+    const lanes = packaged.slice(packaged.indexOf("6. Land per lane:"), packaged.indexOf("### Ship — partial protection"));
+    expect(lanes).toMatch(/Auto-merge-lane[\s\S]*--auto <merge-flag>[\s\S]*--match-head-commit/iu);
+    expect(lanes).toMatch(/Reviewed-lane[\s\S]*owner review[\s\S]*head change restarts Step 4/iu);
+
+    const complete = packaged.slice(packaged.indexOf("### Complete"));
+    expect(complete).toMatch(/arc errand close <slug>[\s\S]*reaps the branch[\s\S]*removes the record/iu);
+    expect(complete).toMatch(/Unattended merge[\s\S]*finalize pass[\s\S]*next session-init's errand sweep/iu);
+  });
+
   it("uses one late authoritative base-reconcile mutation site", async () => {
     const [packageIntegration, instanceIntegration] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),

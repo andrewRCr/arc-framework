@@ -791,11 +791,10 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
   The developer returns only for finding disposition or exact-head merge authorization, and mutation, failure, stale
   state, or incomplete products cannot inherit or manufacture merge readiness.
 
-### `[ ]` **6.5 Align Errand review and final-head settlement**
+### `[x]` **6.5 Align Errand review and final-head settlement**
 
 - _Goal:_ Full-protection Errands use the same routing, response, retrigger, and final-head authority as work units
   without inheriting WU composition or task-list ceremony.
-- _Context:_ Implements Design §§3, 5, and 8.
 
     - `[x]` **6.5.a Recompose Errand review around the shared methods**
         - Declared the shared independent-analysis/audit/triage methods and routed exact Errand targets through optional
@@ -811,9 +810,13 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
           outside WU composition products without absence inference, and preserved partial protection's direct-base
           path without PR integration ceremony.
 
-    - `[ ]` **6.5.c Extend Errand lifecycle coverage**
-        - Test clean, findings/fix, unavailable frontline, recommended/required independent review, re-entry,
-          auto-merge, owner-review, and already-merged cleanup arms.
+    - `[x]` **6.5.c Extend Errand lifecycle coverage**
+        - Covered clean and unavailable frontline outcomes, findings/fix cycling, recommended versus required
+          independent review, exact-target suspension/re-entry, exact-head auto-merge and owner-review lanes, and
+          already-merged cleanup including unattended finalization.
+
+- _Outcome:_ Errands now share the review architecture's typed evidence and exact-head authority while retaining
+  vehicle-specific continuity, direct-base partial protection, and cleanup semantics without WU products.
 
 ## **Phase 7:** Rollout and cross-surface coherence
 
