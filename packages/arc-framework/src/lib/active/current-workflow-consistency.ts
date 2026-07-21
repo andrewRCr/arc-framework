@@ -25,8 +25,6 @@
  * @module
  */
 
-import { parseIdentifierList } from "./meta-reader.js";
-
 /** The State value under which `Current Workflow` is meaningful. */
 const PLANNING_STATE = "Planning";
 
@@ -49,16 +47,15 @@ export type PlanningWorkflow = (typeof PLANNING_WORKFLOWS)[number];
 
 /**
  * The parsed `(State, Current Workflow, Design)` tuple the validator reasons
- * over — bare field values as recovered by `parseMetaProjectionRecord` (backticks
- * stripped; bracket sentinels and a marker-absent `null` preserved).
+ * over — semantic values recovered by the shared meta adapter.
  */
 export interface CurrentWorkflowConsistencyInput {
   /** The meta `State` value, e.g. `Planning` / `Active`; `null` when absent. */
   state: string | null;
   /** The meta `Current Workflow` value; `[none]` / `null` when unset/absent. */
   currentWorkflow: string | null;
-  /** The meta `Design` value (single or comma-separated list); `[none]` / `null` when unset. */
-  design: string | null;
+  /** Parsed meta `Design` identifiers; empty when unset. */
+  design: readonly string[];
 }
 
 /** Whether `value` is one of the three planning-stage workflow basenames. */
@@ -97,11 +94,10 @@ export function checkCurrentWorkflowConsistency(input: CurrentWorkflowConsistenc
   }
 
   // ...and agree with the Design pointer per the event-driven repoint model.
-  const designElements = parseIdentifierList(design);
-  const designNone = designElements.length === 0;
-  const allDraft = designElements.length > 0 && designElements.every((d) => d.startsWith("draft-"));
-  const allSpec = designElements.length > 0 && designElements.every((d) => d.startsWith("spec-"));
-  const designDisplay = design ?? "(absent)";
+  const designNone = design.length === 0;
+  const allDraft = design.length > 0 && design.every((item) => item.startsWith("draft-"));
+  const allSpec = design.length > 0 && design.every((item) => item.startsWith("spec-"));
+  const designDisplay = design.length === 0 ? NONE_SENTINEL : design.join(", ");
 
   if (currentWorkflow === "generate-tasks") {
     // The draft → spec repoint has fired (it rides create-spec finalization).

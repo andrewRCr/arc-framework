@@ -35,7 +35,7 @@
  * @module
  */
 
-import { parseMetaProjectionRecord } from "./meta-reader.js";
+import { parseMetaRecord } from "./meta-reader.js";
 
 /** Anchors a backlog path to the `planned/` lifecycle root. */
 const PLANNED_MARKER = /(?:^|\/)\.arc\/backlog\/planned\//;
@@ -147,10 +147,9 @@ export function cohortDocLocation(path: string): CohortDocLocation | null {
 
 /** The normalized `**Cohort:**` field value — `[none]`/absent/empty → `""`. */
 function normalizeCohortField(content: string): string {
-  const raw = parseMetaProjectionRecord(content).Cohort;
+  const raw = parseMetaRecord(content).cohort;
   if (raw === null) return "";
-  const trimmed = raw.trim();
-  return trimmed === NONE_SENTINEL ? "" : trimmed;
+  return raw.trim();
 }
 
 /**

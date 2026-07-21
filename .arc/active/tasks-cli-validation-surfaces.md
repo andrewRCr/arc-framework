@@ -136,9 +136,9 @@ onto stable code-facing fields without losing tolerant recovery.
         - Moved project-readiness and ready-work sources onto semantic fields and parsed dependency arrays while
           preserving public row shapes, ordering, malformed-record degradation, and validation fallbacks.
 
-    - `[ ]` **2.5.b Migrate active-work consistency readers**
-        - Update `commands/active/status.ts`, `active/cohort-consistency.ts`, and
-          `active/current-workflow-consistency.ts` without changing warning text or narrative task parsing.
+    - `[x]` **2.5.b Migrate active-work consistency readers**
+        - Moved cohort and current-workflow consistency onto semantic cohort values and parsed design arrays while
+          retaining active-status narrative parsing and the established warning text.
 
     - `[ ]` **2.5.c Migrate Git roster and in-flight derivation**
         - Update `git/worktree-roster.ts` and `git/in-flight-derivation.ts` while retaining field-level degradation:

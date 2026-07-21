@@ -11,64 +11,64 @@ import { checkCurrentWorkflowConsistency } from "../../../src/lib/active/current
 const check = (
   state: string | null,
   currentWorkflow: string | null,
-  design: string | null,
+  design: readonly string[],
 ): string[] => checkCurrentWorkflowConsistency({ state, currentWorkflow, design });
 
 describe("checkCurrentWorkflowConsistency — encoding-consistency validator", () => {
   describe("valid tuples pass (empty diagnostics)", () => {
     it("draft-design with a draft-* Design pointer", () => {
-      expect(check("Planning", "draft-design", "draft-foo.md")).toEqual([]);
+      expect(check("Planning", "draft-design", ["draft-foo.md"])).toEqual([]);
     });
 
     it("draft-design before a draft exists ([none] Design)", () => {
-      expect(check("Planning", "draft-design", "[none]")).toEqual([]);
+      expect(check("Planning", "draft-design", [])).toEqual([]);
     });
 
     it("create-spec with the draft still authoritative (not yet repointed)", () => {
-      expect(check("Planning", "create-spec", "draft-foo.md")).toEqual([]);
+      expect(check("Planning", "create-spec", ["draft-foo.md"])).toEqual([]);
     });
 
     it("create-spec for a draft-skipping Light WU ([none] Design)", () => {
-      expect(check("Planning", "create-spec", "[none]")).toEqual([]);
+      expect(check("Planning", "create-spec", [])).toEqual([]);
     });
 
     it("generate-tasks with the Design repointed to a spec-*", () => {
-      expect(check("Planning", "generate-tasks", "spec-foo.md")).toEqual([]);
+      expect(check("Planning", "generate-tasks", ["spec-foo.md"])).toEqual([]);
     });
 
     it("generate-tasks with a layered (multi-spec) Design", () => {
-      expect(check("Planning", "generate-tasks", "spec-a.md, spec-b.md")).toEqual([]);
+      expect(check("Planning", "generate-tasks", ["spec-a.md", "spec-b.md"])).toEqual([]);
     });
 
     it("a non-planning state with Current Workflow [none]", () => {
-      expect(check("Active", "[none]", "spec-foo.md")).toEqual([]);
+      expect(check("Active", "[none]", ["spec-foo.md"])).toEqual([]);
     });
 
     it("a legacy non-planning meta with an absent Current Workflow", () => {
-      expect(check("Active", null, "spec-foo.md")).toEqual([]);
+      expect(check("Active", null, ["spec-foo.md"])).toEqual([]);
     });
   });
 
   it("fails a non-planning state carrying a live Current Workflow", () => {
-    const diagnostics = check("Active", "generate-tasks", "spec-foo.md");
+    const diagnostics = check("Active", "generate-tasks", ["spec-foo.md"]);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatch(/non-planning/i);
   });
 
   it("fails generate-tasks whose Design still points at a draft-* (un-repointed)", () => {
-    const diagnostics = check("Planning", "generate-tasks", "draft-foo.md");
+    const diagnostics = check("Planning", "generate-tasks", ["draft-foo.md"]);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatch(/spec-\*/);
   });
 
   it("fails a Current Workflow outside the planning enum under State: Planning", () => {
-    const diagnostics = check("Planning", "wibble", "draft-foo.md");
+    const diagnostics = check("Planning", "wibble", ["draft-foo.md"]);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatch(/not a planning stage/i);
   });
 
   it("fails an injected mismatch — create-spec with a prematurely repointed spec Design", () => {
-    const diagnostics = check("Planning", "create-spec", "spec-foo.md");
+    const diagnostics = check("Planning", "create-spec", ["spec-foo.md"]);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatch(/draft-\*/);
   });
