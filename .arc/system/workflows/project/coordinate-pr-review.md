@@ -39,8 +39,10 @@ This is the `next-action` → `perform-action` → `await` → canonical re-entr
 Fetch controller-normalized findings and provider-native conversations, retaining source-scoped immutable ids and
 current decisive review state. Compose the [`review-response` method][review-response] input from the exact current
 target, effective routing result, normalized findings, disposition/approval state, verification and persistence
-evidence, and adapter capabilities. Every normalized finding retains its explicit FIX, DEFER, or REJECT disposition
-and immutable source locus. For provider-native conversations, `CHANGES_REQUESTED` remains blocking.
+evidence, and opaque adapter capabilities. Controller findings carry a controller receipt handle plus their available
+reply and thread-state handles; provider conversations carry provider reply, thread-state, and decisive-review handles.
+Every normalized finding retains its explicit FIX, DEFER, or REJECT disposition and immutable source locus. For
+provider-native conversations, `CHANGES_REQUESTED` remains blocking.
 Completion-check success only wakes a canonical re-read and never closes a conversation. Execute only the returned
 planner state:
 

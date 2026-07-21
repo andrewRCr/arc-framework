@@ -20,18 +20,40 @@ export const ReviewResponseCapabilitiesSchema = z.strictObject({
 });
 export type ReviewResponseCapabilities = z.infer<typeof ReviewResponseCapabilitiesSchema>;
 
-export const ReviewConversationCapabilitySchema = z.strictObject({
+const AdapterHandleSchema = z.string().trim().min(1).max(1024);
+const FindingAdapterShape = {
   findingId: z.string().trim().min(1).max(512),
-  replyToRef: z.string().trim().min(1).nullable(),
-  threadId: z.string().trim().min(1).nullable(),
-  canReply: z.boolean(),
-  canResolve: z.boolean(),
-}).superRefine((capability, context) => {
-  if (capability.canReply && capability.replyToRef === null) {
-    context.addIssue({ code: "custom", message: "reply capability requires an authoritative reply surface" });
-  }
-  if (capability.canResolve && capability.threadId === null) {
-    context.addIssue({ code: "custom", message: "resolution capability requires an authoritative thread" });
+  immutableLocus: z.string().trim().min(1).max(2048),
+};
+
+export const ReviewConversationCapabilitySchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("controller-finding"),
+    ...FindingAdapterShape,
+    receiptHandle: AdapterHandleSchema,
+    replyHandle: AdapterHandleSchema.nullable(),
+    threadStateHandle: AdapterHandleSchema.nullable(),
+    canReply: z.boolean(),
+    canResolve: z.boolean(),
+  }),
+  z.strictObject({
+    kind: z.literal("provider-native"),
+    ...FindingAdapterShape,
+    providerReplyHandle: AdapterHandleSchema.nullable(),
+    threadStateHandle: AdapterHandleSchema,
+    decisiveReviewHandle: AdapterHandleSchema,
+    canReply: z.boolean(),
+  }),
+]).superRefine((capability, context) => {
+  if (capability.kind === "controller-finding") {
+    if (capability.canReply && capability.replyHandle === null) {
+      context.addIssue({ code: "custom", message: "reply capability requires an authoritative reply handle" });
+    }
+    if (capability.canResolve && capability.threadStateHandle === null) {
+      context.addIssue({ code: "custom", message: "resolution capability requires a thread-state handle" });
+    }
+  } else if (capability.canReply && capability.providerReplyHandle === null) {
+    context.addIssue({ code: "custom", message: "provider reply capability requires an authoritative handle" });
   }
 });
 export type ReviewConversationCapability = z.infer<typeof ReviewConversationCapabilitySchema>;
@@ -53,11 +75,14 @@ export const ReviewResponseInputSchema = z.strictObject({
   if (input.channel === "local" && input.conversations.length > 0) {
     context.addIssue({ code: "custom", message: "local review has no conversation action surface" });
   }
-  const findingIds = new Set(input.findings.map((finding) => finding.findingId));
+  const findings = new Map(input.findings.map((finding) => [finding.findingId, finding]));
   const conversationIds = new Set<string>();
   for (const [index, conversation] of input.conversations.entries()) {
-    if (!findingIds.has(conversation.findingId)) {
+    const finding = findings.get(conversation.findingId);
+    if (finding === undefined) {
       context.addIssue({ code: "custom", message: "conversation names an unknown finding", path: ["conversations", index] });
+    } else if (finding.locus !== conversation.immutableLocus) {
+      context.addIssue({ code: "custom", message: "conversation immutable locus does not match finding", path: ["conversations", index] });
     }
     if (conversationIds.has(conversation.findingId)) {
       context.addIssue({ code: "custom", message: "duplicate conversation finding", path: ["conversations", index] });
@@ -87,14 +112,25 @@ export const ReviewResponsePlanSchema = z.strictObject({
   verificationRefs: z.array(z.string().trim().min(1)),
   blocking: z.boolean(),
   allowedCapabilities: z.array(ReviewResponseCapabilitySchema),
-  channelActions: z.array(z.strictObject({
-    kind: z.literal("hosted-conversation"),
-    findingId: z.string().trim().min(1).max(512),
-    replyToRef: z.string().trim().min(1).nullable(),
-    threadId: z.string().trim().min(1).nullable(),
-    reply: z.boolean(),
-    resolve: z.boolean(),
-  })),
+  channelActions: z.array(z.discriminatedUnion("kind", [
+    z.strictObject({
+      kind: z.literal("controller-finding"),
+      findingId: z.string().trim().min(1).max(512),
+      receiptHandle: AdapterHandleSchema,
+      replyHandle: AdapterHandleSchema.nullable(),
+      threadStateHandle: AdapterHandleSchema.nullable(),
+      reply: z.boolean(),
+      resolve: z.boolean(),
+    }),
+    z.strictObject({
+      kind: z.literal("provider-native"),
+      findingId: z.string().trim().min(1).max(512),
+      providerReplyHandle: AdapterHandleSchema.nullable(),
+      threadStateHandle: AdapterHandleSchema,
+      decisiveReviewHandle: AdapterHandleSchema,
+      reply: z.boolean(),
+    }),
+  ])),
   nextAction: z.string().trim().min(1),
 });
 export type ReviewResponsePlan = z.infer<typeof ReviewResponsePlanSchema>;

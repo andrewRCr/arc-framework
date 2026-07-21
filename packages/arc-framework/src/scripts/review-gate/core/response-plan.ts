@@ -10,6 +10,40 @@ import {
   type ReviewResponseState,
 } from "./response-plan-schema.js";
 
+function projectChannelActions(
+  input: ReviewResponseInput,
+  state: ReviewResponseState,
+): ReviewResponsePlan["channelActions"] {
+  if (state !== "ready-to-close" || input.channel !== "hosted") return [];
+  const actions: ReviewResponsePlan["channelActions"] = [];
+  for (const capability of input.conversations) {
+    const known = input.findings.some((finding) => finding.findingId === capability.findingId);
+    if (!known) continue;
+    if (capability.kind === "controller-finding") {
+      if (!capability.canReply && !capability.canResolve) continue;
+      actions.push({
+        kind: capability.kind,
+        findingId: capability.findingId,
+        receiptHandle: capability.receiptHandle,
+        replyHandle: capability.replyHandle,
+        threadStateHandle: capability.threadStateHandle,
+        reply: capability.canReply,
+        resolve: capability.canResolve,
+      });
+    } else {
+      actions.push({
+        kind: capability.kind,
+        findingId: capability.findingId,
+        providerReplyHandle: capability.providerReplyHandle,
+        threadStateHandle: capability.threadStateHandle,
+        decisiveReviewHandle: capability.decisiveReviewHandle,
+        reply: capability.canReply,
+      });
+    }
+  }
+  return actions;
+}
+
 function plan(
   input: ReviewResponseInput,
   state: ReviewResponseState,
@@ -29,20 +63,7 @@ function plan(
     verificationRefs: input.verificationRefs,
     blocking: options.blocking,
     allowedCapabilities: options.allowedCapabilities,
-    channelActions: state === "ready-to-close" && input.channel === "hosted"
-      ? input.conversations.flatMap((capability) => {
-          const known = input.findings.some((finding) => finding.findingId === capability.findingId);
-          if (!known || (!capability.canReply && !capability.canResolve)) return [];
-          return [{
-            kind: "hosted-conversation" as const,
-            findingId: capability.findingId,
-            replyToRef: capability.replyToRef,
-            threadId: capability.threadId,
-            reply: capability.canReply,
-            resolve: capability.canResolve,
-          }];
-        })
-      : [],
+    channelActions: projectChannelActions(input, state),
     nextAction: options.nextAction,
   });
 }

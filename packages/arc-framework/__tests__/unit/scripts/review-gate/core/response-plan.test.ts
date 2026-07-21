@@ -141,32 +141,77 @@ describe("review response planning", () => {
       ...approved("defer"),
       channel: "hosted",
       conversations: [{
+        kind: "controller-finding",
         findingId: "finding-1",
-        replyToRef: "github:comment-1",
-        threadId: "github:thread-1",
+        immutableLocus: normalizedFinding.locus,
+        receiptHandle: "controller:receipt-1",
+        replyHandle: "controller:comment-1",
+        threadStateHandle: "controller:thread-1",
         canReply: true,
         canResolve: true,
       }],
     })).toMatchObject({
       state: "ready-to-close",
       channelActions: [{
-        kind: "hosted-conversation",
+        kind: "controller-finding",
         findingId: "finding-1",
+        receiptHandle: "controller:receipt-1",
         reply: true,
         resolve: true,
+      }],
+    });
+    expect(projectReviewResponse({
+      ...input(),
+      ...approved("reject"),
+      channel: "hosted",
+      conversations: [{
+        kind: "provider-native",
+        findingId: "finding-1",
+        immutableLocus: normalizedFinding.locus,
+        providerReplyHandle: "provider:reply-1",
+        threadStateHandle: "provider:thread-1",
+        decisiveReviewHandle: "provider:review-1",
+        canReply: true,
+      }],
+    })).toMatchObject({
+      state: "ready-to-close",
+      channelActions: [{
+        kind: "provider-native",
+        findingId: "finding-1",
+        providerReplyHandle: "provider:reply-1",
+        threadStateHandle: "provider:thread-1",
+        decisiveReviewHandle: "provider:review-1",
+        reply: true,
       }],
     });
     expect(() => projectReviewResponse({
       ...input(),
       ...approved("reject"),
       conversations: [{
+        kind: "controller-finding",
         findingId: "finding-1",
-        replyToRef: "github:comment-1",
-        threadId: "github:thread-1",
+        immutableLocus: normalizedFinding.locus,
+        receiptHandle: "controller:receipt-1",
+        replyHandle: "controller:comment-1",
+        threadStateHandle: "controller:thread-1",
         canReply: true,
         canResolve: true,
       }],
     })).toThrow(/local review/iu);
+    expect(() => projectReviewResponse({
+      ...input(),
+      ...approved("reject"),
+      channel: "hosted",
+      conversations: [{
+        kind: "provider-native",
+        findingId: "finding-1",
+        immutableLocus: "src/other.ts:1",
+        providerReplyHandle: null,
+        threadStateHandle: "provider:thread-1",
+        decisiveReviewHandle: "provider:review-1",
+        canReply: false,
+      }],
+    })).toThrow(/immutable locus/iu);
   });
 
   it("blocks stale findings, failed verification, and unavailable required capabilities", () => {

@@ -330,6 +330,8 @@ describe("PR-open lifecycle extensions", () => {
 
     expect(workflow).toContain("controller-normalized findings");
     expect(workflow).toContain("provider-native conversations");
+    expect(workflow).toContain("controller receipt handle");
+    expect(workflow).toContain("provider reply, thread-state, and decisive-review handles");
     expect(workflow).toContain("explicit FIX, DEFER, or REJECT disposition");
     expect(workflow).toContain("same qualified source that issued the");
     expect(workflow).toContain("Thread resolution is a separate observation");

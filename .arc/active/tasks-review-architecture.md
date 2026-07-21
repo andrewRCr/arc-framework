@@ -636,11 +636,10 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
           mutation, persistence, closure, and rerouting while retaining typed controller action/await commands plus
           exact-head and actor-authorization validation at the project boundary.
 
-    - `[ ]` **6.1.b Adapt controller findings and native conversations**
-        - Normalize both into the method input while retaining distinct closure capabilities and immutable source
-          loci.
-        - Return adapter handles for controller receipts, provider replies, thread state, and current decisive review
-          instead of exposing those mechanics in the method.
+    - `[x]` **6.1.b Adapt controller findings and native conversations**
+        - Added strict source-locus-bound adapter variants: controller findings return opaque receipt, reply, and
+          thread-state handles with declared resolution capability, while provider-native findings return reply,
+          thread-state, and decisive-review handles without acquiring controller closure authority.
 
     - `[ ]` **6.1.c Recompose after every head or policy change**
         - Invalidate the loop scope after a fix, base merge, lifecycle tail, provider event, or policy identity

@@ -30,7 +30,9 @@ The caller supplies:
 - the effective `review-routing` result;
 - the complete disposition set and approval when they exist;
 - candidate-target, verification, and persistence evidence when fixes have run; and
-- opaque capability handles for approval, mutation, persistence, channel closure, and rerouting.
+- opaque capability handles for approval, mutation, persistence, channel closure, and rerouting. Hosted controller
+  findings carry receipt/reply/thread-state handles; provider-native findings carry provider-reply/thread-state/
+  decisive-review handles. Every handle binds one finding's immutable source locus.
 
 The typed response planner emits exactly one state with precomposed next-action text and only the capabilities legal
 in that state:
@@ -68,7 +70,9 @@ review source, persists, or performs adapter-owned closure within this method.
 - **Local:** The approved disposition report is the complete audience-visible record. Emit no synthetic reply or
   closure surface.
 - **Hosted:** Return reply or resolution work only for a finding whose adapter supplied an authoritative comment or
-  thread capability. A finding without its own conversation produces no hosted response; never create a roll-up
+  thread capability. Controller actions return the receipt handle and only their declared reply/resolution handles.
+  Provider-native actions return provider-reply, thread-state, and decisive-review handles without acquiring a
+  resolution capability. A finding without its own conversation produces no hosted response; never create a roll-up
   comment.
 
 Conversation resolution records host state only. It is not disposition approval or provider closure authority.
