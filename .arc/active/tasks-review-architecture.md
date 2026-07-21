@@ -879,9 +879,12 @@ architecture lands as one coherent forward contract.
           attestation or hosted evidence, forward eligibility/reduction, explicit `both` admission, and cross-channel
           substitution refusal while preserving inactive controller/manual merge authority.
 
-    - `[ ]` **7.2.b Exercise finding and re-entry scenarios**
-        - Cover approved fix, defer, reject, mixed severity, provider-native conversation, local finding report,
-          suspended review, scheduled/human resume, timeout, stale head, and cap exhaustion.
+    - `[x]` **7.2.b Exercise finding and re-entry scenarios**
+        - Added cross-layer finding-response coverage for approved fix/defer/reject dispositions, mixed severity,
+          local disposition reports, and provider-native decisive conversation authority without allowing ARC
+          record-only state to override native requested-change or unresolved-conversation state.
+        - Exercised durable suspension through pending preservation, scheduled and explicit human re-entry, exact
+          wakeup validation, timeout escalation, stale-head rerouting, and bounded frontline pass-cap exhaustion.
 
     - `[ ]` **7.2.c Exercise lifecycle and migration scenarios**
         - Cover WU and Errand publication, reviewed/CI-green pre-composition refusal, `manual` and
