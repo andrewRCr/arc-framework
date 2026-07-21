@@ -66,59 +66,37 @@ inspection before the record lock that consumes its liveness verdict.
 - _Outcome:_ Git topology spelling, lexical path identity, primary-backed storage, and exact record bytes now form
   one tamper-evident persistence chain; portable notes cannot absorb its machine-local files.
 
-### `[ ]` **1.3 Implement cross-platform process anchors and three-state liveness** — D5
+### `[x]` **1.3 Implement cross-platform process anchors and three-state liveness** — D5
 
 - _Goal:_ Lease and lock decisions distinguish live, dead, and unverifiable sessions without treating PID reuse,
   heartbeat age, ambiguous ancestry, or missing platform facilities as cleanup authority.
 
-    - `[ ]` **1.3.a Define the inspector and native-process execution ports**
-        - Add the common `inspect(pid)` result contract plus a locus-local argument-array `ProcessExec` boundary with
-          cancellation, bounded captured output, structured exit data, and no shell interpolation.
-        - Bind production execution through `execa` without reusing the Git-specific `GitExec` error or environment
-          semantics and without broadening this task into a repository-wide executor refactor.
-        - Build `test-first` (one behavior at a time):
-            - Present, absent, and unverifiable inspection results remain exhaustive and preserve opaque start tokens.
-            - Nonzero exits, cancellation, missing executables, and over-limit output retain enough structure for an
-              inspector to degrade safely.
+    - `[x]` **1.3.a Define the inspector and native-process execution ports**
+        - Added the present/absent/unverifiable inspection algebra and a bounded, cancelable argument-array executor
+          whose execa binding preserves nonzero, missing, canceled, output-limit, and unknown failures structurally.
 
-    - `[ ]` **1.3.b Select one bounded session anchor from pure ancestor snapshots**
-        - Add a pure selector that walks at most 32 inspected ancestors, skips only exact allowlisted ARC/npm wrapper
-          identities, and accepts a recognized per-session Codex, Claude, Gemini, or directly verified interactive
-          shell process.
-        - Stop with an `unverifiable` anchor at a missing ancestor, unknown wrapper, shared application host, multiple
-          plausible sessions, automation boundary, or exhausted depth; never cross ambiguity to find a convenient
-          higher ancestor.
-        - Build `test-first` (one behavior at a time):
-            - Cover exact wrapper chains, each harness selector, direct TTY shells, shared daemons, short-lived
-              automation, missing parents, depth exhaustion, multiple candidates, and PID reuse.
+    - `[x]` **1.3.b Select one bounded session anchor from pure ancestor snapshots**
+        - Added a pure 32-ancestor selector for exact ARC/npm wrappers, recognized per-session harnesses, and verified
+          interactive shells; unknown boundaries, shared hosts, and multiple candidates remain unverifiable.
 
-    - `[ ]` **1.3.c Implement the Linux `/proc` inspector**
-        - Read parent PID and kernel start ticks from `/proc/{pid}/stat` and command identity from `exe` or `comm`.
-        - Classify missing processes as dead and permission, parse, identity, or facility failures as unknown.
-        - Build `test-first` (one behavior at a time):
-            - Valid snapshots preserve parent, identity, and start ticks; process absence is dead while permission,
-              parse, identity, and facility failures are unverifiable.
+    - `[x]` **1.3.c Implement the Linux `/proc` inspector**
+        - Added robust `/proc/{pid}/stat` parsing with parent/start-token extraction and `exe`→`comm` identity fallback;
+          only process absence is dead evidence and all read/parse/identity uncertainty remains unknown.
 
-    - `[ ]` **1.3.d Implement the macOS/BSD `ps` inspector**
-        - Invoke `ps` through `ProcessExec` with a locale-stable environment and preserve its exact start string as
-          the opaque token.
-        - Build `test-first` (one behavior at a time):
-            - Absent processes, permission failures, malformed output, nonzero exits, and localized host defaults
-              degrade safely without parsing localized display text.
+    - `[x]` **1.3.d Implement the macOS/BSD `ps` inspector**
+        - Added a locale-stable `ps` adapter that retains the exact start string and distinguishes proven absence
+          from malformed, denied, nonzero, or unavailable process evidence.
 
-    - `[ ]` **1.3.e Implement the Windows CIM inspector**
-        - Invoke a static PowerShell/CIM query through `ProcessExec`, pass the PID as a separate argument, and map
-          `ParentProcessId`, executable identity, and `CreationDate` from compressed JSON into the common result.
-        - Build `test-first` (one behavior at a time):
-            - Missing PowerShell/CIM, inaccessible and absent processes, malformed output, nonzero exits, and
-              Windows path spellings map into the common result without shell interpolation.
+    - `[x]` **1.3.e Implement the Windows CIM inspector**
+        - Added a static non-shell PowerShell/CIM query with separate PID input and strict compressed-JSON mapping for
+          parent, executable identity, and creation token; null alone proves absence.
 
-    - `[ ]` **1.3.f Bind platform selection and unknown-safe verification**
-        - Select inspectors by supported runtime platform; unsupported platforms return `unverifiable`.
-        - Compare both PID and start token for `live`/`dead`; expose heartbeat age only as rendered context.
-        - Build `test-first` (one behavior at a time):
-            - Supported platforms select the correct adapter, unsupported platforms remain unverifiable, and only
-              exact PID-plus-start-token equality is live.
+    - `[x]` **1.3.f Bind platform selection and unknown-safe verification**
+        - Added supported-platform dispatch and inspector-kind/PID/start-token verification; unsupported adapters and
+          every unproven comparison return unknown rather than turning heartbeat age into authority.
+
+- _Outcome:_ Locks, leases, and cleanup consumers now share one cross-platform three-state liveness contract in
+  which only exact process-generation evidence can prove a session live or dead.
 
 ### `[ ]` **1.4 Implement record-scoped locking and token-safe stale breaking** — D3
 
