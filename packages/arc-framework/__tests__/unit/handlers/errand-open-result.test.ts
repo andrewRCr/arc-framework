@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatErrandAbandonResult,
   formatErrandLeaveResult,
   formatErrandLinkResult,
   formatErrandOpenResult,
@@ -94,6 +95,38 @@ describe("errand leave result rendering", () => {
       stream: "stderr",
       text: "Refused [preservation-unproven]: Push the exact Errand head before leaving.",
       exitCode: 1,
+    });
+  });
+});
+
+describe("errand abandon result rendering", () => {
+  it("uses the shared result renderer in JSON and human modes", () => {
+    const result = createLocusMutationResult({
+      outcome: "idempotent",
+      operation: "errand-abandon",
+      allocation: null,
+      recordId: null,
+      leaseId: null,
+      activeLocusPath: null,
+      sessionHomePath: null,
+      identity: null,
+      originEntry: null,
+      dispatchId: null,
+      routingPlanDigest: null,
+      restoredParent: null,
+      nextOffer: null,
+      recommendedPromptText: "Already abandoned.",
+    });
+
+    expect(formatErrandAbandonResult(result, true)).toEqual({
+      stream: "stdout",
+      text: `${JSON.stringify(result)}\n`,
+      exitCode: 0,
+    });
+    expect(formatErrandAbandonResult(result, false)).toEqual({
+      stream: "stdout",
+      text: "Already abandoned.",
+      exitCode: 0,
     });
   });
 });

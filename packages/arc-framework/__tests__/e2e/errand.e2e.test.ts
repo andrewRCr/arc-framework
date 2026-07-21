@@ -103,6 +103,34 @@ async function seedAwaitingV3Errand(cwd: string, slug: string): Promise<void> {
   await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
 }
 
+/** Seed one identity-only ordinary v3 open claim whose branch is preserved in base. */
+async function seedOpenV3Errand(cwd: string, slug: string): Promise<void> {
+  const headSha = (await git(cwd, ["rev-parse", "HEAD"])).trim();
+  const branch = `chore/${slug}`;
+  await git(cwd, ["branch", branch, headSha]);
+  const record = {
+    version: 3,
+    slug,
+    claimId: "d".repeat(32),
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:01:00.000Z",
+    kind: "errand",
+    purpose: "errand",
+    intent: slug,
+    branch,
+    origin: "description",
+    originEntry: null,
+    dispatchId: null,
+    state: "open",
+    savedHead: null,
+    changeRequest: null,
+  };
+  const blob = (await gitWithInput(cwd, ["hash-object", "-w", "--stdin"], `${JSON.stringify(record)}\n`)).trim();
+  const tree = (await gitWithInput(cwd, ["mktree"], `100644 blob ${blob}\t${slug}\n`)).trim();
+  const commit = (await git(cwd, ["commit-tree", tree, "-m", `seed v3 errand ${slug}`])).trim();
+  await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
+}
+
 /** Flip the installed config's branch.protection (default `partial`) to `full`. */
 async function setFullProtection(cwd: string): Promise<void> {
   const path = join(cwd, ".arc", "system", "arc-config.yml");
@@ -484,6 +512,38 @@ describe("arc errand close", () => {
       operation: "errand-link",
       error: { code: "locus.errand-link.inbox" },
     });
+  });
+});
+
+describe("arc errand abandon", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    await setFullProtection(tmpDir);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("retires a preserved identity-only claim while retaining its branch", async () => {
+    await seedOpenV3Errand(tmpDir, "discard");
+
+    const result = await runArc(["errand", "abandon", "discard", "--json"], tmpDir);
+
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      outcome: "applied",
+      operation: "errand-abandon",
+    });
+    expect(result.stderr).toBe("");
+    expect(await git(tmpDir, ["branch", "--list", "chore/discard"])).toContain("chore/discard");
+    await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:discard"]))
+      .rejects.toThrow();
   });
 });
 

@@ -23,6 +23,7 @@ import {
   handleErrandLink,
   handleErrandLeave,
   handleErrandClose,
+  handleErrandAbandon,
   handleErrandRetire,
   handleErrandPromote,
   type ErrandCheckOptions,
@@ -30,6 +31,7 @@ import {
   type ErrandLinkOptions,
   type ErrandLeaveOptions,
   type ErrandCloseOptions,
+  type ErrandAbandonOptions,
   type ErrandPromoteOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
@@ -382,6 +384,12 @@ errand
   .option("--force", "Bypass the containment check — reap even when the commits can't be proven preserved")
   .option("--json", "Emit the producer-validated locus mutation result")
   .action((slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts));
+
+errand
+  .command("abandon <slug>")
+  .description("Abandon a safely preserved ordinary Errand and retain its inbox capture")
+  .option("--json", "Emit the producer-validated locus mutation result")
+  .action((slug: string, opts: ErrandAbandonOptions) => handleErrandAbandon(slug, opts));
 
 errand
   .command("retire <slug>")

@@ -24,6 +24,7 @@ import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import {
   removeCurrentInboxEntry,
   runUserInboxRemove,
+  unmarkCurrentInboxEntry,
   withLockedUserInbox,
   type UserIOContext,
 } from "../commands/user.js";
@@ -54,6 +55,7 @@ import { openOrdinaryErrandAtRuntime } from "../lib/errand/open-runtime.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
 import { closeOrdinaryErrandAtRuntime } from "../lib/errand/close-runtime.js";
+import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
 import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
@@ -794,6 +796,110 @@ function emitErrandCloseFailure(code: string, message: string, json: boolean): v
   emitErrandCloseResult(createLocusMutationResult({
     outcome: "error",
     operation: "errand-close",
+    error: { code, message },
+    recommendedPromptText: "Resolve the reported input or configuration error before retrying.",
+  }), json);
+}
+
+/** Options for the `arc errand abandon` subcommand. */
+export interface ErrandAbandonOptions {
+  /** Emit the producer-validated mutation result without human decoration. */
+  json?: boolean;
+}
+
+/** Explicitly retire a safely preserved ordinary Errand while retaining its capture. */
+export async function handleErrandAbandon(slug: string, opts: ErrandAbandonOptions): Promise<void> {
+  if (opts.json !== true) p.intro("arc errand abandon");
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+  const { settings } = await readConfigSettings(cwd);
+  if (settings["branch.protection"] !== "full") {
+    emitErrandAbandonResult(createLocusMutationResult({
+      outcome: "refused",
+      operation: "errand-abandon",
+      reason: "full-protection-required",
+      recommendedPromptText: "Errand abandonment requires full branch protection.",
+    }), opts.json === true);
+    return;
+  }
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) {
+    emitErrandAbandonFailure("locus.errand-abandon.identity", "No identity resolved.", opts.json === true);
+    return;
+  }
+  const io = createUserIOContext();
+  if (!io.execInput) {
+    emitErrandAbandonFailure(
+      "locus.errand-abandon.identity",
+      "The stdin Git boundary is unavailable.",
+      opts.json === true,
+    );
+    return;
+  }
+  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
+  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+    cwd,
+    identity: SlugSchema.parse(identity),
+    exec: io.exec,
+  })).identityGlobalRoot;
+  let result: LocusMutationResultV1;
+  try {
+    result = await abandonOrdinaryErrandAtRuntime({
+      slug,
+      protection: "full",
+      base: settings["branch.base"],
+      identity,
+      identityGlobalUserDir,
+      activeExtensions: activeExtensions.active,
+      postCreateScript: settings["worktree.post_create"],
+      registeredHarnessDirs: settings["worktree.harness_dirs"],
+      exec: io.exec,
+      execInput: io.execInput,
+      clearDispatch: async (record) => {
+        if (record.originEntry === null || record.dispatchId === null) return { kind: "idempotent" };
+        const cleared = await unmarkCurrentInboxEntry({
+          cwd,
+          io,
+          identity,
+          title: record.originEntry,
+          dispatchId: record.dispatchId,
+        });
+        return { kind: cleared.changed ? "applied" : "idempotent" };
+      },
+    });
+  } catch (error) {
+    result = createLocusMutationResult({
+      outcome: "error",
+      operation: "errand-abandon",
+      error: { code: "locus.errand-abandon.handler", message: error instanceof Error ? error.message : String(error) },
+      recommendedPromptText: "Inspect the retained Errand identity, residue, refs, and inbox binding before retrying.",
+    });
+  }
+  emitErrandAbandonResult(result, opts.json === true);
+}
+
+export function formatErrandAbandonResult(
+  result: LocusMutationResultV1,
+  json: boolean,
+): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
+  return formatErrandOpenResult(result, json);
+}
+
+function emitErrandAbandonResult(result: LocusMutationResultV1, json: boolean): void {
+  const formatted = formatErrandAbandonResult(result, json);
+  if (json) process.stdout.write(formatted.text);
+  else if (formatted.stream === "stderr") p.log.error(formatted.text);
+  else {
+    p.log.success(formatted.text);
+    p.outro("Done.");
+  }
+  process.exitCode = formatted.exitCode;
+}
+
+function emitErrandAbandonFailure(code: string, message: string, json: boolean): void {
+  emitErrandAbandonResult(createLocusMutationResult({
+    outcome: "error",
+    operation: "errand-abandon",
     error: { code, message },
     recommendedPromptText: "Resolve the reported input or configuration error before retrying.",
   }), json);

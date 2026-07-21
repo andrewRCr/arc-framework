@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import {
   runUserInboxMutation,
   runUserInboxRemove,
+  unmarkCurrentInboxEntry,
   type UserIOContext,
 } from "../../src/commands/user.js";
 import { inboxEntrySourceDigest } from "../../src/lib/user-sync/index.js";
@@ -208,5 +209,46 @@ describe("runUserInboxMutation", () => {
     const retry = await runUserInboxMutation({ cwd, io: io(), identity: IDENTITY, mutations: [mutation] });
     expect(retry.changed).toBe(true);
     expect(await readFile(inboxPath, "utf-8")).toContain("- _Dispatch:_ `dispatch-retry`");
+  });
+
+  it("clears only the exact dispatch binding and keeps the capture", async () => {
+    const title = "Fix the flaky log assertion";
+    await runUserInboxMutation({
+      cwd,
+      io: io(),
+      identity: IDENTITY,
+      mutations: [{
+        kind: "mark",
+        title,
+        sourceDigest: inboxEntrySourceDigest(INBOX, title),
+        dispatchId: "dispatch-abandon",
+      }],
+    });
+
+    await expect(unmarkCurrentInboxEntry({
+      cwd,
+      io: io(),
+      identity: IDENTITY,
+      title,
+      dispatchId: "another-dispatch",
+    })).rejects.toThrow(/bound to another dispatch/);
+
+    const cleared = await unmarkCurrentInboxEntry({
+      cwd,
+      io: io(),
+      identity: IDENTITY,
+      title,
+      dispatchId: "dispatch-abandon",
+    });
+    expect(cleared.changed).toBe(true);
+    expect(await readFile(inboxPath, "utf-8")).toBe(INBOX);
+
+    await expect(unmarkCurrentInboxEntry({
+      cwd,
+      io: io(),
+      identity: IDENTITY,
+      title,
+      dispatchId: "another-dispatch",
+    })).resolves.toMatchObject({ changed: false });
   });
 });

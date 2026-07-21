@@ -462,15 +462,13 @@ result so workflows consume verbs and precomposed verdicts.
         - Rewired close to the shared human/JSON mutation result and exact next-dispatch offer, with focused unit,
           real-Git integration, and built-CLI coverage for deletion, replay, compatibility, and failure containment.
 
-    - `[ ]` **5.1.f Add explicit ordinary-Errand abandonment**
-        - Add `arc errand abandon <slug>` for identity-only open, paused, or exact closed-unmerged awaiting tails.
-        - Register abandon plus `--json` in `packages/arc-framework/src/cli.ts` and render only the shared result.
-        - Require clean/provenance/ref-preservation checks, clear only the matching execute-dispatch binding through
-          the shared inbox mutation seam without deleting its capture, and never treat branch absence or age as
-          authorization.
-        - Build `test-first` (one behavior at a time):
-            - Cover each legal state, live/unknown/dirty residue, every host result, exact dispatch unbinding,
-              changed inbox state, moved refs, and idempotent replay.
+    - `[x]` **5.1.f Add explicit ordinary-Errand abandonment**
+        - Added `errand abandon` for exact ordinary-v3 open, paused, and closed-unmerged review tails, with
+          base-or-fetched-remote ref preservation, dead-residue lease/provenance/cleanliness checks, and exact
+          record-lock cleanup; absent or moved branches, live/unknown leases, and every non-authorizing host result
+          retain the identity.
+        - Routed exact execute-dispatch unbinding through the notes-locked inbox mutation seam without deleting the
+          capture, retired identity last, and exposed one shared human/JSON result with replay-safe command coverage.
 
     - `[ ]` **5.1.g Convert exact v3 Errands into work-unit session homes**
         - Refactor `packages/arc-framework/src/lib/errand/promote.ts` and its handler so `arc errand promote` requires
