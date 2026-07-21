@@ -51,6 +51,13 @@ export interface MarkdownAuthority {
   classify(path: string): MarkdownPathIdentity;
 }
 
+/** Loaded current-install evidence and its derived Markdown authority. */
+export interface LoadedMarkdownAuthority {
+  readonly authority: MarkdownAuthority;
+  readonly manifest: Manifest;
+  readonly recipe: Recipe;
+}
+
 interface MarkdownPathStat {
   isFile(): boolean;
   isDirectory(): boolean;
@@ -218,7 +225,9 @@ export function createMarkdownAuthority(options: CreateMarkdownAuthorityOptions)
  * @param options - Repository root and injected read-only filesystem boundaries
  * @returns Current authority classifier
  */
-export async function loadMarkdownAuthority(options: LoadMarkdownAuthorityOptions): Promise<MarkdownAuthority> {
+export async function loadMarkdownAuthorityContext(
+  options: LoadMarkdownAuthorityOptions,
+): Promise<LoadedMarkdownAuthority> {
   const manifestPath = join(options.root, ".arc/system/.internal/manifest.json");
   let manifest: Manifest | null;
   try {
@@ -256,7 +265,16 @@ export async function loadMarkdownAuthority(options: LoadMarkdownAuthorityOption
       // createMarkdownAuthority reports the path-specific missing-output failure.
     }
   }
-  return createMarkdownAuthority({ recipe, manifest, existingPaths });
+  return {
+    authority: createMarkdownAuthority({ recipe, manifest, existingPaths }),
+    manifest,
+    recipe,
+  };
+}
+
+/** Load only the current Markdown authority classifier. */
+export async function loadMarkdownAuthority(options: LoadMarkdownAuthorityOptions): Promise<MarkdownAuthority> {
+  return (await loadMarkdownAuthorityContext(options)).authority;
 }
 
 /**

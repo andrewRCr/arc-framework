@@ -63,7 +63,7 @@ path before aligned-table enforcement begins.
   ASCII goldens, row ordering, dependency rendering, or conditional columns. User-status and derived readiness
   composition now produce aligned-`MD060` tables for CJK, combining-mark, emoji-variation, and ZWJ values.
 
-### `[ ]` **2.4 Format explicit GFM tables through validated atomic replacements**
+### `[x]` **2.4 Format explicit GFM tables through validated atomic replacements**
 
 - _Goal:_ An explicit tracked-path command can normalize supported GFM tables by display width without changing
   unrelated bytes or leaving a partial validation pass.
@@ -73,40 +73,16 @@ path before aligned-table enforcement begins.
           serialization, backward range splicing, container-prefix validation, syntax-tree equivalence checks, and
           exact outside-range preservation for UTF-8, BOM, line-ending, and final-newline inputs.
 
-    - `[ ]` **2.4.b Route and validate complete explicit input sets**
-        - For a package Framework source mapped by the evaluated current-install recipe to an existing Framework
-          output, project the transformed in-memory source through `renderTemplate()` with stored install
-          configuration and include its rendered `.arc` counterpart in the same validation and write plan. Format
-          a package source with no current installed output source-only.
-        - Expose the projection independently as
-          `npm run render:framework -- <package-source> [<package-source> ...]` for later non-table source edits;
-          restrict it to explicit installed Framework sources and leave manifest, pristine, skills, harness state,
-          and Configurable files untouched.
-        - Build `test-first` (one behavior at a time):
-            - One or more explicit tracked Markdown paths resolve from the Git top level; empty input, directories,
-              unsafe paths, any symbolic-link component, non-Markdown files, untracked files, and unmatched
-              selections fail before content reads or writes.
-            - Ordinary selected files route to table transformation, managed meta files to
-              `normalizeMetaCoreTable`, rendered Framework instances refuse with their package-source remedy, and
-              readiness output routes to its renderer command; rendered bytes never become package-source input.
-            - Framework projection preserves stored-install token and conditional output while refusing
-              Configurable, Scaffolded, project-owned, missing-output, contradictory, and source-only paths.
-            - Recipe-mapped Framework outputs remain projectable across a stale missing per-file manifest entry;
-              package sources outside the evaluated current install format source-only.
-            - Every selected result computes before the first filesystem mutation and reports every changed table
-              range.
+    - `[x]` **2.4.b Route and validate complete explicit input sets**
+        - Added complete in-memory planning for ordinary, managed-meta, source-only, and installed Framework paths;
+          installed Framework sources project through `renderTemplate()` with stored configuration. The independent
+          `render:framework` command accepts only installed Framework sources and refuses all other authority classes
+          before selected content is read.
 
-    - `[ ]` **2.4.c Write validated files atomically and expose `format:tables`**
-        - Wire `npm run format:tables -- <path> [<path> ...]` as the only public repository table remedy.
-        - Reuse `atomicWriteFile()` for same-directory temporary replacement and inject the per-file writer at the
-          multi-file orchestration boundary so partial operating-system failures are deterministic to test.
-        - Build `test-first` (one behavior at a time):
-            - Changed files replace through same-directory temporary files plus rename, with temporary residue
-              cleaned after validation or write failure.
-            - A later operating-system write failure reports successful paths, the failed path, and untouched
-              remainder; idempotence makes explicit retry safe.
-            - Multi-file validation-before-write, linked-worktree invocation, no-op runs, and idempotent retries
-              preserve the operation contract.
+    - `[x]` **2.4.c Write validated files atomically and expose `format:tables`**
+        - Added injectable, sequential execution over fully validated plans, byte-capable same-directory atomic
+          replacement, deterministic partial-failure reporting, and the public `format:tables` command. Real Git
+          coverage verifies linked-worktree resolution, validation-before-write, cleanup, no-op runs, and retries.
 
 ## **Phase 3:** Aligned-table enforcement and migration
 

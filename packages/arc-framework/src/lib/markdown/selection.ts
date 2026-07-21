@@ -1,6 +1,5 @@
 /** Git and filesystem selection boundaries for repository Markdown operations. */
 
-import type { realpath as realpathFn } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 
 import type { GitExec } from "../git/index.js";
@@ -42,7 +41,7 @@ export interface ValidateExplicitMarkdownPathsOptions {
   readonly operation: "mutate" | "worktree-read";
   readonly exec: GitExec;
   readonly lstat: (path: string) => Promise<MarkdownPathStat>;
-  readonly realpath: typeof realpathFn;
+  readonly realpath: (path: string) => Promise<string>;
 }
 
 /** Inputs for selecting the complete tracked Markdown corpus from one Git view. */
@@ -56,7 +55,7 @@ export interface EnumerateTrackedMarkdownPathsOptions {
 export interface MarkdownRepositoryRootOptions {
   readonly cwd: string;
   readonly exec: GitExec;
-  readonly realpath: typeof realpathFn;
+  readonly realpath: (path: string) => Promise<string>;
 }
 
 function selectionError(message: string, code: `markdown.${Lowercase<string>}`): ArcError {
