@@ -213,6 +213,24 @@ describe("scaffoldCohortMembers — the three parent-position placement arms", (
       expect(writeFor(writes, `${dir}/meta-alpha.md`).content).toContain(`**Cohort:** \`${cohort}\``);
     });
   }
+
+  it("rejects unvalidated member and cohort operands before writing", async () => {
+    for (const params of [
+      { cohort: "Not-A-Slug", members: [member("alpha")] },
+      { cohort: "neo", members: [member("../alpha")] },
+      { cohort: "neo", members: [member("alpha"), member("../beta")] },
+    ]) {
+      const { ctx, writes, mkdirs } = buildHarness();
+
+      await expect(scaffoldCohortMembers(ctx, {
+        ...params,
+        originContext: ORIGIN_CONTEXT,
+        internalEdges: [],
+      })).rejects.toThrow();
+      expect(writes).toEqual([]);
+      expect(mkdirs).toEqual([]);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

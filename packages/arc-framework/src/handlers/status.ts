@@ -1,7 +1,7 @@
 /**
  * Handler for `arc status` — the composite probe orchestrator.
  *
- * Reads `arc.identity` / `arc.role` via two parallel `git config` calls,
+ * Reads configured identity and role pointers in parallel,
  * builds the default probe bundle from real I/O, and delegates orchestration
  * to {@link runStatus} / {@link runSessionInitStatus}. Branches on scope
  * (`--session-init`) and format (`--json`); `--json` bypasses Clack and
@@ -51,7 +51,6 @@ import {
 } from "../commands/user.js";
 import {
   filterRosterByIdentity,
-  gitConfigGet,
   runIdentityScopedWorktreeRoster,
   runWorktreeRoster,
 } from "../lib/git/index.js";
@@ -130,11 +129,13 @@ import {
   assertSessionRecoverProbeResult,
 } from "../commands/status/schema.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
+import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
+import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
@@ -156,27 +157,6 @@ export interface StatusCliOptions {
 
 function writeProjectReadinessWarnings(warnings: readonly ProjectReadinessWarning[]): void {
   for (const warning of warnings) process.stderr.write(`warning: ${warning.rendered}\n`);
-}
-
-/** Normalize a `git config` readback — `undefined`, empty, and whitespace-only become `null`. */
-export function normalizeGitConfigValue(value: string | undefined): string | null {
-  if (value === undefined) return null;
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? null : trimmed;
-}
-
-async function readIdentityPointers(): Promise<{
-  identity: string | null;
-  role: string | null;
-}> {
-  const [identityRaw, roleRaw] = await Promise.all([
-    gitConfigGet(gitExec, "arc.identity"),
-    gitConfigGet(gitExec, "arc.role"),
-  ]);
-  return {
-    identity: normalizeGitConfigValue(identityRaw),
-    role: normalizeGitConfigValue(roleRaw),
-  };
 }
 
 function releaseRoutingFromSettings(settings: ResolvedSettingsResult): ReleaseRoutingValue {
@@ -221,7 +201,7 @@ async function resolveNudgeState(
   }
   const surfaces = resolveSurfaces !== undefined
     ? await resolveSurfaces(identity)
-    : await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec });
+    : await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec });
   const markerPath = surfaces.identityGlobalDisplayPath(markerRelative);
   const absoluteMarkerPath = surfaces.identityGlobalPath(markerRelative);
   const lastNudge = await io.readFile(absoluteMarkerPath).then(
@@ -267,7 +247,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // Errand records still feed the oracle so recorded `chore/`/`fix/` errand
     // branches are not mis-emitted as `no-record-or-meta` residue.
     const { settings } = await readConfigSettings(cwd);
-    const { identity } = await readIdentityPointers();
+    const { identity } = await readIdentityPointers(gitExec);
     // No identity ⇒ no errand-record ref to read; empty+complete is authoritative
     // (not degraded). Degraded `complete: false` is only for a failed read.
     const recordResult: ListErrandRecordsResult = identity === null
@@ -318,12 +298,12 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     readFile: (path: string) => readFile(path, "utf8"),
   };
   const io = createUserIOContext();
-  const { identity, role } = await readIdentityPointers();
+  const { identity, role } = await readIdentityPointers(gitExec);
   const userSurfaceResolvers = new Map<string, ReturnType<typeof resolveUserSurfaceResolver>>();
   const userSurfacesFor = (id: string): Promise<UserSurfaceResolver> => {
     let resolver = userSurfaceResolvers.get(id);
     if (resolver === undefined) {
-      resolver = resolveUserSurfaceResolver({ cwd, identity: id, exec: gitExec });
+      resolver = resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(id), exec: gitExec });
       userSurfaceResolvers.set(id, resolver);
     }
     return resolver;
@@ -411,7 +391,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         cwd,
         dirty: () => runDirtyStateStatus({ exec: gitExec }),
       }),
-      identityGlobalUserDir: identity === null ? null : (await userSurfacesFor(identity)).identityGlobalRoot,
+      workingMemoryPath: identity === null ? null : (await userSurfacesFor(identity)).workingMemoryPath,
     });
     assertSessionRecoverProbeResult(result);
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -742,10 +722,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       taskCursor: async (taskListPath) =>
         resolveTaskListCursorFromFile({ cwd, taskListPath }),
     };
-    const identityGlobalUserDir = identity === null
+    const workingMemoryPath = identity === null
       ? null
-      : (await userSurfacesFor(identity)).identityGlobalRoot;
-    const result = await runSessionInitStatus({ identity, role, probes, identityGlobalUserDir });
+      : (await userSurfacesFor(identity)).workingMemoryPath;
+    const result = await runSessionInitStatus({ identity, role, probes, workingMemoryPath });
     if (opts.writeCompactionSeed && compactionSeedGitSnapshotP !== null) {
       try {
         const gitSnapshot = await compactionSeedGitSnapshotP;

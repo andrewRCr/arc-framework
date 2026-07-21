@@ -115,7 +115,7 @@ export async function runStatus(options: RunStatusOptions): Promise<StatusResult
 export async function runSessionInitStatus(
   options: RunSessionInitStatusOptions,
 ): Promise<SessionInitProbeResult> {
-  const { identity, role, probes, identityGlobalUserDir } = options;
+  const { identity, role, probes, workingMemoryPath } = options;
 
   type RawUser = SessionResult<UserSessionInitStatusResult>;
   type RawErrandState = SessionResult<
@@ -415,7 +415,7 @@ export async function runSessionInitStatus(
       activeExtensions: extensions.isOk() ? extensions.value.active : [],
       cohortDocPath,
       cohortDoc,
-      identityGlobalUserDir: identityGlobalUserDir ?? null,
+      workingMemoryPath: workingMemoryPath ?? null,
     }));
   const taskListPath = active.isOk() ? (active.value.taskListPath ?? null) : null;
   const taskCursor =
@@ -465,7 +465,7 @@ export async function runSessionInitStatus(
 export async function runRecoverStatus(
   options: RunRecoverStatusOptions,
 ): Promise<SessionRecoverProbeResult> {
-  const { identity, role, probes, identityGlobalUserDir } = options;
+  const { identity, role, probes, workingMemoryPath } = options;
 
   const worktreeTask = safeProbe("worktree", () => probes.worktree());
   const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
@@ -514,7 +514,7 @@ export async function runRecoverStatus(
       activeExtensions: extensions.isOk() ? extensions.value.active : [],
       cohortDocPath,
       cohortDoc,
-      identityGlobalUserDir: identityGlobalUserDir ?? null,
+      workingMemoryPath: workingMemoryPath ?? null,
     }));
   const taskListPath = active.isOk() ? (active.value.taskListPath ?? null) : null;
   const taskCursor =
@@ -569,7 +569,7 @@ function loadSetFromState(options: {
   activeExtensions: readonly string[];
   cohortDocPath: string | null;
   cohortDoc: SessionResult<string | null>;
-  identityGlobalUserDir: string | null;
+  workingMemoryPath: string | null;
 }): SessionResult<ReturnType<typeof resolveLoadSetManifest>> {
   if (!options.cohortDoc.isOk()) return err(options.cohortDoc.error);
   const resolve = fromThrowable(
@@ -582,7 +582,7 @@ function loadSetFromState(options: {
       taskListPath: options.taskListPath,
       activeExtensions: options.activeExtensions,
       cohortDocPath: options.cohortDocPath,
-      identityGlobalUserDir: options.identityGlobalUserDir,
+      workingMemoryPath: options.workingMemoryPath,
     }),
     (cause) => new SessionCompositionError("resolve-load-set", "loadSet", cause),
   );

@@ -10,6 +10,7 @@ import { readLocusEnvelope } from "../lib/locus/reader.js";
 import { createPlatformProcessInspector } from "../lib/locus/platform-inspectors.js";
 import { gitConfigGet } from "../lib/git/index.js";
 import { gitExec } from "../lib/io-context.js";
+import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { requireArcProjectRoot } from "./shared.js";
 
@@ -53,7 +54,8 @@ export async function handleLocus(options: LocusCliOptions): Promise<void> {
   const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
   const identityGlobalUserDir = identity === null
     ? null
-    : (await resolveUserSurfaceResolver({ cwd, identity, exec: gitExec })).identityGlobalRoot;
+    : (await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: gitExec }))
+      .identityGlobalRoot;
   await runLocusCli(options, {
     read: () => readLocusEnvelope({
       identity,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { join, posix } from "node:path";
+import { posix } from "node:path";
 
 import {
   relocateArtifacts,
@@ -118,7 +118,7 @@ describe("relocateArtifacts", () => {
 
     expect(mkdirs).toEqual([ACTIVE_DIR]);
     expect(moves).toEqual(
-      SORTED_SET.map((name) => ({ from: join(BACKLOG_DIR, name), to: join(ACTIVE_DIR, name) })),
+      SORTED_SET.map((name) => ({ from: posix.join(BACKLOG_DIR, name), to: posix.join(ACTIVE_DIR, name) })),
     );
     expect(result.moved).toEqual(SORTED_SET);
   });
@@ -134,7 +134,7 @@ describe("relocateArtifacts", () => {
 
     expect(mkdirs).toEqual([COMPLETED_DIR]);
     expect(moves).toEqual(
-      SORTED_SET.map((name) => ({ from: join(ACTIVE_DIR, name), to: join(COMPLETED_DIR, name) })),
+      SORTED_SET.map((name) => ({ from: posix.join(ACTIVE_DIR, name), to: posix.join(COMPLETED_DIR, name) })),
     );
     expect(result.moved).toEqual(SORTED_SET);
   });
@@ -150,7 +150,7 @@ describe("relocateArtifacts", () => {
 
     expect(mkdirs).toEqual([BACKLOG_DIR]);
     expect(moves).toEqual(
-      SORTED_SET.map((name) => ({ from: join(ACTIVE_DIR, name), to: join(BACKLOG_DIR, name) })),
+      SORTED_SET.map((name) => ({ from: posix.join(ACTIVE_DIR, name), to: posix.join(BACKLOG_DIR, name) })),
     );
     expect(result.moved).toEqual(SORTED_SET);
   });
@@ -172,7 +172,7 @@ describe("relocateArtifacts", () => {
 
     expect(result.moved).toEqual([`meta-${SLUG}.md`]);
     expect(moves).toEqual([
-      { from: join(ACTIVE_DIR, `meta-${SLUG}.md`), to: join(BACKLOG_DIR, `meta-${SLUG}.md`) },
+      { from: posix.join(ACTIVE_DIR, `meta-${SLUG}.md`), to: posix.join(BACKLOG_DIR, `meta-${SLUG}.md`) },
     ]);
   });
 

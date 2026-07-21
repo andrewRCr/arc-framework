@@ -47,6 +47,7 @@ import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { gitExec, createUserIOContext } from "../lib/io-context.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
+import { SlugSchema } from "../lib/kernel/index.js";
 import { openOrdinaryErrandAtRuntime } from "../lib/errand/open-runtime.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
@@ -337,7 +338,11 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
     return;
   }
   const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
-  const identityGlobalUserDir = (await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec }))
+  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+    cwd,
+    identity: SlugSchema.parse(identity),
+    exec: io.exec,
+  }))
     .identityGlobalRoot;
   const createdAt = new Date().toISOString();
   let result: LocusMutationResultV1;
@@ -601,7 +606,11 @@ export async function handleErrandLeave(slug: string, opts: ErrandLeaveOptions):
     return;
   }
   const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
-  const identityGlobalUserDir = (await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec }))
+  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+    cwd,
+    identity: SlugSchema.parse(identity),
+    exec: io.exec,
+  }))
     .identityGlobalRoot;
   let result: LocusMutationResultV1;
   try {

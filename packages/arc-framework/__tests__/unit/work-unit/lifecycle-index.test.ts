@@ -319,4 +319,16 @@ describe("buildLifecycleIndexFromRecords — record-fed (sync, fs-free)", () => 
     expect(index.get("shipped-gamma")?.location).toBe("completed");
     expect(index.has("legacy")).toBe(false);
   });
+
+  it("preserves caller-supplied custom, nested, and archived record paths exactly", () => {
+    const records = [
+      { slug: "active", state: "Active", location: "active", path: "custom/live.md" },
+      { slug: "nested", state: "Planning", location: "planned", path: ".arc/backlog/planned/coh/nested/record.md" },
+      { slug: "archived", state: "Shipped", location: "completed", path: ".arc/completed/2026-q3/09_archived/custom.md" },
+    ] as const;
+
+    const index = buildLifecycleIndexFromRecords(records);
+
+    for (const record of records) expect(index.get(record.slug)?.path).toBe(record.path);
+  });
 });

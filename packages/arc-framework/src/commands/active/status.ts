@@ -20,11 +20,15 @@ import { readActiveMetaCandidates, stripInlineCode } from "../../lib/active/meta
 import { isPlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
 import { getCurrentBranch } from "../../lib/git/index.js";
 import type { PlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
+import { SlugSchema } from "../../lib/kernel/index.js";
+import type { WorkUnitPlacement } from "../../lib/layout/index.js";
 import type {
+  ActiveCandidateSemantics,
   ActiveLayout,
   ActiveSessionInitOptions,
   ActiveSessionInitResolution,
   ActiveSessionInitResult,
+  ActiveSessionInitInternalResult,
   ActiveStatusOptions,
   ActiveStatusResult,
   SessionType,
@@ -148,6 +152,13 @@ export async function runActiveStatus(
 export async function runActiveSessionInitStatus(
   options: ActiveSessionInitOptions,
 ): Promise<ActiveSessionInitResult> {
+  return (await runActiveSessionInitStatusInternal(options)).result;
+}
+
+/** Resolve the stable session envelope together with non-serialized semantic candidate facts. */
+export async function runActiveSessionInitStatusInternal(
+  options: ActiveSessionInitOptions,
+): Promise<ActiveSessionInitInternalResult> {
   const role = options.role ?? null;
   const identity = options.identity ?? null;
 
@@ -158,7 +169,7 @@ export async function runActiveSessionInitStatus(
     // not read `layout`. sessionType still applies the branch-pattern
     // fallback so an orphan planning branch resolves correctly.
     const currentBranch = await getCurrentBranch(options.exec);
-    return {
+    return { result: {
       mode: "session-init",
       layout: "full",
       resolution: "none",
@@ -168,7 +179,7 @@ export async function runActiveSessionInitStatus(
       currentWorkflow: null,
       planningStage: null,
       warnings: [CONTRIBUTOR_IDENTITY_MISSING_WARNING],
-    };
+    }, resolved: null, candidates: [] };
   }
 
   const readerOptions = resolveReaderOptions(role, identity);
@@ -176,7 +187,43 @@ export async function runActiveSessionInitStatus(
     readActiveMetaCandidates(options.cwd, readerOptions),
     getCurrentBranch(options.exec),
   ]);
-  return resolveSessionInit(options.cwd, scan.layout, scan.candidates, scan.warnings, currentBranch);
+  const semantic = resolveCandidateSemantics(scan.candidates, role, identity, scan.warnings);
+  const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch);
+  const resolved = result.resolution === "single"
+    ? semantic.candidates.find((entry) => entry.candidate.path === result.path) ?? null
+    : null;
+  return { result, resolved, candidates: result.resolution === "multiple" ? semantic.candidates : [] };
+}
+
+function resolveCandidateSemantics(
+  candidates: MetaFileCandidate[],
+  role: string | null,
+  identity: string | null,
+  warnings: string[],
+): { valid: MetaFileCandidate[]; candidates: ActiveCandidateSemantics[] } {
+  const valid: MetaFileCandidate[] = [];
+  const semantic: ActiveCandidateSemantics[] = [];
+  for (const candidate of candidates) {
+    const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
+    if (match === null) {
+      valid.push(candidate);
+      continue;
+    }
+    const slug = SlugSchema.safeParse(match[1]);
+    if (!slug.success) {
+      warnings.push(`Ignoring active meta with invalid work-unit slug: ${candidate.filename}.`);
+      continue;
+    }
+    let placement: WorkUnitPlacement;
+    if (role === "contributor" && identity !== null) {
+      placement = { kind: "active", scope: { kind: "contributor", identity: SlugSchema.parse(identity) } };
+    } else {
+      placement = { kind: "active", scope: { kind: "project" } };
+    }
+    valid.push(candidate);
+    semantic.push({ candidate, slug: slug.data, placement });
+  }
+  return { valid, candidates: semantic };
 }
 
 function resolveReaderOptions(

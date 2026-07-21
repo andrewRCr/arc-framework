@@ -1,6 +1,6 @@
 /** Checkout-directed projection of one exact work-unit metadata subject. */
 
-import { relative, sep } from "node:path";
+import { join, relative, sep } from "node:path";
 
 import {
   inferSessionType,
@@ -116,7 +116,9 @@ export async function projectCheckoutSubjectMeta(options: {
     cohortDocPath,
     loadSet: resolveLoadSetManifest({
       identity: options.identity,
-      identityGlobalUserDir: options.identityGlobalUserDir,
+      workingMemoryPath: options.identityGlobalUserDir === undefined || options.identityGlobalUserDir === null
+        ? options.identityGlobalUserDir
+        : join(options.identityGlobalUserDir, "WORKING-MEMORY.md"),
       activeWorkUnit: options.subjectKey,
       metaPath: expectedPath,
       sessionType,

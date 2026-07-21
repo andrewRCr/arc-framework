@@ -34,6 +34,8 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, type GitExec } from "../lib/git/exec.js";
 import { isCanonicalDigest } from "../lib/canonical/canonical-json.js";
 import { createUserIOContext, prepareGitRefVerification, readGitBlobBytes } from "../lib/io-context.js";
+import { SlugSchema } from "../lib/kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import {
   resolvePrimaryWorktreePath,
@@ -113,6 +115,19 @@ const lifecycleFs: LifecycleIndexFs = {
   readdir: (path) => readdir(path, { withFileTypes: true }),
   readFile: (path) => readFile(path, "utf8"),
 };
+
+function projectActiveMetaPath(slugValue: string) {
+  return resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: SlugSchema.parse(slugValue),
+    artifact: "meta",
+  });
+}
+
+function materializeActiveMetaPath(cwd: string, slugValue: string): string {
+  return materializeArcPath(cwd, projectActiveMetaPath(slugValue));
+}
 
 /** `meta-<slug>.md` → `<slug>`, or `null` when the filename is not a meta file. */
 function slugFromMetaFilename(filename: string): string | null {
@@ -538,7 +553,7 @@ export interface ParkOptions {
  */
 async function resolveWuWorktreePath(base: VerbBase, slug: string): Promise<string> {
   try {
-    const record = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`)));
+    const record = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug)));
     const branch = record.Branch;
     if (branch !== null && branch !== "[none]") {
       const byBranch = await resolveWorktreePathsByBranch(base.io.exec);
@@ -576,7 +591,7 @@ async function resolveParkSource(
   slug: string,
 ): Promise<{ worktreePath: string; record: Record<MetaFieldName, string | null> } | null> {
   try {
-    const record = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`)));
+    const record = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug)));
     return { worktreePath: await resolveWuWorktreePath(base, slug), record };
   } catch {
     // Not in the current checkout — scan worktrees for the one holding it.
@@ -989,7 +1004,7 @@ export interface ReopenOptions {
 async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | undefined> {
   let branch: string | null;
   try {
-    branch = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`))).Branch;
+    branch = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug))).Branch;
   } catch {
     return undefined;
   }
@@ -1482,7 +1497,7 @@ export async function handleRepointDesign(event: string | undefined): Promise<vo
     return;
   }
 
-  const metaPath = join(base.cwd, ".arc/active", `meta-${slug}.md`);
+  const metaPath = materializeActiveMetaPath(base.cwd, slug);
   const currentDesign = parseIdentifierList(parseMetaRecord(await readFile(metaPath, "utf8"))["Design"]);
 
   const { executor } = await buildExecutor(base);

@@ -22,7 +22,7 @@ import {
 } from "../lib/skills/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import {
-  ARC_CONFIG_SEGMENTS, ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
+  ARC_CONFIG_SUFFIX, ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
   MANIFEST_SCHEMA_VERSION,
 } from "../lib/constants.js";
@@ -33,11 +33,16 @@ import {
   buildTokenMap,
 } from "../lib/config/index.js";
 import {
-  resolveFileList, toOutputPath, classifyFile, buildManifestFiles, needsRendering,
+  resolveFileList, classifyFile, buildManifestFiles, needsRendering,
 } from "../lib/classification.js";
 import { UserFacingError } from "../lib/errors.js";
 import { atomicWriteJson } from "../lib/fs.js";
 import { applyExecutableInstallPermissions } from "../lib/install-permissions.js";
+import {
+  materializeArcPath,
+  resolveArcPath,
+  resolveTemplateOutputBindings,
+} from "../lib/layout/index.js";
 
 // --- Types ---
 
@@ -80,7 +85,7 @@ export async function isArcInstalled(
   access: AccessFn,
 ): Promise<boolean> {
   try {
-    await access(join(cwd, ...ARC_CONFIG_SEGMENTS));
+    await access(join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...ARC_CONFIG_SUFFIX));
     return true;
   } catch {
     return false;
@@ -133,6 +138,12 @@ export async function runInit(
     return null;
   }
 
+  // Validate the complete template projection before acquiring the init lock
+  // or performing any other filesystem effect.
+  const config = buildConfigMap(prompts);
+  const templateFiles = resolveFileList(recipe, config);
+  const templateBindings = resolveTemplateOutputBindings(templateFiles);
+
   const lockPath = join(cwd, ".arc-init.lock");
 
   // Acquire the init lock. While another `arc init` holds the lock, installed
@@ -168,14 +179,10 @@ export async function runInit(
       });
     }
 
-    const arcDir = join(cwd, ".arc");
+    const arcDir = materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" }));
 
     // Build maps
-    const config = buildConfigMap(prompts);
     const tokens = buildTokenMap(prompts);
-
-    // Resolve file list
-    const templateFiles = resolveFileList(recipe, config);
 
     // Build config_key overrides for arc-config.yml
     const configKeyOverrides = buildConfigKeyOverrides(prompts);
@@ -195,11 +202,10 @@ export async function runInit(
     const pristineStore: Record<string, string> = {};
     const ARC_CONFIG_PATH = ARC_CONFIG_TEMPLATE_PATH;
 
-    for (const templateFile of templateFiles) {
-      const srcPath = join(templateDir, templateFile);
-      const outputRelPath = toOutputPath(templateFile);
+    for (const { templatePath, outputPath: outputRelPath } of templateBindings) {
+      const srcPath = join(templateDir, templatePath);
       const destPath = join(arcDir, outputRelPath);
-      const classification = classifyFile(templateFile);
+      const classification = classifyFile(templatePath);
 
       // Ensure destination directory exists
       await ensureDir(dirname(destPath), io.mkdir);
@@ -208,10 +214,10 @@ export async function runInit(
       // token + conditional rendering, everything else is copied as-is.
       const raw = await io.readFile(srcPath);
       let renderedContent: string;
-      if (templateFile === ARC_CONFIG_PATH) {
+      if (templatePath === ARC_CONFIG_PATH) {
         renderedContent = renderConfigOverrides(raw, configKeyOverrides);
-      } else if (needsRendering(templateFile)) {
-        renderedContent = renderConditionals(renderTokens(raw, tokens), config, templateFile);
+      } else if (needsRendering(templatePath)) {
+        renderedContent = renderConditionals(renderTokens(raw, tokens), config, templatePath);
       } else {
         renderedContent = raw;
       }
@@ -220,7 +226,7 @@ export async function runInit(
       await io.writeFile(destPath, renderedContent);
       filesWritten.push(outputRelPath);
       fileContents[outputRelPath] = renderedContent;
-      templatePathMap[outputRelPath] = templateFile;
+      templatePathMap[outputRelPath] = templatePath;
 
       // Collect pristine content for Framework and Configurable files (not Scaffolded)
       if (classification !== "Scaffolded") {

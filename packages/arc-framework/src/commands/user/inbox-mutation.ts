@@ -12,6 +12,7 @@ import {
   type MutateInboxEntriesResult,
 } from "../../lib/user-sync/index.js";
 import { resolveUserSurfaceResolver } from "../../lib/user-surfaces.js";
+import { SlugSchema } from "../../lib/kernel/index.js";
 import type { UserIOContext } from "./types.js";
 
 /** Exact USER-INBOX state observed or written while holding the notes lock. */
@@ -54,7 +55,7 @@ export async function withLockedUserInbox<T>(
   dependencies: UserInboxMutationDependencies = {},
 ): Promise<{ result: T; postImage: UserInboxPostImage }> {
   const { cwd, io, identity } = options;
-  const inboxPath = (await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec }))
+  const inboxPath = (await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec }))
     .identityGlobalPath("USER-INBOX.md");
   const acquireLock = dependencies.acquireLock ?? acquireAdvisoryLock;
   const releaseLock = dependencies.releaseLock ?? releaseAdvisoryLock;

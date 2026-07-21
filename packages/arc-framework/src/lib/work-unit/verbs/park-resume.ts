@@ -47,6 +47,8 @@ import { parseMetaRecord, type MetaFieldName, type MetaFieldOverrides } from "..
 import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
 import { receiptId } from "../../canonical/receipt-id.js";
+import { SlugSchema, type Slug } from "../../kernel/index.js";
+import { resolveArcPath } from "../../layout/index.js";
 import type { WriteFileFn } from "../../template/files.js";
 import type { LifecyclePosition } from "../lifecycle-state.js";
 import { buildLifecycleIndex } from "../lifecycle-index.js";
@@ -68,17 +70,26 @@ import {
 import { isSlugSafe } from "../slug.js";
 
 /** The flat `active/` tier — where a started WU's artifacts live. */
-const ACTIVE_DIR = ".arc/active";
+const ACTIVE_DIR = resolveArcPath({ kind: "placement-root", tier: "active" });
 
 /** The cohort-aware per-WU parked directory (cwd-relative). */
-function parkedDir(name: string, rawCohort: string | null): string {
+function parkedDestination(name: Slug, rawCohort: string | null): { toDir: string; metaPath: string } {
   const cohort = rawCohort?.trim() ?? "";
-  if (cohort === "" || cohort === "[none]") return `.arc/backlog/planned/${name}`;
+  const segments = cohort === "" || cohort === "[none]" ? [] : cohort.split("/");
   const shapeError = validateCohortPath(cohort);
-  if (!isSafeCohortPath(cohort) || shapeError !== null) {
+  const parsedSegments = segments.map((segment) => SlugSchema.safeParse(segment));
+  if (!isSafeCohortPath(cohort) || shapeError !== null || parsedSegments.some((segment) => !segment.success)) {
     throw new Error(`Cannot park \`${name}\`: invalid Cohort path \`${rawCohort ?? ""}\`.`);
   }
-  return `.arc/backlog/planned/${cohort}/${name}`;
+  const placement = {
+    kind: "backlog",
+    commitment: "planned",
+    cohort: segments.map((segment) => SlugSchema.parse(segment)),
+  } as const;
+  return {
+    toDir: resolveArcPath({ kind: "work-unit-container", placement, slug: name }),
+    metaPath: resolveArcPath({ kind: "work-unit-artifact", placement, slug: name, artifact: "meta" }),
+  };
 }
 
 /**
@@ -290,16 +301,16 @@ export async function runPark(ctx: ParkContext, params: ParkParams): Promise<Par
     return { status: "rejected", reason: "withdraw the PR via `reopen` before parking an Integrating WU." };
   }
 
-  let toDir: string;
+  let destination: { toDir: string; metaPath: string };
   try {
-    toDir = parkedDir(name, sourceRecord.Cohort);
+    destination = parkedDestination(name, sourceRecord.Cohort);
   } catch (err) {
     return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
   }
 
   return sourceRecord.State === "Active"
-    ? parkActive(ctx, name, reason, sourceRecord, worktreePath, currentLocus, toDir)
-    : parkPlanning(ctx, name, sourceRecord, toDir);
+    ? parkActive(ctx, name, reason, sourceRecord, worktreePath, currentLocus, destination)
+    : parkPlanning(ctx, name, sourceRecord, destination);
 }
 
 /**
@@ -314,8 +325,9 @@ async function parkPlanning(
   ctx: ParkContext,
   name: string,
   sourceRecord: Record<MetaFieldName, string | null>,
-  toDir: string,
+  destination: { toDir: string; metaPath: string },
 ): Promise<ParkResult> {
+  const { toDir, metaPath } = destination;
   const retirement = ctx.planningRetirement;
   if (retirement === undefined) {
     return { status: "rejected", reason: "park-at-Planning retirement authority is not wired." };
@@ -430,7 +442,7 @@ async function parkPlanning(
   return {
     status: "parked",
     outcome: completedOutcome,
-    metaPath: `${toDir}/meta-${name}.md`,
+    metaPath,
     receipt,
     authorityVersion: recorded.authorityVersion,
   };
@@ -475,8 +487,9 @@ async function parkActive(
   sourceRecord: Record<MetaFieldName, string | null>,
   worktreePath: string,
   currentLocus: string,
-  toDir: string,
+  destination: { toDir: string; metaPath: string },
 ): Promise<ParkResult> {
+  const { toDir, metaPath } = destination;
   // An Active WU must carry its preserved branch: `resume` hard-rejects a
   // pointer with `Branch: [none]`, so parking one would be unresumable. Reject
   // before teardown, leaving no partial state behind.
@@ -496,7 +509,6 @@ async function parkActive(
     return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
   }
 
-  const metaPath = `${toDir}/meta-${name}.md`;
   const pointerRecord = composePointerRecord({
     name,
     branch,
@@ -659,7 +671,12 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   return {
     status: "resumed",
     outcome,
-    metaPath: `${ACTIVE_DIR}/meta-${name}.md`,
+    metaPath: resolveArcPath({
+      kind: "work-unit-artifact",
+      placement: { kind: "active", scope: { kind: "project" } },
+      slug: name,
+      artifact: "meta",
+    }),
     branch,
     inPlaceCheckoutPending: params.inPlace === true,
   };

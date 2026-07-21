@@ -10,7 +10,9 @@
  */
 
 import { mkdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { SlugSchema } from "../kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../layout/index.js";
 
 import { atomicWriteJson } from "../fs.js";
 
@@ -69,7 +71,14 @@ export function emptyMarker(): MarkerSchemaV1 {
  * @returns Absolute marker file path under `.arc/user/{identity}/.internal/`
  */
 export function resolveMarkerPath(ctx: MarkerPathContext): string {
-  return join(ctx.cwd, ".arc", "user", ctx.identity, ".internal", "release-setup.json");
+  const identity = SlugSchema.parse(ctx.identity);
+  return join(
+    materializeArcPath(ctx.cwd, resolveArcPath({ kind: "arc-root" })),
+    "user",
+    identity,
+    ".internal",
+    "release-setup.json",
+  );
 }
 
 /**
@@ -80,7 +89,7 @@ export function resolveMarkerPath(ctx: MarkerPathContext): string {
  * @param ctx - Repository root and identity used for user workspace pathing
  */
 export async function ensureMarkerParent(ctx: MarkerPathContext): Promise<void> {
-  const parent = join(ctx.cwd, ".arc", "user", ctx.identity, ".internal");
+  const parent = dirname(resolveMarkerPath(ctx));
   await mkdir(parent, { recursive: true });
 }
 

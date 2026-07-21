@@ -9,7 +9,7 @@
  */
 
 import type { GitExec } from "../git/exec.js";
-import { normalizeGitRejection } from "../git/process-error.js";
+import { readConfiguredIdentity } from "../git/identity.js";
 import { listErrandRecordsResult, type ListErrandRecordsResult } from "../errand/record.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
@@ -48,25 +48,17 @@ export async function renderTrackedProjectReadinessViewResult(
   // to read; empty+complete is authoritative (not degraded). A failed identity
   // read is NOT authoritative: it degrades completeness so record-less branches
   // soften to `classification-unavailable` instead of asserting residue.
-  let identity: string | undefined;
+  let identity: string | null = null;
   let identityReadFailed = false;
   try {
-    const { stdout } = await options.exec("git", ["config", "--get", "arc.identity"]);
-    identity = stdout.trim();
+    identity = await readConfiguredIdentity(options.exec);
   } catch (err) {
-    // `git config --get` exits 1 for an unset key — authoritative absence.
-    // Any other failure (usage error, spawn failure) is a degraded read.
-    if (normalizeGitRejection(err, {
-      command: "git", args: ["config", "--get", "arc.identity"],
-    }).exitCode === 1) {
-      identity = undefined;
-    } else {
-      identityReadFailed = true;
-    }
+    if (err instanceof Error && "code" in err && err.code === "identity.invalid") throw err;
+    identityReadFailed = true;
   }
   const recordResult: ListErrandRecordsResult = identityReadFailed
     ? { records: [], complete: false, warnings: ["arc.identity read failed; errand records unavailable"] }
-    : identity === undefined || identity === ""
+    : identity === null
       ? { records: [], complete: true, warnings: [] }
       : await listErrandRecordsResult({ exec: options.exec, identity });
   const errandSlugByBranch = new Map(

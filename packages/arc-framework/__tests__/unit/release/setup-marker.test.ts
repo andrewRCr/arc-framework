@@ -51,6 +51,13 @@ describe("ensureMarkerParent", () => {
     const info = await stat(parent);
     expect(info.isDirectory()).toBe(true);
   });
+
+  it("rejects an invalid identity before creating directories", async () => {
+    await expect(
+      ensureMarkerParent({ cwd: fixture.root, identity: "../escape" }),
+    ).rejects.toThrow();
+    expect(await readdir(fixture.root)).toEqual([]);
+  });
 });
 
 describe("readMarker", () => {

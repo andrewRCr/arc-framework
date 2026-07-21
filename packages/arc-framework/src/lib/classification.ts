@@ -10,22 +10,6 @@ import { hashContent } from "./manifest/index.js";
 import { evaluateCondition } from "./template/index.js";
 import type { Classification, Layer, FileEntry, Recipe } from "./types.js";
 
-// --- Output Path ---
-
-/**
- * Compute the output path for a template file, stripping the `.template` suffix.
- *
- * Convention from file-classification strategy: template files like
- * `PROJECT-PRD.template.md` become `PROJECT-PRD.md` in the installed output.
- * Only strips `.template` immediately before the file extension in the filename.
- *
- * @param templatePath - Template-relative path (e.g., `reference/PROJECT-PRD.template.md`)
- * @returns Output path with `.template` stripped from filename
- */
-export function toOutputPath(templatePath: string): string {
-  return templatePath.replace(/\.template(\.[^/]+)$/, "$1");
-}
-
 /**
  * Check whether a template file requires rendering (token/conditional processing).
  *

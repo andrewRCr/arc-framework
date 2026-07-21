@@ -26,6 +26,8 @@ import {
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
 import type { PrWithdrawMode } from "../side-effects/withdraw-pr.js";
+import { SlugSchema } from "../../kernel/index.js";
+import { resolveArcPath } from "../../layout/index.js";
 
 /** The inputs a `reopen` supplies. */
 export interface ReopenParams {
@@ -65,5 +67,14 @@ export async function runReopen(
   });
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-  return { status: "reopened", outcome, metaPath: `.arc/active/meta-${name}.md` };
+  return {
+    status: "reopened",
+    outcome,
+    metaPath: resolveArcPath({
+      kind: "work-unit-artifact",
+      placement: { kind: "active", scope: { kind: "project" } },
+      slug: SlugSchema.parse(name),
+      artifact: "meta",
+    }),
+  };
 }

@@ -74,6 +74,11 @@ vi.mock("../../../src/lib/git/refresh-base.js", () => ({
   refreshBase: () => mockRefreshBase(),
 }));
 
+vi.mock("../../../src/lib/git/identity.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/git/identity.js")>(),
+  readConfiguredIdentity: async () => "andrew",
+}));
+
 vi.mock("../../../src/lib/status/project-view-ref.js", () => ({
   createProjectViewRefSnapshot: (...args: unknown[]) => mockCreateProjectViewRefSnapshot(...args),
 }));

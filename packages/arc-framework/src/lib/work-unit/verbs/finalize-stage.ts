@@ -35,6 +35,7 @@
 
 import { validateClass, type WorkClass } from "../../../commands/active/types.js";
 import { formatValue, type MetaFieldName } from "../../active/meta-reader.js";
+import { resolveArcPath } from "../../layout/index.js";
 import { isSlugSafe } from "../slug.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
@@ -139,7 +140,12 @@ export async function runFinalizeStage(
     return { status: "rejected", reason: `The \`${firePoint}\` finalize takes no Class.` };
   }
 
-  const metaPath = `.arc/active/meta-${name}.md`;
+  const metaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: name,
+    artifact: "meta",
+  });
 
   if (resolvedClass !== null) {
     await ctx.writeClassField(metaPath, resolvedClass);
