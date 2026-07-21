@@ -58,9 +58,9 @@ import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-ex
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
 import {
-  nodeReconcileWorktreeFs,
-  reconcileWorktree,
-} from "./mutators/reconcile-worktree.js";
+  nodeReconcileWorkUnitWorktreeFs,
+  reconcileWorkUnitWorktree,
+} from "./mutators/reconcile-work-unit-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
 import { dischargeDepEdges } from "./side-effects/discharge-dep-edges.js";
@@ -170,6 +170,17 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     return undefined;
   };
 
+  const reconcileBoundWorkUnitWorktree: NonNullable<
+    ExecuteTransitionContext["reconcileWorkUnitWorktree"]
+  > = (op) =>
+    reconcileWorkUnitWorktree({
+      exec,
+      chdir: (dir) => {
+        process.chdir(at(dir));
+      },
+      fs: nodeReconcileWorkUnitWorktreeFs,
+    }, op);
+
   return {
     cwd,
     withCwd: (nextCwd) => buildExecutorContext({ ...deps, cwd: nextCwd }),
@@ -194,8 +205,8 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
         params,
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
-    reconcileWorktree: (op) =>
-      reconcileWorktree({ exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorktreeFs }, op),
+    reconcileWorkUnitWorktree: reconcileBoundWorkUnitWorktree,
+    reconcileWorktree: reconcileBoundWorkUnitWorktree,
 
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));

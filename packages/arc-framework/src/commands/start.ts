@@ -55,11 +55,11 @@ import {
   type TransitionOutcome,
 } from "../lib/work-unit/lifecycle-executor.js";
 import {
-  nodeReconcileWorktreeFs,
-  reconcileWorktree,
-  type ReconcileWorktreeOp,
-  type ReconcileWorktreeResult,
-} from "../lib/work-unit/mutators/reconcile-worktree.js";
+  nodeReconcileWorkUnitWorktreeFs,
+  reconcileWorkUnitWorktree,
+  type ReconcileWorkUnitWorktreeOp,
+  type ReconcileWorkUnitWorktreeResult,
+} from "../lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
@@ -369,9 +369,13 @@ async function runGraduateSpawn(
     };
   }
 
-  let spawnResult: ReconcileWorktreeResult;
+  let spawnResult: ReconcileWorkUnitWorktreeResult;
   try {
-    spawnResult = await ctx.reconcileWorktree({
+    const reconcile = ctx.reconcileWorkUnitWorktree;
+    if (reconcile === undefined) {
+      return { status: "rejected", reason: "graduate spawn requires a work-unit worktree runner." };
+    }
+    spawnResult = await reconcile({
       mutation: "spawn",
       branch,
       base: params.baseBranch,
@@ -462,7 +466,7 @@ async function runGraduateThroughExecutor(
   ctx: ExecuteTransitionContext,
   params: GraduateBaseParams,
   branch: string,
-  worktreeOp: ReconcileWorktreeOp,
+  worktreeOp: ReconcileWorkUnitWorktreeOp,
 ): Promise<GraduateResult> {
   const inputs: TransitionInputs = {
     toDir: ACTIVE_DIR,
@@ -783,8 +787,8 @@ export async function runCreateNew(
   let worktreePath: string;
   let postCreateNotice: string | undefined;
   try {
-    const spawnResult = await reconcileWorktree(
-      { exec: ctx.io.exec, chdir: (dir) => { process.chdir(dir); }, fs: nodeReconcileWorktreeFs },
+    const spawnResult = await reconcileWorkUnitWorktree(
+      { exec: ctx.io.exec, chdir: (dir) => { process.chdir(dir); }, fs: nodeReconcileWorkUnitWorktreeFs },
       {
         mutation: "spawn",
         branch,

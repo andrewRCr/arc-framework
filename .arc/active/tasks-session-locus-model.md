@@ -323,14 +323,10 @@ transaction boundary before operation composers consume it.
           compatibility re-export. The focused old/new suites preserve default spawn, explicit in-place entry,
           ownership-marker ordering, teardown/self-hop behavior, and symbol equivalence.
 
-    - `[ ]` **4.1.d Migrate WU entry and lifecycle-engine callers**
-        - Migrate `start`, executor context, lifecycle executor, and their focused command/engine tests to
-          `reconcileWorkUnitWorktree()` while the compatibility alias remains available to later verb callers.
-        - Preserve spawn-anchored entry, explicit in-place entry, marker/setup ordering, and result typing without
-          changing lifecycle policy in this increment.
-        - Build `test-first` (one behavior at a time):
-            - Cover new/existing WU entry, graduate/start routing, executor context construction, result forwarding,
-              and unchanged failure propagation through the renamed boundary.
+    - `[x]` **4.1.d Migrate WU entry and lifecycle-engine callers**
+        - Migrated direct and graduate `start` entry, the production executor context, and lifecycle execution to the
+          WU-specific reconciler while retaining the old context seam for later verb callers. Focused command and
+          engine coverage proves new/existing routing, context construction, result forwarding, and failure behavior.
 
     - `[ ]` **4.1.e Migrate lifecycle-policy and WU-verb callers, then retire the old name**
         - Migrate lifecycle guards/transitions, `park-resume`, teardown, and their focused WU verb suites to

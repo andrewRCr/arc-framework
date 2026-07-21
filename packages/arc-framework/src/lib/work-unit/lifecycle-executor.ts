@@ -38,9 +38,9 @@ import { resolveSlugPosition } from "./lifecycle-resolver.js";
 import type { LifecyclePosition, Location } from "./lifecycle-state.js";
 import type { ReconcileBranchOp } from "./mutators/reconcile-branch.js";
 import type {
-  ReconcileWorktreeOp,
-  ReconcileWorktreeResult,
-} from "./mutators/reconcile-worktree.js";
+  ReconcileWorkUnitWorktreeOp,
+  ReconcileWorkUnitWorktreeResult,
+} from "./mutators/reconcile-work-unit-worktree.js";
 import type { RelocateArtifactsParams, RelocateArtifactsResult } from "./mutators/relocate-artifacts.js";
 import type { SetPhaseParams, SetPhaseResult } from "./mutators/set-phase.js";
 import {
@@ -72,7 +72,7 @@ export interface TransitionInputs {
   /** The branch op for a declared `reconcile-branch` leg — its `mutation` must match the edge. */
   branchOp?: ReconcileBranchOp;
   /** The worktree op for a declared `reconcile-worktree` leg — its `mutation` must match the edge. */
-  worktreeOp?: ReconcileWorktreeOp;
+  worktreeOp?: ReconcileWorkUnitWorktreeOp;
   /** Values for soft fields whose disposition is `"input"` — required when the field applies. */
   softFields?: Partial<Record<keyof SoftFieldDispositions, string>>;
   /** The WU's resolved `Class` — the `class-resolved` guard input (`promote`). */
@@ -209,8 +209,12 @@ export interface ExecuteTransitionContext {
   relocateArtifacts: (params: RelocateArtifactsParams) => Promise<RelocateArtifactsResult>;
   /** Pre-bound `reconcile-branch` mutator. */
   reconcileBranch: (op: ReconcileBranchOp) => Promise<void>;
-  /** Pre-bound `reconcile-worktree` mutator. */
-  reconcileWorktree: (op: ReconcileWorktreeOp) => Promise<ReconcileWorktreeResult>;
+  /** Pre-bound WU-specific worktree mutator. */
+  reconcileWorkUnitWorktree?: (
+    op: ReconcileWorkUnitWorktreeOp,
+  ) => Promise<ReconcileWorkUnitWorktreeResult>;
+  /** Transitional compatibility seam for verb callers not yet migrated. */
+  reconcileWorktree: (op: ReconcileWorkUnitWorktreeOp) => Promise<ReconcileWorkUnitWorktreeResult>;
   /** Runner for the `scaffold` / `remove` artifact dispositions (Phase-4). */
   scaffoldOrRemove?: ArtifactRunner;
 
@@ -633,6 +637,9 @@ function validateInputs(
     }
   }
   if (e.reconcileWorktree !== undefined) {
+    if (ctx.reconcileWorkUnitWorktree === undefined) {
+      return "this transition reconciles a worktree but no work-unit worktree runner is wired.";
+    }
     if (inputs.worktreeOp === undefined) return "this transition reconciles a worktree but no `worktreeOp` was supplied.";
     if (inputs.worktreeOp.mutation !== e.reconcileWorktree) {
       return `worktreeOp mutation \`${inputs.worktreeOp.mutation}\` does not match the edge's \`${e.reconcileWorktree}\`.`;
@@ -694,7 +701,9 @@ async function fireLeg(
     }
     case "reconcileWorktree": {
       if (inputs.worktreeOp === undefined) throw new Error("reconcile-worktree requires a `worktreeOp`.");
-      const result = await ctx.reconcileWorktree(inputs.worktreeOp);
+      const runner = ctx.reconcileWorkUnitWorktree;
+      if (runner === undefined) throw new Error("reconcile-worktree requires a work-unit worktree runner.");
+      const result = await runner(inputs.worktreeOp);
       return result.mutation === "spawn" ? result.postCreateNotice : undefined;
     }
     case "reconcileBranch": {

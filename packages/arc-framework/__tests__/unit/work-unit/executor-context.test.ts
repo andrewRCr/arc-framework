@@ -99,6 +99,12 @@ const REOPEN_CTX = {
   to: { phase: "Active", location: "active" },
 } as const;
 
+describe("buildExecutorContext — WU worktree binding", () => {
+  it("registers the renamed WU-specific worktree reconciler", () => {
+    expect(buildCtx().reconcileWorkUnitWorktree).toBeDefined();
+  });
+});
+
 describe("buildExecutorContext — discharge-dep-edges binding", () => {
   it("registers the discharge-dep-edges side-effect handler", () => {
     expect(buildCtx().sideEffects?.["discharge-dep-edges"]).toBeDefined();

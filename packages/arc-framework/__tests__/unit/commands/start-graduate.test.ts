@@ -159,12 +159,15 @@ function buildCtx(
     reconcileBranch: async (op) => {
       calls.push(`branch:${op.mutation}`);
     },
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       return op.mutation === "spawn"
         ? { mutation: "spawn", worktreePath: op.inPlace ? cwd : "/repo/../wt", branch: op.branch }
         : { mutation: "teardown", worktreePath: "", locusHopped: false };
+    },
+    reconcileWorktree: async () => {
+      throw new Error("legacy worktree reconciler invoked");
     },
     writeBranchField: async () => {},
     ...(withClassSeam
