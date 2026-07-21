@@ -194,21 +194,11 @@ roster and one generation-safe local mutation boundary.
           fail closed while first-use absence and source-local malformed, unreadable, stale, orphaned, and
           identity-only evidence remain explicit for deterministic projection.
 
-    - `[ ]` **3.1.b Project managed subjects through their existing workflow authorities**
-        - Add a checkout-directed subject-meta adapter plus a pure
-          `packages/arc-framework/src/lib/locus/roster.ts` projector. Select the exact role/marker WU subject instead
-          of invoking the ambient active-session composite or accepting its warning-collapsed candidate scan.
-        - Reuse `parseMetaRecord()`, `inferSessionType()`, `resolveTaskListPath()`,
-          `resolveTaskListCursorFromFile()`, `resolveActiveCohortDocPath()`, and `resolveLoadSetManifest()` with the
-          subject checkout as `cwd`; extract the private planning-stage rule into a shared pure helper.
-        - Join transient roles through exact v3 identity kind/key/`claimId` state, and require marker, record,
-          identity, owner, and branch evidence to agree before projecting authority.
-        - Keep workflow, stage, cursor, and load set derived rather than persisted in the locus record.
-        - Surface unresolved or cross-identity subjects as diagnostics without treating record content as authority.
-        - Build `test-first` (one behavior at a time):
-            - Cover exact WU selection with multiple metas, planning/execution/integration projection, contributor
-              roots, cohort load sets, missing/malformed task lists, and checkout-directed Git/filesystem reads.
-            - Cover marker/meta/owner/branch disagreement and exact transient identity claim matching.
+    - `[x]` **3.1.b Project managed subjects through their existing workflow authorities**
+        - Added checkout-directed subject projection that selects exact maintainer or contributor metas and derives
+          session type, planning stage, cursor, cohort, and load set through the shared resolvers. The pure managed
+          subject join now requires exact record, checkout, marker, owner, branch, and v3 claim agreement while
+          preserving unresolved and cross-identity results as non-authoritative evidence.
 
     - `[ ]` **3.1.c Classify and sort roster rows deterministically**
         - Project provisional `free-primary`, `managed-role`, `identity-only`, `unmanaged-checkout`, `stale-record`,

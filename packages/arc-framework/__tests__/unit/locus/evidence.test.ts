@@ -174,10 +174,15 @@ describe("locus evidence acquisition", () => {
     expect(result).toMatchObject({
       kind: "complete",
       checkouts: [
-        expect.objectContaining({ worktree: expect.objectContaining({ path: "/repo" }), metaRoot: { kind: "listed" } }),
+        expect.objectContaining({
+          worktree: expect.objectContaining({ path: "/repo" }),
+          metaRoots: expect.arrayContaining([expect.objectContaining({ kind: "listed" })]),
+        }),
         expect.objectContaining({
           worktree: expect.objectContaining({ path: "/repo-wt" }),
-          metaRoot: { kind: "error", message: "meta root denied" },
+          metaRoots: expect.arrayContaining([
+            expect.objectContaining({ kind: "error", message: "meta root denied" }),
+          ]),
         }),
       ],
     });

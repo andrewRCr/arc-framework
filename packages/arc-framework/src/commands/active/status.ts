@@ -251,7 +251,7 @@ async function resolveSessionInit(
       const companions = await deriveCompanions(cwd, taskListPath);
       if (companions !== undefined) result.companions = companions;
       result.currentWorkflow = normalizeNullablePointer(only.currentWorkflow);
-      result.planningStage = resolvePlanningStage(only, fields.sessionType);
+      result.planningStage = resolvePlanningStage(only.currentWorkflow, fields.sessionType);
     }
   }
 
@@ -269,13 +269,13 @@ async function resolveSessionInit(
  * predating the field; the executor writes the real stage at the next planning
  * transition, and the encoding-consistency check guards drift on the write side.
  */
-function resolvePlanningStage(
-  candidate: MetaFileCandidate,
+export function resolvePlanningStage(
+  currentWorkflow: string | null,
   sessionType: SessionType | null,
 ): PlanningWorkflow | null {
   if (sessionType !== "planning") return null;
-  return isPlanningWorkflow(candidate.currentWorkflow)
-    ? candidate.currentWorkflow
+  return isPlanningWorkflow(currentWorkflow)
+    ? currentWorkflow
     : PLANNING_ENTRY_STAGE;
 }
 

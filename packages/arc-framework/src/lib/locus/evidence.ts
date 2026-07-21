@@ -31,7 +31,9 @@ export interface CheckoutEvidence {
   readonly worktree: RegisteredWorktree;
   readonly canonical: { kind: "resolved"; path: string } | { kind: "error"; message: string };
   readonly marker: WorktreeMarkerReadResult | { kind: "error"; message: string };
-  readonly metaRoot: { kind: "listed" } | { kind: "error"; message: string };
+  readonly metaRoots: readonly ({ path: string } & (
+    { kind: "listed" } | { kind: "error"; message: string }
+  ))[];
   readonly metas: readonly MetaEvidence[];
 }
 
@@ -93,6 +95,7 @@ export async function acquireLocusEvidence(options: {
   if (options.identity === null || options.identity === "") {
     return { kind: "error", code: "identity-missing", message: "ARC identity is unavailable" };
   }
+  const identity = options.identity;
   let topology: RegisteredWorktreeScanResult;
   try {
     topology = await options.io.scanWorktrees();
@@ -100,7 +103,7 @@ export async function acquireLocusEvidence(options: {
     return { kind: "error", code: "git-topology-unavailable", message: message(error) };
   }
   if (!topology.ok) return { kind: "error", code: "git-topology-unavailable", message: topology.message };
-  const root = deriveLocusRoot(options.identity, topology);
+  const root = deriveLocusRoot(identity, topology);
   if (!root.ok) return { kind: "error", code: "git-topology-unavailable", message: root.message };
 
   const run = createLimiter(Math.max(1, Math.floor(options.concurrency ?? 8)));
@@ -125,7 +128,8 @@ export async function acquireLocusEvidence(options: {
   }
 
   const [checkouts, recordEntries, lockEntries] = await Promise.all([
-    Promise.all(topology.worktrees.map((worktree) => readCheckoutEvidence(worktree, options.io, run))),
+    Promise.all(topology.worktrees.map((worktree) =>
+      readCheckoutEvidence(worktree, identity, options.io, run))),
     Promise.all(recordNames.filter((name) => name !== ".locks")
       .map((name) => readRecordEntry(name, root, options.pathFlavor, options.io, run))),
     Promise.all(lockNames.map((name) => readLockEntry(name, root, options.io, run))),
@@ -151,11 +155,15 @@ type RunBounded = <T>(operation: () => Promise<T>) => Promise<T>;
 
 async function readCheckoutEvidence(
   worktree: RegisteredWorktree,
+  identity: string,
   io: LocusEvidenceIO,
   run: RunBounded,
 ): Promise<CheckoutEvidence> {
-  const activePath = join(worktree.path, ".arc", "active");
-  const [canonical, marker, metaListing] = await Promise.all([
+  const activePaths = [
+    join(worktree.path, ".arc", "active"),
+    join(worktree.path, ".arc", "user", identity, "active"),
+  ];
+  const [canonical, marker, metaListings] = await Promise.all([
     run(() => io.canonicalPath(worktree.path)).then(
       (path) => ({ kind: "resolved" as const, path }),
       (error: unknown) => ({ kind: "error" as const, message: message(error) }),
@@ -163,25 +171,28 @@ async function readCheckoutEvidence(
     run(() => io.readMarker(worktree.path)).catch(
       (error: unknown) => ({ kind: "error" as const, message: message(error) }),
     ),
-    run(() => listOrEmpty(io, activePath)).then(
-      (names) => ({ kind: "listed" as const, names }),
-      (error: unknown) => ({ kind: "error" as const, message: message(error), names: [] as string[] }),
-    ),
+    Promise.all(activePaths.map(async (path) => run(() => listOrEmpty(io, path)).then(
+      (names) => ({ kind: "listed" as const, path, names }),
+      (error: unknown) => ({ kind: "error" as const, path, message: message(error), names: [] as string[] }),
+    ))),
   ]);
   const metas = await Promise.all(
-    metaListing.names.filter((name) => /^meta-.*\.md$/u.test(name)).map(async (name): Promise<MetaEvidence> => {
-      const path = join(activePath, name);
-      try {
-        return { kind: "read", name, path, text: await run(() => io.readText(path)) };
-      } catch (error) {
-        return { kind: "error", name, path, message: message(error) };
-      }
-    }),
+    metaListings.flatMap((listing) => listing.names
+      .filter((name) => /^meta-.*\.md$/u.test(name))
+      .map((name) => ({ root: listing.path, name })))
+      .map(async ({ root, name }): Promise<MetaEvidence> => {
+        const path = join(root, name);
+        try {
+          return { kind: "read", name, path, text: await run(() => io.readText(path)) };
+        } catch (error) {
+          return { kind: "error", name, path, message: message(error) };
+        }
+      }),
   );
-  const metaRoot = metaListing.kind === "listed"
-    ? { kind: "listed" as const }
-    : { kind: "error" as const, message: metaListing.message };
-  return { worktree, canonical, marker, metaRoot, metas };
+  const metaRoots = metaListings.map((listing) => listing.kind === "listed"
+    ? { kind: "listed" as const, path: listing.path }
+    : { kind: "error" as const, path: listing.path, message: listing.message });
+  return { worktree, canonical, marker, metaRoots, metas };
 }
 
 async function readRecordEntry(
