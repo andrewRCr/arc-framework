@@ -27,6 +27,12 @@ function runConfigValidate(cwd: string, args: string[] = []) {
   });
 }
 
+function expectOnlyDevelopmentBuildWarning(stderr: string): void {
+  expect(stderr).toMatch(
+    /^(?:|warn: arc dev build is stale \(.+\)\. Run `npm run build` before relying on output\.\n)$/u,
+  );
+}
+
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
@@ -45,7 +51,7 @@ describe("arc config validate", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("PASS  Config file exists: .arc/system/arc-config.yml");
     expect(result.stdout).toContain("PASS  branch.protection: full");
-    expect(result.stderr).toBe("");
+    expectOnlyDevelopmentBuildWarning(result.stderr);
   });
 
   it("resolves a relative explicit path outside an ARC root and preserves its token", () => {
@@ -58,7 +64,7 @@ describe("arc config validate", () => {
     expect(result.stdout).toContain("PASS  Config file exists: selected.yml");
     expect(result.stdout).toContain("WARN  Unknown key: 'unknown.setting'");
     expect(result.stdout).not.toContain(join(root, "selected.yml"));
-    expect(result.stderr).toBe("");
+    expectOnlyDevelopmentBuildWarning(result.stderr);
   });
 
   it("accepts an absolute explicit path and propagates validation errors", () => {
@@ -71,6 +77,6 @@ describe("arc config validate", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toContain(`PASS  Config file exists: ${selected}`);
     expect(result.stdout).toContain("ERROR branch.protection: 'impossible' is not valid");
-    expect(result.stderr).toBe("");
+    expectOnlyDevelopmentBuildWarning(result.stderr);
   });
 });

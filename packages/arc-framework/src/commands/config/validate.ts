@@ -4,8 +4,8 @@ import { readFile as defaultReadFile } from "node:fs/promises";
 
 import { parseArcConfig } from "../../lib/config/index.js";
 import {
-  ARC_CONFIG_FIELDS,
   ArcConfigSchema,
+  CONFIG_VALIDATION_FIELDS,
   getArcConfigField,
   type ArcConfigKey,
 } from "../../lib/config/schema.js";
@@ -67,7 +67,7 @@ const OPTIONAL_INTEGER_KEYS = [
   "integration.stale_after_days",
 ] as const;
 
-const KNOWN_CONFIG_KEYS = new Set<string>(ARC_CONFIG_FIELDS.map(({ key }) => key));
+const KNOWN_CONFIG_KEYS = new Set<string>(CONFIG_VALIDATION_FIELDS.map(({ key }) => key));
 
 function pass(output: ValidationOutput, message: string): void {
   output.passes += 1;

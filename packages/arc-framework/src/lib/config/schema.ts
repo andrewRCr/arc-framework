@@ -234,6 +234,16 @@ export function getArcConfigField<Key extends ArcConfigKey>(
   return field as Extract<ArcConfigField, { key: Key }>;
 }
 
+/** Complete catalog projection consumed by full configuration validation. */
+export const CONFIG_VALIDATION_FIELDS = ARC_CONFIG_FIELDS;
+
+/** Project fields consumed by worktree creation and provisioning. */
+export const WORKTREE_CONFIG_FIELDS = [
+  getArcConfigField("worktree.location_template"),
+  getArcConfigField("worktree.post_create"),
+  getArcConfigField("worktree.harness_dirs"),
+] as const;
+
 /** Ordered project fields consumed by commit-message validation. */
 export const COMMIT_CHECK_CONFIG_FIELDS = [
   getArcConfigField("hooks.commit_msg"),

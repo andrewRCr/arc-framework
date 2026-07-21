@@ -249,13 +249,11 @@ the distinct recovery and precedence policies of existing adapters.
 - _Goal:_ The catalog demonstrably covers the shipped configuration surface exactly once, and every existing
   adapter retains its intended observable policy.
 
-    - `[ ]` **3.4.a Add a closed configuration inventory test**
-        - Compare the exact catalog key set with declared keys in the packaged `arc-config.yml`; do not compare catalog
-          defaults with configured package literals such as the init-overridden `pm.mode` value.
-        - Require raw-reading and policy adapters to expose explicit catalog-derived key subsets instead of discovering
-          consumed keys through source-text matching; allow only documented consumer-specific projections.
-        - Detect duplicate descriptors, unowned consumed keys, stale validator-only keys, parallel default tables, and
-          any remaining shell key/domain table; prove full validation recognizes every catalog key and warns on extras.
+    - `[x]` **3.4.a Add a closed configuration inventory test**
+        - Added ordered package-declaration parity, uniqueness, catalog-derived consumer projection, unowned literal,
+          parallel-default, and shell-table guards. Full validation proves every registered field known while the
+          retired warning-length key remains an ordinary extra; explicit full-validation and worktree projections now
+          join the existing agent and commit-check subsets.
 
     - `[ ]` **3.4.b Establish the shared compatibility corpus**
         - Add reusable valid, invalid, absent, bare-empty, quoted-empty, unknown, duplicate, and precedence cases with
