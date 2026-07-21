@@ -1,14 +1,14 @@
-# Metadata: cli-git-executor
+# Metadata: arc-view-completed-targets
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
 
-- **Cohort:** `cli-substrate-adoption`
-- **Depends On:** `cli-schema-kernel`
+- **Cohort:** [none]
+- **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-cli-git-executor.md`
+- **Design:** `draft-arc-view-completed-targets.md`
 - **Task List:** [none]
 
 - **Current Workflow:** [none]

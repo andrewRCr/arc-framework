@@ -12,6 +12,7 @@ import { runDiff, buildDiffOutput } from "../../src/commands/diff.js";
 import type { DiffIOContext, DiffResult } from "../../src/commands/diff.js";
 import type { Manifest } from "../../src/lib/types.js";
 import { hashContent } from "../../src/lib/manifest/index.js";
+import { GitProcessError } from "../../src/lib/git/process-error.js";
 import { buildManifest } from "../helpers/factories.js";
 
 // --- Test helpers ---
@@ -141,6 +142,42 @@ describe("runDiff", () => {
         message: "Diff failed: ENOENT: current file vanished",
       },
     ]);
+  });
+
+  it("records bounded typed Git failure context for a failed file diff", async () => {
+    const manifest = buildManifest({
+      files: {
+        "system/arc-config.yml": {
+          classification: "Configurable",
+          layer: "core",
+          pristine_hash: FILE_HASH,
+        },
+      },
+    });
+    const io = buildIO({
+      manifest,
+      files: {
+        [`${CWD}/.arc/system/arc-config.yml`]: MODIFIED_CONTENT,
+        [`${CWD}/.arc/system/.internal/pristine.json`]: JSON.stringify({
+          "system/arc-config.yml": FILE_CONTENT,
+        }),
+      },
+      diffError: new GitProcessError({
+        kind: "nonzero-exit",
+        command: "git",
+        args: ["diff", "--no-index"],
+        exitCode: 129,
+        stdout: "usage: representative diff diagnostic",
+      }),
+    });
+
+    const result = await runDiff({ cwd: CWD, io });
+    const rendered = result.errors[0]?.message ?? "";
+
+    expect(rendered).toContain("git diff");
+    expect(rendered).toContain("nonzero-exit");
+    expect(rendered).toContain("exit 129");
+    expect(rendered).toContain("representative diff diagnostic");
   });
 
   it("excludes Scaffolded files from output", async () => {

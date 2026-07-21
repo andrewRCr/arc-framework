@@ -1,0 +1,449 @@
+# Task List: self-hosted-ci
+
+- **Design:** `spec-self-hosted-ci.md`
+
+---
+
+## **Phase 1:** Hosted-first CI routing and runner-neutral check contracts
+
+_Purpose:_ Land the repository changes while execution still defaults to GitHub-hosted Linux, preserving the
+current job graph and trust-domain boundaries before any runner is allowed to receive work.
+
+_Design decisions:_ All nine Linux jobs share one fail-safe variable expression. The Linux portability leg loses
+its single-value matrix so its static `(linux)` identity no longer implies a particular executor.
+
+### `[x]` **1.1 Route every Linux CI job through the fail-safe repository variable**
+
+- _Goal:_ The complete Linux CI graph selects its runner from `ARC_CI_LINUX_RUNNER`, defaults safely to
+  `ubuntu-latest`, and leaves every hosted-only trust domain and graph dependency intact.
+
+    - `[x]` **1.1.a Parameterize the nine Linux jobs in `.github/workflows/ci.yml`**
+        - Routed `classify`, `setup`, `lint-typecheck`, `unit`, `integration`, `e2e`, `portability`, `ci_ok`, and
+          `merge-ok` through `ARC_CI_LINUX_RUNNER` with an unset-or-empty `ubuntu-latest` fallback.
+
+    - `[x]` **1.1.b Preserve the explicitly hosted workflow surfaces**
+        - Kept `portability-cross-platform`, `docs.yml`, and every `review-gate*` workflow on their explicit
+          GitHub-hosted routes while the Linux expression fails safely to `ubuntu-latest`.
+
+    - `[x]` **1.1.c Lock the routing boundary into workflow contract coverage**
+        - Added parsed-workflow coverage for all nine variable-routed jobs and every hosted-only workflow job;
+          retained the parse-all-workflows and pinned-action contracts.
+
+### `[x]` **1.2 Make the Linux portability check identity executor-neutral across every coupled contract**
+
+- _Goal:_ The portability check reports the stable name `Portability (concurrency guards) (linux)` and the
+  verified-tree classifier requires that exact identity regardless of which Linux runner executes it.
+
+    - `[x]` **1.2.a Replace the single-value portability matrix with a static Linux job**
+        - Removed the single-value matrix, named the static job `Portability (concurrency guards) (linux)`, and
+          left the E2E shard and hosted Windows/macOS matrices unchanged.
+
+    - `[x]` **1.2.b Synchronize the verified-tree check-name source and fixture**
+        - Synchronized the executor-neutral identity across `HEAVY_CHECK_NAMES` and its `HEAVY_CHECKS` fixture;
+          existing absent, pending, and failed-check coverage remains intact.
+
+    - `[x]` **1.2.c Update and run the coupled offline regression coverage**
+        - Replaced the single-value-matrix assertion with static-identity and hosted-boundary coverage; the
+          classifier unit tests, workflow integration and YAML parsing coverage, and `shellcheck` pass.
+
+## **Phase 2:** Disposable runner operations and fail-closed readiness
+
+_Purpose:_ Establish the reviewable operating contract, select and acquire a provider within the settled envelope,
+build the deliberately small two-slot host from user-held access, then pass the repository trust gate before either
+runner receives its repository label or registration.
+
+_Design decisions:_ `.github/self-hosted-ci.md` is the durable operator runbook. Sanitized selection, cutover,
+drill, and canary evidence stays in `notes-self-hosted-ci.md`, keeping history out of the living procedure. Access
+coordinates and full principal rosters remain user-held or transient; credentials and short-lived tokens are never
+recorded.
+
+### `[x]` **2.1 Check in the disposable self-hosted runner runbook and evidence contract**
+
+- _Goal:_ A trusted operator can build, operate, recover, and destroy the runner host from checked-in guidance,
+  while every acceptance claim has a defined non-secret evidence field.
+
+    - `[x]` **2.1.a Define operator inputs, invariants, and secret boundaries**
+        - Added the supported host, toolchain, two-service, label, no-backup-dependency, user-held input, and
+          sanitized evidence contracts to `.github/self-hosted-ci.md`.
+
+    - `[x]` **2.1.b Document reproducible host and runner-service procedures**
+        - Documented host hardening, prerequisite verification, two isolated application directories, post-audit
+          service registration, bounded persistent logs, local sampling/export, health checks, and safe cleanup.
+
+    - `[x]` **2.1.c Document cutover, fallback, incident, maintenance, rebuild, and decommission procedures**
+        - Added the exact operational sections with the fail-closed access audit, route changes, qualification and
+          fallback, maintenance/reboot handling, rebuild-first incidents, and hosted-first public transition.
+
+    - `[x]` **2.1.d Add the work-unit evidence template**
+        - Added the sanitized selection, trust, readiness, qualification, drill, canary, cost, and final-posture
+          evidence fields to `notes-self-hosted-ci.md`, with the prohibited-data boundary stated explicitly.
+
+### `[x]` **2.2 Select and acquire a VPS provider and SKU within the operating envelope**
+
+- _Goal:_ A paid, user-owned VPS allocation is ready for bootstrap with current provider terms verified against
+  the design's resource, cost, support, and operational constraints.
+- _Note:_ Provider signup, identity checks, MFA, billing, and purchase are user-owned external actions. Research
+  may recommend a choice, but no purchase or recurring spend is authorized until the user explicitly approves it.
+
+    - `[x]` **2.2.a Research current provider and runner-support facts**
+        - Compared current official OVHcloud, netcup, Contabo, DigitalOcean, Hetzner, Hivelocity, Synteq, and GitHub
+          runner sources. Netcup is the strongest literal no-backup value; OVHcloud US is the stronger US-billed
+          choice when its unavoidable rolling 24-hour system-disk copy is accepted as residual exposure.
+        - GitHub supports Ubuntu 20.04+ on x64 with outbound HTTPS; the acquired Ubuntu 26.04 LTS host is within the
+          supported range. Provider statistics have no published retention guarantee, so local 60-day sampling
+          remains required.
+
+    - `[x]` **2.2.b Select the provider, SKU, region, and access posture**
+        - Approved OVHcloud US VPS-2 2027 in Vint Hill at $10/month: current Ubuntu LTS x86-64, no premium backups or
+          manual snapshots, user-held SSH administration, provider statistics as supplemental evidence, and 60-day
+          local sampling as the authoritative record.
+        - Accepted the bundled rolling 24-hour backup as bounded residual exposure under a no-backup-dependency
+          posture; rebuild remains normal recovery, and any exceptional restore forces credential rotation plus
+          renewed access and health qualification.
+        - Recorded the sanitized selection, tradeoffs, and approval in `notes-self-hosted-ci.md` § Cutover evidence.
+
+    - `[x]` **2.2.c Acquire the allocation and make user-held access available**
+        - Acquired the approved allocation with OVHcloud account MFA enabled and confirmed Ubuntu administrative
+          access through a dedicated user-held SSH key and local alias; no access coordinate entered tracked state.
+
+- _Outcome:_ A month-to-month US-billed host is available at the 4-vCPU/8-GB canary floor, with the bundled
+  24-hour backup exception bounded by the no-backup-dependency and requalification rules.
+
+### `[x]` **2.3 Provision and harden the two-slot VPS without registering or routing CI jobs**
+
+- _Goal:_ One minimal, hardened host has the prerequisite toolchain and two prepared runner directories, but no
+  repository runner registration or label exists before the access-control audit passes.
+- **Additional Context:** `.github/self-hosted-ci.md` § Host provisioning.
+
+    - `[x]` **2.3.a Establish the disposable host baseline**
+        - Fully upgraded Ubuntu 26.04 LTS and activated the current kernel by controlled reboot; enabled unattended
+          updates with manual reboot control; enforced default-deny inbound, key-only SSH, disabled root login, and
+          persistent 60-day/1-GB journals; created the isolated unprivileged runner identity with no unrelated host
+          workload, private-network access, or Docker.
+
+    - `[x]` **2.3.b Install and verify the workflow prerequisite toolchain**
+        - Installed the required CLI tools and current runner dependencies and verified their paths and versions as
+          `arc-runner`; enabled protected five-minute `sysstat` CPU, memory, load, and disk sampling with 60-day
+          retention, seven-day compression, retention-bounded storage, and a verified SSH export path.
+
+    - `[x]` **2.3.c Prepare two isolated runner application directories**
+        - Verified the official Linux x64 runner 2.335.1 archive against GitHub's published SHA-256 and extracted it
+          into two mode-`0750` application directories owned by `arc-runner`; reserved two unique transient names and
+          `arc-ci-linux` without requesting a token, configuring a runner, installing a service, or assigning a label.
+
+    - `[x]` **2.3.d Confirm provisioning left both trust gates closed**
+        - Confirmed `ARC_CI_LINUX_RUNNER` is absent, the repository has zero registered runners, and both prepared
+          slots lack registration artifacts and services; recorded only sanitized readiness evidence.
+
+- _Outcome:_ The fully patched host now has two verified but inert runner slots and bounded local operating evidence;
+  both the repository registration gate and routing gate remain closed for the access-control audit.
+
+### `[x]` **2.4 Pass the access-control gate, register both runners, and prove readiness**
+
+- _Goal:_ The repository label and two runner services exist only after every executable pull-request principal is
+  explicitly trusted, then both slots prove the host, label, service, and prerequisite contract before cutover.
+- **Additional Context:** `.github/self-hosted-ci.md` § Runner registration and § Cutover and health checks.
+
+    - `[x]` **2.4.a Audit every executable pull-request principal**
+        - Audited current GitHub state: one trusted collaborator, no invitations or forks, three explicitly trusted
+          installed apps, no repository workflow that originates pull requests, and no other observed PR author.
+        - Disabled private-fork workflows, write-token forwarding, and secret forwarding; recorded only category
+          counts and the explicit green trust result before token issuance, registration, labeling, or cutover.
+
+    - `[x]` **2.4.b Register two isolated runner services after the audit passes**
+        - Generated separate short-lived tokens at point of use and passed them directly from the authenticated local
+          GitHub client to each remote configuration process without printing or persisting them; registered unique
+          names with `arc-ci-linux` only after the access gate passed.
+        - Installed and enabled both `arc-runner` services with default automatic runner updates and explicit
+          five-second always-restart behavior.
+
+    - `[x]` **2.4.c Validate both slots and record the cutover go/no-go decision**
+        - Verified two unique online/idle runners with `self-hosted`, `Linux`, `X64`, and `arc-ci-linux`; each enabled
+          service uses its own application and work directory, runs as `arc-runner`, and returned automatically after
+          controlled service restart and host reboot.
+        - Reverified tools, updates, disk headroom, live telemetry, bounded persistent logs, and projected retention;
+          recorded the sanitized green precondition while leaving the route variable absent for Phase 3.
+
+- _Outcome:_ The explicit principal audit now gates two independently restartable runner slots whose labels, host
+  posture, and reboot recovery satisfy the cutover contract without yet routing a CI job.
+
+## **Phase 3:** Cutover qualification, fallback, and rebuild drills
+
+_Purpose:_ Exercise the real runner and repository-variable seams in bounded drills before the long canary, proving
+job placement, verified-tree reuse, hosted recovery, and disposability rather than inferring them from green CI.
+
+_Design decisions:_ Trial routing begins only after Phase 2 is green. Hosted fallback stays selected during any
+runner teardown or rebuild, and destructive external steps retain their own explicit approval gate.
+
+### `[x]` **3.1 Cut over the Linux job graph and prove hosted cross-platform isolation**
+
+- _Goal:_ A real heavy CI run places every Linux job on the two repository runners, keeps Windows/macOS and
+  privileged workflows hosted, and preserves a green `merge-ok` graph without hosted Linux runner charges.
+- **Additional Context:** `.github/self-hosted-ci.md` § Cutover and health checks.
+
+    - `[x]` **3.1.a Select the self-hosted route**
+        - Reconfirmed both idle runners and the access gate, set `ARC_CI_LINUX_RUNNER=arc-ci-linux`, published the
+          branch, and opened draft pull request #305 without changing the workflow route.
+        - Merged current `main` append-only to clear the pre-existing roadmap conflict; the resulting user-authored
+          synchronization triggered heavy qualification run 29705044064 with the cross-platform target selected.
+
+    - `[x]` **3.1.b Verify job placement and graph identity**
+        - Confirmed all 11 Linux jobs, including both roll-ups, used the two expected labeled VPS runners and passed.
+        - Confirmed targeted Windows/macOS portability stayed GitHub-hosted and that no documentation or review-gate
+          workflow entered the qualification head's trust domain.
+
+    - `[x]` **3.1.c Record the first-cutover result**
+        - Recorded the run link, head, assignments, green result, 4m01s `merge-ok` elapsed time, 2m31s maximum
+          two-slot queue delay, and placement evidence distinguishing two expected hosted cross-platform jobs from
+          zero hosted Linux jobs.
+
+- _Outcome:_ The unchanged CI graph completed its first live two-slot qualification with stable roll-up identity,
+  bounded queueing, no runner failure, and only the intended Windows/macOS jobs consuming hosted capacity.
+
+### `[x]` **3.2 Prove runner-neutral check identity and verified-tree reuse on self-hosted execution**
+
+- _Goal:_ The executor-neutral portability name participates in a real green heavy-check set, and a known-verified
+  code tree subsequently resolves `weight=light reason=verified` from the self-hosted classifier.
+
+    - `[x]` **3.2.a Verify the live heavy-check identity set**
+        - Confirmed the live run retained the lint/typecheck, unit, integration, three E2E shard, `ci-ok`, and
+          required `merge-ok` identities, with exactly `Portability (concurrency guards) (linux)` for Linux
+          portability and separate targeted Windows/macOS names.
+
+    - `[x]` **3.2.b Exercise the verified-tree lookback**
+        - Used the natural first-cutover task-list/evidence commit after the green heavy run, preserving the code
+          tree without artificial churn; proof run 29705207328 completed as the light lane.
+        - Inspected the live classifier job log and confirmed its authenticated API lookback emitted
+          `weight=light reason=verified`.
+        - Adversarial verification found that proof predated the destructive rebuild: the rebuilt runners lacked
+          the classifier's undeclared Node runtime and safely forced every code PR heavy. Added pinned
+          `actions/setup-node` before classification, proved the corrected heavy tree in run 29762585288, then
+          proved post-rebuild reuse with `weight=light reason=verified` in metadata-only run 29763087262.
+
+    - `[x]` **3.2.c Verify prerequisite failure modes remain diagnosable**
+        - Confirmed the service account invokes GitHub CLI 2.46.0 and jq 1.8.1, independently exercised the jq
+          roll-up predicate, and observed both the authenticated classifier API seam and live `ci-ok` succeed with
+          zero runner-service warnings through the proof runs.
+
+- _Outcome:_ The real heavy-check set kept its executor-neutral identities, and the immediately following
+  unchanged-code-tree run proved authenticated verified-tree reuse rather than merely appearing green.
+
+### `[x]` **3.3 Drill hosted fallback and a timed disposable-runner rebuild**
+
+- _Goal:_ Hosted execution is restored in under five minutes and the complete two-service runner host is rebuilt
+  from the runbook within two hours without a machine backup.
+- **Additional Context:** `.github/self-hosted-ci.md` § Hosted fallback, § Rebuild, and § Deregistration.
+
+    - `[x]` **3.3.a Time the no-edit hosted fallback**
+        - Set `ARC_CI_LINUX_RUNNER=ubuntu-latest`, cancelled the new self-hosted attempt, and reran it without a
+          workflow edit; the first hosted Linux job started after 25 seconds and the replacement roll-up passed.
+        - Recorded the variable timestamp, cancelled attempt, replacement attempt, hosted runner assignments, and
+          result while leaving hosted fallback selected for the rebuild gate.
+
+    - `[x]` **3.3.b Approve and execute the destructive rebuild drill**
+        - Approved the exact teardown, irreversible reinstall, recovery boundary, and no-new-spend rollback before
+          starting the timer; protected only the bounded diagnostic export, then removed both services and repository
+          registrations while hosted routing remained selected.
+        - Reinstalled the existing VPS without a machine backup and rebuilt Ubuntu 26.04, key-only SSH, firewall,
+          unattended updates, bounded journal and telemetry, required tools, and two checksum-verified unconfigured
+          runner 2.335.1 application trees solely from the runbook; GitHub remained at zero registered runners.
+
+    - `[x]` **3.3.c Re-run the trust gate, register, requalify, and restore trial routing**
+        - Re-audited the private repository's sole trusted admin, zero invitations and forks, three explicitly
+          trusted installed apps, disabled private-fork Actions access, read-only workflow-token default, and
+          non-PR-producing automation before consuming two in-memory registration tokens.
+        - Registered both isolated services, proved automatic restart across a controlled reboot, stopped the rebuild
+          timer at 23m07s, and restored `arc-ci-linux` only for exact-head qualification; all nine executed Linux jobs
+          passed on the rebuilt slots, both hosted portability legs passed, and telemetry and runner logs stayed clean.
+
+- _Outcome:_ Hosted fallback recovered in 25 seconds and the no-backup rebuild returned two freshly trusted,
+  reboot-persistent runners to a green heavy suite in under half an hour, proving both recovery paths operational.
+
+## **Phase 4:** Measured canary and operating-posture decision
+
+_Purpose:_ Run the unchanged graph long enough to measure its real cost, latency, and reliability on two slots,
+then respond to the observed failure mode rather than pre-provisioning speculative capacity.
+
+_Design decisions:_ A comparable sample is a non-deferred, heavy, reviewed pull-request run that completes the full
+Linux graph. One workflow run id is one sample across all attempts. Measure `merge-ok` latency from initial run
+creation to final check completion and compute nearest-rank p95 over the qualifying sample; retain every otherwise-
+eligible failure or cancellation in the reliability ledger. Runner assignments prove execution placement, while
+repository/SKU billing data is aggregate corroboration rather than per-workflow attribution.
+
+### `[~]` **4.1 Complete the seven-day, twenty-run canary and calculate its acceptance measures**
+
+- _Goal:_ A reviewable sample proves or falsifies the two-slot host against cost, latency, flake, and availability
+  targets without mixing fallback runs or non-comparable light lanes into the result.
+
+    - `[x]` **4.1.a Establish the canary ledger and collection contract**
+        - Established one run-level sample across attempts and preserved every PR run since cutover, including two
+          qualifying self-hosted heavy runs and the light, planned-fallback, and hosted-heavy exclusions.
+        - Captured every Linux job attempt's API timestamps, derived queue/runtime seconds, runner assignment, label,
+          and result; anchored the initial Actions SKU totals and recurring provider cost as separate aggregates.
+        - Re-proved five-minute/60-day host sampling plus persistent 60-day/1-GB service logs, removed one exact
+          pre-allocation image sample, and retained the protected pre-rebuild export to bridge the destructive drill.
+
+    - `[~]` **4.1.b Satisfy both sample floors**
+        - Maintain the ledger for every otherwise-eligible run, including failed, retried, cancelled, and superseded
+          runs; only a run whose final attempt completes the full heavy graph and `merge-ok` counts toward the
+          latency sample, but runner-caused failures or retries remain part of the reliability outcome.
+        - Continue under one unchanged runner configuration until at least seven elapsed days and twenty qualifying
+          heavy pull-request runs are captured; if seven days yields fewer runs, keep the task open until the run
+          floor is met.
+        - If any collaborator, pending invitation, private fork, installed app/bot, pull-request automation, or
+          Actions fork setting changes, select hosted fallback and re-run the complete trust checklist before
+          resuming the canary.
+
+    - `[~]` **4.1.c Calculate and classify the canary outcome**
+        - Treat all attempts for one workflow run id as one sample, sort initial-creation-to-final-`merge-ok`
+          durations, and use nearest-rank `ceil(0.95 × N)` for p95; require p95 under ten minutes, no runner-caused
+          flake, and no unexplained offline stall.
+        - Classify as runner-caused any host, service, toolchain, or workspace-residue condition that causes a
+          failure, retry, cancellation, or anomalous queue. Keep planned fallback and superseded-run cancellation
+          separate, and record the evidence used to resolve every suspected event.
+        - Correlate queue and running durations with provider CPU/memory charts, runner service logs, and host
+          restart history; review service-log coverage for the full canary before distinguishing slot contention
+          from per-job starvation or an unexplained outage.
+        - Compare aggregate Actions usage with the hosted baseline and confirm every normal `ci.yml` Linux job used
+          the expected self-hosted runner; report unrelated hosted Linux and fallback usage separately.
+
+- _Outcome:_ The initial ledger and collection contract remain evidence for `self-hosted-ci-qualification`; that
+  planned follow-up owns both sample floors and the acceptance calculation after normal `main` traffic accumulates.
+
+### `[~]` **4.2 Resolve the canary result with at most one evidence-driven correction**
+
+- _Goal:_ A passing canary advances unchanged, while a failed canary receives the response matched to its measured
+  cause without speculative expansion or an indefinite tuning loop.
+
+    - `[~]` **4.2.a Choose the response from measured evidence**
+        - If the initial configuration passes every target, record that no tuning is required and proceed directly
+          to the permanent-posture decision.
+        - Queue depth calls for another runner service plus proportional host capacity; per-job starvation calls
+          for a resize; runner unreliability calls for rebuild/remediation; an uneconomic or unresolved failure
+          calls for hosted fallback.
+        - Surface the evidence, recommendation, changed recurring cost, and operational impact for explicit user
+          approval before modifying the paid service or runner count or performing any runner deregistration,
+          destructive remediation, or host destruction/replacement.
+
+    - `[~]` **4.2.b Apply at most one approved tuning pass**
+        - Select and verify hosted fallback before changing infrastructure. Preserve the job graph, apply only the
+          approved correction, update the runbook/evidence for the final slot/resource shape, and retain the
+          original sample as diagnostic evidence.
+        - Repeat the timed no-backup rebuild for the complete final shape, stopping before registration; re-run the
+          executable-principal checklist, register all accepted runner services only on a green trust result, and
+          complete service/tool/telemetry health plus heavy self-hosted qualification before restoring trial
+          routing.
+        - Any approved host-size, runner-count, rebuild, or remediation change starts a new final-configuration
+          canary. Repeat both the seven-day and twenty-qualifying-run floors without another material change before
+          accepting that configuration.
+
+    - `[~]` **4.2.c Stop tuning if the target remains unacceptable**
+        - Restore `ubuntu-latest` fallback, verify hosted execution, and record why permanent self-hosting was
+          rejected rather than broadening scope into autoscaling or a platform project.
+
+- _Outcome:_ Transferred intact to `self-hosted-ci-qualification`, including the one-correction ceiling and every
+  approval boundary for paid, destructive, or runner-registration changes.
+
+### `[~]` **4.3 Settle the permanent routing posture and maintenance baseline from canary evidence**
+
+- _Goal:_ Repository state, runner lifecycle, monthly ownership, and the evidence record all agree on one explicit
+  accepted posture: permanent self-hosted Linux or verified hosted fallback.
+
+    - `[~]` **4.3.a Decide the permanent route against the success criteria**
+        - Accept `arc-ci-linux` only when cost, p95, reliability, fallback, rebuild, trust, and verified-tree proofs
+          all hold; otherwise keep `ubuntu-latest` selected.
+        - Re-run the complete executable-principal checklist, read back `ARC_CI_LINUX_RUNNER`, and verify the
+          expected runner services are online/idle before recording the final posture.
+
+    - `[~]` **4.3.b Establish the ongoing maintenance baseline**
+        - Record the monthly runner/update/log/disk check, reboot handling, access-change recheck, responsible
+          operator, and the rebuild/fallback threshold.
+
+    - `[~]` **4.3.c Close unused external infrastructure deliberately**
+        - If hosted fallback is permanent, surface and obtain approval for runner deregistration and VPS
+          cancellation/destruction; verify no runner identity or paid allocation remains accidentally active.
+
+- _Outcome:_ Transferred to `self-hosted-ci-qualification`; this WU delivers the reversible trial route without
+  prematurely declaring it the permanent architecture.
+
+## **Phase 5:** Operational and architectural closeout
+
+_Purpose:_ Reconcile the durable operating guidance with what the drills and canary proved, then align the project's
+architecture source of truth with the accepted operating posture.
+
+### `[~]` **5.1 Reconcile the operations runbook with canary and rebuild findings**
+
+- _Goal:_ The checked-in runbook accurately operates an accepted self-hosted route or preserves a dormant,
+  requalification-required procedure after decommission, without historical drill narration, stale commands,
+  hidden prerequisites, or provider credentials.
+- **Additional Context:** `.github/self-hosted-ci.md` § Host provisioning, § Runner registration, § Cutover and
+  health checks, § Hosted fallback, § Rebuild, and § Deregistration.
+
+    - Preserve the runbook's exact required headings while updating supported OS, package commands, runner/service
+      paths, health probes, telemetry/log retention and protected export, cleanup loci, fallback, timed rebuild,
+      monthly maintenance, incident response, and decommission steps to match what actually worked.
+    - If permanent self-hosting was accepted, state its active maintenance and fallback contract. If hosted fallback
+      was accepted, keep the procedure dormant and require fresh provisioning, trust, registration, and
+      qualification before the route variable may select `arc-ci-linux` again.
+    - Keep provider selection history and canary measurements in `notes-self-hosted-ci.md`; keep the runbook
+      forward-looking and safe for a future rebuild.
+    - Re-run every affected non-destructive command and read-only health probe, then run scoped markdown lint; do
+      not repeat destructive infrastructure operations merely to validate wording.
+
+- _Outcome:_ Final posture reconciliation moved to `self-hosted-ci-qualification`; the checked-in trial runbook
+  remains the proven provisioning, fallback, rebuild, maintenance, and decommission baseline for this delivery.
+
+### `[~]` **5.2 Reconcile the accepted Linux CI target in `.arc/reference/TECHNICAL-OVERVIEW.md`**
+
+- _Goal:_ The infrastructure source of truth accurately states the live Linux runner target, bounded concurrency,
+  hosted portability/review boundaries, and variable-controlled fallback after the canary settles.
+- **Additional Context:** `.arc/reference/TECHNICAL-OVERVIEW.md` § Update Discipline and § 3 Infrastructure.
+
+    - Edit only the project-owned rendered document, never the package's technical-overview template.
+    - If permanent self-hosting was accepted, make the dedicated event-driven § 3 Infrastructure edit and state the
+      architecture and rationale without work-unit, task, spec, or canary-process references; run scoped markdown
+      lint on the result.
+    - If permanent hosted fallback was accepted, verify the overview makes no self-hosted claim and leave it
+      unchanged. Record the settled decision in `notes-self-hosted-ci.md`, and surface every affected success
+      criterion for evidence-based `[~]` or `[ ]` disposition during verification rather than singling out one.
+
+- _Outcome:_ Deferred to `self-hosted-ci-qualification`, where the measured permanent-posture decision can support
+  an architecture claim; the bounded trial intentionally makes no such claim.
+
+## **Phase 6:** Verification
+
+_Purpose:_ Verify the settled implementation and operational evidence against the full design and project gates.
+
+### `[x]` **6.1 Complete trial-cutover verification** — load and follow `verify-work-unit.md`
+
+- _Goal:_ The repository changes, external runner state, reversible trial cutover, fallback and rebuild evidence,
+  checked-in runbook, transferred qualification scope, and every retained success criterion withstand the work-unit
+  verification workflow.
+- _Quality gates:_ Local build, Markdown lint, TypeScript lint/typecheck, and 144 focused workflow/classifier tests
+  passed after the adversarial correction; exact-head heavy run 29762585288 passed build, workflow/ARC/Markdown/
+  TypeScript/shell lint, typechecks, unit, integration, E2E, Linux portability, and hosted Windows/macOS portability.
+- _Success criteria:_ Nine criteria: seven met; the canary-acceptance and permanent-architecture criteria are
+  superseded with explicit ownership by the planned Heavy `self-hosted-ci-qualification` work unit.
+
+---
+
+## Success Criteria
+
+- `[x]` All nine normal Linux CI jobs use the fail-safe runner variable and execute on the accepted self-hosted
+  route, while Windows/macOS portability plus docs and review-gate workflows remain GitHub-hosted.
+- `[x]` A comparable heavy run records zero billed hosted Linux job-minutes outside an explicitly identified
+  fallback drill.
+- `[~]` The canary includes at least seven elapsed days and twenty comparable heavy runs, with p95 `merge-ok`
+  latency below ten minutes and no runner-caused flake or unexplained offline stall.
+    - **Superseded:** transferred intact to the planned Heavy `self-hosted-ci-qualification` work unit, which starts
+      only after both the 2026-07-26 21:49:27Z elapsed floor and twenty-run floor are satisfied.
+- `[x]` The variable-only fallback drill restores hosted Linux execution in under five minutes.
+- `[x]` A no-backup rebuild from `.github/self-hosted-ci.md` restores every accepted runner service within two
+  hours.
+- `[x]` The live portability check is named `Portability (concurrency guards) (linux)`, matches the classifier,
+  and a known-verified tree produces `weight=light reason=verified` on self-hosted execution.
+- `[~]` `TECHNICAL-OVERVIEW.md` § 3 records the accepted self-hosted Linux execution target at permanent cutover.
+    - **Superseded:** permanent-posture reconciliation belongs to `self-hosted-ci-qualification`; this work unit
+      intentionally delivers a reversible trial and makes no premature durable architecture claim.
+- `[x]` All quality gates pass (tests, linting, type checking, build, workflow parsing, and shell linting).
+- `[x]` Ready for integration.

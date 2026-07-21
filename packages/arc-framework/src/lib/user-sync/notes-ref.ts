@@ -13,6 +13,7 @@
  */
 
 import type { GitExec } from "../git/index.js";
+import { gitFailureText } from "../git/process-error.js";
 
 import { NOTES_COMPACTION_MANIFEST_PATH } from "./compaction-manifest.js";
 import { TOMBSTONE_TTL_MS } from "./merge.js";
@@ -68,8 +69,7 @@ export async function readNotesRefHistory(
   try {
     return parseHistoryLog(await readNotesRefHistoryWithSinceArg(exec, fullRef, `--since-as-filter=${sinceIso}`));
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    if (!isUnsupportedSinceAsFilterError(error.message)) return [];
+    if (!isUnsupportedSinceAsFilterError(gitFailureText(err))) return [];
     // `--since-as-filter` requires Git 2.37+. Older Git can only fall back to
     // `--since`, which may stop traversal early on non-date-ordered history;
     // returning that bounded view is still preferable to reporting no recent notes.

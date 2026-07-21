@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { describe, it, expect, vi, beforeAll, beforeEach, type Mock } from "vitest";
 
 import { UserFacingError } from "../../src/lib/errors.js";
+import { GitProcessError } from "../../src/lib/git/process-error.js";
 import type { WorktreeSyncState } from "../../src/lib/git/worktree-sync.js";
 import type { AuditEntry } from "../../src/lib/release/types.js";
 import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
@@ -344,6 +345,39 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(outcome.retryOffer).toEqual({ autoRetries: 2 });
     expect(outcome.exitCode).toBe(1);
     expect(process.exitCode).toBe(1);
+  });
+
+  it("records bounded typed Git failure context in the paired JSON envelope", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("clean");
+    mockRunPairedPush.mockResolvedValue({
+      save: {
+        status: "success",
+        result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] },
+      },
+      worktree: { status: "success" },
+      notes: {
+        status: "failed",
+        error: new GitProcessError({
+          kind: "nonzero-exit",
+          command: "git",
+          args: ["push", "origin"],
+          exitCode: 128,
+          stderr: "fatal: representative transport diagnostic",
+        }),
+      },
+      conditions: [],
+      exitCode: 1,
+    });
+
+    const outcome = await captureSyncJson();
+    const rendered = JSON.stringify(outcome);
+
+    expect(rendered).toContain("git push");
+    expect(rendered).toContain("nonzero-exit");
+    expect(rendered).toContain("exit 128");
+    expect(rendered).toContain("representative transport diagnostic");
   });
 
   it.each([

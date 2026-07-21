@@ -1,14 +1,19 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  CascadeCandidateSchema,
+  CascadeResolutionSchema,
   determineCandidateAction,
   resolveCascade,
+  type CandidateAction,
   type CascadeCandidate,
 } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 
-function candidate(overrides: Partial<CascadeCandidate> = {}): CascadeCandidate {
-  return { branch: "feat/x", proposedAction: "switch", ...overrides };
+function candidate(
+  overrides: { branch?: string; worktreePath?: string; proposedAction?: CandidateAction } = {},
+): CascadeCandidate {
+  return CascadeCandidateSchema.parse({ branch: "feat/x", proposedAction: "switch", ...overrides });
 }
 
 describe("resolveCascade", () => {
@@ -181,5 +186,43 @@ describe("determineCandidateAction", () => {
     });
 
     expect(action).toBe("external");
+  });
+});
+
+describe("CascadeResolutionSchema", () => {
+  const switchCandidate = candidate({ branch: "feat/live" });
+  const removableCandidate = candidate({
+    branch: "feat/shipped",
+    worktreePath: "/wt/shipped",
+    proposedAction: "removable",
+  });
+
+  it.each([
+    { kind: "resolved", candidate: switchCandidate },
+    { kind: "surface", candidates: [switchCandidate, removableCandidate] },
+    { kind: "main-fallback" },
+  ])("accepts each resolution kind", (resolution) => {
+    expect(CascadeResolutionSchema.safeParse(resolution).success).toBe(true);
+  });
+
+  it("allows switch candidates with or without a worktree path", () => {
+    expect(CascadeCandidateSchema.safeParse(switchCandidate).success).toBe(true);
+    expect(CascadeCandidateSchema.safeParse({ ...switchCandidate, worktreePath: "/wt/live" }).success).toBe(true);
+  });
+
+  it.each(["removable", "external"] as const)("requires a worktree path for %s candidates", (proposedAction) => {
+    expect(CascadeCandidateSchema.safeParse({ branch: "feat/work", proposedAction }).success).toBe(false);
+  });
+
+  it("requires at least two candidates for a surfaced choice", () => {
+    expect(CascadeResolutionSchema.safeParse({ kind: "surface", candidates: [switchCandidate] }).success).toBe(false);
+  });
+
+  it.each([
+    { kind: "resolved", candidate: switchCandidate, candidates: [switchCandidate] },
+    { kind: "surface", candidates: [switchCandidate, removableCandidate], candidate: switchCandidate },
+    { kind: "main-fallback", candidate: switchCandidate },
+  ])("rejects fields from another resolution kind", (resolution) => {
+    expect(CascadeResolutionSchema.safeParse(resolution).success).toBe(false);
   });
 });

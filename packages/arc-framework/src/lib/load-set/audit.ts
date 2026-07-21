@@ -7,65 +7,70 @@
  *
  * @module
  */
+import { z } from "zod";
 
-import type { LoadSetEntry, LoadSetManifest, ReadMode } from "./types.js";
+import {
+  LoadSetEntrySchema,
+  ReadModeSchema,
+  type LoadSetEntry,
+  type LoadSetManifest,
+  type ReadMode,
+} from "./types.js";
 
 type AuditableLoadSetManifest = Omit<LoadSetManifest, "manifestVersion"> & {
   manifestVersion: number;
 };
 
-/** Membership changes between the seed baseline and the fresh manifest. */
-export interface LoadSetMembershipDiff {
-  /** Fresh entries whose path occurrence is absent or extra relative to the seed baseline. */
-  added: LoadSetEntry[];
-  /** Seed-baseline entries whose path occurrence is absent or extra relative to the fresh manifest. */
-  removed: LoadSetEntry[];
-}
+/** Membership changes between the seed baseline and fresh manifest. */
+export const LoadSetMembershipDiffSchema = z.strictObject({
+  added: z.array(LoadSetEntrySchema),
+  removed: z.array(LoadSetEntrySchema),
+});
+export type LoadSetMembershipDiff = z.infer<typeof LoadSetMembershipDiffSchema>;
 
 /** Read-mode drift for a load-set member retained at the same path. */
-export interface LoadSetReadModeChange {
-  /** Retained repository-relative path. */
-  path: string;
-  /** Read mode embedded in the seed baseline. */
-  expected: ReadMode;
-  /** Read mode freshly resolved during recovery. */
-  actual: ReadMode;
-}
+export const LoadSetReadModeChangeSchema = z.strictObject({
+  path: z.string(),
+  expected: ReadModeSchema,
+  actual: ReadModeSchema,
+});
+export type LoadSetReadModeChange = z.infer<typeof LoadSetReadModeChangeSchema>;
 
 /** Path drift for a retained load-set slot. */
-export interface LoadSetPathDrift {
-  /** Zero-based load-set index where the drift was detected. */
-  index: number;
-  /** Entry embedded in the seed baseline. */
-  expected: LoadSetEntry;
-  /** Entry freshly resolved during recovery. */
-  actual: LoadSetEntry;
-}
+export const LoadSetPathDriftSchema = z.strictObject({
+  index: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  expected: LoadSetEntrySchema,
+  actual: LoadSetEntrySchema,
+});
+export type LoadSetPathDrift = z.infer<typeof LoadSetPathDriftSchema>;
 
 /** Structured recovery-audit diff. */
-export interface LoadSetAuditDiff {
-  /** Manifest-version drift between baseline and fresh load-set schemas. */
-  manifestVersion: {
-    expected: number;
-    actual: number;
-  } | null;
-  /** Added and removed load-set members. */
-  membership: LoadSetMembershipDiff;
-  /** Read-mode changes on retained paths. */
-  readModeChanges: LoadSetReadModeChange[];
-  /** Same-slot path substitutions or order drift. */
-  pathDrifts: LoadSetPathDrift[];
-}
+export const LoadSetAuditDiffSchema = z.strictObject({
+  manifestVersion: z.strictObject({
+    expected: z.number().int(),
+    actual: z.number().int(),
+  }).nullable(),
+  membership: LoadSetMembershipDiffSchema,
+  readModeChanges: z.array(LoadSetReadModeChangeSchema),
+  pathDrifts: z.array(LoadSetPathDriftSchema),
+});
+export type LoadSetAuditDiff = z.infer<typeof LoadSetAuditDiffSchema>;
 
 /** Verdict returned to the recovery workflow. */
-export interface LoadSetAuditVerdict {
-  /** Whether the fresh manifest matches or diverges from the seed baseline. */
-  status: "match" | "diverged";
-  /** Boolean form of {@link status}, convenient for workflow gates. */
-  diverged: boolean;
-  /** Structured diff categories for rendering a stop surface. */
-  diff: LoadSetAuditDiff;
-}
+export const LoadSetAuditVerdictSchema = z.strictObject({
+  status: z.enum(["match", "diverged"]),
+  diverged: z.boolean(),
+  diff: LoadSetAuditDiffSchema,
+}).superRefine((value, context) => {
+  if ((value.status === "diverged") !== value.diverged) {
+    context.addIssue({
+      code: "custom",
+      path: ["diverged"],
+      message: "diverged must agree with status",
+    });
+  }
+});
+export type LoadSetAuditVerdict = z.infer<typeof LoadSetAuditVerdictSchema>;
 
 /** Inputs for auditing a fresh load-set manifest against a seed baseline. */
 export interface AuditLoadSetManifestOptions {

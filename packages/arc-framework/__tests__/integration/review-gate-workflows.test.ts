@@ -120,22 +120,96 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).not.toContain("changed_all=");
   });
 
+  it("routes only the Linux CI graph through the fail-safe repository variable", async () => {
+    const workflow = await read("ci.yml");
+    const linuxRunner = "${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}";
+    const linuxJobs = [
+      "classify",
+      "setup",
+      "lint-typecheck",
+      "unit",
+      "integration",
+      "e2e",
+      "portability",
+      "ci_ok",
+      "merge-ok",
+    ];
+    for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe(linuxRunner);
+
+    expect(jobValue(workflow, "portability-cross-platform")["runs-on"]).toBe("${{ matrix.os }}");
+    for (const name of [
+      "docs.yml",
+      "review-gate.yml",
+      "review-gate-attest.yml",
+      "review-gate-qualify.yml",
+      "review-gate-repair.yml",
+      "review-gate-wakeup.yml",
+    ]) {
+      const hostedWorkflow = await read(name);
+      const parsed = load(hostedWorkflow) as { jobs?: Record<string, Record<string, unknown>> };
+      for (const [job, value] of Object.entries(parsed.jobs ?? {})) {
+        expect(value["runs-on"], `${name}:${job}`).toBe("ubuntu-latest");
+      }
+    }
+  });
+
+  it("provisions Node before the classifier hashes the code tree", async () => {
+    const workflow = await read("ci.yml");
+    const classifySteps = jobValue(workflow, "classify").steps;
+    expect(Array.isArray(classifySteps)).toBe(true);
+
+    const steps = classifySteps as Array<Record<string, unknown>>;
+    const setupNodeIndex = steps.findIndex(
+      (step) => typeof step.uses === "string" && step.uses.startsWith("actions/setup-node@"),
+    );
+    const classifierIndex = steps.findIndex((step) => step.id === "c");
+
+    expect(setupNodeIndex).toBeGreaterThanOrEqual(0);
+    expect(classifierIndex).toBeGreaterThan(setupNodeIndex);
+  });
+
+  it("keeps the Linux portability check executor-neutral and non-matrix", async () => {
+    const workflow = await read("ci.yml");
+    const portability = jobValue(workflow, "portability");
+    expect(portability.name).toBe("Portability (concurrency guards) (linux)");
+    expect(portability).not.toHaveProperty("strategy");
+
+    const crossPlatform = jobValue(workflow, "portability-cross-platform");
+    expect(crossPlatform.strategy).toMatchObject({
+      matrix: { os: ["windows-latest", "macos-latest"] },
+    });
+  });
+
   it("contains Actions spend while retaining explicit and bounded portability coverage", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("push:\n    branches: [main]");
-    expect(workflow).toContain("workflow_dispatch:");
-    // Monthly (not weekly) cross-platform cron — macOS multiplier is the spend driver.
-    expect(workflow).toContain("schedule:\n    - cron: '17 8 1 * *'");
-    expect(workflow).toContain("os: [ubuntu-latest]");
+    // Weekly cross-platform cron — a post-merge backstop now that PR runs never
+    // fire the hosted Windows/macOS pair, so the multiplier cost is negligible.
+    expect(workflow).toContain("schedule:\n    - cron: '17 8 * * 1'");
     expect(workflow).toContain("os: [windows-latest, macos-latest]");
-    expect(workflow).toContain("needs.classify.outputs.portability_target == 'true'");
+    // The relevance classifier stays live (fail-safe machinery included) even
+    // though pull-request runs no longer fire the hosted Windows/macOS pair.
     expect(workflow).toContain('echo "::error::portability classifier failed"');
     expect(workflow).toContain('echo "::error::invalid portability classifier output: $portability_target"');
+    // The pair fires only on the weekly schedule or an explicit dispatch
+    // opt-in, so PR synchronizes never bill hosted-runner multipliers.
+    expect(jobValue(workflow, "portability-cross-platform").if).toBe(
+      "${{ (github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || " +
+        "github.event_name == 'schedule' }}",
+    );
+    // The pair consumes no classify output, so it is dependency-free: a `needs`
+    // paired with a custom `if` would let a failed classify start it anyway.
+    expect(jobValue(workflow, "portability-cross-platform")).not.toHaveProperty("needs");
+    const triggers = (load(workflow) as { on?: Record<string, unknown> }).on;
+    expect(triggers?.workflow_dispatch).toMatchObject({
+      inputs: { run_portability_pair: { type: "boolean", default: false } },
+    });
     const targetedJob = workflow.slice(
       workflow.indexOf("  portability-cross-platform:"),
       workflow.indexOf("  ci_ok:"),
     );
     expect(targetedJob).not.toContain("needs.classify.outputs.weight");
+    expect(targetedJob).not.toContain("github.event_name == 'pull_request'");
   });
 
   it("keeps repository controller scripts outside the published CLI graph", async () => {

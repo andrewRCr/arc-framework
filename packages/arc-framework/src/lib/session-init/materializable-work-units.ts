@@ -20,15 +20,19 @@
  * @module
  */
 
+import { z } from "zod";
+
 import type { InFlightEntry } from "../git/in-flight-derivation.js";
+import { SlugSchema } from "../kernel/index.js";
+
+/** Runtime authority for one remotely materializable work unit. */
+export const MaterializableWorkUnitSchema = z.strictObject({
+  name: SlugSchema,
+  branch: z.string().refine((value) => value.trim().length > 0, "branch must not be empty"),
+});
 
 /** One remote-only work unit that can be materialized onto this machine. */
-export interface MaterializableWorkUnit {
-  /** WU name — the meta filename stem / branch segment after the life-phase prefix. */
-  name: string;
-  /** The remote branch the WU derives from. */
-  branch: string;
-}
+export type MaterializableWorkUnit = z.infer<typeof MaterializableWorkUnitSchema>;
 
 export interface FindMaterializableWorkUnitsOptions {
   /** Oracle-derived in-flight entries (work units and errands). */
@@ -37,12 +41,14 @@ export interface FindMaterializableWorkUnitsOptions {
   identity: string | null;
 }
 
-export interface MaterializableWorkUnitsResult {
-  /** Remote-only owned work units materializable as cross-machine pickups. */
-  candidates: MaterializableWorkUnit[];
-  /** Soft diagnostics emitted by the in-flight oracle feeding this slice. */
-  warnings?: string[];
-}
+/** Runtime authority for the materializable-work-unit advisory result. */
+export const MaterializableWorkUnitsResultSchema = z.strictObject({
+  candidates: z.array(MaterializableWorkUnitSchema),
+  warnings: z.array(z.string()).optional(),
+});
+
+/** Remote-only owned work units and optional upstream diagnostics. */
+export type MaterializableWorkUnitsResult = z.infer<typeof MaterializableWorkUnitsResultSchema>;
 
 /**
  * Select the materializable work units from the oracle's in-flight entries.
@@ -66,7 +72,9 @@ export function findMaterializableWorkUnits(
     if (entry.state === "Shipped") continue;
     if (entry.marks !== undefined && entry.marks.length > 0) continue;
     if (identity !== null && entry.owner !== undefined && entry.owner !== identity) continue;
-    candidates.push({ name: entry.name, branch: entry.branch });
+    const name = SlugSchema.safeParse(entry.name);
+    if (!name.success) continue;
+    candidates.push({ name: name.data, branch: entry.branch });
   }
   return { candidates };
 }

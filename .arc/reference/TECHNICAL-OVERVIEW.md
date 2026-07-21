@@ -170,6 +170,7 @@ _Language & build:_
 - **TypeScript**: Strict mode (`noUncheckedIndexedAccess`), ES2022 target, Node16 module resolution
 - **Runtime contracts**: Zod 4 is the runtime-schema and static-type authority; neverthrow provides typed
   success/failure composition through the kernel's bounded export seam
+- **Git process execution**: execa 10 provides the ESM-native subprocess runtime behind the injectable Git executor
 - **Build**: tsup — ESM output, shebang injection, declaration generation
 
 _Testing & quality tooling:_

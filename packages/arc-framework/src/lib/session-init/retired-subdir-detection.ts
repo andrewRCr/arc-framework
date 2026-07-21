@@ -19,8 +19,11 @@
 
 import { join } from "node:path";
 
+import { z } from "zod";
+
 import type { GitExec } from "../git/exec.js";
 import { serialize, type ReadDirFn, type ReadFileFn, type SyncManifest } from "../git/user-sync.js";
+import { SlugSchema } from "../kernel/index.js";
 import { planRetiredSubdirReconcile, subdirsFromPaths } from "../user-sync/index.js";
 import { readShippedWorkUnitsFromRef } from "../work-unit/completed-index.js";
 
@@ -39,13 +42,16 @@ export interface RunRetiredSubdirDetectionOptions {
   readFile: ReadFileFn;
 }
 
-export interface RetiredSubdirDetectionResult {
-  /**
-   * Retired-WU user subdirs lingering locally — every shipped subdir present.
-   * Read-only: surfaced for the operator, not removed.
-   */
-  candidates: string[];
-}
+/** Runtime authority for retired work-unit subdirectory candidates. */
+export const RetiredSubdirCandidatesSchema = z.array(SlugSchema);
+
+/** Runtime authority for the retired-subdirectory advisory result. */
+export const RetiredSubdirDetectionResultSchema = z.strictObject({
+  candidates: RetiredSubdirCandidatesSchema,
+});
+
+/** Retired work-unit user subdirectories lingering locally. */
+export type RetiredSubdirDetectionResult = z.infer<typeof RetiredSubdirDetectionResultSchema>;
 
 /**
  * Detect retired-WU user subdirs lingering under `user/{identity}/`.
@@ -67,5 +73,5 @@ export async function runRetiredSubdirDetection(
 
   const shipped = await readShippedWorkUnitsFromRef(exec, `origin/${baseBranch}`);
   const { reconcile } = planRetiredSubdirReconcile({ localSubdirs, shipped });
-  return { candidates: reconcile };
+  return { candidates: reconcile.map((candidate) => SlugSchema.parse(candidate)) };
 }

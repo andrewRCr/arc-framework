@@ -11,8 +11,8 @@
  * - **Capture mode** (default): runs `git push` through the injected
  *   `GitExec`, fully capturing stdout/stderr. Used by `arc sync` and
  *   `arc user push`.
- * - **Inherit-stdio mode** (`inheritStdio: true`): switches to
- *   `child_process.spawn` with `stdio: ['inherit', 'inherit', 'pipe']` —
+ * - **Inherit-stdio mode** (`inheritStdio: true`): switches to an execa
+ *   adapter with inherited stdin/stdout and captured-and-teed stderr —
  *   stdout streams to the user's terminal, stderr is captured (and teed
  *   back to `process.stderr`) so callers can parse `refStatus` while the
  *   user sees verbatim push output. Used by the upcoming `arc release
@@ -29,9 +29,11 @@
  * @module
  */
 
-import { spawn } from "node:child_process";
+import { execa } from "execa";
 
 import type { GitExec } from "./exec.js";
+import { MAX_GIT_OUTPUT_BYTES } from "./process-executor.js";
+import { type GitProcessError, normalizeGitRejection } from "./process-error.js";
 
 export interface PushWorktreeSpawnArgs {
   branch: string;
@@ -48,12 +50,13 @@ export interface PushWorktreeSpawnArgs {
 export interface PushWorktreeSpawnResult {
   exitCode: number;
   stderr: string;
+  /** Normalized evidence for a non-zero Git exit. Omitted by legacy injected fakes. */
+  error?: GitProcessError;
 }
 
 /**
- * Spawn-based wrapped invocation used under `inheritStdio: true`. Production
- * callers omit it (the default real impl uses `node:child_process.spawn`);
- * tests inject a mock to avoid spawning real `git`.
+ * Wrapped invocation used under `inheritStdio: true`. Production callers omit
+ * it; tests inject a mock to avoid running a real push.
  */
 export type PushWorktreeSpawn = (
   args: PushWorktreeSpawnArgs,
@@ -71,8 +74,7 @@ export interface PushWorktreeBranchOptions {
    */
   cwd?: string;
   /**
-   * When `true`, switch from `exec`-based capture to `child_process.spawn`
-   * with `stdio: ['inherit', 'inherit', 'pipe']`: stdout streams to the
+   * When `true`, switch from `exec`-based capture to an execa adapter: stdout streams to the
    * user's terminal, stderr is captured and teed to `process.stderr` so
    * callers can parse `refStatus` without suppressing the verbatim push
    * output the user expects. Defaults to `false` (capture mode).
@@ -112,7 +114,7 @@ export async function pushWorktreeBranch(
     }
     return {
       status: "failed",
-      error: new Error(`git push exited with code ${result.exitCode}`),
+      error: result.error ?? new Error(`git push exited with code ${result.exitCode}`),
       stdout: "",
       stderr: result.stderr,
     };
@@ -136,19 +138,21 @@ export async function pushWorktreeBranch(
   }
 }
 
-const defaultSpawnPush: PushWorktreeSpawn = ({ branch, args, cwd }) =>
-  new Promise((resolve, reject) => {
-    const proc = spawn("git", ["push", "origin", branch, ...args], {
-      stdio: ["inherit", "inherit", "pipe"],
-      ...(cwd === undefined ? {} : { cwd }),
-    });
-    let stderr = "";
-    proc.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-      process.stderr.write(chunk);
-    });
-    proc.on("error", reject);
-    proc.on("close", (code) => {
-      resolve({ exitCode: code ?? 1, stderr });
-    });
+const defaultSpawnPush: PushWorktreeSpawn = async ({ branch, args, cwd }) => {
+  const invocation = ["push", "origin", branch, ...args];
+  const result = await execa("git", invocation, {
+    cwd,
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: ["inherit", "pipe"],
+    reject: false,
+    stripFinalNewline: false,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
   });
+  const stderr = result.stderr;
+  if (!result.failed) return { exitCode: 0, stderr };
+
+  const error = normalizeGitRejection(result, { command: "git", args: invocation });
+  if (error.kind !== "nonzero-exit" || error.exitCode === undefined) throw error;
+  return { exitCode: error.exitCode, stderr, error };
+};

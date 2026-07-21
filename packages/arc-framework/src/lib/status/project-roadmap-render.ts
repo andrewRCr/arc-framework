@@ -9,6 +9,7 @@
  */
 
 import type { GitExec } from "../git/exec.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import { listErrandRecordsResult, type ListErrandRecordsResult } from "../errand/record.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
@@ -55,7 +56,9 @@ export async function renderTrackedProjectReadinessViewResult(
   } catch (err) {
     // `git config --get` exits 1 for an unset key — authoritative absence.
     // Any other failure (usage error, spawn failure) is a degraded read.
-    if ((err as { code?: number | string }).code === 1) {
+    if (normalizeGitRejection(err, {
+      command: "git", args: ["config", "--get", "arc.identity"],
+    }).exitCode === 1) {
       identity = undefined;
     } else {
       identityReadFailed = true;

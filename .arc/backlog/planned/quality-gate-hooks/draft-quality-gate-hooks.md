@@ -5,6 +5,27 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Distinguish raw Git rename/copy statuses from planning references**
+
+- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-20); captured during
+  `classify-change-granularity` execution.
+- *Concern:* the pre-commit meta-project-reference check rejects literal `R100` and `C100` fixtures even though
+  they are canonical raw Git rename/copy statuses. Production-adjacent tests must currently obscure valid domain
+  tokens to pass the check.
+- *Approach:* narrow the matcher using surrounding planning-reference grammar or exempt exact raw-diff status tokens,
+  while retaining regression coverage for genuine requirement and planning references.
+
+### `[ ]` **Prevent unrelated large blobs from crashing pre-commit validators**
+
+- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-20); captured during a base reconcile for
+  `session-locus-model`.
+- *Concern:* `validate-decompose-record.ts` reads parent-side content for every staged path with a 10 MB child-process
+  buffer. A merge deleting an unrelated ~60 MB blob therefore raised `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` and killed
+  the whole pre-commit chain, even though the validator had no stake in that file.
+- *Approach:* scope reads to the retirement receipt and declared operation paths; size-check required blobs before
+  buffering; reuse the shared Git-output limit rather than a local literal; and cover a simulated merge with a large
+  unrelated deletion. Generalize the guard to other pre-commit validators that buffer staged blobs.
+
 ### `[ ]` **Distinguish runtime examples from meta-project references in code**
 
 - *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during

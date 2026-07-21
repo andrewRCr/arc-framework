@@ -214,9 +214,7 @@ describe("runWorktreeSyncStatus", () => {
       [FETCH_BRANCH]: (_args, options) =>
         new Promise((_resolve, reject) => {
           options?.signal?.addEventListener("abort", () => {
-            const err = new Error("AbortError");
-            err.name = "AbortError";
-            reject(err);
+            reject(Object.assign(new Error("canceled"), { isCanceled: true }));
           });
         }),
     });

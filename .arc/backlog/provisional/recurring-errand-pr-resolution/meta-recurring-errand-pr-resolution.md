@@ -1,14 +1,14 @@
-# Metadata: cli-session-envelope
+# Metadata: recurring-errand-pr-resolution
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
 
-- **Cohort:** `cli-substrate-adoption`
-- **Depends On:** `cli-schema-kernel`
+- **Cohort:** [none]
+- **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-cli-session-envelope.md`
+- **Design:** `draft-recurring-errand-pr-resolution.md`
 - **Task List:** [none]
 
 - **Current Workflow:** [none]

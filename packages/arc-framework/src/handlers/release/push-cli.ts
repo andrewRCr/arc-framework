@@ -23,6 +23,7 @@ import {
   runWorktreeSyncStatus,
 } from "../../lib/git/index.js";
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
+import { normalizeGitRejection } from "../../lib/git/process-error.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
 
 import { runReleasePush, type SpawnPush } from "./push.js";
@@ -95,9 +96,8 @@ export async function handleReleasePush(opts: HandleReleasePushOptions): Promise
  * with `inheritStdio: true`: stdout streams verbatim to the user's
  * terminal, stderr is captured + teed for `refStatus` parsing post-push.
  *
- * Reshapes the helper's `failed` arm — which folds the exit code into
- * `error.message` — into the orchestrator's first-class `exitCode` field
- * so audit attribution doesn't depend on parsing the message back out.
+ * Reshapes the helper's `failed` arm into the orchestrator's first-class
+ * `exitCode` field so audit attribution uses structured process evidence.
  */
 const realSpawnPush: SpawnPush = async ({ branch, args, cwd }) => {
   const result = await pushWorktreeBranch({
@@ -112,21 +112,10 @@ const realSpawnPush: SpawnPush = async ({ branch, args, cwd }) => {
   }
   return {
     status: "failed",
-    exitCode: extractExitCode(result.error),
+    exitCode: normalizeGitRejection(result.error, {
+      command: "git", args: ["push", "origin", branch, ...args],
+    }).exitCode ?? 1,
     stdout: result.stdout,
     stderr: result.stderr,
   };
 };
-
-/**
- * Recover the integer exit code from the helper's failure-mode `Error`,
- * whose `message` is `git push exited with code N`. Falls back to 1 when
- * the message doesn't match — defensive only; the helper's format is the
- * fixed source of truth for inherit-stdio failures.
- */
-function extractExitCode(error: Error): number {
-  const match = /exited with code (\d+)/.exec(error.message);
-  if (match?.[1] === undefined) return 1;
-  const parsed = Number.parseInt(match[1], 10);
-  return Number.isFinite(parsed) ? parsed : 1;
-}

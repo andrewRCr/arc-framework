@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import { GitProcessError } from "../../src/lib/git/process-error.js";
 
 const mockIntro = vi.fn();
 const mockOutro = vi.fn();
@@ -565,6 +566,25 @@ describe("handleUserSync push policy", () => {
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("couldn't find remote ref"));
     expect(process.exitCode).toBe(1);
+  });
+
+  it("renders bounded typed Git failure context when pull fails", async () => {
+    setSyncState("remote-ahead", "same");
+    mockRunUserPull.mockRejectedValue(new GitProcessError({
+      kind: "nonzero-exit",
+      command: "git",
+      args: ["fetch", "origin"],
+      exitCode: 128,
+      stderr: "fatal: representative fetch diagnostic",
+    }));
+
+    await handleUserSync();
+
+    const rendered = String(mockLog.error.mock.calls[0]?.[0]);
+    expect(rendered).toContain("git fetch");
+    expect(rendered).toContain("nonzero-exit");
+    expect(rendered).toContain("exit 128");
+    expect(rendered).toContain("representative fetch diagnostic");
   });
 
   it("stops pull direction without rendering load output when guarded fetch refuses", async () => {

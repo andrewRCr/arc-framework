@@ -9,10 +9,19 @@ on:
     # updates the merge signal without an artificial push.
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   workflow_dispatch:
-  # Monthly cross-platform portability (was weekly). macOS bills 10×; the
-  # PR-path still runs this matrix when classify.portability_target is true.
+    inputs:
+      run_portability_pair:
+        description: 'Also run the Windows/macOS portability pair (billed at hosted-runner multipliers)'
+        type: boolean
+        default: false
+  # Weekly cross-platform portability. The Windows/macOS pair fires only here or
+  # on an explicit dispatch opt-in — never from PR synchronizes — so the weekly
+  # cadence is a post-merge backstop against OS-specific concurrency-guard
+  # regressions at a trivial cost (macOS bills 10×, but a single weekly firing is
+  # a few billed minutes). classify still computes portability_target as the
+  # relevance signal; the pair no longer consumes it.
   schedule:
-    - cron: '17 8 1 * *'
+    - cron: '17 8 * * 1'
 
 # Least-privilege default for the whole workflow: every job only reads the repo.
 # Any job that later needs more requests it explicitly.
@@ -33,7 +42,7 @@ jobs:
   #            heavy when the change touches the canonical code surface and that
   #            exact code tree has not already passed the heavy suite; light for a
   #            docs-only change or an already-verified tree. A light run skips the
-  #            code checks, the integration/e2e suite, and the portability matrix.
+  #            code checks, the integration/e2e suite, and the portability leg.
   #   defer  - opt-in heavy-suite skip via PR label `ci-defer-heavy` (review-cycle
   #            savings). ci-ok fails while deferred so branch protection never
   #            greens a head that skipped integration/e2e/portability.
@@ -41,7 +50,7 @@ jobs:
   # ci-ok rolls up CI truth; merge-ok remains a thin compatibility alias.
   classify:
     name: Classify lane & weight
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       checks: read
@@ -58,6 +67,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # classify-change hashes NUL-delimited tree records with Node. Provision it
+      # explicitly because disposable runners do not carry a system Node install.
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
@@ -129,9 +140,10 @@ jobs:
             all_head='${{ github.sha }}'
           fi
 
-          # Cross-platform runners are reserved for changes that can affect the
-          # concurrency primitives. An unreadable PR diff fails safe to running
-          # the matrix; non-PR events are dispatched explicitly below.
+          # portability_target reports whether the change can affect the
+          # concurrency primitives (an unreadable PR diff fails safe to true).
+          # Informational on PRs: the Windows/macOS pair fires only on the
+          # weekly schedule or an explicit dispatch opt-in.
           portability_target=false
           if [ "$event" = 'pull_request' ]; then
             portability_target=true
@@ -196,7 +208,7 @@ jobs:
     # Heavy-weight runs plus workflow_dispatch (manual full suite, matches
     # pre-shared-setup integration/e2e/portability triggers).
     if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -232,7 +244,7 @@ jobs:
     # (fail-safe: run unless explicitly light). setup is optional: light runs
     # skip it and keep a local npm ci; heavy runs restore its cache + dist.
     if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.setup.result == 'success' || needs.setup.result == 'skipped') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -285,7 +297,7 @@ jobs:
     # entirely, mirroring the integration/e2e legs. Requires setup success so a
     # failed shared install cannot leave this leg skipped-and-green.
     if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.classify.outputs.weight != 'light' && needs.setup.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -312,7 +324,7 @@ jobs:
       actions: read # download-artifact of shared dist
     needs: [classify, setup]
     if: ${{ !cancelled() && needs.setup.result == 'success' && needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -349,7 +361,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -382,17 +394,13 @@ jobs:
   # above can't confirm. This required PR leg stays on Linux; the costlier
   # Windows/macOS confirmation below runs only when its focused surface changes.
   portability:
-    name: Portability (concurrency guards)
+    name: Portability (concurrency guards) (linux)
     permissions:
       contents: read
       actions: read # download-artifact of shared dist
     needs: [classify, setup]
     if: ${{ !cancelled() && needs.setup.result == 'success' && needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -420,12 +428,15 @@ jobs:
 
   # Cross-platform legs keep their own install+build: OS-native deps make a
   # Linux node_modules cache unusable on Windows/macOS (Pass 1 is Linux-only).
+  # Schedule-only plus explicit dispatch opt-in: hosted Windows/macOS minutes
+  # bill at multipliers, so PR events never fire this matrix. Independent of
+  # classify — it consumes no classify output and does its own build, so it
+  # neither needs classify nor should be gated on its result.
   portability-cross-platform:
     name: Portability targeted
     permissions:
       contents: read
-    needs: classify
-    if: ${{ !cancelled() && needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.portability_target == 'true') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || github.event_name == 'schedule' }}
     strategy:
       fail-fast: false
       matrix:
@@ -450,7 +461,7 @@ jobs:
     permissions: {}
     needs: [classify, setup, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]
     if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Roll up required jobs
         env:
@@ -483,7 +494,7 @@ jobs:
     permissions: {}
     needs: ci_ok
     if: ${{ always() && github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Mirror ci-ok for required-context compatibility
         env:
