@@ -766,11 +766,11 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
         - Made the final interlock surface the exact cleanup/composition/cohort/archive/readiness/reconcile tail rather
           than excerpts, keeping the whole provisional candidate visible at disposition time.
 
-    - `[ ]` **6.4.c Consolidate to one late base-reconcile location**
-        - Make base reconcile the candidate's final mutation site; append-only merge a clean/disjoint base OID under
-          typed applicability and stop on conflict, interaction requiring review, or analyzer/host disagreement.
-        - After any append-only merge, push and re-run CI/routing before `pre-merge`; carry composition only under a
-          proof that the WU delta is unchanged, and loop to the same location if the base moves again.
+    - `[x]` **6.4.c Consolidate to one late base-reconcile location**
+        - Removed the pre-composition reconcile and made the candidate's final mutation site accept only a stable,
+          typed, disjoint base OID; conflicts, substantive interaction, degraded evidence, and host disagreement stop.
+        - After an append-only merge, typed applicability carries composition only for an unchanged WU delta; the new
+          head is pushed, reruns CI/routing before `pre-merge`, and loops at the same late site on further base movement.
 
     - `[ ]` **6.4.d Preserve an unbroken exact-head merge window**
         - Verify the cadence-required composition/lifecycle products through authoritative lifecycle state, fire

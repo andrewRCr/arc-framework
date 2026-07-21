@@ -339,12 +339,12 @@ describe("trusted review-gate workflows", () => {
 
     expect(packageIntegration).toBe(instanceIntegration);
     expect(packageErrand).toBe(instanceErrand);
-    expect(packageIntegration.match(new RegExp(genericGuard, "gu"))).toHaveLength(3);
+    expect(packageIntegration.match(new RegExp(genericGuard, "gu"))).toHaveLength(2);
     expect(packageIntegration).not.toContain("review-gate:assert-head-mutable");
     expect(packageIntegration.slice(
       packageIntegration.indexOf("### 6) Confirm review coordination"),
       packageIntegration.indexOf("### 7) Spec-presence + alignment checks"),
-    ).match(new RegExp(genericGuard, "gu"))).toHaveLength(1);
+    ).match(new RegExp(genericGuard, "gu")) ?? []).toHaveLength(0);
     expect(packageIntegration.slice(
       packageIntegration.indexOf("### 12) Final push"),
       packageIntegration.indexOf("### 14) Post-merge worktree cleanup"),
@@ -407,7 +407,7 @@ describe("trusted review-gate workflows", () => {
     expect(candidate).toContain("verification evidence");
     expect(candidate).toMatch(/alignment disagreement|failed quality gate|base conflict|unexpected state/u);
     expect(candidate).toContain("recompose the candidate after any correction");
-    expect(candidate).toMatch(/pre-composition\s+direction[\s\S]*not prospective merge authority/u);
+    expect(candidate).toMatch(/pre-composition\s+direction[\s\S]*not\s+prospective merge authority/u);
     expect(candidate).not.toContain("Stop before composition begins");
     expect(candidate).not.toContain("proceed to commit + sweep + push");
   });
@@ -463,13 +463,12 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
-  it("drives both integration safety windows through authoritative base drift", async () => {
+  it("uses one late authoritative base-reconcile mutation site", async () => {
     const [packageIntegration, instanceIntegration] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
     ]);
     expect(packageIntegration).toBe(instanceIntegration);
-    expect(packageIntegration.match(/arc base drift --json/gu)?.length).toBeGreaterThanOrEqual(3);
     expect(packageIntegration).not.toContain("git fetch origin {base-branch}");
     expect(packageIntegration).not.toContain("rev-list --left-right --count");
     expect(packageIntegration).not.toContain("git merge --no-edit origin/{base-branch}");
@@ -478,15 +477,20 @@ describe("trusted review-gate workflows", () => {
       packageIntegration.indexOf("### 13) Behind-base reconcile gate and merge"),
       packageIntegration.indexOf("### 14) Post-merge worktree cleanup"),
     );
-    expect(gate).toMatch(/`unavailable`, `skipped`, malformed, or unrecognized — stop/u);
-    expect(gate).toContain("`reconcile` with a different `baseOid`");
-    expect(gate).toContain("re-fire the reconcile");
-    expect(gate).toContain("requires a new exact-head checkpoint plus integration approval");
-    expect(gate).toContain(
-      "result = arc base drift --json\n"
-      + "if <result is authoritative reconcile and baseOid == {approved-baseOid}>:\n"
-      + "    git merge --no-edit {approved-baseOid}",
+    expect(packageIntegration.match(/arc base drift --json/gu)).toHaveLength(
+      gate.match(/arc base drift --json/gu)?.length ?? 0,
     );
+    expect(gate).toContain("candidate's final mutation site");
+    expect(gate).toMatch(/`unavailable`[\s\S]*`skipped`[\s\S]*(?:malformed|unrecognized)[\s\S]*stop/u);
+    expect(gate).toMatch(/typed[\s\S]*empty[\s\S]*substantivePaths/u);
+    expect(gate).toMatch(/base conflict[\s\S]*analyzer\/host disagreement/u);
+    expect(gate).toContain("typed applicability proof");
+    expect(gate).toMatch(/reviewed WU delta is unchanged[\s\S]*carry/u);
+    expect(gate).toMatch(/interacting[\s\S]*returns? to Step 4/u);
+    expect(gate).toMatch(/push[\s\S]*CI and routing[\s\S]*`pre-merge`/u);
+    expect(gate).toMatch(/base moves again[\s\S]*same Step 13/u);
+    expect(gate).toContain("requires a new exact-head checkpoint plus integration approval");
+    expect(gate).toContain("git merge --no-edit {baseOid}");
     expect(gate).toContain(
       "result = arc base drift --json\n"
       + "if <result is authoritative clean>:\n"
@@ -500,13 +504,13 @@ describe("trusted review-gate workflows", () => {
     const finalDrift = gate.lastIndexOf("result = arc base drift --json");
     expect(approval).toBeLessThan(refreshedPr);
     expect(refreshedPr).toBeLessThan(finalDrift);
-    expect(gate.indexOf("git merge --no-edit {approved-baseOid}")).toBeLessThan(
+    expect(gate.indexOf("git merge --no-edit {baseOid}")).toBeLessThan(
       gate.indexOf("run Tier 1 quality gates"),
     );
     expect(finalDrift).toBeLessThan(gate.indexOf("gh pr merge"));
   });
 
-  it("reconciles a conflicted PR before requiring hosted checks to be green", async () => {
+  it("defers base reconciliation until after candidate composition", async () => {
     const [packageIntegration, instanceIntegration] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
@@ -516,11 +520,11 @@ describe("trusted review-gate workflows", () => {
       packageIntegration.indexOf("### 6) Confirm review coordination"),
       packageIntegration.indexOf("### 7) Spec-presence + alignment checks"),
     );
-    expect(reviewSettlement).toContain("arc base drift --json");
-    expect(reviewSettlement).toContain("git merge --no-edit {approved-baseOid}");
-    expect(reviewSettlement).toContain("return to Step 4");
-    expect(packageIntegration.indexOf("arc base drift --json", packageIntegration.indexOf("### 6)")))
-      .toBeLessThan(packageIntegration.indexOf("checks green"));
+    expect(reviewSettlement).not.toContain("arc base drift --json");
+    expect(reviewSettlement).not.toContain("git merge");
+    expect(reviewSettlement).toContain("`review-settled`");
+    expect(packageIntegration.indexOf("arc base drift --json"))
+      .toBeGreaterThan(packageIntegration.indexOf("### 12) Final push"));
   });
 
   it("guards the post-merge tail on completion and archival products", async () => {

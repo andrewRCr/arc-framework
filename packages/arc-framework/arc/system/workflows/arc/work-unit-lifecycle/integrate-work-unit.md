@@ -216,60 +216,12 @@ pass, or an unattested result does not establish it.
 
 ### 6) Confirm review coordination
 
-Before requiring hosted checks to be green, read the open PR's canonical mergeability state. When the host reports
-the PR as conflicting, run the authoritative drift verb and parse its JSON:
+Confirm the source-neutral open-PR review cycle has reduced the routed WU obligation to `review-settled`. This is not
+the final-head checkpoint; base freshness belongs only to Step 13, after candidate composition.
 
-```bash
-arc base drift --json
-```
-
-Apply the same strict result validation as Step 13: require `mode: authoritative`, a recognized verdict, and all
-typed fields for that verdict. An `unavailable`, `skipped`, unrecognized, malformed, or non-JSON result stops
-integration.
-
-On `clean`, re-read canonical PR mergeability. If the host still reports a conflict, stop and surface the
-analyzer/host disagreement. Otherwise, continue to review-settlement confirmation below.
-
-On `reconcile`, surface the analyzer-owned register and retain its `baseOid` as `{approved-baseOid}`:
-
-> [!IMPORTANT]
-> `workflow-interlock`: Stop before base reconciliation. Surface the register and immutable base OID; await
-> explicit "reconcile base" direction before refreshing the reading and merging that approved OID.
-
-After approval, immediately invoke `arc base drift --json` again and apply the same validation:
-
-- `clean` — reconciliation became unnecessary; re-read canonical PR mergeability before continuing.
-- `reconcile` with a different `baseOid` — surface the updated register and OID, then re-fire the reconcile
-  interlock.
-- `reconcile` with `baseOid == {approved-baseOid}` — immediately merge that OID, with no fetch, review action,
-  or further stop between the refreshed read and merge:
-
-```text
-result = arc base drift --json
-if <result is authoritative reconcile and baseOid == {approved-baseOid}>:
-    git merge --no-edit {approved-baseOid}
-else:
-    <dispatch result through the validated verdict loop above>
-```
-
-Resolve conflicts if any and run Tier 1 quality gates. Before pushing, execute the Step 3 push extension contract,
-then invoke the active project review coordinator's exact-head mutability action with the current
-`openedChangeRequest`, outgoing local head, and any `begin-fix` authorization receipt. Stop on any typed refusal;
-never reverse the current/outgoing head order.
-
-> [!CAUTION]
-> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
-
-After the push, return to Step 4. Do not declare review settled against the pre-reconciliation head. On re-entry,
-repeat this step.
-
-With mergeability conflict-free, confirm required approvals, open threads, and checks green through the open-PR
-review cycle before alignment and composition. This is not the final-head checkpoint; composition, sweep, or final
-base reconciliation can still change the branch.
-
-Only the source-neutral WU review cycle's settled reduction establishes `review-settled`. Any pre-composition
-direction to merge once review settles authorizes autonomous advance through candidate assembly to the final
-integration interlock; it is not prospective merge authority over the candidate's not-yet-known head.
+Only that cycle's settled reduction establishes `review-settled`. Any pre-composition direction to merge once review
+settles authorizes autonomous advance through candidate assembly to the final integration interlock; it is not
+prospective merge authority over the candidate's not-yet-known head.
 
 After settlement, clean the WU content:
 
@@ -380,7 +332,7 @@ authorization can release the merge.
 
 ### 13) Behind-base reconcile gate and merge
 
-Run the authoritative drift verb and parse its JSON:
+This is the candidate's final mutation site. Run the authoritative drift verb and parse its JSON:
 
 ```bash
 arc base drift --json
@@ -391,39 +343,33 @@ fields. A healthy `clean` / `reconcile` result requires non-negative integer dis
 and the typed evidence fields; `reconcile` additionally requires a register. An `unavailable`, `skipped`,
 unrecognized, malformed, or non-JSON result stops integration — surface its typed reason or parse failure.
 
-On `reconcile`, surface the analyzer-owned register and retain its `baseOid` as `{approved-baseOid}`:
+On `reconcile`, continue autonomously only when the typed result carries a validated `baseOid`, complete integration
+evidence, `overlap.status: available`, and an empty `substantivePaths` set. Re-read canonical host mergeability;
+a base conflict stops, and any analyzer/host disagreement stops. Unavailable overlap, incomplete evidence, or a
+substantive interaction also stops rather than weakening the reconcile.
 
-> [!IMPORTANT]
-> `workflow-interlock`: Stop before base reconciliation. Surface the register and immutable base OID; await
-> explicit "reconcile base" direction before refreshing the reading and merging that approved OID.
-
-After approval, immediately invoke `arc base drift --json` again and apply the same validation:
-
-- `unavailable`, `skipped`, malformed, or unrecognized — stop.
-- `clean` — reconciliation became unnecessary; continue to the clean path below.
-- `reconcile` with a different `baseOid` — surface the updated register and OID, then re-fire the reconcile
-  interlock.
-- `reconcile` with `baseOid == {approved-baseOid}` — immediately merge that OID append-only, with no fetch,
-  review action, or further stop between the refreshed read and merge:
+Immediately refresh `arc base drift --json`. A `clean` result skips the merge; a changed `baseOid` restarts this same
+read. When the identical OID still has the safe typed disjoint result, merge it append-only:
 
 ```text
-result = arc base drift --json
-if <result is authoritative reconcile and baseOid == {approved-baseOid}>:
-    git merge --no-edit {approved-baseOid}
-else:
-    <dispatch result through the validated verdict loop above>
+git merge --no-edit {baseOid}
 ```
 
-Resolve conflicts if any and run Tier 1 quality gates. Before pushing, repeat the Step 3 push extension contract,
-then invoke the active project review coordinator's exact-head mutability action with the current
-`openedChangeRequest`, outgoing local head, and any `begin-fix` authorization receipt. Stop on a typed refusal;
-never reverse the current/outgoing head order.
+A merge conflict stops without resolution. Otherwise run Tier 1 quality gates and recompose the exact target. Ask
+the active project review coordinator for the typed applicability proof. Carry the composition basis only when the
+proof establishes the reviewed WU delta is unchanged and selects `carry`; an interacting or otherwise non-carry
+result discards the basis, returns to Step 4 for required review, and recomposes the candidate afterward.
+
+Repeat the Step 3 push extension contract, then invoke the active project review coordinator's exact-head mutability
+action with the current `openedChangeRequest` and outgoing local head. Stop on a typed refusal; never reverse those
+heads.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
-Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. After the push, return to the
-authoritative drift read and repeat until it returns `clean`.
+After push, re-run required CI and routing on the new exact head before `pre-merge`. If the base moves again, return
+to the same Step 13 drift read. Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. Continue
+only when the authoritative result is `clean`.
 
 At the zero-behind final head, retain the `clean` result's `baseOid` as the current base-freshness evidence. Compose
 the current `openedChangeRequest` and fire `pre-merge` when active. Its actions must report the controller settled
