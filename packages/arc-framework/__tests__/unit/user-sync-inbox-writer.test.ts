@@ -11,7 +11,9 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  inboxEntrySourceDigest,
   listInboxEntryTitles,
+  mutateInboxEntries,
   removeInboxEntry,
   requireLiveInboxTitle,
 } from "../../src/lib/user-sync/index.js";
@@ -50,6 +52,100 @@ const INBOX = `# User Inbox
 - _Section:_ Atomic
 - _Removed:_ 2026-06-01T00:00:00.000Z
 `;
+
+describe("mutateInboxEntries", () => {
+  it("marks an exact batch with one visible dispatch generation", () => {
+    const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
+
+    const result = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest: firstDigest, dispatchId: "dispatch-7" },
+      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest, dispatchId: "dispatch-7" },
+    ]);
+
+    expect(result.changed).toBe(true);
+    expect(result.outcomes).toEqual([
+      { title: "First atomic", state: "applied" },
+      { title: "Second atomic", state: "applied" },
+    ]);
+    expect(result.content.match(/- _Disposition:_ `execute-bound`/g)).toHaveLength(2);
+    expect(result.content.match(/- _Dispatch:_ `dispatch-7`/g)).toHaveLength(2);
+    expect(result.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  it("replays an exact mark, unmark, and removal without widening the write", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+    ]);
+    const markReplay = mutateInboxEntries(marked.content, [
+      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+    ]);
+    expect(markReplay).toMatchObject({ changed: false, content: marked.content });
+    expect(markReplay.outcomes).toEqual([{ title: "First atomic", state: "already-applied" }]);
+
+    const unmarked = mutateInboxEntries(marked.content, [
+      { kind: "unmark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+    ]);
+    expect(unmarked.content).toBe(INBOX);
+    expect(mutateInboxEntries(unmarked.content, [
+      { kind: "unmark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+    ])).toMatchObject({ changed: false, content: INBOX });
+
+    const removed = mutateInboxEntries(marked.content, [
+      { kind: "remove", title: "First atomic", sourceDigest },
+    ]);
+    expect(removed.content).not.toContain("First atomic");
+    expect(mutateInboxEntries(removed.content, [
+      { kind: "remove", title: "First atomic", sourceDigest },
+    ])).toMatchObject({ changed: false, content: removed.content });
+  });
+
+  it("rejects changed, missing, duplicate, and malformed entry preimages", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    expect(() => mutateInboxEntries(INBOX.replace("first.", "changed."), [
+      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+    ])).toThrow(/source digest changed/);
+    expect(() => mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "Missing", sourceDigest, dispatchId: "dispatch-7" },
+    ])).toThrow(/Missing USER-INBOX entry/);
+
+    const duplicate = INBOX.replace(
+      "## Work Unit",
+      "### `[ ]` **First atomic**\n\n- _Observation:_ duplicate.\n\n## Work Unit",
+    );
+    expect(() => mutateInboxEntries(duplicate, [
+      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+    ])).toThrow(/Duplicate USER-INBOX entry title/);
+
+    const malformed = INBOX.replace("### `[ ]` **First atomic**", "### `[ ]` First atomic");
+    expect(() => mutateInboxEntries(malformed, [
+      { kind: "mark", title: "Second atomic", sourceDigest: inboxEntrySourceDigest(INBOX, "Second atomic"), dispatchId: "dispatch-7" },
+    ])).toThrow(/Malformed USER-INBOX entry heading/);
+  });
+
+  it("preserves unrelated bytes and rejects partial or cross-generation dispatch fields", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+    ]);
+    expect(marked.content.replace(
+      "\n\n- _Disposition:_ `execute-bound`\n- _Dispatch:_ `dispatch-7`",
+      "",
+    )).toBe(INBOX);
+    expect(() => mutateInboxEntries(marked.content, [
+      { kind: "unmark", title: "First atomic", sourceDigest, dispatchId: "dispatch-8" },
+    ])).toThrow(/bound to another dispatch/);
+
+    const partial = INBOX.replace(
+      "### `[ ]` **First atomic**",
+      "### `[ ]` **First atomic**\n\n- _Disposition:_ `execute-bound`",
+    );
+    expect(() => mutateInboxEntries(partial, [
+      { kind: "remove", title: "First atomic", sourceDigest },
+    ])).toThrow(/Malformed USER-INBOX dispatch fields/);
+  });
+});
 
 describe("removeInboxEntry", () => {
   it("removes the title-matched entry and leaves siblings byte-stable", () => {

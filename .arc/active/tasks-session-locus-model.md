@@ -402,24 +402,17 @@ transaction boundary before operation composers consume it.
           compares a target-local authority recheck, and mints only the unchanged role. Exact replay is idempotent,
           while identity-only, pending-marker, and marker/record races return their reconciliation evidence.
 
-### `[ ]` **4.4 Establish concurrency-safe USER-INBOX mutation authority** — D8, D9
+### `[x]` **4.4 Establish concurrency-safe USER-INBOX mutation authority** — D8, D9
 
 - _Goal:_ Every later dispatch mark, unbind, and completion removal linearizes through one notes-locked mutation
   seam and returns the exact state it wrote, so operation drivers never race through private read/modify/write loops.
 
-    - `[ ]` **4.4.a Add lock-serialized batch mutation and post-image results**
-        - Add a targeted USER-INBOX mutation seam that acquires the identity notes lock and performs one atomic
-          same-file replacement for an expected title/source-digest set, including batch dispatch mark/unmark and
-          exact completion removal.
-        - Route existing `runUserInboxRemove()` through the same discipline. Preserve the visible
-          ``- _Disposition:_ `execute-bound` `` and ``- _Dispatch:_ `<dispatchId>` `` grammar and reject changed,
-          duplicate, or malformed entry preimages instead of overwriting concurrent notes writes.
-        - Return the exact post-image/digest from every mutation so later completion and next-offer logic derives
-          from the state actually written; callers still revalidate any selected entry and dispatch generation.
-        - Build `test-first` (one behavior at a time):
-            - Cover exact batch mark/unmark/remove, already-applied replay, source-digest mismatch,
-              missing/duplicate/malformed titles, concurrent remove/mark writers, failed atomic replacement, and
-              preservation of unrelated bytes.
+    - `[x]` **4.4.a Add lock-serialized batch mutation and post-image results**
+        - Added one identity-notes-lock transaction for exact title/source-digest-qualified dispatch mark, unmark,
+          and removal batches. It validates the complete preimage before one atomic replacement, preserves
+          unrelated bytes, returns the exact written post-image/digest, and treats only exact replay as idempotent.
+          Existing inbox removal now uses the same seam; focused tests cover malformed and raced state, concurrent
+          writers, failed replacement, and visible execute-dispatch grammar.
 
 ## **Phase 5:** Transient Operation Verbs
 

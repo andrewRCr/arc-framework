@@ -9,6 +9,13 @@ export { runUserAdd } from "./user/add.js";
 export { runUserClose } from "./user/close.js";
 export { runUserInboxRemove } from "./user/inbox-remove.js";
 export {
+  runUserInboxMutation,
+  type RunUserInboxMutationOptions,
+  type RunUserInboxMutationResult,
+  type UserInboxMutationDependencies,
+  type UserInboxPostImage,
+} from "./user/inbox-mutation.js";
+export {
   findStaleUserWuSubdirs,
   listUserWuSubdirContents,
   removeStaleUserWuSubdir,

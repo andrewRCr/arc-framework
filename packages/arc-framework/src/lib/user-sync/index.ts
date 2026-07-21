@@ -22,9 +22,14 @@ export { resolveCurrentWuName, type ExecForBranch } from "./current-wu.js";
 export { matchInboxEntryTitle, parseCrossWuEntries, shapeForFile } from "./parser.js";
 
 export {
+  inboxEntrySourceDigest,
   listInboxEntryTitles,
+  mutateInboxEntries,
   removeInboxEntry,
   requireLiveInboxTitle,
+  type InboxEntryMutation,
+  type InboxEntryMutationOutcome,
+  type MutateInboxEntriesResult,
   type RemoveInboxEntryResult,
 } from "./inbox-writer.js";
 
