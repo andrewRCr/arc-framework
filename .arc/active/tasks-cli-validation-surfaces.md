@@ -255,10 +255,10 @@ the distinct recovery and precedence policies of existing adapters.
           retired warning-length key remains an ordinary extra; explicit full-validation and worktree projections now
           join the existing agent and commit-check subsets.
 
-    - `[ ]` **3.4.b Establish the shared compatibility corpus**
-        - Add reusable valid, invalid, absent, bare-empty, quoted-empty, unknown, duplicate, and precedence cases with
-          expected outcomes per adapter; keep fixtures data-only so no parallel validation helper survives this work
-          unit.
+    - `[x]` **3.4.b Establish the shared compatibility corpus**
+        - Added one data-only configuration corpus covering valid, invalid, missing, bare-empty, quoted-empty, unknown,
+          duplicate, and git-over-yaml precedence inputs. Each stable case records expected tolerant-reader, resolved,
+          commit-check, worktree, and validator observations, with a structural test guarding coverage and uniqueness.
 
     - `[ ]` **3.4.c Prove tolerant and precedence-aware compatibility**
         - Run the shared corpus through status reads and resolved settings, preserving warning subsets, raw-value
