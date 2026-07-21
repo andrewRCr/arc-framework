@@ -23,6 +23,20 @@ import type { CoreIO } from "../types.js";
 
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "./notes-lock.js";
 import { getRepoSharedUserInternalDir } from "./repo-shared-paths.js";
+import type { LocalSyncState, PartialPushMarker } from "./schema.js";
+
+export {
+  LocalSyncStateSchema,
+  PartialPushMarkerSchema,
+  PersistedLocalSyncStateSchema,
+  PriorFileListSchema,
+  RemoteMarkerProvenanceSchema,
+  type LocalSyncState,
+  type PartialPushMarker,
+  type PersistedLocalSyncState,
+  type PriorFileList,
+  type RemoteMarkerProvenance,
+} from "./schema.js";
 
 const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
 const LOCAL_SYNC_STATE_LOCK_FILENAME = ".sync-state.lock";
@@ -43,60 +57,6 @@ export function isComparableSourceCommit(
   return sourceCommit !== undefined
     && sourceCommit !== null
     && sourceCommit !== NO_COMPARABLE_SOURCE_COMMIT;
-}
-
-export interface LocalSyncState {
-  version: 4;
-  /**
-   * Legacy machine-id field — the canonical store is now the dedicated
-   * `.machine-id` file (see {@link getOrCreateMachineId}). No longer written by
-   * any current writer, nor surfaced by the validated {@link readLocalSyncState}
-   * read; retained on the type solely so a pre-`.machine-id` record stays
-   * parseable for the one-time migration adopt, which reads it via the raw read.
-   */
-  machineId?: string;
-  materializedManifestHash: string;
-  sourceCommit: string;
-  sourceOperation: "save" | "load";
-  /**
-   * ISO-8601 timestamp when this record was written. Optional in memory because
-   * v2 records on disk predate the field — they hydrate with `savedAt: undefined`
-   * and pick up a populated value on the next save.
-  */
-  savedAt?: string;
-  verifiedAt?: string;
-  /** Local notes-ref tip observed after this worktree's save/load completed. */
-  notesRefTip?: string;
-  /** This worktree's partial-push recovery marker. The `.sync-state.json` file is per-worktree. */
-  partialPush?: PartialPushMarker;
-  /**
-   * This worktree's errand-ref partial-push recovery marker — the errand leg's
-   * independent mirror of {@link partialPush}. Recorded when the errand-ref push
-   * leg fails after a worktree push succeeds; cleared on a successful errand
-   * push. Kept separate from the notes marker so the two refs recover
-   * independently. Optional and additive — pre-existing records hydrate without
-   * it (see the reserved-field convention above).
-   */
-  partialPushErrand?: PartialPushMarker;
-  /**
-   * Reserved extension point for the downstream drift tier — the file list
-   * captured at last sync. Not written here; carried forward round-trip so a
-   * later writer can populate it without a further version bump.
-   */
-  priorFileList?: string[];
-  /**
-   * Reserved extension point for the downstream remote partial-push marker's
-   * provenance, keyed per worktree so one remote marker can represent multiple
-   * worktrees without a further version bump. A per-worktree map
-   * (pluralizable), not a scalar; values stay generic until that work commits
-   * a shape. Not written here; carried forward round-trip.
-   */
-  remoteMarkerProvenance?: Record<string, unknown>;
-}
-
-export interface PartialPushMarker {
-  localRefHash: string;
-  sourceCommit: string;
 }
 
 /** Absolute path to the user's `.internal/` bookkeeping directory. */

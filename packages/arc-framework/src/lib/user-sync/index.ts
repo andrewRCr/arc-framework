@@ -163,9 +163,17 @@ export {
   readLocalSyncState,
   recordErrandPartialPushMarker,
   recordPartialPushMarker,
+  LocalSyncStateSchema,
+  PartialPushMarkerSchema,
+  PersistedLocalSyncStateSchema,
+  PriorFileListSchema,
+  RemoteMarkerProvenanceSchema,
   writeLocalSyncState,
   type LocalSyncState,
   type PartialPushMarker,
+  type PersistedLocalSyncState,
+  type PriorFileList,
+  type RemoteMarkerProvenance,
 } from "./sync-state.js";
 
 export {

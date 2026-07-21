@@ -288,23 +288,13 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
 - _Goal:_ Persisted versions 2–4 enter through an explicit backward-compatible reader and hydrate to one strict
   version-4 internal record without rejecting tolerated extensions.
 
-    - `[ ]` **4.1.a Define persisted and normalized sync-state schemas**
-        - Add `src/lib/user-sync/schema.ts` with a projectable loose-object `PersistedLocalSyncStateSchema` union for
-          versions 2, 3, and 4 plus strict `LocalSyncStateSchema` for normalized version 4.
-        - Require non-empty `materializedManifestHash` and `sourceCommit` plus the `save` / `load` discriminant without
-          adding timestamp, hash-format, or identifier policy that the current reader does not enforce.
-        - Declare known persisted extension slots as optional `unknown` values and accept unknown additive fields so the
-          registered runtime and JSON Schema domains remain acceptance-equivalent; normalization owns their narrowing.
-        - Define strict child schemas for partial-push markers, string-array file lists, and object-map provenance;
-          derive `LocalSyncState`, `PartialPushMarker`, and structural children with `z.infer`.
-        - Keep legacy `machineId` outside `LocalSyncStateSchema` and confined to the raw one-time migration input.
-        - Preserve established imports through compatibility re-exports from `sync-state.ts` and `user-sync/index.ts`.
-        - Build `test-first` (one behavior at a time):
-            - accept valid required identity and basis fields for versions 2–4;
-            - reject malformed required fields and discriminants without imposing new lexical formats;
-            - accept malformed known extensions and unknown additive fields at the persisted-reader boundary;
-            - require exact version-4 fields and valid extensions at the normalized producer boundary;
-            - project the persisted root without transforms or refinements.
+    - `[x]` **4.1.a Define persisted and normalized sync-state schemas**
+        - Added a projectable loose union for persisted versions 2–4 and a strict normalized version-4 producer schema,
+          sharing only the existing non-empty basis and operation requirements. Persisted extensions remain unknown and
+          additive at ingress; strict marker, file-list, and provenance children derive the public record types.
+        - Removed `machineId` from normalized state and preserved established imports through schema/type re-exports.
+          Nineteen focused checks cover version acceptance, malformed required and extension fields, lexical tolerance,
+          strict producer shape, inferred types, and refinement-free JSON Schema projection.
 
     - `[ ]` **4.1.b Normalize tolerated persisted extensions**
         - Implement `normalizeLocalSyncState()` after persisted structural parsing, narrowing each known extension
