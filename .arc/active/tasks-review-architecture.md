@@ -725,10 +725,12 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
         - A null capability returns the ordinary fallback without provider conclusions. Production assembly remains
           unbound, and source-contract coverage prevents coupling to the current controller/wakeup runtime.
 
-    - `[ ]` **6.3.c Support scheduled and human re-entry fallbacks**
-        - Let harness-native scheduling arm a bounded wake/recheck where supported; otherwise emit the exact human
-          resume condition and leave the WU or Errand suspended.
-        - Convert bounded wait timeout/provider failure into the same explicit re-entry state.
+    - `[x]` **6.3.c Support scheduled and human re-entry fallbacks**
+        - Added an injected harness scheduler that receives the exact deduplicated wakeup request and refuses a run
+          later than the suspension deadline. Scheduler absence leaves the vehicle suspended with explicit source-state/
+          deadline and WU-or-Errand resume instructions.
+        - Timeout and failed/unavailable provider results now map to the same human-reentry record shape without being
+          mistaken for clean review or silently retried.
 
     - `[ ]` **6.3.d Validate session and machine resilience**
         - Add workflow/session tests for WU and Errand re-entry, handoff during review, next-session and new-machine

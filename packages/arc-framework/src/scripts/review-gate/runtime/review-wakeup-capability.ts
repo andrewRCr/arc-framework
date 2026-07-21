@@ -17,7 +17,8 @@ export type PreferredReviewWakeup =
   | { kind: "watcher"; wakeupRef: string }
   | { kind: "fallback"; reason: "promoted-watcher-unavailable" };
 
-function wakeupRequest(suspension: ReviewSuspensionState): ReviewWakeupRequest {
+/** Project the exact suspension facts shared by watcher and scheduler capability seams. */
+export function createReviewWakeupRequest(suspension: ReviewSuspensionState): ReviewWakeupRequest {
   return {
     operationId: suspension.operationId,
     vehicle: suspension.vehicle,
@@ -41,6 +42,6 @@ export async function armPreferredReviewWakeup(
   if (capability === null) {
     return { kind: "fallback", reason: "promoted-watcher-unavailable" };
   }
-  const armed = ArmedWakeupSchema.parse(await capability.arm(wakeupRequest(suspension)));
+  const armed = ArmedWakeupSchema.parse(await capability.arm(createReviewWakeupRequest(suspension)));
   return { kind: "watcher", wakeupRef: armed.wakeupRef };
 }

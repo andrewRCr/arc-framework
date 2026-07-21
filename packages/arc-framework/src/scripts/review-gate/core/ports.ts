@@ -284,6 +284,16 @@ export interface ReviewWakeupCapability {
   arm(request: ReviewWakeupRequest): Promise<{ status: "armed"; wakeupRef: string }>;
 }
 
+/** Bounded request accepted only by an injected harness-native scheduler. */
+export interface ReviewScheduledWakeupRequest extends ReviewWakeupRequest {
+  scheduledFor: string;
+}
+
+/** Optional scheduling seam used only after the promoted watcher is unavailable. */
+export interface ReviewScheduledWakeupCapability {
+  schedule(request: ReviewScheduledWakeupRequest): Promise<{ status: "scheduled"; wakeupRef: string }>;
+}
+
 /** Forward provider boundary carrying exact v2 request identity without provider finding normalization. */
 export interface ForwardReviewProviderAdapter {
   qualifyRequest(request: ReviewRequestV2): Promise<{ qualified: boolean; reason: string }>;

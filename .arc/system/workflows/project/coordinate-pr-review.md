@@ -80,6 +80,10 @@ Prefer a promoted review watcher only through the injected `ReviewWakeupCapabili
 exact wakeup token and invalidation facts. The production binding remains absent until enforcement promotion; absence
 continues to the fallback layer and never licenses use of the current controller or its wakeup workflow.
 
+At the fallback layer, arm an injected harness-native schedule no later than the suspension deadline. If unavailable,
+leave the vehicle suspended and report the exact source-state/deadline resume condition plus the WU-or-Errand
+integration entrypoint. Timeout and failed/unavailable provider state use this same explicit human re-entry shape.
+
 ## 2. Coordinate Findings Through `review-response`
 
 Fetch controller-normalized findings and provider-native conversations, retaining source-scoped immutable ids and

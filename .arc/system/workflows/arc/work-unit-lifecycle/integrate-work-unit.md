@@ -102,6 +102,11 @@ After persisting a suspension, prefer an injected promoted watcher capability wh
 it with the exact operation, target/request, generation, deadline, and wakeup-deduplication token. An absent capability
 selects the ordinary fallback path; do not probe, invoke, await, or infer it from controller or workflow modules.
 
+On fallback, arm a harness-native scheduled wakeup only when that capability is injected and its run time is no later
+than the suspension deadline. Otherwise leave the vehicle in `Integrating` and state the exact human resume condition:
+which source state change or deadline should trigger re-entry, and which WU or Errand integration to resume. A bounded
+wait timeout or failed/unavailable provider result enters this same explicit human-reentry path.
+
 | Observed state               | Demonstrably already ran   | Resume at                                                          |
 |------------------------------|----------------------------|--------------------------------------------------------------------|
 | No PR open for the WU branch | transition                 | Step 2 (local preflight → creation path)                           |
