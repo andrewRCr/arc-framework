@@ -12,11 +12,11 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Planning finalized and work unit activated for implementation
-- **Next Task:** Task 1.1 — Define and register the locus schema family
+- **Last Completed:** Task 5.2.a — Replace branch-shaped candidates with exact v3 resume projections
+- **Next Task:** Task 5.2.b — Implement and register `arc errand materialize <slug>` (line ~495)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Define and register the locus schema family
+- **Next Action:** Start Task 5.2.b — implement the exact-generation Errand materialization command
 
 - **PR URL:** [none]
 - **Completed:** [none]
