@@ -98,9 +98,9 @@ onto stable code-facing fields without losing tolerant recovery.
         - Moved start graduation and planning-entry resolution onto semantic class, state, and branch fields while
           retaining unresolved-class defaults, refusal text, and planning-route behavior.
 
-    - `[ ]` **2.4.b Migrate lifecycle and view handlers**
-        - Move `handlers/lifecycle.ts` and `handlers/view.ts` onto semantic fields and already-parsed design arrays.
-        - Preserve transition selection, output text, narrow view results, and malformed-meta warnings.
+    - `[x]` **2.4.b Migrate lifecycle and view handlers**
+        - Moved lifecycle and explicit-view reads onto semantic fields and parsed design arrays, including the typed
+          park handoff, while preserving transition selection, output text, narrow results, and warning behavior.
 
     - `[ ]` **2.4.c Migrate activation and terminal transitions**
         - Update `verbs/activate-deactivate.ts`, `verbs/archive.ts`, and `verbs/abandon.ts` in one characterized

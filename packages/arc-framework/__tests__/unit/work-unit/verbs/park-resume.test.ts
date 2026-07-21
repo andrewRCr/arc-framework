@@ -17,7 +17,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaProjectionRecord, type MetaFieldName } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, type ParsedMetaRecord } from "../../../../src/lib/active/meta-reader.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import { patchDigest, type PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
@@ -79,8 +79,8 @@ function metaContent(meta: MetaSpec): string {
 }
 
 /** The parsed source meta the handler passes to `runPark` (read from the WU's own worktree). */
-function recordFor(meta: MetaSpec): Record<MetaFieldName, string | null> {
-  return parseMetaProjectionRecord(metaContent(meta));
+function recordFor(meta: MetaSpec): ParsedMetaRecord {
+  return parseMetaRecord(metaContent(meta));
 }
 
 /** Build an injectable index fs over a fixed set of metas. */
@@ -477,10 +477,10 @@ describe("runPark — park@Active", () => {
     expect(pointer).toContain("do not hand-edit");
     // Blessed render shape: State stays the literal `Active` (parked is derived
     // from location), the authoritative branch is carried, render fields survive.
-    const record = parseMetaProjectionRecord(pointer);
-    expect(record.State).toBe("Active");
-    expect(record.Branch).toBe("feat/foo");
-    expect(record.Cohort).toBe("demo-cohort");
+    const record = parseMetaRecord(pointer);
+    expect(record.state).toBe("Active");
+    expect(record.branch).toBe("feat/foo");
+    expect(record.cohort).toBe("demo-cohort");
   });
 
   it("rejects when the preserved-branch worktree is dirty (teardown gate, nothing written)", async () => {
@@ -514,7 +514,7 @@ describe("runPark — park@Active", () => {
 
   it("rejects an invalid pointer record before tearing down the worktree", async () => {
     const { ctx, writes, calls } = buildCtx([ACTIVE]);
-    const sourceRecord = { ...recordFor(ACTIVE), Owner: null };
+    const sourceRecord = { ...recordFor(ACTIVE), owner: null };
 
     const result = await runPark(ctx, { ...BASE_PARK, sourceRecord });
 

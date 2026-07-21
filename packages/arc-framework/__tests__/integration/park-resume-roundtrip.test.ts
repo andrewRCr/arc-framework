@@ -20,7 +20,7 @@ import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import { runPark, runResume, type ParkResumeFs } from "../../src/lib/work-unit/verbs/park-resume.js";
-import { parseMetaProjectionRecord, type MetaFieldName } from "../../src/lib/active/meta-reader.js";
+import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
@@ -183,10 +183,7 @@ async function setup(): Promise<Harness> {
 
 /** Run park@Active from the base checkout, then commit the pointer-record (the workflow ship). */
 async function parkAndShip(h: Harness): Promise<void> {
-  const sourceRecord = parseMetaProjectionRecord(await readFile(join(h.wuWorktree, ACTIVE_REL), "utf8")) as Record<
-    MetaFieldName,
-    string | null
-  >;
+  const sourceRecord = parseMetaRecord(await readFile(join(h.wuWorktree, ACTIVE_REL), "utf8"));
   const result = await runPark(
     { executor: executorFor(h), fs: parkResumeFs(h.io) },
     { name: SLUG, reason: REASON, sourceRecord, worktreePath: h.wuWorktree, currentLocus: h.repo },
@@ -225,10 +222,7 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
   });
 
   it("park@Active preserves the branch, tears down the worktree, and lands the pointer-record", async () => {
-    const sourceRecord = parseMetaProjectionRecord(await readFile(join(h.wuWorktree, ACTIVE_REL), "utf8")) as Record<
-      MetaFieldName,
-      string | null
-    >;
+    const sourceRecord = parseMetaRecord(await readFile(join(h.wuWorktree, ACTIVE_REL), "utf8"));
 
     const result = await runPark(
       { executor: executorFor(h), fs: parkResumeFs(h.io) },
@@ -241,7 +235,7 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
     expect(pointer).toContain("Parked");
     expect(pointer).toContain(BRANCH);
     expect(pointer).toContain(REASON);
-    expect(parseMetaProjectionRecord(pointer).State).toBe("Active");
+    expect(parseMetaRecord(pointer).state).toBe("Active");
     // The branch is preserved (the durable shelf) and still carries the authoritative active/ meta.
     expect(await branchExists(h.repo, BRANCH)).toBe(true);
     expect(await showAtBranch(h.repo, BRANCH, ACTIVE_REL)).not.toBeNull();
