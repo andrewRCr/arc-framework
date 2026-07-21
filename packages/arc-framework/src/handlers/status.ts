@@ -51,8 +51,6 @@ import {
 } from "../commands/user.js";
 import {
   filterRosterByIdentity,
-  gitConfigGet,
-  readConfiguredIdentity,
   runIdentityScopedWorktreeRoster,
   runWorktreeRoster,
 } from "../lib/git/index.js";
@@ -136,6 +134,7 @@ import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecyc
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
+import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
@@ -157,30 +156,6 @@ export interface StatusCliOptions {
 
 function writeProjectReadinessWarnings(warnings: readonly ProjectReadinessWarning[]): void {
   for (const warning of warnings) process.stderr.write(`warning: ${warning.rendered}\n`);
-}
-
-/** Normalize a `git config` readback — `undefined`, empty, and whitespace-only become `null`. */
-export function normalizeGitConfigValue(value: string | undefined): string | null {
-  if (value === undefined) return null;
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? null : trimmed;
-}
-
-async function readIdentityPointers(): Promise<{
-  identity: string | null;
-  role: string | null;
-}> {
-  const [identity, roleRaw] = await Promise.all([
-    readConfiguredIdentity(gitExec).catch((error: unknown) => {
-      if (error instanceof Error && "code" in error && error.code === "identity.invalid") throw error;
-      return null;
-    }),
-    gitConfigGet(gitExec, "arc.role"),
-  ]);
-  return {
-    identity,
-    role: normalizeGitConfigValue(roleRaw),
-  };
 }
 
 function releaseRoutingFromSettings(settings: ResolvedSettingsResult): ReleaseRoutingValue {
@@ -271,7 +246,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // Errand records still feed the oracle so recorded `chore/`/`fix/` errand
     // branches are not mis-emitted as `no-record-or-meta` residue.
     const { settings } = await readConfigSettings(cwd);
-    const { identity } = await readIdentityPointers();
+    const { identity } = await readIdentityPointers(gitExec);
     // No identity ⇒ no errand-record ref to read; empty+complete is authoritative
     // (not degraded). Degraded `complete: false` is only for a failed read.
     const recordResult: ListErrandRecordsResult = identity === null
@@ -322,7 +297,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     readFile: (path: string) => readFile(path, "utf8"),
   };
   const io = createUserIOContext();
-  const { identity, role } = await readIdentityPointers();
+  const { identity, role } = await readIdentityPointers(gitExec);
   const userSurfaceResolvers = new Map<string, ReturnType<typeof resolveUserSurfaceResolver>>();
   const userSurfacesFor = (id: string): Promise<UserSurfaceResolver> => {
     let resolver = userSurfaceResolvers.get(id);

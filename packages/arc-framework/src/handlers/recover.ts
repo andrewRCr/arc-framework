@@ -17,7 +17,6 @@ import {
   resolveCompactionSeedPath,
 } from "../lib/compaction-seed/emitter.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
-import { gitConfigGet, readConfiguredIdentity } from "../lib/git/index.js";
 import { gitExec } from "../lib/io-context.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { SlugSchema } from "../lib/kernel/index.js";
@@ -30,6 +29,7 @@ import {
   assertRecoverAuditReport,
   type RecoverAuditReport,
 } from "../lib/recover/report.js";
+import { readIdentityPointers } from "./identity-pointers.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
 import { requireArcProjectRoot } from "./shared.js";
 
@@ -42,7 +42,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
-  const { identity, role } = await readIdentityPointers();
+  const { identity, role } = await readIdentityPointers(gitExec);
   if (identity === null) {
     writeReport(stopReport({
       seedPath: null,
@@ -153,23 +153,6 @@ function dirtyStateFromUncommittedFiles(files: readonly string[]): DirtyStateRes
   };
 }
 
-async function readIdentityPointers(): Promise<{
-  identity: string | null;
-  role: string | null;
-}> {
-  const [identity, roleRaw] = await Promise.all([
-    readConfiguredIdentity(gitExec).catch((error: unknown) => {
-      if (error instanceof Error && "code" in error && error.code === "identity.invalid") throw error;
-      return null;
-    }),
-    gitConfigGet(gitExec, "arc.role"),
-  ]);
-  return {
-    identity,
-    role: normalizeGitConfigValue(roleRaw),
-  };
-}
-
 function writeReport(report: RecoverAuditReport, json: boolean): void {
   assertRecoverAuditReport(report);
   if (json) {
@@ -241,12 +224,6 @@ function seedSummary(
     branch: seed.branch,
     sessionType: seed.sessionType,
   };
-}
-
-function normalizeGitConfigValue(value: string | undefined): string | null {
-  if (value === undefined) return null;
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? null : trimmed;
 }
 
 function errorMessage(err: unknown): string {
