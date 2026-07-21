@@ -418,21 +418,15 @@ incomplete durable contracts through the registry.
 - _Outcome:_ Successful Git output now crosses one strict normalized record boundary and cannot silently discard a
   malformed non-empty stanza, while Git-version extensions and caller-specific failure semantics remain compatible.
 
-### `[ ]` **5.3 Establish the cold-start input schema contract**
+### `[x]` **5.3 Establish the cold-start input schema contract**
 
 - _Goal:_ Every successful cold-start classification is schema-validated and type-derived while empty input remains
   the existing no-throw failure arm.
 
-    - `[ ]` **5.3.a Define and adopt `ParsedSpecInputSchema`**
-        - Add a strict discriminated union for the `arc-spec`, `issue`, `document`, and `description` arms beside the
-          parser, require each arm's sole payload string to be non-empty, and derive `ParsedSpecInput` from the schema.
-        - Parse internally assembled successes immediately before return while leaving the handwritten outer
-          `SpecInputParse` no-throw union, empty-input reason, and existing lexical classification policy unchanged.
-        - Build `test-first` (one behavior at a time):
-            - preserve issue-before-pointer precedence, nested ARC spec paths, documents, and free-text descriptions;
-            - preserve trimmed field assignments without introducing issue, URL, or path lexical validation;
-            - reject missing, empty, mismatched, or extra success-arm fields and unknown discriminants;
-            - retain the exact no-throw failure for empty and whitespace-only raw input.
+    - `[x]` **5.3.a Define and adopt `ParsedSpecInputSchema`**
+        - Added and adopted the strict schema-derived four-arm success union, validating each assembled classification
+          before return. Issue-before-pointer precedence, nested specs, pass-through documents, trimmed descriptions,
+          lexical tolerance, and the handwritten empty-input no-throw failure remain unchanged.
 
 ## **Phase 6:** Validation registry composition
 
