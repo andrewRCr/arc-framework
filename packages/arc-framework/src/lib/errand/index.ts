@@ -25,6 +25,18 @@ export {
 } from "./record.js";
 
 export {
+  TransientIdentityRecordV3Schema,
+  TransientIdentityRecordSchema,
+  mintClaimId,
+  serializeTransientIdentityRecord,
+  deserializeTransientIdentityRecord,
+  projectLocusIdentity,
+  type TransientIdentityRecordV3,
+  type TransientIdentityRecord,
+  type TransientIdentityDecodeResult,
+} from "./identity-record.js";
+
+export {
   mergeErrandTrees,
   reconcileErrandPush,
   incomingErrandRef,

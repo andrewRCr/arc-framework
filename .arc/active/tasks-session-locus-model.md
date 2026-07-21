@@ -124,29 +124,10 @@ grooming, or housekeeping state.
 - _Goal:_ Ordinary Errands, housekeeping sweeps, and grooming claims share one exact identity model while existing
   v1/v2 Errands remain readable only through their bounded close path during rollout.
 
-    - `[ ]` **2.1.a Define v3 Errand and groom record discriminants**
-        - Add a focused identity-record schema module under `packages/arc-framework/src/lib/errand/` rather than
-          growing the read/write store into a combined codec, projector, and transaction module.
-        - Define strict Zod v1/v2 compatibility arms and v3 `errand`/`groom` unions composed with the locus identity
-          vocabulary; export only `z.infer` record types.
-        - Give every v3 record an immutable random `claimId` with at least 128 bits of entropy. Enforce slug grammar,
-          exact tree-key equality, the reserved `groom-<anchorStub>` namespace, protection/branch, purpose/state,
-          `savedHead`, change-request, origin, execute-dispatch, routing-lane, and RFC 3339 timestamp relationships.
-        - Give every groom an `anchorStub` plus a non-empty, unique, raw-UTF-8-sorted `members` set containing the
-          anchor; keep the set immutable for the claim generation and require the conventional full-mode branch to
-          derive from the anchor.
-        - Persist immutable `openedBaseHead` from the exact configured-base tip observed after the required base
-          refresh and before claim/branch transition so both protection modes have a proof-bearing diff-range
-          anchor.
-        - Require an immutable canonical `routingPlanDigest` on `housekeep-routing` records and reject it on every
-          other identity arm; use the shared `sha256:<64 lowercase hex>` grammar.
-        - Build `test-first` (one behavior at a time):
-            - Ordinary Errand open/paused/awaiting-merge records round-trip exactly.
-            - Inbox-origin Errands enforce exact entry/dispatch pairing; free-description Errands carry neither.
-            - Housekeep routing excludes paused state, requires a dispatch ID plus plan digest and `auto | reviewed`
-              lane, and full and partial grooms enforce their distinct arms and exact canonical member sets.
-            - Claim IDs distinguish otherwise-identical simultaneous records and remain stable across transitions.
-            - Tree-key/slug mismatches, reserved-prefix misuse, illegal extra fields, and invalid timestamps reject.
+    - `[x]` **2.1.a Define v3 Errand and groom record discriminants**
+        - Added a strict backward-compatible identity codec with exact ordinary Errand, housekeeping-routing, and
+          full/partial groom arms, canonical relationship validation, random 128-bit claim IDs, and validated locus
+          projection. Legacy v1/v2 records remain separately discriminated for the bounded compatibility path.
 
     - `[ ]` **2.1.b Read one exact identity-tree snapshot and project valid records**
         - Add a tip-pinned snapshot reader that distinguishes absent ref, root read error, strict tree-enumeration
