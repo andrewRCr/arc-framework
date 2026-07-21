@@ -3,7 +3,13 @@
   "compilerOptions": {
     "rootDir": ".",
     "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    // Must be overridden, not inherited: `extends` would otherwise hand this
+    // config the source cache path and the two runs of `typecheck:all` would
+    // clobber each other every time. Its own derived default is no better —
+    // `rootDir` of "." puts it inside `dist`, which the bundler wipes on
+    // every build.
+    "tsBuildInfoFile": "node_modules/.cache/tsc/test.tsbuildinfo"
   },
   "include": ["src", "__tests__"],
   "exclude": ["node_modules", "dist"]

@@ -89,3 +89,58 @@ Supporting (blog / secondary): `martinfowler.com/bliki/SemanticConflict.html` ·
 `trunkbaseddevelopment.com/branch-by-abstraction` · `graphite.com/guides/stacked-diffs` ·
 `michaelagreiler.com/stacked-pull-requests` · `infoq.com/news/2026/04/github-stacked-prs` · plus contrarian /
 failure-mode posts (jg.gg, yykamei.dev, pragmaticengineer, HN).
+
+---
+
+## Idiom re-examination (2026-07-20)
+
+> _Second research pass (heavy-research: 4 angles, 9 sources, 44 claims, 10 adversarially verified, 3 survived; run
+> `woggn2yog`). Commissioned during grooming to pressure-test the stacked-PR mechanism against recent (2025–2026)
+> criticism and its alternatives before committing. Confidence is labeled per finding; much of the comparative
+> material is strong-but-unverified leads (past the 10-claim verify budget), not verified claims._
+
+**Verified (survived adversarial verification):**
+
+- **Native GitHub stacked PRs are not GA.** GitHub shipped a first-party `gh-stack` CLI extension, but it entered
+  **private preview on 2026-04-13, waitlist-gated** — not generally available _(high confidence)_. → Do not build a
+  hard dependency on native GitHub stacking, or on any single tool, now.
+- **Rebase-cascade cost is real and unresolved.** Rebasing a stack's base branch forces manual rebasing of every
+  downstream branch; 2026 tooling has not eliminated it _(medium — 2/3 skeptic votes)_.
+
+**Strong leads (corroborated / primary-source, but past the verify budget):**
+
+- **The "only Graphite" claim is weak.** Multiple tools automate stacking (Graphite, ghstack, git-town, spr,
+  Sapling, Aviator, stax, Jujutsu); Google runs native stacking on internal tooling (Piper / Critique), independent
+  of any third-party stack tool — so stacking-as-workflow is not Graphite-locked. _Caveat:_ on **native GitHub
+  specifically**, dedicated tooling is still needed for key operations (merging only the approved leading portion;
+  per-commit review), because the real gap is **GitHub's per-commit presentation** ("Files Changed" collapses a
+  stack into one diff) — a product gap, not a property intrinsic to stacking (Gerrit reviews per-commit natively).
+- **Squash / rebase merge breaks cross-stack commit-identity** — a tool-agnostic failure mode, and squash-merge is a
+  common GitHub default. _Directly corroborates the inherited assurance algebra's tree-exact / commit-identity
+  concern — that part is not over-engineered._
+- **CI cost:** each stacked PR runs CI against its immediate base, not `main` — needs CI configured for non-main
+  bases.
+- **Depth ceiling ~3–4 PRs** (independently corroborated across InfoQ + dev.to; pullnotifier says 3–5): beyond that,
+  inter-PR dependency-tracking overhead exceeds the review-quality benefit.
+
+**Retrofit case (B) — the key finding for the live driving case:**
+
+- **No verified finding supports retrofit-splitting; documented mature practice argues against it.** Google: plan
+  ahead; if a change is _unavoidably_ large, keep it large with **advance reviewer consent + heightened scrutiny** —
+  do not re-split. Linux kernel: decompose **up front** by logical concern, throttle posting (~15 patches at a
+  time), and express inter-patch dependencies via **plain-text notation in the patch description**, not stacking
+  tools.
+- **Implication:** the industry-aligned answer for an already-built coherent change is a **review decomposition**
+  (cover letter / reviewer's guide + logical-commit structure + guided review order + heightened scrutiny), **not**
+  a re-split into a mergeable stack. This maps onto ARC's existing `spec` / `meta` / `cohort` (≈ cover letter) and
+  task-list phases (≈ logical structure) — so retrofit is achievable with no new merge topology.
+
+**Net for the design:** the reframe (reviewability = goal; stacking = one constrained mechanism) is well-supported.
+Up-front stacking is viable **if** tool-neutral, depth-capped, and squash-merge-aware; retrofit is best served as a
+review decomposition, not a stack.
+
+**Sources (2026-07-20 pass):** `infoq.com/news/2026/04/github-stacked-prs` · `dev.to/alanwest/…stacked-prs` ·
+`codex.danielvaughan.com/2026/04/16/…gh-stack-sapling…` · `pullnotifier.com/tools/stacked-prs` ·
+`awesomecodereviews.com/best-practices/stacked-prs` · `graphite.com/docs/evaluating-tools` (vendor) ·
+`google.github.io/eng-practices/review/developer/small-cls.html` ·
+`docs.kernel.org/process/submitting-patches.html` · `lobste.rs` + HN practitioner threads.
