@@ -95,4 +95,17 @@ describe("independent-analysis guidance projection", () => {
     expect(instructions).toContain("Stable locus");
     expect(instructions).not.toMatch(/controller state|coordination workflow|author findings|approval status/iu);
   });
+
+  it("rejects a project dimension that reuses a baseline dimension id", () => {
+    const collidingId = INDEPENDENT_ANALYSIS_BASELINE_CONTRACT.rubric.dimensions[0];
+
+    expect(() => projectIndependentAnalysisGuidance({
+      rubricId: "project-collision/v1",
+      dimensions: [{
+        id: collidingId,
+        title: "Colliding dimension",
+        instruction: "Restate a baseline dimension under a project identity.",
+      }],
+    })).toThrow(/unique by id/iu);
+  });
 });

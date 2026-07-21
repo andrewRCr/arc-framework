@@ -60,7 +60,10 @@ export const IndependentAnalysisGuidanceProjectionSchema = z.strictObject({
   rubricDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
   coverageInstructions: z.array(z.string().min(1)).min(1).readonly(),
   evaluatorInstructions: z.array(z.string().min(1)).min(1).readonly(),
-  dimensions: z.array(GuidanceDimensionSchema).min(1).readonly(),
+  dimensions: z.array(GuidanceDimensionSchema).min(1).refine(
+    (dimensions) => new Set(dimensions.map((dimension) => dimension.id)).size === dimensions.length,
+    { message: "guidance dimensions must be unique by id across baseline and project augmentation" },
+  ).readonly(),
   findingRequirements: z.array(GuidanceItemSchema).min(1).readonly(),
   cleanInstructions: z.array(z.string().min(1)).min(1).readonly(),
   projectAugmentation: IndependentAnalysisProjectAugmentationSchema.nullable(),
