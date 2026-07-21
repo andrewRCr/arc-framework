@@ -16,7 +16,7 @@
 - **Next Task:** Task 8.1 — Complete verification
 - **Blockers:** [none] — both deps (`classify-change-granularity`, `cli-schema-kernel`) shipped; base reconciled
 
-- **Next Action:** Begin Task 8.1 — load and follow `verify-work-unit.md`
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

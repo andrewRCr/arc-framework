@@ -944,41 +944,87 @@ architecture lands as one coherent forward contract.
 _Purpose:_ Verify the settled implementation and documentation suite against the design, quality gates, and
 integration contract.
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ markdown lint (493 files), shellcheck, TypeScript lint, typecheck (source + test), build, and
+  7606 tests — all passing, after reconciling the base merge's two semantic conflicts (`ARC_CONFIG_SEGMENTS` →
+  root-resolved `ARC_CONFIG_SUFFIX`; `toOutputPath` → `resolveTemplateOutputPath`).
+
+- _Success criteria:_ 15 criteria — 14 met (3 with deviations), 1 deferred to a named owner. An
+  adversarial pass found four typed contracts shipped with zero production callers, the load-bearing case being the
+  local review channel: the reducer accepts a local carrier but nothing can produce one, leaving the
+  local-satisfying criterion unreachable. Root cause was decomposition by layer with no task owning composition —
+  every task delivered its port honestly and no gate could see the gap. Verification fixed the misleading surfaces
+  (workflows named the wrong fact record and a rejected invocation shape; `review-response.md` cited a method never
+  minted) and added the cross-domain golden vector the design named. The absent adapters are pre-scoped into
+  `draft-review-surface-binding.md`; the process gap is captured for a guard.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The closed routing record resolves every fact combination to one valid obligation set.
+- `[x]` The closed routing record resolves every fact combination to one valid obligation set.
 
-- `[ ]` Routine atomic code softens review spend while sensitive or unknown changes retain the maximal floor.
+- `[x]` Routine atomic code softens review spend while sensitive or unknown changes retain the maximal floor.
 
-- `[ ]` Malformed, empty, unsupported, or endpoint-incomplete change facts fail closed.
+    - **Deviation:** the routing half is delivered and exhaustively proven. The spec's companion clause — a
+      `Heavy` / `Novel` WU carrying a declared additional-rubric overlay _executed at integration_ — is not:
+      `resolveWorkUnitReviewAssurance` resolves the `Review Rubric` field into typed state but has no production
+      caller and no availability-port implementation, so a declared overlay cannot reach a reviewer. Deferred with
+      its evidence to `draft-review-surface-binding.md`.
 
-- `[ ]` Local independent analysis can satisfy the exact-head requirement without a hosted provider.
+- `[x]` Malformed, empty, unsupported, or endpoint-incomplete change facts fail closed.
 
-- `[ ]` Every carrier proves the rubric and guidance it received without receiving author conclusions.
+- `[~]` Local independent analysis can satisfy the exact-head requirement without a hosted provider.
 
-- `[ ]` Every finding is source-verified and one canonical exact-head disposition set authorizes any fix mutation.
+    - **Superseded:** deferred to `draft-review-surface-binding.md`, which carries the loci and inherited design
+      constraints. The contract half holds — the reducer accepts a `local-change-set` carrier on `channel: "local"`,
+      and the receipt authority works against a real Git common directory under concurrent replay. The local receipt
+      store, operation-state store, attestation runtime, and carrier each have zero production callers, though: no
+      CLI verb, launcher entry, or script reaches them, so no project can produce the receipt the criterion requires.
+      Satisfied in letter, unreachable in substance.
 
-- `[ ]` Pull-request count never mechanically multiplies or weakens review obligations.
+      Provenance matters here and the deferral should not read as planning: this was **not** scoped out during
+      planning. It was surfaced by an adversarial verification pass after the full self-verify, a green Tier 3, and
+      the cross-layer integration suite had all passed — none of which exercise an invocable surface. The decision to
+      route rather than build it here was made at verification, weighing a further expansion of an already
+      306-file change set against a named owner.
 
-- `[ ]` The gate migrates forward with exact domain-separated ID preimages and golden vectors, without silently
+- `[x]` Every carrier proves the rubric and guidance it received without receiving author conclusions.
+
+- `[x]` Every finding is source-verified and one canonical exact-head disposition set authorizes any fix mutation.
+
+- `[x]` Pull-request count never mechanically multiplies or weakens review obligations.
+
+    - **Deviation:** delivered as structural impossibility rather than as an implemented grouping rule — the routing
+      decision schema rejects `pullRequestCount` outright, so topology cannot reach the reducer, and each deliverable
+      projects one independent requirement. The affirmative branch (one run satisfying several deliverables under a
+      no-weakening proof) is specified as routed to `pr-decomposition`, so the system stays permanently in the
+      per-deliverable fallback until that work lands.
+
+- `[x]` The gate migrates forward with exact domain-separated ID preimages and golden vectors, without silently
   upgrading legacy receipts or evidence.
 
-- `[ ]` Typed applicability distinguishes carry-forward, incremental interaction review, and final full review.
+- `[x]` Typed applicability distinguishes carry-forward, incremental interaction review, and final full review.
 
-- `[ ]` Every review surface has one layer owner and states the agent-ergonomics / host-guarantee boundary honestly.
+- `[x]` Every review surface has one layer owner and states the agent-ergonomics / host-guarantee boundary honestly.
 
-- `[ ]` The complete provisional integration tail is reviewed at the exact-head merge gate, and public release notes
+    - **Deviation:** routing resolved to the CLI layer rather than the `review-routing` method the design named, and
+      the method was never minted — leaving two dangling citations in shipped `review-response.md`, reworded during
+      verification. Whether routing warrants a method is carried to `draft-review-surface-binding.md`.
+
+- `[x]` The complete provisional integration tail is reviewed at the exact-head merge gate, and public release notes
   contain no WU identifiers or internal development jargon.
 
-- `[ ]` Review settlement alone cannot authorize a pre-composition WU merge; every agent-side WU merge path is
+- `[x]` Review settlement alone cannot authorize a pre-composition WU merge; every agent-side WU merge path is
   dominated by cadence-required products, complete-tail surfacing, and the final exact-head interlock.
 
-- `[ ]` Package and project copies remain synchronized for every framework surface.
+- `[x]` Package and project copies remain synchronized for every framework surface.
 
-- `[ ]` All quality gates pass (tests, linting, type checking, build)
+- `[x]` All quality gates pass (tests, linting, type checking, build)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
+
+    - **Deviation:** ready as scoped, not complete against the original criteria set. One criterion is deferred and
+      three carry deviations, each routed to a named owner rather than left as a note. The contract layer is sound;
+      the agent-facing adapters are the deferred remainder.
