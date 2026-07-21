@@ -9,8 +9,7 @@
 import { rm } from "node:fs/promises";
 import { dirname } from "node:path";
 
-import { SlugSchema } from "../../lib/kernel/index.js";
-import { materializeArcPath, resolveArcPath } from "../../lib/layout/index.js";
+import { materializeWorkUnitSessionNotesPath } from "../../lib/handoff/session-notes-path.js";
 import type { UserCloseOptions } from "./types.js";
 
 /**
@@ -21,11 +20,7 @@ import type { UserCloseOptions } from "./types.js";
  */
 export async function runUserClose(options: UserCloseOptions): Promise<void> {
   const { cwd, identity, wuName } = options;
-  const sessionNotesPath = materializeArcPath(cwd, resolveArcPath({
-    kind: "user-document",
-    identity: SlugSchema.parse(identity),
-    document: { kind: "session-notes", workUnit: SlugSchema.parse(wuName) },
-  }));
+  const sessionNotesPath = materializeWorkUnitSessionNotesPath(cwd, identity, wuName);
   const wuDir = dirname(sessionNotesPath);
   await rm(wuDir, { recursive: true, force: true });
 }

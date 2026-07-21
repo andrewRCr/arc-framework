@@ -30,6 +30,26 @@ export type SessionNotesPathResult =
   | { status: "error"; message: string };
 
 /**
+ * Materialize one named work unit's canonical SESSION-NOTES path.
+ *
+ * @param cwd - Current ARC project root
+ * @param identity - Resolved ARC identity
+ * @param workUnitName - Work-unit slug
+ * @returns Native absolute path beneath the selected project root
+ */
+export function materializeWorkUnitSessionNotesPath(
+  cwd: string,
+  identity: string,
+  workUnitName: string,
+): string {
+  return materializeArcPath(cwd, resolveArcPath({
+    kind: "user-document",
+    identity: SlugSchema.parse(identity),
+    document: { kind: "session-notes", workUnit: SlugSchema.parse(workUnitName) },
+  }));
+}
+
+/**
  * Resolve one named WU's SESSION-NOTES while retaining absent-vs-error detail.
  *
  * @param cwd - Current ARC project root
@@ -44,11 +64,7 @@ export async function resolveWorkUnitSessionNotesPath(
   workUnitName: string,
   io: WorkUnitSessionNotesPathIO,
 ): Promise<SessionNotesPathResult> {
-  const path = materializeArcPath(cwd, resolveArcPath({
-    kind: "user-document",
-    identity: SlugSchema.parse(identity),
-    document: { kind: "session-notes", workUnit: SlugSchema.parse(workUnitName) },
-  }));
+  const path = materializeWorkUnitSessionNotesPath(cwd, identity, workUnitName);
   try {
     await io.access(path);
   } catch (error) {

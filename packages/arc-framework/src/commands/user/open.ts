@@ -11,8 +11,7 @@ import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import type { DirEntry } from "../../lib/git/index.js";
-import { SlugSchema } from "../../lib/kernel/index.js";
-import { materializeArcPath, resolveArcPath } from "../../lib/layout/index.js";
+import { materializeWorkUnitSessionNotesPath } from "../../lib/handoff/session-notes-path.js";
 import { ensureDir } from "../../lib/template/index.js";
 import type { UserIOContext, UserOpenOptions } from "./types.js";
 
@@ -28,11 +27,7 @@ import type { UserIOContext, UserOpenOptions } from "./types.js";
  */
 export async function runUserOpen(options: UserOpenOptions): Promise<void> {
   const { cwd, io, identity, wuName, internalTemplateDir, sessionNotesSeed } = options;
-  const seedPath = materializeArcPath(cwd, resolveArcPath({
-    kind: "user-document",
-    identity: SlugSchema.parse(identity),
-    document: { kind: "session-notes", workUnit: SlugSchema.parse(wuName) },
-  }));
+  const seedPath = materializeWorkUnitSessionNotesPath(cwd, identity, wuName);
   const wuDir = dirname(seedPath);
 
   await ensureDir(wuDir, io.mkdir);
