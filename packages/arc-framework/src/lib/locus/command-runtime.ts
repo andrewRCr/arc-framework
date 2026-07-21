@@ -1,21 +1,34 @@
-/** Production attach and release commands over exact reader-selected locus generations. */
+/** Production state-touching commands over exact reader-selected locus generations. */
 
-import { resolve } from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 import type { UserIOContext } from "../../commands/user/types.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
+import { readTransientIdentitySnapshot } from "../errand/identity-snapshot.js";
 import type { GitExecInput } from "../git/exec.js";
+import { scanRegisteredWorktrees, type RegisteredWorktree } from "../git/worktree-roster.js";
+import {
+  decodeWorktreeMarkerOwnership,
+  readWorktreeMarkerGeneration,
+  type WorktreeMarkerGenerationReadResult,
+} from "../git/worktree-marker.js";
 import { readHousekeepState } from "../housekeep/open-runtime.js";
 import {
   attachLocusLease,
   createLocusMutationResult,
+  mintDurableLocusRole,
   releaseLocusLease,
   resumeDeadTransientLease,
+  type LocusRoleAuthority,
 } from "./mutation.js";
+import { deriveLocusRecordId } from "./path-identity.js";
 import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "./platform-inspectors.js";
 import { acquireSessionAnchor } from "./process-inspector.js";
 import { createNodeProvisioningDependencies } from "./provisioning-runtime.js";
 import type { LocusMutationResultV1, LocusRefusalReason, LocusRowV1 } from "./schema/index.js";
+import { deriveTransientAdoptionCandidate } from "./reconciliation.js";
 import { resolveLocusGeneration, type LocusResolveSubject } from "./resolve-driver.js";
 
 export interface LocusCommandRuntimeOptions {
@@ -37,6 +50,8 @@ export interface ResolveLocusRuntimeOptions extends LocusCommandRuntimeOptions {
 
 /** Attach the entering process to one trusted managed role selected by the locus reader. */
 export async function attachLocusAtRuntime(options: LocusCommandRuntimeOptions): Promise<LocusMutationResultV1> {
+  const adopted = await adoptTrustedRoleAtRuntime(options);
+  if (adopted.kind === "result") return adopted.result;
   const prepared = await prepare(options, "locus-attach");
   if (prepared.kind === "result") return prepared.result;
   const { anchor, row, checkoutPath, runtime } = prepared;
@@ -72,6 +87,187 @@ export async function attachLocusAtRuntime(options: LocusCommandRuntimeOptions):
   } finally {
     await runtime.releaseRecordLock(acquired.handle);
   }
+}
+
+async function adoptTrustedRoleAtRuntime(
+  options: LocusCommandRuntimeOptions,
+): Promise<{ kind: "not-applicable" } | { kind: "result"; result: LocusMutationResultV1 }> {
+  const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
+  if (anchor.kind !== "process") return { kind: "not-applicable" };
+  const checkoutPath = resolve(options.cwd, options.checkout ?? ".");
+  const roster = await scanRegisteredWorktrees(options.io.exec);
+  if (!roster.ok) return { kind: "not-applicable" };
+  const matches = roster.worktrees.filter((checkout) => resolve(checkout.path) === checkoutPath);
+  const checkout = matches.length === 1 ? matches[0] : undefined;
+  if (checkout === undefined) return { kind: "not-applicable" };
+  const marker = await readWorktreeMarkerGeneration(checkout.path);
+  if (!checkout.primary && marker.kind !== "present") return { kind: "not-applicable" };
+  if (options.checkout === undefined
+    && marker.kind === "absent"
+    && await deriveWorkUnitSubject(options, checkout, marker) === null) {
+    return { kind: "not-applicable" };
+  }
+  const pathFlavor = process.platform === "win32" ? "windows" : "posix";
+  const recordId = deriveLocusRecordId(checkout.path, pathFlavor);
+  const inspector = createPlatformProcessInspector();
+  const runtime = createNodeProvisioningDependencies({
+    exec: options.io.exec, identity: options.identity, anchor, inspector, pathFlavor,
+    base: options.base, branch: checkout.branch, postCreateScript: options.postCreateScript,
+    registeredHarnessDirs: options.registeredHarnessDirs,
+  });
+  const acquired = await runtime.acquireRecordLock(checkout.path);
+  if (acquired.kind !== "acquired") {
+    return { kind: "result", result: lockRefusal("locus-attach", acquired.reason) };
+  }
+  try {
+    const existing = await runtime.readRecord(acquired.handle.recordPath, acquired.handle);
+    if (existing.kind !== "absent") return { kind: "not-applicable" };
+    const [lockedRoster, lockedMarker, identities] = await Promise.all([
+      scanRegisteredWorktrees(options.io.exec),
+      readWorktreeMarkerGeneration(checkout.path),
+      readTransientIdentitySnapshot({ exec: options.io.exec, identity: options.identity }),
+    ]);
+    if (!lockedRoster.ok) {
+      return { kind: "result", result: refusal(
+        "locus-attach", "preservation-unproven", "The checkout roster changed before trusted role adoption.",
+      ) };
+    }
+    const lockedMatches = lockedRoster.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
+    const lockedCheckout = lockedMatches.length === 1 ? lockedMatches[0] : undefined;
+    if (lockedCheckout === undefined) {
+      return { kind: "result", result: refusal(
+        "locus-attach", "checkout-missing", "The selected checkout disappeared before transient adoption.",
+      ) };
+    }
+    const adoption = await deriveRuntimeAdoption({
+      options,
+      checkout: lockedCheckout,
+      marker: lockedMarker,
+      identities,
+      recordId: recordId.recordId,
+      recordPath: acquired.handle.recordPath,
+    });
+    if (adoption === null) {
+      return { kind: "result", result: refusal(
+        "locus-attach", "role-conflict", "The selected checkout has no exact adoptable authority.",
+      ) };
+    }
+    const now = new Date().toISOString();
+    const minted = await mintDurableLocusRole({
+      recordId: recordId.recordId,
+      checkoutPath,
+      parentCheckoutPath: null,
+      establishedAt: now,
+      authority: adoption.authority,
+      io: {
+        read: () => runtime.readRecord(acquired.handle.recordPath, acquired.handle),
+        mint: (record) => runtime.mintRecord(acquired.handle.recordPath, record, acquired.handle),
+      },
+    });
+    if (minted.kind === "refused") {
+      return { kind: "result", result: refusal(
+        "locus-attach", minted.reason, "The trusted role changed before adoption completed.",
+      ) };
+    }
+    const attached = await attachLocusLease({
+      recordId: recordId.recordId,
+      sessionHomePath: checkoutPath,
+      anchor,
+      attachedAt: now,
+      heartbeatAt: now,
+      observedLiveness: null,
+      io: {
+        read: () => runtime.readRecord(acquired.handle.recordPath, acquired.handle),
+        replace: (bytes, record) => runtime.replaceRecord(acquired.handle.recordPath, bytes, record, acquired.handle),
+      },
+    });
+    if (attached.kind === "refused") {
+      return { kind: "result", result: refusal(
+        "locus-attach", attached.reason, "The adopted role changed before its lease attached.",
+      ) };
+    }
+    const row: LocusRowV1 & { recordId: string; checkoutPath: string } = {
+      kind: "managed-role",
+      checkoutPath,
+      primary: lockedCheckout.primary,
+      recordId: recordId.recordId,
+      role: attached.record.role,
+      identity: adoption.identity,
+      lease: attached.record.lease === null ? null : { ...attached.record.lease, state: "live" },
+      frame: "active",
+      derived: null,
+      diagnostics: [],
+    };
+    return { kind: "result", result: success("locus-attach", "applied", row, attached.record.lease?.leaseId ?? null) };
+  } finally {
+    await runtime.releaseRecordLock(acquired.handle);
+  }
+}
+
+async function deriveRuntimeAdoption(options: {
+  options: LocusCommandRuntimeOptions;
+  checkout: RegisteredWorktree;
+  marker: WorktreeMarkerGenerationReadResult;
+  identities: Awaited<ReturnType<typeof readTransientIdentitySnapshot>>;
+  recordId: string;
+  recordPath: string;
+}): Promise<{ authority: LocusRoleAuthority; identity: LocusRowV1["identity"] } | null> {
+  const transient = deriveTransientAdoptionCandidate({
+    identity: options.options.identity,
+    checkout: options.checkout,
+    marker: options.marker,
+    identities: options.identities,
+    recordId: options.recordId,
+    recordPath: options.recordPath,
+  });
+  if (transient?.kind === "applicable" && transient.action === "adopt-transient") {
+    return {
+      authority: { kind: "identity", identity: transient.authority.identity },
+      identity: transient.authority.identity,
+    };
+  }
+  const subjectKey = await deriveWorkUnitSubject(options.options, options.checkout, options.marker);
+  return subjectKey === null
+    ? null
+    : { authority: { kind: "work-unit", key: subjectKey }, identity: null };
+}
+
+async function deriveWorkUnitSubject(
+  options: LocusCommandRuntimeOptions,
+  checkout: RegisteredWorktree,
+  marker: WorktreeMarkerGenerationReadResult,
+): Promise<string | null> {
+  if (checkout.branch === null || checkout.detached) return null;
+  let markerSubject: string | null = null;
+  if (marker.kind === "present") {
+    const ownership = decodeWorktreeMarkerOwnership(marker.marker);
+    if (marker.marker.spawningIdentity !== options.identity
+      || ownership.kind !== "current"
+      || ownership.subject.kind !== "work-unit") return null;
+    markerSubject = ownership.subject.name;
+  } else if (!checkout.primary) return null;
+
+  const roots = [
+    join(checkout.path, ".arc", "active"),
+    join(checkout.path, ".arc", "user", options.identity, "active"),
+  ];
+  const candidates = (await Promise.all(roots.map(async (root) => {
+    const names = await readdir(root).catch(() => [] as string[]);
+    return Promise.all(names.filter((name) => /^meta-.*\.md$/u.test(name)).map(async (name) => {
+      try {
+        const record = parseMetaRecord(await readFile(join(root, name), "utf8"));
+        return { name: name.slice("meta-".length, -".md".length), record };
+      } catch {
+        return null;
+      }
+    }));
+  }))).flat().filter((candidate) => candidate !== null
+    && candidate.record.Owner === options.identity
+    && candidate.record.Branch === checkout.branch
+    && ["Planning", "Active", "Integrating"].includes(candidate.record.State ?? "")
+    && (markerSubject === null || candidate.name === markerSubject));
+  const candidate = candidates.length === 1 ? candidates[0] : undefined;
+  return candidate?.name ?? null;
 }
 
 /** Release only the caller-named lease generation while retaining its durable role. */

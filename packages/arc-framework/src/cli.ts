@@ -750,21 +750,30 @@ locusCmd
   .description("Attach the entering process to one trusted managed locus")
   .option("--checkout <path>", "Select one roster-backed checkout")
   .option("--json", "Emit one typed locus mutation result")
-  .action((opts: LocusAttachOptions) => handleLocusAttach(opts));
+  .action((opts: LocusAttachOptions, command: Command) => handleLocusAttach({
+    ...opts,
+    json: command.optsWithGlobals().json === true,
+  }));
 
 locusCmd
   .command("release <recordId>")
   .description("Release one exact caller-named lease generation")
   .requiredOption("--lease <id>", "Exact lease generation to release")
   .option("--json", "Emit one typed locus mutation result")
-  .action((recordId: string, opts: LocusReleaseOptions) => handleLocusRelease(recordId, opts));
+  .action((recordId: string, opts: LocusReleaseOptions, command: Command) => handleLocusRelease(recordId, {
+    ...opts,
+    json: command.optsWithGlobals().json === true,
+  }));
 
 locusCmd
   .command("resolve <recordId>")
   .description("Resume or abandon one exact conclusively dead transient generation")
   .requiredOption("--action <action>", "Resolution action: resume | abandon")
   .option("--json", "Emit one typed locus mutation result")
-  .action((recordId: string, opts: LocusResolveOptions) => handleLocusResolve(recordId, opts));
+  .action((recordId: string, opts: LocusResolveOptions, command: Command) => handleLocusResolve(recordId, {
+    ...opts,
+    json: command.optsWithGlobals().json === true,
+  }));
 
 // --- Recover ---
 

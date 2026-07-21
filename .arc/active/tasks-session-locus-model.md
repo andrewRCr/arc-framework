@@ -579,7 +579,7 @@ result so workflows consume verbs and precomposed verdicts.
   exact-generation sibling with its direct parent, while exhaustion, interruption, unrelated drains, and malformed
   groups remain deterministic without introducing a stored Errand queue or nested housekeeping frame.
 
-### `[ ]` **5.6 Expose state-touching locus companions after subject drivers exist** — D6, D7, D9
+### `[x]` **5.6 Expose state-touching locus companions after subject drivers exist** — D6, D7, D9
 
 - _Goal:_ Lifecycle sites can attach, release, resume, or abandon exact locus generations through commands that
   preserve JSON discipline and never hold a local record lock across remote or host operations.
@@ -598,10 +598,17 @@ result so workflows consume verbs and precomposed verdicts.
         - Registered the positional record/action CLI boundary and shared human/JSON mutation result, including
           operational error containment that leaves the selected generation available for retry.
 
-    - `[ ]` **5.6.c Cover stateful command boundaries end to end**
-        - Cover trusted adoption, exact release, every subject dispatch, raced revalidation, failed allocation
-          rollback, retry idempotence, and operational error envelopes.
-        - Prove JSON stdout/stderr separation and directed-checkout behavior from a different command cwd.
+    - `[x]` **5.6.c Cover stateful command boundaries end to end**
+        - Added built-command fixtures for exact marker/meta WU adoption, ready-marker/identity transient adoption,
+          directed checkout selection from another cwd, mismatched and exact release, and public operand shapes.
+        - The subject/action matrix, exact-generation mutation tests, and provisioning rollback suite cover dispatch,
+          raced revalidation, same-anchor replay, and failure containment across the shared drivers.
+        - Proved operational JSON remains a single stdout envelope with empty stderr while human errors retain the
+          stderr path, including invalid resolve input before any state mutation.
+
+- _Outcome:_ Lifecycle consumers now have one typed companion surface for trusted role adoption, exact lease
+  attachment/release, and explicit dead-residue resolution; caller operands select only records and generations,
+  while role, subject, preservation, and dispatch authority continue to derive from validated local state.
 
 ## **Phase 6:** Work-Unit Session, Recovery, and Cleanup Integration
 

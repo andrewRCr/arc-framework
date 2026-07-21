@@ -145,9 +145,23 @@ async function handleLocusMutation(
     registeredHarnessDirs: settings["worktree.harness_dirs"],
     io: { ...io, execInput: io.execInput },
   };
-  const result = action === "attach"
-    ? await attachLocusAtRuntime(runtimeOptions)
-    : await releaseLocusAtRuntime({ ...runtimeOptions, leaseId: (options as LocusReleaseOptions).lease });
+  let result: LocusMutationResultV1;
+  try {
+    result = action === "attach"
+      ? await attachLocusAtRuntime(runtimeOptions)
+      : await releaseLocusAtRuntime({ ...runtimeOptions, leaseId: (options as LocusReleaseOptions).lease });
+  } catch (error) {
+    const operation = action === "attach" ? "locus-attach" : "locus-release";
+    result = createLocusMutationResult({
+      outcome: "error",
+      operation,
+      error: {
+        code: `locus.${action}.failed`,
+        message: error instanceof Error ? error.message : String(error),
+      },
+      recommendedPromptText: "Inspect the exact locus record before retrying.",
+    });
+  }
   emitMutation(result, options.json === true);
 }
 
