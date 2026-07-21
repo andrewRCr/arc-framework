@@ -80,23 +80,16 @@ export const LayoutMigrationBulkDispositionSchema = z.strictObject({
   reason: NonBlankStringSchema,
 });
 
-const SelectedClassIdsSchema = z.tuple(LAYOUT_MIGRATION_CLASS_IDS.map((classId) => z.literal(classId)) as [
-  z.ZodLiteral<"arc-root">,
-  z.ZodLiteral<"active-placement">,
-  z.ZodLiteral<"planned-placement">,
-  z.ZodLiteral<"completed-placement">,
-  z.ZodLiteral<"meta-prefix">,
-  z.ZodLiteral<"draft-prefix">,
-  z.ZodLiteral<"spec-prefix">,
-  z.ZodLiteral<"tasks-prefix">,
-  z.ZodLiteral<"notes-prefix">,
-  z.ZodLiteral<"method-root">,
-  z.ZodLiteral<"workflow-root">,
-  z.ZodLiteral<"roadmap-name">,
-  z.ZodLiteral<"session-notes-name">,
-  z.ZodLiteral<"working-memory-name">,
-  z.ZodLiteral<"template-suffix">,
-]);
+type LiteralSchemaTuple<Values extends readonly string[]> =
+  Values extends readonly [infer Head extends string, ...infer Tail extends readonly string[]]
+    ? [z.ZodLiteral<Head>, ...LiteralSchemaTuple<Tail>]
+    : [];
+
+type SelectedClassIdTuple = LiteralSchemaTuple<typeof LAYOUT_MIGRATION_CLASS_IDS>;
+
+const SelectedClassIdsSchema = z.tuple(
+  LAYOUT_MIGRATION_CLASS_IDS.map((classId) => z.literal(classId)) as unknown as SelectedClassIdTuple,
+);
 
 /** Source digests and selected-hit evidence bound by a version-1 ledger. */
 export const LayoutMigrationLedgerSourceV1Schema = z.strictObject({
