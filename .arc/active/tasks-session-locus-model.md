@@ -317,16 +317,11 @@ transaction boundary before operation composers consume it.
           now live in a reusable setup boundary consumed by the unchanged WU mutator; focused tests prove setup
           ordering/failure containment and that generic creation writes no ownership marker.
 
-    - `[ ]` **4.1.c Expose the renamed WU wrapper behind a compatibility alias**
-        - Rename the WU-specific API/module to `reconcileWorkUnitWorktree()` and compose its fresh-spawn arm through
-          `createLinkedWorktree()` plus the shared setup seam. Keep one narrow compatibility re-export so caller
-          migration lands in later increments without an all-repository rename mixed into the boundary extraction.
-        - Preserve `--here` as the explicit non-default escape hatch: its base-to-WU transition mints ownership in
-          the physical primary, makes that checkout unavailable to transient allocation, and restores base only when
-          WU teardown ends the exact generation.
-        - Build `test-first` (one behavior at a time):
-            - Cover default spawn, explicit in-place conversion/restoration, generic creation composition, unchanged
-              teardown behavior, and compatibility-export equivalence in the focused mutator suite.
+    - `[x]` **4.1.c Expose the renamed WU wrapper behind a compatibility alias**
+        - Renamed the WU-specific module/API to `reconcileWorkUnitWorktree()`, routed fresh linked creation through
+          the generic collision-aware receipt boundary and shared setup, and retained the old module as an exact
+          compatibility re-export. The focused old/new suites preserve default spawn, explicit in-place entry,
+          ownership-marker ordering, teardown/self-hop behavior, and symbol equivalence.
 
     - `[ ]` **4.1.d Migrate WU entry and lifecycle-engine callers**
         - Migrate `start`, executor context, lifecycle executor, and their focused command/engine tests to

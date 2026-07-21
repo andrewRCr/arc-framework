@@ -4,6 +4,7 @@ import { isAbsolute, resolve } from "node:path";
 
 import type { GitExec } from "./exec.js";
 import { resolveWorktreeLocation } from "./worktree-location.js";
+import { resolvePrimaryWorktreePath } from "./worktree-roster.js";
 
 export interface LinkedWorktreeCreationContext {
   exec: GitExec;
@@ -12,7 +13,7 @@ export interface LinkedWorktreeCreationContext {
 
 export interface LinkedWorktreeCreationOptions {
   locationTemplate: string;
-  primaryWorktreePath: string;
+  primaryWorktreePath?: string;
   repo: string;
   placementName: string;
   branch: string;
@@ -31,7 +32,11 @@ export interface LinkedWorktreeCreationReceipt {
 export type LinkedWorktreeCreationResult =
   | { readonly kind: "created"; readonly receipt: LinkedWorktreeCreationReceipt }
   | { readonly kind: "refused"; readonly reason: "path-collision"; readonly worktreePath: string }
-  | { readonly kind: "error"; readonly reason: "git-worktree-add-failed"; readonly error: Error };
+  | {
+      readonly kind: "error";
+      readonly reason: "primary-unavailable" | "git-worktree-add-failed";
+      readonly error: Error;
+    };
 
 /** Resolve configured placement and perform one provenance-free `git worktree add`. */
 export async function createLinkedWorktree(
@@ -44,9 +49,18 @@ export async function createLinkedWorktree(
     name: options.placementName,
     branch: options.branch,
   });
-  const worktreePath = isAbsolute(templatedPath)
-    ? templatedPath
-    : resolve(options.primaryWorktreePath, templatedPath);
+  let worktreePath = templatedPath;
+  if (!isAbsolute(templatedPath)) {
+    const primaryWorktreePath = options.primaryWorktreePath ?? await resolvePrimaryWorktreePath(context.exec);
+    if (primaryWorktreePath === null) {
+      return {
+        kind: "error",
+        reason: "primary-unavailable",
+        error: new Error("Cannot resolve the primary worktree for relative linked-worktree placement"),
+      };
+    }
+    worktreePath = resolve(primaryWorktreePath, templatedPath);
+  }
   if (await context.pathExists(worktreePath)) {
     return { kind: "refused", reason: "path-collision", worktreePath };
   }
