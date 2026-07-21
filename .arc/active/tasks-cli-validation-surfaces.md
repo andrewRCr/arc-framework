@@ -223,27 +223,12 @@ the distinct recovery and precedence policies of existing adapters.
 - _Goal:_ One non-interactive TypeScript validator owns diagnostics and exit status while the installed shell path
   and custom-root behavior remain compatible.
 
-    - `[ ]` **3.3.a Implement the TypeScript validation service**
-        - Add `src/commands/config/validate.ts` with a service that accepts a resolved read path plus its selected
-          display token and returns rendered lines, pass/warning/error counts, and exit code without writing output.
-        - Compose catalog-domain errors, unknown-key warnings, and custom-pattern cross-field checks into stable
-          `PASS` / `WARN` / `ERROR` lines, summary counts, and exit codes `0`, `1`, and `2`.
-        - Inventory validatable key occurrences directly from raw content with the exact
-          `^[a-z][a-z0-9_.]+:` shell line grammar; use `parseArcConfig()` for first-definition values and defaults,
-          then validate the matching value map through `ArcConfigSchema`.
-        - Keep diagnostics keyed to stable field paths and the selected path token; never echo complete configuration
-          contents or pattern bodies.
-        - Build `test-first` (one behavior at a time):
-            - report missing files and malformed known values as errors;
-            - warn for unknown keys, including `hooks.subject_warn_length`;
-            - ignore tokenizer-only keys outside the installed validator grammar without changing counts or status;
-            - preserve unknown bare-empty and duplicate-key warning lines, counts, and ordering from the raw key
-              occurrence inventory;
-            - render quoted-empty `default` fields as the existing absent/default pass, apply existing missing or
-              ignored policy to `unset` fields, and reject quoted-empty `invalid` fields including numeric limits;
-            - enforce custom format/footer dependencies and positive-integer minima;
-            - preserve exact line ordering, counts, and severity-derived exit codes;
-            - keep the service side-effect-free under injected file reads.
+    - `[x]` **3.3.a Implement the TypeScript validation service**
+        - Added a side-effect-free selected-file service that inventories exact validator-grammar occurrences,
+          validates first-definition values through `ArcConfigSchema`, and composes stable domain, cross-field, and
+          occurrence-ordered unknown-key diagnostics. Structured results preserve line ordering, counts, summaries,
+          selected path tokens, and severity-derived status without exposing pattern bodies; quoted-empty posture and
+          exact positive-safe-integer boundaries follow the catalog.
 
     - `[ ]` **3.3.b Add `arc config validate` command wiring**
         - Register the optional `--file <path>` surface in `src/cli.ts`, expose the orchestrator through the stable
