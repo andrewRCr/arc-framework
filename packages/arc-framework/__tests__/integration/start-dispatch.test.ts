@@ -381,6 +381,44 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(stdout).not.toContain(".arc/system/.internal/worktree-marker.json");
   });
 
+  it("pops the exact WU role only after physical checkout retirement succeeds", async () => {
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "retired-role",
+      branch: "plan/retired-role",
+    });
+    h.spawned.push(wt);
+    const outcome = await runCreateNew(
+      { io: h.io, internalTemplateDir: getInternalTemplatePath() },
+      { worktreePath: h.repo, identity: IDENTITY, name: "retired-role" },
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const locusIdentity = deriveLocusRecordId(wt, process.platform === "win32" ? "windows" : "posix");
+    const locusPath = join(h.repo, ".arc", "user", IDENTITY, ".internal", "loci", `locus-${locusIdentity.digest}.json`);
+    const driver = createNodeWorkUnitLocusDriver({ exec: h.io.exec, identity: IDENTITY });
+    await execFileAsync("git", ["add", "-A"], { cwd: wt });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "prepare retirement"], { cwd: wt });
+
+    await expect(driver.retire?.({
+      checkoutPath: wt,
+      wuName: "retired-role",
+      removeCheckout: async () => { throw new Error("physical removal failed"); },
+    })).rejects.toThrow(/physical removal failed/);
+    expect(await pathExists(locusPath)).toBe(true);
+
+    await expect(driver.retire?.({
+      checkoutPath: wt,
+      wuName: "retired-role",
+      removeCheckout: async () => {
+        await h.io.exec("git", ["worktree", "remove", wt]);
+      },
+    })).resolves.toMatchObject({ recordId: locusIdentity.recordId, roleRemoved: true });
+    expect(await pathExists(locusPath)).toBe(false);
+    expect(await pathExists(wt)).toBe(false);
+  });
+
   it("create-new: copies registered gitignored harness dirs from the primary worktree only", async () => {
     await mkdir(join(h.repo, ".codex", "skills"), { recursive: true });
     await writeFile(join(h.repo, ".codex", "skills", "arc.txt"), "copied from primary\n");

@@ -536,6 +536,16 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       branches: ["feat/demo"],
       worktreePorcelain: porcelain,
     });
+    let retired = false;
+    ctx.workUnitLocus = {
+      reconcile: async () => ({ recordId: "sha256:test", leaseId: null, roleCreated: false }),
+      retire: async (options) => {
+        expect(options).toMatchObject({ checkoutPath: "/repo", wuName: "demo" });
+        await options.removeCheckout();
+        retired = true;
+        return { recordId: "sha256:test", roleRemoved: true };
+      },
+    };
 
     const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
@@ -552,6 +562,7 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
     expect(switchIdx).toBeLessThan(deleteIdx);
     // The refreshed remote base is fast-forwarded into the local base after the switch.
     expect(calls).toContainEqual(["git", "merge", "--ff-only", "origin/main"]);
+    expect(retired).toBe(true);
     expect(result.notices.some((n) => /relocated the primary worktree/i.test(n))).toBe(true);
   });
 

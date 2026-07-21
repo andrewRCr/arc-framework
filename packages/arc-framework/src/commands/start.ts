@@ -808,7 +808,7 @@ export async function runCreateNew(
         exec: ctx.io.exec,
         chdir: (dir) => { process.chdir(dir); },
         fs: nodeReconcileWorkUnitWorktreeFs,
-        locus: createNodeWorkUnitLocusDriver({ exec: ctx.io.exec, identity: params.identity }),
+        locus: ctx.workUnitLocus ?? createNodeWorkUnitLocusDriver({ exec: ctx.io.exec, identity: params.identity }),
       },
       {
         mutation: "spawn",

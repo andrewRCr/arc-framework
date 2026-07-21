@@ -174,6 +174,8 @@ export type ReconcileWorkUnitWorktreeOp =
       worktreePath: string;
       /** The directory the transition runs from — a self-teardown when inside `worktreePath`. */
       currentLocus: string;
+      /** Managed WU whose durable role ends with this physical checkout. */
+      wuName?: string;
       /** Caller has approved a detached husk; skip the redundant cleanliness probe, but reconcile user surfaces. */
       huskApproved?: boolean;
     };
@@ -312,7 +314,12 @@ export async function reconcileWorkUnitWorktree(
     locusHopped = true;
   }
 
-  await ctx.exec("git", ["worktree", "remove", worktreePath]);
+  const removeCheckout = () => ctx.exec("git", ["worktree", "remove", worktreePath]).then(() => undefined);
+  if (op.wuName !== undefined && ctx.locus?.retire !== undefined) {
+    await ctx.locus.retire({ checkoutPath: worktreePath, wuName: op.wuName, removeCheckout });
+  } else {
+    await removeCheckout();
+  }
   return { mutation: "teardown", worktreePath, locusHopped };
 }
 

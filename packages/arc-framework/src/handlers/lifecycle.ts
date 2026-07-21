@@ -104,6 +104,7 @@ import {
 } from "../lib/session-init/materializable-work-units.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
+import { createNodeWorkUnitLocusDriver } from "../lib/work-unit/work-unit-locus.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 
 // ---------------------------------------------------------------------------
@@ -1321,6 +1322,7 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
       indexFs: lifecycleFs,
       chdir: (dir) => { process.chdir(dir); locus = dir; },
       readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+      workUnitLocus: createNodeWorkUnitLocusDriver({ exec, identity: base.identity }),
     },
     {
       name: wuName ?? "",

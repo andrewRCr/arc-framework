@@ -504,7 +504,7 @@ async function parkActive(
   // Teardown first: its clean-guard gates the whole park before anything is
   // written, so a dirty preserved-branch worktree rejects without leaving a pointer.
   try {
-    await ctx.executor.reconcileWorkUnitWorktree({ mutation: "teardown", worktreePath, currentLocus });
+    await ctx.executor.reconcileWorkUnitWorktree({ mutation: "teardown", worktreePath, currentLocus, wuName: name });
   } catch (err) {
     return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
   }

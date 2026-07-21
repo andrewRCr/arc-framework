@@ -92,6 +92,7 @@ import {
   revalidateHuskRetirementEvidence,
   type TeardownBlobReader,
 } from "../teardown-retirement-driver.js";
+import type { WorkUnitLocusDriver } from "../work-unit-locus.js";
 
 /** The seams `runTeardown` drives — the git executor (pinned to cwd), the index scan, and the locus-hop. */
 export interface TeardownContext {
@@ -117,6 +118,8 @@ export interface TeardownContext {
   authority?: Pick<RetirementAuthorityPort, "authorize" | "revalidate">;
   /** Exact committed-blob reader for authorization and replay artifact revalidation. */
   readBlob: TeardownBlobReader;
+  /** Machine-local WU role lifetime driver. */
+  workUnitLocus?: WorkUnitLocusDriver;
 }
 
 /**
@@ -617,8 +620,13 @@ async function teardownBranchProjection(
       }
       try {
         await reconcileWorkUnitWorktree(
-          { exec, chdir, fs },
-          { mutation: "teardown", worktreePath: registered.path, currentLocus: cwd },
+          { exec, chdir, fs, ...(ctx.workUnitLocus === undefined ? {} : { locus: ctx.workUnitLocus }) },
+          {
+            mutation: "teardown",
+            worktreePath: registered.path,
+            currentLocus: cwd,
+            ...(subject.kind === "work-unit" ? { wuName: subject.name } : {}),
+          },
         );
       } catch (err) {
         return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
@@ -646,8 +654,19 @@ async function teardownBranchProjection(
       if (directionalAuthorization !== null) {
         pendingAuthorizedPrimaryRelocation = primary;
       } else {
-        const relocationFailure = await relocatePrimaryToBase(exec, primary, base, baseRef);
-        if (relocationFailure !== null) return { status: "rejected", reason: relocationFailure };
+        const relocate = async (): Promise<void> => {
+          const relocationFailure = await relocatePrimaryToBase(exec, primary, base, baseRef);
+          if (relocationFailure !== null) throw new Error(relocationFailure);
+        };
+        try {
+          if (subject.kind === "work-unit" && ctx.workUnitLocus?.retire !== undefined) {
+            await ctx.workUnitLocus.retire({ checkoutPath: primary, wuName: subject.name, removeCheckout: relocate });
+          } else {
+            await relocate();
+          }
+        } catch (error) {
+          return { status: "rejected", reason: error instanceof Error ? error.message : String(error) };
+        }
         notices.push(`Relocated the primary worktree to \`${base}\` before reaping \`${branch}\`.`);
       }
     }
@@ -873,12 +892,13 @@ async function teardownBranchProjection(
       }
       try {
         await reconcileWorkUnitWorktree(
-          { exec, chdir, fs },
+          { exec, chdir, fs, ...(ctx.workUnitLocus === undefined ? {} : { locus: ctx.workUnitLocus }) },
           {
             mutation: "teardown",
             worktreePath: physicalRemovalPath,
             currentLocus: cwd,
             huskApproved: true,
+            ...(subject.kind === "work-unit" ? { wuName: subject.name } : {}),
           },
         );
         worktreeRemoved = physicalRemovalPath;

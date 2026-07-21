@@ -32,6 +32,7 @@ import {
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../../src/lib/work-unit/lifecycle-resolver.js";
+import type { WorkUnitLocusDriver } from "../../src/lib/work-unit/work-unit-locus.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
@@ -96,6 +97,14 @@ interface Harness {
 const POINTER_REL = `.arc/backlog/planned/${SLUG}/meta-${SLUG}.md`;
 const ACTIVE_REL = `.arc/active/meta-${SLUG}.md`;
 
+const workUnitLocus: WorkUnitLocusDriver = {
+  reconcile: async () => ({ recordId: "sha256:test", leaseId: null, roleCreated: true }),
+  retire: async (options) => {
+    await options.removeCheckout();
+    return { recordId: "sha256:test", roleRemoved: true };
+  },
+};
+
 /** The pointer-record fs seam — `node:fs/promises` over the IO write/mkdir (mirrors the handler). */
 function parkResumeFs(io: UserIOContext): ParkResumeFs {
   return {
@@ -114,6 +123,7 @@ function executorFor(h: Harness): ReturnType<typeof buildExecutorContext> {
     identity: IDENTITY,
     teamMode: false,
     internalTemplateDir: getInternalTemplatePath(),
+    workUnitLocus,
   });
 }
 

@@ -23,6 +23,7 @@ import { resolveWorktreeLocation } from "../../../src/lib/git/worktree-location.
 import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../../src/lib/paths.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
+import type { WorkUnitLocusDriver } from "../../../src/lib/work-unit/work-unit-locus.js";
 import type { UserIOContext } from "../../../src/commands/user/types.js";
 
 /** A recording mock exec that resolves every call (success). */
@@ -64,8 +65,12 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+const workUnitLocus: WorkUnitLocusDriver = {
+  reconcile: async () => ({ recordId: "sha256:test", leaseId: null, roleCreated: true }),
+};
+
 function ctx(io: UserIOContext) {
-  return { io, internalTemplateDir: getInternalTemplatePath() };
+  return { io, internalTemplateDir: getInternalTemplatePath(), workUnitLocus };
 }
 
 /** Write a minimal `arc-config.yml` (flat dotted keys) into a worktree's `.arc/system/`. */

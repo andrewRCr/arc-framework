@@ -615,7 +615,7 @@ result so workflows consume verbs and precomposed verdicts.
 _Purpose:_ Make work-unit entry, session probing, compaction recovery, handoff, and teardown share the locus graph
 as their machine-local occupancy authority.
 
-### `[ ]` **6.1 Mint and adopt work-unit roles at spawn, materialize, and session entry** — D4, D7
+### `[x]` **6.1 Mint and adopt work-unit roles at spawn, materialize, and session entry** — D4, D7
 
 - _Goal:_ Every managed WU checkout has durable ownership from creation through teardown and exactly one attached
   session when active, without changing existing meta or marker authority.
@@ -630,17 +630,13 @@ as their machine-local occupancy authority.
           same-session idempotent replay, unsafe off-base refusal, exact lease mutation, topology failure, ownership
           conflict, and live/dead/unknown replacement boundaries.
 
-    - `[ ]` **6.1.c Bind WU role lifetime to physical checkout ownership**
-        - Preserve the same role generation across activation, deactivation, integration, reopening, and archival;
-          branch or lifecycle presentation changes do not rewrite physical ownership.
-        - Mint on spawn/resume/materialize/in-place entry and pop only when park or post-transition teardown
-          linearizes the ownership-ending action under the target record lock: linked worktrees physically remove;
-          an in-place primary proves exact clean/branch state and restores configured base. Archive itself retains
-          the role until its post-merge teardown.
-        - Build `test-first` (one behavior at a time):
-            - Cover stable linked and in-place transitions, exact primary base restoration, fresh
-              resume/materialize generations, park and post-archive pop, partial failure, and replay without
-              duplicate or missing roles.
+    - `[x]` **6.1.c Bind WU role lifetime to physical checkout ownership**
+        - Added exact WU role retirement around the ownership-ending callback under the target record lock: linked
+          removal and in-place primary base restoration pop only after physical success, preserve records on
+          failure, and leave branch/lifecycle-only transitions outside role lifetime.
+
+- _Outcome:_ Managed WU checkouts now carry one machine-local role from trusted creation/adoption through guarded
+  physical retirement, while spawned entry stays idle and explicit in-place entry owns the entering lease.
 
 ### `[ ]` **6.2 Add `locusState` to session entry, recovery, and handoff orchestration** — D6, D9
 
