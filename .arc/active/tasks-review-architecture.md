@@ -526,7 +526,7 @@ that shapes review spend without producing satisfying evidence.
     - `[x]` **5.1.d Expose a workflow-facing resolution verb**
         - Added `arc review frontline resolve <file | ->` and an injectable API that accept explicit versioned
           change-set facts and invocation intent, fail malformed facts closed, and emit one JSON result. The CLI
-          installs no carrier bindings, while the API only resolves closed typed descriptors and never executes one.
+          resolves only composition-owned registered descriptors, while the API remains non-executing.
 
 - _Outcome:_ Frontline resolution is now one provider-neutral path from normalized change facts through smart action,
   one-run precedence, private/project source fallback, and a versioned workflow result. Configuration can select safe
@@ -561,11 +561,10 @@ that shapes review spend without producing satisfying evidence.
   advisory pipeline. Only authorized ready carriers execute, every result stays exact-target-bound, and neither
   provider output nor project activation can bypass disposition approval or mint independent-analysis evidence.
 
-### `[ ]` **5.3 Qualify structured CodeRabbit output with a safe fallback**
+### `[x]` **5.3 Qualify structured CodeRabbit output with a safe fallback**
 
 - _Goal:_ The repository uses CodeRabbit structured output only when bounded live observations plus reproducible
   failure fixtures prove enough of its contract for truthful normalization.
-- _Context:_ Resolves the spec Open Question without reopening provider-neutral architecture.
 
     - `[x]` **5.3.a Capture bounded `--agent` qualification fixtures**
         - Recorded sanitized CodeRabbit CLI `0.6.5` agent observations for empty-uncommitted and clean scoped-directory
@@ -579,9 +578,14 @@ that shapes review spend without producing satisfying evidence.
           and reviewed-file markers; version drift, unknown/empty output, rate limit, stale head, refusal, or process
           failure stays non-clean. Findings parsing remains disabled until an explicit provider shape is observed.
 
-    - `[ ]` **5.3.c Integrate CodeRabbit frontline execution**
-        - Bind the project source to the selected adapter, surface rate limits truthfully, and retain the PR-review
-          provider as a separate hosted-review pool and evidence source.
+    - `[x]` **5.3.c Integrate CodeRabbit frontline execution**
+        - Bound self-hosting source `coderabbit-cli` to a direct `coderabbit review --plain --type committed` adapter
+          with exact diff-base argv and before/after HEAD checks. Pinned parsing feeds provider-neutral outcomes,
+          including truthful rate-limit unavailability; hosted `coderabbit-pr` remains a separate provider identity.
+
+- _Outcome:_ Bounded qualification selected a conservative plain-mode adapter: exact clean output is useful now,
+  while findings await an observed contract and every unknown or failed shape stays non-clean. The project binding
+  activates only the local CLI source and does not alter hosted review capacity or evidence authority.
 
 ### `[ ]` **5.4 Wire frontline into work-unit and Errand publication**
 

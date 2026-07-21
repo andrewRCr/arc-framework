@@ -7,6 +7,7 @@ import { resolveArcRoot } from "../lib/paths.js";
 import { createLocalFrontlineSourcePreferenceReader } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
 import { resolveFrontlineCommand } from "../scripts/review-gate/policy/frontline-command.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
+import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -34,8 +35,7 @@ export async function handleReviewFrontlineResolve(source: string): Promise<void
         exec: gitExec,
         readFile: (path) => readFile(path, "utf8"),
       }),
-      // Provider bindings are composition-owned; project activation alone installs none.
-      registry: new FrontlineSourceRegistry([]),
+      registry: new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]),
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
