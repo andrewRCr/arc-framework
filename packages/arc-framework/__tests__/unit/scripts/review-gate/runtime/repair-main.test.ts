@@ -43,7 +43,7 @@ const context: RepairAttestationResolution = {
   },
 };
 
-function manifest(): string {
+function manifest(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     schemaVersion: 1,
     purpose: "repair-authority",
@@ -74,6 +74,7 @@ function manifest(): string {
     completedAt: "2026-07-12T20:10:00.000Z",
     findings: [],
     closures: [],
+    ...overrides,
   });
 }
 
@@ -111,6 +112,25 @@ describe("repair validation output", () => {
       headSha: HEAD,
       workflowSha: WORKFLOW_SHA,
       validationDigest: expect.stringMatching(/^[a-f0-9]{64}$/u),
+    });
+  });
+
+  it("pins the kernel-backed repair-result digest", async () => {
+    await expect(validateRepairDispatch({
+      manifest: manifest({ evidenceUrlOrId: "https://example.test/repair/e\u0301" }),
+      selectedRef: "main",
+      defaultBranch: "main",
+    }, {
+      resolveContext: async () => context,
+      usedRunIds: [],
+      auditGraph: async () => ({ ok: true, errors: [], writer: {
+        workflowPath: context.repair.controllerDefinitionRef, jobId: "write-status",
+      } }),
+      verifyEnvironment: async () => [],
+      now: new Date("2026-07-12T20:15:00.000Z"),
+    })).resolves.toMatchObject({
+      evidenceRef: "https://example.test/repair/e\u0301",
+      validationDigest: "46a3f5f1d8e86a0dd12d47925127f30e3a05f03cda8773fb7d1b7938deecd1f2",
     });
   });
 

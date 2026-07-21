@@ -56,6 +56,18 @@ describe("canonical review identities", () => {
     expect(computePolicyVersion({ policy: { ...baseline, semanticsVersion: "v2" } })).not.toBe(identity);
   });
 
+  it("pins kernel-backed policy divergence without changing ASCII output", () => {
+    expect(computePolicyVersion({ policy: { b: 2, a: 1 } })).toBe(
+      "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777",
+    );
+    expect(computePolicyVersion({ policy: { z: 1, ä: 2 } })).toBe(
+      "7832a5d6150a56da1a4f0c8fa00c26a7350389b0fc8696707cd2abbbd32be0c1",
+    );
+    expect(computePolicyVersion({ policy: { value: "e\u0301" } })).toBe(
+      "69e46f3f0688000ab7eeb9e40e6a516a254268cd644a24f4f69cf7ad063cf479",
+    );
+  });
+
   it("excludes runtime rollout and observed capacity from policy identity", () => {
     const policy = { semanticsVersion: "v1", predicateId: "risk/v1" };
 

@@ -185,6 +185,18 @@ describe("canonical request keys and receipt ledger", () => {
     }))).not.toBe(baseline);
   });
 
+  it("re-keys requests only through the supplied policy-version string", () => {
+    const stored = request({ policyVersion: "legacy-policy-version" });
+    expect(computeRequestKey(stored)).toBe(
+      "64d3cbaa19081921966d63291b038a036c1d4dbc54c8ab6d087d76d5570e219d",
+    );
+    expect(computeRequestKey({ ...stored })).toBe(computeRequestKey(stored));
+    expect(computeRequestKey({
+      ...stored,
+      policyVersion: "7832a5d6150a56da1a4f0c8fa00c26a7350389b0fc8696707cd2abbbd32be0c1",
+    })).toBe("1f7b700cbd9bc94bc51141f0b73ee2947987f6cc6e621eb34fc9ddc6ef3e3326");
+  });
+
   it("binds lifecycle payload and predecessor version into receipt identity", () => {
     const input = {
       request: request(),

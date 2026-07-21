@@ -262,6 +262,17 @@ describe("SelfHostingReconcileRuntime", () => {
     expect(third.permissionVersion).not.toBe(first.permissionVersion);
   });
 
+  it("pins the kernel-backed live permission digest", async () => {
+    const { runtime } = harness({
+      resolveActorCapabilities: async () => capabilities("e\u0301", ["write"]),
+    });
+
+    const state = await runtime.read();
+    expect(state.permissionVersion).toBe(
+      "3052044987c38da1b1e528a09d9b3f49180a98e3664805ac22d85df8d0ea96c3",
+    );
+  });
+
   it("keeps an attestation-only obligation pending with no automatic request", async () => {
     const { runtime } = harness({ deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) } });
     const state = await runtime.read();

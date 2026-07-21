@@ -497,7 +497,7 @@ version-1 review-gate identity behind a repository-private frozen serializer.
 - _Outcome:_ Every durable version-1 receipt, attestation, checkpoint, matrix, and activation identity remains on its
   original byte contract, with literal divergence fixtures proving replay and resume compatibility without rewrite.
 
-### `[ ]` **7.2 Move recomputable identities to kernel canonical bytes**
+### `[x]` **7.2 Move recomputable identities to kernel canonical bytes**
 
 - _Goal:_ Newly computed policy, permission, and repair-result identities share the kernel's canonicalization
   authority without adopting its digest wire prefix.
@@ -508,21 +508,13 @@ version-1 review-gate identity behind a repository-private frozen serializer.
           fixed; Unicode ordering/NFC behavior, collision checks, malformed-Unicode refusal, and sparse rejection now
           match the kernel authority.
 
-    - `[ ]` **7.2.b Route the recomputable caller set**
-        - Keep `computePolicyVersion()` directly on `canonicalizePlainJson()`, and retain
-          `runtime/reconcile-runtime.ts` permission digests and `runtime/repair-main.ts` validation-result digests as
-          the other two kernel-backed production callers.
-        - Leave `computeRequirementKey()` and `computeRequestKey()` on their exact NUL-delimited formulas. They re-key
-          only when supplied a newly computed policy version; they do not canonicalize policy content themselves.
-        - Treat policy-version strings read from receipts and other stored records as authoritative inputs; do not
-          recompute policy content during ledger reads or receipt validation.
-        - Build `test-first` (one behavior at a time):
-            - pin intentional policy-version re-keying for Unicode key order and normalization while retaining the
-              representative ASCII digest;
-            - prove request keys change only through a changed input policy-version string and remain unchanged for a
-              stored pre-cutover string;
-            - pin kernel-backed live permission and repair-result digests with accepted Unicode divergence values and
-              retain their unprefixed 64-hex wire shape.
+    - `[x]` **7.2.b Route the recomputable caller set**
+        - Kept policy, live permission, and repair-result digests on the kernel-backed helper and pinned their Unicode
+          re-keying plus ASCII output. Requirement and request keys retain their NUL-delimited formulas, changing only
+          when the supplied policy-version string changes; stored pre-cutover policy strings remain authoritative.
+
+- _Outcome:_ Recomputable review-gate identities now share kernel ordering, normalization, and refusal semantics while
+  preserving the review-gate digest wire shape and all non-JSON identity formulas.
 
 ### `[ ]` **7.3 Prove identity compatibility and caller classification**
 
