@@ -14,7 +14,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { basename } from "node:path";
 
 import * as p from "@clack/prompts";
@@ -31,9 +31,7 @@ import {
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   closeLegacyErrand,
-  promoteErrand,
   readTransientIdentitySnapshot,
-  retireErrand,
   type ErrandPushOutcome,
 } from "../lib/errand/index.js";
 import {
@@ -56,6 +54,7 @@ import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
 import { closeOrdinaryErrandAtRuntime } from "../lib/errand/close-runtime.js";
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
+import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
 import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
@@ -946,71 +945,6 @@ async function closeLegacyErrandResult(
   });
 }
 
-/**
- * Retire an errand's identity record without touching its branch — the
- * promotion counterpart to `close`.
- *
- * A full-protection verb, like `open` / `close`. Promotion renames the errand
- * branch into the work-unit branch and mints a meta that supersedes the record;
- * this removes the now-redundant record and pushes the removal, leaving the
- * renamed branch untouched. There is no reap and so no containment gate.
- */
-export async function handleErrandRetire(slug: string): Promise<void> {
-  p.intro("arc errand retire");
-
-  const cwd = requireArcProjectRoot();
-  if (!cwd) return;
-
-  const { settings } = await readConfigSettings(cwd);
-  if (settings["branch.protection"] !== "full") {
-    p.log.error(
-      "`arc errand retire` is a full-protection verb. Under partial protection an errand is a direct "
-      + "base commit — no branch, no record — so it never retires.",
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  const identity = await resolveIdentityWithPrompt(false);
-  if (!identity) {
-    p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
-    process.exitCode = 1;
-    return;
-  }
-
-  const io = createUserIOContext();
-  if (!io.execInput) {
-    p.log.error("The stdin git seam is unavailable — cannot remove the errand record.");
-    process.exitCode = 1;
-    return;
-  }
-
-  let result;
-  try {
-    result = await retireErrand({ exec: io.exec, execInput: io.execInput, identity }, { slug });
-  } catch (err) {
-    p.log.error(`Could not retire the errand record: ${err instanceof Error ? err.message : String(err)}`);
-    process.exitCode = 1;
-    return;
-  }
-
-  if (result.kind === "no-record") {
-    p.log.info(`No errand record for '${slug}' — nothing to retire.`);
-    p.outro("Done.");
-    return;
-  }
-
-  // Mirror the sync leg's marker discipline (see handleErrandClose): a clean push
-  // of the removal clears any stale marker; a failed push records it and is
-  // non-fatal, with collision outcomes naming their manual remedy.
-  await settleErrandPushOutcome(cwd, io, identity, "Record-removal", result.push);
-
-  await dropOriginatingInboxCapture(cwd, io, identity, result.record.originEntry);
-
-  p.log.success(`Retired errand record '${slug}' — the branch is preserved for the promoted work unit.`);
-  p.outro("Done.");
-}
-
 /** Options for the `arc errand promote` subcommand. */
 export interface ErrandPromoteOptions {
   /** The new WU name (the meta filename stem and branch leaf); defaults to the slug. */
@@ -1023,6 +957,8 @@ export interface ErrandPromoteOptions {
   priority?: string;
   /** WU `Class` for the minted meta. */
   class?: string;
+  /** Emit the producer-validated mutation result without human decoration. */
+  json?: boolean;
 }
 
 /**
@@ -1036,42 +972,35 @@ export interface ErrandPromoteOptions {
  * the WU name/type, the floor, and optional priority/`Class` are supplied.
  */
 export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptions): Promise<void> {
-  p.intro("arc errand promote");
+  if (opts.json !== true) p.intro("arc errand promote");
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
   const { settings } = await readConfigSettings(cwd);
   if (settings["branch.protection"] !== "full") {
-    p.log.error(
-      "`arc errand promote` is a full-protection verb. Under partial protection an errand is a direct "
-      + "base commit — no branch, no record — so promotion is just starting a normal work unit from the base.",
-    );
-    process.exitCode = 1;
+    emitErrandPromoteResult(createLocusMutationResult({
+      outcome: "refused", operation: "errand-promote", reason: "full-protection-required",
+      recommendedPromptText: "Errand promotion requires full branch protection.",
+    }), opts.json === true);
     return;
   }
 
   const floor = opts.floor?.trim();
   if (floor !== "derivation" && floor !== "scale") {
-    p.log.error(
-      "`arc errand promote` requires `--floor derivation|scale` — the crossed floor is the agent's judgment "
-      + "and routes the entry stage (derivation → planning at draft-design; scale → Active for a brief backfill).",
-    );
-    process.exitCode = 1;
+    emitErrandPromoteFailure("locus.errand-promote.input", "--floor must be 'derivation' or 'scale'.", opts.json === true);
     return;
   }
 
   const identity = await resolveIdentityWithPrompt(false);
   if (!identity) {
-    p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
-    process.exitCode = 1;
+    emitErrandPromoteFailure("locus.errand-promote.identity", "No identity resolved.", opts.json === true);
     return;
   }
 
   const io = createUserIOContext();
   if (!io.execInput) {
-    p.log.error("The stdin git seam is unavailable — cannot retire the errand record.");
-    process.exitCode = 1;
+    emitErrandPromoteFailure("locus.errand-promote.identity", "The stdin Git boundary is unavailable.", opts.json === true);
     return;
   }
 
@@ -1079,60 +1008,52 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
   const wuName = rawName !== undefined && rawName !== "" ? rawName : slug;
   const type = opts.type?.trim();
 
-  let result;
+  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
+  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+    cwd, identity: SlugSchema.parse(identity), exec: io.exec,
+  })).identityGlobalRoot;
+  let result: LocusMutationResultV1;
   try {
-    result = await promoteErrand(
-      {
-        io: { exec: io.exec, execInput: io.execInput, identity },
-        fs: { mkdir, writeFile, readFile: (path) => readFile(path, "utf8") },
-        cwd,
-      },
-      {
-        slug,
-        name: wuName,
-        type: type !== undefined && type !== "" ? type : "feat",
-        floor,
-        owner: identity,
-        priority: opts.priority,
-        class: opts.class,
-      },
-    );
-  } catch (err) {
-    p.log.error(`Could not promote the errand: ${err instanceof Error ? err.message : String(err)}`);
-    process.exitCode = 1;
-    return;
+    result = await promoteOrdinaryErrandAtRuntime({
+      slug, name: wuName, type: type !== undefined && type !== "" ? type : "feat", floor,
+      owner: identity, priority: opts.priority, class: opts.class, protection: "full",
+      base: settings["branch.base"], identity, identityGlobalUserDir,
+      activeExtensions: activeExtensions.active, postCreateScript: settings["worktree.post_create"],
+      registeredHarnessDirs: settings["worktree.harness_dirs"], exec: io.exec, execInput: io.execInput,
+    });
+  } catch (error) {
+    result = createLocusMutationResult({
+      outcome: "error", operation: "errand-promote",
+      error: { code: "locus.errand-promote.handler", message: error instanceof Error ? error.message : String(error) },
+      recommendedPromptText: "Inspect the retained identity and local promotion evidence before retrying.",
+    });
   }
+  emitErrandPromoteResult(result, opts.json === true);
+}
 
-  if (result.kind === "no-record") {
-    p.log.info(`No errand record for '${slug}' — nothing to promote.`);
+export function formatErrandPromoteResult(
+  result: LocusMutationResultV1,
+  json: boolean,
+): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
+  return formatErrandOpenResult(result, json);
+}
+
+function emitErrandPromoteResult(result: LocusMutationResultV1, json: boolean): void {
+  const formatted = formatErrandPromoteResult(result, json);
+  if (json) process.stdout.write(formatted.text);
+  else if (formatted.stream === "stderr") p.log.error(formatted.text);
+  else {
+    p.log.success(formatted.text);
     p.outro("Done.");
-    return;
   }
+  process.exitCode = formatted.exitCode;
+}
 
-  if (result.kind === "name-taken") {
-    p.log.error(`A work unit meta already exists at ${result.metaPath} — choose a different --name.`);
-    process.exitCode = 1;
-    return;
-  }
-
-  // Mirror the sync leg's marker discipline (see handleErrandClose): a clean push
-  // of the removal clears any stale marker; a failed push records it and is
-  // non-fatal, with collision outcomes naming their manual remedy.
-  await settleErrandPushOutcome(cwd, io, identity, "Record-removal", result.push);
-
-  await dropOriginatingInboxCapture(cwd, io, identity, result.record.originEntry);
-
-  const stage = floor === "derivation" ? "Planning (draft-design)" : "Active";
-  p.log.success(
-    `Promoted errand '${slug}' → work unit on ${result.branch}; minted ${result.metaPath} at ${stage}, `
-    + "record retired.",
-  );
-  // ROADMAP regen is advisory until roadmap-tooling ships the renderer (mirrors the
-  // WU lifecycle's reconcile-roadmap side-effect): nudge a hand-render for the new WU.
-  p.log.info(
-    `ROADMAP regen pending (no renderer yet): \`${wuName}\` promoted to ${stage} — hand-render the readiness view.`,
-  );
-  p.outro("Done.");
+function emitErrandPromoteFailure(code: string, message: string, json: boolean): void {
+  emitErrandPromoteResult(createLocusMutationResult({
+    outcome: "error", operation: "errand-promote", error: { code, message },
+    recommendedPromptText: "Resolve the reported input or configuration error before retrying.",
+  }), json);
 }
 
 /** Resolve and revalidate one exact inbox adoption while holding the identity notes lock. */

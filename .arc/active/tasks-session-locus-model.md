@@ -419,7 +419,7 @@ transaction boundary before operation composers consume it.
 _Purpose:_ Move Errand, grooming, and housekeeping lifecycle mechanics behind the shared allocator and mutation
 result so workflows consume verbs and precomposed verdicts.
 
-### `[ ]` **5.1 Compose the complete ordinary-Errand and promotion lifecycle** — D4, D7, D8
+### `[x]` **5.1 Compose the complete ordinary-Errand and promotion lifecycle** — D4, D7, D8
 
 - _Goal:_ An ordinary Errand can execute, adopt an inbox origin, pause, await review, resume elsewhere, complete,
   abandon, or explicitly become a WU through one recoverable lifecycle without displacing or duplicating an active
@@ -470,23 +470,16 @@ result so workflows consume verbs and precomposed verdicts.
         - Routed exact execute-dispatch unbinding through the notes-locked inbox mutation seam without deleting the
           capture, retired identity last, and exposed one shared human/JSON result with replay-safe command coverage.
 
-    - `[ ]` **5.1.g Convert exact v3 Errands into work-unit session homes**
-        - Refactor `packages/arc-framework/src/lib/errand/promote.ts` and its handler so `arc errand promote` requires
-          the live ordinary v3 claim/role/lease, committed branch head, target checkout, and unused WU name.
-        - Recoverably rename the branch and mint the WU meta, replace a spawned transient marker plus target role
-          with WU authority under owned-lock revalidation, and release any warm parent WU lease so the promoted
-          checkout becomes the sole active session home. Retire Errand identity last.
-        - Acquire target and optional parent record locks in deterministic record-ID order for the complete local
-          frame replacement; perform no remote identity I/O until both locks release, and preserve proof-bearing
-          intermediate evidence for idempotent retry.
-        - Return `originEntry` without removing the inbox capture; Phase 7 drops it only after the promotion meta
-          commit. Remove standalone `arc errand retire` registration/exports because no safe independent v3 edge
-          remains.
-        - Rewire promotion plus `--json` through `packages/arc-framework/src/cli.ts` and the shared result.
-        - Build `test-first` (one behavior at a time):
-            - Cover cold/warm and primary/spawned promotion, parent release, marker/role conversion, name collision,
-              deterministic two-lock ordering, dirty or uncommitted source, every mid-transaction recovery point,
-              v1/v2 refusal, capture preservation, and shared-result command rendering.
+    - `[x]` **5.1.g Convert exact v3 Errands into work-unit session homes**
+        - Replaced promotion with an exact ordinary-v3 frame transaction that revalidates live role and lease
+          authority under deterministically ordered target/parent locks, recoverably renames the committed branch,
+          mints the WU meta, converts spawned provenance and role authority, and releases the warm parent lease.
+        - Retires identity only after local locks release, preserves the inbox origin for the later meta-commit
+          boundary, exposes shared human/JSON results, and removes the unsafe standalone retire command surface.
+
+- _Outcome:_ Ordinary Errands now share one generation-bound lifecycle from open through leave/resume and exact
+  merge finalization, abandonment, or promotion. Every terminal path preserves recoverable identity and local
+  evidence until its final authority transition, with compatible refusal for legacy and partial-mode state.
 
 ### `[ ]` **5.2 Add ownership-safe full-mode Errand materialization** — D4, D7
 

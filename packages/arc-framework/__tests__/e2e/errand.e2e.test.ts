@@ -561,32 +561,11 @@ describe("arc errand retire", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("refuses under partial protection", async () => {
+  it("is no longer a registered independent identity transition", async () => {
     const result = await runArc(["errand", "retire", "anything"], tmpDir);
 
     expect(result.exitCode).toBe(1);
-  });
-
-  it("refuses to retire a legacy record while preserving its renamed branch", async () => {
-    await setFullProtection(tmpDir);
-    await seedLegacyErrand(tmpDir, { slug: "growing", type: "fix" });
-    // Promotion renames the errand branch into the work-unit branch before retiring the record.
-    await git(tmpDir, ["branch", "-m", "fix/growing", "feat/growing-feature"]);
-
-    const result = await runArc(["errand", "retire", "growing"], tmpDir);
-
-    expect(result.exitCode).toBe(1);
-    expect(await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"]))
-      .toContain('"version": 2');
-    expect(await git(tmpDir, ["branch", "--list", "feat/growing-feature"])).toContain("feat/growing-feature");
-  });
-
-  it("is a clean no-op when no record exists for the slug", async () => {
-    await setFullProtection(tmpDir);
-
-    const result = await runArc(["errand", "retire", "never-opened"], tmpDir);
-
-    expect(result.exitCode).toBe(0);
+    expect(result.stdout + result.stderr).toContain("unknown command 'retire'");
   });
 });
 
@@ -633,9 +612,15 @@ describe("arc errand promote", () => {
   });
 
   it("refuses under partial protection", async () => {
-    const result = await runArc(["errand", "promote", "anything", "--floor", "scale"], tmpDir);
+    const result = await runArc(["errand", "promote", "anything", "--floor", "scale", "--json"], tmpDir);
 
     expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      outcome: "refused",
+      operation: "errand-promote",
+      reason: "full-protection-required",
+    });
   });
 
   it("requires --floor — the crossed floor is the agent's judgment", async () => {

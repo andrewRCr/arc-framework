@@ -24,7 +24,6 @@ import {
   handleErrandLeave,
   handleErrandClose,
   handleErrandAbandon,
-  handleErrandRetire,
   handleErrandPromote,
   type ErrandCheckOptions,
   type ErrandOpenOptions,
@@ -392,11 +391,6 @@ errand
   .action((slug: string, opts: ErrandAbandonOptions) => handleErrandAbandon(slug, opts));
 
 errand
-  .command("retire <slug>")
-  .description("Retire a promoted errand's record (the renamed branch survives as the work-unit branch)")
-  .action((slug: string) => handleErrandRetire(slug));
-
-errand
   .command("promote <slug>")
   .description("Promote an errand to a work unit: rename the branch, mint the meta, retire the record")
   .option("--name <name>", "The new work-unit name (meta filename + branch leaf); defaults to the slug")
@@ -404,6 +398,7 @@ errand
   .option("--floor <floor>", "Which floor the errand crossed: derivation | scale (required)")
   .option("--priority <priority>", "WU priority for the minted meta")
   .option("--class <class>", "WU Class for the minted meta")
+  .option("--json", "Emit the producer-validated locus mutation result")
   .action((slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts));
 
 const housekeep = program
