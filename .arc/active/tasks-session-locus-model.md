@@ -13,84 +13,34 @@ _Design decisions:_ Partition locus schemas by contract family behind one index,
 a dedicated fail-closed topology boundary, make checkout normalization path-flavor explicit, and land process
 inspection before the record lock that consumes its liveness verdict.
 
-### `[ ]` **1.1 Define and register the locus schema family** — D2, D6
+### `[x]` **1.1 Define and register the locus schema family** — D2, D6
 
 - _Goal:_ Every persisted, emitted, and immediately consumed locus value has one Zod-first authority with stable
   kernel registration metadata and no parallel handwritten contract.
 
-    - `[ ]` **1.1.a Author bounded record and process-anchor schemas**
-        - Add `packages/arc-framework/src/lib/locus/schema/limits.ts` and `record.ts` with exact-key Zod schemas for
-          roles, subjects, leases, process anchors, and `LocusRecordV1`; export only `z.infer` types.
-        - Make `role.subject.claimId` always present and nullable: require the exact v3 claim generation for every
-          identity-backed Errand, groom, or housekeep role, including a partial groom; require null for WU,
-          partial-Errand, and partial-housekeep subjects.
-        - Make role-level `dispatchId`, `originEntry`, and `routingPlanDigest` always present and nullable, accepting
-          partial-Errand inbox origin with optional matching dispatch or a partial-housekeep dispatch plus exact
-          canonical plan digest; full roles derive those values from identity.
-        - Centralize `MAX_LOCUS_JSON_BYTES` at 256 KiB, `MAX_LOCUS_PATH_CHARS` at 32,768 characters, and
-          `MAX_LOCUS_OPAQUE_CHARS` at 4,096 characters; retain tighter exact grammar for digests, tokens, timestamps,
-          and known discriminants.
-        - Build `test-first` (one behavior at a time):
-            - Exact-key persisted records accept valid opaque future role and inspector strings.
-            - Identity-backed role subjects require their claim generation; WU and identity-free partial subjects
-              reject one.
-            - Known-invalid role/subject, dispatch/origin, and routing-plan-digest pairs, path/token grammar,
-              timestamp shape, parent depth, and over-limit text reject.
+    - `[x]` **1.1.a Author bounded record and process-anchor schemas**
+        - Added strict, bounded Zod authorities for persisted records, durable roles, process anchors, and leases;
+          known role/subject and partial execution-context relationships are validated without closing future
+          inspector or role vocabulary.
 
-    - `[ ]` **1.1.b Author identity schemas without duplicating their workflow authorities**
-        - Add `packages/arc-framework/src/lib/locus/schema/identity.ts` for `LocusIdentityV1`, identity kinds, purpose,
-          protection, lifecycle state, claim generation, and change-request projections.
-        - Keep existing v3 identity records authoritative: locus identity schemas validate read and mutation values
-          without introducing a second persisted identity format.
-        - Preserve each v3 record's immutable `claimId` in the public projection so reused Errand, grooming, and
-          housekeeping keys remain distinguishable across generations.
-        - Preserve ordinary-Errand origin/dispatch context, groom anchor/canonical-member/base-head context, and
-          housekeep routing lane/dispatch/plan-digest context without projecting a second identity authority.
-        - Build `test-first` (one behavior at a time):
-            - Valid ordinary-Errand, housekeep-routing, full/partial groom, and change-request shapes round-trip;
-              partial Errands remain role-only with no shared identity projection.
-            - Claim generations, groom member ordering/base-head anchoring, origin/dispatch pairing, immutable
-              routing-plan digests, and monotonic lane vocabulary round-trip; illegal known kind/state/protection
-              combinations and over-limit opaque values reject.
+    - `[x]` **1.1.b Author identity schemas without duplicating their workflow authorities**
+        - Added the exact v3 ordinary-Errand, housekeep-routing, and full/partial groom projections, preserving claim,
+          dispatch, plan-digest, change-request, canonical-member, and opened-base evidence through inferred types.
 
-    - `[ ]` **1.1.c Author roster, state, reconciliation, and mutation schemas**
-        - Add `packages/arc-framework/src/lib/locus/schema/state.ts` and `mutation.ts` for roster rows,
-          `LocusStateV1`, reconciliation actions, and mutation results, then export the family through
-          `packages/arc-framework/src/lib/locus/schema/index.ts`.
-        - Import `TaskListCursorFileResultSchema` and `LoadSetManifestSchema` for derived values instead of
-          redeclaring the landed session-envelope roots.
-        - Model success diagnostics as bounded source-keyed values whose source kind and key identify the checkout,
-          record, identity entry, or lock at issue; keep root failures in the envelope error arm.
-        - Admit `leaseState: "absent"` for an occupied checkout whose durable transient role has no lease, and add
-          identity/path-specific stop reasons instead of relabeling them as malformed locus records.
-        - Include `errand-link` and `errand-promote`, nullable origin/dispatch/plan-digest result fields, and
-          dispatch-qualified next-offers in the closed mutation contract; cover their specific safety refusal
-          reasons, including `routing-plan-mismatch`.
-        - Build `test-first` (one behavior at a time):
-            - Row/state discriminants, source-keyed diagnostic shapes, deterministic action summaries, and
-              refusal/result exhaustiveness enforce exact contracts.
-            - Public envelope root errors include incomplete identity authority, and mutation results distinguish
-              applied, idempotent, refused, and operational error outcomes.
-            - Freshly computed state envelopes and mutation results remain versionless on the wire.
+    - `[x]` **1.1.c Author roster, state, reconciliation, and mutation schemas**
+        - Added strict versionless envelope, row, state, reconciliation, and mutation-result contracts that reuse the
+          canonical cursor/load-set roots and keep operational errors distinct from safety refusals and diagnostics.
 
-    - `[ ]` **1.1.d Register the locus schema roots through a composed kernel registry**
-        - Add `packages/arc-framework/src/lib/locus/registry.ts` using `createKernelRegistry()` and the kernel
-          `{ id, version, migrationPosture }` vocabulary.
-        - Register the record, identity, roster, state, and mutation roots without adding build projection or an
-          `arc schema` surface.
-        - Build `test-first` (one behavior at a time):
-            - Registry composition proves discoverability, stable ordering, and `z.infer` parity without adding a
-              build projection or `arc schema` surface.
+    - `[x]` **1.1.d Register the locus schema roots through a composed kernel registry**
+        - Registered the five locus roots at strict-current v1 through a fresh kernel-composed registry with stable,
+          deterministic discovery and no build projection or command surface.
 
-    - `[ ]` **1.1.e Add locus-domain error classification at untrusted boundaries**
-        - Add a `LocusError` subclass over `ArcError` with a locally exhaustive `locus.*` code union for parse,
-          topology, persistence, locking, and mutation failures.
-        - Project operational failures into the mutation result's `error` arm at JSON command boundaries without
-          converting expected safety refusals into exceptions.
-        - Keep refusal reasons and roster diagnostic codes as data discriminants rather than error codes.
-        - Build `test-first` (one behavior at a time):
-            - Every local code maps exhaustively to the JSON error arm, while safety refusals and roster diagnostics
-              remain data and unknown failures retain their boundary classification.
+    - `[x]` **1.1.e Add locus-domain error classification at untrusted boundaries**
+        - Added a locally exhaustive `LocusError` taxonomy and safe payload adapter while retaining refusal reasons
+          and roster diagnostics as their own closed data discriminants.
+
+- _Outcome:_ The locus family now has one strict Zod-first authority from persisted record through public query and
+  mutation output, with kernel discovery and bounded operational-error projection ready for storage and drivers.
 
 ### `[ ]` **1.2 Build normalized checkout identity and exact record persistence** — D2, D3
 
