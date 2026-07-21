@@ -12,11 +12,11 @@
 - **Task List:** `tasks-review-architecture.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec — `spec-review-architecture.md` finalized (adversarial-reviewed, converged)
-- **Next Task:** Task 1.1 — Lift canonical change facts into the CLI
+- **Last Completed:** Phase 7 — Rollout and cross-surface coherence
+- **Next Task:** Task 8.1 — Complete verification
 - **Blockers:** [none] — both deps (`classify-change-granularity`, `cli-schema-kernel`) shipped; base reconciled
 
-- **Next Action:** Begin Task 1.1 — Lift canonical change facts into the CLI
+- **Next Action:** Begin Task 8.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
