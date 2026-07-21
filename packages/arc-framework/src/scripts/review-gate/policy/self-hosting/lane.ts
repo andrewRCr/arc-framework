@@ -2,7 +2,7 @@
 
 import { posix } from "node:path";
 
-import { parseMetaProjectionRecord } from "../../../../lib/active/meta-reader.js";
+import { parseMetaRecord } from "../../../../lib/active/meta-reader.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { readMetaAtRef } from "../../../../lib/git/remote-ref-reader.js";
 
@@ -78,8 +78,8 @@ function groupForPath(path: string): ArtifactGroup | null {
 function parseOwner(content: string | null): string | null {
   if (content === null) return null;
   try {
-    const owner = parseMetaProjectionRecord(content).Owner;
-    return owner === null || owner === "[none]" || owner === "" ? null : owner;
+    const owner = parseMetaRecord(content).owner;
+    return owner === null || owner === "" ? null : owner;
   } catch {
     return null;
   }

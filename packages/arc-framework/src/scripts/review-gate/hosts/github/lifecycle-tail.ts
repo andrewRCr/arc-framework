@@ -1,7 +1,7 @@
 /** Git-backed classification for the current lifecycle bookkeeping tail. */
 
 import type { GitExec } from "../../../../lib/git/exec.js";
-import { parseMetaProjectionRecord } from "../../../../lib/active/meta-reader.js";
+import { parseMetaRecord } from "../../../../lib/active/meta-reader.js";
 import type {
   LifecycleTailProofAdapter,
   LifecycleTailProofResolutionInput,
@@ -222,9 +222,9 @@ function normalizeCohort(value: string | null): string | null | undefined {
 
 function artifactFromMeta(content: string, slug: string): LifecycleTailArtifactIdentity | null {
   try {
-    const record = parseMetaProjectionRecord(content);
-    if (record.State !== "Integrating" || record["Task List"] !== `tasks-${slug}.md`) return null;
-    const cohortPath = normalizeCohort(record.Cohort);
+    const record = parseMetaRecord(content);
+    if (record.state !== "Integrating" || record.taskList !== `tasks-${slug}.md`) return null;
+    const cohortPath = normalizeCohort(record.cohort);
     if (cohortPath === undefined) return null;
     return { workUnitId: slug, artifactGroupId: `work-unit:${slug}`, cohortPath };
   } catch {
@@ -247,21 +247,20 @@ function stableMetaArchiveText(content: string): string {
 
 function validArchivedMeta(source: string, destination: string, slug: string): boolean {
   try {
-    const sourceRecord = parseMetaProjectionRecord(source);
-    const destinationRecord = parseMetaProjectionRecord(destination);
+    const sourceRecord = parseMetaRecord(source);
+    const destinationRecord = parseMetaRecord(destination);
     if (
-      sourceRecord.State !== "Integrating"
-      || destinationRecord.State !== "Shipped"
-      || destinationRecord["Task List"] !== `tasks-${slug}.md`
-      || destinationRecord.Cohort !== sourceRecord.Cohort
-      || (destinationRecord.Branch !== null && destinationRecord.Branch !== "[none]")
-      || (destinationRecord["Current Workflow"] !== null && destinationRecord["Current Workflow"] !== "[none]")
-      || (destinationRecord["Next Task"] !== null && destinationRecord["Next Task"] !== "[none]")
-      || (destinationRecord.Blockers !== null && destinationRecord.Blockers !== "[none]")
-      || (destinationRecord["Next Action"] !== null && destinationRecord["Next Action"] !== "[none]")
-      || (destinationRecord.Completed !== null
-        && destinationRecord.Completed !== "[none]"
-        && !/^\d{4}-\d{2}-\d{2}$/u.test(destinationRecord.Completed))
+      sourceRecord.state !== "Integrating"
+      || destinationRecord.state !== "Shipped"
+      || destinationRecord.taskList !== `tasks-${slug}.md`
+      || destinationRecord.cohort !== sourceRecord.cohort
+      || destinationRecord.branch !== null
+      || destinationRecord.currentWorkflow !== null
+      || destinationRecord.nextTask !== null
+      || destinationRecord.blockers !== null
+      || destinationRecord.nextAction !== null
+      || (destinationRecord.completed !== null
+        && !/^\d{4}-\d{2}-\d{2}$/u.test(destinationRecord.completed))
     ) return false;
     return stableMetaArchiveText(source) === stableMetaArchiveText(destination);
   } catch {

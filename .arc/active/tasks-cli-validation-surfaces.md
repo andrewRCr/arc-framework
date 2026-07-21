@@ -127,7 +127,7 @@ onto stable code-facing fields without losing tolerant recovery.
 - _Outcome:_ Lifecycle execution now shares one tolerant semantic representation across handlers, transitions,
   evidence, indexes, and completion reads; label-keyed access remains only where localized Markdown writes require it.
 
-### `[ ]` **2.5 Migrate status, session, validation, and review readers**
+### `[x]` **2.5 Migrate status, session, validation, and review readers**
 
 - _Goal:_ Read-heavy consumers share semantic field names while preserving each caller's independent degradation
   and warning authority.
@@ -152,9 +152,12 @@ onto stable code-facing fields without losing tolerant recovery.
         - Moved lifecycle-state and staged-origin reads onto semantic fields while leaving design-shape, lifecycle,
           and active-location policy in their owning validators and advisory boundary.
 
-    - `[ ]` **2.5.f Migrate review-gate meta readers and close the read inventory**
-        - Update the GitHub lifecycle-tail and self-hosting lane readers, then assert no first-party caller indexes
-          display labels or reparses semantic dependency/design arrays.
+    - `[x]` **2.5.f Migrate review-gate meta readers and close the read inventory**
+        - Moved lifecycle-tail archive proofs and self-hosting ownership decisions onto semantic fields, with an AST
+          inventory guard confining projection parsing and raw identifier-list normalization to their authorities.
+
+- _Outcome:_ Status, session, validation, Git, and review-gate consumers now share one tolerant semantic record;
+  projection labels and raw list parsing remain confined to Markdown projection and policy boundaries.
 
 ## **Phase 3:** Authorable configuration authority
 
