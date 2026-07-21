@@ -17,7 +17,8 @@ import {
   detectExistingSkillDirs,
   resolveSkillTargets,
 } from "../lib/skills/index.js";
-import { ARC_CONFIG_SEGMENTS } from "../lib/constants.js";
+import { ARC_CONFIG_SUFFIX } from "../lib/constants.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import type { CoreIO } from "../lib/types.js";
 import { UserFacingError } from "../lib/errors.js";
 import type { SkillRemovalIO } from "../lib/skills/index.js";
@@ -73,7 +74,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
 
   // Verify ARC installation exists
   try {
-    await io.access(join(cwd, ...ARC_CONFIG_SEGMENTS));
+    await io.access(join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...ARC_CONFIG_SUFFIX));
   } catch {
     throw new UserFacingError({
       code: "NO_ARC_INSTALLATION",
@@ -83,7 +84,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
     });
   }
 
-  const arcDir = join(cwd, ".arc");
+  const arcDir = materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" }));
 
   // Set role in git config
   await io.exec("git", ["config", "--local", "arc.role", prompts.role]);
@@ -177,7 +178,7 @@ export async function runJoinReconfigure(
 
   // Verify ARC installation exists
   try {
-    await io.access(join(cwd, ...ARC_CONFIG_SEGMENTS));
+    await io.access(join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...ARC_CONFIG_SUFFIX));
   } catch {
     throw new UserFacingError({
       code: "NO_ARC_INSTALLATION",

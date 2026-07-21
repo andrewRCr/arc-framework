@@ -50,7 +50,7 @@ describe("resolveLoadSetManifest", () => {
       ...BASE_INPUT,
       sessionType: "execution",
       planningStage: null,
-      identityGlobalUserDir: "/repo/.arc/user/andrew",
+      workingMemoryPath: "/repo/.arc/user/andrew/WORKING-MEMORY.md",
     });
 
     expect(manifest.entries).toContainEqual(

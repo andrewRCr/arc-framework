@@ -16,7 +16,7 @@
  */
 
 import { readdir, rm, rmdir } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import * as p from "@clack/prompts";
 
@@ -40,6 +40,8 @@ import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { SlugSchema } from "../lib/kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { ensureDir } from "../lib/template/files.js";
 import { renderTrackedProjectReadinessViewResult } from "../lib/status/project-roadmap-render.js";
 import type { ProjectReadinessWarning } from "../lib/status/project-view.js";
@@ -59,6 +61,17 @@ import {
   resolveCurrentBranchName,
   resolveUserIdentity,
 } from "./shared.js";
+
+const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
+
+function projectActiveMetaPath(slugValue: string) {
+  return resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: SlugSchema.parse(slugValue),
+    artifact: "meta",
+  });
+}
 
 export interface StartOptions {
   /** Cold-start in place (the current worktree) instead of spawning a new one. */
@@ -316,7 +329,7 @@ async function createNew(
       `Work unit: ${r.wuName}`,
       `Branch:    ${r.branch}`,
       `Worktree:  ${r.worktreePath}`,
-      `Meta:      ${r.worktreePath}/.arc/active/meta-${r.wuName}.md`,
+      `Meta:      ${materializeArcPath(r.worktreePath, projectActiveMetaPath(r.wuName))}`,
     ].join("\n"),
     "Spawned",
   );
@@ -332,7 +345,7 @@ async function createNew(
   const ceremony = await commitAndPushStartCeremony(ctx, {
     cwd: r.worktreePath,
     branch: r.branch,
-    stagePaths: [`.arc/active/meta-${r.wuName}.md`, ".arc/backlog/ROADMAP.md"],
+    stagePaths: [projectActiveMetaPath(r.wuName), ROADMAP_PATH],
     message: buildCreateNewCeremonyCommitMessage(r.wuName),
   });
   if (!ceremony.ok) {
@@ -534,7 +547,7 @@ async function graduate(
     const ceremony = await commitAndPushStartCeremony(ctx, {
       cwd: result.worktreePath,
       branch: result.branch,
-      stagePaths: [`.arc/active/meta-${wuName}.md`, ".arc/backlog/ROADMAP.md"],
+      stagePaths: [projectActiveMetaPath(wuName), ROADMAP_PATH],
       message: buildGraduateCeremonyCommitMessage(wuName),
     });
     if (!ceremony.ok) {
@@ -693,7 +706,7 @@ async function coldStart(
   const lines = [
     `Work unit: ${r.wuName}`,
     `Branch:    ${r.branch}${r.cutFromBase ? ` (cut off protected base ${r.cutFromBase})` : ""}`,
-    `Meta:      .arc/active/meta-${r.wuName}.md`,
+    `Meta:      ${projectActiveMetaPath(r.wuName)}`,
   ];
   if (r.origin) lines.push(`Origin:    ${r.origin}`);
   if (r.design) lines.push(`Design:    ${r.design}`);
@@ -804,10 +817,11 @@ async function refreshRoadmapForStartCeremony(
       baseBranch: settings["branch.base"],
       currentBranch,
     });
-    const dir = join(cwd, ".arc", "backlog");
+    const path = materializeArcPath(cwd, ROADMAP_PATH);
+    const dir = dirname(path);
     await ensureDir(dir, ctx.io.mkdir);
     await ctx.io.writeFile(
-      join(dir, "ROADMAP.md"),
+      path,
       view.markdown.endsWith("\n") ? view.markdown : `${view.markdown}\n`,
     );
     return { ok: true, warnings: view.warnings };
@@ -821,7 +835,11 @@ async function stampStartSessionNotesCommit(
   ctx: ArmContext,
   opts: { cwd: string; identity: string; wuName: string; commit: string },
 ): Promise<void> {
-  const notesPath = join(opts.cwd, ".arc", "user", opts.identity, opts.wuName, "SESSION-NOTES.md");
+  const notesPath = materializeArcPath(opts.cwd, resolveArcPath({
+    kind: "user-document",
+    identity: SlugSchema.parse(opts.identity),
+    document: { kind: "session-notes", workUnit: SlugSchema.parse(opts.wuName) },
+  }));
   try {
     const content = await ctx.io.readFile(notesPath);
     const next = content.replace(

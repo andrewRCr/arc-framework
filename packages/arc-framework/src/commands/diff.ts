@@ -17,6 +17,7 @@ import { hashContent } from "../lib/manifest/index.js";
 import { manifestMissingError } from "../lib/errors.js";
 import { INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME } from "../lib/constants.js";
 import type { Manifest, ReadIO } from "../lib/types.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 
 // --- Types ---
 
@@ -74,7 +75,7 @@ export interface DiffOptions {
  */
 export async function runDiff(options: DiffOptions): Promise<DiffResult> {
   const { cwd, io } = options;
-  const arcDir = join(cwd, ".arc");
+  const arcDir = materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" }));
   const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
   const manifestPath = join(internalDir, MANIFEST_FILENAME);
   const pristineStorePath = join(internalDir, PRISTINE_FILENAME);

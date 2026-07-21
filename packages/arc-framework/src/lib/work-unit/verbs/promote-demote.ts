@@ -29,6 +29,8 @@
 import { join, posix } from "node:path";
 
 import { parseMetaRecord } from "../../active/meta-reader.js";
+import { SlugSchema } from "../../kernel/index.js";
+import { resolveArcPath, type WorkUnitPlacement } from "../../layout/index.js";
 import { buildLifecycleIndex } from "../lifecycle-index.js";
 import {
   executeTransition,
@@ -61,14 +63,28 @@ export type BacklogMoveResult =
   | { status: "rejected"; reason: string }
   | { status: "moved"; outcome: TransitionOutcome; metaPath: string };
 
-/**
- * Swap the backlog-tier segment of a cwd-relative stub directory, preserving any
- * cohort nesting. The path always opens `.arc/backlog/{tier}/…`, so the leading
- * tier prefix is the only segment that changes (`provisional/foo` ↔ `planned/foo`,
- * `provisional/coh/foo` ↔ `planned/coh/foo`).
- */
-function swapTier(dir: string, from: "provisional" | "planned", to: "provisional" | "planned"): string {
-  return dir.replace(`.arc/backlog/${from}/`, `.arc/backlog/${to}/`);
+function projectBacklogDestination(
+  entry: { slug: string; cohort: string | null },
+  commitment: "provisional" | "planned",
+): { toDir: string; metaPath: string } | { reason: string } {
+  const slug = SlugSchema.safeParse(entry.slug);
+  if (!slug.success) return { reason: `Lifecycle record carries an invalid work-unit slug \`${entry.slug}\`.` };
+  const rawCohort = entry.cohort?.trim();
+  const cohortSegments = rawCohort === undefined || rawCohort === "" || rawCohort === "[none]"
+    ? []
+    : rawCohort.split("/");
+  if (cohortSegments.some((segment) => !SlugSchema.safeParse(segment).success) || cohortSegments.length > 2) {
+    return { reason: `Lifecycle record carries an invalid Cohort path \`${entry.cohort ?? ""}\`.` };
+  }
+  const placement: WorkUnitPlacement = {
+    kind: "backlog",
+    commitment,
+    cohort: cohortSegments.map((segment) => SlugSchema.parse(segment)),
+  };
+  return {
+    toDir: resolveArcPath({ kind: "work-unit-container", placement, slug: slug.data }),
+    metaPath: resolveArcPath({ kind: "work-unit-artifact", placement, slug: slug.data, artifact: "meta" }),
+  };
 }
 
 /**
@@ -89,7 +105,7 @@ async function pruneEmptySource(
   leafDir: string,
   tier: "provisional" | "planned",
 ): Promise<void> {
-  const belowTier = `.arc/backlog/${tier}/`;
+  const belowTier = `${resolveArcPath({ kind: "placement-root", tier })}/`;
   let dir = leafDir;
   while (dir.startsWith(belowTier)) {
     const abs = join(cwd, dir);
@@ -131,7 +147,9 @@ export async function runPromote(ctx: BacklogMoveContext, params: BacklogMovePar
 
   const fromDir = posix.dirname(entry.path);
   const cls = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, entry.path))).Class;
-  const toDir = swapTier(fromDir, "provisional", "planned");
+  const destination = projectBacklogDestination(entry, "planned");
+  if ("reason" in destination) return { status: "rejected", reason: destination.reason };
+  const { toDir, metaPath } = destination;
 
   const outcome = await executeTransition(executor, {
     verb: "promote",
@@ -141,7 +159,7 @@ export async function runPromote(ctx: BacklogMoveContext, params: BacklogMovePar
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
   await pruneEmptySource(executor.cwd, fs, fromDir, "provisional");
-  return { status: "moved", outcome, metaPath: `${toDir}/meta-${name}.md` };
+  return { status: "moved", outcome, metaPath };
 }
 
 /**
@@ -165,11 +183,13 @@ export async function runDemote(ctx: BacklogMoveContext, params: BacklogMovePara
   }
 
   const fromDir = posix.dirname(entry.path);
-  const toDir = swapTier(fromDir, "planned", "provisional");
+  const destination = projectBacklogDestination(entry, "provisional");
+  if ("reason" in destination) return { status: "rejected", reason: destination.reason };
+  const { toDir, metaPath } = destination;
 
   const outcome = await executeTransition(executor, { verb: "demote", slug: name, inputs: { toDir } });
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
   await pruneEmptySource(executor.cwd, fs, fromDir, "planned");
-  return { status: "moved", outcome, metaPath: `${toDir}/meta-${name}.md` };
+  return { status: "moved", outcome, metaPath };
 }

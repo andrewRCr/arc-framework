@@ -5,6 +5,8 @@
  */
 
 import type { Location } from "../work-unit/lifecycle-state.js";
+import type { Slug } from "../kernel/index.js";
+import type { WorkUnitPlacement } from "../layout/index.js";
 
 export const VIEW_KINDS = [
   "tasks",
@@ -27,7 +29,8 @@ export type ViewArtifactResult =
 
 export interface ResolvedViewTarget {
   status: "resolved";
-  slug: string;
+  slug: Slug;
+  placement: WorkUnitPlacement;
   location: Location;
   metaPath: string;
   taskListPath: string | null;

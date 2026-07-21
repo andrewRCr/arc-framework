@@ -20,6 +20,7 @@ import {
 import { artifactGroupDigest, receiptId } from "../canonical/receipt-id.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import { getCurrentBranch, type GitExec } from "../git/exec.js";
+import { resolveArcPath } from "../layout/index.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "../user-sync/notes-lock.js";
 import {
   validateReceiptMatrix,
@@ -33,7 +34,7 @@ import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import type { AbandonRetirementContext } from "./verbs/abandon.js";
 import type { ParkPlanningRetirementContext } from "./verbs/park-resume.js";
 
-const ROADMAP_PATH = validateManagedPath(".arc/backlog/ROADMAP.md");
+const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
 /** Exact Git blob reader; a null ref addresses the current index. */
 export type RetirementBlobReader = (

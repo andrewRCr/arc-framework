@@ -9,6 +9,8 @@
 
 import type { GitExec } from "../../lib/git/index.js";
 import type { PlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
+import type { Slug } from "../../lib/kernel/index.js";
+import type { WorkUnitPlacement } from "../../lib/layout/index.js";
 
 export {
   PrioritySchema,
@@ -156,6 +158,20 @@ export interface ActiveSessionInitResult {
    */
   planningStage: PlanningWorkflow | null;
   warnings: string[];
+}
+
+/** Internal semantic companion retained for conventional artifact projection. */
+export interface ActiveCandidateSemantics {
+  candidate: MetaFileCandidate;
+  slug: Slug;
+  placement: WorkUnitPlacement;
+}
+
+/** Internal active resolution; the serialized session-init envelope remains {@link ActiveSessionInitResult}. */
+export interface ActiveSessionInitInternalResult {
+  result: ActiveSessionInitResult;
+  resolved: ActiveCandidateSemantics | null;
+  candidates: ActiveCandidateSemantics[];
 }
 
 export type ActiveResult = ActiveStatusResult | ActiveSessionInitResult;

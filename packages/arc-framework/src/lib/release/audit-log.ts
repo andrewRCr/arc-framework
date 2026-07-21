@@ -17,7 +17,9 @@
  */
 
 import { appendFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { SlugSchema } from "../kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../layout/index.js";
 
 import { walkCommitShortOption } from "./commit-message-source.js";
 
@@ -37,7 +39,14 @@ export interface AuditLogContext {
  * `cwd`. Pure path math — does not touch the filesystem.
  */
 export function resolveAuditLogPath(ctx: AuditLogContext): string {
-  return join(ctx.cwd, ".arc", "user", ctx.identity, ".internal", ".audit-log.jsonl");
+  const identity = SlugSchema.parse(ctx.identity);
+  return join(
+    materializeArcPath(ctx.cwd, resolveArcPath({ kind: "arc-root" })),
+    "user",
+    identity,
+    ".internal",
+    ".audit-log.jsonl",
+  );
 }
 
 /**
@@ -46,7 +55,7 @@ export function resolveAuditLogPath(ctx: AuditLogContext): string {
  * the directory already exists.
  */
 export async function ensureAuditLogParent(ctx: AuditLogContext): Promise<void> {
-  const parent = join(ctx.cwd, ".arc", "user", ctx.identity, ".internal");
+  const parent = dirname(resolveAuditLogPath(ctx));
   await mkdir(parent, { recursive: true });
 }
 

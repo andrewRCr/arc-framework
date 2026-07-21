@@ -38,40 +38,60 @@ function locusOf(
 }
 
 /**
- * Collect the package root and exact delta files through one NUL-safe Git query.
+ * Select corpus members from a repository path inventory using manifest membership rules.
  *
  * @param corpus - Validated manifest corpus declaration.
- * @param context - Injected Git and byte-reading seams.
- * @returns Sorted, deduplicated, UTF-8-decoded corpus files.
+ * @param candidatePaths - Repository-relative paths to test for membership.
+ * @param requireExactDelta - Whether every declared exact-delta path must be present.
+ * @returns Canonically sorted, deduplicated corpus paths.
  */
-export async function collectCorpus(
+export function selectCorpusPaths(
   corpus: CouplingManifest["corpus"],
-  context: CorpusContext,
-): Promise<CorpusFile[]> {
+  candidatePaths: readonly string[],
+  requireExactDelta = true,
+): string[] {
   const packageRoot = normalizeRepositoryPath(corpus.packageRoot);
   const installedDelta = new Set(corpus.installedDelta.map(normalizeRepositoryPath));
   const repoRootDelta = new Set(corpus.repoRootDelta.map(normalizeRepositoryPath));
   const exactDelta = [...installedDelta, ...repoRootDelta];
-  const result = await context.git("git", ["ls-files", "--cached", "-z", "--", packageRoot, ...exactDelta]);
-  const tracked = new Set(
-    result.stdout
-      .split("\0")
-      .filter((path) => path !== "")
-      .map(normalizeRepositoryPath),
-  );
-  for (const path of exactDelta) {
-    if (!tracked.has(path)) throw new CouplingAuditScanError(`Missing tracked corpus path: ${path}`);
-  }
   const excluded = new Set(corpus.excluded.map((entry) => normalizeRepositoryPath(entry.path)));
-  const paths = sortByCanonicalBytes([...tracked].filter((path) => !excluded.has(path)));
+  const candidates = new Set(candidatePaths.map(normalizeRepositoryPath));
+  if (requireExactDelta) {
+    for (const path of exactDelta) {
+      if (!candidates.has(path)) throw new CouplingAuditScanError(`Missing tracked corpus path: ${path}`);
+    }
+  }
+  return sortByCanonicalBytes(
+    [...candidates].filter(
+      (path) => locusOf(path, packageRoot, installedDelta, repoRootDelta) !== null && !excluded.has(path),
+    ),
+  );
+}
+
+/**
+ * Decode and classify an already-selected corpus path inventory.
+ *
+ * @param corpus - Validated manifest corpus declaration.
+ * @param paths - Selected repository-relative corpus paths.
+ * @param readFile - Exact byte reader for the desired filesystem or Git tree.
+ * @returns Decoded and classified corpus files in input order.
+ */
+export async function collectCorpusFromPaths(
+  corpus: CouplingManifest["corpus"],
+  paths: readonly string[],
+  readFile: (path: string) => Promise<Uint8Array>,
+): Promise<CorpusFile[]> {
+  const packageRoot = normalizeRepositoryPath(corpus.packageRoot);
+  const installedDelta = new Set(corpus.installedDelta.map(normalizeRepositoryPath));
+  const repoRootDelta = new Set(corpus.repoRootDelta.map(normalizeRepositoryPath));
   const decoder = new TextDecoder("utf-8", { fatal: true });
   return Promise.all(
     paths.map(async (path): Promise<CorpusFile> => {
       const locus = locusOf(path, packageRoot, installedDelta, repoRootDelta);
-      if (locus === null) throw new CouplingAuditScanError(`Git returned an outside-corpus path: ${path}`);
+      if (locus === null) throw new CouplingAuditScanError(`Outside-corpus path: ${path}`);
       let bytes: Uint8Array;
       try {
-        bytes = await context.readFile(path);
+        bytes = await readFile(path);
       } catch (error) {
         throw new CouplingAuditScanError(`${path}: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -86,4 +106,22 @@ export async function collectCorpus(
       return { path, content, surfaceKind: classifySurface(path), locus };
     }),
   );
+}
+
+/**
+ * Collect the package root and exact delta files through one NUL-safe Git query.
+ *
+ * @param corpus - Validated manifest corpus declaration.
+ * @param context - Injected Git and byte-reading seams.
+ * @returns Sorted, deduplicated, UTF-8-decoded corpus files.
+ */
+export async function collectCorpus(
+  corpus: CouplingManifest["corpus"],
+  context: CorpusContext,
+): Promise<CorpusFile[]> {
+  const packageRoot = normalizeRepositoryPath(corpus.packageRoot);
+  const exactDelta = [...corpus.installedDelta, ...corpus.repoRootDelta].map(normalizeRepositoryPath);
+  const result = await context.git("git", ["ls-files", "--cached", "-z", "--", packageRoot, ...exactDelta]);
+  const tracked = result.stdout.split("\0").filter((path) => path !== "");
+  return collectCorpusFromPaths(corpus, selectCorpusPaths(corpus, tracked), (path) => context.readFile(path));
 }

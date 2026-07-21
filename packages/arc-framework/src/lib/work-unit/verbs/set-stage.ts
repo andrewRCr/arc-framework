@@ -31,6 +31,7 @@ import {
   BEGIN_CURRENT_WORKFLOW_SENTINEL,
 } from "../../active/current-workflow-consistency.js";
 import { isSlugSafe } from "../slug.js";
+import { resolveArcPath } from "../../layout/index.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
 /**
@@ -86,7 +87,12 @@ export async function runSetStage(
       reason: `\`${stage}\` is not a planning stage (expected one of ${PLANNING_WORKFLOWS.join(", ")}).`,
     };
   }
-  const metaPath = `.arc/active/meta-${name}.md`;
+  const metaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: name,
+    artifact: "meta",
+  });
   await ctx.writeCurrentWorkflowField(metaPath, stage);
   if (advance) {
     await ctx.writeSoftFields(metaPath, { "Next Action": BEGIN_CURRENT_WORKFLOW_SENTINEL });

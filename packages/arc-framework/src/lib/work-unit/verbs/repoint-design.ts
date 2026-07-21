@@ -25,6 +25,9 @@
  * @module
  */
 
+import { posix } from "node:path";
+
+import { resolveArcPath } from "../../layout/index.js";
 import { isSlugSafe } from "../slug.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
@@ -66,8 +69,19 @@ export async function runRepointDesign(
     };
   }
 
-  const draftRef = `draft-${name}.md`;
-  const specRef = `spec-${name}.md`;
+  const placement = { kind: "active", scope: { kind: "project" } } as const;
+  const draftRef = posix.basename(resolveArcPath({
+    kind: "work-unit-artifact",
+    placement,
+    slug: name,
+    artifact: "draft",
+  }));
+  const specRef = posix.basename(resolveArcPath({
+    kind: "work-unit-artifact",
+    placement,
+    slug: name,
+    artifact: "spec",
+  }));
   const current = params.currentDesign;
 
   // Repoint swaps the WU's own draft↔spec member for the event's target, preserving
@@ -80,7 +94,12 @@ export async function runRepointDesign(
   const next = withTarget.filter((entry, index) => withTarget.indexOf(entry) === index);
 
   const design = next.length === 0 ? "[none]" : next.join(", ");
-  const metaPath = `.arc/active/meta-${name}.md`;
+  const metaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement,
+    slug: name,
+    artifact: "meta",
+  });
   await ctx.writeDesignField(metaPath, design);
   return { status: "ok", metaPath, design };
 }

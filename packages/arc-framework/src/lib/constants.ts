@@ -11,7 +11,7 @@
 export const ARC_CONFIG_TEMPLATE_PATH = "system/arc-config.yml";
 
 /** Repo-relative path segments to arc-config.yml under .arc/. */
-export const ARC_CONFIG_SEGMENTS = [".arc", "system", "arc-config.yml"] as const;
+export const ARC_CONFIG_SUFFIX = ["system", "arc-config.yml"] as const;
 
 // --- Internal Storage Paths ---
 // Framework bookkeeping lives in .arc/system/.internal/ — invisible to daily workspace use.

@@ -27,6 +27,8 @@ import { join } from "node:path";
 
 import { parseMetaRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
+import { SlugSchema } from "../kernel/index.js";
+import { ArchiveQuarterSchema, ArchiveSequenceSchema, resolveArcPath } from "../layout/index.js";
 
 /** Filesystem adapter — injected for unit testability; production binds `node:fs/promises`. */
 export interface CompletedIndexFs {
@@ -360,5 +362,17 @@ export async function computeArchiveDestination(
   }
 
   const sequence = String(maxSequence + 1).padStart(2, "0");
-  return { toDir: `.arc/completed/${quarter}/${sequence}_${name}`, quarter, sequence };
+  return {
+    toDir: resolveArcPath({
+      kind: "work-unit-container",
+      placement: {
+        kind: "completed",
+        quarter: ArchiveQuarterSchema.parse(quarter),
+        sequence: ArchiveSequenceSchema.parse(sequence),
+      },
+      slug: SlugSchema.parse(name),
+    }),
+    quarter,
+    sequence,
+  };
 }

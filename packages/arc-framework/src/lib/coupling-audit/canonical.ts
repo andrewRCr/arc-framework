@@ -9,6 +9,7 @@ import { toForwardSlash } from "../fs.js";
 import { CouplingAuditValidationError } from "./contracts.js";
 import type {
   CandidateEvidence,
+  CouplingClassInventory,
   CouplingManifest,
   CouplingScanResult,
   RoutingLedger,
@@ -79,12 +80,16 @@ export function digestMemberSet(candidateDigests: readonly string[]): string {
       throw new CouplingAuditValidationError("memberSet", `invalid candidate digest: ${digest}`);
     }
   }
-  unique.sort((left, right) => left.localeCompare(right));
+  unique.sort(compareCanonicalBytes);
   return digestCanonicalJson(unique);
 }
 
 function lexical(left: string, right: string): number {
-  return left.localeCompare(right);
+  return compareCanonicalBytes(left, right);
+}
+
+function compareCanonicalBytes(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 function canonicalCandidate<T extends CandidateEvidence>(candidate: T): T {
@@ -101,6 +106,26 @@ function compareCandidate(left: CandidateEvidence, right: CandidateEvidence): nu
     lexical(left.token, right.token) ||
     lexical(left.id, right.id)
   );
+}
+
+function canonicalizeClasses(classes: CouplingScanResult["classes"]): void {
+  classes.sort((left, right) => lexical(left.classId, right.classId));
+  classes.forEach((entry) => {
+    entry.files = entry.files.map(normalizeRepositoryPath).sort(lexical);
+    entry.hits = entry.hits.map(canonicalCandidate).sort(compareCandidate);
+  });
+}
+
+/**
+ * Normalize the disposition-independent class inventory for hashing and comparison.
+ *
+ * @param inventory - Raw class inventory from the deterministic scan.
+ * @returns Detached canonical representation.
+ */
+export function canonicalizeClassInventory(inventory: CouplingClassInventory): CouplingClassInventory {
+  const output = structuredClone(inventory);
+  canonicalizeClasses(output.classes);
+  return output;
 }
 
 /**
@@ -144,11 +169,7 @@ export function canonicalizeManifest(manifest: CouplingManifest): CouplingManife
  */
 export function canonicalizeScanResult(result: CouplingScanResult): CouplingScanResult {
   const output = structuredClone(result);
-  output.classes.sort((left, right) => lexical(left.classId, right.classId));
-  output.classes.forEach((entry) => {
-    entry.files = entry.files.map(normalizeRepositoryPath).sort(lexical);
-    entry.hits = entry.hits.map(canonicalCandidate).sort(compareCandidate);
-  });
+  canonicalizeClasses(output.classes);
   output.candidates.classified = output.candidates.classified.map(canonicalCandidate).sort(compareCandidate);
   output.candidates.classified.forEach((entry) => entry.classIds.sort(lexical));
   output.candidates.dismissed = output.candidates.dismissed.map(canonicalCandidate).sort(compareCandidate);

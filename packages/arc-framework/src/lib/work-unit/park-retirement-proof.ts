@@ -8,12 +8,13 @@
 
 import { posix } from "node:path";
 
-import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { canonicalize } from "../canonical/canonical-json.js";
 import { contentDigest, type ArtifactSetEntry } from "../canonical/content-digest.js";
 import type { ManagedPath } from "../canonical/managed-path.js";
 import { artifactGroupDigest } from "../canonical/receipt-id.js";
+import { SlugSchema } from "../kernel/index.js";
+import { resolveArcPath } from "../layout/index.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import {
   validateReceiptMatrix,
@@ -130,15 +131,6 @@ function validateArtifactGroup(
   const meta = metas[0];
   if (metas.length !== 1 || meta === undefined) return null;
   const dir = posix.dirname(meta.path);
-  const plannedRoot = ".arc/backlog/planned";
-  const flatDir = `${plannedRoot}/${name}`;
-  let pathCohort: string | null = null;
-  if (dir !== flatDir) {
-    const suffix = `/${name}`;
-    if (!dir.startsWith(`${plannedRoot}/`) || !dir.endsWith(suffix)) return null;
-    pathCohort = dir.slice(plannedRoot.length + 1, -suffix.length);
-    if (!isSafeCohortPath(pathCohort) || validateCohortPath(pathCohort) !== null) return null;
-  }
   let declaredCohort: string | null;
   try {
     declaredCohort = parseMetaRecord(new TextDecoder("utf-8", { fatal: true }).decode(meta.bytes)).Cohort;
@@ -146,11 +138,19 @@ function validateArtifactGroup(
     return null;
   }
   const normalizedCohort = declaredCohort?.trim() ?? "";
-  if (pathCohort === null) {
-    if (normalizedCohort !== "" && normalizedCohort !== "[none]") return null;
-  } else if (normalizedCohort !== pathCohort) {
-    return null;
-  }
+  const slug = SlugSchema.safeParse(name);
+  const cohortSegments = normalizedCohort === "" || normalizedCohort === "[none]" ? [] : normalizedCohort.split("/");
+  if (!slug.success || cohortSegments.length > 2 || cohortSegments.some((segment) => !SlugSchema.safeParse(segment).success)) return null;
+  const expectedDir = resolveArcPath({
+    kind: "work-unit-container",
+    placement: {
+      kind: "backlog",
+      commitment: "planned",
+      cohort: cohortSegments.map((segment) => SlugSchema.parse(segment)),
+    },
+    slug: slug.data,
+  });
+  if (dir !== expectedDir) return null;
   const byPath = new Map<ManagedPath, Uint8Array>();
   for (const artifact of artifacts) {
     if (

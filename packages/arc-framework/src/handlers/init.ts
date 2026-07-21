@@ -17,6 +17,7 @@ import { formatError, UserFacingError } from "../lib/errors.js";
 import { getArcTemplatePath, getInternalTemplatePath, getRecipePath } from "../lib/paths.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { gitExec } from "../lib/io-context.js";
 import {
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME,
@@ -197,7 +198,10 @@ async function handleReconfigure(
   await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);
 
   // Read current manifest to get install_config
-  const internalDir = join(cwd, ".arc", ...INTERNAL_DIR_SEGMENTS);
+  const internalDir = join(
+    materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })),
+    ...INTERNAL_DIR_SEGMENTS,
+  );
   const manifestPath = join(internalDir, MANIFEST_FILENAME);
   let manifest;
   try {

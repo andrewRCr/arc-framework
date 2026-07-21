@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 
 import {
   runActiveSessionInitStatus,
+  runActiveSessionInitStatusInternal,
   runActiveStatus,
 } from "../../src/commands/active.js";
 import { stubGitExec } from "../helpers/integration.js";
@@ -168,6 +169,25 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     expect(result.resolution).toBe("single");
     expect(result.path).toBe(".arc/active/meta-foo.md");
     expect(result.candidates).toEqual([]);
+  });
+
+  it("retains semantic project placement without changing the serialized envelope", async () => {
+    await writeFile(join(fixture.activeDir, "meta-foo.md"), statusBody({ state: "Active", branch: "technical/foo" }));
+
+    const internal = await runActiveSessionInitStatusInternal({ cwd: fixture.root, exec: defaultExec });
+    const envelope = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+
+    expect(internal.resolved).toMatchObject({ slug: "foo", placement: { kind: "active", scope: { kind: "project" } } });
+    expect(JSON.stringify(internal.result)).toBe(JSON.stringify(envelope));
+  });
+
+  it("ignores a recognized meta filename whose stem is not a canonical slug", async () => {
+    await writeFile(join(fixture.activeDir, "meta-Not-A-Slug.md"), statusBody({ state: "Active", branch: "main" }));
+
+    const result = await runActiveSessionInitStatusInternal({ cwd: fixture.root, exec: defaultExec });
+
+    expect(result.result.resolution).toBe("none");
+    expect(result.result.warnings).toContainEqual(expect.stringContaining("invalid work-unit slug"));
   });
 
   it("returns resolution=multiple with the full candidate list for many files", async () => {
@@ -530,6 +550,22 @@ describe("runActiveSessionInitStatus — contributor role-aware resolution", () 
     expect(result.resolution).toBe("single");
     expect(result.path).toBe(".arc/user/alice/active/meta-foo.md");
     expect(result.layout).toBe("full");
+  });
+
+  it("retains contributor scope from the resolved role and configured identity", async () => {
+    await writeFile(join(userActiveDir, "meta-foo.md"), statusBody({ state: "Active", branch: "user/alice/foo" }));
+
+    const result = await runActiveSessionInitStatusInternal({
+      cwd: fixture.root,
+      identity: "alice",
+      role: "contributor",
+      exec: defaultExec,
+    });
+
+    expect(result.resolved?.placement).toEqual({
+      kind: "active",
+      scope: { kind: "contributor", identity: "alice" },
+    });
   });
 
   it("resolves contributor full-layout multiple → resolution=multiple with candidate list", async () => {
