@@ -206,7 +206,6 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
     reconcileWorkUnitWorktree: reconcileBoundWorkUnitWorktree,
-    reconcileWorktree: reconcileBoundWorkUnitWorktree,
 
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));

@@ -166,9 +166,6 @@ function buildCtx(
         ? { mutation: "spawn", worktreePath: op.inPlace ? cwd : "/repo/../wt", branch: op.branch }
         : { mutation: "teardown", worktreePath: "", locusHopped: false };
     },
-    reconcileWorktree: async () => {
-      throw new Error("legacy worktree reconciler invoked");
-    },
     writeBranchField: async () => {},
     ...(withClassSeam
       ? {

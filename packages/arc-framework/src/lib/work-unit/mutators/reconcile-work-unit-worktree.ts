@@ -19,7 +19,7 @@
  *       the **current** worktree (`-b` to cut a fresh branch for graduate /
  *       create-new, plain checkout to re-attach an existing branch for resume). No
  *       ownership marker (ARC did not mint this worktree). This is why branch
- *       creation is `reconcile-worktree`'s in both modes, not `reconcile-branch`'s.
+ *       creation is `reconcile-work-unit-worktree`'s in both modes, not `reconcile-branch`'s.
  * - `teardown` — `git worktree remove` (never `--force`; that stays the
  *   rollback-only path), gated on a clean worktree (`isWorktreeClean`). When the
  *   transition is tearing down the very worktree it executes from

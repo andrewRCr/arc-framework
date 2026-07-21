@@ -328,15 +328,11 @@ transaction boundary before operation composers consume it.
           WU-specific reconciler while retaining the old context seam for later verb callers. Focused command and
           engine coverage proves new/existing routing, context construction, result forwarding, and failure behavior.
 
-    - `[ ]` **4.1.e Migrate lifecycle-policy and WU-verb callers, then retire the old name**
-        - Migrate lifecycle guards/transitions, `park-resume`, teardown, and their focused WU verb suites to
-          `reconcileWorkUnitWorktree()` while preserving every existing in-place, self-teardown, husk, and lifecycle
-          policy result.
-        - Rename the focused mutator test/module references and remove the compatibility export only after a
-          repository-wide symbol search proves no `reconcileWorktree` caller remains.
-        - Build `test-first` (one behavior at a time):
-            - Keep each policy/verb family green during migration, then run the complete WU lifecycle, verb, and
-              mutator suites before retiring the alias.
+    - `[x]` **4.1.e Migrate lifecycle-policy and WU-verb callers, then retire the old name**
+        - Migrated lifecycle policy, encoding legs, `park-resume`, teardown, and every WU verb fixture to the
+          WU-specific reconciler while preserving in-place, self-teardown, husk, and lifecycle outcomes. The focused
+          mutator suite now follows the renamed module, and the compatibility export was removed after a clean
+          repository-wide old-symbol search.
 
     - `[ ]` **4.1.f Bind transient placement and partial-mode refusal to the generic primitive**
         - For a spawned full-mode transient, pass a namespace- and generation-qualified placement name such as

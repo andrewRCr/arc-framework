@@ -128,7 +128,7 @@ function buildCtx(metas: MetaSpec[], pruneDirs: Record<string, string[]> = {}): 
       return { moved: [`meta-${params.slug}.md`] };
     },
     reconcileBranch: async () => {},
-    reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
+    reconcileWorkUnitWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
     writeBranchField: async () => {},
     writeCurrentWorkflowField: async () => {},
     writeDesignField: async () => {},

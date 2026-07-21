@@ -165,7 +165,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     reconcileBranch: async (op) => {
       calls.push(`branch:${op.mutation}${op.mutation === "delete" ? `:${op.branch}` : ""}`);
     },
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       return op.mutation === "teardown"
@@ -486,7 +486,7 @@ describe("runPark — park@Active", () => {
   it("rejects when the preserved-branch worktree is dirty (teardown gate, nothing written)", async () => {
     const { ctx, writes } = buildCtx([ACTIVE]);
     // Override the teardown to refuse a dirty worktree (the mutator's clean-guard).
-    ctx.executor.reconcileWorktree = async () => {
+    ctx.executor.reconcileWorkUnitWorktree = async () => {
       throw new Error("refusing to tear down a dirty worktree: /repo/../wt-foo");
     };
 

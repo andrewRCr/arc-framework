@@ -467,7 +467,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
     return join(primaryRoot, "..", "{repo}.{name}");
   }
 
-  it("spawns a worktree on a new `plan/<name>` branch via the reconcile-worktree spawn leg", async () => {
+  it("spawns a worktree on a new `plan/<name>` branch via the reconcile-work-unit-worktree spawn leg", async () => {
     await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
     const rec = recordingExecWithPrimary(primaryRoot);
     const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };

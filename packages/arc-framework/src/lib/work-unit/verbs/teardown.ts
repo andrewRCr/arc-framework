@@ -6,7 +6,7 @@
  * branch (locally, and the live remote head once the landed-in-base proof
  * holds), remove the worktree (worktree-kind dispatched, presence-guarded), and
  * prune the stale remote-tracking ref. It composes the shared legs — a
- * `reconcile-branch` delete, the remote-head delete, the `reconcile-worktree`
+ * `reconcile-branch` delete, the remote-head delete, the `reconcile-work-unit-worktree`
  * teardown, and the `fetch-prune` leg — never re-implementing their mechanics.
  *
  * Teardown is **not** a lifecycle transition: the branch and worktree are
@@ -77,11 +77,11 @@ import { isShipped } from "../lifecycle-resolver.js";
 import { fetchPrune } from "../mutators/fetch-prune.js";
 import { deleteRemoteBranch, reconcileBranch } from "../mutators/reconcile-branch.js";
 import {
-  nodeReconcileWorktreeFs,
-  reconcileWorktree,
+  nodeReconcileWorkUnitWorktreeFs,
+  reconcileWorkUnitWorktree,
   isSelfTeardown,
-  type ReconcileWorktreeFs,
-} from "../mutators/reconcile-worktree.js";
+  type ReconcileWorkUnitWorktreeFs,
+} from "../mutators/reconcile-work-unit-worktree.js";
 import { isSlugSafe } from "../slug.js";
 import { isAbsolute, join } from "node:path";
 import { parseMetaRecord } from "../../active/meta-reader.js";
@@ -108,7 +108,7 @@ export interface TeardownContext {
   /** Non-minting marker extension seam. */
   stampHusk?: (worktreePath: string, stamp: Parameters<typeof stampWorktreeHusk>[1]) => Promise<WorktreeHuskStampResult>;
   /** Worktree/user-surface filesystem seam. */
-  worktreeFs?: ReconcileWorktreeFs;
+  worktreeFs?: ReconcileWorkUnitWorktreeFs;
   /** Wall-clock seam for terminal stamps. */
   now?: () => number;
   /** Retirement evidence authority used before any directional self-teardown. */
@@ -354,7 +354,7 @@ async function teardownBranchProjection(
   const { cwd, exec, chdir } = ctx;
   const { branch, subject, base, remote, mode, suggestion, huskPath } = params;
   const notices: string[] = [];
-  const fs = ctx.worktreeFs ?? nodeReconcileWorktreeFs;
+  const fs = ctx.worktreeFs ?? nodeReconcileWorkUnitWorktreeFs;
   const scan = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(exec);
   if (!scan.ok) {
     return { status: "rejected", reason: `Could not read registered worktrees (${scan.message}).` };
@@ -614,7 +614,7 @@ async function teardownBranchProjection(
         }
       }
       try {
-        await reconcileWorktree(
+        await reconcileWorkUnitWorktree(
           { exec, chdir, fs },
           { mutation: "teardown", worktreePath: registered.path, currentLocus: cwd },
         );
@@ -870,7 +870,7 @@ async function teardownBranchProjection(
         }
       }
       try {
-        await reconcileWorktree(
+        await reconcileWorkUnitWorktree(
           { exec, chdir, fs },
           {
             mutation: "teardown",

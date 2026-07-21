@@ -71,7 +71,7 @@ export interface TransitionInputs {
   toDir?: string;
   /** The branch op for a declared `reconcile-branch` leg — its `mutation` must match the edge. */
   branchOp?: ReconcileBranchOp;
-  /** The worktree op for a declared `reconcile-worktree` leg — its `mutation` must match the edge. */
+  /** The worktree op for a declared `reconcile-work-unit-worktree` leg — its `mutation` must match the edge. */
   worktreeOp?: ReconcileWorkUnitWorktreeOp;
   /** Values for soft fields whose disposition is `"input"` — required when the field applies. */
   softFields?: Partial<Record<keyof SoftFieldDispositions, string>>;
@@ -210,11 +210,7 @@ export interface ExecuteTransitionContext {
   /** Pre-bound `reconcile-branch` mutator. */
   reconcileBranch: (op: ReconcileBranchOp) => Promise<void>;
   /** Pre-bound WU-specific worktree mutator. */
-  reconcileWorkUnitWorktree?: (
-    op: ReconcileWorkUnitWorktreeOp,
-  ) => Promise<ReconcileWorkUnitWorktreeResult>;
-  /** Transitional compatibility seam for verb callers not yet migrated. */
-  reconcileWorktree: (op: ReconcileWorkUnitWorktreeOp) => Promise<ReconcileWorkUnitWorktreeResult>;
+  reconcileWorkUnitWorktree: (op: ReconcileWorkUnitWorktreeOp) => Promise<ReconcileWorkUnitWorktreeResult>;
   /** Runner for the `scaffold` / `remove` artifact dispositions (Phase-4). */
   scaffoldOrRemove?: ArtifactRunner;
 
@@ -306,7 +302,7 @@ export interface ExecuteTransitionContext {
 // ---------------------------------------------------------------------------
 
 /** The encoding legs, in their canonical fire order. */
-export type EncodingLeg = "setPhase" | "artifacts" | "reconcileWorktree" | "reconcileBranch";
+export type EncodingLeg = "setPhase" | "artifacts" | "reconcileWorkUnitWorktree" | "reconcileBranch";
 
 /**
  * The post-side-effect meta writes, in their fire order — the finalize block that
@@ -319,14 +315,14 @@ export type FinalizeWrite = "branchField" | "currentWorkflowField" | "softFields
 
 /**
  * Canonical leg order. `setPhase` precedes `artifacts` so the meta is edited at
- * its pre-relocation path; `reconcileWorktree` precedes `reconcileBranch` so a
+ * its pre-relocation path; `reconcileWorkUnitWorktree` precedes `reconcileBranch` so a
  * worktree teardown (with its locus-hop) runs before a `git branch -D` that
  * would otherwise refuse the worktree's checked-out branch.
  */
 const LEG_ORDER: readonly EncodingLeg[] = [
   "setPhase",
   "artifacts",
-  "reconcileWorktree",
+  "reconcileWorkUnitWorktree",
   "reconcileBranch",
 ];
 
@@ -606,8 +602,8 @@ function legDeclared(record: TransitionRecord, leg: EncodingLeg): boolean {
       return e.setPhase === true;
     case "artifacts":
       return e.artifacts !== undefined;
-    case "reconcileWorktree":
-      return e.reconcileWorktree !== undefined;
+    case "reconcileWorkUnitWorktree":
+      return e.reconcileWorkUnitWorktree !== undefined;
     case "reconcileBranch":
       return e.reconcileBranch !== undefined;
   }
@@ -636,13 +632,10 @@ function validateInputs(
       return `branchOp mutation \`${inputs.branchOp.mutation}\` does not match the edge's \`${e.reconcileBranch}\`.`;
     }
   }
-  if (e.reconcileWorktree !== undefined) {
-    if (ctx.reconcileWorkUnitWorktree === undefined) {
-      return "this transition reconciles a worktree but no work-unit worktree runner is wired.";
-    }
+  if (e.reconcileWorkUnitWorktree !== undefined) {
     if (inputs.worktreeOp === undefined) return "this transition reconciles a worktree but no `worktreeOp` was supplied.";
-    if (inputs.worktreeOp.mutation !== e.reconcileWorktree) {
-      return `worktreeOp mutation \`${inputs.worktreeOp.mutation}\` does not match the edge's \`${e.reconcileWorktree}\`.`;
+    if (inputs.worktreeOp.mutation !== e.reconcileWorkUnitWorktree) {
+      return `worktreeOp mutation \`${inputs.worktreeOp.mutation}\` does not match the edge's \`${e.reconcileWorkUnitWorktree}\`.`;
     }
   }
 
@@ -699,11 +692,9 @@ async function fireLeg(
       await ctx.scaffoldOrRemove?.({ disposition, slug, fromDir, toDir: inputs.toDir ?? null });
       return undefined;
     }
-    case "reconcileWorktree": {
-      if (inputs.worktreeOp === undefined) throw new Error("reconcile-worktree requires a `worktreeOp`.");
-      const runner = ctx.reconcileWorkUnitWorktree;
-      if (runner === undefined) throw new Error("reconcile-worktree requires a work-unit worktree runner.");
-      const result = await runner(inputs.worktreeOp);
+    case "reconcileWorkUnitWorktree": {
+      if (inputs.worktreeOp === undefined) throw new Error("reconcile-work-unit-worktree requires a `worktreeOp`.");
+      const result = await ctx.reconcileWorkUnitWorktree(inputs.worktreeOp);
       return result.mutation === "spawn" ? result.postCreateNotice : undefined;
     }
     case "reconcileBranch": {
@@ -737,7 +728,7 @@ function effectiveMetaPath(
  * - `reconcile-branch` `delete` → the `[none]` sentinel (`park@Planning` /
  *   `abandon` tear the branch down in place). The merge-gated `archive` ship
  *   clears the field via `clearBranchField` instead (logical-only, no git op).
- * - `reconcile-worktree` `spawn` → the spawned/attached branch — graduate cuts
+ * - `reconcile-work-unit-worktree` `spawn` → the spawned/attached branch — graduate cuts
  *   `plan/<slug>` and resume re-attaches the preserved branch here, since branch
  *   birth/attach rides the worktree leg (the co-occurring `create` branchOp is a
  *   no-op carrying no name).
