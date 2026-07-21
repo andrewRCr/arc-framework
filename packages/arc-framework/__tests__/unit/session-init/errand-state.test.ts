@@ -18,6 +18,7 @@ import type {
   InFlightWorkUnit,
 } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ErrandRecord } from "../../../src/lib/errand/record.js";
+import type { TransientIdentityRecord } from "../../../src/lib/errand/identity-record.js";
 
 const NOW = "2026-06-01T12:00:00.000Z";
 const TODAY = "2026-06-01";
@@ -59,6 +60,25 @@ const record = (over: Partial<ErrandRecord> = {}): ErrandRecord => ({
   createdAt: "2026-06-01T09:00:00.000Z",
   ...over,
 });
+
+const paused = (over: Record<string, unknown> = {}): TransientIdentityRecord => ({
+  version: 3,
+  slug: "fix-typo",
+  claimId: "c".repeat(32),
+  createdAt: "2026-06-01T09:00:00.000Z",
+  updatedAt: "2026-06-01T10:00:00.000Z",
+  kind: "errand",
+  purpose: "errand",
+  intent: "fix typo",
+  branch: "chore/fix-typo",
+  origin: "inbox",
+  originEntry: "Fix typo",
+  dispatchId: "dispatch-1",
+  state: "paused",
+  savedHead: "a".repeat(40),
+  changeRequest: null,
+  ...over,
+} as TransientIdentityRecord);
 
 /**
  * Git mock: `for-each-ref` returns the supplied ref/committerdate lines;
@@ -224,6 +244,7 @@ describe("runErrandState", () => {
       includeDiscovery: true,
       entries,
       records: [record({ slug: "record-slug", branch: "fix/typo" })],
+      transientRecords: [paused({ slug: "record-slug", branch: "fix/typo" })],
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -234,7 +255,10 @@ describe("runErrandState", () => {
       { slug: "record-slug", branch: "fix/typo", state: "in-progress", ageDays: 0 },
     ]);
     expect(result.materializable.candidates).toEqual([
-      { slug: "record-slug", branch: "fix/typo" },
+      {
+        slug: "record-slug", claimId: "c".repeat(32), branch: "fix/typo",
+        expectedHead: "a".repeat(40), state: "paused", originEntry: "Fix typo", dispatchId: "dispatch-1",
+      },
     ]);
   });
 
@@ -259,6 +283,7 @@ describe("runErrandState", () => {
       includeDiscovery: true,
       entries,
       records: [],
+      transientRecords: [paused({ slug: "remote-a", branch: "chore/remote-a" })],
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -266,7 +291,10 @@ describe("runErrandState", () => {
     });
 
     expect(result.materializable.candidates).toEqual([
-      { slug: "remote-a", branch: "chore/remote-a" },
+      {
+        slug: "remote-a", claimId: "c".repeat(32), branch: "chore/remote-a",
+        expectedHead: "a".repeat(40), state: "paused", originEntry: "Fix typo", dispatchId: "dispatch-1",
+      },
     ]);
   });
 

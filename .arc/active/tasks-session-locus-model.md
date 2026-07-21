@@ -486,15 +486,11 @@ result so workflows consume verbs and precomposed verdicts.
 - _Goal:_ Cross-machine Errand resume creates an ARC-owned checkout and role through one verb instead of leaving a
   markerless raw worktree outside cleanup and recovery.
 
-    - `[ ]` **5.2.a Replace branch-shaped candidates with exact v3 resume projections**
-        - Refactor `packages/arc-framework/src/lib/session-init/materializable-errands.ts` and
-          `packages/arc-framework/src/lib/session-init/errand-state.ts` to select only identity-only paused or
-          requested-work awaiting-merge v3 claims.
-        - Carry `claimId`, branch, expected head (`savedHead` or `changeRequest.headSha`), and dispatch context;
-          remove recordless branch-derived slug fallback and refuse `open`, legacy, malformed, or incomplete bases.
-        - Build `test-first` (one behavior at a time):
-            - Cover paused/requested-work candidates, open and legacy exclusion, exact expected-head projection,
-              malformed snapshot refusal, and stable disambiguation.
+    - `[x]` **5.2.a Replace branch-shaped candidates with exact v3 resume projections**
+        - Materialization candidates now derive only from valid ordinary-v3 paused or requested-work awaiting tails
+          that also have remote-only branch evidence. Each stable slug-sorted projection carries its immutable claim,
+          expected head, lifecycle state, and inbox dispatch context; recordless, open, legacy, mismatched review,
+          local, malformed, and non-Errand inputs produce no candidate.
 
     - `[ ]` **5.2.b Implement and register `arc errand materialize <slug>`**
         - Fetch the selected branch into a caller-owned snapshot, prove its live remote head still equals the

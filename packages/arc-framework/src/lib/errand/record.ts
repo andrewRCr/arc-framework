@@ -23,6 +23,7 @@ import {
 import { writeTreeWithCasRetry } from "../user-sync/cas-retry.js";
 import {
   assertTransientIdentityOperation,
+  type TransientIdentityRecord,
   type TransientIdentityOperation,
   type TransientIdentityRecordV3,
 } from "./identity-record.js";
@@ -315,14 +316,15 @@ export async function readTransientInFlightIndexes(
   slugByBranch: Map<string, string>;
   expectedByBranch: Map<string, TransientWorktreeSubject>;
   expectedBySlug: Map<string, TransientWorktreeSubject>;
+  records: TransientIdentityRecord[];
 }> {
   const slugByBranch = new Map<string, string>();
   const expectedByBranch = new Map<string, TransientWorktreeSubject>();
   const expectedBySlug = new Map<string, TransientWorktreeSubject>();
-  if (io.identity === null) return { slugByBranch, expectedByBranch, expectedBySlug };
+  if (io.identity === null) return { slugByBranch, expectedByBranch, expectedBySlug, records: [] };
   const snapshot = await readTransientIdentitySnapshot({ exec: io.exec, identity: io.identity });
-  if (snapshot.kind === "error") return { slugByBranch, expectedByBranch, expectedBySlug };
-  if (snapshot.kind === "absent") return { slugByBranch, expectedByBranch, expectedBySlug };
+  if (snapshot.kind === "error") return { slugByBranch, expectedByBranch, expectedBySlug, records: [] };
+  if (snapshot.kind === "absent") return { slugByBranch, expectedByBranch, expectedBySlug, records: [] };
   for (const record of snapshot.records.values()) {
     if (record.version !== 3 || record.branch === null) {
       if (record.version !== 3) slugByBranch.set(record.branch, record.slug);
@@ -338,7 +340,7 @@ export async function readTransientInFlightIndexes(
     expectedByBranch.set(record.branch, subject);
     expectedBySlug.set(record.slug, subject);
   }
-  return { slugByBranch, expectedByBranch, expectedBySlug };
+  return { slugByBranch, expectedByBranch, expectedBySlug, records: [...snapshot.records.values()] };
 }
 
 /**

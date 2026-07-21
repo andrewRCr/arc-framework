@@ -643,6 +643,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         // with the in-flight derivation); empty when no identity resolved.
         const recordResult = await getErrandRecordsResult();
         const records = recordResult.records;
+        const transientIndexes = await getTransientIndexes();
         let entries: InFlightEntry[] | null = null;
         let residue: InFlightResidue[] = [];
         let oracleWarnings: string[] = [...recordResult.warnings];
@@ -661,6 +662,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           residue,
           oracleWarnings,
           records,
+          transientRecords: transientIndexes.records,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
           nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor),

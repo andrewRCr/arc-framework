@@ -427,13 +427,19 @@ describe("session-init envelope schema", () => {
     [
       "errand candidate slug",
       ["errandState", "value", "materializable", "candidates"],
-      [{ slug: "", branch: "chore/test" }],
+      [{
+        slug: "", claimId: "c".repeat(32), branch: "chore/test", expectedHead: "a".repeat(40),
+        state: "paused", originEntry: null, dispatchId: null,
+      }],
       "errandState.value.materializable.candidates.0.slug",
     ],
     [
       "errand candidate branch",
       ["errandState", "value", "materializable", "candidates"],
-      [{ slug: "entry", branch: "" }],
+      [{
+        slug: "entry", claimId: "c".repeat(32), branch: "", expectedHead: "a".repeat(40),
+        state: "paused", originEntry: null, dispatchId: null,
+      }],
       "errandState.value.materializable.candidates.0.branch",
     ],
   ] as Array<readonly [string, MutationPath, unknown, string]>)(

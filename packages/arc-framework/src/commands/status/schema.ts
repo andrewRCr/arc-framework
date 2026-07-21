@@ -143,7 +143,15 @@ const ErrandReportViewSchema = z
   .object({ state: z.enum(["in-progress", "awaiting-merge", "stale", "merged-cleanup"]) })
   .loose();
 const MaterializableErrandViewSchema = z
-  .object({ slug: NON_EMPTY_TEXT, branch: NON_EMPTY_TEXT })
+  .object({
+    slug: NON_EMPTY_TEXT,
+    claimId: NON_EMPTY_TEXT,
+    branch: NON_EMPTY_TEXT,
+    expectedHead: NON_EMPTY_TEXT,
+    state: z.enum(["paused", "awaiting-merge"]),
+    originEntry: NON_EMPTY_TEXT.nullable(),
+    dispatchId: NON_EMPTY_TEXT.nullable(),
+  })
   .loose();
 
 /** Thin routing view of the errand state advisory. */
