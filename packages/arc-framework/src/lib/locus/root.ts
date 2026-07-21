@@ -17,6 +17,28 @@ export interface LocusRoot {
 
 type Scan = () => Promise<RegisteredWorktreeScanResult>;
 
+/** Derive the locus store from one already-pinned topology snapshot. */
+export function deriveLocusRoot(
+  identity: string,
+  topology: Extract<RegisteredWorktreeScanResult, { ok: true }>,
+): ({ ok: true } & LocusRoot) | { ok: false; message: string } {
+  const primaries = topology.worktrees.filter((worktree) => worktree.primary);
+  if (primaries.length !== 1) {
+    return { ok: false, message: `Expected exactly one primary worktree; found ${primaries.length}` };
+  }
+  const primary = primaries[0];
+  if (primary === undefined) return { ok: false, message: "Primary worktree is unavailable" };
+  const userRoot = join(primary.path, ".arc", "user", identity);
+  const lociRoot = join(userRoot, ".internal", "loci");
+  return {
+    ok: true,
+    primaryPath: primary.path,
+    userRoot,
+    lociRoot,
+    locksRoot: join(lociRoot, ".locks"),
+  };
+}
+
 /** Resolve the locus store only from a complete, uniquely-primary topology snapshot. */
 export async function resolveLocusRoot(options: {
   identity: string;
@@ -30,21 +52,7 @@ export async function resolveLocusRoot(options: {
 
   const topology = await scan();
   if (!topology.ok) return { ok: false, message: topology.message };
-  const primaries = topology.worktrees.filter((worktree) => worktree.primary);
-  if (primaries.length !== 1) {
-    return { ok: false, message: `Expected exactly one primary worktree; found ${primaries.length}` };
-  }
-  const primary = primaries[0];
-  if (primary === undefined) return { ok: false, message: "Primary worktree is unavailable" };
-  const userRoot = join(primary.path, ".arc", "user", options.identity);
-  const lociRoot = join(userRoot, ".internal", "loci");
-  return {
-    ok: true,
-    primaryPath: primary.path,
-    userRoot,
-    lociRoot,
-    locksRoot: join(lociRoot, ".locks"),
-  };
+  return deriveLocusRoot(options.identity, topology);
 }
 
 /** Resolve a record path from a validated lowercase path digest. */

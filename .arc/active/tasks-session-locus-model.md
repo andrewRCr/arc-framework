@@ -188,20 +188,11 @@ roster and one generation-safe local mutation boundary.
 - _Goal:_ One network-free read reports every checkout and identity tail without allowing one malformed row or an
   incomplete authority root to masquerade as a complete machine roster.
 
-    - `[ ]` **3.1.a Acquire topology and authority evidence through bounded I/O ports**
-        - Add `packages/arc-framework/src/lib/locus/evidence.ts` over `scanRegisteredWorktrees()`, the locus store,
-          locks, worktree markers, WU metas, the complete v3 identity tree, and the process inspector.
-        - Pin one successful topology/root snapshot, then run independent record, marker, meta, lock, path, and
-          liveness reads through a fixed-concurrency batch helper; perform no fetch, mutation, heartbeat, stale reap,
-          or host query.
-        - Treat missing `arc.identity`, topology failure, unreadable record roots, and incomplete identity-tree reads
-          as envelope errors. Treat an absent identity ref and never-created `loci/` or `.locks/` directories as
-          complete empty snapshots; preserve malformed entries and per-checkout failures as source-keyed evidence.
-        - Build `test-first` (one behavior at a time):
-            - Cover every root-error code, first-use empty roots, partial row degradation, stale records, markerless
-              worktrees, recordless transient worktrees, malformed identity entries, orphan locks, and identity-only
-              records.
-            - Prove the concurrency cap is honored and a failed canonical-path read degrades only its source evidence.
+    - `[x]` **3.1.a Acquire topology and authority evidence through bounded I/O ports**
+        - Added a topology-pinned, network-free evidence reader with a shared fixed-concurrency I/O boundary over
+          checkout paths, markers, metas, records, locks, identity snapshots, and process liveness. Root failures now
+          fail closed while first-use absence and source-local malformed, unreadable, stale, orphaned, and
+          identity-only evidence remain explicit for deterministic projection.
 
     - `[ ]` **3.1.b Project managed subjects through their existing workflow authorities**
         - Add a checkout-directed subject-meta adapter plus a pure

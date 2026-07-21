@@ -34,6 +34,10 @@ export type LocusLockAcquireResult =
   | { kind: "acquired"; handle: LocusLockHandle }
   | { kind: "refused"; reason: "live" | "unknown" | "timeout" };
 
+export type LocusLockReadResult =
+  | { kind: "valid"; holder: LocusLockHolder; bytes: Buffer }
+  | { kind: "unknown" };
+
 /** Serialize one strict holder generation. */
 export function serializeLocusLockHolder(holder: LocusLockHolder): Buffer {
   return Buffer.from(JSON.stringify(LocusLockHolderSchema.parse(holder)), "utf8");
@@ -67,7 +71,7 @@ export async function acquireLocusLock(options: {
       };
     }
 
-    const observed = await readHolder(options.path);
+    const observed = await readLocusLockHolder(options.path);
     let lastReason: "live" | "unknown";
     if (observed.kind !== "valid") {
       lastReason = "unknown";
@@ -125,7 +129,7 @@ async function breakDeadHolder(options: {
   if (!await exclusiveCreate(breakPath, breakBytes)) return false;
   try {
     await options.beforeBreakRecheck?.();
-    const current = await readHolder(options.path);
+    const current = await readLocusLockHolder(options.path);
     if (current.kind !== "valid" || !current.bytes.equals(options.observed.bytes)) return false;
     if (await verifyProcessAnchor(current.holder.anchor, options.inspector) !== "dead") return false;
     await unlink(options.path);
@@ -137,10 +141,8 @@ async function breakDeadHolder(options: {
   }
 }
 
-async function readHolder(path: string): Promise<
-  { kind: "valid"; holder: LocusLockHolder; bytes: Buffer }
-  | { kind: "unknown" }
-> {
+/** Read one lock generation without granting authority to malformed bytes. */
+export async function readLocusLockHolder(path: string): Promise<LocusLockReadResult> {
   let handle;
   try {
     handle = await open(path, "r");
