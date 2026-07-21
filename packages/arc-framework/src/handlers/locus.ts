@@ -10,12 +10,67 @@ import { readLocusEnvelope } from "../lib/locus/reader.js";
 import { createPlatformProcessInspector } from "../lib/locus/platform-inspectors.js";
 import { resolveIdentity } from "../lib/git/index.js";
 import { gitExec } from "../lib/io-context.js";
+import { createUserIOContext } from "../lib/io-context.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
-import { requireArcProjectRoot } from "./shared.js";
+import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
+import { attachLocusAtRuntime, releaseLocusAtRuntime } from "../lib/locus/command-runtime.js";
+import { formatErrandOpenResult } from "./errand.js";
+import { createLocusMutationResult } from "../lib/locus/mutation.js";
+import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 
 export interface LocusCliOptions {
   json?: boolean;
+}
+
+export interface LocusAttachOptions extends LocusCliOptions { checkout?: string }
+export interface LocusReleaseOptions extends LocusCliOptions { checkout?: string; lease: string }
+
+/** Attach the entering process to one reader-trusted managed checkout. */
+export async function handleLocusAttach(options: LocusAttachOptions): Promise<void> {
+  await handleLocusMutation("attach", options);
+}
+
+/** Release only one caller-named exact lease generation. */
+export async function handleLocusRelease(options: LocusReleaseOptions): Promise<void> {
+  await handleLocusMutation("release", options);
+}
+
+async function handleLocusMutation(
+  action: "attach" | "release",
+  options: LocusAttachOptions | LocusReleaseOptions,
+): Promise<void> {
+  const cwd = requireArcProjectRoot();
+  if (cwd === null) return;
+  const identity = await resolveIdentityWithPrompt(false);
+  if (identity === null) return;
+  const io = createUserIOContext();
+  if (!io.execInput) {
+    emitMutation(createLocusMutationResult({
+      outcome: "error", operation: action === "attach" ? "locus-attach" : "locus-release",
+      error: { code: `locus.${action}.identity`, message: "The stdin Git boundary is unavailable." },
+      recommendedPromptText: "Resolve the identity boundary before retrying.",
+    }), options.json === true);
+    return;
+  }
+  const { settings } = await readConfigSettings(cwd);
+  const runtimeOptions = {
+    checkout: options.checkout, base: settings["branch.base"], identity, cwd,
+    postCreateScript: settings["worktree.post_create"],
+    registeredHarnessDirs: settings["worktree.harness_dirs"],
+    io: { ...io, execInput: io.execInput },
+  };
+  const result = action === "attach"
+    ? await attachLocusAtRuntime(runtimeOptions)
+    : await releaseLocusAtRuntime({ ...runtimeOptions, leaseId: (options as LocusReleaseOptions).lease });
+  emitMutation(result, options.json === true);
+}
+
+function emitMutation(result: LocusMutationResultV1, json: boolean): void {
+  const formatted = formatErrandOpenResult(result, json);
+  (formatted.stream === "stdout" ? process.stdout : process.stderr).write(formatted.text);
+  process.exitCode = formatted.exitCode;
 }
 
 export interface LocusCliOutput {

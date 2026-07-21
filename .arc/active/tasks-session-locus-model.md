@@ -584,17 +584,11 @@ result so workflows consume verbs and precomposed verdicts.
 - _Goal:_ Lifecycle sites can attach, release, resume, or abandon exact locus generations through commands that
   preserve JSON discipline and never hold a local record lock across remote or host operations.
 
-    - `[ ]` **5.6.a Add `arc locus attach` and `release`**
-        - Bind trusted role reconciliation and lease attach for an optional roster-backed checkout, and release only
-          the exact record/lease generation named by the caller.
-        - Derive role and subject from markers, metas, and identities; never accept them as command operands.
-        - Register both commands and `--json` through `packages/arc-framework/src/cli.ts`; render only the shared
-          mutation result in human and JSON modes.
-        - Emit one validated `LocusMutationResultV1` for `--json`; applied/idempotent exit zero and refused/error exit
-          one.
-        - Build `test-first` (one behavior at a time):
-            - Cover trusted marker/meta/identity derivation, optional directed checkout, exact release, stale token,
-              malformed authority, and JSON/human parity.
+    - `[x]` **5.6.a Add `arc locus attach` and `release`**
+        - Added reader-selected current or directed-checkout attach and exact caller-token release under the local
+          record lock, deriving every role and subject from the validated roster rather than command operands.
+        - Reuses the entering process's exact lease generation idempotently, refuses live/unknown or changed
+          authority, retains the durable role on release, and registers shared human/JSON mutation-result commands.
 
     - `[ ]` **5.6.b Add `arc locus resolve` through subject-owned resume and abandon drivers**
         - Dispatch dead transient residue to the matching Errand, housekeep, or groom driver while refusing live,

@@ -101,7 +101,13 @@ import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
 import { handleActiveStatus, handleActiveRoster, handleActiveInFlight } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
-import { handleLocus } from "./handlers/locus.js";
+import {
+  handleLocus,
+  handleLocusAttach,
+  handleLocusRelease,
+  type LocusAttachOptions,
+  type LocusReleaseOptions,
+} from "./handlers/locus.js";
 import { handleView, type ViewCliOptions } from "./handlers/view.js";
 import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
@@ -731,11 +737,26 @@ program
 
 // --- Locus ---
 
-program
+const locusCmd = program
   .command("locus")
   .description("Inspect the local checkout and session locus roster")
   .option("--json", "Emit one typed locus envelope as JSON")
   .action(handleLocus);
+
+locusCmd
+  .command("attach")
+  .description("Attach the entering process to one trusted managed locus")
+  .option("--checkout <path>", "Select one roster-backed checkout")
+  .option("--json", "Emit one typed locus mutation result")
+  .action((opts: LocusAttachOptions) => handleLocusAttach(opts));
+
+locusCmd
+  .command("release")
+  .description("Release one exact caller-named lease generation")
+  .requiredOption("--lease <id>", "Exact lease generation to release")
+  .option("--checkout <path>", "Select one roster-backed checkout")
+  .option("--json", "Emit one typed locus mutation result")
+  .action((opts: LocusReleaseOptions) => handleLocusRelease(opts));
 
 // --- Recover ---
 
