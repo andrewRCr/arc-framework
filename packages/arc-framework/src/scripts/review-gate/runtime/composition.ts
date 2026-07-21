@@ -243,7 +243,7 @@ function codexCapabilities(policy: SelfHostingPolicy): CodexCapabilities {
   const enabled = declaration?.mode === "enabled";
   return {
     resolvedGuidance: enabled && declaration.guidanceDigest !== null,
-    actorRequiredRequest: enabled && declaration.requestActor === "pr-author",
+    actorRequiredRequest: enabled && declaration.requestMechanism === "pr-author-command",
     exactFullCoverage: enabled && declaration.exactCoverage,
     durableFindings: enabled && declaration.durableFindings,
     durableCleanResults: enabled && declaration.durableResults && declaration.distinctOutcomes,

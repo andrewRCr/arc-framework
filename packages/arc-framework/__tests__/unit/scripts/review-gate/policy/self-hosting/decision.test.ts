@@ -65,6 +65,31 @@ describe("aggregate self-hosting policy decision", () => {
     expect(decision).not.toHaveProperty("capacity");
   });
 
+  it("keeps source availability outside obligation policy", () => {
+    const routingFacts = { ...facts, reviewRisk: "sensitive" as const };
+    const routing = reduceReviewRouting(routingFacts);
+    const active = resolveSelfHostingDecision({
+      policy: SELF_HOSTING_POLICY,
+      changeRequest,
+      routingFacts,
+      routing,
+    });
+    const unavailable = resolveSelfHostingDecision({
+      policy: {
+        ...SELF_HOSTING_POLICY,
+        qualifications: SELF_HOSTING_POLICY.qualifications.map((source) => source.channel === "hosted"
+          ? { ...source, mode: "disabled" as const }
+          : source),
+      },
+      changeRequest,
+      routingFacts,
+      routing,
+    });
+
+    expect(unavailable.disposition).toBe(active.disposition);
+    expect(unavailable.requirements[0]?.obligation).toBe(active.requirements[0]?.obligation);
+  });
+
   it("changes policy binding when canonical policy data changes", () => {
     const input = {
       changeRequest,

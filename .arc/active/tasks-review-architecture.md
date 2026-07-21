@@ -836,13 +836,11 @@ architecture lands as one coherent forward contract.
           preserved canonical change modes across the GitHub host boundary, and left lifecycle readiness outside this
           subsystem.
 
-    - `[ ]` **7.1.b Bind local, hosted, and human sources**
-        - Declare local runtime identities, hosted CodeRabbit/Codex, and qualified-human sources with qualifiers,
-          baseline/project guidance identities, admission mode, closure capability, and request mechanism in project
-          policy without turning provider availability into obligation policy.
-        - Keep evaluator, attestor, approving/applying actor, and hosted-import authority distinct; preserve the
-          explicit local receipt/import boundary from Phase 3.
-        - Preserve manual authority and inactive live-controller posture until qualification/promotion completes.
+    - `[x]` **7.1.b Bind local, hosted, and human sources**
+        - Bound local agent runtimes, hosted CodeRabbit/Codex, and qualified-human sources to explicit channel,
+          baseline/project guidance, admission, request, closure, attestation, and hosted-import identities.
+        - Kept source qualification/capacity outside obligation routing, rejected approving/applying actors as source
+          policy, and fixed the repository posture at manual merge authority with inactive live-controller authority.
 
     - `[ ]` **7.1.c Update native review instruction projections**
         - Apply Phase 4's generic projector through stable managed boundaries to the hosted Codex rubric block in

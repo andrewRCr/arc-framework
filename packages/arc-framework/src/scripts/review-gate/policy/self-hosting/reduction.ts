@@ -28,7 +28,7 @@ function qualification(
   prAuthorIdentity: string,
 ): ReviewSourceQualification {
   const qualified = qualifyIndependentAnalysisSource(declaration, declaration.rubricVersion).qualified;
-  const userTriggered = declaration.requestActor === "pr-author";
+  const userTriggered = declaration.requestMechanism === "pr-author-command";
   const base = {
     sourceKind: declaration.sourceKind,
     qualifier: declaration.qualifier,
