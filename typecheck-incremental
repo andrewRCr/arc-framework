@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "typecheck-incremental",
+  "origin": "inbox",
+  "intent": "Enable incremental typecheck with explicit per-config tsBuildInfoFile so agent runs stop paying full cold-build cost",
+  "branch": "chore/typecheck-incremental",
+  "createdAt": "2026-07-21T02:39:13.354Z",
+  "originEntry": "Make typecheck incremental so agent runs stop paying full cold-build cost",
+  "returnBranch": "main"
+}
