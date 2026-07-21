@@ -12,11 +12,11 @@
 - **Task List:** `tasks-cli-layout-resolver.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Define the layout schemas, address algebra, registry, and error contract
+- **Last Completed:** Task 5.4 — Reconcile the tracked-planning Git packet and external-owner residuals
+- **Next Task:** Task 6.1 — Complete verification
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Define the layout schemas, address algebra, registry, and error contract
+- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
