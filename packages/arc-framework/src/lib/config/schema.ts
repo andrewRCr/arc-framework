@@ -205,3 +205,46 @@ export const ARC_CONFIG_FIELDS = [
   positiveSafeIntegerField("inbox.remind_after_days", "1", 1),
   positiveSafeIntegerField("integration.stale_after_days", "2", 1),
 ] as const satisfies readonly ArcConfigFieldDescriptor[];
+
+type ArcConfigField = (typeof ARC_CONFIG_FIELDS)[number];
+
+/** Every active project-level configuration key. */
+export type ArcConfigKey = ArcConfigField["key"];
+
+type KnownConfigShape = {
+  [Key in ArcConfigKey]: Extract<ArcConfigField, { key: Key }>["schema"];
+};
+
+const knownConfigShape = Object.fromEntries(
+  ARC_CONFIG_FIELDS.map(({ key, schema }) => [key, schema]),
+) as KnownConfigShape;
+
+/** Open tokenizer output before authoring-key and known-domain validation. */
+export const RawArcConfigSchema = z.record(z.string(), z.string());
+
+const AuthorableConfigRecordSchema = z.record(
+  z.string().regex(/^[a-z][a-z0-9_.]+$/u),
+  z.string(),
+);
+
+/** Authorable project configuration with strict known domains and forward-compatible matching keys. */
+export const ArcConfigSchema = z.intersection(
+  AuthorableConfigRecordSchema,
+  z.looseObject(knownConfigShape).partial(),
+);
+
+type AgentConsumableConfigKey = Exclude<ArcConfigKey, `hooks.${string}`>;
+type ConfigSettingsShape = { [Key in AgentConsumableConfigKey]: z.ZodString };
+
+const configSettingsShape = Object.fromEntries(
+  ARC_CONFIG_FIELDS
+    .filter(({ key }) => !key.startsWith("hooks."))
+    .map(({ key }) => [key, z.string()]),
+) as ConfigSettingsShape;
+
+/** Complete, raw-string projection consumed by agent-facing status and lifecycle adapters. */
+export const ConfigSettingsSchema = z.strictObject(configSettingsShape);
+
+export type RawArcConfig = z.infer<typeof RawArcConfigSchema>;
+export type ArcConfig = z.infer<typeof ArcConfigSchema>;
+export type ConfigSettings = z.infer<typeof ConfigSettingsSchema>;

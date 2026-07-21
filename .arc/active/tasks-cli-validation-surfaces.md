@@ -164,7 +164,7 @@ onto stable code-facing fields without losing tolerant recovery.
 _Purpose:_ Consolidate project configuration domains and defaults into one schema-backed catalog while preserving
 the distinct recovery and precedence policies of existing adapters.
 
-### `[ ]` **3.1 Establish the configuration catalog and schema contracts**
+### `[x]` **3.1 Establish the configuration catalog and schema contracts**
 
 - _Goal:_ Every active project-level key has one declared authoring domain, default, and policy classification,
   with schema-derived record types for raw, authorable, and completed views.
@@ -176,25 +176,15 @@ the distinct recovery and precedence policies of existing adapters.
         - Retired `hooks.subject_warn_length` from the installed known-key domain and removed the stale
           `hooks.code_extensions` comment in both framework and self-hosting validator copies.
 
-    - `[ ]` **3.1.b Define raw, authorable, and completed config schemas**
-        - Define the unregistered open `RawArcConfigSchema`, registered `ArcConfigSchema`, and unregistered strict
-          `ConfigSettingsSchema`; derive their exported structural types with `z.infer`.
-        - Compose `ArcConfigSchema` from a string record whose keys match the installed validator's exact
-          `^[a-z][a-z0-9_.]+$` discovery grammar, intersected with the catalog-generated known-key object, so matching
-          unknown keys remain string-valued and known keys cannot bypass their leaf schemas.
-        - Keep `ConfigSettingsSchema` limited to the complete agent-consumable projection and validate presence and
-          string shape without falsely claiming that tolerant readers normalize every value.
-        - Preserve the established `src/commands/config/types.ts` and `src/commands/config.ts` import paths through
-          compatibility re-exports of inferred `ConfigSettings`; keep session-init and provenance records separate.
-        - Build `test-first` (one behavior at a time):
-            - accept omission-as-default and every valid catalog domain;
-            - accept quoted empty only for `default` and `unset` leaves and reject it for `invalid` leaves;
-            - preserve unknown string-valued names accepted by the shell grammar, including its undotted and
-              repeated- or trailing-period forms;
-            - reject uppercase, leading-digit, leading-underscore, one-character, or invalid-character unknown names,
-              invalid known values, non-string raw values, and incomplete or extra completed projections;
-            - project the authorable schema without transforms or refinements; composed runtime/projection parity
-              remains owned by Phase 6.
+    - `[x]` **3.1.b Define raw, authorable, and completed config schemas**
+        - Added open raw, registered-authoring, and strict completed-projection schemas with inferred record types.
+          The authoring root intersects the exact installed key grammar with catalog leaves while preserving matching
+          unknown strings; the completed view proves only presence and string shape for its 24-key projection.
+        - Re-exported inferred `ConfigSettings` through both established command import paths while leaving
+          session-init and provenance records under their existing authorities.
+
+- _Outcome:_ Project configuration now has one typed catalog for keys, defaults, authoring domains, and empty-value
+  policy, plus distinct raw, authorable, and completed record contracts for the adapters that consume it.
 
 ### `[ ]` **3.2 Rebase policy adapters on catalog domains and defaults**
 

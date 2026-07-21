@@ -2,8 +2,11 @@ import { z } from "zod";
 import { describe, expect, it } from "vitest";
 
 import {
+  ArcConfigSchema,
   ARC_CONFIG_FIELDS,
+  ConfigSettingsSchema,
   HarnessDirectorySchema,
+  RawArcConfigSchema,
 } from "../../../src/lib/config/schema.js";
 
 function field(key: string) {
@@ -172,5 +175,64 @@ describe("ARC config field catalog", () => {
       expect(() => z.toJSONSchema(descriptor.schema), descriptor.key).not.toThrow();
     }
     expect(() => z.toJSONSchema(HarnessDirectorySchema)).not.toThrow();
+  });
+});
+
+describe("ARC config record schemas", () => {
+  it("accepts omission-as-default and every valid catalog domain", () => {
+    expect(ArcConfigSchema.parse({})).toEqual({});
+    const defaults = Object.fromEntries(
+      ARC_CONFIG_FIELDS.map(({ key, defaultValue }) => [key, defaultValue]),
+    );
+    expect(ArcConfigSchema.parse(defaults)).toEqual(defaults);
+    expect(RawArcConfigSchema.parse(defaults)).toEqual(defaults);
+
+    const completed = Object.fromEntries(
+      ARC_CONFIG_FIELDS
+        .filter(({ key }) => !key.startsWith("hooks."))
+        .map(({ key, defaultValue }) => [key, defaultValue]),
+    );
+    expect(ConfigSettingsSchema.parse(completed)).toEqual(completed);
+  });
+
+  it("accepts quoted empty only for default and unset fields", () => {
+    for (const descriptor of ARC_CONFIG_FIELDS) {
+      const result = ArcConfigSchema.safeParse({ [descriptor.key]: "" });
+      expect(result.success, descriptor.key).toBe(descriptor.quotedEmpty !== "invalid");
+    }
+  });
+
+  it("preserves matching unknown string keys and rejects names outside the authoring grammar", () => {
+    const accepted = {
+      future: "value",
+      "future.key": "value",
+      "future..key.": "value",
+    };
+    expect(ArcConfigSchema.parse(accepted)).toEqual(accepted);
+
+    for (const key of ["Upper.key", "1future", "_future", "a", "future-key"]) {
+      expect(ArcConfigSchema.safeParse({ [key]: "value" }).success, key).toBe(false);
+    }
+  });
+
+  it("rejects invalid records while keeping the completed projection limited to string shape", () => {
+    expect(ArcConfigSchema.safeParse({ "branch.protection": "sometimes" }).success).toBe(false);
+    expect(ArcConfigSchema.safeParse({ future: 1 }).success).toBe(false);
+    expect(RawArcConfigSchema.safeParse({ future: 1 }).success).toBe(false);
+
+    const completed = Object.fromEntries(
+      ARC_CONFIG_FIELDS
+        .filter(({ key }) => !key.startsWith("hooks."))
+        .map(({ key, defaultValue }) => [key, defaultValue]),
+    );
+    expect(ConfigSettingsSchema.safeParse({ ...completed, "branch.protection": "tolerated-raw" }).success).toBe(true);
+    const incomplete = { ...completed };
+    delete incomplete["branch.base"];
+    expect(ConfigSettingsSchema.safeParse(incomplete).success).toBe(false);
+    expect(ConfigSettingsSchema.safeParse({ ...completed, future: "value" }).success).toBe(false);
+  });
+
+  it("projects the authorable schema without transforms or refinements", () => {
+    expect(() => z.toJSONSchema(ArcConfigSchema)).not.toThrow();
   });
 });
