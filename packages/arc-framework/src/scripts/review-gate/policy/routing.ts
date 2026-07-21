@@ -51,8 +51,11 @@ const ROOT_KEYS = new Set([
   "activity",
 ]);
 
+/** Admit only a directly-populated record, so inherited values never supply routing facts. */
 function recordAt(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null
     ? value as Record<string, unknown>
     : null;
 }

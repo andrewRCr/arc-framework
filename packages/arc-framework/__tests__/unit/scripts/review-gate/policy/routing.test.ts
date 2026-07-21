@@ -90,6 +90,28 @@ describe("review routing bases", () => {
     ]);
   });
 
+  it("refuses inherited routing facts and falls back to the conservative floor", () => {
+    const result = resolveReviewRouting(Object.create({
+      schemaVersion: 1,
+      changeSetState: "known",
+      contentKind: "documentation",
+      reviewRisk: "routine",
+      changeDeterminacy: "ordinary",
+      ownership: "self",
+      surfaceAuthority: "ordinary",
+      assurance: { workContext: "work-unit", workClass: "Light" },
+      activity: { selfReview: true, frontlineReview: true },
+    }));
+
+    expect(result.facts).toMatchObject({
+      changeSetState: "unknown",
+      contentKind: "code-bearing",
+      reviewRisk: "sensitive",
+      assurance: { workContext: "unscoped", workClass: "Heavy" },
+    });
+    expect(result.diagnostics).toContain("$");
+  });
+
   it("keeps the sensitive floor above determinacy", () => {
     expect(reduceReviewRouting({
       ...routineFacts,

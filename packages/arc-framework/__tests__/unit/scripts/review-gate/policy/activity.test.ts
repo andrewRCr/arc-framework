@@ -134,4 +134,17 @@ describe("review method activity port", () => {
       frontlineReview: true,
     });
   });
+
+  it("ignores inherited activity fields and diagnoses the absent facts", () => {
+    const inherited: unknown = Object.create({ selfReview: false, frontlineReview: false });
+
+    const resolution = resolveReviewMethodActivity(port(inherited));
+
+    expect(resolution.activity).toEqual({ selfReview: true, frontlineReview: true });
+    expect(resolution.diagnostics).toEqual([
+      "activity",
+      "activity.frontlineReview",
+      "activity.selfReview",
+    ]);
+  });
 });
