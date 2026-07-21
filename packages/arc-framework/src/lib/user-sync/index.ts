@@ -21,6 +21,8 @@ export { resolveCurrentWuName, type ExecForBranch } from "./current-wu.js";
 
 export { matchInboxEntryTitle, parseCrossWuEntries, shapeForFile } from "./parser.js";
 
+export { CrossWuEntryParseSchema, CrossWuEntrySchema } from "./schema.js";
+
 export {
   listInboxEntryTitles,
   removeInboxEntry,

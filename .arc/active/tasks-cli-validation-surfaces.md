@@ -341,17 +341,10 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
 - _Goal:_ Cross-work-unit note parsing has schema-derived success and failure shapes while retaining title/header
   identity, no-throw recovery, and byte-lossless reconstruction.
 
-    - `[ ]` **4.3.a Define cross-work-unit entry and parse-result schemas**
-        - Add `CrossWuEntrySchema` and the no-throw entry-result schema beside the user-sync adapters; derive
-          `CrossWuEntry` and `EntryParse` while leaving the domain decision `CrossWuShape` handwritten.
-        - Validate the `Memories` / `Errand` / `Work Unit` section domain, non-empty merge keys, non-empty preserved raw
-          blocks, and non-empty failure reasons through strict success and failure arms.
-        - Replace the structural declarations in `types.ts` with compatibility re-exports and preserve the public
-          `user-sync/index.ts` type surface.
-        - Build `test-first` (one behavior at a time):
-            - accept each known section and both parse-result arms;
-            - reject unknown sections, empty keys or raw blocks, empty reasons, and extra fields;
-            - keep `CrossWuShape` outside the schema-derived structural record family.
+    - `[x]` **4.3.a Define cross-work-unit entry and parse-result schemas**
+        - Added strict `CrossWuEntrySchema` and discriminated `CrossWuEntryParseSchema` contracts, deriving the public
+          entry/result types through compatibility re-exports while retaining handwritten `CrossWuShape`. Focused
+          coverage pins all section and result arms plus rejection of empty, unknown, and additive fields.
 
     - `[ ]` **4.3.b Cut cross-work-unit parsers over to schema-owned payloads**
         - Validate each internally assembled success or failure through the result schema immediately before return;

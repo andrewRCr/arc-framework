@@ -22,7 +22,7 @@ function idOf(section: string, key: string): string {
 }
 
 /** Identity of an entry for union/dedupe — section-scoped key. */
-function identityOf(entry: Pick<CrossWuEntry, "section" | "key">): string {
+function identityOf(entry: { section: string; key: string }): string {
   return idOf(entry.section, entry.key);
 }
 

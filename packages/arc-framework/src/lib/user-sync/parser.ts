@@ -14,7 +14,7 @@
  * @module
  */
 
-import type { CrossWuShape, EntryParse } from "./types.js";
+import type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";
 
 /** Bold-field header line: starts with `**`, ends with `:**`. */
 const WM_HEADER = /^\*\*.+:\*\*\s*$/;
@@ -118,7 +118,7 @@ function parseWorkingMemory(content: string): EntryParse[] {
 
 function parseUserInbox(content: string): EntryParse[] {
   const out: EntryParse[] = [];
-  for (const section of ["Errand", "Work Unit"]) {
+  for (const section of ["Errand", "Work Unit"] as const) {
     parseH3Section(sectionLines(content, section), section, `USER-INBOX ${section}`, out);
   }
   return out;
@@ -135,7 +135,12 @@ function parseUserInbox(content: string): EntryParse[] {
  *
  * @param label - File + section name for the failure reason (e.g. `USER-INBOX Errand`).
  */
-function parseH3Section(lines: readonly string[], section: string, label: string, out: EntryParse[]): void {
+function parseH3Section(
+  lines: readonly string[],
+  section: CrossWuEntry["section"],
+  label: string,
+  out: EntryParse[],
+): void {
   let block: string[] = [];
   let started = false;
 

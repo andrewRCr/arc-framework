@@ -4,18 +4,68 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";
 
 import {
+  CrossWuEntryParseSchema,
+  CrossWuEntrySchema,
   LocalSyncStateSchema,
   PersistedLocalSyncStateSchema,
   normalizeLocalSyncState,
+  type CrossWuEntry,
+  type EntryParse,
   type LocalSyncState,
   type PartialPushMarker,
 } from "../../../src/lib/user-sync/schema.js";
+import type { CrossWuShape } from "../../../src/lib/user-sync/types.js";
 
 const base = {
   materializedManifestHash: "manifest",
   sourceCommit: "commit",
   sourceOperation: "save",
 } as const;
+
+describe("CrossWuEntrySchema", () => {
+  it.each(["Memories", "Errand", "Work Unit"] as const)("accepts the %s section", (section) => {
+    const value = { section, key: "entry", raw: "preserved block" };
+
+    expect(CrossWuEntrySchema.parse(value)).toEqual(value);
+  });
+
+  it.each([
+    { section: "Unknown", key: "entry", raw: "preserved block" },
+    { section: "Memories", key: "", raw: "preserved block" },
+    { section: "Memories", key: "entry", raw: "" },
+    { section: "Memories", key: "entry", raw: "preserved block", extra: true },
+  ])("rejects an invalid entry %#", (value) => {
+    expect(CrossWuEntrySchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("CrossWuEntryParseSchema", () => {
+  it("accepts the success arm", () => {
+    const value = { ok: true, entry: { section: "Memories", key: "entry", raw: "preserved block" } } as const;
+
+    expect(CrossWuEntryParseSchema.parse(value)).toEqual(value);
+  });
+
+  it("accepts the failure arm", () => {
+    const value = { ok: false, reason: "malformed entry" } as const;
+
+    expect(CrossWuEntryParseSchema.parse(value)).toEqual(value);
+  });
+
+  it.each([
+    { ok: true, entry: { section: "Memories", key: "", raw: "preserved block" } },
+    { ok: false, reason: "" },
+    { ok: false, reason: "malformed entry", extra: true },
+  ])("rejects an invalid parse outcome %#", (value) => {
+    expect(CrossWuEntryParseSchema.safeParse(value).success).toBe(false);
+  });
+
+  it("derives the public adapter types", () => {
+    expectTypeOf<CrossWuEntry>().toEqualTypeOf<z.infer<typeof CrossWuEntrySchema>>();
+    expectTypeOf<EntryParse>().toEqualTypeOf<z.infer<typeof CrossWuEntryParseSchema>>();
+    expectTypeOf<CrossWuShape>().toEqualTypeOf<"working-memory" | "user-inbox">();
+  });
+});
 
 describe("PersistedLocalSyncStateSchema", () => {
   it.each([2, 3, 4] as const)("accepts the version %s required record", (version) => {

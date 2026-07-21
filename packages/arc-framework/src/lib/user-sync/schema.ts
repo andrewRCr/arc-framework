@@ -2,6 +2,19 @@
 
 import { z } from "zod";
 
+/** Strict cross-work-unit entry preserved for identity merge and reconstruction. */
+export const CrossWuEntrySchema = z.strictObject({
+  section: z.enum(["Memories", "Errand", "Work Unit"]),
+  key: z.string().min(1),
+  raw: z.string().min(1),
+});
+
+/** Strict no-throw parse outcome for one cross-work-unit entry block. */
+export const CrossWuEntryParseSchema = z.discriminatedUnion("ok", [
+  z.strictObject({ ok: z.literal(true), entry: CrossWuEntrySchema }),
+  z.strictObject({ ok: z.literal(false), reason: z.string().min(1) }),
+]);
+
 const RequiredLocalSyncStateShape = {
   materializedManifestHash: z.string().min(1),
   sourceCommit: z.string().min(1),
@@ -65,6 +78,10 @@ export const LocalSyncStateSchema = z.strictObject({
 
 /** Persisted versions accepted at the backward-compatible reader boundary. */
 export type PersistedLocalSyncState = z.infer<typeof PersistedLocalSyncStateSchema>;
+/** Cross-work-unit entry preserved for identity merge and reconstruction. */
+export type CrossWuEntry = z.infer<typeof CrossWuEntrySchema>;
+/** No-throw parse outcome for one cross-work-unit entry block. */
+export type EntryParse = z.infer<typeof CrossWuEntryParseSchema>;
 /** Current normalized local sync-state record. */
 export type LocalSyncState = z.infer<typeof LocalSyncStateSchema>;
 /** Partial-push recovery marker. */
