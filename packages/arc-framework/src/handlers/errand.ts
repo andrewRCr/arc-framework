@@ -13,20 +13,23 @@
  * @module
  */
 
+import { randomBytes } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { basename } from "node:path";
 
 import * as p from "@clack/prompts";
 
 import { runActiveInFlight } from "../commands/active.js";
-import { runUserInboxRemove, type UserIOContext } from "../commands/user.js";
+import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
+import {
+  runUserInboxRemove,
+  withLockedUserInbox,
+  type UserIOContext,
+} from "../commands/user.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
-  DEFAULT_ERRAND_BRANCH_TYPE,
-  ERRAND_BRANCH_TYPES,
   closeErrand,
-  isErrandBranchType,
   linkErrandToInbox,
-  openErrand,
   promoteErrand,
   retireErrand,
   type ErrandPushOutcome,
@@ -41,11 +44,16 @@ import {
   renderInFlightWarning,
   type InFlightWarning,
 } from "../lib/git/in-flight-derivation.js";
+import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { gitExec, createUserIOContext } from "../lib/io-context.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
+import { createLocusMutationResult } from "../lib/locus/mutation.js";
+import { openOrdinaryErrandAtRuntime } from "../lib/errand/open-runtime.js";
+import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
   clearErrandPartialPushMarker,
+  inspectInboxEntry,
   recordErrandPartialPushMarker,
   requireLiveInboxTitle,
 } from "../lib/user-sync/index.js";
@@ -214,10 +222,10 @@ function formatOverlapLocation(entry: { worktreePath?: string; remoteOnly?: bool
 
 /** Options for the `arc errand open` subcommand. */
 export interface ErrandOpenOptions {
-  /** Branch nature-type (`fix` / `chore` / `refactor` / `hotfix`); defaults to `chore`. */
-  type?: string;
   /** Free-text statement of the errand's concern; defaults to the slug. */
   intent?: string;
+  /** Emit the producer-validated mutation result without human decoration. */
+  json?: boolean;
   /**
    * Originating `USER-INBOX` capture this errand adopts (its bold title). Marks
    * the record `inbox`-origin so `arc errand close` drops the capture; omitted
@@ -234,108 +242,178 @@ export interface ErrandOpenOptions {
 }
 
 /**
- * Open an errand: mint the identity record, cut a nature-typed branch as its
- * projection, push the record, and occupy the branch in place.
- *
- * A full-protection verb — under partial protection an errand is a direct base
- * commit with no branch and no record, so `open` refuses there. The record push
- * is non-fatal: a failure records the errand partial-push marker. Transport
- * failures can ride `arc sync`; same-slug collisions name the manual recovery.
+ * Open an Errand through the shared identity, allocation, role, and lease
+ * composition. Full protection claims `chore/<slug>` identity before occupying
+ * a free primary or spawned checkout; partial protection remains branch- and
+ * identity-free in the free primary.
  *
  * `--from-inbox <entry-title>` adopts a `USER-INBOX` capture: the record is
- * minted `inbox`-origin with the capture as its back-pointer, so `arc errand
- * close` drops that capture instead of orphaning it.
+ * is revalidated under the identity notes lock and its exact dispatch binding
+ * is carried into the identity or partial role.
  */
 export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): Promise<void> {
-  p.intro("arc errand open");
+  if (opts.json !== true) p.intro("arc errand open");
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
   const { settings } = await readConfigSettings(cwd);
-  if (settings["branch.protection"] !== "full") {
-    p.log.error(
-      "`arc errand open` is a full-protection verb. Under partial protection an errand is a direct "
-      + "base commit — no branch, no record — so it never opens.",
+  const protectionValue = settings["branch.protection"];
+  if (protectionValue !== "full" && protectionValue !== "partial") {
+    emitErrandOpenFailure(
+      "locus.errand-open.config",
+      `Unsupported branch.protection value '${protectionValue}'.`,
+      opts.json === true,
     );
-    process.exitCode = 1;
     return;
   }
+  const protection = protectionValue;
 
   const base = settings["branch.base"].trim();
   if (base === "") {
-    p.log.error("No branch.base configured — cannot resolve the base to cut from.");
-    process.exitCode = 1;
-    return;
-  }
-
-  const type = opts.type ?? DEFAULT_ERRAND_BRANCH_TYPE;
-  if (!isErrandBranchType(type)) {
-    p.log.error(`Unknown errand branch type '${type}'. Valid types: ${ERRAND_BRANCH_TYPES.join(", ")}.`);
-    process.exitCode = 1;
+    emitErrandOpenFailure(
+      "locus.errand-open.config",
+      "No branch.base configured — cannot resolve the allocation base.",
+      opts.json === true,
+    );
     return;
   }
 
   const identity = await resolveIdentityWithPrompt(false);
   if (!identity) {
-    p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
-    process.exitCode = 1;
+    emitErrandOpenFailure(
+      "locus.errand-open.identity",
+      "No identity resolved — set arc.identity before opening an Errand.",
+      opts.json === true,
+    );
     return;
   }
 
   const io = createUserIOContext();
   if (!io.execInput) {
-    p.log.error("The stdin git seam is unavailable — cannot mint the errand record.");
-    process.exitCode = 1;
+    emitErrandOpenFailure(
+      "locus.errand-open.identity",
+      "The stdin Git boundary is unavailable.",
+      opts.json === true,
+    );
     return;
   }
 
-  let originEntry: string | undefined;
+  let originEntry: string | null = null;
+  let dispatchId: string | null = null;
   if (
     opts.fromInbox !== undefined
     || opts.inboxTitleFile !== undefined
     || opts.inboxEntryFile !== undefined
   ) {
     try {
-      originEntry = await resolveLiveInboxOriginEntry({
+      const adoption = await resolveLiveInboxAdoption({
         cwd,
         io,
         identity,
         literal: opts.fromInbox,
         file: opts.inboxTitleFile ?? opts.inboxEntryFile,
       });
+      originEntry = adoption.title;
+      dispatchId = adoption.dispatchId;
     } catch (err) {
-      p.log.error(`Could not resolve the inbox entry title: ${err instanceof Error ? err.message : String(err)}`);
-      process.exitCode = 1;
+      emitErrandOpenFailure(
+        "locus.errand-open.inbox",
+        err instanceof Error ? err.message : String(err),
+        opts.json === true,
+      );
       return;
     }
   }
 
-  let result;
-  try {
-    result = await openErrand(
-      { exec: io.exec, execInput: io.execInput, identity },
-      { slug, base, type, intent: opts.intent, originEntry, createdAt: new Date().toISOString() },
-    );
-  } catch (err) {
-    p.log.error(`Could not open the errand: ${err instanceof Error ? err.message : String(err)}`);
-    process.exitCode = 1;
+  const primaryPath = await resolvePrimaryWorktreePath(io.exec);
+  if (primaryPath === null) {
+    emitErrandOpenResult(createLocusMutationResult({
+      outcome: "error",
+      operation: "errand-open",
+      error: { code: "locus.errand-open.topology", message: "Primary checkout is unavailable" },
+      recommendedPromptText: "Reconcile the Git worktree topology before retrying.",
+    }), opts.json === true);
     return;
   }
+  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
+  const identityGlobalUserDir = (await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec }))
+    .identityGlobalRoot;
+  const createdAt = new Date().toISOString();
+  let result: LocusMutationResultV1;
+  try {
+    result = await openOrdinaryErrandAtRuntime({
+      slug,
+      intent: opts.intent,
+      originEntry,
+      dispatchId,
+      protection,
+      base,
+      createdAt,
+      identity,
+      locationTemplate: settings["worktree.location_template"],
+      repo: basename(primaryPath),
+      leaseId: randomBytes(16).toString("hex"),
+      postCreateScript: settings["worktree.post_create"],
+      registeredHarnessDirs: settings["worktree.harness_dirs"],
+      identityGlobalUserDir,
+      activeExtensions: activeExtensions.active,
+      exec: io.exec,
+      execInput: io.execInput,
+    });
+  } catch (err) {
+    result = createLocusMutationResult({
+      outcome: "error",
+      operation: "errand-open",
+      error: { code: "locus.errand-open.handler", message: err instanceof Error ? err.message : String(err) },
+      recommendedPromptText: "Inspect the retained identity or locus evidence before retrying.",
+    });
+  }
+  emitErrandOpenResult(result, opts.json === true);
+}
 
-  // Mirror the sync leg's marker discipline: a clean push clears any stale errand
-  // partial-push marker. A failed push records it for later recovery and is
-  // non-fatal; collision outcomes carry their explicit discard-side remedy.
-  await settleErrandPushOutcome(cwd, io, identity, "Record", result.push);
+export function formatErrandOpenResult(
+  result: LocusMutationResultV1,
+  json: boolean,
+): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
+  if (json) {
+    return {
+      stream: "stdout",
+      text: `${JSON.stringify(result)}\n`,
+      exitCode: result.outcome === "applied" || result.outcome === "idempotent" ? 0 : 1,
+    };
+  }
+  if (result.outcome === "error") {
+    return { stream: "stderr", text: `Error [${result.error.code}]: ${result.error.message}`, exitCode: 1 };
+  }
+  if (result.outcome === "refused") {
+    return {
+      stream: "stderr",
+      text: `Refused [${result.reason}]: ${result.recommendedPromptText}`,
+      exitCode: 1,
+    };
+  }
+  return { stream: "stdout", text: result.recommendedPromptText, exitCode: 0 };
+}
 
-  const cutVerb = result.branchCreated ? "cut" : "reused";
-  const adopted = result.record.origin === "inbox"
-    ? ` — adopted inbox capture '${result.record.originEntry ?? ""}'`
-    : "";
-  p.log.success(
-    `Opened errand '${slug}' — ${cutVerb} ${result.record.branch}, record minted, occupied in place${adopted}.`,
-  );
-  p.outro("Done.");
+function emitErrandOpenResult(result: LocusMutationResultV1, json: boolean): void {
+  const formatted = formatErrandOpenResult(result, json);
+  if (json) process.stdout.write(formatted.text);
+  else if (formatted.stream === "stderr") p.log.error(formatted.text);
+  else {
+    p.log.success(formatted.text);
+    p.outro("Done.");
+  }
+  process.exitCode = formatted.exitCode;
+}
+
+function emitErrandOpenFailure(code: string, message: string, json: boolean): void {
+  emitErrandOpenResult(createLocusMutationResult({
+    outcome: "error",
+    operation: "errand-open",
+    error: { code, message },
+    recommendedPromptText: "Resolve the reported input or configuration error before retrying.",
+  }), json);
 }
 
 /** Options for the `arc errand link` subcommand. */
@@ -783,6 +861,26 @@ async function resolveLiveInboxOriginEntry(options: {
   }
 
   return requireLiveInboxTitle(content, title);
+}
+
+/** Resolve and revalidate one exact inbox adoption while holding the identity notes lock. */
+async function resolveLiveInboxAdoption(options: {
+  cwd: string;
+  io: ReturnType<typeof createUserIOContext>;
+  identity: string;
+  literal?: string;
+  file?: string;
+}): Promise<ReturnType<typeof inspectInboxEntry>> {
+  const title = await resolveInboxEntryOperand({ literal: options.literal, file: options.file });
+  const transaction = await withLockedUserInbox(options, ({ content }) => {
+    if (content === null) {
+      throw new Error(
+        `USER-INBOX is missing — cannot adopt capture '${title}'. Create the inbox or drop --from-inbox.`,
+      );
+    }
+    return { result: inspectInboxEntry(content, title) };
+  });
+  return transaction.result;
 }
 
 /** Drop the originating capture, if the record carries a back-pointer. */

@@ -10,6 +10,7 @@ export { runUserClose } from "./user/close.js";
 export { runUserInboxRemove } from "./user/inbox-remove.js";
 export {
   runUserInboxMutation,
+  withLockedUserInbox,
   type RunUserInboxMutationOptions,
   type RunUserInboxMutationResult,
   type UserInboxMutationDependencies,

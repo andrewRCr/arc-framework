@@ -20,6 +20,272 @@ import { reconcileErrandPush, type ErrandPushOutcome } from "./merge.js";
 import { readErrandRecord, writeErrandRecord, type ErrandRecord } from "./record.js";
 import type { ErrandRecordIO } from "./ref-tree.js";
 import type { GitExec } from "../git/exec.js";
+import { planLocusAllocation, type LocusAllocationRefusalReason } from "../locus/allocator.js";
+import { createLocusMutationResult } from "../locus/mutation.js";
+import { enteringProcessCapabilities } from "../locus/entry-boundary.js";
+import type {
+  ProvisionTransientLocusOptions,
+  ProvisionTransientLocusResult,
+  ProvisioningRefusalReason,
+} from "../locus/provisioning.js";
+import type {
+  LocusAnchor,
+  LocusMutationResultV1,
+  LocusRefusalReason,
+  LocusStateV1,
+} from "../locus/schema/index.js";
+import {
+  mintClaimId as mintIdentityClaimId,
+  projectLocusIdentity,
+  TransientIdentityRecordV3Schema,
+} from "./identity-record.js";
+import type { OrdinaryErrandRecord } from "./identity-transitions.js";
+
+type ClaimResult =
+  | { kind: "applied" | "idempotent"; record: OrdinaryErrandRecord }
+  | { kind: "refused"; reason: string }
+  | { kind: "error"; message: string };
+
+/** Injected authority and local-provisioning boundaries for ordinary Errand open. */
+export interface OpenOrdinaryErrandDependencies {
+  mintClaimId?: () => string;
+  acquireAnchor(): Promise<LocusAnchor>;
+  readState(): Promise<LocusStateV1>;
+  claim(record: OrdinaryErrandRecord): Promise<ClaimResult>;
+  rollbackClaim(record: OrdinaryErrandRecord): Promise<{ kind: "rolled-back" | "generation-mismatch" }>;
+  provision(options: Omit<ProvisionTransientLocusOptions, "dependencies">): Promise<ProvisionTransientLocusResult>;
+}
+
+/** Complete ordinary Errand open request, independent of CLI rendering. */
+export interface OpenOrdinaryErrandOptions {
+  slug: string;
+  intent?: string;
+  originEntry?: string | null;
+  dispatchId?: string | null;
+  protection: "full" | "partial";
+  base: string;
+  createdAt: string;
+  identityName: string;
+  locationTemplate: string;
+  repo: string;
+  leaseId: string;
+  dependencies: OpenOrdinaryErrandDependencies;
+}
+
+/** Claim, allocate, and provision one ordinary Errand without displacing a WU checkout. */
+export async function openOrdinaryErrand(
+  options: OpenOrdinaryErrandOptions,
+): Promise<LocusMutationResultV1> {
+  const slug = options.slug.trim();
+  if (slug === "") return openRefusal("identity-conflict", "Errand slug must be non-empty.");
+  const originEntry = options.originEntry?.trim() || null;
+  const dispatchId = options.dispatchId?.trim() || null;
+  if (originEntry === null && dispatchId !== null) {
+    return openRefusal("dispatch-conflict", "A dispatch binding requires an inbox-origin Errand.");
+  }
+
+  let anchor: LocusAnchor;
+  try {
+    anchor = await options.dependencies.acquireAnchor();
+  } catch (error) {
+    return openError("locus.errand-open.anchor", error instanceof Error ? error.message : String(error));
+  }
+  if (anchor.kind === "unverifiable") {
+    return openRefusal("cold-entry-required", `Errand open cannot establish a durable session anchor: ${anchor.reason}`);
+  }
+  let state: LocusStateV1;
+  try {
+    state = await options.dependencies.readState();
+  } catch (error) {
+    return openError("locus.errand-open.state", error instanceof Error ? error.message : String(error));
+  }
+  const parent = warmWorkUnitParent(state);
+  if (parent.kind === "refused") return openRefusal(parent.reason, `Errand open refused: ${parent.reason}.`);
+  if (parent.checkoutPath !== null && !enteringProcessCapabilities(anchor).directedCommands) {
+    return openRefusal(
+      "cold-entry-required",
+      "Start a cold Codex or Claude session; this entering process cannot direct work to a separate locus.",
+    );
+  }
+
+  const branch = options.protection === "full" ? `chore/${slug}` : null;
+  let record: OrdinaryErrandRecord | null = null;
+  let claimKind: "applied" | "idempotent" | null = null;
+  if (options.protection === "full") {
+    const parsed = TransientIdentityRecordV3Schema.safeParse({
+      version: 3,
+      slug,
+      claimId: (options.dependencies.mintClaimId ?? mintIdentityClaimId)(),
+      createdAt: options.createdAt,
+      updatedAt: options.createdAt,
+      kind: "errand",
+      purpose: "errand",
+      intent: options.intent?.trim() || slug,
+      branch,
+      origin: originEntry === null ? "description" : "inbox",
+      originEntry,
+      dispatchId,
+      state: "open",
+      savedHead: null,
+      changeRequest: null,
+    });
+    if (!parsed.success || parsed.data.kind !== "errand" || parsed.data.purpose !== "errand") {
+      return openRefusal("identity-conflict", "The Errand identity request is invalid.");
+    }
+    record = parsed.data;
+    let claimed: ClaimResult;
+    try {
+      claimed = await options.dependencies.claim(record);
+    } catch (error) {
+      return openError("locus.errand-open.identity", error instanceof Error ? error.message : String(error));
+    }
+    if (claimed.kind === "refused") return openRefusal("identity-conflict", claimed.reason);
+    if (claimed.kind === "error") return openError("locus.errand-open.identity", claimed.message);
+    record = claimed.record;
+    claimKind = claimed.kind;
+  }
+
+  const subject = { kind: "errand" as const, key: slug, claimId: record?.claimId ?? null };
+  const proposal = planLocusAllocation({
+    state,
+    protection: options.protection,
+    isolation: "prefer-primary",
+    subject,
+  });
+  if (proposal.kind === "refused") {
+    return rollbackAfterRefusal(options, record, claimKind, proposal.reason);
+  }
+  const sessionHomePath = parent.checkoutPath
+    ?? (proposal.allocation.kind === "primary" ? proposal.allocation.checkoutPath : proposal.allocation.primaryPath);
+  let provisioned: ProvisionTransientLocusResult;
+  try {
+    provisioned = await options.dependencies.provision({
+      proposal,
+      protection: options.protection,
+      identity: record === null ? null : projectLocusIdentity(record),
+      ...(record === null ? {
+        authority: {
+          kind: "partial-errand" as const,
+          key: slug,
+          originEntry,
+          dispatchId,
+          routingPlanDigest: null,
+        },
+      } : {}),
+      branch,
+      base: options.base,
+      locationTemplate: options.locationTemplate,
+      repo: options.repo,
+      spawningIdentity: options.identityName,
+      parentCheckoutPath: parent.checkoutPath,
+      sessionHomePath,
+      establishedAt: options.createdAt,
+      anchor,
+      leaseId: options.leaseId,
+    });
+  } catch (error) {
+    return rollbackAfterFailure(options, record, claimKind, "locus.errand-open.provision", error);
+  }
+  if (provisioned.kind === "error") {
+    return rollbackAfterFailure(options, record, claimKind, "locus.errand-open.provision", provisioned.error);
+  }
+  if (provisioned.kind === "refused") {
+    return rollbackAfterRefusal(options, record, claimKind, provisioningReason(provisioned.reason));
+  }
+  return createLocusMutationResult({
+    outcome: claimKind === "idempotent" ? "idempotent" : "applied",
+    operation: "errand-open",
+    allocation: { kind: provisioned.receipt.allocation, checkoutPath: provisioned.receipt.checkoutPath },
+    recordId: provisioned.receipt.record.recordId,
+    leaseId: provisioned.receipt.leaseToken,
+    activeLocusPath: provisioned.receipt.checkoutPath,
+    sessionHomePath,
+    identity: record === null ? null : projectLocusIdentity(record),
+    originEntry,
+    dispatchId,
+    routingPlanDigest: null,
+    restoredParent: null,
+    nextOffer: null,
+    recommendedPromptText: `Errand opened at ${provisioned.receipt.checkoutPath}; session home remains `
+      + `${sessionHomePath}. Run subsequent commands in the active locus.`,
+  });
+}
+
+function warmWorkUnitParent(state: LocusStateV1):
+  | { kind: "ready"; checkoutPath: string | null }
+  | { kind: "refused"; reason: "role-conflict" } {
+  if (state.current.kind === "none") return { kind: "ready", checkoutPath: null };
+  if (state.current.kind === "ambiguous") return { kind: "refused", reason: "role-conflict" };
+  const activeRecordId = state.current.activeRecordId;
+  const matches = state.roster.rows.filter((row) => row.recordId === activeRecordId);
+  const row = matches[0];
+  if (matches.length !== 1 || row?.role?.kind !== "work-unit" || row.checkoutPath === null) {
+    return { kind: "refused", reason: "role-conflict" };
+  }
+  return { kind: "ready", checkoutPath: row.checkoutPath };
+}
+
+async function rollbackAfterRefusal(
+  options: OpenOrdinaryErrandOptions,
+  record: OrdinaryErrandRecord | null,
+  claimKind: "applied" | "idempotent" | null,
+  reason: LocusAllocationRefusalReason,
+): Promise<LocusMutationResultV1> {
+  const rollback = await rollbackClaim(options, record, claimKind);
+  return rollback === null
+    ? openRefusal(reason, `Errand open refused: ${reason}.`)
+    : openError("locus.errand-open.rollback", rollback);
+}
+
+async function rollbackAfterFailure(
+  options: OpenOrdinaryErrandOptions,
+  record: OrdinaryErrandRecord | null,
+  claimKind: "applied" | "idempotent" | null,
+  code: string,
+  error: unknown,
+): Promise<LocusMutationResultV1> {
+  const rollback = await rollbackClaim(options, record, claimKind);
+  return rollback === null
+    ? openError(code, error instanceof Error ? error.message : String(error))
+    : openError("locus.errand-open.rollback", rollback);
+}
+
+async function rollbackClaim(
+  options: OpenOrdinaryErrandOptions,
+  record: OrdinaryErrandRecord | null,
+  claimKind: "applied" | "idempotent" | null,
+): Promise<string | null> {
+  if (record === null || claimKind !== "applied") return null;
+  try {
+    const result = await options.dependencies.rollbackClaim(record);
+    return result.kind === "rolled-back" ? null : "The identity claim changed before rollback.";
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
+function provisioningReason(reason: ProvisioningRefusalReason): LocusAllocationRefusalReason {
+  if (reason === "path-collision" || reason === "marker-conflict") return "topology-unknown";
+  if (reason === "lock-live") return "lease-live";
+  if (reason === "lock-unknown") return "lease-unknown";
+  return reason as LocusAllocationRefusalReason;
+}
+
+function openRefusal(
+  reason: LocusRefusalReason,
+  recommendedPromptText: string,
+): LocusMutationResultV1 {
+  return createLocusMutationResult({ outcome: "refused", operation: "errand-open", reason, recommendedPromptText });
+}
+
+function openError(code: string, message: string): LocusMutationResultV1 {
+  return createLocusMutationResult({
+    outcome: "error",
+    operation: "errand-open",
+    error: { code, message: message || "Errand open failed" },
+    recommendedPromptText: "Inspect the retained identity or locus evidence before retrying.",
+  });
+}
 
 /** Operands for {@link openErrand}. */
 export interface OpenErrandParams {

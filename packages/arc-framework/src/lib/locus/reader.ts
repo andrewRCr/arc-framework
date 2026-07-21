@@ -13,8 +13,21 @@ import {
   projectProvisionalRoster,
   type ManagedSubjectProjection,
 } from "./roster.js";
-import { LocusEnvelopeV1Schema, type LocusEnvelopeV1 } from "./schema/index.js";
-import { deriveLocusFrames } from "./state.js";
+import { deriveLocusRecordId } from "./path-identity.js";
+import { deriveLocusReconciliation } from "./reconciliation.js";
+import {
+  LocusEnvelopeV1Schema,
+  LocusStateV1Schema,
+  type LocusAnchor,
+  type LocusEnvelopeV1,
+  type LocusStateV1,
+} from "./schema/index.js";
+import {
+  assembleLocusState,
+  deriveLocusFrames,
+  deriveLocusOperationalState,
+} from "./state.js";
+import type { PrimarySafetyResult } from "./primary-safety.js";
 import {
   projectCheckoutSubjectMeta,
   type SubjectMetaIO,
@@ -57,6 +70,60 @@ export async function readLocusEnvelope(options: ReadLocusEnvelopeOptions): Prom
     rows: frames.rows,
     diagnostics: provisional.diagnostics,
   });
+}
+
+/** Read the mutation-facing locus state from the same bounded evidence and projection pipeline. */
+export async function readLocusState(options: ReadLocusEnvelopeOptions & {
+  enteringAnchor: LocusAnchor;
+  readPrimarySafety(primaryPath: string): Promise<PrimarySafetyResult>;
+}): Promise<LocusStateV1> {
+  const evidence = await acquireLocusEvidence({
+    identity: options.identity,
+    pathFlavor: options.pathFlavor,
+    io: options.evidenceIO,
+  });
+  if (evidence.kind === "error") throw new Error(`${evidence.code}: ${evidence.message}`);
+  const subjects = await projectSubjects(evidence, options);
+  const provisional = projectProvisionalRoster({ evidence, subjects });
+  const frames = deriveLocusFrames({ rows: provisional.rows, enteringAnchor: options.enteringAnchor });
+  const safety = await options.readPrimarySafety(evidence.root.primaryPath);
+  if (safety.kind === "error") throw new Error(`${safety.code}: ${safety.message}`);
+  const operational = deriveLocusOperationalState({
+    primaryPath: evidence.root.primaryPath,
+    rows: frames.rows,
+    current: frames.current,
+    primarySafety: safety,
+    primaryLock: primaryLockState(evidence, options.pathFlavor),
+  });
+  const reconciliation = deriveLocusReconciliation({
+    primaryPath: evidence.root.primaryPath,
+    rows: frames.rows,
+    diagnostics: provisional.diagnostics,
+    current: frames.current,
+    adoptionCandidates: [],
+    records: evidence.records,
+    locks: evidence.locks,
+  });
+  return LocusStateV1Schema.parse(assembleLocusState({
+    primaryPath: evidence.root.primaryPath,
+    rows: provisional.rows,
+    diagnostics: provisional.diagnostics,
+    enteringAnchor: options.enteringAnchor,
+    ...operational,
+    reconciliation: reconciliation.reconciliation,
+  }));
+}
+
+function primaryLockState(
+  evidence: Extract<LocusEvidenceResult, { kind: "complete" }>,
+  pathFlavor: PathFlavor,
+): "absent" | "live" | "dead" | "unknown" {
+  const digest = deriveLocusRecordId(evidence.root.primaryPath, pathFlavor).digest;
+  const matches = evidence.locks.filter((entry) => entry.digest === digest);
+  const lock = matches[0];
+  if (matches.length === 0) return "absent";
+  if (matches.length !== 1 || lock === undefined || lock.result.kind !== "valid") return "unknown";
+  return lock.liveness ?? "unknown";
 }
 
 async function projectSubjects(

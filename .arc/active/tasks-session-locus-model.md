@@ -425,22 +425,13 @@ result so workflows consume verbs and precomposed verdicts.
   abandon, or explicitly become a WU through one recoverable lifecycle without displacing or duplicating an active
   parent checkout.
 
-    - `[ ]` **5.1.a Replace in-place Errand open with identity-plus-allocation composition**
-        - Refactor `packages/arc-framework/src/lib/errand/open.ts` and
-          `packages/arc-framework/src/handlers/errand.ts` so full mode claims identity, allocates a primary/spawned
-          locus, provisions marker/role/lease, and returns the shared mutation result.
-        - Add production bounded ancestry acquisition before the identity claim. Select the exact durable
-          harness/direct-interactive anchor through the shared selector, skip only recognized ARC/npm invocation
-          descendants, and refuse unavailable, malformed, cyclic, or ambiguous evidence before mutation.
-        - Keep partial mode identity-free and branch-free while occupying only the free primary with a
-          `partial-errand` role. Preserve exact inbox origin, entry title, and dispatch binding in the v3 identity
-          or partial role.
-        - Register `open --json` in `packages/arc-framework/src/cli.ts`; JSON and human rendering consume the same
-          producer-validated `LocusMutationResultV1` and precomposed narration.
-        - Build `test-first` (one behavior at a time):
-            - Cover full/partial opens, free-description and inbox origins, exact dispatch adoption, warm parent
-              links, production CLI-parent ancestry selection/refusal, allocation rollback, command-boundary
-              rendering, and v2 no-new-displacement enforcement.
+    - `[x]` **5.1.a Replace in-place Errand open with identity-plus-allocation composition**
+        - Composed full and partial opens through production ancestry acquisition, locus-state reading, allocation,
+          provisioning, and rollback; full mode mints exact v3 identity while partial mode stays identity-free and
+          branch-free, and both preserve inbox-dispatch evidence without displacing a warm parent.
+        - Added the shared `LocusMutationResultV1` command boundary with `--json`/human parity, exact locked inbox
+          adoption, fail-closed ancestry and legacy-identity handling, production marker/record mutations, and real
+          CLI plus compatibility coverage for the retired v2-producing surface.
 
     - `[ ]` **5.1.b Make late inbox linking an exact v3 transition**
         - Refactor `packages/arc-framework/src/lib/errand/link.ts` through the complete-basis transaction so

@@ -10,6 +10,7 @@ import { deriveLocusRecordId } from "../../../src/lib/locus/path-identity.js";
 import {
   mintLocusRecord,
   readLocusRecord,
+  removeLocusRecord,
   replaceLocusRecord,
 } from "../../../src/lib/locus/record-store.js";
 import { MAX_LOCUS_JSON_BYTES } from "../../../src/lib/locus/schema/index.js";
@@ -99,6 +100,18 @@ describe("locus record store", () => {
     expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
       lease: { leaseId: "fedcba9876543210fedcba9876543210" },
     });
+  });
+
+  it("removes only the exact byte generation", async () => {
+    const root = await temporaryRoot();
+    const path = join(root, `locus-${identity.digest}.json`);
+    const minted = await mintLocusRecord({ path, record: record() });
+    if (minted.kind !== "created") throw new Error("fixture mint failed");
+
+    await expect(removeLocusRecord({ path, expectedBytes: Buffer.from("stale") }))
+      .resolves.toEqual({ kind: "generation-mismatch" });
+    await expect(removeLocusRecord({ path, expectedBytes: minted.bytes }))
+      .resolves.toEqual({ kind: "removed" });
   });
 });
 

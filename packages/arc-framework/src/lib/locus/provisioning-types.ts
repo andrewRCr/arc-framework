@@ -82,6 +82,8 @@ export interface ProvisionTransientLocusDependencies {
 export type ProvisioningRefusalReason =
   | "identity-conflict"
   | "full-protection-required"
+  | "primary-dirty"
+  | "primary-off-base"
   | "path-collision"
   | "topology-unknown"
   | "marker-conflict"

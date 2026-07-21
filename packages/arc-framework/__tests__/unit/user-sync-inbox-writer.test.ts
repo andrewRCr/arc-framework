@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   inboxEntrySourceDigest,
+  inspectInboxEntry,
   listInboxEntryTitles,
   mutateInboxEntries,
   removeInboxEntry,
@@ -71,6 +72,19 @@ describe("mutateInboxEntries", () => {
     expect(result.content.match(/- _Disposition:_ `execute-bound`/g)).toHaveLength(2);
     expect(result.content.match(/- _Dispatch:_ `dispatch-7`/g)).toHaveLength(2);
     expect(result.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  it("projects the exact visible dispatch binding for an Errand adoption read", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+    ]);
+
+    expect(inspectInboxEntry(marked.content, "First atomic")).toEqual({
+      title: "First atomic",
+      sourceDigest,
+      dispatchId: "dispatch-7",
+    });
   });
 
   it("replays an exact mark, unmark, and removal without widening the write", () => {

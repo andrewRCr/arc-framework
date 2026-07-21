@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { LocusEvidenceIO } from "../../../src/lib/locus/evidence.js";
-import { readLocusEnvelope } from "../../../src/lib/locus/reader.js";
+import { readLocusEnvelope, readLocusState } from "../../../src/lib/locus/reader.js";
 import type { LocusRecordV1 } from "../../../src/lib/locus/schema/index.js";
 import type { SubjectMetaIO } from "../../../src/lib/locus/subject-meta.js";
 
@@ -155,5 +155,34 @@ describe("readLocusEnvelope", () => {
       rows: [{ lease: { heartbeatAt: "2026-07-20T00:01:00.000Z" } }],
     });
     expect(record).toEqual(before);
+  });
+});
+
+describe("readLocusState", () => {
+  it("derives free-primary allocation state from the same bounded evidence", async () => {
+    const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
+    const result = await readLocusState({
+      identity: "andrew",
+      pathFlavor: "posix",
+      evidenceIO: evidenceIO({ listDirectory: async () => { throw missing; } }),
+      subjectMetaIO,
+      activeExtensions: [],
+      identityGlobalUserDir: "/repo/.arc/user/andrew",
+      enteringAnchor: {
+        kind: "process",
+        pid: 42,
+        startToken: "start",
+        inspector: "fixture",
+        selector: "codex",
+      },
+      readPrimarySafety: async () => ({ kind: "complete", clean: true, onBase: true, branch: "main" }),
+    });
+
+    expect(result).toMatchObject({
+      current: { kind: "none" },
+      primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+      recovery: { kind: "none" },
+      reconciliation: { kind: "clean" },
+    });
   });
 });

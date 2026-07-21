@@ -123,8 +123,11 @@ export {
 
 export {
   openErrand,
+  openOrdinaryErrand,
   type OpenErrandParams,
   type OpenErrandResult,
+  type OpenOrdinaryErrandDependencies,
+  type OpenOrdinaryErrandOptions,
 } from "./open.js";
 
 export {

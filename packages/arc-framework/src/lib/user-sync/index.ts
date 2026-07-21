@@ -23,12 +23,14 @@ export { matchInboxEntryTitle, parseCrossWuEntries, shapeForFile } from "./parse
 
 export {
   inboxEntrySourceDigest,
+  inspectInboxEntry,
   listInboxEntryTitles,
   mutateInboxEntries,
   removeInboxEntry,
   requireLiveInboxTitle,
   type InboxEntryMutation,
   type InboxEntryMutationOutcome,
+  type InspectedInboxEntry,
   type MutateInboxEntriesResult,
   type RemoveInboxEntryResult,
 } from "./inbox-writer.js";

@@ -47,6 +47,13 @@ export interface MutateInboxEntriesResult {
   outcomes: InboxEntryMutationOutcome[];
 }
 
+/** Exact unique entry projection used when adopting a capture into an Errand. */
+export interface InspectedInboxEntry {
+  title: string;
+  sourceDigest: CanonicalDigest;
+  dispatchId: string | null;
+}
+
 interface LocatedInboxEntry {
   start: number;
   end: number;
@@ -127,6 +134,24 @@ export function inboxEntrySourceDigest(content: string, title: string): Canonica
       : `Duplicate USER-INBOX entry title '${title.trim()}'.`);
   }
   return unboundDigest(lines, matches[0] as LocatedInboxEntry);
+}
+
+/** Read one unique entry's normalized source digest and exact dispatch generation. */
+export function inspectInboxEntry(content: string, title: string): InspectedInboxEntry {
+  const normalizedTitle = title.trim();
+  const lines = content.split("\n");
+  const matches = locateInboxEntries(lines).filter((entry) => entry.title === normalizedTitle);
+  if (matches.length !== 1) {
+    throw new Error(matches.length === 0
+      ? `Missing USER-INBOX entry '${normalizedTitle}'.`
+      : `Duplicate USER-INBOX entry title '${normalizedTitle}'.`);
+  }
+  const entry = matches[0] as LocatedInboxEntry;
+  return {
+    title: entry.title,
+    sourceDigest: unboundDigest(lines, entry),
+    dispatchId: dispatchBinding(lines, entry)?.dispatchId ?? null,
+  };
 }
 
 /** Apply one all-or-nothing title/digest-qualified inbox mutation batch. */

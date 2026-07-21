@@ -29,7 +29,8 @@ describe("session anchor acquisition", () => {
   it("walks recognized CLI wrappers and stops at the durable harness process", async () => {
     const entries = new Map<number, AncestorProcessInspection>([
       [30, { kind: "present", snapshot: snapshot(30, 20, "node", "node /repo/dist/cli.js errand open x") }],
-      [20, { kind: "present", snapshot: snapshot(20, 10, "npx", "npx arc errand open x") }],
+      [20, { kind: "present", snapshot: snapshot(20, 15, "npx", "npx arc errand open x") }],
+      [15, { kind: "present", snapshot: snapshot(15, 10, "/bin/bash", "bash -lc npx arc errand open x") }],
       [10, { kind: "present", snapshot: snapshot(10, 1, "/opt/codex", "codex") }],
     ]);
 

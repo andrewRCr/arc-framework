@@ -12,7 +12,8 @@
  * @module
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import { atomicWriteJson } from "../fs.js";
@@ -534,6 +535,76 @@ export async function readWorktreeMarkerGeneration(
   }
 
   return { kind: "present", marker: parsed, bytes };
+}
+
+/** Exclusively create one exact worktree-marker generation. */
+export async function createWorktreeMarkerGeneration(
+  cwd: string,
+  marker: WorktreeMarker,
+): Promise<{ kind: "created"; bytes: Buffer } | { kind: "exists" }> {
+  const path = resolveWorktreeMarkerPath(cwd);
+  const bytes = serializeWorktreeMarker(marker);
+  await mkdir(dirname(path), { recursive: true });
+  try {
+    await writeFile(path, bytes, { flag: "wx", mode: 0o600 });
+    return { kind: "created", bytes };
+  } catch (error) {
+    if (isNodeError(error) && error.code === "EEXIST") return { kind: "exists" };
+    throw error;
+  }
+}
+
+/** Replace one worktree-marker generation after an exact byte comparison. */
+export async function replaceWorktreeMarkerGeneration(
+  cwd: string,
+  expectedBytes: Buffer,
+  marker: WorktreeMarker,
+): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
+  const path = resolveWorktreeMarkerPath(cwd);
+  let current: Buffer;
+  try {
+    current = await readFile(path);
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") return { kind: "generation-mismatch" };
+    throw error;
+  }
+  if (!current.equals(expectedBytes)) return { kind: "generation-mismatch" };
+  const bytes = serializeWorktreeMarker(marker);
+  const temporaryPath = `${path}.tmp-${process.pid}-${randomUUID()}`;
+  try {
+    await writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
+    const recheck = await readFile(path);
+    if (!recheck.equals(expectedBytes)) return { kind: "generation-mismatch" };
+    await rename(temporaryPath, path);
+    return { kind: "replaced", bytes };
+  } finally {
+    await unlink(temporaryPath).catch((error: unknown) => {
+      if (!isNodeError(error) || error.code !== "ENOENT") throw error;
+    });
+  }
+}
+
+/** Remove one worktree-marker generation after an exact byte comparison. */
+export async function removeWorktreeMarkerGeneration(
+  cwd: string,
+  expectedBytes: Buffer,
+): Promise<{ kind: "removed" } | { kind: "generation-mismatch" }> {
+  const path = resolveWorktreeMarkerPath(cwd);
+  let current: Buffer;
+  try {
+    current = await readFile(path);
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") return { kind: "generation-mismatch" };
+    throw error;
+  }
+  if (!current.equals(expectedBytes)) return { kind: "generation-mismatch" };
+  await unlink(path);
+  return { kind: "removed" };
+}
+
+function serializeWorktreeMarker(marker: WorktreeMarker): Buffer {
+  if (!isWorktreeMarker(marker)) throw new Error("Worktree marker does not match the expected schema");
+  return Buffer.from(`${JSON.stringify(marker, null, 2)}\n`, "utf8");
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {

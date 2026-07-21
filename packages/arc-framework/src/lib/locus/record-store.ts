@@ -103,6 +103,23 @@ export async function replaceLocusRecord(options: {
   }
 }
 
+/** Remove a record only while its exact byte generation remains current. */
+export async function removeLocusRecord(options: {
+  path: string;
+  expectedBytes: Buffer;
+}): Promise<{ kind: "removed" } | { kind: "generation-mismatch" }> {
+  let current: Buffer;
+  try {
+    current = await readFile(options.path);
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return { kind: "generation-mismatch" };
+    throw error;
+  }
+  if (!current.equals(options.expectedBytes)) return { kind: "generation-mismatch" };
+  await unlink(options.path);
+  return { kind: "removed" };
+}
+
 function serializeRecord(path: string, value: LocusRecordV1): Buffer {
   const record = LocusRecordV1Schema.parse(value);
   const match = /^locus-([0-9a-f]{64})\.json$/u.exec(basename(path));
