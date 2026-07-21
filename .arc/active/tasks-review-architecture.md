@@ -567,12 +567,11 @@ that shapes review spend without producing satisfying evidence.
   failure fixtures prove enough of its contract for truthful normalization.
 - _Context:_ Resolves the spec Open Question without reopening provider-neutral architecture.
 
-    - `[ ]` **5.3.a Capture bounded `--agent` qualification fixtures**
-        - Bound live probes to naturally observable clean, findings, empty-findings, and scoped-directory shapes
-          without spending unrelated PR-review capacity or deliberately inducing provider failures.
-        - Capture rate-limit, malformed, stale-head, refusal, and process-failure behavior through sanitized recorded
-          output or synthetic injected-command fixtures; record the CLI version/behavior assumptions in project-only
-          test data or notes.
+    - `[x]` **5.3.a Capture bounded `--agent` qualification fixtures**
+        - Recorded sanitized CodeRabbit CLI `0.6.5` agent observations for empty-uncommitted and clean scoped-directory
+          completion, plus synthetic injected-command cases for rate limit, malformed output, stale head, refusal,
+          and process failure. A single bounded committed probe never reached a findings result, so that required
+          success shape remains explicitly unobserved rather than inferred or pursued through wider repeated probes.
 
     - `[ ]` **5.3.b Select structured or plain compatibility parsing**
         - Implement and test the structured parser only if every required outcome is distinguishable; otherwise keep

@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "cli": {
+    "name": "coderabbit",
+    "version": "0.6.5",
+    "mode": "--agent"
+  },
+  "qualification": {
+    "bounded": true,
+    "structuredContractInferred": false
+  },
+  "observations": [
+    {
+      "shape": "empty-uncommitted",
+      "command": ["review", "--agent", "--type", "uncommitted"],
+      "events": [
+        {
+          "type": "status",
+          "phase": "setup",
+          "status": "review_skipped",
+          "message": "No uncommitted changes detected"
+        },
+        {
+          "type": "complete",
+          "status": "review_skipped",
+          "findings": 0,
+          "message": "No uncommitted changes detected"
+        }
+      ]
+    },
+    {
+      "shape": "clean-scoped-directory",
+      "command": [
+        "review",
+        "--agent",
+        "--type",
+        "uncommitted",
+        "--dir",
+        "packages/arc-framework/__tests__/fixtures/coderabbit-frontline"
+      ],
+      "events": [
+        {
+          "type": "complete",
+          "status": "review_completed",
+          "findings": 0,
+          "reviewedFiles": [
+            "packages/arc-framework/__tests__/fixtures/coderabbit-frontline/observations.json"
+          ]
+        }
+      ]
+    },
+    {
+      "shape": "findings",
+      "observed": false,
+      "boundedProbe": {
+        "command": [
+          "review",
+          "--agent",
+          "--light",
+          "--type",
+          "committed",
+          "--dir",
+          "packages/arc-framework/src/scripts/review-gate/policy"
+        ],
+        "lastEvent": { "type": "heartbeat", "status": "reviewing" },
+        "termination": "bounded-observation-window-exhausted"
+      }
+    }
+  ],
+  "syntheticInjectedCommandCases": [
+    {
+      "shape": "rate-limit",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "rate limit exceeded"
+    },
+    {
+      "shape": "malformed",
+      "exitCode": 0,
+      "stdout": "{\"type\":",
+      "stderr": ""
+    },
+    {
+      "shape": "stale-head",
+      "exitCode": 0,
+      "stdout": "{\"type\":\"complete\",\"status\":\"review_completed\",\"findings\":0}",
+      "stderr": "",
+      "expectedHead": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "observedHead": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "shape": "refusal",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "review refused"
+    },
+    {
+      "shape": "process-failure",
+      "exitCode": null,
+      "signal": "SIGTERM",
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}
