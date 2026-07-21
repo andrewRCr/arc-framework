@@ -76,26 +76,28 @@ const ReviewRequestFieldsSchema = z.strictObject({
   requestMechanism: ReviewIdentifierSchema,
 });
 
+/** The non-author evaluator invariant, applied identically to every request validation path. */
+function authorEvaluatorDiffer(request: { authorIdentity: string; evaluatorIdentity: string }): boolean {
+  return request.authorIdentity !== request.evaluatorIdentity;
+}
+const AUTHOR_EVALUATOR_REFINEMENT = { message: "author and evaluator identities must differ" } as const;
+
 export const ReviewRequestIdPreimageSchema = z.strictObject({
   domain: z.literal("arc.review-gate.request-id/v2"),
   ...ReviewRequestFieldsSchema.shape,
-}).refine((request) => request.authorIdentity !== request.evaluatorIdentity, {
-  message: "author and evaluator identities must differ",
-});
+}).refine(authorEvaluatorDiffer, AUTHOR_EVALUATOR_REFINEMENT);
 export type ReviewRequestIdPreimage = z.infer<typeof ReviewRequestIdPreimageSchema>;
 
 export const ReviewRequestInputSchema = ReviewRequestFieldsSchema.refine(
-  (request) => request.authorIdentity !== request.evaluatorIdentity,
-  { message: "author and evaluator identities must differ" },
+  authorEvaluatorDiffer,
+  AUTHOR_EVALUATOR_REFINEMENT,
 );
 export type ReviewRequestInput = z.infer<typeof ReviewRequestInputSchema>;
 
 export const ReviewRequestV2Schema = z.strictObject({
   ...ReviewRequestFieldsSchema.shape,
   requestId: ReviewCanonicalDigestSchema,
-}).refine((request) => request.authorIdentity !== request.evaluatorIdentity, {
-  message: "author and evaluator identities must differ",
-});
+}).refine(authorEvaluatorDiffer, AUTHOR_EVALUATOR_REFINEMENT);
 export type ReviewRequestV2 = z.infer<typeof ReviewRequestV2Schema>;
 
 export const ReviewAcceptedSourceSchema = z.strictObject({
