@@ -489,23 +489,76 @@ function importedModuleSpecifiers(sourceText: string, fileName: string): readonl
   });
 }
 
-async function cliReachableTypescriptFiles(sourceRoot: string, cliFile: string): Promise<readonly string[]> {
-  const allFiles = await typescriptFiles(sourceRoot);
-  const byPath = new Map(allFiles.map((file) => [resolve(file), file]));
+async function loadTypescriptSources(sourceRoot: string): Promise<Readonly<Record<string, string>>> {
+  const files = await typescriptFiles(sourceRoot);
+  const entries = await Promise.all(files.map(async (file) => [
+    relative(sourceRoot, file).replaceAll("\\", "/"),
+    await readFile(file, "utf8"),
+  ] as const));
+  return Object.fromEntries(entries);
+}
+
+function cliReachableTypescriptFiles(
+  sourceRoot: string,
+  cliFile: string,
+  sourceFiles: Readonly<Record<string, string>>,
+): readonly string[] {
+  const byPath = new Map(Object.keys(sourceFiles).map((file) => [resolve(sourceRoot, file), file]));
   const pending = [resolve(cliFile)];
   const reachable = new Set<string>();
   while (pending.length > 0) {
     const file = pending.pop();
     if (file === undefined || reachable.has(file)) continue;
     reachable.add(file);
-    const sourceText = await readFile(file, "utf8");
+    const relativeFile = relative(sourceRoot, file).replaceAll("\\", "/");
+    const sourceText = sourceFiles[relativeFile];
+    if (sourceText === undefined) continue;
     for (const specifier of importedModuleSpecifiers(sourceText, file)) {
       const base = resolve(file, "..", specifier.replace(/\.js$/u, ""));
       const target = byPath.get(`${base}.ts`) ?? byPath.get(resolve(base, "index.ts"));
-      if (target !== undefined && !reachable.has(resolve(target))) pending.push(resolve(target));
+      if (target !== undefined) {
+        const absoluteTarget = resolve(sourceRoot, target);
+        if (!reachable.has(absoluteTarget)) pending.push(absoluteTarget);
+      }
     }
   }
-  return [...reachable].sort();
+  return [...reachable].map((file) => relative(sourceRoot, file).replaceAll("\\", "/")).sort();
+}
+
+/** One filesystem snapshot shared by discovery and declaration-source checks. */
+export interface CommandInputSourceSnapshot {
+  readonly source: CommandInputSourceInventory;
+  readonly sourceFiles: Readonly<Record<string, string>>;
+}
+
+/**
+ * Read the TypeScript source tree once and derive every command-input discovery
+ * from that immutable text snapshot.
+ *
+ * @param options - Package source root and optional CLI module path.
+ * @returns Source discoveries and the exact texts from which they were derived.
+ */
+export async function loadCommandInputSourceSnapshot(options: {
+  readonly sourceRoot: string;
+  readonly cliFile?: string;
+}): Promise<CommandInputSourceSnapshot> {
+  const sourceRoot = resolve(options.sourceRoot);
+  const cliFile = resolve(options.cliFile ?? resolve(sourceRoot, "cli.ts"));
+  const sourceFiles = await loadTypescriptSources(sourceRoot);
+  const cliPath = relative(sourceRoot, cliFile).replaceAll("\\", "/");
+  const cliText = sourceFiles[cliPath];
+  if (cliText === undefined) throw new Error(`CLI source is outside the source snapshot: ${cliFile}`);
+  const commands = scanCommanderSource({ file: cliPath, sourceText: cliText }).commands;
+  const files = cliReachableTypescriptFiles(sourceRoot, cliFile, sourceFiles);
+  const interactions = files.flatMap((file) => scanInteractionSource({
+    file,
+    sourceText: sourceFiles[file] ?? "",
+  }).sites).sort((left, right) => {
+    if (left.file !== right.file) return left.file < right.file ? -1 : 1;
+    if (left.line !== right.line) return left.line - right.line;
+    return left.column - right.column;
+  });
+  return { source: { commands, interactions }, sourceFiles };
 }
 
 /**
@@ -518,21 +571,5 @@ export async function scanCommandInputSources(options: {
   readonly sourceRoot: string;
   readonly cliFile?: string;
 }): Promise<CommandInputSourceInventory> {
-  const sourceRoot = resolve(options.sourceRoot);
-  const cliFile = resolve(options.cliFile ?? resolve(sourceRoot, "cli.ts"));
-  const cliText = await readFile(cliFile, "utf8");
-  const commands = scanCommanderSource({
-    file: relative(sourceRoot, cliFile).replaceAll("\\", "/"),
-    sourceText: cliText,
-  }).commands;
-  const files = await cliReachableTypescriptFiles(sourceRoot, cliFile);
-  const interactions = (await Promise.all(files.map(async (file) => scanInteractionSource({
-    file: relative(sourceRoot, file).replaceAll("\\", "/"),
-    sourceText: await readFile(file, "utf8"),
-  }).sites))).flat().sort((left, right) => {
-    if (left.file !== right.file) return left.file < right.file ? -1 : 1;
-    if (left.line !== right.line) return left.line - right.line;
-    return left.column - right.column;
-  });
-  return { commands, interactions };
+  return (await loadCommandInputSourceSnapshot(options)).source;
 }

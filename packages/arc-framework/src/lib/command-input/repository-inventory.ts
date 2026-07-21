@@ -1,13 +1,12 @@
 /** Repository-owned command-input declaration projection and inventory rendering. */
 
-import { readFile, readdir } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { resolve } from "node:path";
 
 import type { CommandInputDeclaration } from "./declaration.js";
 import type { CommandInputRegistration } from "./registry.js";
 import { reconcileCommandInputInventory, type CommandInputInventory } from "./inventory.js";
 import {
-  scanCommandInputSources,
+  loadCommandInputSourceSnapshot,
   type CommandInputSourceInventory,
   type DiscoveredCommand,
 } from "./source-scanner.js";
@@ -74,22 +73,6 @@ function syntaxSites(
   ];
 }
 
-async function sourceTexts(sourceRoot: string): Promise<Readonly<Record<string, string>>> {
-  const result: Record<string, string> = {};
-  async function visit(dir: string): Promise<void> {
-    const entries = await readdir(dir, { withFileTypes: true });
-    await Promise.all(entries.map(async (entry) => {
-      const path = resolve(dir, entry.name);
-      if (entry.isDirectory()) return visit(path);
-      if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
-        result[relative(sourceRoot, path).replaceAll("\\", "/")] = await readFile(path, "utf8");
-      }
-    }));
-  }
-  await visit(sourceRoot);
-  return result;
-}
-
 /**
  * Load the source discoveries and texts used by one inventory projection.
  *
@@ -99,12 +82,7 @@ async function sourceTexts(sourceRoot: string): Promise<Readonly<Record<string, 
 export async function loadRepositoryCommandInputSnapshot(
   sourceRoot: string,
 ): Promise<RepositoryCommandInputSnapshot> {
-  const root = resolve(sourceRoot);
-  const [source, files] = await Promise.all([
-    scanCommandInputSources({ sourceRoot: root }),
-    sourceTexts(root),
-  ]);
-  return { source, sourceFiles: files };
+  return loadCommandInputSourceSnapshot({ sourceRoot: resolve(sourceRoot) });
 }
 
 /**
