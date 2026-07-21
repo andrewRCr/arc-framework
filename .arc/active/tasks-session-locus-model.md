@@ -429,6 +429,9 @@ result so workflows consume verbs and precomposed verdicts.
         - Refactor `packages/arc-framework/src/lib/errand/open.ts` and
           `packages/arc-framework/src/handlers/errand.ts` so full mode claims identity, allocates a primary/spawned
           locus, provisions marker/role/lease, and returns the shared mutation result.
+        - Add production bounded ancestry acquisition before the identity claim. Select the exact durable
+          harness/direct-interactive anchor through the shared selector, skip only recognized ARC/npm invocation
+          descendants, and refuse unavailable, malformed, cyclic, or ambiguous evidence before mutation.
         - Keep partial mode identity-free and branch-free while occupying only the free primary with a
           `partial-errand` role. Preserve exact inbox origin, entry title, and dispatch binding in the v3 identity
           or partial role.
@@ -436,7 +439,8 @@ result so workflows consume verbs and precomposed verdicts.
           producer-validated `LocusMutationResultV1` and precomposed narration.
         - Build `test-first` (one behavior at a time):
             - Cover full/partial opens, free-description and inbox origins, exact dispatch adoption, warm parent
-              links, allocation rollback, command-boundary rendering, and v2 no-new-displacement enforcement.
+              links, production CLI-parent ancestry selection/refusal, allocation rollback, command-boundary
+              rendering, and v2 no-new-displacement enforcement.
 
     - `[ ]` **5.1.b Make late inbox linking an exact v3 transition**
         - Refactor `packages/arc-framework/src/lib/errand/link.ts` through the complete-basis transaction so
@@ -1069,8 +1073,9 @@ protection modes, recovery boundaries, and package/source parity.
   degrades unavailable evidence to unknown on Linux, macOS, and Windows.
 
     - `[ ]` **7.5.a Add native contract probes and fixtures**
-        - Add platform-neutral contract tests plus OS-specific live-process, missing-process, PID-token, permission,
-          and malformed-output cases behind injected snapshots where native failure states cannot be forced safely.
+        - Extend the platform-neutral acquisition and liveness contracts with OS-specific live-process,
+          missing-process, PID-token, permission, and malformed-output cases not already required by Task 5.1.a,
+          using injected snapshots where native failure states cannot be forced safely.
         - Keep production invocations argument-array based and bounded; tests must not rely on localized display
           formatting.
 

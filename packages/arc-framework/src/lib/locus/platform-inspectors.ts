@@ -2,13 +2,59 @@
 
 import { readFile, readlink } from "node:fs/promises";
 
-import type { ProcessInspection, ProcessInspector } from "./process-inspector.js";
+import type {
+  AncestorProcessInspection,
+  ProcessAncestryInspector,
+  ProcessInspection,
+  ProcessInspector,
+} from "./process-inspector.js";
 import { createProcessExec, type ProcessExec } from "./process-exec.js";
 
-interface LinuxProcessFs {
+export interface LinuxProcessFs {
   readFile(path: string): Promise<string>;
   readlink(path: string): Promise<string>;
   procRoot?: string;
+}
+
+/** Build the Linux ancestry adapter with command-line and terminal evidence. */
+export function createLinuxProcessAncestryInspector(
+  fs: LinuxProcessFs = {
+    readFile: (path) => readFile(path, "utf8"),
+    readlink,
+  },
+): ProcessAncestryInspector {
+  const procRoot = fs.procRoot ?? "/proc";
+  const base = createLinuxProcessInspector(fs);
+  return {
+    kind: base.kind,
+    async inspectAncestor(pid): Promise<AncestorProcessInspection> {
+      const inspected = await base.inspect(pid);
+      if (inspected.kind !== "present") return inspected;
+      const root = `${procRoot}/${pid}`;
+      let stat: string;
+      let commandLine: string;
+      try {
+        stat = await fs.readFile(`${root}/stat`);
+        commandLine = normalizeNullSeparated(await fs.readFile(`${root}/cmdline`));
+      } catch {
+        return unknownAncestor("Linux process ancestry evidence is unreadable");
+      }
+      const generation = parseLinuxStat(stat, pid);
+      if (generation === null || generation.startToken !== inspected.startToken || commandLine === "") {
+        return unknownAncestor("Linux process ancestry evidence is malformed");
+      }
+      const controllingTty = generation.ttyNumber !== "0";
+      return {
+        kind: "present",
+        snapshot: {
+          ...inspected,
+          commandLine,
+          controllingTty,
+          interactive: controllingTty && isShellIdentity(inspected.commandIdentity),
+        },
+      };
+    },
+  };
 }
 
 /** Build the Linux `/proc` adapter. */
@@ -95,11 +141,54 @@ export function createBsdProcessInspector(exec: ProcessExec = createProcessExec(
   };
 }
 
+/** Build the BSD ancestry adapter without relying on localized field labels. */
+export function createBsdProcessAncestryInspector(
+  exec: ProcessExec = createProcessExec(),
+): ProcessAncestryInspector {
+  const base = createBsdProcessInspector(exec);
+  return {
+    kind: base.kind,
+    async inspectAncestor(pid): Promise<AncestorProcessInspection> {
+      const inspected = await base.inspect(pid);
+      if (inspected.kind !== "present") return inspected;
+      const env = { LC_ALL: "C", LANG: "C" };
+      const command = await exec("ps", ["-p", String(pid), "-o", "lstart=,command="], { env });
+      const tty = await exec("ps", ["-p", String(pid), "-o", "tty="], { env });
+      if (command.kind !== "success" || tty.kind !== "success") {
+        return unknownAncestor("BSD process ancestry query is unavailable");
+      }
+      const commandMatch = /^\s*(.{24})\s+(\S(?:.*\S)?)\s*$/u.exec(command.stdout.replace(/\n$/u, ""));
+      const ttyValue = tty.stdout.trim();
+      if (commandMatch?.[1] === undefined || commandMatch[2] === undefined
+        || commandMatch[1] !== inspected.startToken || ttyValue === "") {
+        return unknownAncestor("BSD process ancestry output is malformed");
+      }
+      const controllingTty = ttyValue !== "??" && ttyValue !== "?" && ttyValue !== "-";
+      return {
+        kind: "present",
+        snapshot: {
+          ...inspected,
+          commandLine: commandMatch[2],
+          controllingTty,
+          interactive: controllingTty && isShellIdentity(inspected.commandIdentity),
+        },
+      };
+    },
+  };
+}
+
 const WINDOWS_CIM_SCRIPT = [
   "$targetPid = [uint32]$args[0]",
   "$process = Get-CimInstance Win32_Process -Filter \"ProcessId = $targetPid\" -ErrorAction Stop",
   "if ($null -eq $process) { 'null'; exit 0 }",
   "$process | Select-Object ParentProcessId,ExecutablePath,CreationDate | ConvertTo-Json -Compress",
+].join("; ");
+
+const WINDOWS_ANCESTRY_SCRIPT = [
+  "$targetPid = [uint32]$args[0]",
+  "$process = Get-CimInstance Win32_Process -Filter \"ProcessId = $targetPid\" -ErrorAction Stop",
+  "if ($null -eq $process) { 'null'; exit 0 }",
+  "$process | Select-Object ParentProcessId,ExecutablePath,CreationDate,CommandLine | ConvertTo-Json -Compress",
 ].join("; ");
 
 /** Build the PowerShell/CIM Windows adapter. */
@@ -137,6 +226,46 @@ export function createWindowsProcessInspector(exec: ProcessExec = createProcessE
   };
 }
 
+/** Build the Windows CIM ancestry adapter with exact command-line evidence. */
+export function createWindowsProcessAncestryInspector(
+  exec: ProcessExec = createProcessExec(),
+): ProcessAncestryInspector {
+  return {
+    kind: "windows-cim",
+    async inspectAncestor(pid): Promise<AncestorProcessInspection> {
+      const result = await exec("powershell.exe", [
+        "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", WINDOWS_ANCESTRY_SCRIPT, String(pid),
+      ]);
+      if (result.kind !== "success") return unknownAncestor("Windows CIM ancestry query is unavailable");
+      let value: unknown;
+      try {
+        value = JSON.parse(result.stdout);
+      } catch {
+        return unknownAncestor("Windows CIM ancestry output is malformed");
+      }
+      if (value === null) return { kind: "absent" };
+      if (!isRecord(value) || !isNonNegativeInteger(value.ParentProcessId)
+        || typeof value.ExecutablePath !== "string" || value.ExecutablePath.length === 0
+        || typeof value.CreationDate !== "string" || value.CreationDate.length === 0
+        || typeof value.CommandLine !== "string" || value.CommandLine.trim() === "") {
+        return unknownAncestor("Windows CIM ancestry output is malformed");
+      }
+      return {
+        kind: "present",
+        snapshot: {
+          pid,
+          parentPid: value.ParentProcessId,
+          startToken: value.CreationDate,
+          commandIdentity: value.ExecutablePath,
+          commandLine: value.CommandLine,
+          controllingTty: false,
+          interactive: false,
+        },
+      };
+    },
+  };
+}
+
 /** Select the supported native adapter without guessing on unknown platforms. */
 export function createPlatformProcessInspector(
   platform: string = process.platform,
@@ -153,7 +282,26 @@ export function createPlatformProcessInspector(
   };
 }
 
-function parseLinuxStat(stat: string, expectedPid: number): { parentPid: number; startToken: string } | null {
+/** Select the supported native ancestry adapter without guessing on unknown platforms. */
+export function createPlatformProcessAncestryInspector(
+  platform: string = process.platform,
+  dependencies: { exec?: ProcessExec; linuxFs?: LinuxProcessFs } = {},
+): ProcessAncestryInspector {
+  if (platform === "linux") return createLinuxProcessAncestryInspector(dependencies.linuxFs);
+  if (platform === "darwin" || platform === "freebsd" || platform === "openbsd" || platform === "netbsd") {
+    return createBsdProcessAncestryInspector(dependencies.exec);
+  }
+  if (platform === "win32") return createWindowsProcessAncestryInspector(dependencies.exec);
+  return {
+    kind: `unsupported-${platform}`,
+    inspectAncestor: () => Promise.resolve(unknownAncestor(`Unsupported process-inspector platform: ${platform}`)),
+  };
+}
+
+function parseLinuxStat(
+  stat: string,
+  expectedPid: number,
+): { parentPid: number; startToken: string; ttyNumber: string } | null {
   const openParen = stat.indexOf("(");
   const closeParen = stat.lastIndexOf(")");
   if (openParen < 1 || closeParen <= openParen) return null;
@@ -161,13 +309,29 @@ function parseLinuxStat(stat: string, expectedPid: number): { parentPid: number;
   const fields = stat.slice(closeParen + 1).trim().split(/\s+/u);
   const parentPid = Number(fields[1]);
   const startToken = fields[19];
+  const ttyNumber = fields[4];
   if (pid !== expectedPid || !Number.isSafeInteger(parentPid) || parentPid < 0
-    || startToken === undefined || !/^\d+$/u.test(startToken)) return null;
-  return { parentPid, startToken };
+    || startToken === undefined || !/^\d+$/u.test(startToken)
+    || ttyNumber === undefined || !/^-?\d+$/u.test(ttyNumber)) return null;
+  return { parentPid, startToken, ttyNumber };
 }
 
 function unknownInspection(reason: string): ProcessInspection {
   return { kind: "unverifiable", reason };
+}
+
+function unknownAncestor(reason: string): AncestorProcessInspection {
+  return { kind: "unverifiable", reason };
+}
+
+function normalizeNullSeparated(value: string): string {
+  return value.replace(/\0+/gu, " ").trim();
+}
+
+function isShellIdentity(identity: string): boolean {
+  const executable = identity.replaceAll("\\", "/").split("/").at(-1)?.toLowerCase() ?? "";
+  return executable === "bash" || executable === "zsh" || executable === "fish" || executable === "sh"
+    || executable === "pwsh" || executable === "powershell.exe";
 }
 
 function errorCode(value: unknown): string | undefined {

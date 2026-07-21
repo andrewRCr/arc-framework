@@ -4,14 +4,18 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createBsdProcessInspector,
+  createBsdProcessAncestryInspector,
+  createLinuxProcessAncestryInspector,
   createLinuxProcessInspector,
+  createPlatformProcessAncestryInspector,
   createPlatformProcessInspector,
+  createWindowsProcessAncestryInspector,
   createWindowsProcessInspector,
 } from "../../../src/lib/locus/platform-inspectors.js";
 import type { ProcessExec } from "../../../src/lib/locus/process-exec.js";
 
-function procStat(pid: number, parentPid: number, startToken: string): string {
-  const middle = Array.from({ length: 17 }, () => "0").join(" ");
+function procStat(pid: number, parentPid: number, startToken: string, ttyNumber = "0"): string {
+  const middle = ["0", "0", ttyNumber, ...Array.from({ length: 14 }, () => "0")].join(" ");
   return `${pid} (codex worker) S ${parentPid} ${middle} ${startToken} 0\n`;
 }
 
@@ -24,6 +28,22 @@ describe("Linux process inspector", () => {
     });
     await expect(inspector.inspect(42)).resolves.toEqual({
       kind: "present", pid: 42, parentPid: 7, startToken: "12345", commandIdentity: "/opt/codex",
+    });
+  });
+
+  it("captures exact command-line and terminal evidence for ancestry selection", async () => {
+    const inspector = createLinuxProcessAncestryInspector({
+      readFile: async (path) => {
+        if (path.endsWith("/stat")) return procStat(42, 7, "12345", "34817");
+        if (path.endsWith("/cmdline")) return "node\0/repo/dist/cli.js\0errand\0open\0";
+        return "node\n";
+      },
+      readlink: async () => "/usr/bin/node",
+      procRoot: "/proc",
+    });
+    await expect(inspector.inspectAncestor(42)).resolves.toMatchObject({
+      kind: "present",
+      snapshot: { commandLine: "node /repo/dist/cli.js errand open", controllingTty: true },
     });
   });
 
@@ -52,6 +72,22 @@ describe("BSD process inspector", () => {
     });
     expect(exec).toHaveBeenCalledWith("ps", ["-p", "42", "-o", "ppid=,lstart=,comm="], {
       env: { LC_ALL: "C", LANG: "C" },
+    });
+  });
+
+  it("pins ancestry command and terminal queries to argument arrays", async () => {
+    const exec = vi.fn<ProcessExec>(async (_command, args) => {
+      const fields = args.at(-1);
+      if (fields === "ppid=,lstart=,comm=") {
+        return { kind: "success", stdout: "7 Mon Jul 18 00:00:00 2026 /opt/codex\n", stderr: "", exitCode: 0 };
+      }
+      if (fields === "lstart=,command=") {
+        return { kind: "success", stdout: "Mon Jul 18 00:00:00 2026 codex --session x\n", stderr: "", exitCode: 0 };
+      }
+      return { kind: "success", stdout: "ttys001\n", stderr: "", exitCode: 0 };
+    });
+    await expect(createBsdProcessAncestryInspector(exec).inspectAncestor(42)).resolves.toMatchObject({
+      kind: "present", snapshot: { commandLine: "codex --session x", controllingTty: true },
     });
   });
 
@@ -84,6 +120,23 @@ describe("Windows process inspector", () => {
     expect(call?.[1].at(-1)).toBe("42");
   });
 
+  it("captures the CIM command line for ancestry selection", async () => {
+    const exec: ProcessExec = async () => ({
+      kind: "success",
+      stdout: JSON.stringify({
+        ParentProcessId: 7,
+        ExecutablePath: "C:\\Tools\\codex.exe",
+        CreationDate: "20260718000000.000000-000",
+        CommandLine: "codex --session x",
+      }),
+      stderr: "",
+      exitCode: 0,
+    });
+    await expect(createWindowsProcessAncestryInspector(exec).inspectAncestor(42)).resolves.toMatchObject({
+      kind: "present", snapshot: { commandLine: "codex --session x" },
+    });
+  });
+
   it("maps null to absence and every untrusted failure to unknown", async () => {
     await expect(createWindowsProcessInspector(async () => ({
       kind: "success", stdout: "null", stderr: "", exitCode: 0,
@@ -101,6 +154,9 @@ describe("platform inspector selection", () => {
     expect(createPlatformProcessInspector("darwin", { exec }).kind).toBe("bsd-ps");
     expect(createPlatformProcessInspector("freebsd", { exec }).kind).toBe("bsd-ps");
     expect(createPlatformProcessInspector("win32", { exec }).kind).toBe("windows-cim");
+    expect(createPlatformProcessAncestryInspector("linux", { exec }).kind).toBe("linux-proc");
+    expect(createPlatformProcessAncestryInspector("darwin", { exec }).kind).toBe("bsd-ps");
+    expect(createPlatformProcessAncestryInspector("win32", { exec }).kind).toBe("windows-cim");
     await expect(createPlatformProcessInspector("aix", { exec }).inspect(42))
       .resolves.toMatchObject({ kind: "unverifiable" });
   });

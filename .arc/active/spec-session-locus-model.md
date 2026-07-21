@@ -98,6 +98,12 @@ active locus while preserving the originating worktree and session:
   capability table. Every other selector, an interactive shell, shared host, or unverifiable anchor refuses with
   `cold-entry-required` before identity or local allocation state changes and recommends a cold session.
 
+State-touching open and attach commands acquire the entering process anchor from bounded native ancestor evidence
+before identity or local allocation mutation. They skip only recognized ARC/npm invocation descendants, select the
+durable per-session harness or direct interactive shell process, and refuse when ancestry, command identity, start
+token, or interactive/controlling-terminal evidence is unavailable or ambiguous. A short-lived CLI child is never
+the lease anchor.
+
 The originating agent performs work against the allocated checkout through an explicit working-directory or
 absolute-path boundary. The human's terminal and the WU worktree do not move. Every warm open reports the session
 home and active locus; every close reports return-to-base or teardown and the restored parent frame.
@@ -353,6 +359,13 @@ Production adapters use native machine-local sources:
 - **macOS / BSD:** `ps` supplies parent PID, command identity, and the exact process start string used as an opaque
   comparison token.
 - **Windows:** PowerShell/CIM `Win32_Process` supplies `ParentProcessId`, executable identity, and `CreationDate`.
+
+Entry acquisition walks a bounded, cycle-checked ancestor chain from the invoking ARC process and captures the
+selector's complete evidence through argument-array native calls. The walk returns one ordered snapshot or an
+unverifiable reason; a missing parent, permission boundary, malformed record, ambiguous wrapper identity, or
+unsupported facility refuses before any state mutation rather than truncating the chain into a guess. Production
+open and attach drivers derive this anchor once and carry the exact PID/start token through allocation and lease
+provisioning.
 
 Missing platform facilities, permission failures, malformed output, unsupported operating systems, and legacy
 records return `unverifiable`; they never guess dead.
@@ -786,7 +799,9 @@ A shared allocator backs the existing operation verbs instead of adding workflow
 - under full protection, `arc errand open <slug>` allocates the free primary or a spawned transient worktree and
   mints/updates the shared Errand identity; under partial protection it occupies only the free primary, creates no
   branch or shared identity, and retains the direct-base commit path. An inbox-origin open reads any exact
-  execute-dispatch binding and carries it in the v3 identity or partial role;
+  execute-dispatch binding and carries it in the v3 identity or partial role. Before either mode mutates identity
+  or occupancy, the driver acquires and selects the entering process anchor defined by D5; the selected anchor is
+  the single lease input carried through allocation, provisioning, and the shared result;
 - `arc errand link <slug>` remains the late inbox-adoption edge, but mutates only an exact ordinary v3 claim through
   the complete-basis transaction. It never rewrites legacy identity, changes an existing different origin, or
   treats a missing/incomplete inbox read as a linkable capture;

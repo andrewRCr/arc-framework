@@ -18,6 +18,17 @@ export interface ProcessInspector {
   inspect(pid: number): Promise<ProcessInspection>;
 }
 
+export type AncestorProcessInspection =
+  | { kind: "present"; snapshot: AncestorProcessSnapshot }
+  | { kind: "absent" }
+  | { kind: "unverifiable"; reason: string };
+
+/** Native boundary that exposes the complete evidence needed for anchor selection. */
+export interface ProcessAncestryInspector {
+  readonly kind: string;
+  inspectAncestor(pid: number): Promise<AncestorProcessInspection>;
+}
+
 export interface AncestorProcessSnapshot {
   readonly pid: number;
   readonly parentPid: number;
@@ -33,6 +44,39 @@ export type ProcessLiveness = "live" | "dead" | "unknown";
 
 const MAX_ANCESTOR_DEPTH = 32;
 
+/** Acquire and select one durable session anchor without walking above it. */
+export async function acquireSessionAnchor(
+  pid: number,
+  inspector: ProcessAncestryInspector,
+): Promise<SelectedSessionAnchor> {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return unverifiable("Invoking process PID is invalid");
+  const snapshots: AncestorProcessSnapshot[] = [];
+  const seen = new Set<number>();
+  let currentPid = pid;
+  for (let depth = 0; depth < MAX_ANCESTOR_DEPTH; depth += 1) {
+    if (seen.has(currentPid)) return unverifiable("Process ancestry contains a cycle");
+    seen.add(currentPid);
+    const inspected = await inspector.inspectAncestor(currentPid);
+    if (inspected.kind === "unverifiable") return unverifiable(inspected.reason);
+    if (inspected.kind === "absent") return unverifiable("Process ancestry ended before a session anchor");
+    const snapshot = inspected.snapshot;
+    if (snapshot.pid !== currentPid || snapshot.startToken.trim() === ""
+      || snapshot.commandIdentity.trim() === "") {
+      return unverifiable("Process ancestry evidence is malformed");
+    }
+    snapshots.push(snapshot);
+    if (anchorSelector(snapshot) !== null) return selectSessionAnchor(snapshots, inspector.kind);
+    if (!isArcWrapper(snapshot)) {
+      return unverifiable(`Unrecognized process boundary: ${snapshot.commandIdentity}`);
+    }
+    if (!Number.isSafeInteger(snapshot.parentPid) || snapshot.parentPid <= 0) {
+      return unverifiable("Process ancestry ended before a session anchor");
+    }
+    currentPid = snapshot.parentPid;
+  }
+  return unverifiable("Process ancestry exceeds 32 entries");
+}
+
 /** Select one per-session process without crossing an ambiguous ancestor. */
 export function selectSessionAnchor(
   snapshots: readonly AncestorProcessSnapshot[],
@@ -43,13 +87,9 @@ export function selectSessionAnchor(
 
   const candidates: Array<{ snapshot: AncestorProcessSnapshot; selector: string }> = [];
   for (const snapshot of snapshots) {
-    const selector = harnessSelector(snapshot.commandIdentity);
+    const selector = anchorSelector(snapshot);
     if (selector !== null) {
       candidates.push({ snapshot, selector });
-      continue;
-    }
-    if (isInteractiveShell(snapshot)) {
-      candidates.push({ snapshot, selector: "interactive-shell" });
       continue;
     }
     if (isArcWrapper(snapshot)) continue;
@@ -72,6 +112,10 @@ export function selectSessionAnchor(
     inspector,
     selector: candidate.selector,
   };
+}
+
+function anchorSelector(snapshot: AncestorProcessSnapshot): string | null {
+  return harnessSelector(snapshot.commandIdentity) ?? (isInteractiveShell(snapshot) ? "interactive-shell" : null);
 }
 
 /** Verify PID generation through the inspector that minted the anchor. */
