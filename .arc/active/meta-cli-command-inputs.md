@@ -16,7 +16,7 @@
 - **Next Task:** Task 8.1 — Complete verification (line ~400)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 8.1 — Complete verification
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
