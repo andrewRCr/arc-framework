@@ -526,12 +526,10 @@ version-1 review-gate identity behind a repository-private frozen serializer.
           validation, and activation equality. Accepted decomposed-Unicode string values explicitly diverge from
           kernel bytes while durable identities and cross-record receipt references remain valid without rewrite.
 
-    - `[ ]` **7.3.b Add recomputable divergence and kernel-regression fixtures**
-        - Build `test-first` (one behavior at a time):
-            - pin policy, permission, and repair-result re-keying for Unicode order or normalization while retaining
-              current ASCII outputs;
-            - prove malformed Unicode, sparse arrays, and NFC key collisions fail through the kernel-backed helper;
-            - re-run the existing kernel canonical receipt and digest golden fixtures unchanged.
+    - `[x]` **7.3.b Add recomputable divergence and kernel-regression fixtures**
+        - Pinned the old and new Unicode policy identities plus kernel-backed policy, permission, and repair-result
+          outputs while retaining ASCII fixtures. Malformed Unicode, sparse arrays, and NFC key collisions fail
+          through the shared helper, and the existing kernel canonical receipt and digest goldens remain unchanged.
 
     - `[ ]` **7.3.c Close the serializer caller inventory**
         - Inspect production files under `src/scripts/review-gate/**` and assert the exact direct caller set:

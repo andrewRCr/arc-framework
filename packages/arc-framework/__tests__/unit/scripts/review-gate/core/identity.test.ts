@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { hashContent } from "../../../../../src/lib/manifest/hash.js";
 import {
   canonicalizePlainJson,
   computeChangeSetId,
   computePolicyVersion,
 } from "../../../../../src/scripts/review-gate/core/identity.js";
+import { canonicalizeReviewGateV1 } from "../../../../../src/scripts/review-gate/core/legacy-canonical-v1.js";
 
 const diffBaseSha = "a".repeat(40);
 const headSha = "b".repeat(40);
@@ -60,9 +62,14 @@ describe("canonical review identities", () => {
     expect(computePolicyVersion({ policy: { b: 2, a: 1 } })).toBe(
       "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777",
     );
-    expect(computePolicyVersion({ policy: { z: 1, ä: 2 } })).toBe(
+    const unicodePolicyVersion = computePolicyVersion({ policy: { z: 1, ä: 2 } });
+    expect(unicodePolicyVersion).toBe(
       "7832a5d6150a56da1a4f0c8fa00c26a7350389b0fc8696707cd2abbbd32be0c1",
     );
+    expect(hashContent(canonicalizeReviewGateV1({ z: 1, ä: 2 }))).toBe(
+      "aebaf850cdb107bb9d7d528ee0c02528804edaac037352a39fb8ddef450fd003",
+    );
+    expect(unicodePolicyVersion).not.toBe(hashContent(canonicalizeReviewGateV1({ z: 1, ä: 2 })));
     expect(computePolicyVersion({ policy: { value: "e\u0301" } })).toBe(
       "69e46f3f0688000ab7eeb9e40e6a516a254268cd644a24f4f69cf7ad063cf479",
     );
