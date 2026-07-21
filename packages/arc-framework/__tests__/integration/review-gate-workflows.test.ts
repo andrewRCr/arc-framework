@@ -558,6 +558,52 @@ describe("trusted review-gate workflows", () => {
     expect(finalDrift).toBeLessThan(merge);
   });
 
+  it("resumes swept candidates and refires after append-only corrections", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    );
+    const resume = packaged.slice(
+      packaged.indexOf("#### Resume entry"),
+      packaged.indexOf("### 2) Local diff preflight"),
+    );
+    expect(resume).toMatch(/resolver `state: shipped`[\s\S]*open[\s\S]*not merged[\s\S]*Step 13/iu);
+    expect(resume).toMatch(/PR already merged[\s\S]*Verify Phase 2 products[\s\S]*Step 13 tail/u);
+    expect(resume).toContain("first incomplete candidate-tail step");
+
+    const gate = packaged.slice(
+      packaged.indexOf("### 13) Behind-base reconcile gate and merge"),
+      packaged.indexOf("### 14) Post-merge worktree cleanup"),
+    );
+    expect(gate).toContain("requested composition correction");
+    expect(gate).toMatch(/Append[\s\S]*never amend/u);
+    expect(gate).toMatch(/rerun affected gates and routing[\s\S]*push[\s\S]*refire the integration-interlock/u);
+    expect(gate).toMatch(/post-composition failure[\s\S]*unmerged[\s\S]*first\s+incomplete candidate-tail step/u);
+    expect(gate).toMatch(/headSha[\s\S]*differs[\s\S]*invalidate the approval/u);
+  });
+
+  it("dominates every work-unit lifecycle merge command with products and a final interlock", async () => {
+    const directory = resolve(root, "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle");
+    const requiredProduct = new Map([
+      ["decompose-work-unit.md", "arc decompose"],
+      ["integrate-work-unit.md", "arc status {name} --json"],
+      ["park-work-unit.md", "arc park"],
+      ["resume-work-unit.md", "arc resume"],
+    ]);
+    let commandCount = 0;
+    for (const name of (await readdir(directory)).filter((entry) => entry.endsWith(".md"))) {
+      const workflow = await readRepositoryFile(`packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/${name}`);
+      for (const command of workflow.matchAll(/^\s*gh pr merge[^\n]*/gmu)) {
+        commandCount += 1;
+        const prefix = workflow.slice(0, command.index);
+        const product = requiredProduct.get(name);
+        expect(product, `unclassified merge workflow: ${name}`).toBeDefined();
+        expect(prefix.lastIndexOf(product ?? "")).toBeGreaterThanOrEqual(0);
+        expect(prefix.lastIndexOf("`integration-interlock`")).toBeGreaterThan(prefix.lastIndexOf(product ?? ""));
+      }
+    }
+    expect(commandCount).toBe(4);
+  });
+
   it("guards the post-merge tail on completion and archival products", async () => {
     const [packageIntegration, instanceIntegration] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),

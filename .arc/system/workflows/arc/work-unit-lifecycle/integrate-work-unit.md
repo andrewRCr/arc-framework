@@ -46,7 +46,8 @@ sections, sweep + ROADMAP regen, and push the final pre-merge state.
 
 `Integrating` is a suspendable point: a session can enter it, hand off across the review wait, and a later
 session — or machine — re-enters here. Resolve the entry mode from the resolver — `arc status {name} --json` —
-before doing anything else: its derived `state` reads `active` for a fresh entry, `integrating` for a resume.
+before doing anything else: `active` is a fresh entry, `integrating` is an in-progress resume, and `shipped` can be
+an already-swept candidate whose PR remains open or whose post-merge tail remains incomplete.
 
 #### Fresh entry — resolver `state: active`
 
@@ -85,7 +86,7 @@ Context: meta-{name}.md (integration)
 
 Proceed to Step 2.
 
-#### Resume entry — resolver `state: integrating` (re-entry guard)
+#### Resume entry — resolver state `integrating | shipped` (re-entry guard)
 
 The transition already ran in a prior session (or the merge landed unattended). **Skip the state transition and
 every pre-PR / PR-open step that already ran** — re-enter at the first incomplete tail step. Resolve the resume
@@ -109,18 +110,19 @@ wait timeout or failed/unavailable provider result enters this same explicit hum
 action rereads live state, reject it unless operation, target/request, generation, and wakeup token still match the
 current suspension; duplicate current wakeups are harmless canonical rereads.
 
-| Observed state               | Demonstrably already ran   | Resume at                                                          |
-|------------------------------|----------------------------|--------------------------------------------------------------------|
-| No PR open for the WU branch | transition                 | Step 2 (local preflight → creation path)                           |
-| PR open, not merged          | transition, PR open        | Step 4 (`post-pr-open` → review iteration → Phase 2)               |
-| PR already merged            | transition, PR open, merge | Verify Phase 2 products; when complete, resume at the Step 13 tail |
+| Resolver and PR state                         | Demonstrably already ran             | Resume at                                                          |
+|-----------------------------------------------|--------------------------------------|--------------------------------------------------------------------|
+| `integrating`; no PR open                     | transition                           | Step 2 (local preflight → creation path)                           |
+| `integrating`; PR open, not merged            | transition, PR open                  | Step 4 (`post-pr-open` → review iteration), then candidate tail    |
+| `shipped` in `completed`; PR open, not merged | transition, PR open, candidate sweep | Step 13 (validate products, then final settlement)                 |
+| PR already merged                             | transition, PR open, merge           | Verify Phase 2 products; when complete, resume at the Step 13 tail |
 
 Resolve PR state with `gh pr view {type}/{name} --json state,mergedAt` (fall back to `gh pr list --head
 {type}/{name}`); resolve worktree/branch presence with `git worktree list` and `git branch --list {type}/{name}`.
-Within Phase 2, pick up at the first step whose product isn't already present — composition already written into
-the meta's archive-phase sections, a sweep already committed — observe, don't redo. The tail steps (Steps 13–14
-below) are individually re-runnable and no-op when their target is already gone, so an over-eager resume costs
-nothing.
+Within the suspendable review cycle, resume the first incomplete candidate-tail step. Composition already written
+into the meta's archive-phase sections and a committed sweep are observed, never redone. A resolver `state: shipped`
+with an open, not merged PR is the swept-candidate arm and resumes at Step 13. The tail steps (Steps 13–14 below) are
+individually re-runnable and no-op when their target is already gone, so an over-eager resume costs nothing.
 
 Before selecting the merged-PR tail, verify the meta contains Completion Notes and any applicable Release Notes;
 under `with-integration`, the resolver reports `shipped` in `completed`. A merged PR proves only that the merge ran,
@@ -397,10 +399,18 @@ not excerpts alone.
 No `gh pr merge`, auto-merge enablement, or queued merge may occur before these products exist and the final
 integration-interlock fires. The integration-interlock is the sole merge authority.
 
+A post-composition failure leaves the candidate unmerged and stops with its evidence. On re-entry, resume the first
+incomplete candidate-tail step; never infer readiness from later products that happen to exist.
+
 > [!IMPORTANT]
 > `integration-interlock`: Stop before merge. Surface the exact approved head, complete candidate-tail diff, PR
 > status (open threads, required approvals, checks), requirements, merge method, lifecycle readiness, and the clean
 > base-drift result; await explicit integration approval before merging.
+
+If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
+the requested composition correction — never amend or rewrite the pushed head — rerun affected gates and routing,
+push through the workflow contract, rebuild lifecycle/base evidence, and refire the integration-interlock over the
+new exact head.
 
 Immediately after approval, recompose `openedChangeRequest` from the canonical current head. If its `headSha`
 differs from `{approved-head-sha}`, invalidate the approval and return to the review cycle. Otherwise, re-read PR status

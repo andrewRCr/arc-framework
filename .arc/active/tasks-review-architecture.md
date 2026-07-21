@@ -742,7 +742,7 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
   machine loss for both WUs and Errands, while conflicts, stale wakeups, timeouts, and provider failures remain visible
   non-clean states.
 
-### `[ ]` **6.4 Reshape work-unit composition and late base reconcile**
+### `[x]` **6.4 Reshape work-unit composition and late base reconcile**
 
 - _Goal:_ Integration returns the developer only for disposition approval and merge authorization, while content
   composition and safe late base reconciliation form a provisional candidate that is reviewed in full at the
@@ -780,15 +780,16 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
         - Prohibited direct, auto, or queued merge before lifecycle products and the final integration-interlock,
           which remains the sole merge authority.
 
-    - `[ ]` **6.4.e Update candidate correction, resume, and failure behavior**
-        - Make requested composition corrections append, rerun affected gates/routing, and refire the interlock;
-          rework fresh/open/merged PR re-entry around the suspendable cycle and recognize an open candidate whose
-          branch projection already swept the WU and records `Shipped`.
-        - Extend integration workflow tests for exact-tail surfacing, internal-jargon rejection guidance,
-          pre-composition merge/auto-merge refusal, prospective approval rejection, cadence-specific product checks,
-          disjoint/interactive reconcile, conflict, post-composition failure, stale approval, open swept-candidate
-          resume, already-merged resume, and cleanup; corpus-check that every WU merge command is dominated by
-          required lifecycle products and the final interlock.
+    - `[x]` **6.4.e Update candidate correction, resume, and failure behavior**
+        - Added append-only correction and failure recovery that reruns affected gates/routing and refires the exact-
+          head interlock; resolver re-entry now distinguishes integrating, swept-open, and already-merged candidates.
+        - Expanded workflow regression coverage across composition, reconcile, cadence, stale authority, swept/merged
+          resume, cleanup, and a corpus guard proving every WU lifecycle merge follows its product and final interlock.
+
+- _Outcome:_ Work-unit integration now advances autonomously from authoritative review settlement through a complete
+  provisional candidate, with public composition, one typed late reconcile, and cadence-qualified lifecycle products.
+  The developer returns only for finding disposition or exact-head merge authorization, and mutation, failure, stale
+  state, or incomplete products cannot inherit or manufacture merge readiness.
 
 ### `[ ]` **6.5 Align Errand review and final-head settlement**
 
