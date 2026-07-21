@@ -481,7 +481,7 @@ result so workflows consume verbs and precomposed verdicts.
   merge finalization, abandonment, or promotion. Every terminal path preserves recoverable identity and local
   evidence until its final authority transition, with compatible refusal for legacy and partial-mode state.
 
-### `[ ]` **5.2 Add ownership-safe full-mode Errand materialization** — D4, D7
+### `[x]` **5.2 Add ownership-safe full-mode Errand materialization** — D4, D7
 
 - _Goal:_ Cross-machine Errand resume creates an ARC-owned checkout and role through one verb instead of leaving a
   markerless raw worktree outside cleanup and recovery.
@@ -492,18 +492,11 @@ result so workflows consume verbs and precomposed verdicts.
           expected head, lifecycle state, and inbox dispatch context; recordless, open, legacy, mismatched review,
           local, malformed, and non-Errand inputs produce no candidate.
 
-    - `[ ]` **5.2.b Implement and register `arc errand materialize <slug>`**
-        - Fetch the selected branch into a caller-owned snapshot, prove its live remote head still equals the
-          candidate's expected OID, refuse any local branch/worktree collision, and create the local branch plus
-          configured checkout through `provisionTransientLocus()`.
-        - Transition the exact identity to open and attach its lease through the provisioning composer; do not run
-          a second attach or route through the WU-specific worktree wrapper.
-        - Register `materialize --json` in `packages/arc-framework/src/cli.ts`; Phase 7 owns replacement of the raw
-          session-init workflow mechanics.
-        - Build `test-first` (one behavior at a time):
-            - Cover paused and requested-work materialization, changed/missing remote head, local double checkout,
-              provenance/setup failure, identity/provision rollback races, cleanup-safe retry, and directed result
-              paths in integration and command-boundary tests.
+    - `[x]` **5.2.b Implement and register `arc errand materialize <slug>`**
+        - Added the full-protection-only command with caller-owned remote snapshots, exact expected-head and local
+          branch collision guards, isolated transient provisioning, and exact local-ref cleanup on failed retries.
+        - Reused the ordinary resume transaction so paused and requested-work tails retain their claim generation,
+          transition to open before provisioning, roll back on failure, and emit shared human/JSON mutation results.
 
 ### `[ ]` **5.3 Compose single- and multi-WU groom-and-ship transitions** — D4, D7, D8
 

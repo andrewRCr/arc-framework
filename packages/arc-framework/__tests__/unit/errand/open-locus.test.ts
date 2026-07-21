@@ -49,6 +49,49 @@ function pausedIdentity() {
 }
 
 describe("openOrdinaryErrand", () => {
+  it("forces a spawned proposal for an isolated materialization resume", async () => {
+    const previous = pausedIdentity();
+    const resumed = { ...previous, state: "open" as const, savedHead: null, changeRequest: null,
+      updatedAt: "2026-07-21T12:00:00.000Z" };
+    const provision = vi.fn(async (options: Parameters<OpenOrdinaryErrandDependencies["provision"]>[0]) => (void options, {
+      kind: "refused" as const,
+      reason: "path-collision" as const,
+      evidence: { kind: "identity-only" as const },
+    }));
+
+    await openOrdinaryErrand({
+      slug: previous.slug,
+      protection: "full",
+      isolation: "require-isolation",
+      base: "main",
+      createdAt: resumed.updatedAt,
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record: previous }),
+        authorizeResume: async () => ({ kind: "authorized", authorization: {
+          terminalHead: previous.savedHead,
+          remoteBranchTip: previous.savedHead,
+          savedHeadIsAncestor: true,
+        } as PauseHeadEvidence }),
+        claim: vi.fn(),
+        resume: async () => ({ kind: "applied", record: resumed }),
+        rollbackClaim: vi.fn(),
+        rollbackResume: async () => ({ kind: "rolled-back" }),
+        provision,
+      },
+    });
+
+    expect(provision.mock.calls[0]?.[0]).toMatchObject({
+      proposal: { allocation: { kind: "spawn", primaryPath: "/repo" } },
+      expectedBranchHead: previous.savedHead,
+    });
+  });
+
   it("restores the exact paused tail when allocation refuses after resume", async () => {
     const previous = pausedIdentity();
     const resumed = { ...previous, state: "open" as const, savedHead: null, changeRequest: null,

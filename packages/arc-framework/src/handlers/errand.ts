@@ -32,6 +32,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   closeLegacyErrand,
   readTransientIdentitySnapshot,
+  transactTransientIdentities,
   type ErrandPushOutcome,
 } from "../lib/errand/index.js";
 import {
@@ -55,6 +56,8 @@ import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
 import { closeOrdinaryErrandAtRuntime } from "../lib/errand/close-runtime.js";
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
 import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
+import { normalizeGitRejection } from "../lib/git/process-error.js";
+import { uniqueRefToken } from "../lib/git/ref-tree.js";
 import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
@@ -246,6 +249,144 @@ export interface ErrandOpenOptions {
   inboxTitleFile?: string;
   /** Compatibility alias of `inboxTitleFile`. */
   inboxEntryFile?: string;
+}
+
+/** Options for `arc errand materialize`. */
+export interface ErrandMaterializeOptions {
+  /** Emit the producer-validated mutation result without human decoration. */
+  json?: boolean;
+}
+
+/** Materialize one exact remote-only ordinary-v3 Errand generation. */
+export async function handleErrandMaterialize(
+  slug: string,
+  opts: ErrandMaterializeOptions,
+): Promise<void> {
+  if (opts.json !== true) p.intro("arc errand materialize");
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+  const { settings } = await readConfigSettings(cwd);
+  if (settings["branch.protection"] !== "full") {
+    emitErrandOpenResult(createLocusMutationResult({
+      outcome: "refused", operation: "errand-materialize", reason: "full-protection-required",
+      recommendedPromptText: "Errand materialization requires full branch protection.",
+    }), opts.json === true);
+    return;
+  }
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) {
+    emitMaterializeError("identity", "No identity resolved — set arc.identity before materializing.", opts.json === true);
+    return;
+  }
+  const io = createUserIOContext();
+  if (!io.execInput) {
+    emitMaterializeError("identity", "The stdin Git boundary is unavailable.", opts.json === true);
+    return;
+  }
+  const read = await transactTransientIdentities({ exec: io.exec, execInput: io.execInput, identity }, {
+    remote: "origin",
+    message: `arc: reconcile errand identity ${slug}`,
+    transform: (records) => ({ kind: "idempotent", value: records.get(slug) ?? null }),
+  });
+  if (read.kind !== "applied" && read.kind !== "idempotent") {
+    emitMaterializeError("identity", read.kind === "error" ? read.message : read.reason, opts.json === true);
+    return;
+  }
+  const record = read.value;
+  if (record?.version !== 3 || record.kind !== "errand" || record.purpose !== "errand"
+    || (record.state !== "paused" && record.state !== "awaiting-merge")) {
+    emitMaterializeRefusal("identity-conflict", `Identity '${slug}' is not an exact resumable ordinary v3 Errand.`, opts.json === true);
+    return;
+  }
+  const expectedHead = record.state === "paused" ? record.savedHead : record.changeRequest.headSha;
+  const localRef = `refs/heads/${record.branch}`;
+  try {
+    await io.exec("git", ["show-ref", "--verify", "--quiet", localRef]);
+    emitMaterializeRefusal("identity-conflict", `Local branch '${record.branch}' already exists.`, opts.json === true);
+    return;
+  } catch (error) {
+    const normalized = normalizeGitRejection(error, { command: "git", args: ["show-ref", "--verify", "--quiet", localRef] });
+    if (normalized.exitCode !== 1) {
+      emitMaterializeError("local-branch", normalized.message, opts.json === true);
+      return;
+    }
+  }
+  const snapshotRef = `refs/arc/tmp/errand-materialize/${uniqueRefToken()}`;
+  let branchCreated = false;
+  try {
+    await io.exec("git", ["fetch", "--", "origin", `+refs/heads/${record.branch}:${snapshotRef}`]);
+    const fetchedHead = (await io.exec("git", ["rev-parse", "--verify", `${snapshotRef}^{commit}`])).stdout.trim();
+    if (fetchedHead !== expectedHead) {
+      emitMaterializeRefusal("preservation-unproven", "The remote Errand head changed after candidate projection.", opts.json === true);
+      return;
+    }
+    await io.exec("git", ["update-ref", localRef, expectedHead, "0".repeat(40)]);
+    branchCreated = true;
+    const primaryPath = await resolvePrimaryWorktreePath(io.exec);
+    if (primaryPath === null) throw new Error("Primary checkout is unavailable");
+    const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
+    const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+      cwd, identity: SlugSchema.parse(identity), exec: io.exec,
+    })).identityGlobalRoot;
+    const result = await openOrdinaryErrandAtRuntime({
+      slug,
+      originEntry: record.originEntry,
+      dispatchId: record.dispatchId,
+      protection: "full",
+      isolation: "require-isolation",
+      base: settings["branch.base"],
+      createdAt: new Date().toISOString(),
+      identity,
+      locationTemplate: settings["worktree.location_template"],
+      repo: basename(primaryPath),
+      leaseId: randomBytes(16).toString("hex"),
+      postCreateScript: settings["worktree.post_create"],
+      registeredHarnessDirs: settings["worktree.harness_dirs"],
+      identityGlobalUserDir,
+      activeExtensions: activeExtensions.active,
+      exec: io.exec,
+      execInput: io.execInput,
+    });
+    const materialized = createLocusMutationResult({
+      ...result,
+      operation: "errand-materialize",
+      recommendedPromptText: result.outcome === "applied" || result.outcome === "idempotent"
+        ? `Errand materialized at ${result.activeLocusPath}; open a fresh session there to resume.`
+        : result.recommendedPromptText,
+    });
+    if (materialized.outcome !== "applied" && materialized.outcome !== "idempotent") {
+      await deleteExactLocalBranch(io.exec, localRef, expectedHead);
+      branchCreated = false;
+    }
+    emitErrandOpenResult(materialized, opts.json === true);
+  } catch (error) {
+    if (branchCreated) await deleteExactLocalBranch(io.exec, localRef, expectedHead);
+    emitMaterializeError("handler", error instanceof Error ? error.message : String(error), opts.json === true);
+  } finally {
+    await io.exec("git", ["update-ref", "-d", snapshotRef]).catch(() => undefined);
+  }
+}
+
+async function deleteExactLocalBranch(exec: typeof gitExec, ref: string, expectedHead: string): Promise<void> {
+  await exec("git", ["update-ref", "-d", ref, expectedHead]).catch(() => undefined);
+}
+
+function emitMaterializeRefusal(
+  reason: "identity-conflict" | "preservation-unproven",
+  message: string,
+  json: boolean,
+): void {
+  emitErrandOpenResult(createLocusMutationResult({
+    outcome: "refused", operation: "errand-materialize", reason, recommendedPromptText: message,
+  }), json);
+}
+
+function emitMaterializeError(suffix: string, message: string, json: boolean): void {
+  emitErrandOpenResult(createLocusMutationResult({
+    outcome: "error", operation: "errand-materialize",
+    error: { code: `locus.errand-materialize.${suffix}`, message },
+    recommendedPromptText: "Inspect the retained identity and local branch evidence before retrying.",
+  }), json);
 }
 
 /**

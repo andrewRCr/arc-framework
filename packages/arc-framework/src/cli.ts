@@ -25,6 +25,7 @@ import {
   handleErrandClose,
   handleErrandAbandon,
   handleErrandPromote,
+  handleErrandMaterialize,
   type ErrandCheckOptions,
   type ErrandOpenOptions,
   type ErrandLinkOptions,
@@ -32,6 +33,7 @@ import {
   type ErrandCloseOptions,
   type ErrandAbandonOptions,
   type ErrandPromoteOptions,
+  type ErrandMaterializeOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
 import {
@@ -369,6 +371,12 @@ errand
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .option("--json", "Emit the producer-validated locus mutation result")
   .action((slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts));
+
+errand
+  .command("materialize <slug>")
+  .description("Materialize an exact remote-only Errand generation in an ARC-owned checkout")
+  .option("--json", "Emit the producer-validated locus mutation result")
+  .action((slug: string, opts: ErrandMaterializeOptions) => handleErrandMaterialize(slug, opts));
 
 errand
   .command("leave <slug>")

@@ -45,6 +45,7 @@ export interface OpenOrdinaryErrandRuntimeOptions {
   readonly locationTemplate: string;
   readonly repo: string;
   readonly leaseId: string;
+  readonly isolation?: "prefer-primary" | "require-isolation";
   readonly postCreateScript: string;
   readonly registeredHarnessDirs: string;
   readonly identityGlobalUserDir: string;
@@ -73,6 +74,7 @@ export async function openOrdinaryErrandAtRuntime(
     locationTemplate: options.locationTemplate,
     repo: options.repo,
     leaseId: options.leaseId,
+    isolation: options.isolation,
     dependencies: {
       acquireAnchor: async () => {
         const anchor = await acquireSessionAnchor(process.pid, ancestry);

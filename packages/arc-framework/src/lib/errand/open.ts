@@ -100,6 +100,8 @@ export interface OpenOrdinaryErrandOptions {
   locationTemplate: string;
   repo: string;
   leaseId: string;
+  /** Placement posture; materialization always requires an isolated checkout. */
+  isolation?: "prefer-primary" | "require-isolation";
   dependencies: OpenOrdinaryErrandDependencies;
 }
 
@@ -243,7 +245,7 @@ export async function openOrdinaryErrand(
   const proposal = planLocusAllocation({
     state,
     protection: options.protection,
-    isolation: "prefer-primary",
+    isolation: options.isolation ?? "prefer-primary",
     subject,
   });
   if (proposal.kind === "refused") {
