@@ -143,6 +143,49 @@ export const TransientIdentityRecordSchema = z.union([
 export type TransientIdentityRecordV3 = z.infer<typeof TransientIdentityRecordV3Schema>;
 export type TransientIdentityRecord = z.infer<typeof TransientIdentityRecordSchema>;
 
+/** State-changing verbs that can encounter a transient identity record. */
+export type TransientIdentityOperation =
+  | "read"
+  | "open"
+  | "link"
+  | "leave"
+  | "resume"
+  | "promote"
+  | "retire"
+  | "abandon"
+  | "close";
+
+/** Typed refusal when a legacy generation reaches a non-close mutation. */
+export class LegacyIdentityOperationError extends Error {
+  readonly operation: TransientIdentityOperation;
+  readonly record: Extract<TransientIdentityRecord, { version: 1 | 2 }>;
+
+  constructor(
+    operation: TransientIdentityOperation,
+    record: Extract<TransientIdentityRecord, { version: 1 | 2 }>,
+  ) {
+    super(`Legacy identity '${record.slug}' is close-only; cannot ${operation}`);
+    this.name = "LegacyIdentityOperationError";
+    this.operation = operation;
+    this.record = record;
+  }
+}
+
+/**
+ * Enforce the bounded compatibility policy before a state-changing operation.
+ *
+ * @param record - Valid identity record at the requested key.
+ * @param operation - Mutation the caller intends to perform.
+ */
+export function assertTransientIdentityOperation(
+  record: TransientIdentityRecord,
+  operation: TransientIdentityOperation,
+): void {
+  if (record.version !== 3 && operation !== "close" && operation !== "read") {
+    throw new LegacyIdentityOperationError(operation, record);
+  }
+}
+
 /** Mint an immutable 128-bit claim generation. */
 export function mintClaimId(): string {
   return randomBytes(16).toString("hex");

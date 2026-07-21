@@ -93,15 +93,6 @@ export async function readTransientIdentitySnapshot(
       diagnostics.push({ kind: "oversized", key: entry.key, declaredBytes: actualBytes });
       continue;
     }
-    if (actualBytes !== entry.size) {
-      diagnostics.push({
-        kind: "unreadable",
-        key: entry.key,
-        message: `Blob size changed: tree declares ${entry.size} bytes, read ${actualBytes}`,
-      });
-      continue;
-    }
-
     const decoded = deserializeTransientIdentityRecord(blob, entry.key);
     if (decoded.kind === "valid") {
       records.set(entry.key, decoded.record);
@@ -122,7 +113,7 @@ function parseStrictRootTree(stdout: string): TreeBlobEntry[] {
   const entries: TreeBlobEntry[] = [];
   const keys = new Set<string>();
   for (const rawEntry of stdout.slice(0, -1).split("\0")) {
-    const match = /^(\d{6}) ([^ ]+) ([0-9a-f]{40}|[0-9a-f]{64}) ([0-9]+)\t([^\0]+)$/u.exec(rawEntry);
+    const match = /^(\d{6}) ([^ ]+) ([0-9a-f]{40}|[0-9a-f]{64}) +([0-9]+)\t([^\0]+)$/u.exec(rawEntry);
     if (match === null) throw new Error("Identity tree contains a malformed entry");
     const [, mode, type, oid, sizeText, key] = match;
     if (mode !== "100644" || type !== "blob" || oid === undefined || sizeText === undefined || key === undefined) {

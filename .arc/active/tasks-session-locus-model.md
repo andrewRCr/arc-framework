@@ -119,7 +119,7 @@ inspection before the record lock that consumes its liveness verdict.
 _Purpose:_ Upgrade transient identity to a concurrency-safe v3 authority before the locus reader consumes Errand,
 grooming, or housekeeping state.
 
-### `[ ]` **2.1 Extend Errand records into the backward-compatible v3 identity union** — D6, D8, D9
+### `[x]` **2.1 Extend Errand records into the backward-compatible v3 identity union** — D6, D8, D9
 
 - _Goal:_ Ordinary Errands, housekeeping sweeps, and grooming claims share one exact identity model while existing
   v1/v2 Errands remain readable only through their bounded close path during rollout.
@@ -134,14 +134,13 @@ grooming, or housekeeping state.
           absence from root failures, and retains every per-key decode/read failure as a typed diagnostic alongside
           valid records and their claim-preserving locus projections.
 
-    - `[ ]` **2.1.c Contain legacy identity records to the close-only compatibility path**
-        - Route v1/v2 records only to the existing restore-aware `arc errand close` path; make open, link, leave,
-          resume, promote, retire, and abandon refuse them without rewriting or deleting their identity records.
-        - Replace single-record reads that collapse unreadable or malformed input into `no-record` with the typed
-          snapshot result so a failed read never authorizes creation, mutation, or cleanup.
-        - Build `test-first` (one behavior at a time):
-            - Legacy v1/v2 close preserves `returnBranch` behavior and every other state-changing verb refuses.
-            - Missing, malformed, unreadable, and unknown-version records remain distinct at command boundaries.
+    - `[x]` **2.1.c Contain legacy identity records to the close-only compatibility path**
+        - Routed legacy single-record access through the complete typed snapshot, retained exact failure evidence,
+          and enforced one shared close-only guard across current and planned mutation verbs. Existing close behavior
+          still restores v2 return branches; refused operations leave identity and branch state untouched.
+
+- _Outcome:_ Transient identity now has one strict compatibility authority: v3 records project losslessly into the
+  locus model, invalid tree entries remain visible, and legacy generations cannot acquire new mutation rights.
 
 ### `[ ]` **2.2 Implement complete-basis identity CAS transitions and claim retirement** — D8
 

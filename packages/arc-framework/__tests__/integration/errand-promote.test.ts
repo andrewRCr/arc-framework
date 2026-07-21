@@ -71,10 +71,6 @@ async function remoteSlugs(dir: string): Promise<string[]> {
   return ls.split("\n").map((s) => s.trim()).filter(Boolean).sort();
 }
 
-async function readMeta(dir: string, name: string): Promise<string> {
-  return readFile(join(dir, ".arc/active", `meta-${name}.md`), "utf8");
-}
-
 describe("promoteErrand", () => {
   let dir: string;
   let remoteDir: string;
@@ -91,55 +87,42 @@ describe("promoteErrand", () => {
     await Promise.all([dir, remoteDir].map(cleanupTempDir));
   });
 
-  it("derivation crossing → Planning meta at draft-design, plan branch renamed, record retired", async () => {
+  it("refuses a derivation promotion for a legacy record without changing its branch", async () => {
     await openErrand(io, { slug: "growing", base: "main", type: "fix", createdAt: CREATED_AT });
     // An errand commit, so the rename has work to preserve.
     await makeCommit(dir, "errand work");
     const head = (await git(dir, ["rev-parse", "HEAD"])).trim();
 
-    const result = await promoteErrand(ctxFor(dir, io), {
+    await expect(promoteErrand(ctxFor(dir, io), {
       slug: "growing",
       name: "growth-feature",
       type: "feat",
       floor: "derivation",
       owner: IDENTITY,
-    });
+    })).rejects.toMatchObject({ failure: { kind: "legacy-close-only", operation: "promote" } });
 
-    expect(result.kind).toBe("promoted");
-    // Branch renamed, commits preserved (HEAD unchanged), old name gone.
-    expect(await branchExists(dir, "plan/growth-feature")).toBe(true);
+    expect(await branchExists(dir, "plan/growth-feature")).toBe(false);
     expect(await branchExists(dir, "feat/growth-feature")).toBe(false);
-    expect(await branchExists(dir, "fix/growing")).toBe(false);
+    expect(await branchExists(dir, "fix/growing")).toBe(true);
     expect((await git(dir, ["rev-parse", "HEAD"])).trim()).toBe(head);
-    // Record retired locally and on the remote.
-    expect(await readErrandRecord(io, "growing")).toBeNull();
-    expect(await remoteSlugs(dir)).toEqual([]);
-    // Meta minted at the planning stage the derivation floor dictates.
-    const meta = await readMeta(dir, "growth-feature");
-    expect(meta).toContain("# Metadata: growth-feature");
-    expect(meta).toMatch(/\bPlanning\b/u);
-    expect(meta).toContain("plan/growth-feature");
-    expect(meta).toContain("draft-design");
-    expect(meta).toContain(IDENTITY);
+    expect(await readErrandRecord(io, "growing")).not.toBeNull();
+    expect(await remoteSlugs(dir)).toEqual(["growing"]);
   });
 
-  it("scale crossing → Active meta (no draft-design), branch renamed, record retired", async () => {
+  it("refuses a scale promotion for a legacy record", async () => {
     await openErrand(io, { slug: "sweeping", base: "main", type: "chore", createdAt: CREATED_AT });
 
-    const result = await promoteErrand(ctxFor(dir, io), {
+    await expect(promoteErrand(ctxFor(dir, io), {
       slug: "sweeping",
       name: "sweep-unit",
       type: "refactor",
       floor: "scale",
       owner: IDENTITY,
-    });
+    })).rejects.toMatchObject({ failure: { kind: "legacy-close-only", operation: "promote" } });
 
-    expect(result.kind).toBe("promoted");
-    expect(await branchExists(dir, "refactor/sweep-unit")).toBe(true);
-    expect(await readErrandRecord(io, "sweeping")).toBeNull();
-    const meta = await readMeta(dir, "sweep-unit");
-    expect(meta).toMatch(/\bActive\b/u);
-    expect(meta).not.toContain("draft-design");
+    expect(await branchExists(dir, "refactor/sweep-unit")).toBe(false);
+    expect(await branchExists(dir, "chore/sweeping")).toBe(true);
+    expect(await readErrandRecord(io, "sweeping")).not.toBeNull();
   });
 
   it("is a no-op when no record exists for the slug", async () => {
@@ -152,21 +135,19 @@ describe("promoteErrand", () => {
     })).toEqual({ kind: "no-record", slug: "ghost" });
   });
 
-  it("refuses with name-taken when a meta already backs the target name (no clobber, record intact)", async () => {
+  it("applies legacy containment before a target-name collision", async () => {
     await openErrand(io, { slug: "growing", base: "main", type: "fix", createdAt: CREATED_AT });
     await mkdir(join(dir, ".arc/active"), { recursive: true });
     await writeFile(join(dir, ".arc/active/meta-taken.md"), "# Metadata: taken\n");
 
-    const result = await promoteErrand(ctxFor(dir, io), {
+    await expect(promoteErrand(ctxFor(dir, io), {
       slug: "growing",
       name: "taken",
       type: "feat",
       floor: "scale",
       owner: IDENTITY,
-    });
+    })).rejects.toMatchObject({ failure: { kind: "legacy-close-only", operation: "promote" } });
 
-    expect(result.kind).toBe("name-taken");
-    // Record left intact and the errand branch unrenamed — promotion is recoverable.
     expect(await readErrandRecord(io, "growing")).not.toBeNull();
     expect(await branchExists(dir, "fix/growing")).toBe(true);
   });

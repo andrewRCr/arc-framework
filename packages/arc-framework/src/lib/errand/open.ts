@@ -54,6 +54,7 @@ export interface OpenErrandResult {
 /**
  * Open an errand: cut a nature-typed branch off the base (no-clobber), mint the
  * identity record and push it, then occupy the branch in place.
+ * A pre-existing legacy identity is close-only and refuses before branch mutation.
  *
  * The push is non-fatal — its outcome is returned for the caller to surface and
  * (on failure) flag for later sync recovery; the record is already written
@@ -71,7 +72,7 @@ export async function openErrand(
   const slug = params.slug.trim();
   if (slug === "") throw new Error("openErrand: slug must be non-empty");
 
-  const previous = await readErrandRecord(io, slug);
+  const previous = await readErrandRecord(io, slug, "open");
   const launchBranch = await symbolicBranch(io.exec);
 
   const cut = await cutErrandBranch(

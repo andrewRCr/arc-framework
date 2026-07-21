@@ -43,25 +43,15 @@ describe("linkErrandToInbox", () => {
     await Promise.all([dir, remoteDir].map(cleanupTempDir));
   });
 
-  it("turns a description-origin record into an inbox-origin record and pushes it", async () => {
+  it("refuses to link a legacy description-origin record", async () => {
     await openErrand(io, { slug: "late-match", base: "main", createdAt: CREATED_AT });
 
-    const result = await linkErrandToInbox(io, { slug: "late-match", originEntry: "Existing capture" });
-
-    expect(result).toMatchObject({ kind: "linked", changed: true, push: { kind: "pushed" } });
-    expect(await readErrandRecord(io, "late-match")).toEqual({
-      version: 2,
-      slug: "late-match",
-      origin: "inbox",
-      intent: "late-match",
-      branch: "chore/late-match",
-      createdAt: CREATED_AT,
-      originEntry: "Existing capture",
-      returnBranch: "main",
-    });
+    await expect(linkErrandToInbox(io, { slug: "late-match", originEntry: "Existing capture" }))
+      .rejects.toMatchObject({ failure: { kind: "legacy-close-only", operation: "link" } });
+    expect((await readErrandRecord(io, "late-match"))?.origin).toBe("description");
   });
 
-  it("is idempotent when already linked to the same capture", async () => {
+  it("refuses even an otherwise-idempotent link on a legacy record", async () => {
     await openErrand(io, {
       slug: "adopted",
       base: "main",
@@ -69,13 +59,12 @@ describe("linkErrandToInbox", () => {
       createdAt: CREATED_AT,
     });
 
-    const result = await linkErrandToInbox(io, { slug: "adopted", originEntry: "Existing capture" });
-
-    expect(result).toMatchObject({ kind: "linked", changed: false });
+    await expect(linkErrandToInbox(io, { slug: "adopted", originEntry: "Existing capture" }))
+      .rejects.toMatchObject({ failure: { kind: "legacy-close-only", operation: "link" } });
     expect((await readErrandRecord(io, "adopted"))?.originEntry).toBe("Existing capture");
   });
 
-  it("refuses to change an existing inbox link", async () => {
+  it("does not rewrite a legacy record when a different link is requested", async () => {
     await openErrand(io, {
       slug: "adopted",
       base: "main",
@@ -83,9 +72,8 @@ describe("linkErrandToInbox", () => {
       createdAt: CREATED_AT,
     });
 
-    const result = await linkErrandToInbox(io, { slug: "adopted", originEntry: "Replacement capture" });
-
-    expect(result).toMatchObject({ kind: "link-conflict", requestedEntry: "Replacement capture" });
+    await expect(linkErrandToInbox(io, { slug: "adopted", originEntry: "Replacement capture" }))
+      .rejects.toMatchObject({ failure: { kind: "legacy-close-only", operation: "link" } });
     expect((await readErrandRecord(io, "adopted"))?.originEntry).toBe("Original capture");
   });
 

@@ -37,6 +37,7 @@ export type LinkErrandToInboxResult =
  * errand ref, so a previously-unpushed record can catch up. Re-linking an
  * already-inbox-origin record to a different entry refuses, because the old
  * capture would otherwise lose its only automatic cleanup path.
+ * Legacy records refuse before this mutation; the v3 transaction path owns current identities.
  *
  * @param io - Injected git seams and identity.
  * @param params - The errand slug and inbox entry title.
@@ -51,7 +52,7 @@ export async function linkErrandToInbox(
   const originEntry = params.originEntry.trim();
   if (originEntry === "") throw new Error("linkErrandToInbox: originEntry must be non-empty");
 
-  const record = await readErrandRecord(io, slug);
+  const record = await readErrandRecord(io, slug, "link");
   if (record === null) return { kind: "no-record", slug };
   if (record.origin === "inbox" && record.originEntry !== originEntry) {
     return { kind: "link-conflict", record, requestedEntry: originEntry };

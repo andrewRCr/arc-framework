@@ -79,17 +79,17 @@ describe("retireErrand", () => {
     await Promise.all([dir, remoteDir].map(cleanupTempDir));
   });
 
-  it("removes the record and pushes the removal while the renamed branch survives", async () => {
+  it("refuses to retire a legacy record and preserves its renamed branch", async () => {
     await openErrand(io, { slug: "growing", base: "main", type: "fix", createdAt: CREATED_AT });
     expect(await remoteSlugs(dir)).toEqual(["growing"]);
     // Promotion renames the errand branch into the WU branch before retiring the record.
     await git(dir, ["branch", "-m", "fix/growing", "feat/growing-feature"]);
 
-    const result = await retireErrand(io, { slug: "growing" });
+    await expect(retireErrand(io, { slug: "growing" }))
+      .rejects.toMatchObject({ failure: { kind: "legacy-close-only", operation: "retire" } });
 
-    expect(result.kind).toBe("retired");
-    expect(await readErrandRecord(io, "growing")).toBeNull();
-    expect(await remoteSlugs(dir)).toEqual([]);
+    expect(await readErrandRecord(io, "growing")).not.toBeNull();
+    expect(await remoteSlugs(dir)).toEqual(["growing"]);
     expect(await branchExists(dir, "feat/growing-feature")).toBe(true);
   });
 

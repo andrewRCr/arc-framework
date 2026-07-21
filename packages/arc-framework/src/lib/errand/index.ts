@@ -22,6 +22,8 @@ export {
   type ErrandRecord,
   type ErrandOrigin,
   type ListErrandRecordsResult,
+  ErrandRecordReadError,
+  type ErrandRecordReadFailure,
 } from "./record.js";
 
 export {
@@ -34,6 +36,9 @@ export {
   type TransientIdentityRecordV3,
   type TransientIdentityRecord,
   type TransientIdentityDecodeResult,
+  type TransientIdentityOperation,
+  LegacyIdentityOperationError,
+  assertTransientIdentityOperation,
 } from "./identity-record.js";
 
 export {

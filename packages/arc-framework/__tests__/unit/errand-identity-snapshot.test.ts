@@ -42,7 +42,7 @@ describe("transient identity snapshots", () => {
     const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
       if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
       if (args[0] === "ls-tree" && args.at(-1) === tip) {
-        return { stdout: `100644 blob ${blobOid} ${Buffer.byteLength(record)}\tfix-output\0` };
+        return { stdout: `100644 blob ${blobOid}     ${Buffer.byteLength(record)}\tfix-output\0` };
       }
       if (args[0] === "cat-file" && args[2] === blobOid) return { stdout: record };
       throw new Error("read followed the moving ref instead of the pinned snapshot");

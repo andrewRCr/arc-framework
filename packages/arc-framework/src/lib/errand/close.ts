@@ -115,7 +115,7 @@ export async function closeErrand(
   if (slug === "") throw new Error("closeErrand: slug must be non-empty");
   const remote = params.remote ?? DEFAULT_REMOTE;
 
-  const record = await readErrandRecord(io, slug);
+  const record = await readErrandRecord(io, slug, "close");
   if (record === null) return { kind: "no-record", slug };
 
   // Fetch the authoritative remote base before the containment check and the base

@@ -35,6 +35,7 @@ export type RetireErrandResult =
 /**
  * Retire an errand record: remove it and push the removal, leaving the branch
  * untouched.
+ * Legacy records are close-only and refuse before removal.
  *
  * Resolves the record by slug — an absent record is `no-record` (nothing to
  * retire). Otherwise removes the record and pushes the removal through the same
@@ -51,7 +52,7 @@ export async function retireErrand(
   const slug = params.slug.trim();
   if (slug === "") throw new Error("retireErrand: slug must be non-empty");
 
-  const record = await readErrandRecord(io, slug);
+  const record = await readErrandRecord(io, slug, "retire");
   if (record === null) return { kind: "no-record", slug };
 
   await removeErrandRecord(io, slug);

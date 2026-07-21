@@ -76,6 +76,7 @@ const ACTIVE_DIR = ".arc/active";
 /**
  * Promote an errand to a work unit: rename its branch (commits preserved), mint
  * the backing meta at the floor-dictated stage, and retire the record.
+ * Legacy records are close-only and refuse before filesystem or branch mutation.
  *
  * Resolves the record by slug — an absent record is `no-record`. Refuses with
  * `name-taken` when a `meta-<name>.md` already exists (no clobber of a live WU).
@@ -104,7 +105,7 @@ export async function promoteErrand(
 
   const { io, fs, cwd } = ctx;
 
-  const record = await readErrandRecord(io, slug);
+  const record = await readErrandRecord(io, slug, "promote");
   if (record === null) return { kind: "no-record", slug };
 
   const metaPath = join(ACTIVE_DIR, `meta-${name}.md`);

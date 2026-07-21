@@ -333,7 +333,7 @@ describe("arc errand close", () => {
     expect(await readFile(inboxPath, "utf-8")).toContain("**Keep me**");
   });
 
-  it("drops a late-linked originating capture at close", async () => {
+  it("refuses a late link on a legacy record and leaves the capture unbound", async () => {
     await setFullProtection(tmpDir);
     const inboxDir = join(tmpDir, ".arc", "user", "test-user");
     const inboxPath = join(inboxDir, "USER-INBOX.md");
@@ -344,17 +344,17 @@ describe("arc errand close", () => {
     const open = await runArc(["errand", "open", "late-adopt", "--type", "chore"], tmpDir);
     expect(open.exitCode).toBe(0);
     const link = await runArc(["errand", "link", "late-adopt", "--from-inbox", "Link me"], tmpDir);
-    expect(link.exitCode).toBe(0);
+    expect(link.exitCode).toBe(1);
     const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:late-adopt"]);
-    expect(record).toContain('"origin": "inbox"');
-    expect(record).toContain('"originEntry": "Link me"');
+    expect(record).toContain('"origin": "description"');
+    expect(record).not.toContain('"originEntry"');
 
     const close = await runArc(["errand", "close", "late-adopt"], tmpDir);
     expect(close.exitCode).toBe(0);
-    expect(await readFile(inboxPath, "utf-8")).not.toContain("**Link me**");
+    expect(await readFile(inboxPath, "utf-8")).toContain("**Link me**");
   });
 
-  it("links a Markdown-bearing capture title from a file operand", async () => {
+  it("safely refuses a Markdown-bearing link operand for a legacy record", async () => {
     await setFullProtection(tmpDir);
     const title = "Link `arc errand` after $(capture)";
     const inboxDir = join(tmpDir, ".arc", "user", "test-user");
@@ -370,9 +370,9 @@ describe("arc errand close", () => {
     const link = await runArc([
       "errand", "link", "safe-link", "--inbox-entry-file", operandPath,
     ], tmpDir);
-    expect(link.exitCode).toBe(0);
+    expect(link.exitCode).toBe(1);
     const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:safe-link"]);
-    expect(record).toContain(`"originEntry": ${JSON.stringify(title)}`);
+    expect(record).not.toContain(`"originEntry": ${JSON.stringify(title)}`);
   });
 });
 
@@ -396,7 +396,7 @@ describe("arc errand retire", () => {
     expect(result.exitCode).toBe(1);
   });
 
-  it("removes the record while the renamed work-unit branch survives", async () => {
+  it("refuses to retire a legacy record while preserving its renamed branch", async () => {
     await setFullProtection(tmpDir);
     const open = await runArc(["errand", "open", "growing", "--type", "fix"], tmpDir);
     expect(open.exitCode).toBe(0);
@@ -405,10 +405,9 @@ describe("arc errand retire", () => {
 
     const result = await runArc(["errand", "retire", "growing"], tmpDir);
 
-    expect(result.exitCode).toBe(0);
-    // The record is gone from the orphan state-ref...
-    await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"])).rejects.toThrow();
-    // ...but the renamed branch is untouched.
+    expect(result.exitCode).toBe(1);
+    expect(await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"]))
+      .toContain('"version": 2');
     expect(await git(tmpDir, ["branch", "--list", "feat/growing-feature"])).toContain("feat/growing-feature");
   });
 
@@ -452,7 +451,7 @@ describe("arc errand promote", () => {
     expect(await git(tmpDir, ["branch", "--list", "fix/growing"])).toContain("fix/growing");
   });
 
-  it("derivation crossing → renames the branch, mints a Planning meta at draft-design, retires the record", async () => {
+  it("refuses a derivation promotion for a legacy record before mutation", async () => {
     await setFullProtection(tmpDir);
     await runArc(["errand", "open", "growing", "--type", "fix"], tmpDir);
 
@@ -461,22 +460,16 @@ describe("arc errand promote", () => {
       tmpDir,
     );
 
-    expect(result.exitCode).toBe(0);
-    // Branch renamed into the Planning WU branch; the errand name is gone.
-    expect(await git(tmpDir, ["branch", "--list", "plan/growth-feature"])).toContain("plan/growth-feature");
+    expect(result.exitCode).toBe(1);
+    expect(await git(tmpDir, ["branch", "--list", "plan/growth-feature"])).toBe("");
     expect(await git(tmpDir, ["branch", "--list", "feat/growth-feature"])).toBe("");
-    expect(await git(tmpDir, ["branch", "--list", "fix/growing"])).toBe("");
-    // Record retired from the orphan state-ref.
-    await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"])).rejects.toThrow();
-    // Meta minted at the planning stage the derivation floor dictates.
-    const meta = await readFile(join(tmpDir, ".arc", "active", "meta-growth-feature.md"), "utf-8");
-    expect(meta).toContain("# Metadata: growth-feature");
-    expect(meta).toMatch(/\bPlanning\b/u);
-    expect(meta).toContain("plan/growth-feature");
-    expect(meta).toContain("draft-design");
+    expect(await git(tmpDir, ["branch", "--list", "fix/growing"])).toContain("fix/growing");
+    expect(await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"]))
+      .toContain('"version": 2');
+    await expect(readFile(join(tmpDir, ".arc", "active", "meta-growth-feature.md"), "utf-8")).rejects.toThrow();
   });
 
-  it("scale crossing → mints an Active meta with no draft-design pointer", async () => {
+  it("refuses a scale promotion for a legacy record before mutation", async () => {
     await setFullProtection(tmpDir);
     await runArc(["errand", "open", "sweeping", "--type", "chore"], tmpDir);
 
@@ -485,13 +478,12 @@ describe("arc errand promote", () => {
       tmpDir,
     );
 
-    expect(result.exitCode).toBe(0);
-    const meta = await readFile(join(tmpDir, ".arc", "active", "meta-sweep-unit.md"), "utf-8");
-    expect(meta).toMatch(/\bActive\b/u);
-    expect(meta).not.toContain("draft-design");
+    expect(result.exitCode).toBe(1);
+    expect(await git(tmpDir, ["branch", "--list", "chore/sweeping"])).toContain("chore/sweeping");
+    await expect(readFile(join(tmpDir, ".arc", "active", "meta-sweep-unit.md"), "utf-8")).rejects.toThrow();
   });
 
-  it("drops a late-linked Work Unit capture when promotion retires the errand record", async () => {
+  it("keeps a Work Unit capture when legacy link and promotion refuse", async () => {
     await setFullProtection(tmpDir);
     const inboxDir = join(tmpDir, ".arc", "user", "test-user");
     const inboxPath = join(inboxDir, "USER-INBOX.md");
@@ -501,13 +493,13 @@ describe("arc errand promote", () => {
     await runArc(["errand", "open", "growing", "--type", "fix"], tmpDir);
 
     const link = await runArc(["errand", "link", "growing", "--from-inbox", "Promote me"], tmpDir);
-    expect(link.exitCode).toBe(0);
+    expect(link.exitCode).toBe(1);
     const promote = await runArc(
       ["errand", "promote", "growing", "--name", "growth-feature", "--type", "feat", "--floor", "derivation"],
       tmpDir,
     );
 
-    expect(promote.exitCode).toBe(0);
-    expect(await readFile(inboxPath, "utf-8")).not.toContain("**Promote me**");
+    expect(promote.exitCode).toBe(1);
+    expect(await readFile(inboxPath, "utf-8")).toContain("**Promote me**");
   });
 });
