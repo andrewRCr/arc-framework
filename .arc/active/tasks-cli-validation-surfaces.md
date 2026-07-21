@@ -265,9 +265,10 @@ the distinct recovery and precedence policies of existing adapters.
           omission-only default accounting, warning subsets, and resolved notes-push value/provenance. Git-config
           overrides remain authoritative over YAML while invalid and empty values retain their adapter fallbacks.
 
-    - `[ ]` **3.4.d Prove strict and worktree-adapter compatibility**
-        - Run the shared corpus through commit checks, worktree location, and harness-directory parsing, preserving
-          hard findings, fallbacks, normalization, token expansion, and throws.
+    - `[x]` **3.4.d Prove strict and worktree-adapter compatibility**
+        - Ran every shared case through commit-policy resolution and the worktree location/harness adapters. Assertions
+          pin hard finding order, omission fallbacks, first-definition masking, branch-token expansion, ordered harness
+          deduplication, empty-list behavior, and invalid-template or reserved-directory throws.
 
     - `[ ]` **3.4.e Prove validator and launcher compatibility**
         - Run the shared corpus through full validation, direct command invocation, the installed launcher, and custom
