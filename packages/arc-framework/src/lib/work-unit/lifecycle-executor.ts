@@ -217,7 +217,7 @@ export interface ExecuteTransitionContext {
   /** Apply soft-field updates to the meta at `metaPath` (read → rewrite → write). */
   writeSoftFields: (
     metaPath: string,
-    updates: Partial<Record<MetaFieldName, string>>,
+    updates: MetaProjectionOverrides,
   ) => Promise<void>;
 
   /** Write the meta `Branch` core-table field at `metaPath` (read → rewrite cell → write). */
@@ -806,7 +806,7 @@ async function applySoftFields(
   // After a relocate, the meta lives under the destination directory.
   const effectivePath = effectiveMetaPath(record, metaPath, inputs);
 
-  const updates: Partial<Record<MetaFieldName, string>> = {};
+  const updates: MetaProjectionOverrides = {};
   for (const key of Object.keys(DISPOSITION_KEY) as (keyof SoftFieldDispositions)[]) {
     const disposition = record.softFields[key];
     const field = DISPOSITION_KEY[key];

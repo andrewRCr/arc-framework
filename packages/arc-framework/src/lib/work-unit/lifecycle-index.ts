@@ -11,9 +11,8 @@
  *
  * Phase + location come from {@link resolveLifecyclePosition} (location from the
  * containing tier, phase from the meta `**State:**` field — no git inference);
- * cohort comes from {@link metaCohortField}; the `**Depends On:**` edges from
- * {@link parseIdentifierList}; the slug is the `meta-<slug>.md` filename. The
- * meta schema is parsed once per file through the shared {@link parseMetaProjectionRecord}
+ * cohort and `**Depends On:**` edges come from the semantic adapter; the slug is
+ * the `meta-<slug>.md` filename. The meta schema is parsed once per file through the shared {@link parseMetaRecord}
  * reader and never re-parsed here.
  *
  * The index is built fresh per invocation — in-memory, process-scoped, no
@@ -34,8 +33,7 @@
 import { basename, join, relative, sep } from "node:path";
 
 import { validateState } from "../../commands/active/types.js";
-import { metaCohortField } from "../active/cohort-consistency.js";
-import { parseIdentifierList, parseMetaProjectionRecord } from "../active/meta-reader.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import {
   resolveLifecyclePosition,
   type Location,
@@ -162,13 +160,13 @@ export function entryFromMeta(path: string, content: string): LifecycleIndexEntr
   if (slug === undefined) return null;
 
   let position: LifecyclePosition | null;
-  let cohortRaw: string;
+  let cohort: string | null;
   let dependsOn: string[];
   try {
-    const record = parseMetaProjectionRecord(content);
-    position = resolveLifecyclePosition({ path, state: record.State });
-    cohortRaw = metaCohortField(content);
-    dependsOn = parseIdentifierList(record["Depends On"]);
+    const record = parseMetaRecord(content);
+    position = resolveLifecyclePosition({ path, state: record.state });
+    cohort = record.cohort;
+    dependsOn = record.dependsOn;
   } catch {
     return null;
   }
@@ -178,7 +176,7 @@ export function entryFromMeta(path: string, content: string): LifecycleIndexEntr
     slug,
     phase: position.phase,
     location: position.location,
-    cohort: cohortRaw === "" ? null : cohortRaw,
+    cohort,
     dependsOn,
     path,
   };

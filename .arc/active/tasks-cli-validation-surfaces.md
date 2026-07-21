@@ -116,9 +116,9 @@ onto stable code-facing fields without losing tolerant recovery.
         - Strict pointer composition now precedes teardown and rejects missing required fields without mutation;
           only pointer-write failure after successful teardown retains the partial-application result.
 
-    - `[ ]` **2.4.f Migrate lifecycle execution infrastructure**
-        - Update `lifecycle-index.ts`, `lifecycle-executor.ts`, and `executor-context.ts` while retaining the explicit
-          semantic-versus-projection write boundary.
+    - `[x]` **2.4.f Migrate lifecycle execution infrastructure**
+        - Moved lifecycle indexing and executor-bound branch reads onto one semantic parse while retaining explicitly
+          label-keyed projection override types at localized transition write seams.
 
     - `[ ]` **2.4.g Migrate remaining transition and completion projections**
         - Update `verbs/promote-demote.ts`, `verbs/teardown.ts`, and `completed-index.ts`; then migrate
