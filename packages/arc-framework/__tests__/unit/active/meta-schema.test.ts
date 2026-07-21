@@ -2,7 +2,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { MetaRecordSchema } from "../../../src/lib/active/meta-schema.js";
+import {
+  META_FIELD_KEYS,
+  MetaProjectionRecordSchema,
+  MetaRecordSchema,
+  ParsedMetaRecordSchema,
+} from "../../../src/lib/active/meta-schema.js";
+import { META_FIELDS } from "../../../src/lib/active/meta-reader.js";
 
 function validRecord(): Record<string, unknown> {
   return {
@@ -95,5 +101,84 @@ describe("MetaRecordSchema", () => {
     expect(result.workClass).toBe("TBD");
     expect(result.priority).toBe("TBD");
     expect(result.origin).toBe("internal");
+  });
+});
+
+describe("MetaProjectionRecordSchema", () => {
+  function projectionRecord(): Record<string, string | null> {
+    return Object.fromEntries(META_FIELD_KEYS.map(({ name }) => [name, null]));
+  }
+
+  it("accepts the complete Markdown label projection", () => {
+    const projection = {
+      State: "Active",
+      Owner: "andrew",
+      Branch: "feat/example",
+      Class: "Heavy",
+      Priority: "P2",
+      Cohort: null,
+      "Depends On": "[none]",
+      Origin: "[internal]",
+      Design: "spec-example.md",
+      "Task List": "tasks-example.md",
+      "Current Workflow": null,
+      "Last Completed": null,
+      "Next Task": null,
+      Blockers: null,
+      "Next Action": "Begin Task 1.1",
+      "PR URL": null,
+      Completed: null,
+    };
+
+    expect(MetaProjectionRecordSchema.parse(projection)).toEqual(projection);
+  });
+
+  it("keeps the descriptor semantic keys aligned with the projection authority", () => {
+    expect(META_FIELDS.map(({ name, key }) => ({ name, key }))).toEqual(META_FIELD_KEYS);
+  });
+
+  it("requires exactly the 17 managed labels", () => {
+    const complete = projectionRecord();
+    const missing = Object.fromEntries(Object.entries(complete).filter(([name]) => name !== "Completed"));
+
+    expect(Object.keys(complete)).toHaveLength(17);
+    expect(MetaProjectionRecordSchema.safeParse(missing).success).toBe(false);
+    expect(MetaProjectionRecordSchema.safeParse({ ...complete, Extra: null }).success).toBe(false);
+    expect(MetaProjectionRecordSchema.safeParse({ ...complete, State: 42 }).success).toBe(false);
+  });
+});
+
+describe("ParsedMetaRecordSchema", () => {
+  it("accepts raw closed-domain tokens without discarding independent fields", () => {
+    const parsed = {
+      ...validRecord(),
+      state: "Paused unexpectedly",
+      workClass: "Bespoke",
+      priority: "Urgent",
+      branch: null,
+      dependsOn: ["kernel", "layout"],
+      design: [],
+    };
+
+    expect(ParsedMetaRecordSchema.parse(parsed)).toEqual(parsed);
+  });
+
+  it("preserves independent fields when another token is absent or invalid", () => {
+    const parsed = ParsedMetaRecordSchema.parse({
+      ...validRecord(),
+      state: "not-a-state",
+      owner: null,
+      branch: "feat/still-usable",
+      dependsOn: ["kernel"],
+    });
+
+    expect(parsed.state).toBe("not-a-state");
+    expect(parsed.owner).toBeNull();
+    expect(parsed.branch).toBe("feat/still-usable");
+    expect(parsed.dependsOn).toEqual(["kernel"]);
+  });
+
+  it("rejects empty present adapter values", () => {
+    expect(ParsedMetaRecordSchema.safeParse({ ...validRecord(), state: "" }).success).toBe(false);
   });
 });

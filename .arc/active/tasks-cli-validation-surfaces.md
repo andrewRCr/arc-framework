@@ -34,7 +34,7 @@ registry to include it.
 _Purpose:_ Separate semantic work-unit state from its Markdown projection, then move the broad consumer surface
 onto stable code-facing fields without losing tolerant recovery.
 
-### `[ ]` **2.1 Establish semantic and projection meta schemas**
+### `[x]` **2.1 Establish semantic and projection meta schemas**
 
 - _Goal:_ Meta state has a storage-agnostic strict record while the current Markdown format retains an explicit,
   independently validated compatibility representation.
@@ -44,16 +44,10 @@ onto stable code-facing fields without losing tolerant recovery.
           fields and identifier arrays, deliberate `TBD`/`internal` values, and inferred structural types. Display
           sentinels and malformed or incomplete records are rejected without adding policy to open values.
 
-    - `[ ]` **2.1.b Define the Markdown projection contracts**
-        - Add semantic keys to `META_FIELDS` while retaining display order, render mode, and value-class metadata.
-        - Define `MetaProjectionRecordSchema` for the complete 17-label tokenizer output and
-          `ParsedMetaRecordSchema` for the tolerant code-facing adapter record.
-        - Keep raw non-empty closed-domain strings in the parsed adapter so callers can degrade one invalid field
-          without losing unrelated evidence.
-        - Build `test-first` (one behavior at a time):
-            - require the exact 17 projection labels with `string | null` values and reject extras;
-            - accept arbitrary non-empty raw tokens for closed domains in the parsed compatibility record;
-            - retain every independent field when another token is absent or semantically invalid.
+    - `[x]` **2.1.b Define the Markdown projection contracts**
+        - Added exact label-to-semantic-key identities to `META_FIELDS`, a strict 17-label tokenizer schema, and a
+          tolerant code-facing parsed-record schema. Raw invalid closed-domain tokens and absent fields remain
+          independently visible while malformed projection shapes and empty present values are rejected.
 
 ### `[ ]` **2.2 Preserve Markdown parsing and canonical rendering through semantic records**
 

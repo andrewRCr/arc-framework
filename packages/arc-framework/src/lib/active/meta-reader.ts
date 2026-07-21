@@ -232,6 +232,8 @@ export type MetaValueClass = "enum" | "identifier" | "identifier-list" | "url" |
 export interface MetaFieldDescriptor {
   /** Bold-marker label, e.g. `"Next Action"` (rendered as `- **Next Action:** …`). */
   readonly name: string;
+  /** Storage-agnostic code-facing key for this projection label. */
+  readonly key: MetaSemanticKey;
   /** Value rendered when the caller supplies no override for this field. */
   readonly default: string;
   /** Grouping key — bullet fields sharing a group render contiguously, blank-line separated. */
@@ -250,23 +252,23 @@ export interface MetaFieldDescriptor {
  * {@link MetaFieldName} literal union.
  */
 export const META_FIELDS = [
-  { name: "State", default: "—", group: "core", render: "core-table", valueClass: "enum" },
-  { name: "Owner", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
-  { name: "Branch", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
-  { name: "Class", default: "[TBD]", group: "core", render: "core-table", valueClass: "enum" },
-  { name: "Priority", default: "P3", group: "core", render: "core-table", valueClass: "enum" },
-  { name: "Cohort", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
-  { name: "Depends On", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier-list" },
-  { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "url" },
-  { name: "Design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
-  { name: "Task List", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
-  { name: "Current Workflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
-  { name: "Last Completed", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
-  { name: "Next Task", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
-  { name: "Blockers", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
-  { name: "Next Action", default: "—", group: "directive", render: "bullet", valueClass: "narrative" },
-  { name: "PR URL", default: "[none]", group: "finalize", render: "bullet", valueClass: "url" },
-  { name: "Completed", default: "[none]", group: "finalize", render: "bullet", valueClass: "narrative" },
+  { name: "State", key: "state", default: "—", group: "core", render: "core-table", valueClass: "enum" },
+  { name: "Owner", key: "owner", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
+  { name: "Branch", key: "branch", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
+  { name: "Class", key: "workClass", default: "[TBD]", group: "core", render: "core-table", valueClass: "enum" },
+  { name: "Priority", key: "priority", default: "P3", group: "core", render: "core-table", valueClass: "enum" },
+  { name: "Cohort", key: "cohort", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
+  { name: "Depends On", key: "dependsOn", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier-list" },
+  { name: "Origin", key: "origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "url" },
+  { name: "Design", key: "design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
+  { name: "Task List", key: "taskList", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Current Workflow", key: "currentWorkflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
+  { name: "Last Completed", key: "lastCompleted", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
+  { name: "Next Task", key: "nextTask", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
+  { name: "Blockers", key: "blockers", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
+  { name: "Next Action", key: "nextAction", default: "—", group: "directive", render: "bullet", valueClass: "narrative" },
+  { name: "PR URL", key: "prUrl", default: "[none]", group: "finalize", render: "bullet", valueClass: "url" },
+  { name: "Completed", key: "completed", default: "[none]", group: "finalize", render: "bullet", valueClass: "narrative" },
 ] as const satisfies readonly MetaFieldDescriptor[];
 
 const CORE_FIELD_NAMES = META_FIELDS
@@ -1040,3 +1042,4 @@ function extractField(content: string, label: string): string | null {
 export function stripInlineCode(value: string): string {
   return value.replace(/`([^`]+)`/g, "$1");
 }
+import type { MetaSemanticKey } from "./meta-schema.js";
