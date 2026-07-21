@@ -910,14 +910,15 @@ architecture lands as one coherent forward contract.
 - **Additional Context:** `strategy-package-project-sync.md` §§ Edit Flow Rules, Template Counterparts, and
   Safeguards.
 
-    - `[ ]` **7.3.a Audit framework and configurable mirrors**
-        - Verify each methodology edit was made package-first and mirrored in `.arc/` during its owning task;
-          reconcile framework equality and configurable project overrides without blind copying.
-        - Register added/renamed/retired methods in `packages/arc-framework/init-recipe.json`, method indexes, the
-          self-hosting manifest/classification records, and init/update/package tests; keep configurable method files
-          as ordinary files rather than inventing `.template.md` variants.
-        - Refresh `strategy-package-project-sync.md`'s stale hand-maintained template/file inventory from the recipe
-          and source tree, then verify generated manifest expectations.
+    - `[x]` **7.3.a Audit framework and configurable mirrors**
+        - Verified all changed Framework and review-method mirrors against package-authoritative sources while
+          retaining the self-hosting config overrides; the neutral review method set remains ordinary Configurable
+          files and the retired `diff-review` path is absent from source, recipe, classifier, and manifest membership.
+        - Regenerated the self-hosting manifest from the current recipe/configuration, expanded init/update/E2E
+          expectations to all 15 methods and 13 extensions, and made recipe-derived membership/classification a
+          persistent framework-sync assertion.
+        - Replaced the stale exhaustive Framework list with authoritative recipe/classifier derivation and refreshed
+          exact configurable, scaffolded, conditional, and 11-template counterpart inventory/counts.
 
     - `[ ]` **7.3.b Sweep retired vocabulary and policy references**
         - Search live package/project corpora, CLI/config code, workflows, tests, root docs, and `.github` surfaces for

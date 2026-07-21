@@ -266,9 +266,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- Per-File Methods and Extensions ---
 
-  it("installs all 12 per-file methods plus README in system/methods/", async () => {
+  it("installs all 15 per-file methods plus README in system/methods/", async () => {
     const methodFiles = [
-      "commit-footer.md",
+      "classify-work-unit.md", "commit-footer.md",
       "commit-format.md",
       "frontline-review.md",
       "independent-analysis.md",
@@ -276,9 +276,11 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "self-review.md",
       "issue-triage.md",
       "quality-gate-commands.md",
+      "resolve-planning-depth.md",
       "review-response.md",
       "review-triage.md",
       "session-state.md",
+      "spec-review.md",
       "test-first.md",
       "README.md",
     ];
@@ -288,7 +290,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     }
   });
 
-  it("installs all 12 per-file extensions plus README in system/extensions/", async () => {
+  it("installs all 13 per-file extensions plus README in system/extensions/", async () => {
     const extensionFiles = [
       "post-context-load.md",
       "post-task-completion.md",
@@ -302,6 +304,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "pre-pr-open.md",
       "post-pr-open.md",
       "pre-push-review.md",
+      "pre-spec-finalization-review.md",
       "README.md",
     ];
     for (const name of extensionFiles) {
@@ -316,16 +319,16 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const manifest = await readManifestFile(tempDir);
 
       const methodNames = [
-        "commit-footer", "commit-format", "frontline-review", "independent-analysis",
+        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "independent-analysis",
         "implementation-audit", "self-review",
-        "issue-triage", "quality-gate-commands", "review-response", "review-triage",
-        "session-state", "test-first",
+        "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
+        "session-state", "spec-review", "test-first",
       ];
       const extensionNames = [
         "post-context-load", "post-task-completion", "post-task-quality",
         "post-unit-quality", "post-work-unit-activate",
         "post-work-unit-archive", "pre-activation", "pre-commit-review",
-        "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review",
+        "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
       ];
 
       for (const name of methodNames) {
