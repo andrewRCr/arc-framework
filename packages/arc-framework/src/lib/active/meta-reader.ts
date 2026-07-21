@@ -24,6 +24,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
 import {
   MetaProjectionRecordSchema,
+  MetaRecordSchema,
   ParsedMetaRecordSchema,
   type MetaProjectionRecord,
   type MetaRecord as SemanticMetaRecord,
@@ -457,7 +458,7 @@ function wrapCommaList(items: readonly string[], firstPrefixLength: number): str
  * @param overrides - Field→value overrides; absent fields render at their default.
  * @returns The rendered meta markdown, terminated by a single newline.
  */
-export function renderMetaFile(
+export function renderMetaProjectionFile(
   wuName: string,
   overrides: MetaFieldOverrides = {},
 ): string {
@@ -468,6 +469,69 @@ export function renderMetaFile(
   lines.push(...renderBullets(valueOf));
   lines.push("", "---");
   return `${lines.join("\n")}\n`;
+}
+
+/**
+ * Render a complete canonical meta projection from semantic-key overrides.
+ * Required semantic values have no display-placeholder default and fail schema
+ * validation when omitted; all other fields use their durable semantic defaults.
+ *
+ * @param wuName - Work-unit name for the H1
+ * @param overrides - Partial storage-independent semantic record
+ * @returns Canonical full-layout Markdown
+ */
+export function renderMetaFile(
+  wuName: string,
+  overrides: Partial<MetaRecord> = {},
+): string {
+  const record = MetaRecordSchema.parse({
+    state: undefined,
+    owner: undefined,
+    branch: null,
+    workClass: "TBD",
+    priority: "P3",
+    cohort: null,
+    dependsOn: [],
+    origin: "internal",
+    design: [],
+    taskList: null,
+    currentWorkflow: null,
+    lastCompleted: null,
+    nextTask: null,
+    blockers: null,
+    nextAction: null,
+    prUrl: null,
+    completed: null,
+    ...overrides,
+  });
+
+  return renderMetaProjectionFile(wuName, {
+    State: record.state,
+    Owner: record.owner,
+    Branch: renderNullable(record.branch),
+    Class: record.workClass === "TBD" ? "[TBD]" : record.workClass,
+    Priority: record.priority === "TBD" ? "[TBD]" : record.priority,
+    Cohort: renderNullable(record.cohort),
+    "Depends On": renderIdentifierList(record.dependsOn),
+    Origin: record.origin === "internal" ? "[internal]" : record.origin,
+    Design: renderIdentifierList(record.design),
+    "Task List": renderNullable(record.taskList),
+    "Current Workflow": renderNullable(record.currentWorkflow),
+    "Last Completed": renderNullable(record.lastCompleted),
+    "Next Task": renderNullable(record.nextTask),
+    Blockers: renderNullable(record.blockers),
+    "Next Action": record.nextAction ?? "—",
+    "PR URL": renderNullable(record.prUrl),
+    Completed: renderNullable(record.completed),
+  });
+}
+
+function renderNullable(value: string | null): string {
+  return value ?? "[none]";
+}
+
+function renderIdentifierList(values: readonly string[]): string {
+  return values.length === 0 ? "[none]" : values.join(", ");
 }
 
 /**
@@ -998,6 +1062,12 @@ export function parseMetaRecord(content: string): ParsedMetaRecord {
     prUrl: nullableProjectionValue(projection["PR URL"]),
     completed: nullableProjectionValue(projection.Completed),
   });
+}
+
+/** Convert a tolerant parsed adapter record to the strict durable contract. */
+export function toMetaRecord(record: ParsedMetaRecord): MetaRecord | null {
+  const parsed = MetaRecordSchema.safeParse(record);
+  return parsed.success ? parsed.data : null;
 }
 
 function nullableProjectionValue(value: string | null): string | null {

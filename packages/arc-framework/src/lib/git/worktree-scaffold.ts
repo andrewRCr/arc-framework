@@ -22,7 +22,7 @@ import { join } from "node:path";
 
 import { runUserOpen } from "../../commands/user/open.js";
 import type { UserIOContext } from "../../commands/user/types.js";
-import { renderMetaFile, type MetaFieldOverrides } from "../active/meta-reader.js";
+import { renderMetaProjectionFile, type MetaFieldOverrides } from "../active/meta-reader.js";
 import {
   PLANNING_WORKFLOWS,
   BEGIN_CURRENT_WORKFLOW_SENTINEL,
@@ -142,7 +142,7 @@ export async function scaffoldIntoWorktree(
 
   await ctx.io.writeFile(
     join(activeDir, `meta-${params.wuName}.md`),
-    renderMetaFile(params.wuName, overrides),
+    renderMetaProjectionFile(params.wuName, overrides),
   );
 
   await runUserOpen({

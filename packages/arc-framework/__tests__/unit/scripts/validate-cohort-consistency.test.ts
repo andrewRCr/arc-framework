@@ -27,7 +27,7 @@ import {
   deriveScanRoot,
   type LiveCohortContext,
 } from "../../../src/scripts/validate-cohort-consistency.js";
-import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 
 function fakeReader(files: Record<string, string>) {
   return (path: string) => {
@@ -39,7 +39,7 @@ function fakeReader(files: Record<string, string>) {
 
 /** A backlog meta filed at `path`, carrying the given `Cohort` field value. */
 function metaFor(wuName: string, cohort: string): string {
-  return renderMetaFile(wuName, { State: "Planning", Owner: "andrew", Cohort: cohort });
+  return renderMetaProjectionFile(wuName, { State: "Planning", Owner: "andrew", Cohort: cohort });
 }
 
 /** A cohort doc with an optional Purpose floor and per-member sections. */

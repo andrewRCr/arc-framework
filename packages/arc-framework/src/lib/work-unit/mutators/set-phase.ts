@@ -4,7 +4,7 @@
  * The single write point for a phase-axis move: it edits the meta's
  * `**State:**` field in place and touches nothing else — no location change, no
  * branch op. It is net-new and frontmatter-preserving by necessity, since
- * `meta-reader` is read-only and `renderMetaFile` writes a full fresh meta
+ * `meta-reader` is read-only and `renderMetaProjectionFile` writes a full fresh meta
  * (losing narrative, ordering, and hand-edits); `setMetaState` re-renders only
  * the core-block table, leaving every other field and section intact.
  *

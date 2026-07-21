@@ -49,7 +49,7 @@ onto stable code-facing fields without losing tolerant recovery.
           tolerant code-facing parsed-record schema. Raw invalid closed-domain tokens and absent fields remain
           independently visible while malformed projection shapes and empty present values are rejected.
 
-### `[ ]` **2.2 Preserve Markdown parsing and canonical rendering through semantic records**
+### `[x]` **2.2 Preserve Markdown parsing and canonical rendering through semantic records**
 
 - _Goal:_ Both Markdown layouts parse to the same semantic fields, while canonical full-layout rendering and
   localized legacy mutations preserve their respective bytes, sentinel behavior, and field-level recovery.
@@ -59,27 +59,15 @@ onto stable code-facing fields without losing tolerant recovery.
           arrays, nulls, `TBD`, and `internal` while preserving raw invalid closed tokens and multiline narratives.
           Unmigrated consumers use an explicit temporary projection reader rather than weakening the semantic API.
 
-    - `[ ]` **2.2.b Validate and render complete semantic records**
-        - Add `toMetaRecord()` as the strict conversion point for callers that require a fully valid record.
-        - Make `renderMetaFile()` accept partial semantic-key overrides, assemble a complete record from defaults,
-          validate the assembled record, and emit only the established full table-and-bullet layout; do not add a
-          legacy flat-bullet writer.
-        - Map null `branch`, `cohort`, `taskList`, `currentWorkflow`, `lastCompleted`, `nextTask`, `blockers`, `prUrl`,
-          and `completed` to `[none]`; map null `nextAction` to `—`; map empty identifier arrays to `[none]`; reject
-          null for required semantic fields.
-        - Split semantic render overrides from the projection-label update type retained by localized Markdown
-          mutators; keep those setters and reconciliation helpers behaviorally stable.
-        - Build `test-first` (one behavior at a time):
-            - round-trip every full-layout field and exact list/sentinel representation;
-            - preserve byte fixtures for default and overridden full-layout files;
-            - preserve unrelated legacy flat-bullet bytes through localized setters and reconciliation helpers;
-            - allow partial semantic overrides but reject missing required defaults or another invalid assembled
-              durable record before rendering.
+    - `[x]` **2.2.b Validate and render complete semantic records**
+        - Added nullable strict conversion and a schema-validated semantic renderer that preserves the established
+          full-layout bytes while mapping nulls, empty arrays, `TBD`, and `internal` to their exact display forms.
+          Localized projection mutators and the temporary projection renderer retain legacy byte behavior.
 
-    - `[ ]` **2.2.c Preserve narrow reader compatibility**
-        - Keep `parseMetaFile()` and active-candidate reads on their existing result shapes and warning behavior.
-        - Characterize malformed core tables, absent markers, and field-local invalid values before switching their
-          projection to semantic keys.
+    - `[x]` **2.2.c Preserve narrow reader compatibility**
+        - Kept `parseMetaFile()` and active-candidate reads on their established narrow result and warning contracts;
+          the existing malformed-table, absent-marker, legacy-layout, and field-local degradation corpus remains
+          green across the semantic reader and renderer cutovers.
 
 ### `[ ]` **2.3 Migrate semantic meta writers and render producers**
 

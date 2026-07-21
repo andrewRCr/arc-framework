@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderMetaFile } from "../../../../../../src/lib/active/meta-reader.js";
+import { renderMetaProjectionFile } from "../../../../../../src/lib/active/meta-reader.js";
 import type { GitExec } from "../../../../../../src/lib/git/exec.js";
 import {
   resolveAutoLane,
@@ -8,7 +8,7 @@ import {
 } from "../../../../../../src/scripts/review-gate/policy/self-hosting/lane.js";
 
 function meta(owner: string): string {
-  return renderMetaFile("sample", { Owner: owner });
+  return renderMetaProjectionFile("sample", { Owner: owner });
 }
 
 function execWith(files: Record<string, string>): GitExec {

@@ -16,7 +16,7 @@ import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
 
 import { runColdStart, runCreateNew, deriveColdStartWuName } from "../../../src/commands/start.js";
-import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 import { parseMetaProjectionRecord } from "../../../src/lib/active/meta-reader.js";
 import { readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import { resolveWorktreeLocation } from "../../../src/lib/git/worktree-location.js";
@@ -385,7 +385,7 @@ describe("runColdStart — guards", () => {
     await mkdir(activeDir, { recursive: true });
     await writeFile(
       join(activeDir, "meta-existing.md"),
-      renderMetaFile("existing", { State: "Active", Owner: "andrew", Branch: "feat/existing" }),
+      renderMetaProjectionFile("existing", { State: "Active", Owner: "andrew", Branch: "feat/existing" }),
     );
 
     const outcome = await runColdStart(ctx(io), {

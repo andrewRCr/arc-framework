@@ -199,7 +199,7 @@ describe("scaffoldIntoWorktree — planning-stage pointer at init", () => {
   });
 });
 
-describe("scaffoldIntoWorktree — renderMetaFile-shaped scaffold (single source of meta shape)", () => {
+describe("scaffoldIntoWorktree — renderMetaProjectionFile-shaped scaffold (single source of meta shape)", () => {
   let worktree: string;
   let io: UserIOContext;
 
@@ -226,7 +226,7 @@ describe("scaffoldIntoWorktree — renderMetaFile-shaped scaffold (single source
     const record = parseMetaProjectionRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-fresh-wu.md")),
     );
-    // The renderMetaFile projection emits the whole field set — no field is absent
+    // The renderMetaProjectionFile projection emits the whole field set — no field is absent
     // (a marker-absent field parses back `null`), the drift `template-meta.md` could carry.
     for (const field of META_FIELDS) {
       expect(record[field.name], `field ${field.name} present`).not.toBeNull();

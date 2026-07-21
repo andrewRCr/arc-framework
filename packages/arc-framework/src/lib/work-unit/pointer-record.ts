@@ -19,7 +19,7 @@
  * @module
  */
 
-import { renderMetaFile, type MetaFieldOverrides } from "../active/meta-reader.js";
+import { renderMetaProjectionFile, type MetaFieldOverrides } from "../active/meta-reader.js";
 
 /** The inputs a {@link composePointerRecord} render needs. */
 export interface PointerRecordInput {
@@ -61,5 +61,5 @@ export function composePointerRecord(input: PointerRecordInput): string {
     `> Reason: ${input.reason}`,
     `> Regenerated pointer — do not hand-edit.`,
   ].join("\n");
-  return `${callout}\n\n${renderMetaFile(input.name, overrides)}`;
+  return `${callout}\n\n${renderMetaProjectionFile(input.name, overrides)}`;
 }

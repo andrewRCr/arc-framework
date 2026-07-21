@@ -25,7 +25,7 @@ import { join } from "node:path";
 
 import { validateClass } from "../../../commands/active/types.js";
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
-import { renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import { renderMetaProjectionFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import {
   executeTransition,
@@ -186,7 +186,7 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
     if (hasCohort) overrides.Cohort = cohort;
 
     await ensureDir(join(ctx.executor.cwd, toDir), ctx.fs.mkdir);
-    await ctx.fs.writeFile(join(ctx.executor.cwd, toDir, `meta-${slug}.md`), renderMetaFile(slug, overrides));
+    await ctx.fs.writeFile(join(ctx.executor.cwd, toDir, `meta-${slug}.md`), renderMetaProjectionFile(slug, overrides));
   };
 
   const outcome = await executeTransition(

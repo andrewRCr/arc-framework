@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaProjectionRecord, renderMetaFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord, renderMetaProjectionFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
 import {
   runDecompose,
   runPreparedDecompose,
@@ -245,7 +245,7 @@ function metaContent(spec: MetaSpec): string {
   if (spec.cohort !== undefined) o.Cohort = spec.cohort;
   if (spec.dependsOn !== undefined && spec.dependsOn.length > 0) o["Depends On"] = spec.dependsOn.join(", ");
   if (spec.origin !== undefined) o.Origin = spec.origin;
-  return renderMetaFile(spec.slug, o);
+  return renderMetaProjectionFile(spec.slug, o);
 }
 
 /** Build an injectable lifecycle-index fs over a fixed set of metas (mirrors the abandon harness). */

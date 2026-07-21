@@ -18,7 +18,7 @@ import type {
   GitExec,
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
-import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 
 type ResponseFn = (
   args: string[],
@@ -632,7 +632,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-x.md": renderMetaFile("x", {
+      "/home/dev/repo/.arc/active/meta-x.md": renderMetaProjectionFile("x", {
         State: "Active",
         Owner: "alice",
         Branch: "feat/x",
@@ -659,12 +659,12 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-a.md": renderMetaFile("a", {
+      "/home/dev/repo/.arc/active/meta-a.md": renderMetaProjectionFile("a", {
         State: "Active",
         Owner: "alice",
         Branch: "feat/a",
       }),
-      "/home/dev/repo/.arc/active/meta-b.md": renderMetaFile("b", {
+      "/home/dev/repo/.arc/active/meta-b.md": renderMetaProjectionFile("b", {
         State: "Active",
         Owner: "bob",
         Branch: "feat/b",
@@ -691,7 +691,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
     const fs = buildFs({
       "/home/dev/repo/.arc/active/meta-a.md":
         "# Metadata: a\n\n| State | Owner | Branch | Class | Priority |\n| --- | --- | --- | --- | --- |\n| `Active` |\n",
-      "/home/dev/repo/.arc/active/meta-b.md": renderMetaFile("b", {
+      "/home/dev/repo/.arc/active/meta-b.md": renderMetaProjectionFile("b", {
         State: "Active",
         Owner: "bob",
         Branch: "feat/b",

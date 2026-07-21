@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { renderMetaProjectionFile } from "../../src/lib/active/meta-reader.js";
 import { resolveAutoLane } from "../../src/scripts/review-gate/policy/self-hosting/lane.js";
 import {
   cleanupTempDir,
@@ -34,9 +34,9 @@ describe("ref-backed review lane", () => {
   it("reads flat, nested, added, deleted, whitespace, and newline groups from exact refs", async () => {
     const repo = await createTempRepo("review-gate-lane-");
     tempDirs.push(repo);
-    await write(repo, ".arc/active/meta-flat.md", renderMetaFile("flat", { Owner: "andrew" }));
+    await write(repo, ".arc/active/meta-flat.md", renderMetaProjectionFile("flat", { Owner: "andrew" }));
     await write(repo, ".arc/active/tasks-flat.md", "flat\n");
-    await write(repo, ".arc/backlog/planned/old/meta-old.md", renderMetaFile("old", { Owner: "andrew" }));
+    await write(repo, ".arc/backlog/planned/old/meta-old.md", renderMetaProjectionFile("old", { Owner: "andrew" }));
     await write(repo, ".arc/backlog/planned/old/notes-old.md", "old\n");
     const base = await commit(repo, "base groups");
 
@@ -46,7 +46,7 @@ describe("ref-backed review lane", () => {
     await write(
       repo,
       `.arc/backlog/planned/new group/meta-${oddSlug}.md`,
-      renderMetaFile(oddSlug, { Owner: "andrew" }),
+      renderMetaProjectionFile(oddSlug, { Owner: "andrew" }),
     );
     await write(repo, `.arc/backlog/planned/new group/draft-${oddSlug}.md`, "new\n");
     const head = await commit(repo, "mixed group changes");
@@ -70,7 +70,7 @@ describe("ref-backed review lane", () => {
   it("fails reviewed for cross-group moves and unreadable refs", async () => {
     const repo = await createTempRepo("review-gate-lane-");
     tempDirs.push(repo);
-    await write(repo, ".arc/active/meta-old.md", renderMetaFile("old", { Owner: "andrew" }));
+    await write(repo, ".arc/active/meta-old.md", renderMetaProjectionFile("old", { Owner: "andrew" }));
     await write(repo, ".arc/active/tasks-old.md", "old\n");
     const base = await commit(repo, "base");
     const head = base;

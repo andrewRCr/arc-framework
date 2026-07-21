@@ -21,7 +21,7 @@
 
 import { join } from "node:path";
 
-import { parseMetaProjectionRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import { parseMetaProjectionRecord, renderMetaProjectionFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { canonicalize } from "../../canonical/canonical-json.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import { repointDependsOn } from "../decompose-sweep.js";
@@ -113,7 +113,7 @@ export interface ScaffoldedMember {
 /**
  * Render a fresh member `draft-<slug>.md` skeleton — the pre-PRD synthesis
  * structure the conservation gate fills, mirroring `template-draft.md` (the
- * instructional comment dropped, as {@link renderMetaFile} drops it for metas).
+ * instructional comment dropped, as {@link renderMetaProjectionFile} drops it for metas).
  * The `Cohort` header line is the dual-placement mirror of the meta field.
  *
  * @param slug - The member work-unit slug → the H1 and filename stem.
@@ -197,7 +197,7 @@ export async function scaffoldCohortMembers(
     if (deps.length > 0) overrides["Depends On"] = deps.join(", ");
 
     await ensureDir(join(ctx.cwd, dir), ctx.fs.mkdir);
-    await ctx.fs.writeFile(join(ctx.cwd, metaPath), renderMetaFile(member.slug, overrides));
+    await ctx.fs.writeFile(join(ctx.cwd, metaPath), renderMetaProjectionFile(member.slug, overrides));
     await ctx.fs.writeFile(join(ctx.cwd, draftPath), renderMemberDraft(member.slug, originContext.origin, cohort));
 
     scaffolded.push({ slug: member.slug, metaPath, draftPath });

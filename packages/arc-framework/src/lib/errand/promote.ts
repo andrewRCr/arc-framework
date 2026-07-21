@@ -5,7 +5,7 @@
  * unit: renames the errand branch into the WU branch (commits preserved), mints
  * the backing `meta-<name>.md`, and retires the errand record. The crossing-*out*
  * seam of the errand lattice — like `open`/`close`/`retire` it composes shipped
- * primitives (`renderMetaFile` + branch rename + record removal/push) directly,
+ * primitives (`renderMetaProjectionFile` + branch rename + record removal/push) directly,
  * rather than routing through the WU transition executor (whose table is keyed
  * over WU states an errand does not occupy).
  *
@@ -23,7 +23,7 @@
 
 import { join } from "node:path";
 
-import { renderMetaFile, type MetaFieldOverrides } from "../active/meta-reader.js";
+import { renderMetaProjectionFile, type MetaFieldOverrides } from "../active/meta-reader.js";
 import { ensureDir, type MkdirFn, type ReadFileFn, type WriteFileFn } from "../template/files.js";
 import { reconcileErrandPush, type ErrandPushOutcome } from "./merge.js";
 import { readErrandRecord, removeErrandRecord, type ErrandRecord } from "./record.js";
@@ -118,7 +118,7 @@ export async function promoteErrand(
 
   // Mint the backing meta at the stage the crossed floor dictates.
   await ensureDir(join(cwd, ACTIVE_DIR), fs.mkdir);
-  await fs.writeFile(join(cwd, metaPath), renderMetaFile(name, metaOverridesFor(params, branch)));
+  await fs.writeFile(join(cwd, metaPath), renderMetaProjectionFile(name, metaOverridesFor(params, branch)));
 
   // Retire the record last — the renamed branch is untouched, so this never
   // strands commits, and a failure before here leaves the errand recoverable.

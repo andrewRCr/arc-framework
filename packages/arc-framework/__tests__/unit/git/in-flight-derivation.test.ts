@@ -6,7 +6,7 @@ import {
   type InFlightWarning,
 } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
-import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 
 const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
 
@@ -1741,7 +1741,7 @@ describe("deriveInFlight — shared-reader field recovery", () => {
   it("recovers fields from a table-rendered, backticked meta", async () => {
     const exec = makeExec({
       metas: {
-        "origin/feat/x:.arc/active/meta-x.md": renderMetaFile("x", {
+        "origin/feat/x:.arc/active/meta-x.md": renderMetaProjectionFile("x", {
           State: "Active",
           Owner: "andrew",
           Branch: "feat/x",
