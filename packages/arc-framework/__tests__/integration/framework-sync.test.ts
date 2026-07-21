@@ -147,6 +147,8 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/independent-analysis.md",
       "system/extensions/README.md",
       "system/extensions/pre-pr-open.md",
+      "system/workflows/arc/supplemental/run-errand.md",
+      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     ];
 
     for (const path of paths) {

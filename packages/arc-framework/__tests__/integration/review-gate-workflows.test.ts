@@ -308,6 +308,24 @@ describe("trusted review-gate workflows", () => {
     expect(coordination).not.toMatch(/provider command|without polling/iu);
   });
 
+  it("keeps frontline publication operational, advisory, and provider-neutral", async () => {
+    const paths = [
+      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      "system/workflows/arc/supplemental/run-errand.md",
+    ];
+    for (const path of paths) {
+      const [packaged, project] = await Promise.all([
+        readRepositoryFile(`packages/arc-framework/arc/${path}`),
+        readRepositoryFile(`.arc/${path}`),
+      ]);
+      expect(project).toBe(packaged);
+      expect(packaged).toContain("ReviewOperationStateStore");
+      expect(packaged).toContain("advisory publication orientation");
+      expect(packaged).toContain("never enters review receipts or gate reduction");
+      expect(packaged).not.toMatch(/CodeRabbit|coderabbit|billing|credits?|quota|--agent|--plain/iu);
+    }
+  });
+
   it("drives both integration safety windows through authoritative base drift", async () => {
     const [packageIntegration, instanceIntegration] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),

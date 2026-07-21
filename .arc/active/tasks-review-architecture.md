@@ -587,7 +587,7 @@ that shapes review spend without producing satisfying evidence.
   while findings await an observed contract and every unknown or failed shape stays non-clean. The project binding
   activates only the local CLI source and does not alter hosted review capacity or evidence authority.
 
-### `[ ]` **5.4 Wire frontline into work-unit and Errand publication**
+### `[x]` **5.4 Wire frontline into work-unit and Errand publication**
 
 - _Goal:_ Both publication paths execute the router-selected frontline action at the aggregate pre-PR boundary,
   then enter the ordinary PR lifecycle with an exact, settled head.
@@ -610,10 +610,14 @@ that shapes review spend without producing satisfying evidence.
           conflicts through `ReviewOperationStateStore`. Publication surfaces remain provider-neutral and advisory,
           while gate reduction now validates and rejects non-evidence records at runtime.
 
-    - `[ ]` **5.4.d Validate extension and publication contracts**
-        - Extend `pr-open-extensions`, `review-gate-workflows`, framework-sync, and relevant Errand/WU workflow tests
-          for ordering, unchanged-target retry/re-entry, active/inactive method, fix-induced invalidation, preparation
-          offers, persistence replay/conflict, and failure paths against Phase 4's operational-state adapter.
+    - `[x]` **5.4.d Validate extension and publication contracts**
+        - Extended the focused ARC contract slice across work-unit and Errand ordering, partial-protection exclusion,
+          replay/invalidation and pending publication, provider-neutral workflow content, framework mirroring, method
+          activation and offers, bounded outcomes, and local optimistic-concurrency conflict behavior.
+
+- _Outcome:_ Work-unit and full-protection Errand publication now share one provider-neutral exact-target frontline
+  cycle before generic PR hooks. Durable operation replay prevents duplicate unchanged-target work without creating
+  evidence or gate authority, while every changed binding reroutes and direct-base Errands remain outside PR mechanics.
 
 ## **Phase 6:** Review response and integration autonomy
 
