@@ -267,6 +267,51 @@ describe("forward review contract projection", () => {
     });
   });
 
+  it("does not attribute a lifecycle carry to an applicability proof it did not rest on", () => {
+    const prior = contract({ head: "c", retrigger: "incremental" });
+    const current = contract({ head: "d", generation: 1, retrigger: "incremental" });
+    const unrelated = contract({ head: "e", generation: 2, retrigger: "incremental" });
+    const surface = {
+      treeId: objectId("e"),
+      pathManifestDigest: canonicalDigest({ paths: ["src/a.ts"] }),
+      semanticDigest: canonicalDigest({ semantic: "same" }),
+    };
+    const lifecycleTail = createForwardLifecycleTailProof({
+      predicateId: "lifecycle-bookkeeping-tail/v2",
+      priorTarget: prior.target,
+      currentTarget: current.target,
+      reviewedSurface: surface,
+      currentSurface: { ...surface },
+      policyVersion: current.requirement.policyVersion,
+      rubricVersion: current.requirement.rubricVersion,
+      rubricDigest: current.requirement.rubricDigest,
+      sourceIdentity: prior.request.evaluatorIdentity,
+      artifact: { workUnitId: "review-architecture", artifactGroupId: "work-unit:review-architecture", cohortPath: null },
+      diagnostics: [],
+    });
+    const foreignProof = applicability(
+      prior.target.targetId,
+      unrelated.target.targetId,
+      "none",
+      "docs/a.md",
+    );
+
+    const result = projectReducedForwardReviewContract({
+      channel: "hosted",
+      target: current.target,
+      requirement: current.requirement,
+      activeRequest: prior.request,
+      links: [{ fromTargetId: null, ...prior }],
+      applicability: foreignProof,
+      lifecycleTail,
+      coveragePaths: [],
+    });
+
+    expect(result).toMatchObject({ treatment: "carry", projection: { conclusion: "success" } });
+    expect(result.applicabilityId).toBeNull();
+    expect(result.projection.coverage).toMatchObject({ treatment: "carry", applicabilityId: null });
+  });
+
   it("carries exact v2 identities into a neutral projection and bounded host output", () => {
     const records = contract();
     const result = projectForwardReviewContract(records);

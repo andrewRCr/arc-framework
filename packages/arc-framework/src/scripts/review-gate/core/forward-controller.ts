@@ -106,6 +106,9 @@ export function reduceForwardController(input: ForwardControllerInput): ForwardC
       receipt: priorTerminal.receipt,
     }).qualified;
     if (!priorQualified) return pendingResult(input, target, requirement, flight, proof);
+    // Only an applicability-based carry may attribute itself to that proof's identifier; a
+    // lifecycle-derived carry does not rest on it and must not borrow its attribution.
+    const carriedApplicabilityId = carryByApplicability ? proof?.applicabilityId ?? null : null;
     const base = renderForwardGateProjection({
       channel: input.channel,
       target,
@@ -117,11 +120,11 @@ export function reduceForwardController(input: ForwardControllerInput): ForwardC
       projection: withCoverage(
         successfulProjection(base, `independent analysis: carried to ${target.targetId}`),
         "carry",
-        proof?.applicabilityId ?? null,
+        carriedApplicabilityId,
       ),
       activeFlight: flight.state,
       treatment: "carry",
-      applicabilityId: proof?.applicabilityId ?? null,
+      applicabilityId: carriedApplicabilityId,
     };
   }
 
