@@ -5,11 +5,15 @@ import { posix } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  projectCheckoutSubjectMeta,
   projectManagedSubject,
+  projectProvisionalRoster,
+} from "../../../src/lib/locus/roster.js";
+import {
+  projectCheckoutSubjectMeta,
   type SubjectMetaIO,
   type SubjectMetaProjection,
-} from "../../../src/lib/locus/roster.js";
+} from "../../../src/lib/locus/subject-meta.js";
+import type { LocusEvidenceResult } from "../../../src/lib/locus/evidence.js";
 import type { LocusIdentityV1, LocusRecordV1 } from "../../../src/lib/locus/schema/index.js";
 
 function meta(fields: {
@@ -172,10 +176,18 @@ describe("checkout-directed subject projection", () => {
 });
 
 function record(subject: LocusRecordV1["role"]["subject"]): LocusRecordV1 {
+  return recordAt("1", "/repo-wt", subject);
+}
+
+function recordAt(
+  digit: string,
+  checkoutPath: string,
+  subject: LocusRecordV1["role"]["subject"] = { kind: "work-unit", key: "demo", claimId: null },
+): LocusRecordV1 {
   return {
     schemaVersion: 1,
-    recordId: `sha256:${"1".repeat(64)}`,
-    checkoutPath: "/repo-wt",
+    recordId: `sha256:${digit.repeat(64)}`,
+    checkoutPath,
     role: {
       kind: subject.kind === "work-unit" ? "work-unit" : "errand",
       subject,
@@ -273,5 +285,196 @@ describe("managed subject authority", () => {
       ...base,
       record: record({ kind: "errand", key: "demo", claimId: "4".repeat(32) }),
     })).toEqual({ kind: "unresolved", reasons: ["subject-unresolved"] });
+  });
+});
+
+describe("provisional roster classification", () => {
+  it("classifies record-free primary, unmanaged checkout, and identity-only tails", () => {
+    const identity: LocusIdentityV1 = {
+      kind: "errand",
+      key: "tail",
+      claimId: "8".repeat(32),
+      protection: "full",
+      branch: "chore/tail",
+      purpose: "errand",
+      origin: "description",
+      originEntry: null,
+      dispatchId: null,
+      state: "paused",
+      savedHead: "9".repeat(40),
+      changeRequest: null,
+    };
+    const evidence = {
+      kind: "complete",
+      root: { primaryPath: "/repo", userRoot: "/user", lociRoot: "/loci", locksRoot: "/locks" },
+      topology: { ok: true, worktrees: [] },
+      checkouts: ["/repo", "/linked"].map((path, index) => ({
+        worktree: {
+          path,
+          head: String(index).repeat(40),
+          branch: index === 0 ? "main" : "feature/manual",
+          detached: false,
+          primary: index === 0,
+        },
+        canonical: { kind: "resolved", path },
+        marker: { kind: "absent" },
+        metaRoots: [],
+        metas: [],
+      })),
+      recordEntries: [],
+      records: [],
+      lockEntries: [],
+      locks: [],
+      identities: {
+        kind: "complete",
+        tip: "a".repeat(40),
+        objects: new Map(),
+        records: new Map(),
+        projections: new Map([["tail", identity]]),
+        diagnostics: [],
+      },
+    } as Extract<LocusEvidenceResult, { kind: "complete" }>;
+    expect(projectProvisionalRoster({ evidence, subjects: new Map() }).rows.map((row) => row.kind))
+      .toEqual(["unmanaged-checkout", "free-primary", "identity-only"]);
+  });
+
+  it("classifies managed, stale, malformed, and duplicate record generations", () => {
+    const managed = recordAt("1", "/managed");
+    const stale = recordAt("2", "/stale");
+    const duplicateA = recordAt("3", "/alias-a");
+    const duplicateB = recordAt("4", "/alias-b");
+    const recordEntry = (value: LocusRecordV1, canonical: string) => ({
+      kind: "record" as const,
+      name: `locus-${value.recordId.slice("sha256:".length)}.json`,
+      digest: value.recordId.slice("sha256:".length),
+      path: `/loci/locus-${value.recordId.slice("sha256:".length)}.json`,
+      result: { kind: "valid" as const, record: value, bytes: Buffer.from(value.recordId) },
+      canonical: { kind: "resolved" as const, path: canonical },
+    });
+    const records = [
+      recordEntry(managed, "/managed"),
+      recordEntry(stale, "/stale"),
+      recordEntry(duplicateA, "/physical-alias"),
+      recordEntry(duplicateB, "/physical-alias"),
+      {
+        kind: "record" as const,
+        name: `locus-${"5".repeat(64)}.json`,
+        digest: "5".repeat(64),
+        path: `/loci/locus-${"5".repeat(64)}.json`,
+        result: { kind: "malformed" as const, message: "bad record" },
+      },
+    ];
+    const checkout = {
+      worktree: { path: "/managed", head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
+      canonical: { kind: "resolved" as const, path: "/managed" },
+      marker: { kind: "absent" as const },
+      metaRoots: [],
+      metas: [],
+    };
+    const evidence = {
+      kind: "complete",
+      root: { primaryPath: "/repo", userRoot: "/user", lociRoot: "/loci", locksRoot: "/locks" },
+      topology: { ok: true, worktrees: [checkout.worktree] },
+      checkouts: [checkout],
+      recordEntries: records,
+      records,
+      lockEntries: [],
+      locks: [],
+      identities: { kind: "absent" },
+    } as Extract<LocusEvidenceResult, { kind: "complete" }>;
+    const subject: SubjectMetaProjection = RESOLVED_META;
+    const result = projectProvisionalRoster({
+      evidence,
+      subjects: new Map([[managed.recordId, {
+        kind: "resolved",
+        authority: "work-unit",
+        identity: null,
+        meta: subject as Extract<SubjectMetaProjection, { kind: "resolved" }>,
+      }]]),
+    });
+    expect(result.rows.map((row) => row.kind)).toEqual([
+      "duplicate-locus",
+      "duplicate-locus",
+      "managed-role",
+      "stale-record",
+      "malformed-record",
+    ]);
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "record-malformed", source: expect.objectContaining({ kind: "record" }) }),
+      expect.objectContaining({ code: "duplicate-locus", source: expect.objectContaining({ kind: "record" }) }),
+    ]));
+  });
+
+  it("preserves path, identity, and orphan-lock diagnostics in deterministic order", () => {
+    const keys = ["/é", "/😀", "/z", "/e\u0301", "/a"];
+    const checkouts = [
+      ...keys.map((path, index) => ({
+        worktree: { path, head: String(index).repeat(40), branch: `b${index}`, detached: false, primary: false },
+        canonical: { kind: "resolved" as const, path },
+        marker: { kind: "absent" as const },
+        metaRoots: [],
+        metas: [],
+      })),
+      {
+        worktree: { path: "/broken", head: "f".repeat(40), branch: "broken", detached: false, primary: false },
+        canonical: { kind: "error" as const, message: "realpath denied" },
+        marker: { kind: "absent" as const },
+        metaRoots: [],
+        metas: [],
+      },
+    ];
+    const evidence = {
+      kind: "complete",
+      root: { primaryPath: "/repo", userRoot: "/user", lociRoot: "/loci", locksRoot: "/locks" },
+      topology: { ok: true, worktrees: checkouts.map((item) => item.worktree) },
+      checkouts,
+      recordEntries: [],
+      records: [],
+      lockEntries: [{ kind: "unexpected", name: "orphan" }],
+      locks: [],
+      identities: {
+        kind: "complete",
+        tip: "b".repeat(40),
+        objects: new Map(),
+        records: new Map(),
+        projections: new Map(),
+        diagnostics: [{ kind: "malformed", key: "bad-id", message: "bad identity" }],
+      },
+    } as Extract<LocusEvidenceResult, { kind: "complete" }>;
+    const result = projectProvisionalRoster({ evidence, subjects: new Map() });
+    expect(result.rows.map((row) => row.checkoutPath)).toEqual([
+      "/a", "/broken", "/e\u0301", "/z", "/é", "/😀",
+    ]);
+    expect(result.diagnostics).toEqual([...result.diagnostics].sort((left, right) =>
+      Buffer.compare(
+        Buffer.from(`${left.code}\0${left.source.kind}\0${left.source.key}`),
+        Buffer.from(`${right.code}\0${right.source.kind}\0${right.source.key}`),
+      )));
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "path-unavailable", source: { kind: "checkout", key: "/broken" } }),
+      expect.objectContaining({ code: "identity-malformed", source: { kind: "identity", key: "bad-id" } }),
+      expect.objectContaining({ code: "lock-unknown", source: { kind: "lock", key: "orphan" } }),
+    ]));
+  });
+
+  it("retains every checkout spelling for physical aliases", () => {
+    const checkouts = ["/alias", "/alias-link"].map((path) => ({
+      worktree: { path, head: "c".repeat(40), branch: "feat/alias", detached: false, primary: false },
+      canonical: { kind: "resolved" as const, path: "/physical" },
+      marker: { kind: "absent" as const },
+      metaRoots: [],
+      metas: [],
+    }));
+    const evidence = {
+      kind: "complete",
+      root: { primaryPath: "/repo", userRoot: "/user", lociRoot: "/loci", locksRoot: "/locks" },
+      topology: { ok: true, worktrees: checkouts.map((item) => item.worktree) },
+      checkouts,
+      recordEntries: [], records: [], lockEntries: [], locks: [], identities: { kind: "absent" },
+    } as Extract<LocusEvidenceResult, { kind: "complete" }>;
+    expect(projectProvisionalRoster({ evidence, subjects: new Map() }).rows).toMatchObject([
+      { kind: "duplicate-locus", checkoutPath: "/alias" },
+      { kind: "duplicate-locus", checkoutPath: "/alias-link" },
+    ]);
   });
 });

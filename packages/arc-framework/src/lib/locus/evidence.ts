@@ -48,6 +48,7 @@ export type RecordEntryEvidence =
       digest: string;
       path: string;
       result: LocusRecordReadResult;
+      canonical?: { kind: "resolved"; path: string } | { kind: "error"; message: string };
       liveness?: ProcessLiveness;
     }
   | { kind: "unexpected"; name: string };
@@ -213,12 +214,26 @@ async function readRecordEntry(
     result = { kind: "unreadable", message: message(error) };
   }
   const anchor = result.kind === "valid" ? result.record.lease?.anchor : undefined;
+  const canonical = result.kind === "valid"
+    ? await run(() => io.canonicalPath(result.record.checkoutPath)).then(
+        (resolvedPath) => ({ kind: "resolved" as const, path: resolvedPath }),
+        (error: unknown) => ({ kind: "error" as const, message: message(error) }),
+      )
+    : undefined;
   const liveness = anchor === undefined
     ? undefined
     : anchor.kind === "unverifiable"
       ? "unknown"
       : await inspectOrUnknown(io, run, anchor);
-  return { kind: "record", name, digest, path, result, ...(liveness === undefined ? {} : { liveness }) };
+  return {
+    kind: "record",
+    name,
+    digest,
+    path,
+    result,
+    ...(canonical === undefined ? {} : { canonical }),
+    ...(liveness === undefined ? {} : { liveness }),
+  };
 }
 
 async function readLockEntry(

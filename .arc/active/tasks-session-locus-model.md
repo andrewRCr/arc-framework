@@ -183,7 +183,7 @@ grooming, or housekeeping state.
 _Purpose:_ Turn local topology, v3 identity authorities, role records, and process evidence into one deterministic
 roster and one generation-safe local mutation boundary.
 
-### `[ ]` **3.1 Acquire and project checkout, identity, workflow, and cursor evidence** — D4, D6
+### `[x]` **3.1 Acquire and project checkout, identity, workflow, and cursor evidence** — D4, D6
 
 - _Goal:_ One network-free read reports every checkout and identity tail without allowing one malformed row or an
   incomplete authority root to masquerade as a complete machine roster.
@@ -200,19 +200,14 @@ roster and one generation-safe local mutation boundary.
           subject join now requires exact record, checkout, marker, owner, branch, and v3 claim agreement while
           preserving unresolved and cross-identity results as non-authoritative evidence.
 
-    - `[ ]` **3.1.c Classify and sort roster rows deterministically**
-        - Project provisional `free-primary`, `managed-role`, `identity-only`, `unmanaged-checkout`, `stale-record`,
-          `malformed-record`, and `duplicate-locus` rows; the subsequent state derivation performs final frame/state
-          enrichment before any public envelope is emitted.
-        - Preserve each malformed record, identity entry, orphan lock, and path failure through a bounded diagnostic
-          whose source kind/key remains actionable. De-duplicate and sort by code, source kind, then raw source key.
-        - Detect physical aliases through `canonicalLocalPath()` and retain every conflicting persisted spelling for
-          explicit reconciliation; a non-missing canonicalization failure never fabricates equality or absence.
-        - Compare exact persisted strings by raw UTF-8 bytes without Unicode normalization.
-        - Build `test-first` (one behavior at a time):
-            - Cover every row class, diagnostic source, physical alias, and path-resolution failure.
-            - Cover ASCII, multibyte, astral, and canonically equivalent-but-distinct spellings across every ordered
-              surface.
+    - `[x]` **3.1.c Classify and sort roster rows deterministically**
+        - Added pure provisional roster classification for every checkout, record, and identity-only row class;
+          source-keyed record, identity, lock, marker, and path diagnostics; physical-alias retention; and stable raw
+          UTF-8 ordering without Unicode normalization. Frame and state fields remain unset for the next derivation.
+
+- _Outcome:_ One complete, topology-pinned evidence pipeline now joins exact managed authorities and produces a
+  deterministic provisional machine roster without collapsing first-use absence, malformed sources, transient
+  identity tails, contributor metadata, physical aliases, or checkout-local workflow context.
 
 ### `[ ]` **3.2 Derive frames, primary availability, recovery, and reconciliation verdicts** — D1, D4, D6, D9
 
