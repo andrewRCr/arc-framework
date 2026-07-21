@@ -1,4 +1,4 @@
-# Metadata: cohortless-decomposition
+# Metadata: decomposition-doctrine
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -8,7 +8,7 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-cohortless-decomposition.md`
+- **Design:** `draft-decomposition-doctrine.md`
 - **Task List:** [none]
 
 - **Current Workflow:** [none]
