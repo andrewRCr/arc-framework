@@ -106,9 +106,9 @@ onto stable code-facing fields without losing tolerant recovery.
         - Migrated activation, deactivation, archive, and abandon reads to semantic branch and cohort fields while
           retaining localized projection writes and established transition refusals.
 
-    - `[ ]` **2.4.d Migrate decomposition readers and rewrites**
-        - Update `verbs/decompose.ts`, `decompose-sweep.ts`, and `decompose-retirement-driver.ts` to semantic lists
-          without repeated comma splitting or changes to allocation and retirement policy.
+    - `[x]` **2.4.d Migrate decomposition readers and rewrites**
+        - Moved decomposition origin, incoming-edge rewrite, and retirement reads onto semantic fields and parsed
+          dependency arrays, removing repeated splitting without changing allocation or retirement policy.
 
     - `[ ]` **2.4.e Migrate park and resume evidence consumers**
         - Update `verbs/park-resume.ts`, `park-planning-landing.ts`, and `park-retirement-proof.ts`, preserving byte

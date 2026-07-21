@@ -5,7 +5,7 @@ import { canonicalize, isCanonicalDigest, type CanonicalDigest } from "../canoni
 import { receiptId } from "../canonical/receipt-id.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import type { GitExec } from "../git/exec.js";
-import { parseMetaProjectionRecord } from "../active/meta-reader.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
 import {
   parseDecomposePreparationRecord,
@@ -226,11 +226,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
               if (entry === undefined) return null;
               const bytes = await deps.readBlob(null, validateManagedPath(entry.path));
               if (bytes === null) return null;
-              const field = parseMetaProjectionRecord(new TextDecoder().decode(bytes))["Depends On"];
-              if (field === null || field === "[none]") return [];
-              return field.split(",")
-                .map((value) => value.trim())
-                .filter(Boolean);
+              return parseMetaRecord(new TextDecoder().decode(bytes)).dependsOn;
             },
             replaceAndStageRecord: async (recordId, expected, next, paths) => {
               const path = resolveRetirementRecordPath(deps.cwd, recordId);

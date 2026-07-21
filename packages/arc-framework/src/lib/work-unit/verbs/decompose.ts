@@ -22,7 +22,7 @@
 import { join } from "node:path";
 
 import {
-  parseMetaProjectionRecord,
+  parseMetaRecord,
   renderMetaFile,
   type MetaRenderOverrides,
 } from "../../active/meta-reader.js";
@@ -360,7 +360,7 @@ export async function runDecompose(
   if (originEntry === undefined) {
     return { status: "rejected", reason: `decompose origin "${originSlug}" is absent from the lifecycle index.` };
   }
-  const originRecord = parseMetaProjectionRecord(await executor.indexFs.readFile(join(executor.cwd, originEntry.path)));
+  const originRecord = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, originEntry.path)));
 
   // The resolved member-enrolment cohort: the cut-map's cohort for the standalone
   // / in-cohort arms; the origin's existing cohort for the at-cap lateral fan-out
@@ -381,11 +381,9 @@ export async function runDecompose(
     {
       cohort: placementCohort,
       originContext: {
-        origin: originRecord.Origin === null || originRecord.Origin === "[internal]"
-          ? "internal"
-          : originRecord.Origin,
-        owner: originRecord.Owner ?? "—",
-        priority: originRecord.Priority ?? "P3",
+        origin: originRecord.origin ?? "internal",
+        owner: originRecord.owner ?? "—",
+        priority: originRecord.priority ?? "P3",
       },
       members: newMembers,
       internalEdges: cut.internalEdges,
@@ -416,7 +414,7 @@ export async function runDecompose(
     // its locators for the workflow's post-merge `arc teardown --force`. A backlog
     // stub owns no branch / worktree, so none is owed.
     if (originStarted) {
-      teardown = { slug: originSlug, branch: originRecord.Branch ?? "[none]" };
+      teardown = { slug: originSlug, branch: originRecord.branch ?? "[none]" };
     }
   } else {
     // Extraction: the origin survives — no retirement edge, no sweep — but Leg 4 still
