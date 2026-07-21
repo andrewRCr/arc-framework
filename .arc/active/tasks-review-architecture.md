@@ -772,14 +772,13 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
         - After an append-only merge, typed applicability carries composition only for an unchanged WU delta; the new
           head is pushed, reruns CI/routing before `pre-merge`, and loops at the same late site on further base movement.
 
-    - `[ ]` **6.4.d Preserve an unbroken exact-head merge window**
-        - Verify the cadence-required composition/lifecycle products through authoritative lifecycle state, fire
-          final `pre-merge`, read checks/threads/requirements, bind the approved head, obtain explicit merge
-          authorization over the complete candidate-tail diff, revalidate head and base, and merge with no
-          intervening mutation or review action.
-        - Prohibit `gh pr merge`, auto-merge enablement, or any queued merge before those products exist and the
-          final integration-interlock fires; refuse prospective authorization after any candidate mutation.
-        - Keep the integration-interlock as the sole merge authority.
+    - `[x]` **6.4.d Preserve an unbroken exact-head merge window**
+        - Added cadence-specific authoritative lifecycle checks before final `pre-merge`, then bound checks,
+          conversations, requirements, lifecycle readiness, and the complete candidate-tail diff to the approved head.
+        - Head/PR/base rereads now directly precede merge without mutation or review action; any candidate mutation
+          invalidates the checkpoint and prospective authority.
+        - Prohibited direct, auto, or queued merge before lifecycle products and the final integration-interlock,
+          which remains the sole merge authority.
 
     - `[ ]` **6.4.e Update candidate correction, resume, and failure behavior**
         - Make requested composition corrections append, rerun affected gates/routing, and refire the interlock;

@@ -371,21 +371,36 @@ After push, re-run required CI and routing on the new exact head before `pre-mer
 to the same Step 13 drift read. Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. Continue
 only when the authoritative result is `clean`.
 
-At the zero-behind final head, retain the `clean` result's `baseOid` as the current base-freshness evidence. Compose
-the current `openedChangeRequest` and fire `pre-merge` when active. Its actions must report the controller settled
-for this exact head, then retain `openedChangeRequest.headSha` as `{approved-head-sha}`. Any review action that
-commits or pushes invalidates the checkpoint: return to the authoritative drift read, reconcile if needed, and fire
-the final hook again. No lifecycle- or review-authored commit or push is allowed after this stable checkpoint and
-before the integration interlock.
+At the zero-behind final head, retain the `clean` result's `baseOid` as the current base-freshness evidence. Resolve
+authoritative lifecycle state:
+
+```bash
+arc status {name} --json
+```
+
+Require a valid result for the exact WU and cadence. Under `with-integration`, require resolver state `shipped` in
+`completed`, with the archive move, applicable cohort closeout, and readiness regeneration present. Under `manual`,
+require resolver state `integrating`; archive and readiness products remain post-merge. Both cadences require
+Completion Notes and any applicable Release Notes. Missing, ambiguous, or wrong-cadence products stop.
+
+Compose the current `openedChangeRequest` and fire `pre-merge` when active. Its actions must report lifecycle
+readiness plus checks, conversations, requirements, and controller settlement for this exact head, then
+retain `openedChangeRequest.headSha` as `{approved-head-sha}`. Any candidate mutation or review action invalidates the
+checkpoint and any prospective authorization: return to the authoritative lifecycle/drift reads, reconcile if
+needed, and fire the final hook again. No lifecycle- or review-authored commit or push is allowed after this stable
+checkpoint and before the integration interlock.
 
 Compose the exact candidate-tail diff from the settled implementation head through task and notes cleanup,
 composition, cohort closeout, archive moves, readiness regeneration, and reconcile commits. Surface this exact diff,
 not excerpts alone.
 
+No `gh pr merge`, auto-merge enablement, or queued merge may occur before these products exist and the final
+integration-interlock fires. The integration-interlock is the sole merge authority.
+
 > [!IMPORTANT]
-> `integration-interlock`: Stop before merge. Surface the exact candidate-tail diff, PR status (open threads,
-> required approvals, checks), merge method, and the clean base-drift result; await explicit integration approval
-> before merging.
+> `integration-interlock`: Stop before merge. Surface the exact approved head, complete candidate-tail diff, PR
+> status (open threads, required approvals, checks), requirements, merge method, lifecycle readiness, and the clean
+> base-drift result; await explicit integration approval before merging.
 
 Immediately after approval, recompose `openedChangeRequest` from the canonical current head. If its `headSha`
 differs from `{approved-head-sha}`, invalidate the approval and return to the review cycle. Otherwise, re-read PR status

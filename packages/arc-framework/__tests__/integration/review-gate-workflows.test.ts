@@ -507,7 +507,7 @@ describe("trusted review-gate workflows", () => {
     expect(gate.indexOf("git merge --no-edit {baseOid}")).toBeLessThan(
       gate.indexOf("run Tier 1 quality gates"),
     );
-    expect(finalDrift).toBeLessThan(gate.indexOf("gh pr merge"));
+    expect(finalDrift).toBeLessThan(gate.lastIndexOf("gh pr merge {pr-number}"));
   });
 
   it("defers base reconciliation until after candidate composition", async () => {
@@ -525,6 +525,37 @@ describe("trusted review-gate workflows", () => {
     expect(reviewSettlement).toContain("`review-settled`");
     expect(packageIntegration.indexOf("arc base drift --json"))
       .toBeGreaterThan(packageIntegration.indexOf("### 12) Final push"));
+  });
+
+  it("preserves lifecycle readiness through an exact-head merge window", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    );
+    const gate = packaged.slice(
+      packaged.indexOf("### 13) Behind-base reconcile gate and merge"),
+      packaged.indexOf("### 14) Post-merge worktree cleanup"),
+    );
+    expect(gate).toContain("arc status {name} --json");
+    expect(gate).toMatch(/`with-integration`[\s\S]*`shipped`[\s\S]*`completed`/u);
+    expect(gate).toMatch(/`manual`[\s\S]*`integrating`/u);
+    expect(gate).toMatch(/Completion Notes[\s\S]*applicable Release Notes/u);
+    expect(gate).toMatch(/No `gh pr merge`[\s\S]*auto-merge enablement[\s\S]*queued merge/u);
+    expect(gate).toContain("integration-interlock is the sole merge authority");
+    expect(gate).toMatch(/candidate mutation[\s\S]*invalidates[\s\S]*prospective authorization/u);
+
+    const lifecycleReady = gate.indexOf("arc status {name} --json");
+    const preMerge = gate.indexOf("fire `pre-merge`");
+    const approval = gate.indexOf("await explicit integration approval");
+    const refreshedHead = gate.indexOf("recompose `openedChangeRequest`", approval);
+    const refreshedPr = gate.indexOf("re-read PR status", approval);
+    const finalDrift = gate.lastIndexOf("result = arc base drift --json");
+    const merge = gate.lastIndexOf("gh pr merge {pr-number}");
+    expect(lifecycleReady).toBeLessThan(preMerge);
+    expect(preMerge).toBeLessThan(approval);
+    expect(approval).toBeLessThan(refreshedHead);
+    expect(refreshedHead).toBeLessThan(refreshedPr);
+    expect(refreshedPr).toBeLessThan(finalDrift);
+    expect(finalDrift).toBeLessThan(merge);
   });
 
   it("guards the post-merge tail on completion and archival products", async () => {
