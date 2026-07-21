@@ -516,7 +516,7 @@ version-1 review-gate identity behind a repository-private frozen serializer.
 - _Outcome:_ Recomputable review-gate identities now share kernel ordering, normalization, and refusal semantics while
   preserving the review-gate digest wire shape and all non-JSON identity formulas.
 
-### `[ ]` **7.3 Prove identity compatibility and caller classification**
+### `[x]` **7.3 Prove identity compatibility and caller classification**
 
 - _Goal:_ Fixtures and a closed inventory demonstrate that every review-gate identity uses the correct serializer
   and that no durable version-1 or kernel receipt contract changed accidentally.
@@ -531,16 +531,13 @@ version-1 review-gate identity behind a repository-private frozen serializer.
           outputs while retaining ASCII fixtures. Malformed Unicode, sparse arrays, and NFC key collisions fail
           through the shared helper, and the existing kernel canonical receipt and digest goldens remain unchanged.
 
-    - `[ ]` **7.3.c Close the serializer caller inventory**
-        - Inspect production files under `src/scripts/review-gate/**` and assert the exact direct caller set:
-          `core/identity.ts`, `runtime/reconcile-runtime.ts`, and `runtime/repair-main.ts` for
-          `canonicalizePlainJson()`; `core/request-key.ts`, `core/attestations.ts`,
-          `runtime/qualification-contract.ts`, and `runtime/qualification-activation.ts` for
-          `canonicalizeReviewGateV1()`.
-        - Assert `core/identity.ts` is the review-gate's only direct kernel `canonicalize()` import and no third
-          plain-JSON canonicalizer, duplicate normalizer, barrel export, or broad compatibility shim remains.
-        - Exclude and preserve the intentional NUL-delimited `computeChangeSetId()`, `computeRequirementKey()`, and
-          `computeRequestKey()` contracts; they are not plain-JSON serializer alternatives.
+    - `[x]` **7.3.c Close the serializer caller inventory**
+        - Added a recursive production-source guard for the exact three kernel-backed and four frozen callers.
+          `core/identity.ts` is the sole direct kernel import, only the two declared serializers and frozen normalizer
+          remain, neither serializer is barrel-exported, and the three NUL-delimited identities stay outside JSON.
+
+- _Outcome:_ The review-gate canonicalization split is closed by literal compatibility fixtures, intentional
+  recomputable re-key fixtures, and an executable caller inventory that prevents future domain drift.
 
 ## **Phase 8:** Verification
 
