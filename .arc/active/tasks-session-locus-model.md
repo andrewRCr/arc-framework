@@ -240,7 +240,7 @@ roster and one generation-safe local mutation boundary.
   allocation, identity actions, recovery, and proof-bearing reconciliation without turning diagnostics or public
   summaries into mutation authority.
 
-### `[ ]` **3.3 Implement lease attach, heartbeat, release, role update, and pop operations** — D3, D4, D6
+### `[x]` **3.3 Implement lease attach, heartbeat, release, role update, and pop operations** — D3, D4, D6
 
 - _Goal:_ All role and lease changes linearize through one expected-generation API that preserves newer sessions
   and returns one command-independent result shape.
@@ -263,14 +263,14 @@ roster and one generation-safe local mutation boundary.
           and byte generation. Same-result retries are idempotent; changed roles or raced writes refuse without
           mutating the newer record.
 
-    - `[ ]` **3.3.d Pop roles without weakening preservation rules**
-        - Delete only the expected role/lease generation and refuse live/unknown, malformed, newer-role, or
-          duplicate-locus state.
-        - Return applied/idempotent/refused/error through `LocusMutationResultV1`, including precomposed prompt text
-          and nullable allocation, identity, origin-entry, dispatch, restored-parent, and next-offer fields.
-        - Build `test-first` (one behavior at a time):
-            - Cover exact-generation pop, already-popped replay, changed role/lease refusal, live/unknown vetoes, and
-              producer validation of every result arm.
+    - `[x]` **3.3.d Pop roles without weakening preservation rules**
+        - Added exact-byte role pop with absent replay, changed role/lease preservation, duplicate and live/unknown
+          vetoes, and raced-generation reclassification. Every pop path now returns the strict shared mutation
+          result with precomposed guidance and the complete nullable success surface; malformed producers fail schema
+          validation rather than emitting partial JSON.
+
+- _Outcome:_ One directed mutation core now derives roles from authority evidence and preserves every newer record,
+  role, lease, parent, and heartbeat generation across mint, attach, refresh, release, update, and pop operations.
 
 ### `[ ]` **3.4 Reconcile WU roles, dead locks, and stale records through expected generations** — D6, D9
 

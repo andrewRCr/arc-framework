@@ -6,10 +6,13 @@ import { isDeepStrictEqual } from "node:util";
 import type { LocusRecordReadResult } from "./record-store.js";
 import {
   LocusIdentityV1Schema,
+  LocusMutationResultV1Schema,
   LocusRecordV1Schema,
   LocusRoleSchema,
   type LocusIdentityV1,
   type LocusAnchor,
+  type LocusMutationResultV1,
+  type LocusOperation,
   type LocusRecordV1,
   type LocusRole,
 } from "./schema/index.js";
@@ -44,6 +47,13 @@ export interface LocusLeaseMutationIO {
   read(): Promise<LocusRecordReadResult>;
   replace(expectedBytes: Buffer, record: LocusRecordV1): Promise<
     { kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }
+  >;
+}
+
+export interface LocusRolePopIO {
+  read(): Promise<LocusRecordReadResult>;
+  remove(expectedBytes: Buffer): Promise<
+    { kind: "removed" } | { kind: "generation-mismatch" }
   >;
 }
 
@@ -237,6 +247,114 @@ export async function updateLocusRole(options: {
   return replaced.kind === "replaced"
     ? { kind: "applied", record: next, bytes: replaced.bytes }
     : { kind: "refused", reason: "role-conflict" };
+}
+
+/** Validate a complete command-independent locus mutation result. */
+export function createLocusMutationResult(value: unknown): LocusMutationResultV1 {
+  return LocusMutationResultV1Schema.parse(value);
+}
+
+/**
+ * Pop only one exact role/lease generation and return the shared public mutation result.
+ * @param options - Operation context, exact target generation, liveness/alias facts, and store port.
+ * @returns A schema-validated applied, idempotent, refused, or error result.
+ */
+export async function popLocusRole(options: {
+  operation: LocusOperation;
+  recommendedPromptText: string;
+  recordId: string;
+  checkoutPath: string;
+  expectedRole: LocusRole;
+  expectedLeaseId: string | null;
+  observedLiveness: ProcessLiveness | null;
+  duplicate: boolean;
+  io: LocusRolePopIO;
+}): Promise<LocusMutationResultV1> {
+  if (options.duplicate) return refusal(options, "duplicate-locus");
+  let existing: LocusRecordReadResult;
+  try {
+    existing = await options.io.read();
+  } catch (error) {
+    return failure(options, error);
+  }
+  if (existing.kind === "absent") return popSuccess(options, "idempotent");
+  if (existing.kind !== "valid"
+    || existing.record.recordId !== options.recordId
+    || existing.record.checkoutPath !== options.checkoutPath) {
+    return refusal(options, "record-malformed");
+  }
+  if (!isDeepStrictEqual(existing.record.role, options.expectedRole)) {
+    return refusal(options, "role-conflict");
+  }
+  const lease = existing.record.lease;
+  if ((lease === null && options.expectedLeaseId !== null)
+    || (lease !== null && lease.leaseId !== options.expectedLeaseId)) {
+    return refusal(options, "lease-generation-mismatch");
+  }
+  if (lease !== null) {
+    if (options.observedLiveness === "live") return refusal(options, "lease-live");
+    if (options.observedLiveness !== "dead") return refusal(options, "lease-unknown");
+  }
+  try {
+    const removed = await options.io.remove(existing.bytes);
+    if (removed.kind === "removed") return popSuccess(options, "applied");
+    const raced = await options.io.read();
+    if (raced.kind === "absent") return popSuccess(options, "idempotent");
+    if (raced.kind !== "valid") return refusal(options, "record-malformed");
+    if (!isDeepStrictEqual(raced.record.role, options.expectedRole)) return refusal(options, "role-conflict");
+    return refusal(options, "lease-generation-mismatch");
+  } catch (error) {
+    return failure(options, error);
+  }
+}
+
+function popSuccess(
+  options: Pick<Parameters<typeof popLocusRole>[0], "operation" | "recommendedPromptText" | "recordId">,
+  outcome: "applied" | "idempotent",
+): LocusMutationResultV1 {
+  return createLocusMutationResult({
+    outcome,
+    operation: options.operation,
+    allocation: null,
+    recordId: options.recordId,
+    leaseId: null,
+    activeLocusPath: null,
+    sessionHomePath: null,
+    identity: null,
+    originEntry: null,
+    dispatchId: null,
+    routingPlanDigest: null,
+    restoredParent: null,
+    nextOffer: null,
+    recommendedPromptText: options.recommendedPromptText,
+  });
+}
+
+function refusal(
+  options: Pick<Parameters<typeof popLocusRole>[0], "operation" | "recommendedPromptText">,
+  reason: Extract<LocusMutationResultV1, { outcome: "refused" }>["reason"],
+): LocusMutationResultV1 {
+  return createLocusMutationResult({
+    outcome: "refused",
+    operation: options.operation,
+    reason,
+    recommendedPromptText: options.recommendedPromptText,
+  });
+}
+
+function failure(
+  options: Pick<Parameters<typeof popLocusRole>[0], "operation" | "recommendedPromptText">,
+  error: unknown,
+): LocusMutationResultV1 {
+  return createLocusMutationResult({
+    outcome: "error",
+    operation: options.operation,
+    error: {
+      code: "locus.record-pop.failed",
+      message: error instanceof Error ? error.message || "Record pop failed" : "Record pop failed",
+    },
+    recommendedPromptText: options.recommendedPromptText,
+  });
 }
 
 function deriveRole(

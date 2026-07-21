@@ -4,11 +4,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   attachLocusLease,
+  createLocusMutationResult,
   mintDurableLocusRole,
+  popLocusRole,
   refreshLocusLeaseHeartbeat,
   releaseLocusLease,
   updateLocusRole,
   type LocusLeaseMutationIO,
+  type LocusRolePopIO,
   type LocusRoleAuthority,
   type LocusRoleMintIO,
 } from "../../../src/lib/locus/mutation.js";
@@ -16,7 +19,7 @@ import type { LocusRecordReadResult } from "../../../src/lib/locus/record-store.
 import type { LocusIdentityV1, LocusRecordV1 } from "../../../src/lib/locus/schema/index.js";
 
 function memoryIO(initial: LocusRecordReadResult = { kind: "absent" }): {
-  io: LocusRoleMintIO & LocusLeaseMutationIO;
+  io: LocusRoleMintIO & LocusLeaseMutationIO & LocusRolePopIO;
   current(): LocusRecordReadResult;
 } {
   let value = initial;
@@ -36,6 +39,13 @@ function memoryIO(initial: LocusRecordReadResult = { kind: "absent" }): {
         const bytes = Buffer.from(JSON.stringify(record));
         value = { kind: "valid", record, bytes };
         return { kind: "replaced", bytes };
+      },
+      remove: async (expectedBytes) => {
+        if (value.kind !== "valid" || !value.bytes.equals(expectedBytes)) {
+          return { kind: "generation-mismatch" };
+        }
+        value = { kind: "absent" };
+        return { kind: "removed" };
       },
     },
     current: () => value,
@@ -531,5 +541,152 @@ describe("durable locus role minting", () => {
       expectedRole: { ...initial.record.role, subject: { ...initial.record.role.subject, key: "other" } },
       parentCheckoutPath: "/new-parent",
     })).toEqual({ kind: "refused", reason: "role-conflict" });
+  });
+
+  it("pops the exact unleased role generation and replays an already-absent pop", async () => {
+    const store = memoryIO();
+    await mintDurableLocusRole({
+      ...BASE,
+      authority: { kind: "work-unit", key: "demo" },
+      io: store.io,
+    });
+    const current = store.current();
+    if (current.kind !== "valid") throw new Error("expected seeded record");
+    const request = {
+      operation: "locus-resolve" as const,
+      recommendedPromptText: "Role removed.",
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedRole: current.record.role,
+      expectedLeaseId: null,
+      observedLiveness: null,
+      duplicate: false,
+      io: store.io,
+    };
+
+    expect(await popLocusRole(request)).toMatchObject({
+      outcome: "applied",
+      operation: "locus-resolve",
+      recordId: BASE.recordId,
+      allocation: null,
+      identity: null,
+      nextOffer: null,
+    });
+    expect(store.current()).toEqual({ kind: "absent" });
+    expect(await popLocusRole(request)).toMatchObject({
+      outcome: "idempotent",
+      recordId: BASE.recordId,
+    });
+  });
+
+  it("refuses duplicate, newer role/lease, and live or unknown pop targets", async () => {
+    const seeded = async () => {
+      const store = memoryIO();
+      await mintDurableLocusRole({
+        ...BASE,
+        authority: { kind: "work-unit", key: "demo" },
+        io: store.io,
+      });
+      const beforeLease = store.current();
+      if (beforeLease.kind !== "valid") throw new Error("expected seeded role");
+      await attachLocusLease({
+        recordId: BASE.recordId,
+        sessionHomePath: BASE.checkoutPath,
+        anchor: {
+          kind: "process",
+          pid: 42,
+          startToken: "start",
+          inspector: "test",
+          selector: "codex",
+        },
+        leaseId: "a".repeat(32),
+        attachedAt: "2026-07-20T01:00:00.000Z",
+        heartbeatAt: "2026-07-20T01:00:00.000Z",
+        observedLiveness: null,
+        io: store.io,
+      });
+      return { store, role: beforeLease.record.role };
+    };
+    const common = {
+      operation: "locus-resolve" as const,
+      recommendedPromptText: "Resolve the role conflict.",
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedLeaseId: "a".repeat(32),
+      duplicate: false,
+    };
+
+    const duplicate = await seeded();
+    expect(await popLocusRole({
+      ...common,
+      expectedRole: duplicate.role,
+      observedLiveness: "dead",
+      duplicate: true,
+      io: duplicate.store.io,
+    })).toMatchObject({ outcome: "refused", reason: "duplicate-locus" });
+
+    const newerRole = await seeded();
+    expect(await popLocusRole({
+      ...common,
+      expectedRole: { ...newerRole.role, subject: { ...newerRole.role.subject, key: "older" } },
+      observedLiveness: "dead",
+      io: newerRole.store.io,
+    })).toMatchObject({ outcome: "refused", reason: "role-conflict" });
+
+    const newerLease = await seeded();
+    expect(await popLocusRole({
+      ...common,
+      expectedRole: newerLease.role,
+      expectedLeaseId: "b".repeat(32),
+      observedLiveness: "dead",
+      io: newerLease.store.io,
+    })).toMatchObject({ outcome: "refused", reason: "lease-generation-mismatch" });
+
+    for (const liveness of ["live", "unknown"] as const) {
+      const occupied = await seeded();
+      expect(await popLocusRole({
+        ...common,
+        expectedRole: occupied.role,
+        observedLiveness: liveness,
+        io: occupied.store.io,
+      })).toMatchObject({
+        outcome: "refused",
+        reason: liveness === "live" ? "lease-live" : "lease-unknown",
+      });
+    }
+  });
+
+  it("schema-validates every public mutation result arm", async () => {
+    expect(() => createLocusMutationResult({
+      outcome: "applied",
+      operation: "locus-resolve",
+      recommendedPromptText: "Incomplete success.",
+    })).toThrow();
+    const error = await popLocusRole({
+      operation: "locus-resolve",
+      recommendedPromptText: "Retry after inspecting the record store.",
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedRole: {
+        kind: "work-unit",
+        subject: { kind: "work-unit", key: "demo", claimId: null },
+        establishedAt: BASE.establishedAt,
+        parentCheckoutPath: null,
+        dispatchId: null,
+        originEntry: null,
+        routingPlanDigest: null,
+      },
+      expectedLeaseId: null,
+      observedLiveness: null,
+      duplicate: false,
+      io: {
+        read: async () => { throw new Error("store unavailable"); },
+        remove: async () => ({ kind: "removed" }),
+      },
+    });
+    expect(error).toMatchObject({
+      outcome: "error",
+      error: { code: "locus.record-pop.failed", message: "store unavailable" },
+    });
   });
 });
