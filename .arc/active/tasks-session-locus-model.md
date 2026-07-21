@@ -224,18 +224,11 @@ roster and one generation-safe local mutation boundary.
           checkout and compared with the configured base. Clean/dirty, on/off-base, detached, mismatched/missing
           base, cross-directory, and unavailable Git facts remain distinct.
 
-    - `[ ]` **3.2.c Derive allocation, in-flight identity, and recovery surfaces**
-        - Combine the record-free primary rule with the directed safety facts to produce free, occupied, or unsafe
-          availability.
-        - Represent a durable role with no lease as occupied with `leaseState: "absent"`; classify an exact primary
-          WU role as valid occupied launchpad state, while an unresolved alias, malformed target record, unexpected
-          role/branch pairing, or live/unknown target lock remains unsafe rather than free.
-        - Project state-appropriate resume/wait/finalize/abandon actions without treating them as mutation
-          authorization; derive none/resume/residue/stop recovery from the same state and fixed action ordering.
-        - Build `test-first` (one behavior at a time):
-            - Cover record-free clean base, an in-place primary WU across every lease state, unsafe
-              role/branch/lock/alias state, every identity lifecycle action set, dead transient residue, replaceable
-              dead WU entry, and unknown-state stops.
+    - `[x]` **3.2.c Derive allocation, in-flight identity, and recovery surfaces**
+        - Added pure operational derivation for exact free/occupied/unsafe primary allocation, byte-stable
+          identity action projections, and none/resume/residue/stop recovery. Directed safety and target-lock facts
+          now fail closed without mistaking valid in-place WU occupancy, dead replaceable WU leases, unrelated live
+          roles, or transient residue for a free launchpad.
 
     - `[ ]` **3.2.d Build deterministic reconciliation plans**
         - Emit clean/apply/stop with only adopt-WU, adopt-transient, reap-stale-record, and break-dead-lock actions.

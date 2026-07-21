@@ -2,9 +2,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { assembleLocusState, deriveLocusFrames } from "../../../src/lib/locus/state.js";
+import {
+  assembleLocusState,
+  deriveLocusFrames,
+  deriveLocusOperationalState,
+} from "../../../src/lib/locus/state.js";
 import type { ProvisionalLocusRow } from "../../../src/lib/locus/roster.js";
-import type { LocusProcessAnchor } from "../../../src/lib/locus/schema/index.js";
+import type { LocusIdentityV1, LocusProcessAnchor } from "../../../src/lib/locus/schema/index.js";
 
 const ANCHOR: LocusProcessAnchor = {
   kind: "process", pid: 42, startToken: "start", inspector: "test", selector: "codex",
@@ -46,6 +50,38 @@ function row(options: {
     derived: null,
     diagnostics: [],
   };
+}
+
+function errandIdentity(key: string, state: "open" | "paused" | "awaiting-merge"): LocusIdentityV1 {
+  const common = {
+    kind: "errand" as const,
+    key,
+    claimId: key.padEnd(32, "a"),
+    protection: "full" as const,
+    branch: `chore/${key}`,
+    purpose: "errand" as const,
+    origin: "description" as const,
+    originEntry: null,
+    dispatchId: null,
+  };
+  if (state === "paused") {
+    return { ...common, state, savedHead: "a".repeat(40), changeRequest: null };
+  }
+  if (state === "awaiting-merge") {
+    return {
+      ...common,
+      state,
+      savedHead: null,
+      changeRequest: {
+        repositoryRef: "owner/repo",
+        hostRef: "github",
+        baseRef: "main",
+        headRef: `chore/${key}`,
+        headSha: "b".repeat(40),
+      },
+    };
+  }
+  return { ...common, state, savedHead: null, changeRequest: null };
 }
 
 describe("locus frame derivation", () => {
@@ -133,5 +169,216 @@ describe("locus frame derivation", () => {
     const invalidDepth = row({ id: "7", role: "errand", lease: "live", parent: "/middle" });
     expect(deriveLocusFrames({ rows: [middle, invalidDepth], enteringAnchor: ANCHOR }).current)
       .toEqual({ kind: "ambiguous", recordIds: [invalidDepth.recordId], reasons: ["role-conflict"] });
+  });
+});
+
+describe("locus operational derivation", () => {
+  it("makes only a record-free clean primary on base available", () => {
+    const primary = {
+      ...row({ id: "1", path: "/repo", kind: "free-primary", lease: null }),
+      primary: true,
+      recordId: null,
+      role: null,
+    } satisfies ProvisionalLocusRow;
+    const frames = deriveLocusFrames({ rows: [primary], enteringAnchor: ANCHOR });
+
+    expect(deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: frames.rows,
+      current: frames.current,
+      primarySafety: { kind: "complete", clean: true, onBase: true, branch: "main" },
+      primaryLock: "absent",
+    }).primaryAvailability).toEqual({ kind: "free", checkoutPath: "/repo" });
+
+    expect(deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: frames.rows,
+      current: frames.current,
+      primarySafety: { kind: "complete", clean: false, onBase: false, branch: "feature" },
+      primaryLock: "absent",
+    }).primaryAvailability).toEqual({
+      kind: "unsafe",
+      checkoutPath: "/repo",
+      reasons: ["primary-dirty", "primary-off-base"],
+    });
+  });
+
+  it("keeps an exact in-place WU occupied across every lease state", () => {
+    for (const lease of [null, "live", "dead", "unknown"] as const) {
+      const primary = { ...row({ id: "1", path: "/repo", lease }), primary: true };
+      const frames = deriveLocusFrames({ rows: [primary], enteringAnchor: ANCHOR });
+      expect(deriveLocusOperationalState({
+        primaryPath: "/repo",
+        rows: frames.rows,
+        current: frames.current,
+        primarySafety: { kind: "complete", clean: false, onBase: false, branch: "feat/demo" },
+        primaryLock: "absent",
+      }).primaryAvailability).toEqual({
+        kind: "occupied",
+        checkoutPath: "/repo",
+        recordId: primary.recordId,
+        leaseState: lease ?? "absent",
+      });
+    }
+  });
+
+  it("fails primary allocation closed for unsafe safety, role, lock, and alias evidence", () => {
+    const unresolved = {
+      ...row({ id: "1", path: "/repo", lease: null }),
+      primary: true,
+      diagnostics: [{
+        code: "subject-unresolved" as const,
+        source: { kind: "record" as const, key: "1" },
+        message: "Role and branch disagree",
+      }],
+    };
+    const unresolvedFrames = deriveLocusFrames({ rows: [unresolved], enteringAnchor: ANCHOR });
+    expect(deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: unresolvedFrames.rows,
+      current: unresolvedFrames.current,
+      primarySafety: { kind: "complete", clean: true, onBase: false, branch: "wrong" },
+      primaryLock: "live",
+    }).primaryAvailability).toEqual({
+      kind: "unsafe",
+      checkoutPath: "/repo",
+      reasons: ["lock-live", "subject-unresolved"],
+    });
+
+    const duplicate = { ...unresolved, kind: "duplicate-locus" as const, diagnostics: [] };
+    const duplicateFrames = deriveLocusFrames({ rows: [duplicate], enteringAnchor: ANCHOR });
+    expect(deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: duplicateFrames.rows,
+      current: duplicateFrames.current,
+      primarySafety: { kind: "complete", clean: true, onBase: true, branch: "main" },
+      primaryLock: "unknown",
+    }).primaryAvailability).toEqual({
+      kind: "unsafe",
+      checkoutPath: "/repo",
+      reasons: ["lock-unknown", "duplicate-locus"],
+    });
+
+    const malformed = {
+      ...unresolved,
+      kind: "malformed-record" as const,
+      role: null,
+      diagnostics: [{
+        code: "record-malformed" as const,
+        source: { kind: "record" as const, key: "1" },
+        message: "Record cannot be parsed",
+      }],
+    };
+    const malformedFrames = deriveLocusFrames({ rows: [malformed], enteringAnchor: ANCHOR });
+    expect(deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: malformedFrames.rows,
+      current: malformedFrames.current,
+      primarySafety: { kind: "complete", clean: true, onBase: true, branch: "main" },
+      primaryLock: "absent",
+    }).primaryAvailability).toEqual({
+      kind: "unsafe",
+      checkoutPath: "/repo",
+      reasons: ["record-malformed"],
+    });
+  });
+
+  it("projects every identity lifecycle action set in stable identity order", () => {
+    const primary = {
+      ...row({ id: "1", path: "/repo", kind: "free-primary", lease: null }),
+      primary: true,
+      recordId: null,
+      role: null,
+    } satisfies ProvisionalLocusRow;
+    const identities = [
+      errandIdentity("zeta", "awaiting-merge"),
+      errandIdentity("alpha", "open"),
+      errandIdentity("middle", "paused"),
+    ].map((identity) => ({
+      ...row({ id: identity.key, kind: "identity-only", lease: null }),
+      checkoutPath: null,
+      recordId: null,
+      role: null,
+      identity,
+    } satisfies ProvisionalLocusRow));
+    const frames = deriveLocusFrames({ rows: [primary, ...identities], enteringAnchor: ANCHOR });
+
+    expect(deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: frames.rows,
+      current: frames.current,
+      primarySafety: { kind: "complete", clean: true, onBase: true, branch: "main" },
+      primaryLock: "absent",
+    }).inFlightIdentities.map(({ identity, actions }) => ({ key: identity.key, actions }))).toEqual([
+      { key: "alpha", actions: ["resume", "abandon"] },
+      { key: "middle", actions: ["resume", "abandon"] },
+      { key: "zeta", actions: ["resume", "wait", "finalize", "abandon"] },
+    ]);
+  });
+
+  it("requires an explicit choice for dead transient residue", () => {
+    const primary = {
+      ...row({ id: "1", path: "/repo", kind: "free-primary", lease: null }),
+      primary: true,
+      recordId: null,
+      role: null,
+    } satisfies ProvisionalLocusRow;
+    const residue = row({ id: "2", path: "/errand", role: "errand", lease: "dead" });
+    const frames = deriveLocusFrames({ rows: [primary, residue], enteringAnchor: ANCHOR });
+
+    expect(deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: frames.rows,
+      current: frames.current,
+      primarySafety: { kind: "complete", clean: true, onBase: true, branch: "main" },
+      primaryLock: "absent",
+    }).recovery).toEqual({
+      kind: "residue",
+      recordId: residue.recordId,
+      actions: ["resume", "abandon"],
+    });
+  });
+
+  it("resumes the entering frame, replaces dead WU leases, and stops on unknown liveness", () => {
+    const primary = {
+      ...row({ id: "1", path: "/repo", kind: "free-primary", lease: null }),
+      primary: true,
+      recordId: null,
+      role: null,
+    } satisfies ProvisionalLocusRow;
+    const derive = (subject: ProvisionalLocusRow) => {
+      const frames = deriveLocusFrames({ rows: [primary, subject], enteringAnchor: ANCHOR });
+      return deriveLocusOperationalState({
+        primaryPath: "/repo",
+        rows: frames.rows,
+        current: frames.current,
+        primarySafety: { kind: "complete", clean: true, onBase: true, branch: "main" },
+        primaryLock: "absent",
+      }).recovery;
+    };
+
+    const active = row({ id: "2", lease: "live" });
+    expect(derive(active)).toEqual({
+      kind: "resume",
+      activeRecordId: active.recordId,
+      parentRecordId: null,
+    });
+    expect(derive(row({ id: "3", lease: "dead" }))).toEqual({ kind: "none" });
+    expect(derive(row({ id: "5", lease: "live", anchor: { ...ANCHOR, pid: 99 } })))
+      .toEqual({ kind: "none" });
+    expect(derive(row({ id: "4", lease: "unknown" }))).toEqual({
+      kind: "stop",
+      reasons: ["lease-unknown"],
+    });
+
+    const unknown = row({ id: "6", lease: "unknown" });
+    const mixedFrames = deriveLocusFrames({ rows: [primary, active, unknown], enteringAnchor: ANCHOR });
+    expect(deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: mixedFrames.rows,
+      current: mixedFrames.current,
+      primarySafety: { kind: "complete", clean: true, onBase: true, branch: "main" },
+      primaryLock: "absent",
+    }).recovery).toEqual({ kind: "stop", reasons: ["lease-unknown"] });
   });
 });

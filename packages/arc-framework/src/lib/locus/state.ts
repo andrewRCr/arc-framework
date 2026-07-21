@@ -1,16 +1,157 @@
 /** Pure frame and current-locus derivation over provisional roster rows. */
 
 import type { ProvisionalLocusRow } from "./roster.js";
+import type { PrimarySafetyResult } from "./primary-safety.js";
 import type {
   LocusAnchor,
   LocusDiagnosticV1,
   LocusRowV1,
   LocusStateV1,
+  LocusStopReason,
 } from "./schema/index.js";
 
 export interface LocusFrameDerivation {
   readonly rows: readonly LocusRowV1[];
   readonly current: LocusStateV1["current"];
+}
+
+export interface LocusOperationalDerivation {
+  readonly primaryAvailability: LocusStateV1["primaryAvailability"];
+  readonly inFlightIdentities: LocusStateV1["inFlightIdentities"];
+  readonly recovery: LocusStateV1["recovery"];
+}
+
+/**
+ * Derive allocation and recovery verdicts from one already-bounded locus snapshot.
+ * @param options - Public rows plus directed primary and target-lock facts from the same read.
+ * @returns Deterministic primary availability, identity actions, and recovery guidance.
+ */
+export function deriveLocusOperationalState(options: {
+  primaryPath: string;
+  rows: readonly LocusRowV1[];
+  current: LocusStateV1["current"];
+  primarySafety: Extract<PrimarySafetyResult, { kind: "complete" }>;
+  primaryLock: "absent" | "live" | "dead" | "unknown";
+}): LocusOperationalDerivation {
+  const primaryAvailability = derivePrimaryAvailability(options);
+  return {
+    primaryAvailability,
+    inFlightIdentities: deriveInFlightIdentities(options.rows),
+    recovery: deriveRecovery(options.rows, options.current, primaryAvailability),
+  };
+}
+
+function deriveInFlightIdentities(rows: readonly LocusRowV1[]): LocusStateV1["inFlightIdentities"] {
+  const identities = new Map<string, NonNullable<LocusRowV1["identity"]>>();
+  for (const row of rows) {
+    if (row.identity === null) continue;
+    const key = `${row.identity.kind}\0${row.identity.key}\0${row.identity.claimId}`;
+    if (!identities.has(key)) identities.set(key, row.identity);
+  }
+  return [...identities.values()]
+    .sort((left, right) => compareUtf8(`${left.kind}\0${left.key}`, `${right.kind}\0${right.key}`))
+    .map((identity) => ({
+      identity,
+      actions: identity.state === "awaiting-merge"
+        ? ["resume", "wait", "finalize", "abandon"]
+        : ["resume", "abandon"],
+    }));
+}
+
+function deriveRecovery(
+  rows: readonly LocusRowV1[],
+  current: LocusStateV1["current"],
+  primaryAvailability: LocusStateV1["primaryAvailability"],
+): LocusStateV1["recovery"] {
+  const managed = rows.filter((row) => row.kind === "managed-role" && row.role !== null);
+  const stopReasons = [
+    ...(primaryAvailability.kind === "unsafe" ? primaryAvailability.reasons : []),
+    ...(current.kind === "ambiguous" ? current.reasons : []),
+    ...(managed.some((row) => row.lease?.state === "unknown") ? ["lease-unknown" as const] : []),
+  ];
+  if (stopReasons.length > 0) return { kind: "stop", reasons: sortStopReasons(stopReasons) };
+  if (current.kind === "resolved") {
+    return {
+      kind: "resume",
+      activeRecordId: current.activeRecordId,
+      parentRecordId: current.parentRecordId,
+    };
+  }
+  const transientResidue = managed.filter((row) =>
+    row.role?.kind !== "work-unit" && (row.lease === null || row.lease.state === "dead"));
+  if (transientResidue.length > 1) return { kind: "stop", reasons: ["role-conflict"] };
+  const residue = transientResidue[0];
+  if (residue?.recordId !== null && residue?.recordId !== undefined) {
+    return { kind: "residue", recordId: residue.recordId, actions: ["resume", "abandon"] };
+  }
+  return { kind: "none" };
+}
+
+function derivePrimaryAvailability(options: {
+  primaryPath: string;
+  rows: readonly LocusRowV1[];
+  primarySafety: Extract<PrimarySafetyResult, { kind: "complete" }>;
+  primaryLock: "absent" | "live" | "dead" | "unknown";
+}): LocusStateV1["primaryAvailability"] {
+  const primaryRows = options.rows.filter((row) =>
+    row.primary === true || row.checkoutPath === options.primaryPath);
+  const primary = primaryRows.length === 1 ? primaryRows[0] : undefined;
+  const reasons: LocusStopReason[] = [];
+  if (primaryRows.length !== 1) reasons.push(primaryRows.length > 1 ? "duplicate-locus" : "path-unavailable");
+  if (options.primaryLock === "live") reasons.push("lock-live");
+  if (options.primaryLock === "unknown") reasons.push("lock-unknown");
+  if (primary !== undefined) reasons.push(...primaryRowStopReasons(primary));
+  if (reasons.length > 0) {
+    return { kind: "unsafe", checkoutPath: options.primaryPath, reasons: sortStopReasons(reasons) };
+  }
+  if (primary?.kind === "managed-role" && primary.recordId !== null) {
+    return {
+      kind: "occupied",
+      checkoutPath: options.primaryPath,
+      recordId: primary.recordId,
+      leaseState: primary.lease?.state ?? "absent",
+    };
+  }
+  if (primary?.kind === "free-primary") {
+    const freeReasons: LocusStopReason[] = [];
+    if (!options.primarySafety.clean) freeReasons.push("primary-dirty");
+    if (!options.primarySafety.onBase) freeReasons.push("primary-off-base");
+    return freeReasons.length === 0
+      ? { kind: "free", checkoutPath: options.primaryPath }
+      : { kind: "unsafe", checkoutPath: options.primaryPath, reasons: freeReasons };
+  }
+  return { kind: "unsafe", checkoutPath: options.primaryPath, reasons: ["subject-unresolved"] };
+}
+
+function primaryRowStopReasons(row: LocusRowV1): LocusStopReason[] {
+  const reasons = row.diagnostics.flatMap((item): LocusStopReason[] => {
+    switch (item.code) {
+      case "subject-unresolved":
+      case "unsupported-version":
+      case "duplicate-locus":
+      case "marker-missing":
+      case "cross-identity":
+      case "record-malformed":
+      case "path-unavailable":
+        return [item.code];
+      default:
+        return [];
+    }
+  });
+  if (row.kind === "duplicate-locus") reasons.push("duplicate-locus");
+  if (row.kind === "malformed-record" && reasons.length === 0) reasons.push("record-malformed");
+  return reasons;
+}
+
+const STOP_REASON_ORDER: readonly LocusStopReason[] = [
+  "primary-dirty", "primary-off-base", "lease-live", "lease-unknown", "lock-live", "lock-unknown",
+  "role-conflict", "record-malformed", "unsupported-version", "identity-malformed", "path-unavailable",
+  "duplicate-locus", "cross-identity", "marker-missing", "subject-unresolved",
+];
+
+function sortStopReasons(reasons: readonly LocusStopReason[]): LocusStopReason[] {
+  const unique = new Set(reasons);
+  return STOP_REASON_ORDER.filter((reason) => unique.has(reason));
 }
 
 /** Assemble the single public roster/state value from pure derivation inputs. */
