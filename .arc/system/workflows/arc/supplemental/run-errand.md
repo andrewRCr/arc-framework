@@ -206,18 +206,37 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    code uses the **reviewed-lane**; pure planning or doc grooming may use the **auto-merge-lane**. This merge lane is
    downstream presentation only and cannot change routing, response, or evidence authority.
 
-5. **Settle the final head.** For reviewed and auto lanes, run review coordination and fire `pre-merge` before
-   merge authorization. If any fix/request action changes the head, repeat base freshness, current-head coordination,
-   and the final hook until the head is unchanged and the controller reports it settled. No review-authored commit or
-   push may occur after the stable checkpoint.
+5. **Settle the final head.** Establish `vehicle: errand` from the strict Errand record, branch, and exact PR. That
+   vehicle is explicitly outside WU composition-product requirements. Never infer the exemption from absent or
+   malformed WU state; a missing or contradictory Errand identity stops.
+
+   Run authoritative base freshness and validate the complete typed result:
+
+   ```bash
+   arc base drift --json
+   ```
+
+   After any fix, request action, or append-only base reconcile changes the head, execute the generic push contract
+   and return to current-head coordination. The coordinator applies typed applicability: `carry` is admissible only
+   when the prior exact scope remains unchanged; otherwise retrigger the routed obligation. Repeat until base, head,
+   requirements, and review are settled.
+
+   Compose the final `openedChangeRequest` and fire `pre-merge`.
+   Then retain `openedChangeRequest.headSha` as `{approved-head-sha}`. No review-authored commit or push may occur
+   after this stable checkpoint.
 
    - **Extensions** · `#pre-merge`: If active, run its `.actions` before the merge; halt-on-fail as above.
      Otherwise skip.
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop after the current head is settled and before arming auto-merge or merging. Surface PR
-> status (checks, required approvals) and the resolved lane; await explicit integration approval — never infer it from
-> the increment approval above.
+> status (exact head, checks, required approvals, base freshness) and the resolved lane; await explicit integration
+> approval — never infer it from the increment approval above.
+
+Immediately after approval, recompose the exact current head and re-read PR status, requirements, and authoritative
+base drift. A changed head, unsettled requirement, or non-clean base invalidates approval and returns to Step 4. With
+the approved head still exact, permit no review action, lifecycle mutation, commit, push, fetch, or human stop before
+the lane action.
 
 6. Land per lane:
 
@@ -226,10 +245,11 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
 
    ```bash
    arc config status --json   # read settings["merge.strategy"]
-   gh pr merge <pr-number> --auto <merge-flag>
+   gh pr merge <pr-number> --auto <merge-flag> --match-head-commit {approved-head-sha}
    ```
 
-   **Reviewed-lane** — leave the PR open for owner review; it merges on approval.
+   **Reviewed-lane** — leave the PR open for owner review on `{approved-head-sha}`. A head change restarts Step 4;
+   native owner approval satisfies its own requirement but never replaces the integration-interlock.
 
 ### Ship — partial protection
 

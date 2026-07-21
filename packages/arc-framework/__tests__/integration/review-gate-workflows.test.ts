@@ -478,6 +478,35 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).toMatch(/never invent[\s\S]*WU meta[\s\S]*task-list state/iu);
   });
 
+  it("settles the Errand exact head without importing WU products", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+    );
+    const full = packaged.slice(
+      packaged.indexOf("### Ship — full protection"),
+      packaged.indexOf("### Ship — partial protection"),
+    );
+    expect(full).toContain("arc base drift --json");
+    expect(full).toContain("typed applicability");
+    expect(full).toMatch(/`carry`[\s\S]*prior exact scope[\s\S]*retrigger/u);
+    expect(full).toMatch(/`vehicle: errand`[\s\S]*outside WU composition-product requirements/u);
+    expect(full).toMatch(/never infer[\s\S]*absent or\s+malformed WU state/iu);
+    expect(full).toContain("retain `openedChangeRequest.headSha` as `{approved-head-sha}`");
+
+    const preMerge = full.lastIndexOf("`#pre-merge`");
+    const interlock = full.lastIndexOf("`integration-interlock`");
+    const autoMerge = full.lastIndexOf("gh pr merge <pr-number>");
+    expect(preMerge).toBeLessThan(interlock);
+    expect(interlock).toBeLessThan(autoMerge);
+    expect(full).toMatch(/after approval[\s\S]*recompose[\s\S]*re-read PR status[\s\S]*base drift/u);
+    expect(full).toContain("--match-head-commit {approved-head-sha}");
+
+    const partial = packaged.slice(packaged.indexOf("### Ship — partial protection"), packaged.indexOf("### Complete"));
+    expect(partial).toContain("direct base-branch commit");
+    expect(partial).not.toContain("pre-merge");
+    expect(partial).not.toContain("integration-interlock");
+  });
+
   it("uses one late authoritative base-reconcile mutation site", async () => {
     const [packageIntegration, instanceIntegration] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),

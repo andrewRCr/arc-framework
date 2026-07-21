@@ -803,11 +803,13 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
         - Atomic determinacy is now an explicit routing fact while auto/reviewed lanes resolve only after settlement as
           presentation; suspension uses watcher/schedule/human fallbacks without synthesizing WU lifecycle state.
 
-    - `[ ]` **6.5.b Preserve exact final-head settlement and merge authority**
-        - Apply retrigger/carry-forward, generic extensions, and final `pre-merge` ordering before the existing
-          integration-interlock; retain direct-base behavior under partial protection.
-        - Keep Errands explicitly outside WU composition-product requirements by vehicle while preserving their own
-          exact-head final interlock; never infer that exception from absent or malformed WU state.
+    - `[x]` **6.5.b Preserve exact final-head settlement and merge authority**
+        - Bound full-protection Errands to strict vehicle identity, authoritative base freshness, typed
+          carry/retrigger behavior, generic push coordination, and final `pre-merge` ordering before exact-head
+          integration authorization.
+        - Revalidated the approved head immediately before a head-bound lane action, kept vehicle-qualified Errands
+          outside WU composition products without absence inference, and preserved partial protection's direct-base
+          path without PR integration ceremony.
 
     - `[ ]` **6.5.c Extend Errand lifecycle coverage**
         - Test clean, findings/fix, unavailable frontline, recommended/required independent review, re-entry,
