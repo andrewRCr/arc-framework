@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-session-locus-model.md`
-- **Task List:** [none]
+- **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** `create-spec` — spec finalized (refreshed against the landed `cli-schema-kernel` /
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
