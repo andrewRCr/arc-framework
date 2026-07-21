@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildErrandCheckJsonEnvelope,
   formatErrandCheckCaveats,
+  formatErrandCloseResult,
   formatErrandPushDeferredWarning,
 } from "../../../src/handlers/errand.js";
+import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
 
 describe("formatErrandCheckCaveats", () => {
   it("renders caveat lines for skipped marked entries and indeterminate probes", () => {
@@ -90,5 +92,27 @@ describe("formatErrandPushDeferredWarning", () => {
     expect(warning).toContain("recovery marker was not recorded");
     expect(warning).toContain("retry recovery with `arc sync`");
     expect(warning).not.toContain("it reconciles");
+  });
+});
+
+describe("formatErrandCloseResult", () => {
+  it("renders the same validated result as human narration and JSON", () => {
+    const result = createLocusMutationResult({
+      outcome: "refused",
+      operation: "errand-close",
+      reason: "preservation-unproven",
+      recommendedPromptText: "The recorded head moved.",
+    });
+
+    expect(formatErrandCloseResult(result, false)).toEqual({
+      stream: "stderr",
+      text: "Refused [preservation-unproven]: The recorded head moved.",
+      exitCode: 1,
+    });
+    expect(formatErrandCloseResult(result, true)).toEqual({
+      stream: "stdout",
+      text: `${JSON.stringify(result)}\n`,
+      exitCode: 1,
+    });
   });
 });

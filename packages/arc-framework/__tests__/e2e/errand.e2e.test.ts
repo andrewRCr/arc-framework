@@ -71,6 +71,38 @@ async function seedLegacyErrand(cwd: string, fixture: LegacyErrandFixture): Prom
   await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
 }
 
+/** Seed one exact v3 awaiting tail for command-boundary refusal coverage. */
+async function seedAwaitingV3Errand(cwd: string, slug: string): Promise<void> {
+  const headSha = (await git(cwd, ["rev-parse", "HEAD"])).trim();
+  const record = {
+    version: 3,
+    slug,
+    claimId: "c".repeat(32),
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:01:00.000Z",
+    kind: "errand",
+    purpose: "errand",
+    intent: slug,
+    branch: `chore/${slug}`,
+    origin: "description",
+    originEntry: null,
+    dispatchId: null,
+    state: "awaiting-merge",
+    savedHead: null,
+    changeRequest: {
+      repositoryRef: "owner/repo",
+      hostRef: "github.com",
+      baseRef: "main",
+      headRef: `chore/${slug}`,
+      headSha,
+    },
+  };
+  const blob = (await gitWithInput(cwd, ["hash-object", "-w", "--stdin"], `${JSON.stringify(record)}\n`)).trim();
+  const tree = (await gitWithInput(cwd, ["mktree"], `100644 blob ${blob}\t${slug}\n`)).trim();
+  const commit = (await git(cwd, ["commit-tree", tree, "-m", `seed v3 errand ${slug}`])).trim();
+  await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
+}
+
 /** Flip the installed config's branch.protection (default `partial`) to `full`. */
 async function setFullProtection(cwd: string): Promise<void> {
   const path = join(cwd, ".arc", "system", "arc-config.yml");
@@ -280,6 +312,23 @@ describe("arc errand close", () => {
     const forced = await runArc(["errand", "close", "wip", "--force"], tmpDir);
     expect(forced.exitCode).toBe(0);
     expect(await git(tmpDir, ["branch", "--list", "fix/wip"])).toBe("");
+  });
+
+  it("returns one JSON refusal when --force targets a v3 tail", async () => {
+    await setFullProtection(tmpDir);
+    await seedAwaitingV3Errand(tmpDir, "exact-tail");
+
+    const result = await runArc(["errand", "close", "exact-tail", "--force", "--json"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      outcome: "refused",
+      operation: "errand-close",
+      reason: "identity-conflict",
+    });
+    expect(result.stderr).toBe("");
+    expect(await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:exact-tail"]))
+      .toContain('"state":"awaiting-merge"');
   });
 
   it("force-closes when the local branch was already deleted", async () => {

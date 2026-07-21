@@ -11,6 +11,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  findNextDispatchInboxEntry,
   inboxEntrySourceDigest,
   inspectInboxEntry,
   listInboxEntryTitles,
@@ -85,6 +86,24 @@ describe("mutateInboxEntries", () => {
       sourceDigest,
       dispatchId: "dispatch-7",
     });
+  });
+
+  it("selects the first remaining capture in the exact dispatch generation", () => {
+    const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest: firstDigest, dispatchId: "dispatch-7" },
+      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest, dispatchId: "dispatch-7" },
+    ]);
+    const removed = mutateInboxEntries(marked.content, [
+      { kind: "remove", title: "First atomic", sourceDigest: firstDigest },
+    ]);
+
+    expect(findNextDispatchInboxEntry(removed.content, "dispatch-7")).toEqual({
+      title: "Second atomic",
+      dispatchId: "dispatch-7",
+    });
+    expect(findNextDispatchInboxEntry(removed.content, "dispatch-8")).toBeNull();
   });
 
   it("replays an exact mark, unmark, and removal without widening the write", () => {

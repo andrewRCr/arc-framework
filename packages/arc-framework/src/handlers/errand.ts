@@ -22,14 +22,16 @@ import * as p from "@clack/prompts";
 import { runActiveInFlight } from "../commands/active.js";
 import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import {
+  removeCurrentInboxEntry,
   runUserInboxRemove,
   withLockedUserInbox,
   type UserIOContext,
 } from "../commands/user.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
-  closeErrand,
+  closeLegacyErrand,
   promoteErrand,
+  readTransientIdentitySnapshot,
   retireErrand,
   type ErrandPushOutcome,
 } from "../lib/errand/index.js";
@@ -51,10 +53,12 @@ import { SlugSchema } from "../lib/kernel/index.js";
 import { openOrdinaryErrandAtRuntime } from "../lib/errand/open-runtime.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
+import { closeOrdinaryErrandAtRuntime } from "../lib/errand/close-runtime.js";
 import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
   clearErrandPartialPushMarker,
+  findNextDispatchInboxEntry,
   inspectInboxEntry,
   recordErrandPartialPushMarker,
 } from "../lib/user-sync/index.js";
@@ -88,6 +92,7 @@ async function settleErrandPushOutcome(
   identity: string,
   label: ErrandPushLabel,
   outcome: ErrandPushOutcome,
+  quiet: boolean = false,
 ): Promise<void> {
   switch (outcome.kind) {
     case "pushed":
@@ -99,7 +104,7 @@ async function settleErrandPushOutcome(
     case "conflict":
     case "failed": {
       const markerRecorded = await recordErrandPartialPushMarker(cwd, io, identity);
-      p.log.warn(formatErrandPushDeferredWarning(label, outcome, markerRecorded));
+      if (!quiet) p.log.warn(formatErrandPushDeferredWarning(label, outcome, markerRecorded));
       return;
     }
   }
@@ -673,6 +678,8 @@ function emitErrandLeaveFailure(code: string, message: string, json: boolean): v
 export interface ErrandCloseOptions {
   /** Bypass the containment safety check — the deliberate shipped / abandon override. */
   force?: boolean;
+  /** Emit the producer-validated mutation result without human decoration. */
+  json?: boolean;
 }
 
 /**
@@ -689,100 +696,148 @@ export interface ErrandCloseOptions {
  * and is an idempotent no-op otherwise.
  */
 export async function handleErrandClose(slug: string, opts: ErrandCloseOptions): Promise<void> {
-  p.intro("arc errand close");
+  if (opts.json !== true) p.intro("arc errand close");
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
   const { settings } = await readConfigSettings(cwd);
   if (settings["branch.protection"] !== "full") {
-    p.log.error(
-      "`arc errand close` is a full-protection verb. Under partial protection an errand is a direct "
-      + "base commit — no branch, no record — so it never closes.",
-    );
-    process.exitCode = 1;
+    emitErrandCloseResult(createLocusMutationResult({
+      outcome: "refused",
+      operation: "errand-close",
+      reason: "full-protection-required",
+      recommendedPromptText: "Errand close requires full branch protection.",
+    }), opts.json === true);
     return;
   }
 
   const base = settings["branch.base"].trim();
   if (base === "") {
-    p.log.error("No branch.base configured — cannot resolve the base to hop to.");
-    process.exitCode = 1;
+    emitErrandCloseFailure("locus.errand-close.base", "No branch.base is configured.", opts.json === true);
     return;
   }
 
   const identity = await resolveIdentityWithPrompt(false);
   if (!identity) {
-    p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
-    process.exitCode = 1;
+    emitErrandCloseFailure("locus.errand-close.identity", "No identity resolved.", opts.json === true);
     return;
   }
 
   const io = createUserIOContext();
   if (!io.execInput) {
-    p.log.error("The stdin git seam is unavailable — cannot remove the errand record.");
-    process.exitCode = 1;
+    emitErrandCloseFailure("locus.errand-close.identity", "The stdin Git boundary is unavailable.", opts.json === true);
     return;
   }
 
-  let result;
+  let result: LocusMutationResultV1;
   try {
-    result = await closeErrand(
-      { exec: io.exec, execInput: io.execInput, identity },
-      { slug, base, force: opts.force === true },
-    );
+    const snapshot = await readTransientIdentitySnapshot({ exec: io.exec, identity });
+    const localRecord = snapshot.kind === "complete" ? snapshot.records.get(slug) : undefined;
+    result = localRecord?.version === 1 || localRecord?.version === 2
+      ? await closeLegacyErrandResult(cwd, io, identity, slug, base, opts)
+      : await closeOrdinaryErrandAtRuntime({
+        slug,
+        base,
+        protection: "full",
+        force: opts.force === true,
+        identity,
+        exec: io.exec,
+        execInput: io.execInput,
+        removeInbox: async (record) => {
+          if (record.originEntry === null) return { kind: "absent", nextOffer: null };
+          const removed = await removeCurrentInboxEntry({ cwd, io, identity, title: record.originEntry });
+          const next = record.dispatchId !== null && removed.postImage.state === "present"
+            ? findNextDispatchInboxEntry(removed.postImage.content, record.dispatchId)
+            : null;
+          return {
+            kind: removed.removed ? "removed" : "absent",
+            nextOffer: next === null ? null : {
+              kind: "errand",
+              key: next.title,
+              dispatchId: next.dispatchId,
+              parentCheckoutPath: null,
+            },
+          };
+        },
+      });
   } catch (err) {
-    p.log.error(`Could not close the errand: ${err instanceof Error ? err.message : String(err)}`);
-    process.exitCode = 1;
-    return;
+    result = createLocusMutationResult({
+      outcome: "error",
+      operation: "errand-close",
+      error: { code: "locus.errand-close.handler", message: err instanceof Error ? err.message : String(err) },
+      recommendedPromptText: "Inspect the retained Errand identity and exact ref evidence before retrying.",
+    });
   }
+  emitErrandCloseResult(result, opts.json === true);
+}
 
-  if (result.kind === "no-record") {
-    p.log.info(`No errand record for '${slug}' — nothing to close.`);
+export function formatErrandCloseResult(
+  result: LocusMutationResultV1,
+  json: boolean,
+): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
+  return formatErrandOpenResult(result, json);
+}
+
+function emitErrandCloseResult(result: LocusMutationResultV1, json: boolean): void {
+  const formatted = formatErrandCloseResult(result, json);
+  if (json) process.stdout.write(formatted.text);
+  else if (formatted.stream === "stderr") p.log.error(formatted.text);
+  else {
+    p.log.success(formatted.text);
     p.outro("Done.");
-    return;
   }
+  process.exitCode = formatted.exitCode;
+}
 
+function emitErrandCloseFailure(code: string, message: string, json: boolean): void {
+  emitErrandCloseResult(createLocusMutationResult({
+    outcome: "error",
+    operation: "errand-close",
+    error: { code, message },
+    recommendedPromptText: "Resolve the reported input or configuration error before retrying.",
+  }), json);
+}
+
+async function closeLegacyErrandResult(
+  cwd: string,
+  io: ReturnType<typeof createUserIOContext>,
+  identity: string,
+  slug: string,
+  base: string,
+  opts: ErrandCloseOptions,
+): Promise<LocusMutationResultV1> {
+  if (!io.execInput) throw new Error("The stdin Git boundary is unavailable.");
+  const result = await closeLegacyErrand(
+    { exec: io.exec, execInput: io.execInput, identity },
+    { slug, base, force: opts.force === true },
+  );
+  if (result.kind === "no-record") {
+    return createLocusMutationResult({
+      outcome: "idempotent", operation: "errand-close", allocation: null, recordId: null, leaseId: null,
+      activeLocusPath: null, sessionHomePath: null, identity: null, originEntry: null, dispatchId: null,
+      routingPlanDigest: null, restoredParent: null, nextOffer: null,
+      recommendedPromptText: `Errand '${slug}' is already closed.`,
+    });
+  }
   if (result.kind === "unsafe-reap") {
-    p.log.error(
-      `Refusing to reap ${result.record.branch}: ${result.reason}. The record is kept, so the errand stays `
-      + "recoverable — push or merge it then retry, or re-run with `--force` if you've verified it shipped.",
-    );
-    process.exitCode = 1;
-    return;
+    return createLocusMutationResult({
+      outcome: "refused", operation: "errand-close", reason: "preservation-unproven",
+      recommendedPromptText: `${result.reason}. The legacy record is retained; retry with --force only after verification.`,
+    });
   }
-
-  // Mirror the sync leg's marker discipline (see handleErrandOpen): a clean push
-  // of the removal clears any stale marker; a failed push records it and is
-  // non-fatal, with collision outcomes naming their manual remedy.
-  await settleErrandPushOutcome(cwd, io, identity, "Record-removal", result.push);
-
-  // Drop the originating inbox capture (only inbox-promoted errands carry one);
-  // idempotent — an absent entry or missing inbox file is a clean no-op.
-  await dropOriginatingInboxCapture(cwd, io, identity, result.record.originEntry);
-
-  switch (result.remoteHead.kind) {
-    case "kept":
-      p.log.warn(
-        `Remote head origin/${result.record.branch} left intact — not provably landed in base, so it may be `
-        + "the only preservation of the work (e.g. a multi-commit squash, or a PR that hasn't merged yet). "
-        + "Delete it manually once you've verified it shipped.",
-      );
-      break;
-    case "failed":
-      p.log.warn(
-        `Could not delete the remote head origin/${result.record.branch} (${result.remoteHead.detail}) — `
-        + "delete it manually.",
-      );
-      break;
-    case "deleted":
-    case "absent":
-      break;
-  }
-
-  const remoteNote = result.remoteHead.kind === "deleted" ? " (local + remote head)" : "";
-  p.log.success(`Closed errand '${slug}' — reaped ${result.record.branch}${remoteNote}, record removed.`);
-  p.outro("Done.");
+  await settleErrandPushOutcome(cwd, io, identity, "Record-removal", result.push, opts.json === true);
+  await dropOriginatingInboxCapture(cwd, io, identity, result.record.originEntry, opts.json === true);
+  const remote = result.remoteHead.kind === "deleted" || result.remoteHead.kind === "absent"
+    ? "Remote cleanup is complete."
+    : "The remote head was retained for manual verification.";
+  return createLocusMutationResult({
+    outcome: "applied", operation: "errand-close", allocation: null, recordId: null, leaseId: null,
+    activeLocusPath: null, sessionHomePath: null, identity: null,
+    originEntry: result.record.originEntry ?? null, dispatchId: null, routingPlanDigest: null,
+    restoredParent: null, nextOffer: null,
+    recommendedPromptText: `Closed legacy Errand '${slug}' and reaped '${result.record.branch}'. ${remote}`,
+  });
 }
 
 /**
@@ -1000,20 +1055,21 @@ async function dropOriginatingInboxCapture(
   io: ReturnType<typeof createUserIOContext>,
   identity: string,
   originEntry: string | undefined,
+  quiet: boolean = false,
 ): Promise<void> {
   if (originEntry === undefined) return;
   const dropped = await runUserInboxRemove({ cwd, io, identity, slug: originEntry });
   if (dropped.removed) {
-    p.log.info("Dropped the originating inbox capture.");
+    if (!quiet) p.log.info("Dropped the originating inbox capture.");
     return;
   }
   if (dropped.inboxMissing) {
-    p.log.warn(
+    if (!quiet) p.log.warn(
       `Originating inbox capture '${originEntry}' not dropped — USER-INBOX is missing.`,
     );
     return;
   }
-  p.log.warn(
+  if (!quiet) p.log.warn(
     `Originating inbox capture '${originEntry}' not found in USER-INBOX — left for manual cleanup.`,
   );
 }

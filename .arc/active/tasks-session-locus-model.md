@@ -453,20 +453,14 @@ result so workflows consume verbs and precomposed verdicts.
         - Fresh primary/spawned allocation reuses only the exact retained branch head, links the entering WU or null
           cold parent, preserves inbox-dispatch output, and restores the prior tail on allocation rollback.
 
-    - `[ ]` **5.1.e Separate local leave from merge finalization**
-        - Refactor `packages/arc-framework/src/lib/errand/close.ts` so base-context finalization proves merge,
-          cleans the recorded local/remote branch only at the exact `changeRequest.headSha`, retires identity, and
-          removes the inbox capture after local occupancy is already gone.
-        - Preserve v1/v2 close-only restore behavior as bounded compatibility and keep remote heads when they remain
-          the only preservation proof. Restrict `close --force` to that legacy compatibility arm; v3 never bypasses
-          exact host and ref proof.
-        - Consume the shared lock-serialized inbox mutation seam and derive any next-offer only after the exact entry
-          removal succeeds or is already absent, using its returned post-image rather than rereading an unbound file
-          snapshot.
-        - Rewire the existing close registration and handler to emit the shared result in human/JSON modes.
-        - Build `test-first` (one behavior at a time):
-            - Cover exact merged finalization, already-deleted refs, moved heads, remote failures, notes-lock races,
-              v1/v2 force compatibility, v3 force refusal, and identity retention on unsafe cleanup.
+    - `[x]` **5.1.e Separate local leave from merge finalization**
+        - Added an identity-only v3 finalizer that requires exact merged host truth, cleans local and remote refs only
+          at the recorded head, removes the originating capture through the notes-locked post-image seam, and retires
+          the unchanged identity last so every unsafe or raced leg remains recoverable.
+        - Kept v1/v2 restore/reap behavior behind an explicit legacy close arm, including its bounded `--force`
+          escape hatch, while v3 force, moved heads, unreachable remotes, and unverifiable lifecycle evidence refuse.
+        - Rewired close to the shared human/JSON mutation result and exact next-dispatch offer, with focused unit,
+          real-Git integration, and built-CLI coverage for deletion, replay, compatibility, and failure containment.
 
     - `[ ]` **5.1.f Add explicit ordinary-Errand abandonment**
         - Add `arc errand abandon <slug>` for identity-only open, paused, or exact closed-unmerged awaiting tails.

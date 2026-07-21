@@ -380,6 +380,7 @@ errand
   .command("close <slug>")
   .description("Close an errand: reap the branch (containment-safe), remove the record, drop the inbox capture")
   .option("--force", "Bypass the containment check — reap even when the commits can't be proven preserved")
+  .option("--json", "Emit the producer-validated locus mutation result")
   .action((slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts));
 
 errand

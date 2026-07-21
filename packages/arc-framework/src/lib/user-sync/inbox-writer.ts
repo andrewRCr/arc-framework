@@ -54,6 +54,12 @@ export interface InspectedInboxEntry {
   dispatchId: string | null;
 }
 
+/** First well-formed remaining capture bound to one exact dispatch generation. */
+export interface NextDispatchInboxEntry {
+  title: string;
+  dispatchId: string;
+}
+
 interface LocatedInboxEntry {
   start: number;
   end: number;
@@ -152,6 +158,19 @@ export function inspectInboxEntry(content: string, title: string): InspectedInbo
     sourceDigest: unboundDigest(lines, entry),
     dispatchId: dispatchBinding(lines, entry)?.dispatchId ?? null,
   };
+}
+
+/** Select the first remaining capture carrying the exact dispatch ID, in file order. */
+export function findNextDispatchInboxEntry(
+  content: string,
+  dispatchId: string,
+): NextDispatchInboxEntry | null {
+  const lines = content.split("\n");
+  for (const entry of locateInboxEntries(lines)) {
+    const binding = dispatchBinding(lines, entry);
+    if (binding?.dispatchId === dispatchId) return { title: entry.title, dispatchId };
+  }
+  return null;
 }
 
 /** Apply one all-or-nothing title/digest-qualified inbox mutation batch. */

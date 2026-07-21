@@ -159,10 +159,25 @@ export {
 
 export {
   closeErrand,
+  closeLegacyErrand,
   type CloseErrandParams,
   type CloseErrandResult,
   type RemoteHeadCleanup,
 } from "./close.js";
+
+export {
+  closeOrdinaryErrand,
+  type CloseInboxResult,
+  type CloseOrdinaryErrandDependencies,
+  type CloseOrdinaryErrandOptions,
+  type CloseRefCleanupResult,
+} from "./close-locus.js";
+
+export {
+  cleanupOrdinaryErrandRefs,
+  closeOrdinaryErrandAtRuntime,
+  type CloseOrdinaryErrandRuntimeOptions,
+} from "./close-runtime.js";
 
 export {
   retireErrand,
