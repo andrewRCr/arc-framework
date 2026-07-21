@@ -198,16 +198,6 @@ export async function resolveIdentityWithPrompt(interactive: boolean): Promise<s
   });
 }
 
-// --- Environment ---
-
-/**
- * Detect non-interactive environment (CI or non-TTY stdin).
- * Returns true if `--yes` behavior should be implied.
- */
-export function isNonInteractiveEnvironment(): boolean {
-  return process.env.CI === "true" || !process.stdin.isTTY;
-}
-
 /** Canonical error copy when the current directory is outside any ARC project root. */
 export const ARC_PROJECT_ROOT_ERROR =
   "Not inside an ARC project (no .arc/ directory found walking up from cwd).";

@@ -37,6 +37,9 @@ import { resolveBacklogStub } from "../lib/work-unit/backlog-stub.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 import * as p from "@clack/prompts";
+import { z } from "zod";
+import { SlugSchema } from "../lib/kernel/index.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 
 /** Meta `**State:**` phases for which a work unit occupies its worktree. */
 const OCCUPYING_PHASES: ReadonlySet<string> = new Set(["Planning", "Active", "Integrating"]);
@@ -48,7 +51,23 @@ export interface PlanCheckOptions {
   json?: boolean;
 }
 
+/** Validated input for planning-entry inspection. */
+export const PlanCheckInputSchema = z.object({ name: SlugSchema.optional(), json: z.boolean().optional() }).strict();
+
+/** Registry contribution owned by plan check. */
+export const planCheckInputRegistration = {
+  commandPath: "plan check",
+  schema: PlanCheckInputSchema,
+} satisfies CommandInputRegistration;
+
 export async function handlePlanCheck(opts: PlanCheckOptions): Promise<void> {
+  const parsed = PlanCheckInputSchema.safeParse(opts);
+  if (!parsed.success) {
+    process.stderr.write(`${z.prettifyError(parsed.error)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  opts = parsed.data;
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 

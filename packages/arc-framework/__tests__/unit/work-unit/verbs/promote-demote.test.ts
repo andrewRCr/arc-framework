@@ -130,6 +130,9 @@ function buildCtx(metas: MetaSpec[], pruneDirs: Record<string, string[]> = {}): 
     reconcileBranch: async () => {},
     reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
     writeBranchField: async () => {},
+    writeClassField: async (path, value) => {
+      calls.push(`class:${path}:${value}`);
+    },
     writeCurrentWorkflowField: async () => {},
     writeDesignField: async () => {},
     writeSoftFields: async (path, updates) => {
@@ -185,6 +188,17 @@ describe("runPromote — the Class gate", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/provisional/i);
     expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
+  });
+
+  it("persists an explicitly acquired Class while promoting an unresolved stub", async () => {
+    const { ctx, calls } = buildCtx([PROVISIONAL("[TBD]")], {
+      [`${CWD}/.arc/backlog/provisional/foo`]: [],
+    });
+
+    const result = await runPromote(ctx, { name: "foo", class: "Heavy" });
+
+    expect(result.status).toBe("moved");
+    expect(calls).toContain("class:.arc/backlog/planned/foo/meta-foo.md:Heavy");
   });
 });
 

@@ -87,6 +87,10 @@ import {
 } from "../lib/git/worktree-sync.js";
 import { inferRecommendedSummaryLine } from "../lib/handoff/recommended-summary-line.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../lib/command-input/interaction-context.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
 import { appendAuditEntry, toAuditWorkUnit } from "../lib/release/audit-log.js";
@@ -96,7 +100,6 @@ import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import {
   ARC_PROJECT_ROOT_ERROR,
-  isNonInteractiveEnvironment,
   resolveUserIdentity,
 } from "./shared.js";
 
@@ -394,7 +397,13 @@ type ExecutedOutcome = Omit<
 export async function handleSync(
   opts: SyncOptions = {},
   output: SyncOutput = createSyncOutput(opts.json === true),
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: opts.json === true,
+    yes: opts.yes === true ? "authority" : "absent",
+  });
   output.intro("arc sync");
 
   let identity: string;
@@ -416,7 +425,7 @@ export async function handleSync(
     return;
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context.subprocess);
   const resolvedSettings = await resolveAllSettings({
     cwd,
     exec: io.exec,
@@ -432,13 +441,13 @@ export async function handleSync(
   const branch = worktree.branch;
 
   let notesPush = notesPushResolved.value;
-  if (notesPush === "prompt" && opts.yes === true) {
+  if (notesPush === "prompt" && context.confirmation === "accept") {
     output.log.info(
       `--yes flag detected — auto-accepting "prompt" policy (save and push notes).`,
     );
     notesPush = "on-sync";
-  } else if (notesPush === "prompt" && (isNonInteractiveEnvironment() || opts.json === true)) {
-    const reason = opts.json === true ? "JSON output mode" : "Non-interactive environment";
+  } else if (notesPush === "prompt" && context.interaction === "forbidden") {
+    const reason = opts.json === true ? "JSON output mode" : "Interaction unavailable";
     output.log.warn(
       `${reason} detected — degrading "prompt" policy to "manual" (save only).`,
     );
@@ -451,7 +460,7 @@ export async function handleSync(
     syncInterlock,
   };
 
-  const isTty = !isNonInteractiveEnvironment();
+  const isTty = context.terminal === "interactive";
   const autoPull = resolvedSettings.settings["sync.auto_pull"] === "true";
 
   const decision = decideMatrix({
@@ -500,7 +509,8 @@ export async function handleSync(
     output,
     cwd,
     identity,
-    yes: opts.yes === true,
+    yes: context.confirmation === "accept",
+    interaction: context,
   });
 
   const errand = await reconcileErrandLeg(io, identity, cwd);
@@ -640,6 +650,7 @@ interface ExecuteContext {
   identity: string;
   /** `--yes` flag — auto-accepts safe-default recovery prompts; never opts into force-push. */
   yes: boolean;
+  interaction: InteractionContext;
 }
 
 async function execute(ctx: ExecuteContext): Promise<ExecutedOutcome> {
@@ -1134,7 +1145,7 @@ async function executeInboundFfPull(
     exec: ctx.io.exec,
     branch,
     policy: "always",
-    isTty: !isNonInteractiveEnvironment(),
+    isTty: ctx.interaction.terminal === "interactive",
     fetchTimeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
   });
 

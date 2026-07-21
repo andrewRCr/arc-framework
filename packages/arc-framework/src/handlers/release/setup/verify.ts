@@ -10,10 +10,13 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { z } from "zod";
 
 import { resolveAllSettings, type ResolvedSettingsResult } from "../../../lib/config/resolved-settings.js";
 import { resolveIdentity } from "../../../lib/git/index.js";
-import { gitExec } from "../../../lib/io-context.js";
+import { createUserIOContext, gitExec } from "../../../lib/io-context.js";
+import type { InteractionContext } from "../../../lib/command-input/interaction-context.js";
+import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
 import {
   readMarker,
   type HarnessEntry,
@@ -35,6 +38,18 @@ export interface RunReleaseSetupVerifyOptions {
   /** Sink for errors. Defaults to `process.stderr.write`. */
   writeStderr?: (msg: string) => void;
 }
+
+/** Validated input for filtering the release setup report. */
+export const ReleaseSetupVerifyInputSchema = z.object({ harness: z.string().min(1).optional() }).strict();
+
+/** Commander input for release setup verification. */
+export type ReleaseSetupVerifyOptions = z.input<typeof ReleaseSetupVerifyInputSchema>;
+
+/** Registry contribution owned by release setup verification. */
+export const releaseSetupVerifyInputRegistration = {
+  commandPath: "release setup verify",
+  schema: ReleaseSetupVerifyInputSchema,
+} satisfies CommandInputRegistration;
 
 export interface RunReleaseSetupVerifyResult {
   exitCode: number;
@@ -97,7 +112,16 @@ export function runReleaseSetupVerify(
  *
  * @param opts - Commander-parsed harness filter option
  */
-export async function handleReleaseSetupVerify(opts: { harness?: string }): Promise<void> {
+export async function handleReleaseSetupVerify(
+  opts: ReleaseSetupVerifyOptions,
+  context?: InteractionContext,
+): Promise<void> {
+  const parsed = ReleaseSetupVerifyInputSchema.safeParse(opts);
+  if (!parsed.success) {
+    process.stderr.write(`${z.prettifyError(parsed.error)}\n`);
+    process.exitCode = 1;
+    return;
+  }
   const cwd = resolveArcRoot(process.cwd());
   if (cwd === null) {
     process.stderr.write(`${ARC_PROJECT_ROOT_ERROR}\n`);
@@ -105,10 +129,11 @@ export async function handleReleaseSetupVerify(opts: { harness?: string }): Prom
     return;
   }
 
-  const identity = await resolveIdentity({ exec: gitExec });
+  const exec = context === undefined ? gitExec : createUserIOContext(context.subprocess).exec;
+  const identity = await resolveIdentity({ exec });
   const settings = await resolveAllSettings({
     cwd,
-    exec: gitExec,
+    exec,
     readFile: (path) => readFile(path, "utf-8"),
     warn: (message) => {
       process.stderr.write(`${message}\n`);
@@ -119,7 +144,7 @@ export async function handleReleaseSetupVerify(opts: { harness?: string }): Prom
   const result = runReleaseSetupVerify({
     settings,
     marker,
-    harness: opts.harness,
+    harness: parsed.data.harness,
   });
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;

@@ -8,9 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   runReleaseSetupInstall,
-  type SetupInstallIdempotencyChoice,
-  type TrustAcknowledgment,
-  type WorkflowVerification,
+  type ReleaseSetupInstallInput,
 } from "../../../../../src/handlers/release/setup/install.js";
 import type { ConfigSettings } from "../../../../../src/commands/config/types.js";
 import type { ResolvedSettingsResult } from "../../../../../src/lib/config/resolved-settings.js";
@@ -61,22 +59,27 @@ function existingHarness(): HarnessEntry {
   };
 }
 
+function installInput(overrides: Partial<ReleaseSetupInstallInput> = {}): ReleaseSetupInstallInput {
+  return {
+    trustAccepted: false,
+    workflowVerified: false,
+    json: false,
+    ...overrides,
+  };
+}
+
 describe("runReleaseSetupInstall", () => {
   it("requires --harness on the single-harness install path", async () => {
     const stderr: string[] = [];
-    const chooseIdempotency = vi.fn<() => Promise<SetupInstallIdempotencyChoice>>();
-
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "false", source: "default" }),
       marker: marker([]),
-      chooseIdempotency,
-      mode: "default-prompt",
+      input: installInput({ mode: "default-prompt" }),
       writeStdout: () => undefined,
       writeStderr: (msg) => stderr.push(msg),
     });
 
     expect(result.exitCode).toBe(1);
-    expect(chooseIdempotency).not.toHaveBeenCalled();
     expect(stderr.join("")).toContain("missing required option --harness");
   });
 
@@ -86,7 +89,7 @@ describe("runReleaseSetupInstall", () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "false", source: "default" }),
       marker: marker([]),
-      harness: "claude-code",
+      input: installInput({ harness: "claude-code" }),
       writeStdout: () => undefined,
       writeStderr: (msg) => stderr.push(msg),
     });
@@ -101,7 +104,7 @@ describe("runReleaseSetupInstall", () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "true", source: "git-config" }),
       marker: marker([existingHarness()]),
-      chooseIdempotency: async () => "exit",
+      input: installInput({ idempotencyAction: "exit" }),
       writeStdout: (msg) => stdout.push(msg),
     });
 
@@ -120,7 +123,7 @@ describe("runReleaseSetupInstall", () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "true", source: "git-config" }),
       marker: marker([existingHarness()]),
-      chooseIdempotency: async () => "exit",
+      input: installInput({ idempotencyAction: "exit" }),
       writeStdout: (msg) => stdout.push(msg),
     });
 
@@ -136,7 +139,7 @@ describe("runReleaseSetupInstall", () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "true", source: "git-config" }),
       marker: marker([existingHarness()]),
-      chooseIdempotency: async () => "re-verify",
+      input: installInput({ idempotencyAction: "re-verify" }),
       writeStdout: (msg) => stdout.push(msg),
     });
 
@@ -153,7 +156,7 @@ describe("runReleaseSetupInstall", () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "true", source: "git-config" }),
       marker: marker([existingHarness()]),
-      chooseIdempotency: async () => "update-markers",
+      input: installInput({ idempotencyAction: "update-markers" }),
       writeStdout: (msg) => stdout.push(msg),
     });
 
@@ -170,7 +173,7 @@ describe("runReleaseSetupInstall", () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "true", source: "git-config" }),
       marker: marker([existingHarness()]),
-      chooseIdempotency: async () => "add-harness",
+      input: installInput({ idempotencyAction: "add-harness" }),
       writeStdout: (msg) => stdout.push(msg),
       writeStderr: (msg) => stderr.push(msg),
     });
@@ -183,43 +186,26 @@ describe("runReleaseSetupInstall", () => {
     expect(stderr.join("")).toContain("missing required option --harness");
   });
 
-  it("surfaces trust-shift acknowledgment text for default-prompt mode", async () => {
-    const acknowledgeTrust = vi.fn<TrustAcknowledgment>().mockResolvedValue(false);
-
+  it("refuses unresolved trust for default-prompt mode", async () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "false", source: "default" }),
       marker: marker([]),
-      harness: "claude-code",
-      mode: "default-prompt",
-      acknowledgeTrust,
+      input: installInput({ harness: "claude-code", mode: "default-prompt" }),
       writeStdout: () => undefined,
     });
 
     expect(result.exitCode).toBe(0);
-    expect(acknowledgeTrust).toHaveBeenCalledWith(expect.objectContaining({
-      harness: "claude-code",
-      mode: "default-prompt",
-      message: expect.stringContaining("trust shift"),
-    }));
   });
 
-  it("surfaces audit-only acknowledgment text for bypass mode", async () => {
-    const acknowledgeTrust = vi.fn<TrustAcknowledgment>().mockResolvedValue(false);
-
+  it("refuses unresolved trust for bypass mode", async () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "false", source: "default" }),
       marker: marker([]),
-      harness: "claude-code",
-      mode: "bypass",
-      acknowledgeTrust,
+      input: installInput({ harness: "claude-code", mode: "bypass" }),
       writeStdout: () => undefined,
     });
 
     expect(result.exitCode).toBe(0);
-    expect(acknowledgeTrust).toHaveBeenCalledWith(expect.objectContaining({
-      mode: "bypass",
-      message: expect.stringContaining("audit-only"),
-    }));
   });
 
   it("aborts without state changes when trust acknowledgment is declined", async () => {
@@ -230,9 +216,7 @@ describe("runReleaseSetupInstall", () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "false", source: "default" }),
       marker: marker([]),
-      harness: "claude-code",
-      mode: "default-prompt",
-      acknowledgeTrust: async () => false,
+      input: installInput({ harness: "claude-code", mode: "default-prompt" }),
       upsertHarness,
       recordOptIn,
       writeStdout: (msg) => stdout.push(msg),
@@ -246,7 +230,6 @@ describe("runReleaseSetupInstall", () => {
 
   it("records marker and opt-in after accepted default-prompt workflow verification", async () => {
     const stdout: string[] = [];
-    const workflowVerification = vi.fn<WorkflowVerification>().mockResolvedValue(true);
     const upsertHarness = vi.fn<(entry: HarnessEntry) => Promise<MarkerWriteResult>>()
       .mockResolvedValue(marker([{ name: "claude-code", mode: "default-prompt", installedAt: "2026-05-10T12:00:00.000Z" }]) as MarkerWriteResult);
     const recordOptIn = vi.fn<() => Promise<{ exitCode: number }>>().mockResolvedValue({ exitCode: 0 });
@@ -254,22 +237,16 @@ describe("runReleaseSetupInstall", () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "false", source: "default" }),
       marker: marker([]),
-      harness: "claude-code",
-      mode: "default-prompt",
+      input: installInput({
+        harness: "claude-code", mode: "default-prompt", trustAccepted: true, workflowVerified: true,
+      }),
       now: () => "2026-05-10T12:00:00.000Z",
-      acknowledgeTrust: async () => true,
-      workflowVerification,
       upsertHarness,
       recordOptIn,
       writeStdout: (msg) => stdout.push(msg),
     });
 
     expect(result.exitCode).toBe(0);
-    expect(workflowVerification).toHaveBeenCalledWith(expect.objectContaining({
-      harness: "claude-code",
-      mode: "default-prompt",
-      requiresPromptObservation: true,
-    }));
     expect(upsertHarness).toHaveBeenCalledWith({
       name: "claude-code",
       mode: "default-prompt",
@@ -280,7 +257,6 @@ describe("runReleaseSetupInstall", () => {
   });
 
   it("records marker and opt-in after accepted bypass workflow verification", async () => {
-    const workflowVerification = vi.fn<WorkflowVerification>().mockResolvedValue(true);
     const upsertHarness = vi.fn<(entry: HarnessEntry) => Promise<MarkerWriteResult>>()
       .mockResolvedValue(marker([{ name: "codex", mode: "bypass", installedAt: "2026-05-10T12:00:00.000Z" }]) as MarkerWriteResult);
     const recordOptIn = vi.fn<() => Promise<{ exitCode: number }>>().mockResolvedValue({ exitCode: 0 });
@@ -288,21 +264,14 @@ describe("runReleaseSetupInstall", () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "false", source: "default" }),
       marker: marker([]),
-      harness: "codex",
-      mode: "bypass",
+      input: installInput({ harness: "codex", mode: "bypass", trustAccepted: true, workflowVerified: true }),
       now: () => "2026-05-10T12:00:00.000Z",
-      acknowledgeTrust: async () => true,
-      workflowVerification,
       upsertHarness,
       recordOptIn,
       writeStdout: () => undefined,
     });
 
     expect(result.exitCode).toBe(0);
-    expect(workflowVerification).toHaveBeenCalledWith(expect.objectContaining({
-      mode: "bypass",
-      requiresPromptObservation: false,
-    }));
     expect(upsertHarness).toHaveBeenCalledWith(expect.objectContaining({
       name: "codex",
       mode: "bypass" satisfies HarnessMode,
@@ -321,12 +290,11 @@ describe("runReleaseSetupInstall", () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "true", source: "git-config" }),
       marker: marker([existingHarness()]),
-      chooseIdempotency: async () => "add-harness",
-      harness: "codex",
-      mode: "default-prompt",
+      input: installInput({
+        idempotencyAction: "add-harness", harness: "codex", mode: "default-prompt",
+        trustAccepted: true, workflowVerified: true,
+      }),
       now: () => "2026-05-10T12:00:00.000Z",
-      acknowledgeTrust: async () => true,
-      workflowVerification: async () => true,
       upsertHarness,
       recordOptIn,
       writeStdout: (msg) => stdout.push(msg),
@@ -349,12 +317,10 @@ describe("runReleaseSetupInstall", () => {
     const result = await runReleaseSetupInstall({
       settings: buildSettings({ value: "false", source: "default" }),
       marker: marker([]),
-      harness: "claude-code",
-      mode: "default-prompt",
-      json: true,
+      input: installInput({
+        harness: "claude-code", mode: "default-prompt", trustAccepted: true, workflowVerified: true, json: true,
+      }),
       now: () => "2026-05-10T12:00:00.000Z",
-      acknowledgeTrust: async () => true,
-      workflowVerification: async () => true,
       upsertHarness: async (entry) => marker([entry]) as MarkerWriteResult,
       recordOptIn: async () => ({ exitCode: 0 }),
       writeStdout: (msg) => stdout.push(msg),
@@ -396,6 +362,7 @@ describe("runReleaseSetupInstall", () => {
         message: "release setup marker does not match schema v1",
         path: "/repo/.arc/user/andrew/.internal/release-setup.json",
       }),
+      input: installInput(),
       writeStderr: (msg) => stderr.push(msg),
     });
 

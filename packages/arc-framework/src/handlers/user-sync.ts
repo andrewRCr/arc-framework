@@ -32,11 +32,15 @@ import { isRefusalCondition } from "../lib/git/index.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../lib/command-input/interaction-context.js";
 import { createSyncOutput } from "../lib/sync-output.js";
 import { resolveNotesPushPolicy } from "../lib/config/resolved-settings.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import {
-  isHandledError, isNonInteractiveEnvironment, requireArcProjectRoot, resolveUserIdentity,
+  isHandledError, requireArcProjectRoot, resolveUserIdentity,
   resolveCurrentBranchName, isUserFetchOutcome, reportUserFetchOutcome,
 } from "./shared.js";
 
@@ -54,13 +58,22 @@ type DirectionParams = {
   io: ReturnType<typeof createUserIOContext>;
   identity: string;
   yes: boolean;
+  interaction: InteractionContext;
   restoreAfterPush?: boolean;
   recordPartialPushOnFailure?: boolean;
   /** Threaded into the pushability matrix for the notes-vs-worktree alignment probe. */
   worktreeBranch?: string;
 };
 
-export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> {
+export async function handleUserSync(
+  opts: UserSyncOptions = {},
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: false,
+    yes: opts.yes === true ? "authority" : "absent",
+  });
   p.intro("arc user sync");
 
   let identity: string;
@@ -71,7 +84,7 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
     throw err;
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const { settings } = await readConfigSettings(cwd);
@@ -93,7 +106,7 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
     p.log.info(worktreeQualifier);
   }
   const action = decideSyncAction(state);
-  const yes = Boolean(opts.yes);
+  const yes = context.confirmation === "accept";
 
   switch (action) {
     case "noop":
@@ -111,17 +124,18 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
         io,
         identity,
         yes,
+        interaction: context,
         recordPartialPushOnFailure: worktree?.state === "clean",
         worktreeBranch,
       });
       return;
     case "pull":
       p.log.info("→ Pulling the newer remote git note and restoring it to working files.");
-      await handlePullDirection({ cwd, io, identity, yes });
+      await handlePullDirection({ cwd, io, identity, yes, interaction: context });
       return;
     case "load":
       p.log.info("→ Restoring the local git note to working files.");
-      await handleLoadDirection({ cwd, io, identity, yes });
+      await handleLoadDirection({ cwd, io, identity, yes, interaction: context });
       return;
     case "push-load":
       p.log.info("→ Pushing the newer local git note, then restoring it to working files.");
@@ -130,6 +144,7 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
         io,
         identity,
         yes,
+        interaction: context,
         restoreAfterPush: true,
         recordPartialPushOnFailure: worktree?.state === "clean",
         worktreeBranch,
@@ -150,7 +165,7 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
       p.outro("Done.");
       return;
     case "conflict":
-      await handleConflict({ cwd, io, identity, yes, worktreeBranch });
+      await handleConflict({ cwd, io, identity, yes, interaction: context, worktreeBranch });
       return;
   }
 }
@@ -194,7 +209,7 @@ export function decideSyncAction(state: UserSyncState): SyncAction {
 }
 
 async function handleConflict(params: DirectionParams): Promise<void> {
-  if (isNonInteractiveEnvironment()) {
+  if (params.interaction.interaction === "forbidden") {
     await degradeConflictToSaveOnly(params);
     return;
   }
@@ -261,7 +276,12 @@ async function handlePullDirection(params: DirectionParams): Promise<void> {
   const { cwd, io, identity, yes } = params;
 
   const hasLocal = await hasLocalNotes(io, identity);
-  if (hasLocal && !yes && !isNonInteractiveEnvironment()) {
+  if (hasLocal && !yes) {
+    if (params.interaction.interaction === "forbidden") {
+      p.log.error("Local notes would be overwritten; re-run with --yes to authorize the pull.");
+      process.exitCode = 1;
+      return;
+    }
     const proceed = await p.confirm({
       message: OVERWRITE_CONFIRM_MESSAGE,
       initialValue: true,
@@ -348,10 +368,8 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
   });
 
   let policy = resolved.value;
-  if (policy === "prompt" && isNonInteractiveEnvironment()) {
-    p.log.warn(
-      'Non-interactive environment detected — degrading "prompt" policy to "manual" (save only).',
-    );
+  if (policy === "prompt" && params.interaction.interaction === "forbidden" && !params.yes) {
+    p.log.warn('Interaction is unavailable — degrading "prompt" policy to "manual" (save only).');
     policy = "manual";
   }
 
@@ -380,7 +398,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     return;
   }
 
-  if (policy === "prompt") {
+  if (policy === "prompt" && !params.yes) {
     const shouldPush = await p.confirm({
       message: "Push user notes to remote now?",
       initialValue: true,

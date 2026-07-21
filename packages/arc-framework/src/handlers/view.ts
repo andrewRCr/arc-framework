@@ -8,6 +8,7 @@ import { execFile, spawn } from "node:child_process";
 import { access, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { z } from "zod";
 
 import {
   resolveTaskListPath,
@@ -30,6 +31,13 @@ import {
   type PathCommandProbe,
 } from "../lib/view-renderer.js";
 import type { ViewTargetResult } from "../lib/view/types.js";
+import { VIEW_KINDS } from "../lib/view/types.js";
+import { SlugSchema } from "../lib/kernel/index.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../lib/command-input/interaction-context.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { resolveViewClock } from "../lib/view/clock.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -41,6 +49,39 @@ export interface ViewCliOptions {
   current?: boolean;
   for?: string;
 }
+
+/** Complete command-owned view input. */
+export const ViewCommandInputSchema = z.object({
+  kind: z.enum(VIEW_KINDS, {
+    error: (issue) => `Unknown view kind ${JSON.stringify(issue.input)}. Valid kinds: ${VIEW_KINDS.join(", ")}`,
+  }).optional(),
+  project: z.boolean(),
+  current: z.boolean(),
+  forSlug: z.string().refine(
+    (value) => SlugSchema.safeParse(value).success,
+    { message: "Invalid work-unit slug" },
+  ).optional(),
+}).strict().superRefine((value, refinement) => {
+  if (value.current && value.kind !== undefined && value.kind !== "tasks") {
+    refinement.addIssue({ code: "custom", path: ["current"], message: "--current is only valid with tasks" });
+  }
+  if (value.project && value.kind !== "inbox") {
+    refinement.addIssue({ code: "custom", path: ["project"], message: "--project is only valid with inbox" });
+  }
+  if (value.forSlug !== undefined && (value.kind === "working-memory" || value.kind === "inbox")) {
+    refinement.addIssue({
+      code: "custom",
+      path: ["forSlug"],
+      message: `--for is not valid with identity-global ${value.kind}`,
+    });
+  }
+});
+
+/** Registry contribution owned by the view command. */
+export const viewCommandInputRegistration = {
+  commandPath: "view",
+  schema: ViewCommandInputSchema,
+} satisfies CommandInputRegistration;
 
 /** Convert the command-owned active envelope into the neutral viewer target. */
 export function adaptActiveViewTarget(
@@ -87,10 +128,25 @@ export function adaptActiveViewTarget(
 export async function handleView(
   kind: string | undefined,
   options: ViewCliOptions,
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  const parsed = ViewCommandInputSchema.safeParse({
+    ...(kind === undefined ? {} : { kind }),
+    project: options.project === true,
+    current: options.current === true,
+    ...(options.for === undefined ? {} : { forSlug: options.for }),
+  });
+  if (!parsed.success) {
+    process.stderr.write(`${parsed.error.issues.map((issue) => issue.message).join("\n")}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false, machineReadable: false, yes: "absent",
+  });
   const cwd = requireArcProjectRoot();
   if (cwd === null) return;
-  const io = createUserIOContext();
+  const io = createUserIOContext(context.subprocess);
   const identity = await resolveIdentity({ exec: gitExec });
   const dependencies = createViewDependencies(cwd, io.readFile);
   const clock = await resolveViewClock({
@@ -100,12 +156,12 @@ export async function handleView(
   });
   const result = await runView({
     cwd,
-    kind,
-    project: Boolean(options.project),
+    kind: parsed.data.kind,
+    project: parsed.data.project,
     identity,
-    current: Boolean(options.current),
-    ...(options.for === undefined ? {} : { forSlug: options.for }),
-    nonInteractive: process.env.CI === "true" || !process.stdout.isTTY,
+    current: parsed.data.current,
+    ...(parsed.data.forSlug === undefined ? {} : { forSlug: parsed.data.forSlug }),
+    nonInteractive: context.subprocess.presenters === "forbidden",
   }, {
     resolveArtifact: (input) => resolveViewArtifact(input, dependencies),
     readFile: io.readFile,

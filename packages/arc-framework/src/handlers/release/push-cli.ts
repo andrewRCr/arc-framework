@@ -25,6 +25,10 @@ import {
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
 import { normalizeGitRejection } from "../../lib/git/process-error.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../../lib/command-input/interaction-context.js";
 
 import { runReleasePush, type SpawnPush } from "./push.js";
 
@@ -39,7 +43,13 @@ export interface HandleReleasePushOptions {
  * path forwards to a wrapped `git push` invocation that inherits stdout
  * for verbatim bubbling and captures stderr for `refStatus` parsing.
  */
-export async function handleReleasePush(opts: HandleReleasePushOptions): Promise<void> {
+export async function handleReleasePush(
+  opts: HandleReleasePushOptions,
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false, machineReadable: false, yes: "absent",
+  });
   let identity: string;
   try {
     identity = await resolveUserIdentity();
@@ -83,7 +93,7 @@ export async function handleReleasePush(opts: HandleReleasePushOptions): Promise
         worktreeBranch: currentBranch,
         worktreeSyncState: worktreeSync.state,
       }),
-    spawnPush: realSpawnPush,
+    spawnPush: createRealSpawnPush(context),
   });
 
   if (result.exitCode !== 0) {
@@ -99,13 +109,14 @@ export async function handleReleasePush(opts: HandleReleasePushOptions): Promise
  * Reshapes the helper's `failed` arm into the orchestrator's first-class
  * `exitCode` field so audit attribution uses structured process evidence.
  */
-const realSpawnPush: SpawnPush = async ({ branch, args, cwd }) => {
+const createRealSpawnPush = (context: InteractionContext): SpawnPush => async ({ branch, args, cwd }) => {
   const result = await pushWorktreeBranch({
     exec: gitExec,
     branch,
     args,
     cwd,
     inheritStdio: true,
+    interaction: context.subprocess,
   });
   if (result.status === "success") {
     return { status: "success", stdout: result.stdout, stderr: result.stderr };

@@ -14,8 +14,9 @@ import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
 import { isHandoffCritical } from "./lib/handoff-critical.js";
-import { handleInit } from "./handlers/init.js";
-import { handleJoin } from "./handlers/join.js";
+import { withInteractionContext } from "./lib/command-input/interaction-context.js";
+import { handleInit, type InitOptions } from "./handlers/init.js";
+import { handleJoin, type JoinOptions } from "./handlers/join.js";
 import { handleStart, type StartOptions } from "./handlers/start.js";
 import {
   handleErrandCheck,
@@ -57,6 +58,7 @@ import {
   handleSetStage,
   handleFinalizeStage,
   handleRepointDesign,
+  type PromoteOptions,
   type StubOptions,
   type ParkOptions,
   type ResumeOptions,
@@ -73,6 +75,12 @@ import {
   handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
   handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
   type UserInboxRemoveOptions,
+  type UserPushOptions,
+  type UserFetchOptions,
+  type UserCompactHandlerOptions,
+  type UserStatusOptions,
+  type UserLoadOptions,
+  type UserPullOptions,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
@@ -81,7 +89,7 @@ import { handleStatus } from "./handlers/status.js";
 import { handleView, type ViewCliOptions } from "./handlers/view.js";
 import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
-import { handleUserSync } from "./handlers/user-sync.js";
+import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
   handleCheckCommitMessage,
@@ -97,6 +105,10 @@ import {
   handleReleaseSetupUninstall,
   handleReleaseSetupVerify,
   handleReleaseStatus,
+  type ReleaseSetupInstallOptions,
+  type ReleaseSetupPrintPatternsOptions,
+  type ReleaseSetupUninstallOptions,
+  type ReleaseSetupVerifyOptions,
 } from "./commands/release.js";
 import { runDecomposeRecordValidation } from "./scripts/validate-decompose-record.js";
 import { runRoadmapConflictAutoRemedyCommand } from "./scripts/remedy-roadmap-conflict.js";
@@ -106,6 +118,7 @@ const program = new Command();
 program
   .name("arc")
   .description("CLI for installing, updating, and managing ARC framework files")
+  .option("--no-input", "Forbid prompts, presenters, editors, and ambient child-process input")
   .version(getFrameworkVersion());
 
 // --- Checks ---
@@ -157,22 +170,30 @@ program
   .command("init")
   .description("Initialize ARC framework in the current project")
   .option("-y, --yes", "Skip prompts, use defaults")
-  .option("--name <string>", "Project name (requires --yes)")
-  .option("--pm-mode <mode>", "PM mode: none, arc-in-git, external (requires --yes)")
-  .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
+  .option("--name <string>", "Project name")
+  .option("--pm-mode <mode>", "PM mode: none, arc-in-git, external")
+  .option("--tools <csv>", "Comma-separated tool list")
+  .option("--identity <name>", "Personal workspace identity (fresh installation only)")
   .option("--team", "Enable team mode (requires --yes)")
   .option("--reconfigure", "Change structural settings on an existing installation")
   .option("--dry-run", "Preview reconfigure changes without applying (requires --reconfigure)")
-  .action(handleInit);
+  .action(withInteractionContext(
+    { yes: "compatibility" },
+    (context, opts: InitOptions) => handleInit(opts, context),
+  ));
 
 program
   .command("join")
   .description("Join an existing ARC project as a team member or contributor")
   .option("--contributor", "Set role to contributor (default: maintainer)")
   .option("-y, --yes", "Skip prompts, use defaults")
-  .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
+  .option("--tools <csv>", "Comma-separated tool list")
+  .option("--identity <name>", "Personal workspace identity (fresh setup only)")
   .option("--reconfigure", "Change personal workspace settings (role, tools)")
-  .action(handleJoin);
+  .action(withInteractionContext(
+    { yes: "compatibility" },
+    (context, opts: JoinOptions) => handleJoin(opts, context),
+  ));
 
 // --- Work units ---
 
@@ -196,7 +217,10 @@ program
   )
   .option("--new", "Create a fresh work unit when the name does not exist on the base branch")
   .option("-y, --yes", "Skip the confirm prompt; spawned starts still commit and push the ceremony")
-  .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
+  .action(withInteractionContext(
+    { yes: "compatibility" },
+    (context, name: string | undefined, opts: StartOptions) => handleStart(name, opts, context),
+  ));
 
 // --- Lifecycle verbs (top-level peers of `arc start`) ---
 // Each takes an optional positional so a bare invocation reaches the handler's
@@ -211,7 +235,10 @@ program
   .option("--design <ref>", "Design artifact (spec / draft) → meta `Design`")
   .option("--cohort <slug>", "Enrol under a cohort: place at backlog/planned/<cohort>/<name>/ + set meta `Cohort` (planned-tier, single member)")
   .option("--class <value>", "Initial resolved Class (Light | Heavy | Novel); omitted → `[TBD]`")
-  .action((name: string | undefined, opts: StubOptions) => handleStub(name, opts));
+  .action(withInteractionContext(
+    { yes: "none" },
+    (context, name: string | undefined, opts: StubOptions) => handleStub(name, opts, context),
+  ));
 
 program
   .command("decompose <origin>")
@@ -223,7 +250,11 @@ program
 program
   .command("promote [slug]")
   .description("Raise a provisional stub to planned (requires a resolved `Class`)")
-  .action((slug: string | undefined) => handlePromote(slug));
+  .option("--class <value>", "Resolved Class (Light | Heavy | Novel) when the stub is still `[TBD]`")
+  .action(withInteractionContext(
+    { yes: "none" },
+    (context, slug: string | undefined, opts: PromoteOptions) => handlePromote(slug, opts, context),
+  ));
 
 program
   .command("demote [slug]")
@@ -285,7 +316,10 @@ program
   .command("abandon [slug]")
   .description("Destroy a pre-merge work unit (artifacts, branch, worktree) — prints the impact plan; requires --yes")
   .option("-y, --yes", "Confirm the destructive cascade (required to proceed)")
-  .action((slug: string | undefined, opts: AbandonOptions) => handleAbandon(slug, opts));
+  .action(withInteractionContext(
+    { yes: "authority" },
+    (context, slug: string | undefined, opts: AbandonOptions) => handleAbandon(slug, opts, context),
+  ));
 
 program
   .command("archive [slug]")
@@ -355,7 +389,10 @@ errand
   .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its bold title): inbox-origin record, dropped at close")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
-  .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts, context),
+  ));
 
 errand
   .command("link <slug>")
@@ -363,13 +400,19 @@ errand
   .option("--from-inbox <entry-title>", "USER-INBOX capture bold title to associate with the errand")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
-  .action((slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts, context),
+  ));
 
 errand
   .command("close <slug>")
   .description("Close an errand: reap the branch (containment-safe), remove the record, drop the inbox capture")
   .option("--force", "Bypass the containment check — reap even when the commits can't be proven preserved")
-  .action((slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts, context),
+  ));
 
 errand
   .command("retire <slug>")
@@ -384,7 +427,10 @@ errand
   .option("--floor <floor>", "Which floor the errand crossed: derivation | scale (required)")
   .option("--priority <priority>", "WU priority for the minted meta")
   .option("--class <class>", "WU Class for the minted meta")
-  .action((slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts, context),
+  ));
 
 const housekeep = program
   .command("housekeep")
@@ -458,12 +504,18 @@ const userCmd = program
 userCmd
   .command("add <identity>")
   .description("Create a user directory for a team member")
-  .action(handleUserAdd);
+  .action(withInteractionContext(
+    {},
+    (context, identity: string) => handleUserAdd(identity, context),
+  ));
 
 userCmd
   .command("open <wu-name>")
   .description("Open per-WU user workspace subdir (seeds SESSION-NOTES.md from template)")
-  .action(handleUserOpen);
+  .action(withInteractionContext(
+    {},
+    (context, wuName: string) => handleUserOpen(wuName, context),
+  ));
 
 userCmd
   .command("close <wu-name>")
@@ -475,7 +527,10 @@ userCmd
   .description("Drop the title-matched USER-INBOX entry (idempotent — no-op when absent)")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
-  .action((slug: string | undefined, opts: UserInboxRemoveOptions) => handleUserInboxRemove(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: UserInboxRemoveOptions) => handleUserInboxRemove(slug, opts, context),
+  ));
 
 userCmd
   .command("save")
@@ -486,32 +541,47 @@ userCmd
   .command("load")
   .description("Restore user directory from user notes")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
-  .action(handleUserLoad);
+  .action(withInteractionContext(
+    { yes: "compatibility" },
+    (context, opts: UserLoadOptions) => handleUserLoad(opts, context),
+  ));
 
 userCmd
   .command("push")
   .description("Push user notes to remote")
   .option("--force", "Force-push even when remote and local notes conflict")
-  .action(handleUserPush);
+  .action(withInteractionContext(
+    {},
+    (context, opts: UserPushOptions) => handleUserPush(opts, context),
+  ));
 
 userCmd
   .command("fetch")
   .description("Fetch user notes from remote")
   .option("--identity <name>", "Pull another developer's notes instead of your own")
-  .action(handleUserFetch);
+  .action(withInteractionContext(
+    {},
+    (context, opts: UserFetchOptions) => handleUserFetch(opts, context),
+  ));
 
 userCmd
   .command("pull")
   .description("Fetch user notes from remote and restore them to disk")
   .option("--identity <name>", "Pull another developer's notes instead of your own")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
-  .action(handleUserPull);
+  .action(withInteractionContext(
+    { yes: "authority" },
+    (context, opts: UserPullOptions) => handleUserPull(opts, context),
+  ));
 
 userCmd
   .command("compact")
   .description("Compact user notes history to a retained snapshot baseline")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleUserCompact);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: UserCompactHandlerOptions) => handleUserCompact(opts, context),
+  ));
 
 userCmd
   .command("status")
@@ -521,13 +591,19 @@ userCmd
   .option("--session-init", "Render a non-destructive remote probe summary for session-init")
   .option("--verbose", "Render the full ref/disk/working-files three-tier detail block (default: collapsed)")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleUserStatus);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
+    (context, opts: UserStatusOptions) => handleUserStatus(opts, context),
+  ));
 
 userCmd
   .command("sync")
   .description("Direction-aware notes-only sync — push, pull, or prompt on conflict")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
-  .action(handleUserSync);
+  .action(withInteractionContext(
+    { yes: "authority" },
+    (context, opts: UserSyncOptions) => handleUserSync(opts, context),
+  ));
 
 // --- Extensions ---
 
@@ -595,7 +671,10 @@ program
   .option("--project", "With inbox: render the shared project inbox")
   .option("--current", "With tasks: render only the current task region")
   .option("--for <slug>", "Override ambient context with the named work-unit slug")
-  .action((kind: string | undefined, opts: ViewCliOptions) => handleView(kind, opts));
+  .action(withInteractionContext(
+    {},
+    (context, kind: string | undefined, opts: ViewCliOptions) => handleView(kind, opts, context),
+  ));
 
 // --- Status (composite) ---
 
@@ -679,7 +758,10 @@ program
   // Call explicitly with only the parsed options — Commander otherwise passes
   // the Command instance as a second arg, which would collide with the
   // injectable `output` parameter.
-  .action((opts: SyncOptions) => handleSync(opts));
+  .action(withInteractionContext(
+    { yes: "authority", machineReadable: (opts) => opts.json === true },
+    (context, opts: SyncOptions) => handleSync(opts, undefined, context),
+  ));
 
 // --- Release ---
 
@@ -696,9 +778,10 @@ releaseCmd
   )
   .allowUnknownOption(true)
   .argument("[args...]", "Arguments forwarded to `git commit`")
-  .action(async (args: string[]) => {
-    await handleReleaseCommit({ args });
-  });
+  .action(withInteractionContext(
+    {},
+    (context, args: string[]) => handleReleaseCommit({ args }, context),
+  ));
 
 releaseCmd
   .command("push")
@@ -707,9 +790,10 @@ releaseCmd
   )
   .allowUnknownOption(true)
   .argument("[args...]", "Arguments forwarded to `git push`")
-  .action(async (args: string[]) => {
-    await handleReleasePush({ args });
-  });
+  .action(withInteractionContext(
+    {},
+    (context, args: string[]) => handleReleasePush({ args }, context),
+  ));
 
 releaseCmd
   .command("opt-in")
@@ -733,9 +817,10 @@ releaseCmd
   .command("status")
   .description("Show resolved release-mode opt-in and interlock state")
   .option("--json", "Emit a schemaVersion 2 JSON envelope")
-  .action(async (opts: { json?: boolean }) => {
-    await handleReleaseStatus({ json: opts.json });
-  });
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: { json?: boolean }) => handleReleaseStatus({ json: opts.json }, context),
+  ));
 
 const setupCmd = releaseCmd
   .command("setup")
@@ -749,10 +834,17 @@ setupCmd
     new Option("--mode <mode>", "Harness mode")
       .choices(["default-prompt", "bypass"]),
   )
+  .addOption(
+    new Option("--idempotency-action <action>", "Existing-install action")
+      .choices(["exit", "re-verify", "update-markers", "add-harness"]),
+  )
+  .option("-y, --yes", "Acknowledge the release-wrapper trust shift")
+  .option("--workflow-verified", "Attest that the harness setup workflow was verified")
   .option("--json", "Emit a schemaVersion 1 JSON envelope")
-  .action(async (opts: { harness?: string; mode?: string; json?: boolean }) => {
-    await handleReleaseSetupInstall(opts);
-  });
+  .action(withInteractionContext(
+    { yes: "authority", machineReadable: (opts) => opts.json === true },
+    (context, opts: ReleaseSetupInstallOptions) => handleReleaseSetupInstall(opts, context),
+  ));
 
 setupCmd
   .command("print-patterns")
@@ -763,7 +855,7 @@ setupCmd
       .choices(["harness", "raw"])
       .default("harness"),
   )
-  .action((opts: { harness?: string; format?: string }) => {
+  .action((opts: ReleaseSetupPrintPatternsOptions) => {
     handleReleaseSetupPrintPatterns(opts);
   });
 
@@ -771,18 +863,21 @@ setupCmd
   .command("uninstall")
   .description("Remove release-wrapper harness integration")
   .option("--harness <name>", "Harness name for single-harness uninstall flow")
+  .option("--cleanup-verified", "Attest that canonical harness entries were removed")
   .option("--json", "Emit a schemaVersion 1 JSON envelope")
-  .action(async (opts: { harness?: string; json?: boolean }) => {
-    await handleReleaseSetupUninstall(opts);
-  });
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: ReleaseSetupUninstallOptions) => handleReleaseSetupUninstall(opts, context),
+  ));
 
 setupCmd
   .command("verify")
   .description("Report recorded release-wrapper setup posture")
   .option("--harness <name>", "Filter verification report to a harness")
-  .action(async (opts: { harness?: string }) => {
-    await handleReleaseSetupVerify(opts);
-  });
+  .action(withInteractionContext(
+    {},
+    async (context, opts: ReleaseSetupVerifyOptions) => handleReleaseSetupVerify(opts, context),
+  ));
 
 // --- Log ---
 

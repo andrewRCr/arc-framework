@@ -54,6 +54,8 @@ export interface BacklogMoveContext {
 export interface BacklogMoveParams {
   /** The stub's WU name. */
   name: string;
+  /** Class acquired by the command adapter when the provisional meta is unresolved. */
+  class?: string;
 }
 
 /** The outcome of a `promote` / `demote` attempt — a rejection, or the relocated meta path. */
@@ -130,13 +132,26 @@ export async function runPromote(ctx: BacklogMoveContext, params: BacklogMovePar
   }
 
   const fromDir = posix.dirname(entry.path);
-  const cls = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, entry.path))).Class;
+  const recordedClass = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, entry.path))).Class;
+  const classIsUnresolved = recordedClass === "[TBD]";
+  const cls = classIsUnresolved ? params.class : recordedClass;
+  if (
+    recordedClass !== "[TBD]"
+    && params.class !== undefined
+    && params.class !== recordedClass
+  ) {
+    return { status: "rejected", reason: `--class ${params.class} conflicts with recorded Class ${recordedClass}.` };
+  }
   const toDir = swapTier(fromDir, "provisional", "planned");
 
   const outcome = await executeTransition(executor, {
     verb: "promote",
     slug: name,
-    inputs: { class: cls ?? "[TBD]", toDir },
+    inputs: {
+      class: cls ?? "[TBD]",
+      toDir,
+      ...(classIsUnresolved && typeof cls === "string" ? { persistClass: cls } : {}),
+    },
   });
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };

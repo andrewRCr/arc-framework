@@ -72,7 +72,10 @@ vi.mock("../../../src/lib/active/meta-reader.js", () => ({
   readActiveMetaCandidates: async () => ({ candidates: [{ filename: "meta-foo.md" }] }),
 }));
 
-vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({ buildLifecycleIndex: async () => new Map() }));
+const mockBuildLifecycleIndex = vi.fn();
+vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
+  buildLifecycleIndex: (...a: unknown[]) => mockBuildLifecycleIndex(...a),
+}));
 
 const mockRunStub = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/stub.js", () => ({ runStub: (...a: unknown[]) => mockRunStub(...a) }));
@@ -221,6 +224,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.exitCode = undefined;
   mockRunStub.mockResolvedValue({ status: "scaffolded", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
+  mockBuildLifecycleIndex.mockResolvedValue(new Map([
+    ["foo", { name: "foo", location: "provisional", path: ".arc/backlog/provisional/foo/meta-foo.md" }],
+  ]));
   mockRunPromote.mockResolvedValue({ status: "moved", outcome: okOutcome, metaPath: ".arc/backlog/planned/foo/meta-foo.md" });
   mockRunDemote.mockResolvedValue({ status: "moved", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
   mockRunPark.mockResolvedValue({
@@ -310,9 +316,10 @@ describe("handleStub", () => {
     });
   });
 
-  it("narrows an invalid commitment to undefined (runStub then refuses)", async () => {
+  it("rejects an invalid commitment before dispatch", async () => {
     await handleStub("foo", { commitment: "bogus", priority: "P1" });
-    expect(mockRunStub.mock.calls[0]?.[1]).toMatchObject({ commitment: undefined });
+    expect(mockRunStub).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
   });
 
   it("refuses without a name and never dispatches", async () => {
@@ -394,9 +401,9 @@ describe("handleDecompose", () => {
 
 describe("handlePromote / handleDemote", () => {
   it("promote dispatches runPromote for the slug", async () => {
-    await handlePromote("foo");
+    await handlePromote("foo", { class: "Novel" });
     expect(mockRunPromote).toHaveBeenCalledTimes(1);
-    expect(mockRunPromote.mock.calls[0]?.[1]).toEqual({ name: "foo" });
+    expect(mockRunPromote.mock.calls[0]?.[1]).toEqual({ name: "foo", class: "Novel" });
   });
 
   it("demote dispatches runDemote for the slug", async () => {

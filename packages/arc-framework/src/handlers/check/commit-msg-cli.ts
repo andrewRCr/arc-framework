@@ -1,6 +1,7 @@
 /** Commander and process adapter for `arc check commit-msg`. */
 
 import { access, readFile } from "node:fs/promises";
+import { z } from "zod";
 
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
 import { gitExec } from "../../lib/io-context.js";
@@ -9,12 +10,24 @@ import { ARC_PROJECT_ROOT_ERROR } from "../shared.js";
 import { runCheckCommitMessage } from "./commit-msg.js";
 import { renderCheckCommitMessage } from "./commit-msg-output.js";
 import type { CommitMessageCheckFailure } from "./commit-msg.js";
+import type { CommandInputRegistration } from "../../lib/command-input/registry.js";
 
 /** Options accepted by the public commit-message check command. */
 export interface HandleCheckCommitMessageOptions {
   json?: boolean;
   dashPrefixedSourceAllowed?: boolean;
 }
+
+/** Validated explicit commit-message source. */
+export const CheckCommitMessageInputSchema = z.object({
+  input: z.array(z.string().min(1)).length(1),
+}).strict();
+
+/** Registry contribution owned by standalone commit-message validation. */
+export const checkCommitMessageInputRegistration = {
+  commandPath: "check commit-msg",
+  schema: CheckCommitMessageInputSchema,
+} satisfies CommandInputRegistration;
 
 function normalizeSourceInput(
   source: string | string[] | undefined,

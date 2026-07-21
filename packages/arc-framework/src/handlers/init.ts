@@ -8,8 +8,8 @@ import * as p from "@clack/prompts";
 import { readFile } from "node:fs/promises";
 
 import { runInit, buildPostInitMessage, isArcInstalled } from "../commands/init.js";
+import { resolveInitCommandInput, type InitCommandOptions } from "../commands/init-input.js";
 import { runReconfigure, type DryRunResult } from "../commands/reconfigure.js";
-import { buildNonInteractivePrompts } from "../prompts/non-interactive.js";
 import { runInitPrompts } from "../prompts/init-prompts.js";
 import { loadRecipeFile } from "../lib/template/index.js";
 import { readManifest } from "../lib/manifest/index.js";
@@ -19,42 +19,36 @@ import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
 import { gitExec } from "../lib/io-context.js";
 import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../lib/command-input/interaction-context.js";
+import type { InputResolution } from "../lib/command-input/resolution.js";
+import {
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME,
 } from "../lib/constants.js";
 import {
-  isNonInteractiveEnvironment, requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
+  requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
   isHandledError,
 } from "./shared.js";
 
-export interface InitOptions {
-  yes?: boolean;
-  name?: string;
-  pmMode?: string;
-  tools?: string;
-  team?: boolean;
-  reconfigure?: boolean;
-  dryRun?: boolean;
-}
+export type InitOptions = InitCommandOptions;
 
-export async function handleInit(opts: InitOptions): Promise<void> {
-  // Auto-detect CI/non-TTY and imply --yes
-  if (!opts.yes && isNonInteractiveEnvironment()) {
-    opts.yes = true;
-    p.log.info("Non-interactive environment detected (CI or non-TTY) — using defaults.");
-  }
-
-  if (opts.dryRun && !opts.reconfigure) {
-    p.log.error("--dry-run requires --reconfigure");
-    process.exitCode = 1;
-    return;
-  }
+export async function handleInit(
+  opts: InitOptions,
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: false,
+    yes: opts.yes === true ? "compatibility" : "absent",
+  });
 
   const cwd = process.cwd();
-  const io = createIOContext();
+  const io = createIOContext(context.subprocess);
 
   // --- Three-way entry branch ---
   if (opts.reconfigure) {
-    await handleReconfigure(opts, cwd, io);
+    await handleReconfigure(opts, cwd, io, context);
     return;
   }
 
@@ -65,40 +59,37 @@ export async function handleInit(opts: InitOptions): Promise<void> {
 
   p.log.message("Setting up ARC for your project...");
 
-  // Build prompts from flags or interactive prompts
-  let prompts;
-  if (opts.yes) {
-    prompts = buildNonInteractivePrompts({
-      cwd,
-      name: opts.name,
-      pmMode: opts.pmMode,
-      tools: opts.tools,
-      team: opts.team,
-    });
-    if (!opts.tools) {
-      p.log.info("No agent tools selected (use --tools to specify).");
-    }
-  } else {
-    prompts = await runInitPrompts(cwd);
-    if (!prompts) {
-      return;
-    }
-  }
-
-  // Identity resolution — interactive prompt only when not in --yes mode
-  const identityResult = await resolveIdentityWithPrompt(!opts.yes);
-
-  // In --yes mode, identity must be resolvable without prompts
-  if (opts.yes && !identityResult) {
-    p.log.error(formatError(new UserFacingError({
-      code: "IDENTITY_MISSING",
-      whatHappened: "Cannot resolve identity in non-interactive mode",
-      why: "Neither arc.identity nor user.name is set in git config.",
-      whatToDo: "Set git config user.name, or pass an identity via git config arc.identity.",
-    })));
-    process.exitCode = 1;
+  const input = await resolveInitCommandInput({
+    options: opts,
+    cwd,
+    context,
+    prompt: async (supplied) => {
+      const result = await runInitPrompts(cwd, {
+        name: supplied.projectName,
+        tools: supplied.tools,
+        pmMode: supplied.pmMode,
+        teamMode: supplied.teamMode,
+      });
+      return result === null ? null : {
+        projectName: result.project_name,
+        tools: result.tools,
+        pmMode: result.pm_mode,
+        teamMode: result.team_mode,
+      };
+    },
+    resolveIdentity: resolveIdentityWithPrompt,
+  });
+  if (input.kind !== "resolved") {
+    reportInputFailure(input);
     return;
   }
+  const prompts = {
+    project_name: input.value.projectName,
+    tools: input.value.tools,
+    pm_mode: input.value.pmMode,
+    team_mode: input.value.teamMode,
+  };
+  const identityResult = input.value.identity ?? null;
 
   // Load recipe
   const templateDir = getArcTemplatePath();
@@ -135,6 +126,25 @@ export async function handleInit(opts: InitOptions): Promise<void> {
   p.outro("Done.");
 }
 
+function reportInputFailure(input: Exclude<InputResolution<unknown>, { kind: "resolved" }>): void {
+  if (input.kind === "cancelled") return;
+  if (input.kind === "unavailable") {
+    if (input.missing.some((item) => item.name === "identity")) {
+      p.log.error("IDENTITY_MISSING: Could not resolve identity in non-interactive mode. Pass --identity <name>.");
+      process.exitCode = 1;
+      return;
+    }
+    const detail = input.missing.map((item) => {
+      const syntax = item.acceptedSyntax.length === 0 ? "" : ` (${item.acceptedSyntax.join(" or ")})`;
+      return `${item.name}${syntax}`;
+    }).join(", ");
+    p.log.error(`Missing required input: ${detail}`);
+  } else {
+    p.log.error(input.issues.map((issue) => `${issue.path.join(".") || "input"}: ${issue.message}`).join("\n"));
+  }
+  process.exitCode = 1;
+}
+
 // --- Reconfigure path ---
 
 import type { IOContext } from "../commands/init.js";
@@ -154,6 +164,7 @@ async function handleReconfigure(
   opts: InitOptions,
   startDir: string,
   io: IOContext,
+  context: InteractionContext,
 ): Promise<void> {
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure${opts.dryRun ? " (dry run)" : ""}`);
 
@@ -193,9 +204,6 @@ async function handleReconfigure(
     return;
   }
 
-  // Re-affirm role — ensures consistency even if arc.role was unset
-  await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);
-
   // Read current manifest to get install_config
   const internalDir = join(cwd, ".arc", ...INTERNAL_DIR_SEGMENTS);
   const manifestPath = join(internalDir, MANIFEST_FILENAME);
@@ -225,20 +233,42 @@ async function handleReconfigure(
 
   const currentConfig = manifest.install_config;
 
-  // Build new config from interactive prompts or CLI flags
-  let promptResult;
-  if (opts.yes) {
-    promptResult = buildNonInteractiveReconfigurePrompts(currentConfig, {
-      name: opts.name,
-      pmMode: opts.pmMode,
-      team: opts.team,
-    });
-  } else {
-    promptResult = await runReconfigurePrompts(currentConfig);
-    if (!promptResult) {
-      return; // User cancelled
-    }
+  const resolvedInput = await resolveInitCommandInput({
+    options: opts,
+    cwd,
+    context,
+    current: {
+      projectName: currentConfig.project_name,
+      pmMode: currentConfig.pm_mode,
+      teamMode: currentConfig.team_mode ?? false,
+    },
+    prompt: async (supplied) => {
+      const result = await runReconfigurePrompts(currentConfig, {
+        projectName: supplied.projectName,
+        pmMode: supplied.pmMode,
+        teamMode: supplied.teamMode,
+      });
+      return result === null ? null : {
+        projectName: result.project_name,
+        tools: currentConfig.tools,
+        pmMode: result.pm_mode,
+        teamMode: result.team_mode,
+      };
+    },
+    resolveIdentity: () => Promise.resolve(null),
+  });
+  if (resolvedInput.kind !== "resolved") {
+    reportInputFailure(resolvedInput);
+    return;
   }
+  const promptResult = buildNonInteractiveReconfigurePrompts(currentConfig, {
+    name: resolvedInput.value.projectName,
+    pmMode: resolvedInput.value.pmMode,
+    team: resolvedInput.value.teamMode,
+  });
+
+  // Re-affirm role only after every input for this mutation phase has resolved.
+  await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);
 
   // No-change detection
   if (isNoChange(promptResult, currentConfig)) {
@@ -262,7 +292,7 @@ async function handleReconfigure(
 
   try {
 
-    const resolveRemovals = opts.yes
+    const resolveRemovals = context.interaction === "forbidden"
       ? (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) =>
           Promise.resolve(resolveRemovalsNonInteractive(removals))
       : async (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) => {

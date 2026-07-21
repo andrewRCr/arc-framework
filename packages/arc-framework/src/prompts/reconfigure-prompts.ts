@@ -37,6 +37,11 @@ export interface ReconfigurePromptResult {
  */
 export async function runReconfigurePrompts(
   current: InstallConfig,
+  supplied: {
+    readonly projectName?: string;
+    readonly pmMode?: string;
+    readonly teamMode?: boolean;
+  } = {},
 ): Promise<ReconfigurePromptResult | null> {
   const sentinel = Symbol("prompt-cancelled");
 
@@ -44,11 +49,11 @@ export async function runReconfigurePrompts(
     p.log.message("Change the settings you want, press Enter to keep current values.");
 
     // 1. Project name
-    const project_name = await p.text({
-      message: "Project name?",
-      defaultValue: current.project_name,
-      placeholder: current.project_name,
-    });
+    const project_name = supplied.projectName ?? await p.text({
+        message: "Project name?",
+        defaultValue: current.project_name,
+        placeholder: current.project_name,
+      });
     if (p.isCancel(project_name)) {
       p.cancel("Reconfigure cancelled.");
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
@@ -56,11 +61,11 @@ export async function runReconfigurePrompts(
     }
 
     // 2. PM mode
-    const pm_mode = await p.select({
-      message: "Project management approach?",
-      options: PM_MODE_OPTIONS,
-      initialValue: current.pm_mode,
-    });
+    const pm_mode = supplied.pmMode ?? await p.select({
+        message: "Project management approach?",
+        options: PM_MODE_OPTIONS,
+        initialValue: current.pm_mode,
+      });
     if (p.isCancel(pm_mode)) {
       p.cancel("Reconfigure cancelled.");
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
@@ -68,10 +73,10 @@ export async function runReconfigurePrompts(
     }
 
     // 3. Team mode
-    const team_mode = await p.confirm({
-      message: "Enable multi-developer coordination? (ARC Team Mode)",
-      initialValue: current.team_mode ?? false,
-    });
+    const team_mode = supplied.teamMode ?? await p.confirm({
+        message: "Enable multi-developer coordination? (ARC Team Mode)",
+        initialValue: current.team_mode ?? false,
+      });
     if (p.isCancel(team_mode)) {
       p.cancel("Reconfigure cancelled.");
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow

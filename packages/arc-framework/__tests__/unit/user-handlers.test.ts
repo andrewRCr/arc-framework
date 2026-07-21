@@ -102,6 +102,24 @@ const mockRunWithSpinner = vi.fn(
 
 const mockIsNonInteractive = vi.fn(() => false);
 
+vi.mock("../../src/lib/command-input/interaction-context.js", () => ({
+  resolveProcessInteractionContext: (input: { yes: string }) => {
+    const forbidden = mockIsNonInteractive() || input.yes !== "absent";
+    return {
+      interaction: forbidden ? "forbidden" : "allowed",
+      confirmation: input.yes === "authority" ? "accept" : "ask",
+      machineReadable: false,
+      promptInput: process.stdin,
+      promptOutput: process.stdout,
+      subprocess: {
+        terminalPrompts: forbidden ? "forbidden" : "allowed",
+        presenters: forbidden ? "forbidden" : "allowed",
+        ambientStdin: forbidden ? "closed" : "inherit",
+      },
+    };
+  },
+}));
+
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
   runWithSpinner: (...args: unknown[]) =>
@@ -448,25 +466,15 @@ describe("handleUserPull fetch+load flow", () => {
     expect(callArg).not.toHaveProperty("force");
   });
 
-  it("bypasses overwrite confirm in non-TTY environments", async () => {
+  it("requires explicit overwrite authority in non-TTY environments", async () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockIsNonInteractive.mockReturnValue(true);
-    mockRunUserPull.mockResolvedValue({
-      kind: "loaded",
-      identity: "andrew",
-      commit: "abc1234",
-      fileCount: 1,
-      fromAncestor: false,
-      ancestorDistance: 0,
-      warnings: [],
-    });
-
     await handleUserPull({});
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
-    expect(callArg).not.toHaveProperty("force");
+    expect(mockRunUserPull).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("--yes"));
+    expect(process.exitCode).toBe(1);
   });
 
   it("sets exitCode when pull returns no note after fetch", async () => {

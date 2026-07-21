@@ -77,6 +77,8 @@ export interface TransitionInputs {
   softFields?: Partial<Record<keyof SoftFieldDispositions, string>>;
   /** The WU's resolved `Class` — the `class-resolved` guard input (`promote`). */
   class?: string;
+  /** Persist a newly acquired Class in the relocated meta during promotion finalization. */
+  persistClass?: string;
   /** Whether the WU's PR has merged — the `pr-unmerged` guard input (`reopen`). */
   prMerged?: boolean;
   /** The PR-withdrawal mode the `withdraw-pr` side-effect applies — `close` (default) or `draft` (`reopen`). */
@@ -311,7 +313,7 @@ export type EncodingLeg = "setPhase" | "artifacts" | "reconcileWorktree" | "reco
  * and the declared side-effects have landed; a throw among them is forward-only
  * recoverable (finish the write), distinct from a pre-side-effect leg throw.
  */
-export type FinalizeWrite = "branchField" | "currentWorkflowField" | "softFields" | "stageMeta";
+export type FinalizeWrite = "branchField" | "classField" | "currentWorkflowField" | "softFields" | "stageMeta";
 
 /**
  * Canonical leg order. `setPhase` precedes `artifacts` so the meta is edited at
@@ -534,6 +536,13 @@ export async function executeTransition(
     // 7. Project the meta `Branch` field from the edge's branch-affecting leg.
     branchFieldWritten = await applyBranchField(ctx, record, metaPath, inputs);
 
+    // 7.25 Persist a Class acquired for an unresolved provisional stub after relocation.
+    if (inputs.persistClass !== undefined && metaPath !== null) {
+      failedWrite = "classField";
+      if (ctx.writeClassField === undefined) throw new Error("Class persistence is unavailable.");
+      await ctx.writeClassField(effectiveMetaPath(record, metaPath, inputs), inputs.persistClass);
+    }
+
     // 7.5 Clear the meta `Current Workflow` when the edge declares it stale.
     failedWrite = "currentWorkflowField";
     currentWorkflowCleared = await applyCurrentWorkflowField(ctx, record, metaPath, inputs);
@@ -550,6 +559,7 @@ export async function executeTransition(
     const wroteMeta =
       legsFired.includes("setPhase") ||
       branchFieldWritten !== null ||
+      inputs.persistClass !== undefined ||
       currentWorkflowCleared !== null ||
       softFieldsWritten.length > 0;
     if (wroteMeta && metaPath !== null) {

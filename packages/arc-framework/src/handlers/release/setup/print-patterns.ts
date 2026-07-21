@@ -7,6 +7,24 @@
  * @module
  */
 
+import { z } from "zod";
+import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
+
+/** Validated input for release setup pattern rendering. */
+export const ReleaseSetupPrintPatternsInputSchema = z.object({
+  harness: z.string().min(1).optional(),
+  format: z.enum(["harness", "raw"]).default("harness"),
+}).strict();
+
+/** Commander input for release setup pattern rendering. */
+export type ReleaseSetupPrintPatternsOptions = z.input<typeof ReleaseSetupPrintPatternsInputSchema>;
+
+/** Registry contribution owned by release setup pattern rendering. */
+export const releaseSetupPrintPatternsInputRegistration = {
+  commandPath: "release setup print-patterns",
+  schema: ReleaseSetupPrintPatternsInputSchema,
+} satisfies CommandInputRegistration;
+
 export interface RunReleaseSetupPrintPatternsOptions {
   harness?: string;
   format?: string;
@@ -82,11 +100,14 @@ export function runReleaseSetupPrintPatterns(
  *
  * @param opts - Commander-parsed harness and format options
  */
-export function handleReleaseSetupPrintPatterns(opts: {
-  harness?: string;
-  format?: string;
-}): void {
-  const result = runReleaseSetupPrintPatterns(opts);
+export function handleReleaseSetupPrintPatterns(opts: ReleaseSetupPrintPatternsOptions): void {
+  const parsed = ReleaseSetupPrintPatternsInputSchema.safeParse(opts);
+  if (!parsed.success) {
+    process.stderr.write(`${z.prettifyError(parsed.error)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const result = runReleaseSetupPrintPatterns(parsed.data);
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
   }

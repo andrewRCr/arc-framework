@@ -13,6 +13,7 @@
 
 import { gitConfigGet } from "./exec.js";
 import type { GitExec } from "./exec.js";
+import { normalizeCommandIdentity } from "../command-input/identity.js";
 
 /**
  * Options for identity resolution.
@@ -37,12 +38,7 @@ export interface IdentityOptions {
  * @returns Filesystem-safe identity string
  */
 export function slugifyIdentity(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[\s.]+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-|-$/g, "");
+  return normalizeCommandIdentity(name) ?? "";
 }
 
 /**
