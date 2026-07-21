@@ -7,7 +7,7 @@ import type { NormalizedChangeRequest, ReviewRequirement, SourceKind } from "./c
 import { reduceCoverage } from "./coverage.js";
 import { parseEvidence, type Evidence } from "./evidence.js";
 import {
-  REVIEW_SEMANTICS_VERSION,
+  LEGACY_REVIEW_SEMANTICS_VERSION,
   type GateProjection,
   type ReceiptEnvelope,
   type ReviewReceipt,
@@ -161,7 +161,7 @@ function requestFor(
     changeRequestId: input.changeRequest.changeRequestId,
     changeSetId: requirement.changeSetId,
     policyVersion: requirement.policyVersion,
-    semanticsVersion: REVIEW_SEMANTICS_VERSION,
+    semanticsVersion: LEGACY_REVIEW_SEMANTICS_VERSION,
     rubricVersion: requirement.rubricVersion,
     requirementId: requirement.id,
     sourceIdentity: declaration.sourceIdentity,

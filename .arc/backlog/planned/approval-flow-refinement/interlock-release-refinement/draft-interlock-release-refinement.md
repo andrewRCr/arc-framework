@@ -332,7 +332,7 @@ What remains is mostly *routing-half* work:
 
 - *Observation* (2026-05-11 wrapper-vs-raw audit): release wrappers are execution mechanics, not
   approval mechanics. They should only remove redundant commit/push prompts after the user has
-  already approved the relevant work through a task, workflow, or explicit diff-review interlock.
+  already approved the relevant work through a task, workflow, or explicit self-review interlock.
   A possible risk remains: an agent may invoke `arc-commit` directly after completing
   substantive changes that the user has not yet reviewed, and release routing could then turn
   that into a wrapper commit without the intended work-approval provenance.

@@ -920,15 +920,16 @@ architecture lands as one coherent forward contract.
         - Replaced the stale exhaustive Framework list with authoritative recipe/classifier derivation and refreshed
           exact configurable, scaffolded, conditional, and 11-template counterpart inventory/counts.
 
-    - `[ ]` **7.3.b Sweep retired vocabulary and policy references**
-        - Search live package/project corpora, CLI/config code, workflows, tests, root docs, and `.github` surfaces for
-          `review.pre_merge`, `diff-review`, semantic frontline actions in `pre-pr-open`, old disposition enums,
-          four-status changed paths, and gate-v1-as-current claims.
-        - Classify every hit through a closed `remove | rename | retain-v1-compat | retain-historical |
-          retain-unrelated-schema` disposition before editing; historical corpora are searched for classification,
-          not rewritten as live guidance.
-        - Preserve `independent-analysis/v1`, unrelated schema-v1 contracts, the exact diagnostic gate-v1 parser,
-          and intentional compatibility fixtures with explicit legacy labels.
+    - `[x]` **7.3.b Sweep retired vocabulary and policy references**
+        - Swept live package/project guidance, code, workflows, tests, root and GitHub surfaces; renamed stale planned
+          examples to `self-review`, quarantined the remaining planned hits as explicit historical baselines, and
+          retained completed/ADR/research occurrences as historical records.
+        - Classified exact-key gate-v1 code and old receipt dispositions as compatibility, unrelated schema-v1
+          contracts as unrelated, and changed-path/frontline surfaces as current six-status/action-neutral behavior;
+          renamed the v1 semantics constant and comments so the diagnostic family no longer claims current authority.
+        - Added corpus guards excluding retired config/method vocabulary from live guidance, limiting planned hits to
+          the historical allowlist, preserving `independent-analysis/v1`, and pinning gate-v1 to its two compatibility
+          files without weakening existing v1 parser fixtures.
 
     - `[ ]` **7.3.c Validate corpus and package boundaries**
         - Run framework-sync, package-neutrality, method/extension declarations, link/reference validation, ARC
