@@ -148,9 +148,9 @@ onto stable code-facing fields without losing tolerant recovery.
         - Moved base-drift completion and session cohort resolution onto semantic completion, PR, and cohort fields
           while preserving malformed-meta degradation and externally visible record shapes.
 
-    - `[ ]` **2.5.e Migrate meta validators and foreign-write checks**
-        - Update `scripts/validate-meta-spec.ts` and `scripts/check-foreign-writes.ts` without coupling the structural
-          schema to lifecycle- or location-specific managed-Markdown policy.
+    - `[x]` **2.5.e Migrate meta validators and foreign-write checks**
+        - Moved lifecycle-state and staged-origin reads onto semantic fields while leaving design-shape, lifecycle,
+          and active-location policy in their owning validators and advisory boundary.
 
     - `[ ]` **2.5.f Migrate review-gate meta readers and close the read inventory**
         - Update the GitHub lifecycle-tail and self-hosting lane readers, then assert no first-party caller indexes
