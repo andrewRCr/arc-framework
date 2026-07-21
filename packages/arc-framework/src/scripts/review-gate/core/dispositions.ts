@@ -15,9 +15,25 @@ import {
   type DispositionSetState,
   type ProposedDispositionSet,
 } from "./disposition-records.js";
+import {
+  PACKAGE_DEFAULT_SEVERITY_GATING_POLICY,
+  resolveFindingGating,
+  type SeverityGatingPolicy,
+} from "./severity-gating-policy.js";
 
-function normalizedFindings(findings: readonly DispositionReportItem[]): DispositionReportItem[] {
-  const unique = new Map(findings.map((finding) => [finding.findingId, finding]));
+type DispositionReportProposalItem = Omit<DispositionReportItem, "gating"> & {
+  gating?: DispositionReportItem["gating"];
+};
+
+function normalizedFindings(
+  findings: readonly DispositionReportProposalItem[],
+  policy: SeverityGatingPolicy,
+): DispositionReportItem[] {
+  const normalized = findings.map((finding) => ({
+    ...finding,
+    gating: resolveFindingGating(finding, policy),
+  }));
+  const unique = new Map(normalized.map((finding) => [finding.findingId, finding]));
   if (unique.size !== findings.length) throw new Error("duplicate disposition finding identity");
   return sortByCanonicalBytes([...unique.values()]);
 }
@@ -31,11 +47,11 @@ function preimage(input: Omit<DispositionSet, "dispositionSetId">) {
 
 /** Create one canonical proposal over the complete normalized finding set. */
 export function createDispositionSet(input: Omit<DispositionSet, "dispositionSetId" | "findings"> & {
-  findings: readonly DispositionReportItem[];
-}): DispositionSet {
+  findings: readonly DispositionReportProposalItem[];
+}, policy: SeverityGatingPolicy = PACKAGE_DEFAULT_SEVERITY_GATING_POLICY): DispositionSet {
   const fields = {
     ...input,
-    findings: normalizedFindings(input.findings),
+    findings: normalizedFindings(input.findings, policy),
   };
   return DispositionSetSchema.parse({
     ...fields,
@@ -47,7 +63,11 @@ export function createDispositionSet(input: Omit<DispositionSet, "dispositionSet
 export function validateDispositionSet(input: unknown): DispositionSet {
   const set = DispositionSetSchema.parse(input);
   const { dispositionSetId, ...fields } = set;
-  if (canonicalize(fields.findings) !== canonicalize(normalizedFindings(fields.findings))) {
+  const retainedPolicy = {
+    minorGating: fields.findings.find((finding) => finding.severity === "minor" && finding.nit !== true)?.gating
+      ?? PACKAGE_DEFAULT_SEVERITY_GATING_POLICY.minorGating,
+  };
+  if (canonicalize(fields.findings) !== canonicalize(normalizedFindings(fields.findings, retainedPolicy))) {
     throw new Error("disposition findings are not canonically ordered");
   }
   if (canonicalDigest(preimage(fields)) !== dispositionSetId) {

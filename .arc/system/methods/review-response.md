@@ -28,6 +28,7 @@ The caller supplies:
 
 - the exact current target and source-normalized findings with immutable loci;
 - the effective `review-routing` result;
+- the effective severity-gating policy (`minorGating: blocking | record-only`);
 - the strict disposition state — absent, complete proposed set, or exact approved set;
 - candidate-target, verification, and persistence evidence when fixes have run; and
 - opaque capability handles for approval, mutation, persistence, channel closure, and rerouting. Hosted controller
@@ -50,6 +51,12 @@ authorization over the old target, approved-set identity, and approved fix findi
 target. Past-tense finding actions are settlement evidence, not approval state. The method does not choose a provider,
 compose a provider command, resolve host conversations, persist controller conclusions, or infer authority from
 thread state.
+
+Before terminal return, reduce the exact approved set through the severity gate. Derive every item's gating from
+severity plus project policy: `blocker` and `major` are blocking, `nit` is record-only, and an ordinary `minor`
+uses `minorGating`. Keep every finding in the set. A blocking recurrence requests another round; a record-only
+finding does not. Independently retain carrier-native requested changes and every required conversation as blockers,
+so ARC's record-only result can never weaken provider or host authority.
 
 ### Execute only the selected author leaf
 

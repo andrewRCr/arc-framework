@@ -8,6 +8,12 @@ import {
 } from "../../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
 
 describe("self-hosting review policy document", () => {
+  it("binds ordinary minor findings to the package-default record-only policy", () => {
+    const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
+
+    expect(parsed.minorGating).toBe("record-only");
+  });
+
   it("returns the closed lifecycle-tail predicate", () => {
     const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
 
@@ -146,6 +152,7 @@ describe("self-hosting review policy document", () => {
     ["risk predicate", { riskPredicate: { ...SELF_HOSTING_POLICY.riskPredicate, id: "risk/v2" } }],
     ["lane parameters", { lanePredicate: { ...SELF_HOSTING_POLICY.lanePredicate, artifactKinds: ["spec"] } }],
     ["semantics version", { semanticsVersion: "" }],
+    ["minor gating", { minorGating: "advisory" }],
     ["rollout mode", { rolloutMode: "shadow" }],
     ["capacity", { capacity: "available" }],
     ["provider identity", { providerIdentities: { coderabbitBotUserId: "coderabbitai[bot]" } }],

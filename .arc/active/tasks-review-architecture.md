@@ -660,11 +660,10 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
   while the neutral `review-response` planner remains the sole finding-response procedure. Project adapters retain
   host authority, and both WU and Errand integration share the same rerouting and failure semantics.
 
-### `[ ]` **6.2 Enforce approved dispositions and authoritative settlement**
+### `[x]` **6.2 Enforce approved dispositions and authoritative settlement**
 
 - _Goal:_ No local or hosted finding mutates the tree before the complete disposition set is approved, and no
   conversation closes without the authority that owns it.
-- _Context:_ Implements Design §§2.2 and 4–5 plus Success Criterion 6.
 
     - `[x]` **6.2.a Add an explicit disposition-set approval state**
         - Added registered, inferred proposed/approved disposition-state variants over the canonical set and approval
@@ -694,13 +693,17 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
         - Response plans declare the required authority per action and reject bare resolution, generic approval,
           coordinator claims, changes-requested/review-required state, and provider ignore commands.
 
-    - `[ ]` **6.2.d Make severity gating deterministic**
-        - Add project-policy `minorGating: blocking | record-only`, default package and self-hosting to `record-only`,
-          and force `nit` to record-only while keeping every finding in the approved disposition set.
-        - Block terminal settlement on unresolved `blocker | major` and configured blocking minors; never let ARC's
-          record-only result override provider-native decisive state or a required conversation.
-        - Test mixed severities, both minor policies, recurrences, grouped nits, source closure, and provider-owned
-          conversations without an extra “another round?” prompt.
+    - `[x]` **6.2.d Make severity gating deterministic**
+        - Added a registered project policy and pure severity reducer: blocker/major always block, nits never block,
+          ordinary minors follow `minorGating`, and package plus self-hosting defaults are `record-only`.
+        - Terminal reduction retains every approved finding, requires exact local/controller/provider closure authority,
+          blocks qualifying recurrences, and preserves provider-native requested changes and required conversations as
+          independent blockers without prompting another round for record-only findings.
+
+- _Outcome:_ Forward review response now has one exact approval → single-use fix → authority-specific closure chain,
+  with deterministic severity gating over the complete disposition set. ARC can terminate record-only findings without
+  review churn while remaining unable to weaken blocking severity, recurrence, provider-native state, or conversation
+  authority.
 
 ### `[ ]` **6.3 Add resilient review suspend-and-reenter behavior**
 

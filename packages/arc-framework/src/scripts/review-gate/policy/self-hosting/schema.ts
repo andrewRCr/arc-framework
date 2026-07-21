@@ -41,6 +41,7 @@ export interface SourceQualificationDeclaration {
 export interface SelfHostingPolicy {
   schemaVersion: 1;
   semanticsVersion: string;
+  minorGating: "blocking" | "record-only";
   lanePredicate: {
     id: "artifact-owner/v1";
     artifactRoots: string[];
@@ -74,6 +75,7 @@ export interface SelfHostingPolicy {
 export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
   schemaVersion: 1,
   semanticsVersion: "self-hosting-review/v1",
+  minorGating: "record-only",
   lanePredicate: {
     id: "artifact-owner/v1",
     artifactRoots: [".arc/active/", ".arc/backlog/"],
@@ -313,7 +315,7 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const path = "selfHostingPolicy";
   const record = objectAt(input, path);
   exactKeys(record, [
-    "schemaVersion", "semanticsVersion", "lanePredicate", "riskPredicate", "lifecycleTailPredicate", "authorMap",
+    "schemaVersion", "semanticsVersion", "minorGating", "lanePredicate", "riskPredicate", "lifecycleTailPredicate", "authorMap",
     "fallbackMaintainer",
     "requirementTemplates", "rubricBindings", "timeouts", "providerIdentities", "attestationEnforcement",
     "qualifications",
@@ -432,6 +434,7 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
     semanticsVersion: templatePolicy.semanticsVersion,
+    minorGating: enumAt(record.minorGating, ["blocking", "record-only"], `${path}.minorGating`),
     lanePredicate: {
       id: laneId,
       artifactRoots: exactStringArray(lane.artifactRoots, SELF_HOSTING_POLICY.lanePredicate.artifactRoots, `${path}.lanePredicate.artifactRoots`),

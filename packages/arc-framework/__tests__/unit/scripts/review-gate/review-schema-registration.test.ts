@@ -25,6 +25,7 @@ const reviewIdentities = [
   "disposition-set-state",
   "finding-classification",
   "finding-conversation-closure",
+  "finding-conversation-requirement",
   "finding-disposition",
   "finding-settlement",
   "fix-authorization",
@@ -62,6 +63,8 @@ const reviewIdentities = [
   "review-suspension-state",
   "review-target",
   "review-target-id-preimage",
+  "severity-gating-policy",
+  "severity-settlement-gate-result",
   "work-unit-review-assurance",
 ];
 

@@ -76,7 +76,8 @@ This is the `next-action` → `perform-action` → `await` → canonical re-entr
 Fetch controller-normalized findings and provider-native conversations, retaining source-scoped immutable ids and
 current decisive review state. Compose the [`review-response` method][review-response] input from the exact current
 target, effective routing result, normalized findings, strict proposed/approved disposition state, verification and
-persistence evidence, and opaque adapter capabilities. Controller findings carry a controller receipt handle plus
+persistence evidence, self-hosting `minorGating: record-only`, and opaque adapter capabilities. Controller findings
+carry a controller receipt handle plus
 their available
 reply and thread-state handles; provider conversations carry provider reply, thread-state, and decisive-review handles.
 Every normalized finding retains its explicit FIX, DEFER, or REJECT disposition and immutable source locus. For
@@ -106,8 +107,8 @@ provider state or prose. Run the resulting typed action/wait loop, then re-enter
 
 Settle each controller-normalized finding through exactly one authority path:
 
-- **Controller FIX:** Retain the approved-set `FixAuthorization`, consume it once against the actual old/new target after the
-  affected gates and interlocked commit succeed, require successful exact-new-head CI and a qualifying full-head
+- **Controller FIX:** Retain the approved-set `FixAuthorization`, consume it once against the actual old/new target
+  after the affected gates and interlocked commit succeed, require successful exact-new-head CI and a qualifying full-head
   follow-up review with no explicit recurrence, post an accurate direct reply, append and confirm `fixed`, and retain
   any host resolution separately. Close only from the same source's explicit confirmation.
 - **Controller DEFER or REJECT:** Keep the head unchanged, post the authorized developer's bounded rationale as a
@@ -126,9 +127,12 @@ provider boundary cannot model.
 
 ## 4. Return Settled State
 
-Re-read the current head, requirements, findings, native conversations, and check projection. Return only when every
-obligation is satisfied, explicitly waived or settled with authority, or remains non-blocking recommended work, and no
-blocking finding or unresolved required conversation remains. A valid lifecycle-tail projection that is already
+Re-read the current head, requirements, findings, native conversations, and check projection. Reduce the approved set
+through the typed severity gate: unresolved blocker/major findings remain blocking; ordinary minors follow the project
+policy; nits are record-only; and only a blocking recurrence asks for another round. Keep all findings in the report.
+Return only when every obligation is satisfied, explicitly waived or settled with authority, or remains non-blocking
+recommended work, and no blocking finding, provider-native requested-changes state, or required conversation remains.
+A valid lifecycle-tail projection that is already
 settled returns without requesting or recommending a refresh. An invalid or ambiguous tail returns to ordinary
 current-head coordination. If the head changes, restart at § 1.
 

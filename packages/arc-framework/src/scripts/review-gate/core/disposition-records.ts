@@ -30,6 +30,9 @@ export const DispositionReportItemSchema = z.strictObject({
   if (item.nit === true && item.gating !== "record-only") {
     context.addIssue({ code: "custom", message: "nit findings are record-only", path: ["gating"] });
   }
+  if (item.severity !== "minor" && item.gating !== "blocking") {
+    context.addIssue({ code: "custom", message: "blocker and major findings are blocking", path: ["gating"] });
+  }
   if (item.sourceVerification === "not-supported" && item.disposition !== "reject") {
     context.addIssue({
       code: "custom",
