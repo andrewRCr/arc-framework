@@ -1,8 +1,8 @@
 # Metadata: review-architecture
 
-| **State**     | **Owner** | **Branch**                 | **Class** | **Priority** |
-| ------------- | --------- | -------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/review-architecture` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -14,12 +14,12 @@
 - **Current Workflow:** [none]
 - **Last Completed:** Pre-integration chunked review — 37 findings triaged, 10 review-driven fixes committed
 - **Next Task:** [none]
-- **Blockers:** [none] — one success criterion deferred to `review-surface-binding`, not blocking
+- **Blockers:** [none]
 
-- **Next Action:** open the PR after aggregate self-review and fix-delta frontline review
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/319>
+- **Completed:** 2026-07-21
 
 ## Release Notes Entry
 

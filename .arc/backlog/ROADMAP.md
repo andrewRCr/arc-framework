@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `1ef3d5950`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `0d11c7a2d`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -15,7 +15,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State         | Work unit               | Priority | Owner  | Depends on | Cohort                 |
 | ------------- | ----------------------- | -------- | ------ | ---------- | ---------------------- |
-| `Integrating` | review-architecture     | P1       | andrew | —          | —                      |
 | `Active`      | session-locus-model     | P1       | andrew | —          | —                      |
 | `Integrating` | cli-command-inputs      | P2       | andrew | —          | cli-substrate-adoption |
 | `Active`      | cli-validation-surfaces | P2       | andrew | —          | cli-substrate-adoption |
@@ -30,6 +29,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | pr-decomposition                      | P1       | andrew | —          | —                          |
 | recovery-hardening                    | P1       | andrew | —          | —                          |
 | review-gate-enforcement-qualification | P1       | andrew | —          | —                          |
+| review-surface-binding                | P1       | andrew | —          | —                          |
 | roadmap-tooling                       | P1       | andrew | —          | —                          |
 | stub-mint-to-launch                   | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model              | P1       | andrew | —          | —                          |
@@ -90,7 +90,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                         | Priority | Owner  | Depends on                                  | Cohort                     |
 | --------------------------------- | -------- | ------ | ------------------------------------------- | -------------------------- |
 | review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification       | —                          |
-| review-surface-binding            | P1       | andrew | review-architecture                         | —                          |
 | unit-scoped-review                | P2       | andrew | commit-increments                           | approval-flow-refinement   |
 | cli-substrate-complete-migration  | P2       | andrew | cli-validation-surfaces, cli-command-inputs | cli-substrate-adoption     |
 | operational-state-docs            | P2       | andrew | cli-validation-surfaces                     | —                          |
