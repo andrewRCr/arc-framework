@@ -17,6 +17,7 @@ import {
 } from "../active/meta-reader.js";
 
 import type { GitExec } from "./exec.js";
+import { tokenizeGitWorktreePorcelain } from "./worktree-porcelain.js";
 
 /**
  * Roster-entry state — codified `WorkUnitState` plus an `"unknown"`
@@ -409,28 +410,11 @@ interface RawWorktree {
 }
 
 function parseWorktreeList(result: { stdout: string }): RawWorktree[] {
-  const stanzas = result.stdout.split(/\n\n+/u);
-  const worktrees: RawWorktree[] = [];
-  for (const stanza of stanzas) {
-    if (stanza.trim() === "") continue;
-    let path: string | null = null;
-    let head: string | null = null;
-    let branch: string | null = null;
-    let detached = false;
-    for (const line of stanza.split("\n")) {
-      if (line.startsWith("worktree ")) {
-        path = line.slice("worktree ".length);
-      } else if (line.startsWith("HEAD ")) {
-        head = line.slice("HEAD ".length);
-      } else if (line.startsWith("branch refs/heads/")) {
-        branch = line.slice("branch refs/heads/".length);
-      } else if (line === "detached") {
-        detached = true;
-      }
-    }
-    if (path !== null) worktrees.push({ path, head, branch, detached });
-  }
-  return worktrees;
+  return tokenizeGitWorktreePorcelain(result.stdout).flatMap(({ candidate }) =>
+    candidate.path === null
+      ? []
+      : [{ path: candidate.path, head: candidate.head, branch: candidate.branch, detached: candidate.detached }]
+  );
 }
 
 async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promise<string[]> {

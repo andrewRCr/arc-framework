@@ -403,18 +403,11 @@ incomplete durable contracts through the registry.
 - _Goal:_ Successful Git output cannot silently discard malformed worktree stanzas, while process failures and
   caller-specific degradation remain distinct.
 
-    - `[ ]` **5.2.a Create the tokenizer and record schema module**
-        - Add `src/lib/git/worktree-porcelain.ts` with `GitWorktreePorcelainRecordSchema` and move stanza tokenization
-          out of `worktree-roster.ts`.
-        - Derive `GitWorktreePorcelainRecord` from the strict normalized record: non-empty path, nullable head, nullable
-          local branch, and detached flag; discard unknown porcelain attributes during tokenization for Git-version
-          forward compatibility rather than admitting them into the normalized record.
-        - Tokenize the complete stdout in one pass without adding Git or filesystem reads.
-        - Build `test-first` (one behavior at a time):
-            - normalize ordinary branched, detached, and bare worktree stanzas;
-            - preserve stanza order across multi-stanza output and ignore blank output;
-            - ignore unknown attributes while retaining every recognized field;
-            - reject extra normalized-record keys and an empty normalized path.
+    - `[x]` **5.2.a Create the tokenizer and record schema module**
+        - Added the strict schema-derived normalized record and a single-pass tokenizer that preserves stanza order and
+          missing anchors for boundary validation while discarding unknown attributes. Roster parsing now consumes the
+          extracted tokenizer; focused coverage pins branched, detached, bare, blank, forward-compatible, and strict
+          record behavior.
 
     - `[ ]` **5.2.b Introduce the domain validation error boundary**
         - Throw an `ArcError` carrying `git.worktree-porcelain.invalid` and stable stanza/field paths when successful
