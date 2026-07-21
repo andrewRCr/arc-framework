@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createSpawnedLocusWorktree,
   linearizePrimaryAllocation,
   planLocusAllocation,
   type LocusAllocationLock,
@@ -128,6 +129,118 @@ describe("planLocusAllocation", () => {
       isolation: "prefer-primary",
       subject: { kind: "groom", key: "anchor", claimId: "c".repeat(32) },
     })).toMatchObject({ kind: "proposal", allocation: { kind: "primary" } });
+  });
+});
+
+describe("createSpawnedLocusWorktree", () => {
+  function spawnProposal(claimId = "a".repeat(32)): Extract<LocusAllocationPlan, { kind: "proposal" }> {
+    const proposal = planLocusAllocation({
+      state: state({
+        kind: "occupied",
+        checkoutPath: "/work/repo",
+        recordId: `sha256:${"b".repeat(64)}`,
+        leaseState: "live",
+      }),
+      protection: "full",
+      isolation: "prefer-primary",
+      subject: { ...SUBJECT, claimId },
+    });
+    if (proposal.kind !== "proposal") throw new Error("expected spawn proposal");
+    return proposal;
+  }
+
+  it("qualifies configured placement by role, slug, and claim while preserving the operation branch", async () => {
+    const calls: string[][] = [];
+    const claimId = "a".repeat(32);
+    const result = await createSpawnedLocusWorktree({
+      exec: async (command, args) => {
+        calls.push([command, ...args]);
+        return { stdout: "" };
+      },
+      pathExists: async () => false,
+    }, {
+      proposal: spawnProposal(claimId),
+      protection: "full",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      branch: "chore/errand-docs",
+      base: "main",
+    });
+
+    const worktreePath = `/work/repo.locus-errand-docs-${claimId}`;
+    expect(result).toMatchObject({ kind: "created", receipt: { worktreePath, branch: "chore/errand-docs" } });
+    expect(calls).toEqual([["git", "worktree", "add", worktreePath, "-b", "chore/errand-docs", "main"]]);
+  });
+
+  it("gives repeated slugs with new claims distinct configured paths", async () => {
+    const paths: string[] = [];
+    for (const claimId of ["a".repeat(32), "b".repeat(32)]) {
+      const result = await createSpawnedLocusWorktree({
+        exec: async (_command, args) => {
+          paths.push(args[2] ?? "");
+          return { stdout: "" };
+        },
+        pathExists: async () => false,
+      }, {
+        proposal: spawnProposal(claimId),
+        protection: "full",
+        locationTemplate: "/work/{name}",
+        repo: "repo",
+        branch: "chore/errand-docs",
+        base: "main",
+      });
+      expect(result.kind).toBe("created");
+    }
+
+    expect(paths).toEqual([
+      `/work/locus-errand-docs-${"a".repeat(32)}`,
+      `/work/locus-errand-docs-${"b".repeat(32)}`,
+    ]);
+  });
+
+  it("preserves configured collision refusal without trying Git", async () => {
+    let gitCalled = false;
+    const result = await createSpawnedLocusWorktree({
+      exec: async () => {
+        gitCalled = true;
+        return { stdout: "" };
+      },
+      pathExists: async () => true,
+    }, {
+      proposal: spawnProposal(),
+      protection: "full",
+      locationTemplate: "/work/{name}",
+      repo: "repo",
+      branch: "chore/errand-docs",
+      base: "main",
+    });
+
+    expect(result).toMatchObject({ kind: "refused", reason: "path-collision" });
+    expect(gitCalled).toBe(false);
+  });
+
+  it("refuses a partial-mode spawn before touching the creation primitive", async () => {
+    let boundaryCalled = false;
+    const result = await createSpawnedLocusWorktree({
+      exec: async () => {
+        boundaryCalled = true;
+        return { stdout: "" };
+      },
+      pathExists: async () => {
+        boundaryCalled = true;
+        return false;
+      },
+    }, {
+      proposal: spawnProposal(),
+      protection: "partial",
+      locationTemplate: "/work/{name}",
+      repo: "repo",
+      branch: "chore/errand-docs",
+      base: "main",
+    });
+
+    expect(result).toEqual({ kind: "refused", reason: "full-protection-required" });
+    expect(boundaryCalled).toBe(false);
   });
 });
 

@@ -1,5 +1,10 @@
 /** Protection-aware allocation proposals and owned-lock primary linearization. */
 
+import {
+  createLinkedWorktree,
+  type LinkedWorktreeCreationContext,
+  type LinkedWorktreeCreationResult,
+} from "../git/linked-worktree.js";
 import type { PrimarySafetyResult } from "./primary-safety.js";
 import type { LocusStateV1, LocusStopReason } from "./schema/index.js";
 
@@ -82,6 +87,53 @@ function spawnProposal(state: LocusStateV1, subject: LocusAllocationSubject): Lo
     allocation: { kind: "spawn", primaryPath: state.roster.primaryPath },
     subject,
   };
+}
+
+export type SpawnedLocusWorktreeResult =
+  | LinkedWorktreeCreationResult
+  | {
+      readonly kind: "refused";
+      readonly reason: "full-protection-required" | "spawn-not-proposed" | "identity-conflict";
+    };
+
+/**
+ * Bind one full-protection spawn proposal to the target-agnostic linked-worktree primitive.
+ *
+ * @param context - Git and path-existence boundary for linked-worktree creation.
+ * @param options - Allocation proposal, protection mode, configured placement, and stable branch inputs.
+ * @returns The generic creation result, or a refusal before any creation boundary is touched.
+ */
+export async function createSpawnedLocusWorktree(
+  context: LinkedWorktreeCreationContext,
+  options: {
+    proposal: Extract<LocusAllocationPlan, { kind: "proposal" }>;
+    protection: "full" | "partial";
+    locationTemplate: string;
+    repo: string;
+    branch: string;
+    base: string;
+    createBranch?: boolean;
+  },
+): Promise<SpawnedLocusWorktreeResult> {
+  if (options.protection !== "full") {
+    return { kind: "refused", reason: "full-protection-required" };
+  }
+  if (options.proposal.allocation.kind !== "spawn") {
+    return { kind: "refused", reason: "spawn-not-proposed" };
+  }
+  const { subject } = options.proposal;
+  if (subject.claimId === null) {
+    return { kind: "refused", reason: "identity-conflict" };
+  }
+  return createLinkedWorktree(context, {
+    locationTemplate: options.locationTemplate,
+    primaryWorktreePath: options.proposal.allocation.primaryPath,
+    repo: options.repo,
+    placementName: `locus-${subject.kind}-${subject.key}-${subject.claimId}`,
+    branch: options.branch,
+    createBranch: options.createBranch ?? true,
+    base: options.base,
+  });
 }
 
 function stateStopReason(state: LocusStateV1): LocusAllocationRefusalReason | null {

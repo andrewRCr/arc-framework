@@ -334,15 +334,11 @@ transaction boundary before operation composers consume it.
           mutator suite now follows the renamed module, and the compatibility export was removed after a clean
           repository-wide old-symbol search.
 
-    - `[ ]` **4.1.f Bind transient placement and partial-mode refusal to the generic primitive**
-        - For a spawned full-mode transient, pass a namespace- and generation-qualified placement name such as
-          `locus-<role>-<slug>-<claimId>` through the existing worktree-location configuration; preserve the stable
-          operation branch name while refusing any final path collision.
-        - Under partial protection, refuse when the primary is unavailable; never create another base checkout or a
-          synthetic branch.
-        - Build `test-first` (one behavior at a time):
-            - Cover qualified transient placement, repeated-slug/new-claim paths, stable operation branches,
-              configured path collision, occupied-primary spawn, and partial-mode no-spawn refusal.
+    - `[x]` **4.1.f Bind transient placement and partial-mode refusal to the generic primitive**
+        - Bound full-protection spawn proposals to `createLinkedWorktree()` with
+          `locus-<role>-<slug>-<claimId>` placement, the stable operation branch, and exact configured collision
+          refusal. Reused slugs receive generation-distinct paths, while partial mode refuses before touching the
+          creation boundary and cannot synthesize a branch or second base checkout.
 
     - `[ ]` **4.1.g Enforce the directed-command harness boundary**
         - Return active-locus and session-home paths in every successful open result so callers pin Git/filesystem
