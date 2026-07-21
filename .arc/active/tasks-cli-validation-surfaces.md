@@ -438,17 +438,10 @@ registry discovery independent from kernel artifact publication.
 - _Goal:_ Consumers can discover exactly the four declared durable roots through a fresh kernel-derived registry
   without changing kernel-only build output.
 
-    - `[ ]` **6.1.a Add the assembly-only registry factory**
-        - Add `src/lib/validation-surfaces/registry.ts` following the kernel and session-envelope registry patterns.
-        - Export `VALIDATION_SURFACE_SCHEMA_IDS` and register `audit-entry` version 2, `meta-record` version 1,
-          `arc-config` version 1, and `local-sync-state` version 4 with their declared migration postures.
-        - Keep subsystem schema semantics in their owning modules and return a fresh `createKernelRegistry()` extension
-          on every call.
-        - Build `test-first` (one behavior at a time):
-            - expose each declared id at the exact schema instance and metadata tuple;
-            - retain the four kernel vocabulary schemas and deterministic identity ordering;
-            - isolate mutation of one returned registry from every later factory result;
-            - preserve kernel duplicate-identity and duplicate-schema rejection.
+    - `[x]` **6.1.a Add the assembly-only registry factory**
+        - Added the internal registry factory and stable ID map, registering the four owning schema instances with
+          their declared versions and migration postures. Each call extends a fresh kernel registry, retaining
+          deterministic vocabulary composition, mutation isolation, and duplicate rejection.
 
     - `[ ]` **6.1.b Establish the internal-only composition boundary**
         - Export the ID map and factory only from the new internal source module for first-party and introspection

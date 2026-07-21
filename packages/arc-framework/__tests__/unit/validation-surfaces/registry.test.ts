@@ -1,0 +1,84 @@
+/** Unit coverage for validation-surface schema registry composition. */
+
+import { describe, expect, it } from "vitest";
+import { z } from "zod";
+
+import { MetaRecordSchema } from "../../../src/lib/active/meta-schema.js";
+import { ArcConfigSchema } from "../../../src/lib/config/schema.js";
+import {
+  PrioritySchema,
+  SchemaError,
+  SlugSchema,
+  WorkClassSchema,
+  WorkUnitStateSchema,
+} from "../../../src/lib/kernel/index.js";
+import { AuditEntrySchema } from "../../../src/lib/release/schema.js";
+import { PersistedLocalSyncStateSchema } from "../../../src/lib/user-sync/schema.js";
+import {
+  VALIDATION_SURFACE_SCHEMA_IDS,
+  createValidationSurfacesRegistry,
+} from "../../../src/lib/validation-surfaces/registry.js";
+
+const strict = (id: string, version: number) => ({
+  id,
+  version,
+  migrationPosture: "strict-current" as const,
+});
+
+describe("validation-surfaces schema registry", () => {
+  it("registers each declared root at its owning schema and metadata", () => {
+    const registry = createValidationSurfacesRegistry();
+
+    expect(registry.get(VALIDATION_SURFACE_SCHEMA_IDS.auditEntry)).toBe(AuditEntrySchema);
+    expect(registry.meta(VALIDATION_SURFACE_SCHEMA_IDS.auditEntry)).toEqual(strict("audit-entry", 2));
+    expect(registry.get(VALIDATION_SURFACE_SCHEMA_IDS.metaRecord)).toBe(MetaRecordSchema);
+    expect(registry.meta(VALIDATION_SURFACE_SCHEMA_IDS.metaRecord)).toEqual(strict("meta-record", 1));
+    expect(registry.get(VALIDATION_SURFACE_SCHEMA_IDS.arcConfig)).toBe(ArcConfigSchema);
+    expect(registry.meta(VALIDATION_SURFACE_SCHEMA_IDS.arcConfig)).toEqual(strict("arc-config", 1));
+    expect(registry.get(VALIDATION_SURFACE_SCHEMA_IDS.localSyncState)).toBe(PersistedLocalSyncStateSchema);
+    expect(registry.meta(VALIDATION_SURFACE_SCHEMA_IDS.localSyncState)).toEqual({
+      id: "local-sync-state",
+      version: 4,
+      migrationPosture: "backward-compatible",
+    });
+  });
+
+  it("retains kernel vocabulary in deterministic identity order", () => {
+    const registry = createValidationSurfacesRegistry();
+
+    expect(registry.ids()).toEqual([
+      "arc-config",
+      "audit-entry",
+      "local-sync-state",
+      "meta-record",
+      "priority",
+      "slug",
+      "work-class",
+      "work-unit-state",
+    ]);
+    expect(registry.get("priority")).toBe(PrioritySchema);
+    expect(registry.get("slug")).toBe(SlugSchema);
+    expect(registry.get("work-class")).toBe(WorkClassSchema);
+    expect(registry.get("work-unit-state")).toBe(WorkUnitStateSchema);
+  });
+
+  it("returns a fresh registry on every call", () => {
+    const first = createValidationSurfacesRegistry();
+    const second = createValidationSurfacesRegistry();
+
+    first.register(z.boolean(), strict("extension", 1));
+
+    expect(second.get("extension")).toBeUndefined();
+  });
+
+  it("preserves duplicate identity and schema rejection", () => {
+    const registry = createValidationSurfacesRegistry();
+
+    expect(() => registry.register(z.string(), strict("audit-entry", 3))).toThrowError(
+      expect.objectContaining<Partial<SchemaError>>({ code: "schema.registry.duplicate-identity" }),
+    );
+    expect(() => registry.register(AuditEntrySchema, strict("renamed-audit", 2))).toThrowError(
+      expect.objectContaining<Partial<SchemaError>>({ code: "schema.registry.duplicate-schema" }),
+    );
+  });
+});
