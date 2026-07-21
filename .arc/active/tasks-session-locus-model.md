@@ -531,47 +531,18 @@ result so workflows consume verbs and precomposed verdicts.
 - _Goal:_ A confirmed pure-routing drain has one recoverable occupancy and one review tail regardless of lanes or
   increments, and repeated sweep names cannot reuse stale branch generations or admit a second full-mode drain.
 
-    - `[ ]` **5.4.a Add lane- and dispatch-bearing `arc housekeep open <slug>` sweep claims**
-        - Extend `packages/arc-framework/src/handlers/housekeep.ts` to finalize an exact merged prior tail, reject
-          another live routing identity under any slug, and create one full-mode `housekeep-routing` identity or
-          partial-mode sweep occupancy.
-        - Add `packages/arc-framework/src/lib/housekeep/plan.ts` with a bounded exact-key `HousekeepPlanV1` input
-          schema for the complete confirmed write-affecting plan in inbox order. Each exact title selects one closed
-          disposition and only its legal normalized destination/commitment fields. Require a `sourceDigest` over
-          each exact entry block after CRLF-to-LF and one-terminal-newline normalization; reject duplicate,
-          missing/currently mismatched, illegal, or oversized input.
-        - Accept `--plan-file <path|->` plus `--lane auto|reviewed`, canonicalize the plan, and compute its
-          `sha256:<64 lowercase hex>` digest before mutation. Exclude overlap advisories, review chunking, and lane
-          from the digest so presentational changes and monotonic `auto → reviewed` escalation remain legal.
-        - Mint one dispatch ID. Full mode first persists lane/dispatch/digest in its identity claim; partial mode
-          first allocates the free primary and mints its exact role/lease with dispatch/digest under the record lock,
-          then releases that lock before acquiring the identity notes lock; never nest the two lock domains.
-        - Through the shared inbox mutation seam, revalidate every planned title/source digest and batch-mark exactly
-          the plan's execute-now captures under the identity notes lock. A changed preimage or notes-write failure
-          rolls back only the unchanged full claim or partial role, so no partial dispatch proposal survives solely
-          in process memory.
-        - Full mode then allocates/provisions through the shared primary/spawn rules; partial mode uses its already
-          owned primary locus. Return wait/finalize rather than duplicating a losing cross-machine claim. Register
-          open and `--json` through `packages/arc-framework/src/cli.ts`.
-        - State the protection boundary explicitly: full mode is serialized across machines through identity CAS;
-          partial mode has only machine-local primary occupancy and makes no cross-machine single-flight claim.
-        - Build `test-first` (one behavior at a time):
-            - Cover exact plan canonicalization, disposition-field validation, duplicate/current-title or source
-              mismatch, line-ending normalization, size bounds, and digest stability across equivalent JSON encoding.
-            - Cover same/different-slug one-winner claims, persisted mixed-lane classification, downgrade refusal,
-              full/partial dispatch/digest state, crashes before/after inbox marking, all-or-nothing notes mutation,
-              exact partial-role rollback, and full allocation rollback.
+    - `[x]` **5.4.a Add lane- and dispatch-bearing `arc housekeep open <slug>` sweep claims**
+        - Added bounded exact-key plan parsing and canonical digesting, plus full identity and partial-role open
+          composition with plan-wide source revalidation and atomic execute-now dispatch binding.
+        - Full mode binds before allocation and rolls back exact bindings plus the unchanged claim on failure;
+          partial mode owns the machine-local primary before binding and removes only that exact failed role.
+        - Registered plan-file/stdin, strictest-lane, and shared human/JSON command output with focused canonical,
+          claim-race, inbox-mutation, type, lint, and build validation.
 
-    - `[ ]` **5.4.b Persist the complete routing sweep under one branch and review classification**
-        - Keep every confirmed routing write on the same full-mode identity/branch/PR and classify the whole review
-          tail by the strictest touched lane.
-        - Allow ordered in-session review increments and commits without creating per-lane or per-chunk identities.
-        - Adopt an existing full identity or partial role only when the re-supplied canonical plan matches its
-          immutable digest; return `routing-plan-mismatch` or explicit resume/abandon guidance when it differs or is
-          unavailable instead of binding a later drain to the live sweep.
-        - Build `test-first` (one behavior at a time):
-            - Cover compaction/resume retaining the strictest lane, dispatch, and plan digest; repeated open
-              idempotence; and refusal when the live identity, re-supplied plan, or marked entry set changes.
+    - `[x]` **5.4.b Persist the complete routing sweep under one branch and review classification**
+        - Exact-plan retries adopt the existing full identity or partial role and dispatch, while changed plans or
+          entry bindings refuse; full-mode identity claims monotonically escalate `auto` to `reviewed` without
+          rotating the branch, claim, dispatch, or plan generation.
 
     - `[ ]` **5.4.c Close, resume, finalize, or abandon the sweep**
         - Close local occupancy only after the full routing sweep is preserved; retain one awaiting-merge identity

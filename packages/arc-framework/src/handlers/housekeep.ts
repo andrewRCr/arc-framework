@@ -17,15 +17,95 @@
  */
 
 import * as p from "@clack/prompts";
+import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
 
 import { resolveWriteContext } from "../lib/git/write-context.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { gitExec } from "../lib/io-context.js";
-import { requireArcProjectRoot } from "./shared.js";
+import { createUserIOContext, gitExec } from "../lib/io-context.js";
+import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
+import { parseHousekeepPlan } from "../lib/housekeep/plan.js";
+import { openHousekeepAtRuntime } from "../lib/housekeep/open-runtime.js";
+import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
+import { createLocusMutationResult } from "../lib/locus/mutation.js";
+import { formatErrandOpenResult } from "./errand.js";
 
 export interface HousekeepCheckOptions {
   /** Emit the write-context classification as JSON (for skill consumption). */
   json?: boolean;
+}
+
+export interface HousekeepOpenOptions {
+  planFile: string;
+  lane: string;
+  json?: boolean;
+}
+
+/** Open one confirmed, canonical routing sweep. */
+export async function handleHousekeepOpen(slug: string, opts: HousekeepOpenOptions): Promise<void> {
+  if (opts.json !== true) p.intro("arc housekeep open");
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+  if (opts.lane !== "auto" && opts.lane !== "reviewed") {
+    emitHousekeepError("input", "--lane must be 'auto' or 'reviewed'.", opts.json === true); return;
+  }
+  let plan;
+  try { plan = parseHousekeepPlan(await readPlanInput(opts.planFile)); }
+  catch (error) {
+    emitHousekeepError("plan", error instanceof Error ? error.message : String(error), opts.json === true); return;
+  }
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) { emitHousekeepError("identity", "No identity resolved.", opts.json === true); return; }
+  const io = createUserIOContext();
+  if (!io.execInput) { emitHousekeepError("identity", "The stdin Git boundary is unavailable.", opts.json === true); return; }
+  const primary = await resolvePrimaryWorktreePath(io.exec);
+  if (primary === null) { emitHousekeepError("topology", "Primary checkout unavailable.", opts.json === true); return; }
+  const { settings } = await readConfigSettings(cwd);
+  let result;
+  try {
+    result = await openHousekeepAtRuntime({
+      slug, lane: opts.lane, plan,
+      protection: settings["branch.protection"] === "full" ? "full" : "partial",
+      base: settings["branch.base"], identity, locationTemplate: settings["worktree.location_template"],
+      repo: basename(primary), postCreateScript: settings["worktree.post_create"],
+      registeredHarnessDirs: settings["worktree.harness_dirs"], cwd,
+      io: { ...io, execInput: io.execInput },
+    });
+  } catch (error) {
+    result = createLocusMutationResult({
+      outcome: "error", operation: "housekeep-open",
+      error: { code: "locus.housekeep-open.handler", message: error instanceof Error ? error.message : String(error) },
+      recommendedPromptText: "Inspect the routing identity, inbox bindings, and local role before retrying.",
+    });
+  }
+  emitHousekeepResult(result, opts.json === true);
+}
+
+async function readPlanInput(path: string): Promise<string> {
+  if (path !== "-") return readFile(path, "utf8");
+  let content = "";
+  process.stdin.setEncoding("utf8");
+  for await (const rawChunk of process.stdin) {
+    const chunk: unknown = rawChunk;
+    if (typeof chunk !== "string") throw new Error("Housekeeping plan stdin was not UTF-8 text.");
+    content += chunk;
+  }
+  return content;
+}
+
+function emitHousekeepResult(result: Parameters<typeof formatErrandOpenResult>[0], json: boolean): void {
+  const formatted = formatErrandOpenResult(result, json);
+  if (json) process.stdout.write(formatted.text);
+  else if (formatted.stream === "stderr") p.log.error(formatted.text);
+  else { p.log.success(formatted.text); p.outro("Done."); }
+  process.exitCode = formatted.exitCode;
+}
+
+function emitHousekeepError(suffix: string, message: string, json: boolean): void {
+  emitHousekeepResult(createLocusMutationResult({
+    outcome: "error", operation: "housekeep-open", error: { code: `locus.housekeep-open.${suffix}`, message },
+    recommendedPromptText: "Resolve the plan or configuration error before retrying.",
+  }), json);
 }
 
 export async function handleHousekeepCheck(opts: HousekeepCheckOptions): Promise<void> {

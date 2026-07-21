@@ -35,7 +35,12 @@ import {
   type ErrandPromoteOptions,
   type ErrandMaterializeOptions,
 } from "./handlers/errand.js";
-import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
+import {
+  handleHousekeepCheck,
+  handleHousekeepOpen,
+  type HousekeepCheckOptions,
+  type HousekeepOpenOptions,
+} from "./handlers/housekeep.js";
 import {
   handleBaseDrift,
   handleBaseSync,
@@ -430,6 +435,14 @@ housekeep
   .description("Classify the write context — base-branch (proceed), WU branch (relocate), or degenerate (refuse)")
   .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
   .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
+
+housekeep
+  .command("open <slug>")
+  .description("Open or exactly resume one confirmed housekeeping routing sweep")
+  .requiredOption("--plan-file <path>", "Complete canonical routing plan path, or - for stdin")
+  .requiredOption("--lane <lane>", "Strictest routing lane: auto | reviewed")
+  .option("--json", "Emit the producer-validated locus mutation result")
+  .action((slug: string, opts: HousekeepOpenOptions) => handleHousekeepOpen(slug, opts));
 
 const baseCmd = program
   .command("base")
