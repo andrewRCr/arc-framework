@@ -108,6 +108,14 @@ function compareCandidate(left: CandidateEvidence, right: CandidateEvidence): nu
   );
 }
 
+function canonicalizeClasses(classes: CouplingScanResult["classes"]): void {
+  classes.sort((left, right) => lexical(left.classId, right.classId));
+  classes.forEach((entry) => {
+    entry.files = entry.files.map(normalizeRepositoryPath).sort(lexical);
+    entry.hits = entry.hits.map(canonicalCandidate).sort(compareCandidate);
+  });
+}
+
 /**
  * Normalize the disposition-independent class inventory for hashing and comparison.
  *
@@ -116,11 +124,7 @@ function compareCandidate(left: CandidateEvidence, right: CandidateEvidence): nu
  */
 export function canonicalizeClassInventory(inventory: CouplingClassInventory): CouplingClassInventory {
   const output = structuredClone(inventory);
-  output.classes.sort((left, right) => lexical(left.classId, right.classId));
-  output.classes.forEach((entry) => {
-    entry.files = entry.files.map(normalizeRepositoryPath).sort(lexical);
-    entry.hits = entry.hits.map(canonicalCandidate).sort(compareCandidate);
-  });
+  canonicalizeClasses(output.classes);
   return output;
 }
 
@@ -165,11 +169,7 @@ export function canonicalizeManifest(manifest: CouplingManifest): CouplingManife
  */
 export function canonicalizeScanResult(result: CouplingScanResult): CouplingScanResult {
   const output = structuredClone(result);
-  output.classes.sort((left, right) => lexical(left.classId, right.classId));
-  output.classes.forEach((entry) => {
-    entry.files = entry.files.map(normalizeRepositoryPath).sort(lexical);
-    entry.hits = entry.hits.map(canonicalCandidate).sort(compareCandidate);
-  });
+  canonicalizeClasses(output.classes);
   output.candidates.classified = output.candidates.classified.map(canonicalCandidate).sort(compareCandidate);
   output.candidates.classified.forEach((entry) => entry.classIds.sort(lexical));
   output.candidates.dismissed = output.candidates.dismissed.map(canonicalCandidate).sort(compareCandidate);
