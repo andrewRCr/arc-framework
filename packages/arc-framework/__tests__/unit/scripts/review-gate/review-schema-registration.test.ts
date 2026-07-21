@@ -89,6 +89,7 @@ describe("review schema registration", () => {
     expect(registry.meta("review-guidance-digest-preimage")?.version).toBe(2);
     expect(registry.meta("review-policy-version-preimage")?.version).toBe(2);
     expect(registry.meta("review-lifecycle-tail-proof")?.version).toBe(2);
+    expect(registry.meta("review-response-plan")?.version).toBe(2);
     expect(registry.meta("review-applicability")?.version).toBe(2);
     expect(registry.meta("canonical-change-set")?.version).toBe(1);
   });

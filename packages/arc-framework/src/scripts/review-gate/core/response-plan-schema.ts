@@ -151,7 +151,7 @@ export function registerReviewResponseSchemas(registry: KernelRegistry): KernelR
   });
   registry.register(ReviewResponsePlanSchema, {
     id: "review-response-plan",
-    version: 1,
+    version: 2,
     migrationPosture: "strict-current",
   });
   return registry;
