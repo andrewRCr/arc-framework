@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `597a3eaca`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `118f4a713`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,14 +13,14 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit               | Priority | Owner  | Depends on | Cohort                 |
-| ---------- | ----------------------- | -------- | ------ | ---------- | ---------------------- |
-| `Active`   | review-architecture     | P1       | andrew | —          | —                      |
-| `Planning` | session-locus-model     | P1       | andrew | —          | —                      |
-| `Planning` | cli-command-inputs      | P2       | andrew | —          | cli-substrate-adoption |
-| `Active`   | cli-layout-resolver     | P2       | andrew | —          | cli-substrate-adoption |
-| `Planning` | cli-validation-surfaces | P2       | andrew | —          | cli-substrate-adoption |
-| `Planning` | markdown-formatting     | P3       | andrew | —          | —                      |
+| State         | Work unit               | Priority | Owner  | Depends on | Cohort                 |
+| ------------- | ----------------------- | -------- | ------ | ---------- | ---------------------- |
+| `Active`      | review-architecture     | P1       | andrew | —          | —                      |
+| `Active`      | session-locus-model     | P1       | andrew | —          | —                      |
+| `Active`      | cli-command-inputs      | P2       | andrew | —          | cli-substrate-adoption |
+| `Integrating` | cli-layout-resolver     | P2       | andrew | —          | cli-substrate-adoption |
+| `Active`      | cli-validation-surfaces | P2       | andrew | —          | cli-substrate-adoption |
+| `Active`      | markdown-formatting     | P3       | andrew | —          | —                      |
 
 ## Ready
 
