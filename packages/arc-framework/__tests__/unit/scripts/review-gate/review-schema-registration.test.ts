@@ -50,6 +50,7 @@ const reviewIdentities = [
   "review-policy-version-preimage",
   "review-receipt",
   "review-receipt-ledger",
+  "review-reentry-result",
   "review-request",
   "review-request-id-preimage",
   "review-requirement",

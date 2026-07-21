@@ -711,14 +711,13 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
   `Integrating` state without a live-session pin or silent stall.
 - _Context:_ Implements Design §2.2's watcher → scheduled wakeup → human re-entry capability order.
 
-    - `[ ]` **6.3.a Define the durable suspension record and re-entry check**
-        - Consume the registered `review-suspension` variant and version-checked `ReviewOperationStateStore` from
-          Task 4.3.d, carrying WU-or-Errand identity, repository/request/exact target, source/generation,
-          policy/rubric identities, deadline, and wakeup-deduplication token.
-        - Derive live host state, response plan, and narrative resume text afresh; never persist controller
-          conclusions or use the meta's free-form `Next Action` as operational authority.
-        - Build `test-first` coverage for clean/absent-record reconstruction, stale head, completed review, findings,
-          timeout, failed provider state, and version-conflict refusal.
+    - `[x]` **6.3.a Define the durable suspension record and re-entry check**
+        - Added a registered, non-persistent re-entry result over the existing strict suspension record and
+          version-checked operation store. An absent machine-local record publishes only with expected version zero;
+          conflicts refuse before live observation.
+        - Re-entry now validates the current exact target, derives response plans and narrative text from a live
+          observer, and distinguishes pending, clean, findings, stale target, timeout, and failed/unavailable states
+          without persisting conclusions or consulting narrative meta fields.
 
     - `[ ]` **6.3.b Prefer the promoted watcher capability when available**
         - Add an injected `ReviewWakeupCapability` seam, exercise it with fakes, and leave the production binding

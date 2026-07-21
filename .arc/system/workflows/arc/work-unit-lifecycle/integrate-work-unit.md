@@ -92,6 +92,12 @@ every pre-PR / PR-open step that already ran** — re-enter at the first incompl
 point from observable state — PR open vs. merged, plus worktree/branch presence — never by redoing a completed
 step:
 
+When review is suspended, read its versioned `review-suspension` operation record before selecting a review action.
+If the record is absent on this machine, reconstruct it only from canonical vehicle, request, exact-target, source,
+policy/rubric, deadline, and wakeup-token facts, then publish with expected version zero. Refuse a version conflict.
+The re-entry check re-reads current host/provider state and derives any `review-response` plan and resume text afresh;
+the meta's narrative `Next Action` and persisted controller conclusions are never operational authority.
+
 | Observed state               | Demonstrably already ran   | Resume at                                                          |
 |------------------------------|----------------------------|--------------------------------------------------------------------|
 | No PR open for the WU branch | transition                 | Step 2 (local preflight → creation path)                           |

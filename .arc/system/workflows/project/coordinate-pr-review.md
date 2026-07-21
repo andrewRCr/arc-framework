@@ -71,6 +71,11 @@ the reviewed work-unit delta is unchanged; otherwise recompose it from the curre
 This is the `next-action` → `perform-action` → `await` → canonical re-entry loop. It is idempotent from both
 `post-pr-open` and final `pre-merge`; no arm bypasses the controller.
 
+Before leaving an asynchronous review, publish only the strict `review-suspension` operation record through the
+version-checked store. On re-entry, reconstruct an absent local record from canonical vehicle and host facts, then
+re-read the current target and provider state. Derive the response plan and resume text in memory; never persist a
+controller conclusion or treat the meta's free-form `Next Action` as review authority.
+
 ## 2. Coordinate Findings Through `review-response`
 
 Fetch controller-normalized findings and provider-native conversations, retaining source-scoped immutable ids and
