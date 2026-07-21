@@ -57,7 +57,11 @@ Four deliverables, all edits to existing surfaces — no new machinery, no new a
 3. **Generate-tasks tripwire** — thresholds over materialized plan evidence (phase count, leaf count, estimated
    file surface) that force a cohort-fit re-run *with a recorded outcome* when crossed. Wires into the existing
    sizing review at generate-tasks so it can trigger decomposition, not only edge-trimming; the re-entry valve
-   stops relying on spontaneous noticing.
+   stops relying on spontaneous noticing. The same materialized evidence admits a second, *prior* reading —
+   proportionality ("should this shrink?") before decomposition ("should this split?"): decomposing an
+   overdesigned plan institutionalizes the excess across N members. The shrink reading is owned by the
+   solution-proportionality concern (see § Coordination); this WU owns the split reading and honors the
+   ordering.
 4. **Stack-vs-coupling test** — codify that a sequential forward-contract chain is a *stack signal*, not a
    keep-whole signal: an "unusable intermediate contract" claim must be tested against dependency-ordered
    delivery (each member shipping a usable contract to the next) before it justifies one WU. Lands beside the
@@ -74,6 +78,12 @@ Four deliverables, all edits to existing surfaces — no new machinery, no new a
   `strategy-work-organization` § Decomposition). Open question below: absorb it here or keep it separate.
 - **`planning-iteration-mechanics`** — owns the planning-closeout gate shape; the recorded verdict may land as
   part of its closeout checklist rather than a freestanding rule. Coordinate placement at grooming.
+- **Solution proportionality** (captured to `USER-INBOX § Work Unit`, `WU_Target: solution-proportionality`) —
+  the sibling scale-governance concern: whether the designed solution is right-sized for the chartered problem
+  at all, ex ante. Shares the generate-tasks fire-point with deliverable 3 under a strict order — shrink-reading
+  before split-reading — and relates to `planning-iteration-mechanics`' buffered appetite/continuation tripwire
+  (the in-flight half of the same family). Wrapper decision (paired siblings vs. one WU vs. stay with PIM) is
+  that capture's grooming call, not this WU's.
 - **Deliberately out of scope:** the unwired-ports guard (`USER-INBOX § Work Unit`, `WU_Target: TBD` —
   layer-decomposition shipping zero-caller contracts). Different failure class (delivery integrity, not
   scoping); it splits across `quality-gate-hooks` / `planning-iteration-mechanics` per its own capture.
