@@ -5,6 +5,8 @@ arc:
   methods:
     - assess-parallel-fit
     - commit-footer
+    - frontline-review
+    - review-response
   extensions:
     - post-task-quality
     - pre-pr-open
@@ -128,6 +130,21 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
 
+   From the pushed branch, compose the exact aggregate review target and canonical change facts. The resolved merge
+   lane is publication presentation, not a routing input. Run `arc review frontline resolve -` with
+   `invocation: inherit`, then execute only its selected action:
+
+   - `skip` — continue.
+   - `offer` — surface its preparation or authorization action; execute only when accepted and the carrier is ready.
+   - `attempt` — prepare the registered source and run [`frontline-review`][frontline-review] against the exact
+     target.
+
+   Route normalized findings through [`review-response`][review-response]. Apply only the approved fix set, run Tier
+   1 quality gates, commit through the applicable interlock, and push through the Errand push contract. After every
+   persisted fix, recompose the exact target and resolve frontline routing again; run only the bounded follow-up the
+   result permits. Surface clean, unavailable, failed, and pass-cap outcomes as advisory publication orientation,
+   then continue without treating them as review evidence.
+
 3. **Resolve the Errand PR** before creation. Paginate the exact current repository + head-owner/branch query and
    retain each candidate's state, merged time, and head SHA. A lookup error or incomplete enumeration is a stop, not
    an empty result. Classify the complete result:
@@ -223,6 +240,8 @@ never double-fires.
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [promote-errand-to-wu]: ../work-unit-lifecycle/planning/init-work-unit.md#promote-errand-to-work-unit-path
 [commit-footer]: ../../../methods/commit-footer.md
+[frontline-review]: ../../../methods/frontline-review.md
+[review-response]: ../../../methods/review-response.md
 [errand-class]: ../../../../reference/strategies/arc/strategy-work-organization.md#errand-work-class
 [branch-modes]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane

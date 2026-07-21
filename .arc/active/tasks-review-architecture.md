@@ -599,10 +599,10 @@ that shapes review spend without producing satisfying evidence.
           frontline action, routes findings through approved response and persistence, and re-resolves bounded
           follow-up work before generic pre-creation extensions and change-request creation.
 
-    - `[ ]` **5.4.b Add the Errand frontline fire point**
-        - Apply the same resolver and response cycle in `run-errand.md`, preserving auto/reviewed merge-lane policy
-          as a project presentation rather than a routing input.
-        - Keep partial-protection direct-base Errands outside PR-only mechanics.
+    - `[x]` **5.4.b Add the Errand frontline fire point**
+        - Full-protection Errands now run the same exact-target frontline resolution, approved response, persistence,
+          and bounded reroute cycle before PR resolution; merge lanes remain presentation-only and partial-protection
+          direct-base Errands stay outside the PR-only path.
 
     - `[ ]` **5.4.c Surface frontline outcome without gate claims**
         - Carry clean/findings/unavailable/cap results into publication orientation for attention/spend decisions,

@@ -100,6 +100,30 @@ describe("PR-open lifecycle extensions", () => {
     expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("Tier 1 quality gates");
   });
 
+  it("runs the same frontline cycle only for full-protection Errand publication", async () => {
+    const workflow = await readFile(
+      resolve(packageArc, "system/workflows/arc/supplemental/run-errand.md"),
+      "utf8",
+    );
+    const fullProtection = workflow.indexOf("### Ship — full protection");
+    const push = workflow.indexOf("**Push** the errand branch upstream", fullProtection);
+    const cycleStart = workflow.indexOf("From the pushed branch", push);
+    const resolveFrontline = workflow.indexOf("arc review frontline resolve -", push);
+    const resolvePr = workflow.indexOf("**Resolve the Errand PR**", resolveFrontline);
+    const partialProtection = workflow.indexOf("### Ship — partial protection", resolvePr);
+
+    expect([fullProtection, push, cycleStart, resolveFrontline, resolvePr, partialProtection]
+      .every((index) => index >= 0)).toBe(true);
+    expect(push).toBeLessThan(resolveFrontline);
+    expect(resolveFrontline).toBeLessThan(resolvePr);
+
+    const frontlineCycle = workflow.slice(cycleStart, resolvePr);
+    expect(frontlineCycle).toContain("review-response");
+    expect(frontlineCycle).toContain("not a routing input");
+    expect(frontlineCycle).toContain("recompose the exact target");
+    expect(workflow.slice(partialProtection)).not.toContain("arc review frontline resolve -");
+  });
+
   it("fails closed across every Errand PR lookup state", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/supplemental/run-errand.md"),
