@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `27c591842`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `624593985`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -90,6 +90,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                         | Priority | Owner  | Depends on                                  | Cohort                     |
 | --------------------------------- | -------- | ------ | ------------------------------------------- | -------------------------- |
 | review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification       | —                          |
+| review-surface-binding            | P1       | andrew | review-architecture                         | —                          |
 | unit-scoped-review                | P2       | andrew | commit-increments                           | approval-flow-refinement   |
 | cli-substrate-complete-migration  | P2       | andrew | cli-validation-surfaces, cli-command-inputs | cli-substrate-adoption     |
 | operational-state-docs            | P2       | andrew | cli-validation-surfaces                     | —                          |
