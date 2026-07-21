@@ -21,7 +21,7 @@
 
 import { join } from "node:path";
 
-import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import { parseMetaProjectionRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { canonicalize } from "../../canonical/canonical-json.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import { repointDependsOn } from "../decompose-sweep.js";
@@ -354,7 +354,7 @@ export async function runDecompose(
   if (originEntry === undefined) {
     return { status: "rejected", reason: `decompose origin "${originSlug}" is absent from the lifecycle index.` };
   }
-  const originRecord = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, originEntry.path)));
+  const originRecord = parseMetaProjectionRecord(await executor.indexFs.readFile(join(executor.cwd, originEntry.path)));
 
   // The resolved member-enrolment cohort: the cut-map's cohort for the standalone
   // / in-cohort arms; the origin's existing cohort for the at-cap lateral fan-out

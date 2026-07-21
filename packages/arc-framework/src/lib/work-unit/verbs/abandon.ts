@@ -34,7 +34,7 @@
 
 import { basename, join, posix } from "node:path";
 
-import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { parseMetaProjectionRecord, type MetaFieldName } from "../../active/meta-reader.js";
 import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
 import { DISCARD_RESULT, receiptId } from "../../canonical/receipt-id.js";
@@ -334,7 +334,7 @@ async function readMeta(
   executor: AbandonContext["executor"],
   relPath: string,
 ): Promise<Record<MetaFieldName, string | null>> {
-  return parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, relPath)));
+  return parseMetaProjectionRecord(await executor.indexFs.readFile(join(executor.cwd, relPath)));
 }
 
 /**

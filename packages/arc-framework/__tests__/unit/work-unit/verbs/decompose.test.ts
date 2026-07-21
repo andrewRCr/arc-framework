@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord, renderMetaFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
 import {
   runDecompose,
   runPreparedDecompose,
@@ -233,7 +233,7 @@ interface MetaSpec {
   origin?: string;
 }
 
-/** Render a fixture meta via the production projection, so `parseMetaRecord` round-trips it. */
+/** Render a fixture meta via the production projection, so `parseMetaProjectionRecord` round-trips it. */
 function metaContent(spec: MetaSpec): string {
   const o: MetaFieldOverrides = {
     State: spec.state,
@@ -691,7 +691,7 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
       closeout: { Class: "Light", "Depends On": "transition-core" },
     };
     for (const [slug, expected] of Object.entries(golden)) {
-      const record = parseMetaRecord(writeFor(h.writes, `/lifecycle-machine/${slug}/meta-${slug}.md`).content);
+      const record = parseMetaProjectionRecord(writeFor(h.writes, `/lifecycle-machine/${slug}/meta-${slug}.md`).content);
       expect(record).toMatchObject({
         State: "Planning",
         Owner: "andrew",

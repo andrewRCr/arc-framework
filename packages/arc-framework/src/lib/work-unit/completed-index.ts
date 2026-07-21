@@ -25,7 +25,7 @@
 
 import { join } from "node:path";
 
-import { parseMetaRecord } from "../active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 
 /** Filesystem adapter — injected for unit testability; production binds `node:fs/promises`. */
@@ -232,7 +232,7 @@ async function readCompletedRecordFromMeta(
   }
   let meta;
   try {
-    meta = parseMetaRecord(stdout);
+    meta = parseMetaProjectionRecord(stdout);
   } catch {
     return null;
   }

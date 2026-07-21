@@ -22,6 +22,16 @@ import { join, relative, sep } from "node:path";
 import { readdir, readFile, stat } from "node:fs/promises";
 
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
+import {
+  MetaProjectionRecordSchema,
+  ParsedMetaRecordSchema,
+  type MetaProjectionRecord,
+  type MetaRecord as SemanticMetaRecord,
+  type MetaSemanticKey,
+  type ParsedMetaRecord,
+} from "./meta-schema.js";
+
+export type { MetaProjectionRecord, ParsedMetaRecord } from "./meta-schema.js";
 
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
 const LITE_FILENAME = "status.md";
@@ -192,7 +202,7 @@ export interface ParsedMetaFields {
  * {@link parseCandidate}) catch and downgrade to a warning.
  */
 export function parseMetaFile(content: string): ParsedMetaFields {
-  const record = parseMetaRecord(content);
+  const record = parseMetaProjectionRecord(content);
   return {
     branch: record.Branch,
     state: record.State,
@@ -306,7 +316,8 @@ export type MetaFieldName = (typeof META_FIELDS)[number]["name"];
 export type MetaFieldOverrides = Partial<Record<MetaFieldName, string>>;
 
 /** The structured field record recovered from a meta projection by {@link parseMetaRecord}. */
-export type MetaRecord = Record<MetaFieldName, string | null>;
+/** Strict durable semantic record type. */
+export type MetaRecord = SemanticMetaRecord;
 
 /** The em-dash placeholder for a required-but-unset field (distinct from a `[…]` sentinel). */
 const PLACEHOLDER = "—";
@@ -713,7 +724,7 @@ export function reconcileMetaFields(
   // Re-render the bullet region from the canonical order: present fields keep their
   // value (recovered bare, re-formatted by `renderBullets`), absent fields take the
   // override or the declared default. The core table / H1 / below-`---` are untouched.
-  const record = parseMetaRecord(content);
+  const record = parseMetaProjectionRecord(content);
   const valueOf = (field: MetaFieldDescriptor): string => {
     const name = field.name as MetaFieldName;
     if (absent.has(name)) return overrides[name] ?? field.default;
@@ -938,10 +949,10 @@ function isCoreTableHeader(headers: readonly string[]): boolean {
  * stay distinct, and distinct from a marker-absent `null`). A structurally
  * malformed core-block table throws (see {@link parseCoreTable}).
  */
-export function parseMetaRecord(content: string): MetaRecord {
+export function parseMetaProjectionRecord(content: string): MetaProjectionRecord {
   const section = extractMetadataSection(content) ?? "";
   const table = parseCoreTable(section);
-  const record = {} as MetaRecord;
+  const record = {} as MetaProjectionRecord;
   for (const field of META_FIELDS) {
     const fromTable = table && field.name in table ? table[field.name] : undefined;
     const raw = fromTable === undefined ? extractField(section, field.name) : fromTable;
@@ -958,7 +969,43 @@ export function parseMetaRecord(content: string): MetaRecord {
     record[field.name] =
       field.valueClass === "identifier-list" ? normalizeIdentifierListValue(stripped) : stripped;
   }
-  return record;
+  return MetaProjectionRecordSchema.parse(record);
+}
+
+/**
+ * Recover the tolerant storage-independent adapter record from a meta projection.
+ * Display sentinels normalize at this boundary; invalid closed-domain tokens stay
+ * visible so callers can degrade one field without discarding independent evidence.
+ */
+export function parseMetaRecord(content: string): ParsedMetaRecord {
+  const projection = parseMetaProjectionRecord(content);
+  return ParsedMetaRecordSchema.parse({
+    state: nullableProjectionValue(projection.State),
+    owner: nullableProjectionValue(projection.Owner),
+    branch: nullableProjectionValue(projection.Branch),
+    workClass: unresolvedProjectionValue(projection.Class),
+    priority: unresolvedProjectionValue(projection.Priority),
+    cohort: nullableProjectionValue(projection.Cohort),
+    dependsOn: parseIdentifierList(projection["Depends On"]),
+    origin: projection.Origin === "[internal]" ? "internal" : nullableProjectionValue(projection.Origin),
+    design: parseIdentifierList(projection.Design),
+    taskList: nullableProjectionValue(projection["Task List"]),
+    currentWorkflow: nullableProjectionValue(projection["Current Workflow"]),
+    lastCompleted: nullableProjectionValue(projection["Last Completed"]),
+    nextTask: nullableProjectionValue(projection["Next Task"]),
+    blockers: nullableProjectionValue(projection.Blockers),
+    nextAction: nullableProjectionValue(projection["Next Action"]),
+    prUrl: nullableProjectionValue(projection["PR URL"]),
+    completed: nullableProjectionValue(projection.Completed),
+  });
+}
+
+function nullableProjectionValue(value: string | null): string | null {
+  return value === "—" || value === "[none]" ? null : value;
+}
+
+function unresolvedProjectionValue(value: string | null): string | null {
+  return value === "[TBD]" ? "TBD" : nullableProjectionValue(value);
 }
 
 function normalizeIdentifierListValue(value: string): string {
@@ -1042,4 +1089,3 @@ function extractField(content: string, label: string): string | null {
 export function stripInlineCode(value: string): string {
   return value.replace(/`([^`]+)`/g, "$1");
 }
-import type { MetaSemanticKey } from "./meta-schema.js";

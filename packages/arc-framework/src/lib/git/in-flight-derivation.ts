@@ -22,7 +22,12 @@
  */
 
 import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../../commands/active/types.js";
-import { META_FIELDS, parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
+import {
+  META_FIELDS,
+  parseIdentifierList,
+  parseMetaProjectionRecord,
+  type MetaProjectionRecord,
+} from "../active/meta-reader.js";
 import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
 
 import type { GitExec } from "./exec.js";
@@ -816,7 +821,7 @@ type MetaLocationRelation = InFlightCandidateRelation;
 interface MetaCandidate {
   name: string;
   metaPath: string;
-  record: MetaRecord;
+  record: MetaProjectionRecord;
   relation: MetaLocationRelation;
   marks: InFlightEntryMark[];
   warnings: InFlightWarning[];
@@ -1153,8 +1158,8 @@ function isLocalRemoteMirror(left: WorkUnitCandidate, right: WorkUnitCandidate):
   return hasLocal && (sources.has("remote-live") || sources.has("remote-tracking"));
 }
 
-function degradedMetaRecord(): MetaRecord {
-  return Object.fromEntries(META_FIELDS.map((field) => [field.name, null])) as MetaRecord;
+function degradedMetaRecord(): MetaProjectionRecord {
+  return Object.fromEntries(META_FIELDS.map((field) => [field.name, null])) as MetaProjectionRecord;
 }
 
 function degradedMetaCandidate(input: {
@@ -1403,9 +1408,9 @@ function worktreeListFailedWarning(): InFlightWarning {
  * but treating it as ownerless would leak malformed WUs through identity-scoped
  * views.
  */
-function parseRecord(content: string): MetaRecord | null {
+function parseRecord(content: string): MetaProjectionRecord | null {
   try {
-    return parseMetaRecord(content);
+    return parseMetaProjectionRecord(content);
   } catch {
     return null;
   }

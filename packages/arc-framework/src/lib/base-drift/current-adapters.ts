@@ -4,7 +4,7 @@
  * @module
  */
 
-import { parseMetaRecord } from "../active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../active/meta-reader.js";
 import type {
   BaseDriftCommitInput,
   IntegrationEvidenceResolver,
@@ -150,7 +150,7 @@ function recordFromMeta(path: string, content: string): ShippedWorkUnitRecord | 
   if (slug === null) return null;
   let meta;
   try {
-    meta = parseMetaRecord(content);
+    meta = parseMetaProjectionRecord(content);
   } catch {
     return null;
   }

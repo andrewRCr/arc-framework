@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 
-import { renderMetaFile, parseMetaRecord, parseIdentifierList } from "../../../src/lib/active/meta-reader.js";
+import { renderMetaFile, parseMetaProjectionRecord, parseIdentifierList } from "../../../src/lib/active/meta-reader.js";
 import { repointDependsOn } from "../../../src/lib/work-unit/decompose-sweep.js";
 
 /** The `Depends On` edges parsed back out of a meta projection. */
 function edgesOf(content: string): string[] {
-  return parseIdentifierList(parseMetaRecord(content)["Depends On"]);
+  return parseIdentifierList(parseMetaProjectionRecord(content)["Depends On"]);
 }
 
 describe("repointDependsOn", () => {

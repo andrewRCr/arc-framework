@@ -54,15 +54,10 @@ onto stable code-facing fields without losing tolerant recovery.
 - _Goal:_ Both Markdown layouts parse to the same semantic fields, while canonical full-layout rendering and
   localized legacy mutations preserve their respective bytes, sentinel behavior, and field-level recovery.
 
-    - `[ ]` **2.2.a Return parsed semantic fields from the Markdown reader**
-        - Refactor `parseMetaRecord()` to validate the tokenizer projection, normalize display tokens once, and
-          return the parsed semantic adapter record.
-        - Preserve table-first parsing, flat-bullet fallback, multiline narratives, inline-code stripping, list
-          normalization, and structural-table errors.
-        - Build `test-first` (one behavior at a time):
-            - map `—`, `[none]`, `[TBD]`, `[internal]`, and identifier lists exactly;
-            - preserve raw invalid closed-domain tokens alongside all independently usable fields;
-            - retain legacy bullets and multiline `Next Task` / `Next Action` recovery.
+    - `[x]` **2.2.a Return parsed semantic fields from the Markdown reader**
+        - `parseMetaRecord()` now validates the exact tokenizer projection and returns normalized semantic keys,
+          arrays, nulls, `TBD`, and `internal` while preserving raw invalid closed tokens and multiline narratives.
+          Unmigrated consumers use an explicit temporary projection reader rather than weakening the semantic API.
 
     - `[ ]` **2.2.b Validate and render complete semantic records**
         - Add `toMetaRecord()` as the strict conversion point for callers that require a fully valid record.

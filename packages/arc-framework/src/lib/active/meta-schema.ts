@@ -10,7 +10,7 @@ import {
 
 const SemanticStringSchema = z.string()
   .min(1)
-  .regex(/^(?!—$|\[(?:none|internal|TBD)\]$).+$/);
+  .regex(/^(?!—$|\[(?:none|internal|TBD)\]$)[\s\S]+$/);
 
 /** Resolved or deliberately unresolved work-unit weight. */
 export const MetaWorkClassSchema = z.union([WorkClassSchema, z.literal("TBD")]);

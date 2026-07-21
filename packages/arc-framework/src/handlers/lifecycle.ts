@@ -26,7 +26,7 @@ import * as p from "@clack/prompts";
 
 import {
   parseIdentifierList,
-  parseMetaRecord,
+  parseMetaProjectionRecord,
   readActiveMetaCandidates,
   type MetaFieldName,
 } from "../lib/active/meta-reader.js";
@@ -538,7 +538,7 @@ export interface ParkOptions {
  */
 async function resolveWuWorktreePath(base: VerbBase, slug: string): Promise<string> {
   try {
-    const record = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`)));
+    const record = parseMetaProjectionRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`)));
     const branch = record.Branch;
     if (branch !== null && branch !== "[none]") {
       const byBranch = await resolveWorktreePathsByBranch(base.io.exec);
@@ -576,7 +576,7 @@ async function resolveParkSource(
   slug: string,
 ): Promise<{ worktreePath: string; record: Record<MetaFieldName, string | null> } | null> {
   try {
-    const record = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`)));
+    const record = parseMetaProjectionRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`)));
     return { worktreePath: await resolveWuWorktreePath(base, slug), record };
   } catch {
     // Not in the current checkout — scan worktrees for the one holding it.
@@ -589,7 +589,7 @@ async function resolveParkSource(
     (e) => e.metaFilePath !== undefined && basename(e.metaFilePath) === `meta-${slug}.md`,
   );
   if (entry?.metaFilePath === undefined) return null;
-  return { worktreePath: entry.worktreePath, record: parseMetaRecord(await base.io.readFile(entry.metaFilePath)) };
+  return { worktreePath: entry.worktreePath, record: parseMetaProjectionRecord(await base.io.readFile(entry.metaFilePath)) };
 }
 
 /**
@@ -989,7 +989,7 @@ export interface ReopenOptions {
 async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | undefined> {
   let branch: string | null;
   try {
-    branch = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`))).Branch;
+    branch = parseMetaProjectionRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`))).Branch;
   } catch {
     return undefined;
   }
@@ -1064,7 +1064,7 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
   const index = await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs });
   const state = resolveSlugState(index, target);
   const entry = index.get(target);
-  const branch = entry === undefined ? null : parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).Branch;
+  const branch = entry === undefined ? null : parseMetaProjectionRecord(await base.io.readFile(join(base.cwd, entry.path))).Branch;
 
   const plan = planAbandon(state, branch, target);
   if (!plan.legal) {
@@ -1483,7 +1483,7 @@ export async function handleRepointDesign(event: string | undefined): Promise<vo
   }
 
   const metaPath = join(base.cwd, ".arc/active", `meta-${slug}.md`);
-  const currentDesign = parseIdentifierList(parseMetaRecord(await readFile(metaPath, "utf8"))["Design"]);
+  const currentDesign = parseIdentifierList(parseMetaProjectionRecord(await readFile(metaPath, "utf8"))["Design"]);
 
   const { executor } = await buildExecutor(base);
   const result = await runRepointDesign(executor, {

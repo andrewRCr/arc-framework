@@ -9,7 +9,7 @@
 import { posix } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
-import { parseMetaRecord } from "../active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../active/meta-reader.js";
 import { canonicalize } from "../canonical/canonical-json.js";
 import { contentDigest, type ArtifactSetEntry } from "../canonical/content-digest.js";
 import type { ManagedPath } from "../canonical/managed-path.js";
@@ -141,7 +141,7 @@ function validateArtifactGroup(
   }
   let declaredCohort: string | null;
   try {
-    declaredCohort = parseMetaRecord(new TextDecoder("utf-8", { fatal: true }).decode(meta.bytes)).Cohort;
+    declaredCohort = parseMetaProjectionRecord(new TextDecoder("utf-8", { fatal: true }).decode(meta.bytes)).Cohort;
   } catch {
     return null;
   }

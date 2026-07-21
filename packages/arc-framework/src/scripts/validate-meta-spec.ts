@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   parseIdentifierList,
-  parseMetaRecord,
+  parseMetaProjectionRecord,
   stripInlineCode,
   validateMetaFieldBlockShape,
 } from "../lib/active/meta-reader.js";
@@ -144,7 +144,7 @@ export function validateLifecycleFields(content: string, path: string): string[]
 
   let state: string | null;
   try {
-    state = parseMetaRecord(content).State;
+    state = parseMetaProjectionRecord(content).State;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     diagnostics.push(`${path}: ${message}`);

@@ -19,7 +19,7 @@
 import { join } from "node:path";
 
 import { cohortLeaf } from "../active/cohort-path.js";
-import { parseMetaRecord } from "../active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../active/meta-reader.js";
 
 /** The standalone-work-unit sentinel; carries no cohort grouping. */
 const NONE_SENTINEL = "[none]";
@@ -64,7 +64,7 @@ export async function resolveActiveCohortDocPath(
     return null;
   }
 
-  const cohort = parseMetaRecord(content).Cohort;
+  const cohort = parseMetaProjectionRecord(content).Cohort;
   if (cohort === null) return null;
   const field = cohort.trim();
   if (field === "" || field === NONE_SENTINEL) return null;

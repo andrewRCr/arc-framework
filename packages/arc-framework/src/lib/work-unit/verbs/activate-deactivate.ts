@@ -29,7 +29,7 @@
 
 import { join } from "node:path";
 
-import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { parseMetaProjectionRecord, type MetaFieldName } from "../../active/meta-reader.js";
 import {
   executeTransition,
   type ExecuteTransitionContext,
@@ -83,7 +83,7 @@ export async function runActivate(ctx: ExecuteTransitionContext, params: Activat
 
   let record: Record<MetaFieldName, string | null>;
   try {
-    record = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
+    record = parseMetaProjectionRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not a planning WU in \`active/\` — nothing to activate.` };
   }
@@ -123,7 +123,7 @@ export async function runDeactivate(
 
   let record: Record<MetaFieldName, string | null>;
   try {
-    record = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
+    record = parseMetaProjectionRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not an active WU in \`active/\` — nothing to deactivate.` };
   }

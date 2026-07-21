@@ -68,7 +68,7 @@ vi.mock("../../../src/lib/git/write-context.js", () => ({
 }));
 
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
-  parseMetaRecord: () => ({ Branch: "feat/foo" }),
+  parseMetaProjectionRecord: () => ({ Branch: "feat/foo" }),
   readActiveMetaCandidates: async () => ({ candidates: [{ filename: "meta-foo.md" }] }),
 }));
 

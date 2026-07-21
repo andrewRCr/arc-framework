@@ -35,7 +35,7 @@
 import { join } from "node:path";
 
 import { cohortLeaf, cohortParent, isSafeCohortPath } from "../../active/cohort-path.js";
-import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { parseMetaProjectionRecord, type MetaFieldName } from "../../active/meta-reader.js";
 import {
   computeArchiveDestination,
   type ArchiveDestination,
@@ -127,7 +127,7 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   const sourceMetaPath = `${ACTIVE_DIR}/meta-${name}.md`;
   let record: Record<MetaFieldName, string | null>;
   try {
-    record = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, sourceMetaPath)));
+    record = parseMetaProjectionRecord(await executor.indexFs.readFile(join(executor.cwd, sourceMetaPath)));
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not a started WU in \`active/\` — nothing to archive.` };
   }

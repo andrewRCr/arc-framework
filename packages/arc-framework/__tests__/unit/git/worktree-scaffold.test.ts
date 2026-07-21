@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 
 import { scaffoldIntoWorktree } from "../../../src/lib/git/worktree-scaffold.js";
 import { readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
-import { parseMetaRecord, META_FIELDS } from "../../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord, META_FIELDS } from "../../../src/lib/active/meta-reader.js";
 import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../../src/lib/paths.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
@@ -71,7 +71,7 @@ describe("scaffoldIntoWorktree — cold-start (use-existing)", () => {
       },
     );
 
-    const record = parseMetaRecord(
+    const record = parseMetaProjectionRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-manual-tool.md")),
     );
     expect(record.State).toBe("Planning");
@@ -103,7 +103,7 @@ describe("scaffoldIntoWorktree — cold-start (use-existing)", () => {
       },
     );
 
-    const record = parseMetaRecord(
+    const record = parseMetaProjectionRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-manual-tool.md")),
     );
     expect(record.Origin).toBe("https://github.com/acme/widget/issues/42");
@@ -155,7 +155,7 @@ describe("scaffoldIntoWorktree — planning-stage pointer at init", () => {
         createdByArc: false,
       },
     );
-    const record = parseMetaRecord(
+    const record = parseMetaProjectionRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-fresh-wu.md")),
     );
     expect(record.State).toBe("Planning");
@@ -173,7 +173,7 @@ describe("scaffoldIntoWorktree — planning-stage pointer at init", () => {
         createdByArc: false,
       },
     );
-    const record = parseMetaRecord(
+    const record = parseMetaProjectionRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-fresh-wu.md")),
     );
     expect(record["Next Action"]).toBe("[begin current workflow]");
@@ -191,7 +191,7 @@ describe("scaffoldIntoWorktree — planning-stage pointer at init", () => {
         createdByArc: false,
       },
     );
-    const record = parseMetaRecord(
+    const record = parseMetaProjectionRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-promoted.md")),
     );
     expect(record.State).toBe("Active");
@@ -223,7 +223,7 @@ describe("scaffoldIntoWorktree — renderMetaFile-shaped scaffold (single source
         createdByArc: false,
       },
     );
-    const record = parseMetaRecord(
+    const record = parseMetaProjectionRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-fresh-wu.md")),
     );
     // The renderMetaFile projection emits the whole field set — no field is absent
@@ -247,7 +247,7 @@ describe("scaffoldIntoWorktree — renderMetaFile-shaped scaffold (single source
         createdByArc: false,
       },
     );
-    const record = parseMetaRecord(
+    const record = parseMetaProjectionRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-promoted.md")),
     );
     expect(record.State).toBe("Active");

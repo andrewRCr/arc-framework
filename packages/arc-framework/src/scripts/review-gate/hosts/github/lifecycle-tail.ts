@@ -1,7 +1,7 @@
 /** Git-backed classification for the current lifecycle bookkeeping tail. */
 
 import type { GitExec } from "../../../../lib/git/exec.js";
-import { parseMetaRecord } from "../../../../lib/active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../../../../lib/active/meta-reader.js";
 import type {
   LifecycleTailProofAdapter,
   LifecycleTailProofResolutionInput,
@@ -222,7 +222,7 @@ function normalizeCohort(value: string | null): string | null | undefined {
 
 function artifactFromMeta(content: string, slug: string): LifecycleTailArtifactIdentity | null {
   try {
-    const record = parseMetaRecord(content);
+    const record = parseMetaProjectionRecord(content);
     if (record.State !== "Integrating" || record["Task List"] !== `tasks-${slug}.md`) return null;
     const cohortPath = normalizeCohort(record.Cohort);
     if (cohortPath === undefined) return null;
@@ -247,8 +247,8 @@ function stableMetaArchiveText(content: string): string {
 
 function validArchivedMeta(source: string, destination: string, slug: string): boolean {
   try {
-    const sourceRecord = parseMetaRecord(source);
-    const destinationRecord = parseMetaRecord(destination);
+    const sourceRecord = parseMetaProjectionRecord(source);
+    const destinationRecord = parseMetaProjectionRecord(destination);
     if (
       sourceRecord.State !== "Integrating"
       || destinationRecord.State !== "Shipped"

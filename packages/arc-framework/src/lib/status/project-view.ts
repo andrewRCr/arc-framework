@@ -14,7 +14,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import { validatePriority, validateState, type Priority, type WorkUnitState } from "../../commands/active/types.js";
-import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
+import { parseIdentifierList, parseMetaProjectionRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   deriveInFlight,
@@ -330,7 +330,7 @@ async function readProjectMeta(
 ): Promise<ProjectReadinessRecordCandidate | null> {
   let record;
   try {
-    record = parseMetaRecord(await fs.readFile(path));
+    record = parseMetaProjectionRecord(await fs.readFile(path));
   } catch {
     return null;
   }

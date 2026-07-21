@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 
 import { runColdStart, runCreateNew, deriveColdStartWuName } from "../../../src/commands/start.js";
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
-import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../../../src/lib/active/meta-reader.js";
 import { readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import { resolveWorktreeLocation } from "../../../src/lib/git/worktree-location.js";
 import { createUserIOContext } from "../../../src/lib/io-context.js";
@@ -124,7 +124,7 @@ describe("runColdStart — use-existing scaffolding", () => {
     if (!outcome.ok) return;
     expect(outcome.value.wuName).toBe("widget");
 
-    const record = parseMetaRecord(
+    const record = parseMetaProjectionRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")),
     );
     expect(record.State).toBe("Planning");
@@ -217,7 +217,7 @@ describe("runColdStart — protected-base auto-cut (candidate J)", () => {
     // The branch was cut in place off the protected base.
     expect(calls).toContainEqual(["git", "switch", "-c", "plan/widget"]);
     // The scaffolded meta records the new plan branch, not the protected base.
-    const record = parseMetaRecord(await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")));
+    const record = parseMetaProjectionRecord(await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")));
     expect(record.Branch).toBe("plan/widget");
   });
 
@@ -312,7 +312,7 @@ describe("runColdStart — spec-input classification (--from)", () => {
     expect(outcome.value.origin).toBe("#42");
     expect(outcome.value.design).toBeUndefined();
 
-    const record = parseMetaRecord(
+    const record = parseMetaProjectionRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")),
     );
     expect(record.Origin).toBe("#42");
@@ -494,7 +494,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
       "git", "worktree", "add", expectedPath, "-b", "plan/widget", "abc123",
     ]);
     // Spawn ran to completion: meta scaffolded + ownership marker written (ARC-created).
-    const record = parseMetaRecord(
+    const record = parseMetaProjectionRecord(
       await io.readFile(join(expectedPath, ".arc", "active", "meta-widget.md")),
     );
     expect(record.State).toBe("Planning");

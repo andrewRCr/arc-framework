@@ -49,7 +49,7 @@ export type PlanningWorkflow = (typeof PLANNING_WORKFLOWS)[number];
 
 /**
  * The parsed `(State, Current Workflow, Design)` tuple the validator reasons
- * over — bare field values as recovered by `parseMetaRecord` (backticks
+ * over — bare field values as recovered by `parseMetaProjectionRecord` (backticks
  * stripped; bracket sentinels and a marker-absent `null` preserved).
  */
 export interface CurrentWorkflowConsistencyInput {

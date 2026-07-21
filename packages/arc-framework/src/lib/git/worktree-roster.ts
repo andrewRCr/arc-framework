@@ -11,7 +11,11 @@
  */
 
 import { validateState, type WorkUnitState } from "../../commands/active/types.js";
-import { parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
+import {
+  parseIdentifierList,
+  parseMetaProjectionRecord,
+  type MetaProjectionRecord,
+} from "../active/meta-reader.js";
 
 import type { GitExec } from "./exec.js";
 
@@ -249,7 +253,7 @@ interface MetaCandidate {
   name: string;
   metaFilePath: string;
   /** Parsed record — present iff the meta was read and parsed without error. */
-  record?: MetaRecord;
+  record?: MetaProjectionRecord;
   /** Set when the meta file could not be read. */
   readError?: string;
   /** Set when the meta was read but its core-block table is malformed. */
@@ -293,7 +297,7 @@ async function resolveEntry(
   // branch. Disambiguates active/ states where stale or unrelated meta files
   // coexist with the live one.
   const readable = candidates.filter(
-    (c): c is MetaCandidate & { record: MetaRecord } => c.record !== undefined,
+    (c): c is MetaCandidate & { record: MetaProjectionRecord } => c.record !== undefined,
   );
   const candidateWarnings = candidates
     .filter((c) => c.record === undefined)
@@ -355,7 +359,7 @@ async function readCandidate(
     };
   }
   try {
-    return { name, metaFilePath, record: parseMetaRecord(content) };
+    return { name, metaFilePath, record: parseMetaProjectionRecord(content) };
   } catch (err) {
     return {
       name,
@@ -380,7 +384,7 @@ function unreadableWarning(c: MetaCandidate): string {
 function buildEntry(
   wt: { path: string; branch: string },
   metaFilePath: string,
-  record: MetaRecord,
+  record: MetaProjectionRecord,
 ): WorktreeRosterEntry {
   const identity = record.Owner;
   const stateRaw = record.State;

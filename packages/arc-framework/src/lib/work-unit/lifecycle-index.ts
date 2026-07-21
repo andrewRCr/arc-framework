@@ -13,7 +13,7 @@
  * containing tier, phase from the meta `**State:**` field — no git inference);
  * cohort comes from {@link metaCohortField}; the `**Depends On:**` edges from
  * {@link parseIdentifierList}; the slug is the `meta-<slug>.md` filename. The
- * meta schema is parsed once per file through the shared {@link parseMetaRecord}
+ * meta schema is parsed once per file through the shared {@link parseMetaProjectionRecord}
  * reader and never re-parsed here.
  *
  * The index is built fresh per invocation — in-memory, process-scoped, no
@@ -35,7 +35,7 @@ import { basename, join, relative, sep } from "node:path";
 
 import { validateState } from "../../commands/active/types.js";
 import { metaCohortField } from "../active/cohort-consistency.js";
-import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
+import { parseIdentifierList, parseMetaProjectionRecord } from "../active/meta-reader.js";
 import {
   resolveLifecyclePosition,
   type Location,
@@ -165,7 +165,7 @@ export function entryFromMeta(path: string, content: string): LifecycleIndexEntr
   let cohortRaw: string;
   let dependsOn: string[];
   try {
-    const record = parseMetaRecord(content);
+    const record = parseMetaProjectionRecord(content);
     position = resolveLifecyclePosition({ path, state: record.State });
     cohortRaw = metaCohortField(content);
     dependsOn = parseIdentifierList(record["Depends On"]);

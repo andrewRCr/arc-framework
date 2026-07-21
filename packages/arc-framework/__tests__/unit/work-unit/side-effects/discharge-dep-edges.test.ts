@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../../../../src/lib/active/meta-reader.js";
 import { buildLifecycleIndexFromMetas } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import {
   dischargeDepEdges,
@@ -73,7 +73,7 @@ describe("dischargeDepEdges — the readiness verdict (shipped ∨ integrating)"
     expect(result.discharged).toEqual(["shipped-dep"]);
     expect(result.live).toEqual(["active-dep"]);
     // The gate is rewritten to the live set only.
-    expect(parseMetaRecord(writes[0]!)["Depends On"]).toBe("active-dep");
+    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("active-dep");
   });
 
   it("discharges an integrating dependency too (the team-review-latency case)", async () => {
@@ -83,7 +83,7 @@ describe("dischargeDepEdges — the readiness verdict (shipped ∨ integrating)"
 
     expect(result.discharged).toEqual(["integrating-dep"]);
     expect(result.live).toEqual(["active-dep"]);
-    expect(parseMetaRecord(writes[0]!)["Depends On"]).toBe("active-dep");
+    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("active-dep");
   });
 
   it("clears the gate to [none] when every edge is satisfied", async () => {
@@ -93,7 +93,7 @@ describe("dischargeDepEdges — the readiness verdict (shipped ∨ integrating)"
 
     expect(result.discharged).toEqual(["shipped-dep", "integrating-dep"]);
     expect(result.live).toEqual([]);
-    expect(parseMetaRecord(writes[0]!)["Depends On"]).toBe("[none]");
+    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("[none]");
   });
 });
 

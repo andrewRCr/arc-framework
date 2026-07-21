@@ -35,7 +35,7 @@ import { readdir, rmdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
 import {
-  parseMetaRecord,
+  parseMetaProjectionRecord,
   setMetaBulletFields,
   setMetaBranch,
   setMetaClass,
@@ -155,7 +155,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
   // already-applied `Integrating → Active` flip isn't left mid-transition (the
   // operator finishes the withdrawal by hand).
   const withdrawPrHandler: SideEffectHandler = async ({ slug, inputs }) => {
-    const { Branch: branch } = parseMetaRecord(await io.readFile(at(`.arc/active/meta-${slug}.md`)));
+    const { Branch: branch } = parseMetaProjectionRecord(await io.readFile(at(`.arc/active/meta-${slug}.md`)));
     const mode = inputs.prWithdrawMode ?? "close";
     if (branch === null || branch === "[none]") {
       return `Could not withdraw the PR for \`${slug}\`: no branch recorded — close or convert it manually.`;

@@ -26,7 +26,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { runActiveInFlight } from "../commands/active.js";
-import { parseMetaRecord } from "../lib/active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   classifyPathSurface,
@@ -79,7 +79,7 @@ export async function resolveStagedOriginatingWorkUnit(
   for (const { metaPath, match } of candidates) {
     try {
       const { stdout } = await exec("git", ["show", `:${metaPath}`]);
-      const record = parseMetaRecord(stdout);
+      const record = parseMetaProjectionRecord(stdout);
       const name = match[1];
       if (name === undefined || name === "") continue;
       const title = /^# (.+)$/mu.exec(stdout)?.[1]?.trim();

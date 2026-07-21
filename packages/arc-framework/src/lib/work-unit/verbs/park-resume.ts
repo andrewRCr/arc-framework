@@ -43,7 +43,7 @@
 import { join } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
-import { parseMetaRecord, type MetaFieldName, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import { parseMetaProjectionRecord, type MetaFieldName, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
 import { receiptId } from "../../canonical/receipt-id.js";
@@ -594,7 +594,7 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   const parkedSubdir = sourceMetaPath.slice(0, sourceMetaPath.lastIndexOf("/"));
   let record: Record<MetaFieldName, string | null>;
   try {
-    record = parseMetaRecord(await ctx.executor.indexFs.readFile(join(ctx.executor.cwd, sourceMetaPath)));
+    record = parseMetaProjectionRecord(await ctx.executor.indexFs.readFile(join(ctx.executor.cwd, sourceMetaPath)));
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not a parked WU — nothing to resume.` };
   }

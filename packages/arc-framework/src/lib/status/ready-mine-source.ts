@@ -22,7 +22,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
-import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
+import { parseIdentifierList, parseMetaProjectionRecord } from "../active/meta-reader.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 
 import { buildReadyMineSlice, type PlannedWorkUnit } from "./ready-mine.js";
@@ -79,9 +79,9 @@ async function parsePlanned(metaPath: string): Promise<PlannedWorkUnit | null> {
   // The view is advisory — one malformed meta must not crash the scan.
   let record;
   try {
-    record = parseMetaRecord(content);
+    record = parseMetaProjectionRecord(content);
   } catch {
-    record = parseMetaRecord("");
+    record = parseMetaProjectionRecord("");
   }
   const { Owner: owner, Cohort: cohort, Class: workClass, Priority: priority } = record;
   return {
