@@ -29,7 +29,7 @@ import {
   readWorktreeMarker,
   type DecodedWorktreeHuskStamp,
   type WorktreeMarkerReadResult,
-  type WorktreeSubject,
+  type LegacyWorktreeSubject,
 } from "../git/worktree-marker.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import type { ProtectionMode } from "../git/write-context.js";
@@ -102,7 +102,7 @@ export type StaleWorktreeReport =
       kind: "husk";
       worktreePath: string;
       branch: null;
-      subject: WorktreeSubject;
+      subject: LegacyWorktreeSubject;
       stampedBranch: string;
       stamp: DecodedWorktreeHuskStamp;
       completedWorkUnit: string | null;

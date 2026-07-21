@@ -70,6 +70,9 @@ describe("parseRetirementReceipt", () => {
     const receipts = [
       receiptFor({ kind: "work-unit", name: "sample" }),
       receiptFor({ kind: "errand", slug: "sample" }),
+      receiptFor({ kind: "errand", slug: "sample", claimId: "a".repeat(32) }),
+      receiptFor({ kind: "groom", slug: "sample", claimId: "b".repeat(32) }),
+      receiptFor({ kind: "housekeep", slug: "sample", claimId: "c".repeat(32) }),
       receiptFor({ kind: "branch", ref: "plan/sample" }),
       receiptFor({ kind: "work-unit", name: "sample" }, "park-planning", {
         kind: "relocate",
@@ -133,6 +136,24 @@ describe("parseRetirementReceipt", () => {
     const authorization = candidate(receiptFor());
     authorization.authorization = "merged-preserved";
     expect(parseRetirementReceipt(canonicalize(authorization))).toBeNull();
+  });
+
+  it.each([
+    { kind: "groom", slug: "sample" },
+    { kind: "housekeep", slug: "sample", claimId: "short" },
+    { kind: "errand", slug: "sample", claimId: "a".repeat(32), extra: true },
+    { kind: "future", slug: "sample", claimId: "a".repeat(32) },
+  ])("rejects incomplete, illegal, or unknown transient subject %#", (subject) => {
+    const invalid = candidate(receiptFor());
+    invalid.subject = subject;
+    invalid.receiptId = receiptId({
+      schemaVersion: 1,
+      subject: subject as RetirementReceipt["subject"],
+      transition: "abandon",
+      sourceBranch: "plan/sample",
+      sourceHead: "a".repeat(40),
+    });
+    expect(parseRetirementReceipt(canonicalize(invalid))).toBeNull();
   });
 
   it("requires decompose allocations and targets to be canonical closed values", () => {

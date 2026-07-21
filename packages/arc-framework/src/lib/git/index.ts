@@ -204,6 +204,7 @@ export {
   type WorktreeHuskStampResult,
   type WorktreeMarkerReadResult,
   type WorktreeSubject,
+  type LegacyWorktreeSubject,
   type WorktreeMarkerSubject,
   type TransientWorktreeSubject,
   type WriteWorktreeOwnershipMarkerOptions,

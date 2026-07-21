@@ -69,6 +69,25 @@ describe("worktree subject identity", () => {
     expect(retirementSubjectRefusal({ kind: "work-unit", name: "shared" })).toBeNull();
     expect(retirementSubjectRefusal({ kind: "branch", ref: "chore/shared" })).toBeNull();
   });
+
+  it("compares transient subjects by kind, slug, and exact claim while refusing their retirement", () => {
+    const current = { kind: "errand", slug: "shared", claimId: "a".repeat(32) } as const;
+    expect(worktreeSubjectsEqual(current, { ...current })).toBe(true);
+    expect(worktreeSubjectsEqual(current, { ...current, claimId: "b".repeat(32) })).toBe(false);
+    expect(worktreeSubjectsEqual(current, {
+      kind: "groom",
+      slug: current.slug,
+      claimId: current.claimId,
+    })).toBe(false);
+
+    for (const subject of [
+      current,
+      { kind: "groom", slug: "shared", claimId: "b".repeat(32) } as const,
+      { kind: "housekeep", slug: "shared", claimId: "c".repeat(32) } as const,
+    ]) {
+      expect(retirementSubjectRefusal(subject)).toBe("unsupported-transition");
+    }
+  });
 });
 
 describe("receipt cross-field matrix", () => {

@@ -50,6 +50,19 @@ describe("receiptId", () => {
       receiptId({ ...baseReceipt, subject: asBranch }),
     );
   });
+
+  it("distinguishes repeated transient slugs by kind and claim generation", () => {
+    const first = { kind: "errand", slug: "shared", claimId: "a".repeat(32) } as const;
+    const next = { ...first, claimId: "b".repeat(32) } as const;
+    const groom = { kind: "groom", slug: "shared", claimId: first.claimId } as const;
+
+    expect(receiptId({ ...baseReceipt, subject: first })).not.toBe(
+      receiptId({ ...baseReceipt, subject: next }),
+    );
+    expect(receiptId({ ...baseReceipt, subject: first })).not.toBe(
+      receiptId({ ...baseReceipt, subject: groom }),
+    );
+  });
 });
 
 describe("preparationId", () => {

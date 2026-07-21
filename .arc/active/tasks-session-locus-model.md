@@ -361,26 +361,15 @@ transaction boundary before operation composers consume it.
           manual-only, while malformed claim/provisioning combinations reject. WU, branch, husk, and primary-marker
           behavior remain unchanged, and legacy transient markers no longer satisfy managed-roster authority.
 
-    - `[ ]` **4.2.b Extend canonical subject and retirement-receipt codecs**
-        - Update `packages/arc-framework/src/lib/canonical/receipt-id.ts` and
-          `packages/arc-framework/src/lib/work-unit/retirement-receipt-codec.ts` for the exact transient
-          `{ kind, slug, claimId }` variants without granting them a WU retirement transition.
-        - Keep canonical digests generation-sensitive and strict decoding backward-compatible for WU, legacy
-          Errand, and branch subjects; unknown or claimless transient receipt input remains non-authoritative.
-        - Build `test-first` (one behavior at a time):
-            - Receipt IDs and codec round-trips distinguish same-slug transient claim generations while preserving
-              every existing WU/branch vector.
-            - Unknown, incomplete, or illegal transient receipt subjects reject without weakening the retirement
-              matrix.
+    - `[x]` **4.2.b Extend canonical subject and retirement-receipt codecs**
+        - Widened canonical subjects to exact generation-bearing Errand, groom, and housekeep variants so receipt
+          digests distinguish kind and claim generation. Strict decoding accepts those closed token-valid shapes,
+          preserves WU, legacy Errand, and branch compatibility, and rejects incomplete, illegal, or unknown input.
 
-    - `[ ]` **4.2.c Centralize generation-aware subject equality and retirement refusal**
-        - Extend `packages/arc-framework/src/lib/work-unit/retirement-authority.ts` so exact transient equality
-          includes kind, slug, and `claimId`, and every transient kind remains an unsupported WU retirement subject.
-        - Route `packages/arc-framework/src/lib/work-unit/verbs/teardown.ts` and other teardown consumers through that
-          shared equality/refusal authority instead of retaining a second local comparison.
-        - Build `test-first` (one behavior at a time):
-            - Same-generation subjects compare equal, same-slug/different-claim subjects do not, and no transient
-              variant gains WU teardown or retirement authority.
+    - `[x]` **4.2.c Centralize generation-aware subject equality and retirement refusal**
+        - Centralized subject comparison across retirement authorization and teardown: transient equality now requires
+          exact kind, slug, and claim generation, while every transient kind is refused before WU teardown effects.
+          Legacy husk/status shapes remain narrow until transient cleanup projection is introduced.
 
     - `[ ]` **4.2.d Project transient provenance into status and cleanup classification**
         - Update `packages/arc-framework/src/lib/session-init/stale-worktree-sweep.ts`,

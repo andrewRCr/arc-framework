@@ -68,6 +68,8 @@ import { localPathsEqual } from "../../local-path-identity.js";
 import { branchToWorkUnitSlug, readShippedWorkUnitsFromRef } from "../completed-index.js";
 import {
   describeTeardownAuthorizationRefusal,
+  isRetirementSubjectSupported,
+  worktreeSubjectsEqual,
   type RetirementAuthorityPort,
   type TeardownAuthorizationDecision,
   type TeardownAuthorizationRequest,
@@ -205,13 +207,6 @@ export type TeardownResult =
     };
 
 const CHEAP_BRANCH_PREFIX = "chore/";
-
-function worktreeSubjectsEqual(left: WorktreeSubject, right: WorktreeSubject): boolean {
-  if (left.kind !== right.kind) return false;
-  if (left.kind === "work-unit" && right.kind === "work-unit") return left.name === right.name;
-  if (left.kind === "errand" && right.kind === "errand") return left.slug === right.slug;
-  return left.kind === "branch" && right.kind === "branch" && left.ref === right.ref;
-}
 
 /**
  * Resolve the WU's local branch by enumerating `refs/heads` and matching the slug.
@@ -354,6 +349,13 @@ async function teardownBranchProjection(
   const { cwd, exec, chdir } = ctx;
   const { branch, subject, base, remote, mode, suggestion, huskPath } = params;
   const notices: string[] = [];
+  if (!isRetirementSubjectSupported(subject)) {
+    return {
+      status: "rejected",
+      reason: describeTeardownAuthorizationRefusal("unsupported-transition"),
+      huskRefusal: "authorization-refused",
+    };
+  }
   const fs = ctx.worktreeFs ?? nodeReconcileWorkUnitWorktreeFs;
   const scan = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(exec);
   if (!scan.ok) {

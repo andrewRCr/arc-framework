@@ -8,6 +8,7 @@ import {
 import { isManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import { receiptId, type RetirementTransition } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
+import { LocusTokenSchema } from "../locus/schema/limits.js";
 import { parseCutMap, type DecomposeAllocationMap } from "./decompose-cut-map.js";
 import { validateReceiptMatrix, type RetirementReceipt } from "./retirement-authority.js";
 
@@ -35,6 +36,20 @@ function hasExactKeys(value: JsonObject, keys: readonly string[]): boolean {
   return actual.length === keys.length && keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
 }
 
+function parseClaimId(value: unknown): string | null {
+  const parsed = LocusTokenSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+function parseTransientSubject(
+  value: JsonObject,
+  kind: "errand" | "groom" | "housekeep",
+): Extract<WorktreeSubject, { kind: typeof kind }> | null {
+  if (!hasExactKeys(value, ["kind", "slug", "claimId"]) || typeof value.slug !== "string") return null;
+  const claimId = parseClaimId(value.claimId);
+  return claimId === null ? null : { kind, slug: value.slug, claimId };
+}
+
 function parseSubject(value: unknown): WorktreeSubject | null {
   if (!isObject(value) || typeof value.kind !== "string") return null;
   switch (value.kind) {
@@ -43,9 +58,13 @@ function parseSubject(value: unknown): WorktreeSubject | null {
         ? { kind: "work-unit", name: value.name }
         : null;
     case "errand":
-      return hasExactKeys(value, ["kind", "slug"]) && typeof value.slug === "string"
-        ? { kind: "errand", slug: value.slug }
-        : null;
+      if (hasExactKeys(value, ["kind", "slug"]) && typeof value.slug === "string") {
+        return { kind: "errand", slug: value.slug };
+      }
+      return parseTransientSubject(value, value.kind);
+    case "groom":
+    case "housekeep":
+      return parseTransientSubject(value, value.kind);
     case "branch":
       return hasExactKeys(value, ["kind", "ref"]) && typeof value.ref === "string"
         ? { kind: "branch", ref: value.ref }

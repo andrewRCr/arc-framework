@@ -26,21 +26,24 @@ import type {
 } from "../work-unit/retirement-authority.js";
 import type { GitExec } from "./exec.js";
 
-/** Logical target a worktree was created for or terminally husked from. */
-export type WorktreeSubject =
+/** Legacy logical target shapes retained for read compatibility. */
+export type LegacyWorktreeSubject =
   | { kind: "work-unit"; name: string }
   | { kind: "errand"; slug: string }
   | { kind: "branch"; ref: string };
 
-/** Generation-bearing transient target recorded only in ownership markers. */
+/** Generation-bearing transient target. */
 export type TransientWorktreeSubject = {
-  kind: "errand" | "groom" | "housekeep";
-  slug: string;
-  claimId: string;
-};
+  [Kind in "errand" | "groom" | "housekeep"]: {
+    kind: Kind;
+    slug: string;
+    claimId: string;
+  };
+}["errand" | "groom" | "housekeep"];
 
-/** Logical target carried by current and legacy ownership markers. */
-export type WorktreeMarkerSubject = WorktreeSubject | TransientWorktreeSubject;
+/** Logical target carried by current and legacy worktree evidence. */
+export type WorktreeSubject = LegacyWorktreeSubject | TransientWorktreeSubject;
+export type WorktreeMarkerSubject = WorktreeSubject;
 
 /** Terminal proof recorded after ARC detaches a worktree for safe later disposal. */
 export interface WorktreeHuskStamp {
@@ -49,7 +52,7 @@ export interface WorktreeHuskStamp {
   /** ISO-8601 timestamp of the detach transition. */
   at: string;
   /** Driver-supplied logical target completed by the transition. */
-  subject: WorktreeSubject;
+  subject: LegacyWorktreeSubject;
   /** Exact branch projection occupied immediately before detach. */
   branch: string;
   /** Persisted authorization; optional only for legacy read compatibility. */
@@ -89,7 +92,7 @@ interface WorktreeMarkerBase {
 export type WorktreeMarker = WorktreeMarkerBase &
   (
     | { wuName: string; createdFor?: Extract<WorktreeSubject, { kind: "work-unit" }>; provisioning?: never }
-    | { wuName?: never; createdFor: WorktreeSubject; provisioning?: never }
+    | { wuName?: never; createdFor: LegacyWorktreeSubject; provisioning?: never }
     | { wuName?: never; createdFor: TransientWorktreeSubject; provisioning: string }
   );
 
@@ -97,7 +100,7 @@ export type WorktreeMarker = WorktreeMarkerBase &
 export type DecodedWorktreeMarkerOwnership =
   | {
       kind: "current";
-      subject: Exclude<WorktreeMarkerSubject, { kind: "errand"; claimId?: never }>;
+      subject: Exclude<WorktreeSubject, { kind: "errand"; claimId?: never }>;
       provisioning: "pending" | "ready" | null;
     }
   | {
@@ -220,7 +223,7 @@ function isWorktreeHuskStamp(value: unknown): value is WorktreeHuskStamp {
   if (
     typeof husk.sha !== "string"
     || typeof husk.at !== "string"
-    || !isWorktreeSubject(husk.subject)
+    || !isLegacyWorktreeSubject(husk.subject)
     || typeof husk.branch !== "string"
   ) {
     return false;
@@ -303,7 +306,7 @@ function decodeKnownEvidence(value: PersistedRetirementEvidence | undefined): Re
   return null;
 }
 
-function isWorktreeSubject(value: unknown): value is WorktreeSubject {
+function isLegacyWorktreeSubject(value: unknown): value is LegacyWorktreeSubject {
   if (typeof value !== "object" || value === null) return false;
   const subject = value as Record<string, unknown>;
   switch (subject.kind) {
@@ -319,7 +322,7 @@ function isWorktreeSubject(value: unknown): value is WorktreeSubject {
 }
 
 function isWorktreeMarkerSubject(value: unknown): value is WorktreeMarkerSubject {
-  if (isWorktreeSubject(value)) return true;
+  if (isLegacyWorktreeSubject(value)) return true;
   return isTransientWorktreeSubject(value);
 }
 
@@ -377,7 +380,7 @@ interface WriteWorktreeOwnershipMarkerBase {
 }
 
 export type WriteWorktreeOwnershipMarkerOptions = WriteWorktreeOwnershipMarkerBase & (
-  | { createdFor: WorktreeSubject; provisioning?: never }
+  | { createdFor: LegacyWorktreeSubject; provisioning?: never }
   | { createdFor: TransientWorktreeSubject; provisioning: "pending" | "ready" }
 );
 

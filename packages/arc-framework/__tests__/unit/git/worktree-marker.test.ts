@@ -23,7 +23,7 @@ import {
   resolveWorktreeMarkerPath,
   type WorktreeMarker,
   type WorktreeHuskStamp,
-  type WorktreeSubject,
+  type LegacyWorktreeSubject,
 } from "../../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
@@ -75,7 +75,7 @@ describe("worktree-marker", () => {
     expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
   });
 
-  it.each<WorktreeSubject>([
+  it.each<LegacyWorktreeSubject>([
     { kind: "work-unit", name: "worktree-foundation" },
     { kind: "errand", slug: "refresh-fixtures" },
     { kind: "branch", ref: "chore/refresh-fixtures" },
