@@ -18,6 +18,7 @@ import {
   decodeWorktreeHuskStamp,
   nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarker,
+  readWorktreeMarkerGeneration,
   stampWorktreeHusk,
   writeWorktreeMarker,
   writeWorktreeOwnershipMarker,
@@ -55,6 +56,11 @@ describe("worktree-marker", () => {
     expect(JSON.parse(raw)).toEqual(sampleMarker);
 
     expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker: sampleMarker });
+    expect(await readWorktreeMarkerGeneration(cwd)).toEqual({
+      kind: "present",
+      marker: sampleMarker,
+      bytes: Buffer.from(raw),
+    });
   });
 
   it("tolerates an absent marker — a missing file reads as 'no marker', not an error", async () => {

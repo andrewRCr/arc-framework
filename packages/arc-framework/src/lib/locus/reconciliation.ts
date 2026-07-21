@@ -1,9 +1,17 @@
 /** Deterministic reconciliation summaries with exact internal mutation proofs. */
 
+import type { TransientIdentitySnapshot } from "../errand/identity-snapshot.js";
+import type { RegisteredWorktree } from "../git/worktree-roster.js";
+import {
+  decodeWorktreeMarkerOwnership,
+  type TransientWorktreeSubject,
+  type WorktreeMarkerGenerationReadResult,
+} from "../git/worktree-marker.js";
 import type { LockEntryEvidence, RecordEntryEvidence } from "./evidence.js";
 import type {
   LocusAnchor,
   LocusDiagnosticV1,
+  LocusIdentityV1,
   LocusReconcileAction,
   LocusRowV1,
   LocusStateV1,
@@ -22,15 +30,43 @@ export interface LocusLockGenerationProof {
   readonly anchor: LocusAnchor;
 }
 
+export interface LocusWorkUnitAdoptionAuthority {
+  readonly kind: "work-unit";
+  readonly marker: "verified";
+  readonly subjectKey: string;
+  readonly identityKey: null;
+}
+
+export interface LocusTransientAdoptionAuthority {
+  readonly kind: "transient";
+  readonly marker: {
+    readonly bytes: Buffer;
+    readonly subject: TransientWorktreeSubject;
+  };
+  readonly checkout: { readonly head: string; readonly branch: string };
+  readonly identity: LocusIdentityV1;
+}
+
+export type LocusAdoptionAuthority = LocusWorkUnitAdoptionAuthority | LocusTransientAdoptionAuthority;
+
+export type LocusTransientAdoptionEvidence =
+  | { readonly kind: "identity-only" }
+  | { readonly kind: "pending-marker"; readonly markerBytes: Buffer }
+  | {
+      readonly kind: "marker-record-mismatch";
+      readonly markerBytes: Buffer | null;
+      readonly recordBytes: Buffer | null;
+    };
+
+export type LocusTransientAuthorityRecheck =
+  | { readonly kind: "matched"; readonly authority: LocusTransientAdoptionAuthority }
+  | { readonly kind: "changed"; readonly evidence: LocusTransientAdoptionEvidence };
+
 export type LocusInternalReconcileAction =
   | {
       readonly summary: LocusReconcileAction;
       readonly proof: LocusRecordGenerationProof;
-      readonly authority: {
-        readonly marker: "verified";
-        readonly subjectKey: string;
-        readonly identityKey: string | null;
-      } | null;
+      readonly authority: LocusAdoptionAuthority | null;
     }
   | {
       readonly summary: LocusReconcileAction;
@@ -41,13 +77,23 @@ export type LocusInternalReconcileAction =
 export type LocusAdoptionCandidate =
   | {
       readonly kind: "applicable";
-      readonly action: "adopt-work-unit" | "adopt-transient";
+      readonly action: "adopt-work-unit";
       readonly checkoutPath: string;
       readonly recordId: string;
       readonly proof: Extract<LocusRecordGenerationProof, { kind: "record-absent" }>;
       readonly marker: "verified";
       readonly subjectKey: string;
-      readonly identityKey: string | null;
+      readonly identityKey: null;
+    }
+  | {
+      readonly kind: "applicable";
+      readonly action: "adopt-transient";
+      readonly checkoutPath: string;
+      readonly recordId: string;
+      readonly proof: Extract<LocusRecordGenerationProof, { kind: "record-absent" }>;
+      readonly subjectKey: string;
+      readonly identityKey: string;
+      readonly authority: LocusTransientAdoptionAuthority;
     }
   | {
       readonly kind: "blocked";
@@ -61,6 +107,101 @@ export type LocusAdoptionCandidate =
 export interface LocusReconciliationPlan {
   readonly reconciliation: LocusStateV1["reconciliation"];
   readonly internalActions: readonly LocusInternalReconcileAction[];
+}
+
+/** Derive one transient adoption candidate from exact local marker, identity, and checkout authority. */
+export function deriveTransientAdoptionCandidate(options: {
+  identity: string;
+  checkout: RegisteredWorktree;
+  marker: WorktreeMarkerGenerationReadResult;
+  identities: TransientIdentitySnapshot;
+  recordId: string;
+  recordPath: string;
+}): LocusAdoptionCandidate | null {
+  if (options.marker.kind !== "present") return null;
+  const ownership = decodeWorktreeMarkerOwnership(options.marker.marker);
+  const rawSubject = options.marker.marker.createdFor;
+  if (ownership.kind !== "current") {
+    return rawSubject !== undefined
+      && (rawSubject.kind === "errand" || rawSubject.kind === "groom" || rawSubject.kind === "housekeep")
+      ? blockedTransient(options, rawSubject.slug, ["subject-unresolved"])
+      : null;
+  }
+  if (ownership.subject.kind !== "errand"
+    && ownership.subject.kind !== "groom"
+    && ownership.subject.kind !== "housekeep") {
+    return null;
+  }
+  const subject = ownership.subject;
+  const reasons: LocusStopReason[] = [];
+  if (ownership.provisioning !== "ready") reasons.push("subject-unresolved");
+  if (options.marker.marker.spawningIdentity !== options.identity) reasons.push("cross-identity");
+  if (options.checkout.primary || options.checkout.detached || options.checkout.branch === null) {
+    reasons.push("subject-unresolved");
+  }
+  if (options.identities.kind !== "complete") {
+    reasons.push("identity-malformed");
+    return blockedTransient(options, subject.slug, reasons);
+  }
+  if (options.identities.diagnostics.some((diagnostic) => diagnostic.key === subject.slug)) {
+    reasons.push("identity-malformed");
+    return blockedTransient(options, subject.slug, reasons);
+  }
+  const identity = options.identities.projections.get(subject.slug);
+  if (identity === undefined
+    || !transientIdentityMatchesMarker(identity, subject)
+    || identity.branch !== options.checkout.branch) {
+    reasons.push("subject-unresolved");
+  }
+  if (reasons.length > 0 || identity === undefined || options.checkout.branch === null) {
+    return blockedTransient(options, subject.slug, reasons);
+  }
+  return {
+    kind: "applicable",
+    action: "adopt-transient",
+    checkoutPath: options.checkout.path,
+    recordId: options.recordId,
+    proof: { kind: "record-absent", path: options.recordPath },
+    subjectKey: subject.slug,
+    identityKey: subject.slug,
+    authority: {
+      kind: "transient",
+      marker: { bytes: options.marker.bytes, subject },
+      checkout: { head: options.checkout.head, branch: options.checkout.branch },
+      identity,
+    },
+  };
+}
+
+function blockedTransient(
+  options: Pick<Parameters<typeof deriveTransientAdoptionCandidate>[0], "checkout" | "recordId">,
+  subjectKey: string,
+  reasons: readonly LocusStopReason[],
+): Extract<LocusAdoptionCandidate, { kind: "blocked" }> {
+  return {
+    kind: "blocked",
+    checkoutPath: options.checkout.path,
+    recordId: options.recordId,
+    subjectKey,
+    identityKey: subjectKey,
+    reasons: uniqueStopReasons(reasons),
+  };
+}
+
+function transientIdentityMatchesMarker(
+  identity: LocusIdentityV1,
+  subject: TransientWorktreeSubject,
+): boolean {
+  if (identity.key !== subject.slug || identity.claimId !== subject.claimId) return false;
+  if (subject.kind === "groom") return identity.kind === "groom";
+  if (identity.kind !== "errand") return false;
+  return subject.kind === "housekeep"
+    ? identity.purpose === "housekeep-routing"
+    : identity.purpose === "errand";
+}
+
+function uniqueStopReasons(reasons: readonly LocusStopReason[]): LocusStopReason[] {
+  return [...new Set(reasons)];
 }
 
 /**
@@ -93,11 +234,14 @@ export function deriveLocusReconciliation(options: {
         recordId: candidate.recordId,
       },
       proof: candidate.proof,
-      authority: {
-        marker: candidate.marker,
-        subjectKey: candidate.subjectKey,
-        identityKey: candidate.identityKey,
-      },
+      authority: candidate.action === "adopt-transient"
+        ? candidate.authority
+        : {
+            kind: "work-unit",
+            marker: candidate.marker,
+            subjectKey: candidate.subjectKey,
+            identityKey: candidate.identityKey,
+          },
     });
   }
   for (const row of options.rows) {

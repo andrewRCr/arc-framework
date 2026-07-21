@@ -126,6 +126,11 @@ export type WorktreeMarkerReadResult =
   | { kind: "absent" }
   | { kind: "malformed"; message: string; path: string };
 
+/** Exact marker-file generation retained for compare-and-swap authority proofs. */
+export type WorktreeMarkerGenerationReadResult =
+  | { kind: "present"; marker: WorktreeMarker; bytes: Buffer }
+  | Extract<WorktreeMarkerReadResult, { kind: "absent" | "malformed" }>;
+
 /** Outcome of extending an existing valid marker with terminal husk proof. */
 export type WorktreeHuskStampResult =
   | { kind: "stamped"; marker: WorktreeMarker }
@@ -495,11 +500,21 @@ export async function stampWorktreeHusk(
  * @returns The parsed marker, `absent`, or `malformed`
  */
 export async function readWorktreeMarker(cwd: string): Promise<WorktreeMarkerReadResult> {
+  const result = await readWorktreeMarkerGeneration(cwd);
+  return result.kind === "present"
+    ? { kind: "present", marker: result.marker }
+    : result;
+}
+
+/** Read and retain the exact marker bytes used by owned-generation transactions. */
+export async function readWorktreeMarkerGeneration(
+  cwd: string,
+): Promise<WorktreeMarkerGenerationReadResult> {
   const path = resolveWorktreeMarkerPath(cwd);
 
-  let content: string;
+  let bytes: Buffer;
   try {
-    content = await readFile(path, "utf8");
+    bytes = await readFile(path);
   } catch (err) {
     if (isNodeError(err) && err.code === "ENOENT") {
       return { kind: "absent" };
@@ -509,7 +524,7 @@ export async function readWorktreeMarker(cwd: string): Promise<WorktreeMarkerRea
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(bytes.toString("utf8"));
   } catch {
     return { kind: "malformed", message: "worktree marker contains malformed JSON", path };
   }
@@ -518,7 +533,7 @@ export async function readWorktreeMarker(cwd: string): Promise<WorktreeMarkerRea
     return { kind: "malformed", message: "worktree marker does not match the expected schema", path };
   }
 
-  return { kind: "present", marker: parsed };
+  return { kind: "present", marker: parsed, bytes };
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {

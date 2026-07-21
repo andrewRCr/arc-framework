@@ -390,23 +390,17 @@ transaction boundary before operation composers consume it.
   retirement refusal, and provisioning all preserve exact claim provenance, while partial failures remain visible
   and cannot authorize adoption or cleanup across a raced generation.
 
-### `[ ]` **4.3 Bind transient adoption after identity and marker provisioning exist** — D6, D9
+### `[x]` **4.3 Bind transient adoption after identity and marker provisioning exist** — D6, D9
 
 - _Goal:_ Existing ARC-owned transient worktrees can acquire their missing local roles only after both authority
   domains are readable and mutually consistent.
 
-    - `[ ]` **4.3.a Apply transient adoption through the shared reconciliation driver**
-        - Extend the reconciliation action driver to adopt only a ready marker whose Errand, groom, or housekeep
-          subject resolves by kind, slug, and `claimId` to the exact v3 identity and live Git checkout; pending and
-          legacy claimless transient markers remain diagnosable but non-adoptable.
-        - Rerun the final public reader before acquiring the target record lock. Under the owned-lock handle, recheck
-          only the proof-bearing marker, roster, record absence/generation, and identity snapshot rather than
-          rerunning a reader that would treat the caller's own live lock as contention.
-        - Mint only the unchanged derived role; preserve identity-only, pending-marker, or marker/record mismatch
-          evidence on races.
-        - Build `test-first` (one behavior at a time):
-            - Cover WU/transient distinction, incomplete identity reads, pending/legacy/current markers, exact-claim
-              mismatch, owned-lock revalidation, changed proofs, raced provisioning, and idempotent adoption.
+    - `[x]` **4.3.a Apply transient adoption through the shared reconciliation driver**
+        - Added exact transient adoption proofs carrying ready-marker bytes, checkout head/branch, and the matching
+          v3 identity generation. Candidate derivation keeps pending, legacy, incomplete, cross-identity, and
+          claim-mismatched evidence blocked; the shared driver reruns its plan, acquires the directed record lock,
+          compares a target-local authority recheck, and mints only the unchanged role. Exact replay is idempotent,
+          while identity-only, pending-marker, and marker/record races return their reconciliation evidence.
 
 ### `[ ]` **4.4 Establish concurrency-safe USER-INBOX mutation authority** — D8, D9
 

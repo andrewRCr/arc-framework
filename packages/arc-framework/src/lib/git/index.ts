@@ -190,6 +190,7 @@ export {
 
 export {
   readWorktreeMarker,
+  readWorktreeMarkerGeneration,
   decodeWorktreeHuskStamp,
   decodeWorktreeMarkerOwnership,
   classifyTransientWorktreeProvenance,
@@ -204,6 +205,7 @@ export {
   type DecodedWorktreeMarkerOwnership,
   type WorktreeHuskStampResult,
   type WorktreeMarkerReadResult,
+  type WorktreeMarkerGenerationReadResult,
   type WorktreeSubject,
   type LegacyWorktreeSubject,
   type WorktreeMarkerSubject,

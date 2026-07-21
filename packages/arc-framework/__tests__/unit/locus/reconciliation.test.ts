@@ -4,8 +4,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveLocusReconciliation,
+  deriveTransientAdoptionCandidate,
   type LocusAdoptionCandidate,
 } from "../../../src/lib/locus/reconciliation.js";
+import type { TransientIdentitySnapshot } from "../../../src/lib/errand/identity-snapshot.js";
+import type {
+  WorktreeMarker,
+  WorktreeMarkerGenerationReadResult,
+} from "../../../src/lib/git/worktree-marker.js";
 import type { LockEntryEvidence, RecordEntryEvidence } from "../../../src/lib/locus/evidence.js";
 import type { LocusRecordV1, LocusRowV1 } from "../../../src/lib/locus/schema/index.js";
 
@@ -65,6 +71,110 @@ function staleRow(value: LocusRecordV1): LocusRowV1 {
 }
 
 describe("locus reconciliation", () => {
+  const transientIdentity = {
+    kind: "errand" as const,
+    key: "errand",
+    claimId: "2".repeat(32),
+    protection: "full" as const,
+    branch: "chore/errand",
+    purpose: "errand" as const,
+    origin: "description" as const,
+    originEntry: null,
+    dispatchId: null,
+    state: "open" as const,
+    savedHead: null,
+    changeRequest: null,
+  };
+  const checkout = {
+    path: "/errand",
+    head: "a".repeat(40),
+    branch: "chore/errand",
+    detached: false,
+    primary: false,
+  };
+  const identities: TransientIdentitySnapshot = {
+    kind: "complete",
+    tip: "b".repeat(40),
+    objects: new Map(),
+    records: new Map(),
+    projections: new Map([["errand", transientIdentity]]),
+    diagnostics: [],
+  };
+  const readyMarker: WorktreeMarkerGenerationReadResult = {
+    kind: "present",
+    marker: {
+      spawnedByArc: true,
+      spawningIdentity: "andrew",
+      createdAt: "2026-07-20T00:00:00.000Z",
+      createdFor: { kind: "errand", slug: "errand", claimId: "2".repeat(32) },
+      provisioning: "ready",
+    },
+    bytes: Buffer.from("ready-marker"),
+  };
+  const adoptionInput = {
+    identity: "andrew",
+    checkout,
+    marker: readyMarker,
+    identities,
+    recordId: `sha256:${"1".repeat(64)}`,
+    recordPath: "/loci/errand.json",
+  };
+
+  it("derives transient adoption only from an exact ready marker, identity, and live checkout", () => {
+    expect(deriveTransientAdoptionCandidate(adoptionInput)).toMatchObject({
+      kind: "applicable",
+      action: "adopt-transient",
+      proof: { kind: "record-absent", path: "/loci/errand.json" },
+      authority: {
+        marker: { bytes: Buffer.from("ready-marker"), subject: { claimId: "2".repeat(32) } },
+        checkout: { head: "a".repeat(40), branch: "chore/errand" },
+        identity: { key: "errand", claimId: "2".repeat(32) },
+      },
+    });
+    expect(deriveTransientAdoptionCandidate({
+      ...adoptionInput,
+      marker: {
+        kind: "present",
+        marker: {
+          spawnedByArc: true,
+          spawningIdentity: "andrew",
+          createdAt: "2026-07-20T00:00:00.000Z",
+          createdFor: { kind: "work-unit", name: "demo" },
+        },
+        bytes: Buffer.from("wu-marker"),
+      },
+    })).toBeNull();
+  });
+
+  it.each([
+    ["pending", { ...readyMarker.marker, provisioning: "pending" } as WorktreeMarker],
+    ["legacy", {
+      spawnedByArc: true,
+      spawningIdentity: "andrew",
+      createdAt: "2026-07-20T00:00:00.000Z",
+      createdFor: { kind: "errand", slug: "errand" },
+    }],
+  ] as const)("keeps a %s transient marker diagnosable but non-adoptable", (_kind, marker) => {
+    expect(deriveTransientAdoptionCandidate({
+      ...adoptionInput,
+      marker: { kind: "present", marker, bytes: Buffer.from("marker") },
+    })).toMatchObject({ kind: "blocked", reasons: ["subject-unresolved"] });
+  });
+
+  it("blocks incomplete identity reads and exact-claim mismatches", () => {
+    expect(deriveTransientAdoptionCandidate({
+      ...adoptionInput,
+      identities: { kind: "error", stage: "tree", message: "incomplete" },
+    })).toMatchObject({ kind: "blocked", reasons: ["identity-malformed"] });
+    expect(deriveTransientAdoptionCandidate({
+      ...adoptionInput,
+      identities: {
+        ...identities,
+        projections: new Map([["errand", { ...transientIdentity, claimId: "3".repeat(32) }]]),
+      },
+    })).toMatchObject({ kind: "blocked", reasons: ["subject-unresolved"] });
+  });
+
   it("reports clean when the bounded snapshot needs no repair", () => {
     expect(deriveLocusReconciliation({
       primaryPath: "/repo",
@@ -97,9 +207,30 @@ describe("locus reconciliation", () => {
       checkoutPath: "/errand",
       recordId: `sha256:${"1".repeat(64)}`,
       proof: { kind: "record-absent", path: "/loci/errand.json" },
-      marker: "verified",
       subjectKey: "errand",
       identityKey: "errand",
+      authority: {
+        kind: "transient",
+        marker: {
+          bytes: Buffer.from("ready-marker"),
+          subject: { kind: "errand", slug: "errand", claimId: "2".repeat(32) },
+        },
+        checkout: { head: "a".repeat(40), branch: "chore/errand" },
+        identity: {
+          kind: "errand",
+          key: "errand",
+          claimId: "2".repeat(32),
+          protection: "full",
+          branch: "chore/errand",
+          purpose: "errand",
+          origin: "description",
+          originEntry: null,
+          dispatchId: null,
+          state: "open",
+          savedHead: null,
+          changeRequest: null,
+        },
+      },
     } satisfies LocusAdoptionCandidate;
     const adoptions = [wuAdoption, transientAdoption];
     const records = [{
@@ -146,12 +277,12 @@ describe("locus reconciliation", () => {
       {
         summary: expect.objectContaining({ kind: "adopt-transient" }),
         proof: transientAdoption.proof,
-        authority: { marker: "verified", subjectKey: "errand", identityKey: "errand" },
+        authority: transientAdoption.authority,
       },
       {
         summary: expect.objectContaining({ kind: "adopt-work-unit" }),
         proof: wuAdoption.proof,
-        authority: { marker: "verified", subjectKey: "demo", identityKey: null },
+        authority: { kind: "work-unit", marker: "verified", subjectKey: "demo", identityKey: null },
       },
       {
         summary: expect.objectContaining({ kind: "break-dead-lock" }),

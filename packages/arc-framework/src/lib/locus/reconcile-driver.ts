@@ -7,6 +7,8 @@ import type {
   LocusInternalReconcileAction,
   LocusLockGenerationProof,
   LocusReconciliationPlan,
+  LocusTransientAdoptionEvidence,
+  LocusTransientAuthorityRecheck,
 } from "./reconciliation.js";
 import type { LocusRecordReadResult } from "./record-store.js";
 import type { LocusRecordV1 } from "./schema/index.js";
@@ -35,6 +37,11 @@ export interface LocusReconcileDriverIO {
     handle: LocusOwnedRecordLock,
   ): Promise<{ kind: "removed" } | { kind: "generation-mismatch" }>;
   verifyWorkUnitAuthority(action: LocusInternalReconcileAction, handle: LocusOwnedRecordLock): Promise<boolean>;
+  /** Re-read marker, roster, and identity authority locally while the record lock is owned. */
+  recheckTransientAuthority(
+    action: LocusInternalReconcileAction,
+    handle: LocusOwnedRecordLock,
+  ): Promise<LocusTransientAuthorityRecheck>;
   breakDeadLock(proof: LocusLockGenerationProof): Promise<
     { kind: "broken" | "already-absent" | "generation-mismatch" | "live" | "unknown" }
   >;
@@ -52,6 +59,7 @@ export type LocusReconcileApplyResult =
         | "generation-mismatch"
         | "lock-live"
         | "lock-unknown";
+      readonly evidence?: LocusTransientAdoptionEvidence;
     };
 
 /**
@@ -69,7 +77,6 @@ export async function applyLocusReconciliationAction(options: {
   const action = plan.internalActions.find((candidate) => isDeepStrictEqual(candidate, options.expected));
   if (action === undefined) return { kind: "refused", reason: "action-changed" };
   if (action.proof.kind === "lock-present") return applyDeadLock(action.proof, options.io);
-  if (action.summary.kind === "adopt-transient") return { kind: "refused", reason: "action-unsupported" };
   const recordId = action.summary.recordId;
   if (recordId === null) return { kind: "refused", reason: "action-changed" };
   const acquired = await options.io.acquireRecordLock(recordId);
@@ -79,6 +86,9 @@ export async function applyLocusReconciliationAction(options: {
   try {
     if (action.summary.kind === "adopt-work-unit") {
       return await applyWorkUnitAdoption(action, options.establishedAt, acquired.handle, options.io);
+    }
+    if (action.summary.kind === "adopt-transient") {
+      return await applyTransientAdoption(action, options.establishedAt, acquired.handle, options.io);
     }
     if (action.summary.kind === "reap-stale-record") {
       return await applyStaleRecordReap(action, acquired.handle, options.io);
@@ -99,7 +109,7 @@ async function applyWorkUnitAdoption(
     || action.summary.recordId === null
     || action.proof.kind !== "record-absent"
     || action.authority === null
-    || action.authority.identityKey !== null) {
+    || action.authority.kind !== "work-unit") {
     return { kind: "refused", reason: "action-changed" };
   }
   if (!await io.verifyWorkUnitAuthority(action, handle)) {
@@ -120,6 +130,59 @@ async function applyWorkUnitAdoption(
     return {
       kind: "refused",
       reason: result.reason === "role-conflict" ? "authority-changed" : "generation-mismatch",
+    };
+  }
+  return { kind: result.kind };
+}
+
+async function applyTransientAdoption(
+  action: LocusInternalReconcileAction,
+  establishedAt: string,
+  handle: LocusOwnedRecordLock,
+  io: LocusReconcileDriverIO,
+): Promise<LocusReconcileApplyResult> {
+  if (action.summary.checkoutPath === null
+    || action.summary.recordId === null
+    || action.proof.kind !== "record-absent"
+    || action.authority?.kind !== "transient") {
+    return { kind: "refused", reason: "action-changed" };
+  }
+  const recheck = await io.recheckTransientAuthority(action, handle);
+  if (recheck.kind === "changed") {
+    return { kind: "refused", reason: "authority-changed", evidence: recheck.evidence };
+  }
+  if (!isDeepStrictEqual(recheck.authority, action.authority)) {
+    return {
+      kind: "refused",
+      reason: "authority-changed",
+      evidence: {
+        kind: "marker-record-mismatch",
+        markerBytes: recheck.authority.marker.bytes,
+        recordBytes: null,
+      },
+    };
+  }
+  const result = await mintDurableLocusRole({
+    recordId: action.summary.recordId,
+    checkoutPath: action.summary.checkoutPath,
+    parentCheckoutPath: null,
+    establishedAt,
+    authority: { kind: "identity", identity: action.authority.identity },
+    io: {
+      read: () => io.readRecord(action.proof.path, handle),
+      mint: (record) => io.mintRecord(action.proof.path, record, handle),
+    },
+  });
+  if (result.kind === "refused") {
+    const current = await io.readRecord(action.proof.path, handle);
+    return {
+      kind: "refused",
+      reason: result.reason === "role-conflict" ? "authority-changed" : "generation-mismatch",
+      evidence: {
+        kind: "marker-record-mismatch",
+        markerBytes: action.authority.marker.bytes,
+        recordBytes: current.kind === "valid" ? current.bytes : null,
+      },
     };
   }
   return { kind: result.kind };
