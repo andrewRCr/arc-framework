@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "sync-guard-merge-exemption",
-  "origin": "description",
-  "intent": "Exempt merge-inherited blobs from the package-sync blind-cp guard",
-  "branch": "fix/sync-guard-merge-exemption",
-  "createdAt": "2026-07-21T23:44:20.982Z",
-  "returnBranch": "chore/groom-decomposition-program"
-}
