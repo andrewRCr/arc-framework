@@ -758,16 +758,13 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
         - Bound autonomous cleanup and composition to the settled change set, completed outcomes, spec intent,
           success-criteria disposition, and verification evidence, with recomposition after corrections or interaction.
 
-    - `[ ]` **6.4.b Harden public release notes and completion composition**
-        - Require release notes to describe only shipped reader/operator-visible outcomes in public language: never
-          leak WU names/slugs, task/phase references, branches, roadmap pointers, internal review/provider machinery,
-          or other internal development jargon, and never claim planned-but-unshipped work; allow publicly supported
-          review concepts and configuration when they are the shipped outcome.
-        - Use `Infrastructure` only for externally meaningful operational change; bind breaking-change claims to an
-          affected stability contract and migration; make Completion Notes distinguish delivered scope, material
-          deviations/supersessions, and verified evidence without repeating history.
-        - Treat task/notes cleanup, cohort closeout, archive moves, readiness regeneration, and composition as one
-          candidate tail whose exact diff—not excerpts alone—the final interlock surfaces.
+    - `[x]` **6.4.b Harden public release notes and completion composition**
+        - Restricted Release Notes to shipped public outcomes, excluding internal identifiers, workflow machinery,
+          and unshipped plans while permitting supported review concepts/configuration when they are the product.
+        - Bound Infrastructure and breaking-change language to external operational impact, affected stability
+          contracts, and migration; Completion Notes now separate delivered scope, deviations, and verified evidence.
+        - Made the final interlock surface the exact cleanup/composition/cohort/archive/readiness/reconcile tail rather
+          than excerpts, keeping the whole provisional candidate visible at disposition time.
 
     - `[ ]` **6.4.c Consolidate to one late base-reconcile location**
         - Make base reconcile the candidate's final mutation site; append-only merge a clean/disjoint base OID under

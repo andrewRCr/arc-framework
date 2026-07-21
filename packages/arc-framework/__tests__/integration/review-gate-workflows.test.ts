@@ -412,6 +412,39 @@ describe("trusted review-gate workflows", () => {
     expect(candidate).not.toContain("proceed to commit + sweep + push");
   });
 
+  it("keeps composition public and surfaces the complete candidate tail", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    );
+    const releaseNotes = packaged.slice(
+      packaged.indexOf("### 8) Compose Release Notes Entry"),
+      packaged.indexOf("### 9) Compose Completion Notes"),
+    );
+    expect(releaseNotes).toMatch(/shipped reader\/operator-visible outcomes/u);
+    expect(releaseNotes).toMatch(/WU names or slugs[\s\S]*task or phase references[\s\S]*branches/u);
+    expect(releaseNotes).toMatch(/roadmap pointers[\s\S]*internal review or provider machinery/u);
+    expect(releaseNotes).toContain("planned-but-unshipped work");
+    expect(releaseNotes).toMatch(/publicly supported review concepts and configuration[\s\S]*shipped outcome/iu);
+    expect(releaseNotes).toMatch(/\*\*Infrastructure\*\*[\s\S]*externally meaningful operational change/u);
+    expect(releaseNotes).toMatch(/\*\*Breaking\s+Changes\*\*[\s\S]*affected stability contract[\s\S]*migration/u);
+
+    const completionNotes = packaged.slice(
+      packaged.indexOf("### 9) Compose Completion Notes"),
+      packaged.indexOf("### 10) Commit completion content"),
+    );
+    expect(completionNotes).toMatch(/delivered scope[\s\S]*material deviations or supersessions/u);
+    expect(completionNotes).toContain("verified evidence");
+    expect(completionNotes).toMatch(/never repeat[\s\S]*(?:task list|git history)/iu);
+
+    const finalGate = packaged.slice(
+      packaged.indexOf("### 13) Behind-base reconcile gate and merge"),
+      packaged.indexOf("### 14) Post-merge worktree cleanup"),
+    );
+    expect(finalGate).toMatch(/exact candidate-tail diff[\s\S]*not excerpts alone/u);
+    expect(finalGate).toMatch(/task and notes cleanup[\s\S]*composition[\s\S]*cohort closeout/u);
+    expect(finalGate).toMatch(/archive moves[\s\S]*readiness regeneration[\s\S]*reconcile commits/u);
+  });
+
   it("keeps frontline publication operational, advisory, and provider-neutral", async () => {
     const paths = [
       "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",

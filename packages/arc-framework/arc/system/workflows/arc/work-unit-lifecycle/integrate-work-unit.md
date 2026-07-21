@@ -302,21 +302,26 @@ infrastructure). Independent of the PROJECT-PRD check — scope distinction is t
 
 ### 8) Compose Release Notes Entry — uncommitted
 
-Compose a user-facing entry into `active/meta-{name}.md`'s archive-phase `## Release Notes Entry` section,
-reflecting final reviewed scope: a one-paragraph user-facing summary plus categorized lines per the Keep a
-Changelog set — **Added**, **Changed**, **Removed**, **Fixed**, **Infrastructure**, **Deprecated**, **Security**
-(omit any empty category; keep that order), with an optional **Breaking Changes** callout flagging
-stability-contract breaks. Neutral voice, no internal work-unit names or roadmap pointers. Omit the section
-entirely when nothing user-facing ships (a mechanical or internal-only change); otherwise size it to what shipped.
+Compose a public entry into `active/meta-{name}.md`'s archive-phase `## Release Notes Entry` section. Describe only
+shipped reader/operator-visible outcomes supported by the exact candidate diff. Never include WU names or slugs,
+task or phase references, branches, roadmap pointers, internal review or provider machinery, other internal
+development jargon, or planned-but-unshipped work. Publicly supported review concepts and configuration may be
+named when they are the shipped outcome.
+
+Write a one-paragraph summary plus categorized lines from the Keep a Changelog set — **Added**, **Changed**,
+**Removed**, **Fixed**, **Infrastructure**, **Deprecated**, **Security** — omitting empty categories and retaining
+that order. Use **Infrastructure** only for an externally meaningful operational change. An optional **Breaking
+Changes** callout must name the affected stability contract and required migration. Omit the entire section when
+nothing reader/operator-visible ships; otherwise size it to what shipped.
 
 Leave the edit uncommitted for the candidate-tail commit in Step 10.
 
 ### 9) Compose Completion Notes — uncommitted
 
-Compose narrative Completion Notes into the meta file's archive-phase `## Completion Notes` section — a
-synthesis of design intent, what actually shipped, key deviations / supersessions from plan, and verification
-outcome; it complements, never repeats, the task list's verbatim record and git history. Sized to what there is
-to say. Always present — not omittable, unlike Step 8's Release Notes. Leave it uncommitted until Step 10.
+Compose narrative Completion Notes into the meta file's archive-phase `## Completion Notes` section. Distinguish
+delivered scope, material deviations or supersessions, and verified evidence. Synthesize the result; never repeat
+the task list's verbatim record or git history. Size it to what there is to say. Always present — not omittable,
+unlike Step 8's Release Notes. Leave it uncommitted until Step 10.
 
 ### 10) Commit completion content
 
@@ -427,9 +432,14 @@ commits or pushes invalidates the checkpoint: return to the authoritative drift 
 the final hook again. No lifecycle- or review-authored commit or push is allowed after this stable checkpoint and
 before the integration interlock.
 
+Compose the exact candidate-tail diff from the settled implementation head through task and notes cleanup,
+composition, cohort closeout, archive moves, readiness regeneration, and reconcile commits. Surface this exact diff,
+not excerpts alone.
+
 > [!IMPORTANT]
-> `integration-interlock`: Stop before merge. Surface PR status (open threads, required approvals, checks), merge
-> method, and the clean base-drift result; await explicit integration approval before merging.
+> `integration-interlock`: Stop before merge. Surface the exact candidate-tail diff, PR status (open threads,
+> required approvals, checks), merge method, and the clean base-drift result; await explicit integration approval
+> before merging.
 
 Immediately after approval, recompose `openedChangeRequest` from the canonical current head. If its `headSha`
 differs from `{approved-head-sha}`, invalidate the approval and return to the review cycle. Otherwise, re-read PR status
