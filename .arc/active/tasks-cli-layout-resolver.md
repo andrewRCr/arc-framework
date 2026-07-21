@@ -497,21 +497,14 @@ layout hit has exactly one semantic owner.
 - _Outcome:_ The canonical final ledger freezes the post-migration evidence universe while preserving precise
   residual ownership: high-volume independent evidence is cohort-bound and every irregular survivor remains explicit.
 
-### `[ ]` **5.4 Reconcile the tracked-planning Git packet and external-owner residuals**
+### `[x]` **5.4 Reconcile the tracked-planning Git packet and external-owner residuals**
 
 - _Goal:_ The internal migration proof assigns non-layout hits to their established owners without adding migration
   narration, future-work references, or ARC-development context to packaged guidance.
 
-    - Verify `src/lib/work-unit/mutators/relocate-artifacts.ts` continues through the shipped injectable `GitExec`
-      seam and receives canonical path operands without a layout-specific Git adapter.
-    - Classify the pre-commit hook's read-only index inspection as hook-owned independent behavior in the internal
-      migration ledger.
-    - Classify guarded draft-retirement hits from `activate-work-unit.md` and `strategy-work-planning.md` as the
-      internally routed `composable-workflows` residual in the migration ledger only.
-    - Make no content change to those packaged workflow/strategy files solely for ledger classification, and never
-      insert work-unit names, migration narration, or future-scope pointers into their prose.
-    - Confirm the internal cohort-tail diagnostic names these owners and no unassigned tracked-planning operation
-      remains.
+- _Outcome:_ Relocation retains the injected `GitExec` seam and now emits POSIX-canonical `git mv` operands; the refreshed
+  ledger names hook-owned index inspection and `composable-workflows` procedure residuals without changing packaged
+  guidance, and its deterministic diagnostic reports no unassigned selected hit.
 
 ## **Phase 6:** Verification
 
