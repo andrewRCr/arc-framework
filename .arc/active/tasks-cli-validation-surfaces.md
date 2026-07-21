@@ -317,20 +317,11 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
           propagation of non-`ENOENT` failures; the existing save/load corpus continues to cover version hydration and
           one-time legacy machine-id adoption.
 
-    - `[ ]` **4.2.b Validate every version-4 persistence path**
-        - Parse complete records with `LocalSyncStateSchema` immediately before atomic write in the shared mutation
-          path so all producers receive the same invariant check.
-        - Preserve the compare-and-swap lock/retry loop and fail schema-invalid producer output before filesystem
-          mutation after the lock is acquired.
-        - Pin the save/load matrix: clear `partialPush`; carry `partialPushErrand` and `remoteMarkerProvenance`; replace
-          or retain `priorFileList`; preserve `notesRefTip` on `undefined` and clear it on `null`; drop `machineId`.
-        - Pin marker mutation behavior: record or clear only its targeted marker while retaining every valid unrelated
-          field, including `priorFileList` and provenance.
-        - Build `test-first` (one behavior at a time):
-            - reject invalid mutation output before `atomicWriteJson()` and persist valid normalized records;
-            - preserve the complete save/load carry, replace, clear, and drop matrix;
-            - preserve unrelated fields across notes and errand marker record/clear operations;
-            - retain atomic JSON and retry behavior under concurrent updates.
+    - `[x]` **4.2.b Validate every version-4 persistence path**
+        - Added strict producer parsing inside the shared compare-and-swap lock immediately before atomic persistence,
+          covering save/load and both marker mutation families without altering retry behavior. Focused boundary tests
+          prove invalid output leaves no state file and valid output persists as a strict record; the existing 75-case
+          save/load and marker corpus remains green across carry, replace, clear, legacy-drop, and concurrent updates.
 
     - `[ ]` **4.2.c Exercise the local record lifecycle in integration**
         - Cover preferred and legacy migrations, save/load rewrites, concurrent compare-and-swap mutation, and both

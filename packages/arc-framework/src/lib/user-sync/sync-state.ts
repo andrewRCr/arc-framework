@@ -24,6 +24,7 @@ import type { CoreIO } from "../types.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "./notes-lock.js";
 import { getRepoSharedUserInternalDir } from "./repo-shared-paths.js";
 import {
+  LocalSyncStateSchema,
   normalizeLocalSyncState,
   PersistedLocalSyncStateSchema,
   type LocalSyncState,
@@ -376,7 +377,7 @@ async function updateLocalSyncStateRecord(
     try {
       const currentRaw = await readOptionalFile(io, syncStatePath);
       if (currentRaw === snapshot.targetRaw) {
-        await atomicWriteJson(syncStatePath, next);
+        await atomicWriteJson(syncStatePath, LocalSyncStateSchema.parse(next));
         return true;
       }
     } finally {
