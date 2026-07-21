@@ -133,9 +133,12 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
 
-   From the pushed branch, compose the exact aggregate review target and canonical change facts. The future merge
-   lane is downstream presentation, not a routing input. Run `arc review frontline resolve -` with
-   `invocation: inherit`, then execute only its selected action:
+   From the pushed branch, compose the exact aggregate review target and the explicit routing-facts record the
+   resolver consumes — `changeSetState`, `contentKind`, `reviewRisk`, `changeDeterminacy`, `ownership`,
+   `surfaceAuthority`, `assurance`, and `activity`. These are review-policy facts, not the canonical changed-path
+   record; supplying the latter resolves `changeSetState: unknown` and the maximal floor. The future merge lane is
+   downstream presentation, not a routing input. Run `arc review frontline resolve -` with
+   `"invocation": {"mode": "inherit"}`, then execute only its selected action:
 
    - `skip` — continue.
    - `offer` — surface its preparation or authorization action; execute only when accepted and the carrier is ready.

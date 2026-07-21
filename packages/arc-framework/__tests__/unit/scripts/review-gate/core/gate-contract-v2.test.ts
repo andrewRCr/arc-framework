@@ -438,6 +438,27 @@ describe("review gate v2 contract", () => {
     expect(reordered.requirementId).toBe(requirement.requirementId);
   });
 
+  it("separates identical content across the registered ID domains", () => {
+    const content = {
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: objectId("a"),
+      diffBaseTree: objectId("b"),
+      headSha: objectId("c"),
+      headTree: objectId("d"),
+    };
+    const domains = [
+      "arc.review-gate.target-id/v2",
+      "arc.review-gate.request-id/v2",
+      "arc.review-gate.requirement-id/v2",
+      "arc.review-gate.applicability-id/v2",
+    ] as const;
+    const digests = domains.map((domain) => canonicalDigest({ domain, ...content }));
+
+    expect(new Set(digests).size).toBe(domains.length);
+    expect(canonicalDigest({ domain: domains[0], ...content })).toBe(digests[0]);
+  });
+
   it("changes each ID for one semantic field and rejects self-ID reuse", () => {
     const target = createReviewTarget({
       schemaVersion: 2,

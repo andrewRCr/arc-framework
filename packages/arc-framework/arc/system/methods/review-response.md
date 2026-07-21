@@ -27,7 +27,7 @@ override-active: false
 The caller supplies:
 
 - the exact current target and source-normalized findings with immutable loci;
-- the effective `review-routing` result;
+- the effective review-routing decision;
 - the effective severity-gating policy (`minorGating: blocking | record-only`);
 - the strict disposition state — absent, complete proposed set, or exact approved set;
 - candidate-target, verification, and persistence evidence when fixes have run; and
@@ -42,7 +42,7 @@ in that state:
 - `ready-to-fix` — apply only the approved `fix` set as one bounded increment.
 - `ready-to-persist` — persist the verified candidate through the caller's release interlock.
 - `ready-to-close` — return unchanged-target dispositions to the channel adapter.
-- `reroute` — return the persisted changed target to `review-routing`.
+- `reroute` — return the persisted changed target for re-routing.
 - `blocked` — stop because an exact binding, evidence item, or required capability is absent.
 
 Every result returns the approved disposition state when one exists, verification references, the old target, an
