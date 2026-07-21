@@ -48,7 +48,6 @@ export function makeCapturingSyncOutput(): CapturingSyncOutput {
     note: () => undefined,
     spinner: () => ({ start: () => undefined, stop: () => undefined }),
     confirm: () => Promise.resolve(false),
-    select: (opts) => Promise.resolve(opts.jsonModeDefault),
     isCancel: () => false,
   };
   return { output, stderr };

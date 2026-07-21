@@ -91,6 +91,11 @@ import {
   resolveProcessInteractionContext,
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
+import {
+  declareCliOptionSite,
+  declareInteractionSite,
+  type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
 import { appendAuditEntry, toAuditWorkUnit } from "../lib/release/audit-log.js";
@@ -108,6 +113,40 @@ export interface SyncOptions {
   dryRun?: boolean;
   json?: boolean;
 }
+
+/** Input and interaction policies owned by the sync adapter. */
+export const syncCommandInputPolicyDeclarations = [{
+  commandPath: "sync",
+  aliases: [],
+  sites: [
+    declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    }),
+    declareCliOptionSite("yes", {
+      acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
+      mutationBoundary: "sync handler", subprocess: "none",
+    }),
+    declareInteractionSite(
+      { file: "handlers/sync.ts", kind: "prompt-helper", callee: "ctx.output.confirm", occurrence: 1 },
+      {
+        acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
+        automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+        mutationBoundary: "sync protected mutation", subprocess: "none",
+      },
+    ),
+    declareInteractionSite(
+      { file: "lib/sync-output.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
+      {
+        acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
+        automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+        mutationBoundary: "sync protected mutation", subprocess: "none",
+      },
+    ),
+  ],
+}] satisfies readonly CommandInputDeclaration[];
 
 /**
  * Snapshot of the configured interlocks at the moment `arc sync` ran. Reported

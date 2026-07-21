@@ -7,6 +7,7 @@ import { z } from "zod";
 import { VALID_TOOL_IDS } from "../lib/skills/index.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
 import type { InputResolution } from "../lib/command-input/resolution.js";
+import type { CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 
 /** Project-management modes accepted by installation configuration. */
@@ -51,7 +52,182 @@ export type InitCommandInput = z.infer<typeof InitCommandInputSchema>;
 export const initCommandInputRegistration = {
   commandPath: "init",
   schema: InitCommandInputSchema,
+  schemaFields: {
+    "option.name": "projectName",
+    "option.tools": "tools",
+    "option.pm-mode": "pmMode",
+    "option.team": "teamMode",
+    "option.identity": "identity",
+    "option.reconfigure": "reconfigure",
+    "option.dry-run": "dryRun",
+    "option.yes": "compatibilityYes",
+  },
 } satisfies CommandInputRegistration;
+
+/** Command-owned acquisition policies that Commander syntax cannot express. */
+export const initCommandInputPolicyDeclarations = [{
+  commandPath: "init",
+  aliases: [],
+  sites: [
+    {
+      id: "interaction.handlers-shared.ts-prompt-p.text-1",
+      source: {
+        file: "handlers/shared.ts",
+        interaction: { kind: "prompt", callee: "p.text", occurrence: 1 },
+      },
+      origin: "declaration",
+      acquisition: "handler-required",
+      schemaOwnership: "owned",
+      schemaField: "identity",
+      cancellation: "stop",
+      automation: { noInput: "require-explicit", flags: ["--identity"], acceptedSyntax: ["--identity <name>"] },
+      mutationBoundary: "installation identity resolution",
+      subprocess: "none",
+    },
+    {
+      id: "interaction.prompts-init-prompts.ts-prompt-p.autocompletemultiselect-1",
+      source: {
+        file: "prompts/init-prompts.ts",
+        interaction: { kind: "prompt", callee: "p.autocompleteMultiselect", occurrence: 1 },
+      },
+      origin: "declaration",
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "tools",
+      defaultSource: "empty or current tool list",
+      cancellation: "stop",
+      automation: { noInput: "use-default", flags: ["--tools"], acceptedSyntax: ["--tools <list>"] },
+      mutationBoundary: "installation tool selection",
+      subprocess: "none",
+    },
+    {
+      id: "interaction.prompts-init-prompts.ts-prompt-p.text-1",
+      source: {
+        file: "prompts/init-prompts.ts",
+        interaction: { kind: "prompt", callee: "p.text", occurrence: 1 },
+      },
+      origin: "declaration",
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "projectName",
+      defaultSource: "current directory name",
+      cancellation: "stop",
+      automation: { noInput: "use-default", flags: ["--name"], acceptedSyntax: ["--name <name>"] },
+      mutationBoundary: "installation project configuration",
+      subprocess: "none",
+    },
+    {
+      id: "interaction.prompts-init-prompts.ts-prompt-p.select-1",
+      source: {
+        file: "prompts/init-prompts.ts",
+        interaction: { kind: "prompt", callee: "p.select", occurrence: 1 },
+      },
+      origin: "declaration",
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "pmMode",
+      defaultSource: "none",
+      cancellation: "stop",
+      automation: { noInput: "use-default", flags: ["--pm-mode"], acceptedSyntax: ["--pm-mode <mode>"] },
+      mutationBoundary: "installation project configuration",
+      subprocess: "none",
+    },
+    {
+      id: "interaction.prompts-init-prompts.ts-prompt-p.confirm-1",
+      source: {
+        file: "prompts/init-prompts.ts",
+        interaction: { kind: "prompt", callee: "p.confirm", occurrence: 1 },
+      },
+      origin: "declaration",
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "teamMode",
+      defaultSource: "disabled",
+      cancellation: "stop",
+      automation: { noInput: "use-default", flags: ["--team"], acceptedSyntax: ["--team"] },
+      mutationBoundary: "installation project configuration",
+      subprocess: "none",
+    },
+    {
+      id: "interaction.prompts-reconfigure-prompts.ts-prompt-p.text-1",
+      source: {
+        file: "prompts/reconfigure-prompts.ts",
+        interaction: { kind: "prompt", callee: "p.text", occurrence: 1 },
+      },
+      origin: "declaration",
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "projectName",
+      defaultSource: "current project name",
+      cancellation: "stop",
+      automation: { noInput: "use-default", flags: ["--name"], acceptedSyntax: ["--name <name>"] },
+      mutationBoundary: "reconfiguration project settings",
+      subprocess: "none",
+    },
+    {
+      id: "interaction.prompts-reconfigure-prompts.ts-prompt-p.select-1",
+      source: {
+        file: "prompts/reconfigure-prompts.ts",
+        interaction: { kind: "prompt", callee: "p.select", occurrence: 1 },
+      },
+      origin: "declaration",
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "pmMode",
+      defaultSource: "current project-management mode",
+      cancellation: "stop",
+      automation: { noInput: "use-default", flags: ["--pm-mode"], acceptedSyntax: ["--pm-mode <mode>"] },
+      mutationBoundary: "reconfiguration project settings",
+      subprocess: "none",
+    },
+    {
+      id: "interaction.prompts-reconfigure-prompts.ts-prompt-p.confirm-1",
+      source: {
+        file: "prompts/reconfigure-prompts.ts",
+        interaction: { kind: "prompt", callee: "p.confirm", occurrence: 1 },
+      },
+      origin: "declaration",
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "teamMode",
+      defaultSource: "current team mode",
+      cancellation: "stop",
+      automation: { noInput: "use-default", flags: ["--team"], acceptedSyntax: ["--team"] },
+      mutationBoundary: "reconfiguration project settings",
+      subprocess: "none",
+    },
+    {
+      id: "interaction.prompts-removal-prompts.ts-prompt-p.select-1",
+      source: {
+        file: "prompts/removal-prompts.ts",
+        interaction: { kind: "prompt", callee: "p.select", occurrence: 1 },
+      },
+      origin: "declaration",
+      acquisition: "safe-default",
+      schemaOwnership: "none",
+      defaultSource: "classification-derived bulk removal action",
+      cancellation: "stop",
+      automation: { noInput: "use-default", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "reconfiguration removal plan",
+      subprocess: "none",
+    },
+    {
+      id: "interaction.prompts-removal-prompts.ts-prompt-p.select-2",
+      source: {
+        file: "prompts/removal-prompts.ts",
+        interaction: { kind: "prompt", callee: "p.select", occurrence: 2 },
+      },
+      origin: "declaration",
+      acquisition: "safe-default",
+      schemaOwnership: "none",
+      defaultSource: "classification-derived per-file removal action",
+      cancellation: "stop",
+      automation: { noInput: "use-default", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "reconfiguration removal plan",
+      subprocess: "none",
+    },
+  ],
+}] satisfies readonly CommandInputDeclaration[];
 
 /** CLI syntax retained at the adapter boundary. */
 export interface InitCommandOptions {

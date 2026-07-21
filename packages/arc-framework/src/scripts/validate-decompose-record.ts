@@ -11,11 +11,26 @@ import { contentDigest, patchDigest, type PatchOperation } from "../lib/canonica
 import { validateManagedPath } from "../lib/canonical/managed-path.js";
 import { receiptId } from "../lib/canonical/receipt-id.js";
 import { readGitBlobBytes } from "../lib/io-context.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import {
   decodeRetirementRecordKey,
   RETIREMENT_RECORD_NAMESPACE,
 } from "../lib/work-unit/retirement-record-store.js";
 import { parseRetirementReceipt } from "../lib/work-unit/retirement-receipt-codec.js";
+
+/** Closed-stdin subprocess policies owned by the decompose-record hook adapter. */
+export const validateDecomposeRecordInputPolicyDeclarations = [{
+  commandPath: "hook-validate-decompose-record",
+  aliases: [],
+  sites: [1, 2, 3, 4].map((occurrence) => declareInteractionSite(
+    { file: "scripts/validate-decompose-record.ts", kind: "subprocess", callee: "execFileAsync", occurrence },
+    {
+      acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "hook-validate-decompose-record subprocess boundary", subprocess: "close-stdin",
+    },
+  )),
+}] satisfies readonly CommandInputDeclaration[];
 
 export interface StagedPathChange {
   status: "A" | "M" | "D";

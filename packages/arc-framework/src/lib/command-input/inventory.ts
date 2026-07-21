@@ -90,6 +90,20 @@ function interactionKey(site: Pick<DiscoveredInteractionSite, "file" | "line">):
   return `${site.file}:${String(site.line)}`;
 }
 
+function interactionSelectorKeys(
+  sites: readonly DiscoveredInteractionSite[],
+): ReadonlyMap<string, DiscoveredInteractionSite> {
+  const counts = new Map<string, number>();
+  const selected = new Map<string, DiscoveredInteractionSite>();
+  for (const site of sites) {
+    const base = `${site.file}|${site.kind}|${site.callee}`;
+    const occurrence = (counts.get(base) ?? 0) + 1;
+    counts.set(base, occurrence);
+    selected.set(`${base}|${String(occurrence)}`, site);
+  }
+  return selected;
+}
+
 /**
  * Join the scanner oracle with typed declarations and reject every mismatch.
  *
@@ -104,6 +118,7 @@ export function reconcileCommandInputInventory(input: {
   const declarations = defineCommandInputDeclarations(input.declarations);
   const commands = new Map(input.source.commands.map((command) => [command.path, command]));
   const interactions = new Map(input.source.interactions.map((site) => [interactionKey(site), site]));
+  const interactionsBySelector = interactionSelectorKeys(input.source.interactions);
   const claimedInteractions = new Set<string>();
   const entries: CommandInputInventoryEntry[] = [];
 
@@ -135,10 +150,15 @@ export function reconcileCommandInputInventory(input: {
         }
         claimedSyntax.add(site.id);
         liveSource = discovered;
-      } else if (site.source.line !== undefined) {
-        const key = interactionKey({ file: site.source.file, line: site.source.line });
-        const interaction = interactions.get(key);
+      } else if (site.source.line !== undefined || site.source.interaction !== undefined) {
+        const selector = site.source.interaction;
+        const interaction = selector === undefined
+          ? interactions.get(interactionKey({ file: site.source.file, line: site.source.line ?? 0 }))
+          : interactionsBySelector.get(
+            `${site.source.file}|${selector.kind}|${selector.callee}|${String(selector.occurrence)}`,
+          );
         if (interaction !== undefined) {
+          const key = interactionKey(interaction);
           if (claimedInteractions.has(key)) {
             throw new CommandInputInventoryError(
               `Interaction site is multiply classified: ${key}`,

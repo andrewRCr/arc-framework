@@ -4,13 +4,15 @@ import { access, readFile } from "node:fs/promises";
 import { z } from "zod";
 
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
-import { gitExec } from "../../lib/io-context.js";
+import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
+import { createGitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { ARC_PROJECT_ROOT_ERROR } from "../shared.js";
 import { runCheckCommitMessage } from "./commit-msg.js";
 import { renderCheckCommitMessage } from "./commit-msg-output.js";
 import type { CommitMessageCheckFailure } from "./commit-msg.js";
 import type { CommandInputRegistration } from "../../lib/command-input/registry.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../../lib/command-input/declaration.js";
 
 /** Options accepted by the public commit-message check command. */
 export interface HandleCheckCommitMessageOptions {
@@ -27,7 +29,30 @@ export const CheckCommitMessageInputSchema = z.object({
 export const checkCommitMessageInputRegistration = {
   commandPath: "check commit-msg",
   schema: CheckCommitMessageInputSchema,
+  schemaFields: { "operand.input": "input" },
 } satisfies CommandInputRegistration;
+
+/** Input and interaction policies owned by the commit-message adapter. */
+export const checkCommitMessageInputPolicyDeclarations = [{
+  commandPath: "check commit-msg",
+  aliases: [],
+  sites: [
+    {
+      id: "option.json", source: { file: "cli.ts", symbol: "program" }, origin: "syntax",
+      acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    },
+    declareInteractionSite(
+      { file: "handlers/check/commit-msg-cli.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
+      {
+        acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
+        mutationBoundary: "commit-message input preflight", subprocess: "explicit-stdin",
+      },
+    ),
+  ],
+}] satisfies readonly CommandInputDeclaration[];
 
 function normalizeSourceInput(
   source: string | string[] | undefined,
@@ -94,7 +119,9 @@ async function readStdin(): Promise<Uint8Array> {
 export async function handleCheckCommitMessage(
   source: string | string[] | undefined,
   options: HandleCheckCommitMessageOptions,
+  interaction?: InteractionContext,
 ): Promise<void> {
+  const exec = createGitExec(interaction?.subprocess);
   const root = resolveArcRoot(process.cwd());
   const normalizedSource = normalizeSourceInput(source, options.dashPrefixedSourceAllowed === true);
   const outcome = typeof normalizedSource === "object"
@@ -105,7 +132,7 @@ export async function handleCheckCommitMessage(
         setupRepository: async () => {
           if (root === null) throw new Error(ARC_PROJECT_ROOT_ERROR);
           return createDefaultCommitCheckRepository(root, {
-            exec: gitExec,
+            exec,
             readFile: (path) => readFile(path, "utf8"),
             pathExists,
           });

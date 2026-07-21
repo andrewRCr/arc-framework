@@ -5,6 +5,7 @@ import { z } from "zod";
 import { CommandToolListSchema } from "./init-input.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
 import type { InputResolution } from "../lib/command-input/resolution.js";
+import type { CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 
 /** Complete canonical input for fresh join and personal reconfiguration. */
@@ -31,7 +32,63 @@ export type JoinCommandInput = z.infer<typeof JoinCommandInputSchema>;
 export const joinCommandInputRegistration = {
   commandPath: "join",
   schema: JoinCommandInputSchema,
+  schemaFields: {
+    "option.contributor": "role",
+    "option.tools": "tools",
+    "option.identity": "identity",
+    "option.reconfigure": "reconfigure",
+    "option.yes": "compatibilityYes",
+  },
 } satisfies CommandInputRegistration;
+
+/** Command-owned acquisition policies shared syntax cannot express for join. */
+export const joinCommandInputPolicyDeclarations = [{
+  commandPath: "join",
+  aliases: [],
+  sites: [
+    {
+      id: "interaction.prompts-join-prompts.ts-prompt-p.select-1",
+      source: {
+        file: "prompts/join-prompts.ts",
+        interaction: { kind: "prompt", callee: "p.select", occurrence: 1 },
+      },
+      origin: "declaration",
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "role",
+      defaultSource: "current role or maintainer",
+      cancellation: "stop",
+      automation: { noInput: "use-default", flags: ["--contributor"], acceptedSyntax: ["--contributor"] },
+      mutationBoundary: "workspace role selection",
+      subprocess: "none",
+    },
+    {
+      id: "semantic.tools",
+      source: { file: "commands/join-input.ts", symbol: "resolveJoinCommandInput" },
+      origin: "declaration",
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "tools",
+      defaultSource: "empty or current tool list",
+      cancellation: "stop",
+      automation: { noInput: "use-default", flags: ["--tools"], acceptedSyntax: ["--tools <list>"] },
+      mutationBoundary: "workspace tool selection",
+      subprocess: "none",
+    },
+    {
+      id: "semantic.identity",
+      source: { file: "commands/join-input.ts", symbol: "resolveJoinCommandInput" },
+      origin: "declaration",
+      acquisition: "handler-required",
+      schemaOwnership: "owned",
+      schemaField: "identity",
+      cancellation: "stop",
+      automation: { noInput: "require-explicit", flags: ["--identity"], acceptedSyntax: ["--identity <name>"] },
+      mutationBoundary: "workspace identity resolution",
+      subprocess: "none",
+    },
+  ],
+}] satisfies readonly CommandInputDeclaration[];
 
 /** CLI syntax retained at the join adapter boundary. */
 export interface JoinCommandOptions {

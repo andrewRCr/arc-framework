@@ -40,6 +40,7 @@ export interface DiscoveredOption extends DiscoveredSourceLocus {
 /** Handler adapter reached by a command's action callback. */
 export interface DiscoveredAction extends DiscoveredSourceLocus {
   readonly symbol: string;
+  readonly interactionContext: boolean;
 }
 
 /** Canonical command and its syntax-discovered input surface. */
@@ -244,6 +245,14 @@ function actionSymbol(call: ts.CallExpression): string {
   return found ?? "anonymous";
 }
 
+function actionUsesInteractionContext(call: ts.CallExpression): boolean {
+  const candidate = call.arguments[0];
+  return candidate !== undefined
+    && ts.isCallExpression(candidate)
+    && ts.isIdentifier(candidate.expression)
+    && candidate.expression.text === "withInteractionContext";
+}
+
 /** Extract the canonical Commander tree and its syntax-owned values. */
 export function scanCommanderSource(input: SourceInput): CommanderSourceScan {
   const file = sourceFile(input);
@@ -308,7 +317,11 @@ export function scanCommanderSource(input: SourceInput): CommanderSourceScan {
             if (option !== undefined) options.push(option);
             if (chainedMethod?.name === "allowUnknownOption") allowUnknownOption = true;
             if (chainedMethod?.name === "action") {
-              action = { symbol: actionSymbol(call), ...locus(file, call, input.file) };
+              action = {
+                symbol: actionSymbol(call),
+                interactionContext: actionUsesInteractionContext(call),
+                ...locus(file, call, input.file),
+              };
             }
           }
           const hiddenArgument = node.arguments[1];
@@ -383,7 +396,15 @@ export function scanInteractionSource(input: SourceInput): InteractionSourceScan
   }
 
   const sites: Array<DiscoveredInteractionSite & { readonly position: number }> = [];
-  const promptNames = new Set(["text", "select", "multiselect", "confirm", "password", "group"]);
+  const promptNames = new Set([
+    "text",
+    "select",
+    "multiselect",
+    "autocompleteMultiselect",
+    "confirm",
+    "password",
+    "group",
+  ]);
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = calleeText(node, file);
@@ -418,6 +439,9 @@ export function scanInteractionSource(input: SourceInput): InteractionSourceScan
     if (
       ts.isPropertyAccessExpression(node)
       && node.getText(file) === "process.env.CI"
+      // The shared resolver is the policy boundary, not a command-owned
+      // acquisition site. Raw CI reads anywhere else remain inventory sites.
+      && input.file !== "lib/command-input/interaction-context.ts"
     ) {
       sites.push({
         kind: "environment-policy",

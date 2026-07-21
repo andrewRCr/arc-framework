@@ -397,30 +397,43 @@ behavioral compatibility, and bounded no-input termination across the complete C
 
 _Purpose:_ Verify the completed work unit against its design, task record, and project quality gates.
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The completed CLI command-input substrate satisfies `spec-cli-command-inputs.md`, preserves its compatibility
   and trust boundaries, and clears every work-unit quality and integration gate.
+
+    - `[x]` **8.1.a Replace synthesized inventory policy with command-owned declarations**
+        - Made typed command declarations authoritative for schema fields and every interaction or semantic syntax
+          policy; AST discovery now supplies only syntax facts and the exhaustive source-site oracle.
+    - `[x]` **8.1.b Complete machine-mode and subprocess interaction propagation**
+        - Routed every machine-readable adapter through the shared interaction boundary and bound Git subprocesses to
+          the invocation policy across the active, status, recover, base, plan, housekeep, and errand surfaces.
+    - `[x]` **8.1.c Strengthen the bounded no-input delivery proof**
+        - Split explicit no-input, CI-on-TTY, and non-TTY execution; made timeouts observable, preserved explicit stdin,
+          asserted protected worktree stability, and fixed Commander's negated `--no-input` decoding exposed by the test.
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source and test typecheck; 7,019 tests; and build all passed.
+- _Success criteria:_ All 13 criteria met, including exact inventory reconciliation and bounded no-input termination.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Every in-scope input, prompt, mode, confirmation, stdin, editor, pager, and terminal-process site has one
+- `[x]` Every in-scope input, prompt, mode, confirmation, stdin, editor, pager, and terminal-process site has one
   mechanically checked declaration and policy classification.
-- `[ ]` Semantic command inputs and ambient execution context follow the spec's closed boundary.
-- `[ ]` Every canonical command path with schema-owned input validates supplied and prompted values through one
+- `[x]` Semantic command inputs and ambient execution context follow the spec's closed boundary.
+- `[x]` Every canonical command path with schema-owned input validates supplied and prompted values through one
   command-owned Zod object schema before dependent effects.
-- `[ ]` Registry membership exactly matches the derived command set plus the kernel identities, excluding helper and
+- `[x]` Registry membership exactly matches the derived command set plus the kernel identities, excluding helper and
   opaque-only schemas.
-- `[ ]` `--no-input`, CI, non-TTY prompt streams, and machine-readable modes terminate without unsolicited interaction
+- `[x]` `--no-input`, CI, non-TTY prompt streams, and machine-readable modes terminate without unsolicited interaction
   or inferred affirmative authority.
-- `[ ]` Missing handler-level inputs are aggregated with exact accepted syntax, and no required value is invented.
-- `[ ]` Protected confirmations and evidence requirements accept only their declared command-local authority.
-- `[ ]` Interactive-only safety overrides cannot be authorized by automation signals.
-- `[ ]` Cancellation, invalid input, unavailable interaction, and successful resolution remain distinct outcomes.
-- `[ ]` Explicit stdin payloads, output envelopes, lifecycle guards, safe defaults, and phase-scoped sync effects remain
+- `[x]` Missing handler-level inputs are aggregated with exact accepted syntax, and no required value is invented.
+- `[x]` Protected confirmations and evidence requirements accept only their declared command-local authority.
+- `[x]` Interactive-only safety overrides cannot be authorized by automation signals.
+- `[x]` Cancellation, invalid input, unavailable interaction, and successful resolution remain distinct outcomes.
+- `[x]` Explicit stdin payloads, output envelopes, lifecycle guards, safe defaults, and phase-scoped sync effects remain
   behaviorally compatible.
-- `[ ]` The closing inventory reconciliation and bounded subprocess suite prove complete classification and termination.
-- `[ ]` All quality gates pass (Markdown, TypeScript, and shell linting; `typecheck:all`; full tests; build)
-- `[ ]` Ready for integration
+- `[x]` The closing inventory reconciliation and bounded subprocess suite prove complete classification and termination.
+- `[x]` All quality gates pass (Markdown, TypeScript, and shell linting; `typecheck:all`; full tests; build)
+- `[x]` Ready for integration

@@ -66,6 +66,11 @@ export const CommandInputSourceSchema = z.object({
   file: z.string().min(1),
   symbol: z.string().min(1).optional(),
   line: z.number().int().positive().optional(),
+  interaction: z.object({
+    kind: z.enum(["prompt", "prompt-helper", "environment-policy", "explicit-stdin", "subprocess"]),
+    callee: z.string().min(1),
+    occurrence: z.number().int().positive(),
+  }).strict().optional(),
 }).strict();
 
 /** Complete policy for one input-bearing or interaction-capable site. */
@@ -87,6 +92,62 @@ export const CommandInputSiteSchema = z.object({
   mutationBoundary: z.string().min(1),
   subprocess: SubprocessPolicySchema,
 }).strict();
+
+/** Complete typed policy for one input-bearing or interaction-capable site. */
+export type CommandInputSite = z.input<typeof CommandInputSiteSchema>;
+
+/**
+ * Build a stable declaration site for one AST-discovered interaction.
+ *
+ * The caller supplies every semantic policy field; this helper derives only the
+ * mechanical identity used to join the declaration to the source scan.
+ */
+export function declareInteractionSite(
+  source: {
+    readonly file: string;
+    readonly kind: "prompt" | "prompt-helper" | "environment-policy" | "explicit-stdin" | "subprocess";
+    readonly callee: string;
+    readonly occurrence: number;
+  },
+  policy: Omit<CommandInputSite, "id" | "source" | "origin">,
+): CommandInputSite {
+  const selector = `${source.file}|${source.kind}|${source.callee}|${String(source.occurrence)}`;
+  return {
+    id: `interaction.${selector.toLowerCase().replace(/[^a-z0-9.-]+/gu, "-")}`,
+    source: {
+      file: source.file,
+      interaction: { kind: source.kind, callee: source.callee, occurrence: source.occurrence },
+    },
+    origin: "declaration",
+    ...policy,
+  };
+}
+
+/** Build a declaration override for one Commander option discovered in `cli.ts`. */
+export function declareCliOptionSite(
+  option: string,
+  policy: Omit<CommandInputSite, "id" | "source" | "origin">,
+): CommandInputSite {
+  return {
+    id: `option.${option}`,
+    source: { file: "cli.ts", symbol: "program" },
+    origin: "syntax",
+    ...policy,
+  };
+}
+
+/** Build a declaration override for one Commander operand discovered in `cli.ts`. */
+export function declareCliOperandSite(
+  operand: string,
+  policy: Omit<CommandInputSite, "id" | "source" | "origin">,
+): CommandInputSite {
+  return {
+    id: `operand.${operand}`,
+    source: { file: "cli.ts", symbol: "program" },
+    origin: "syntax",
+    ...policy,
+  };
+}
 
 /** A canonical command's complete non-syntactic input-policy declaration. */
 export const CommandInputDeclarationSchema = z.object({

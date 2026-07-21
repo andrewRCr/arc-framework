@@ -8,6 +8,7 @@
  */
 
 import { z } from "zod";
+import type { CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
 
 /** Validated input for release setup pattern rendering. */
@@ -23,7 +24,21 @@ export type ReleaseSetupPrintPatternsOptions = z.input<typeof ReleaseSetupPrintP
 export const releaseSetupPrintPatternsInputRegistration = {
   commandPath: "release setup print-patterns",
   schema: ReleaseSetupPrintPatternsInputSchema,
+  schemaFields: { "option.harness": "harness", "option.format": "format" },
 } satisfies CommandInputRegistration;
+
+/** Safe output-format default owned by the pattern-rendering adapter. */
+export const releaseSetupPrintPatternsInputPolicyDeclarations = [{
+  commandPath: "release setup print-patterns",
+  aliases: [],
+  sites: [{
+    id: "option.format", source: { file: "cli.ts", symbol: "program" }, origin: "syntax",
+    acquisition: "safe-default", schemaOwnership: "owned", schemaField: "format",
+    defaultSource: JSON.stringify("harness"), cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--format <format>"], acceptedSyntax: ["--format <format>"] },
+    mutationBoundary: "release setup print-patterns handler", subprocess: "none",
+  }],
+}] satisfies readonly CommandInputDeclaration[];
 
 export interface RunReleaseSetupPrintPatternsOptions {
   harness?: string;

@@ -36,16 +36,22 @@ import {
   preferRemoteBaseRef,
   projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionResult,
+  type GitExec,
 } from "../lib/git/index.js";
 import {
   renderInFlightWarning,
   type InFlightWarning,
 } from "../lib/git/in-flight-derivation.js";
-import { gitExec, createUserIOContext } from "../lib/io-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+import {
+  declareCliOptionSite,
+  declareInteractionSite,
+  type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
+import { createGitExec, createUserIOContext } from "../lib/io-context.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
-import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import {
   clearErrandPartialPushMarker,
@@ -139,7 +145,11 @@ export function buildErrandCheckJsonEnvelope(
   return { ...result, warnings, reachable };
 }
 
-export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void> {
+export async function handleErrandCheck(
+  opts: ErrandCheckOptions,
+  interaction?: InteractionContext,
+): Promise<void> {
+  const exec = createGitExec(interaction?.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
@@ -171,21 +181,21 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
   );
 
   const { entries, warnings, snapshot, reachable } = await runActiveInFlight({
-    exec: gitExec,
+    exec,
     identity,
     teamMode,
     localOnly,
     baseBranch,
     parkedSlugs,
   });
-  const baseRef = await preferRemoteBaseRef(gitExec, baseBranch);
+  const baseRef = await preferRemoteBaseRef(exec, baseBranch);
 
   const result = await detectForeignArtifactOverlap({
-    exec: gitExec,
+    exec,
     roster: projectInFlightToOverlapRoster(entries),
     targetPaths,
     baseBranch: baseRef,
-    originatingWorktreePath: await currentWorktreePath(cwd),
+    originatingWorktreePath: await currentWorktreePath(cwd, exec),
     originatingMetaPath: await resolveOriginatingMetaPath(cwd),
     snapshot,
   });
@@ -723,13 +733,82 @@ export const ErrandPromoteInputSchema = z.object({
 
 /** Registry contributions owned by value-bearing errand commands. */
 export const errandCommandInputRegistrations = [
-  { commandPath: "errand check", schema: ErrandCheckInputSchema },
-  { commandPath: "errand open", schema: ErrandOpenInputSchema },
-  { commandPath: "errand link", schema: ErrandLinkInputSchema },
-  { commandPath: "errand close", schema: ErrandCloseInputSchema },
-  { commandPath: "errand retire", schema: z.object({ slug: SlugSchema }).strict() },
-  { commandPath: "errand promote", schema: ErrandPromoteInputSchema },
+  {
+    commandPath: "errand check",
+    schema: ErrandCheckInputSchema,
+    schemaFields: {
+      "option.target": "target",
+      "option.local": "local",
+      "option.no-fetch": "fetch",
+      "option.json": "json",
+    },
+  },
+  {
+    commandPath: "errand open",
+    schema: ErrandOpenInputSchema,
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.type": "type",
+      "option.intent": "intent",
+      "option.from-inbox": "fromInbox",
+      "option.inbox-title-file": "inboxTitleFile",
+      "option.inbox-entry-file": "inboxEntryFile",
+    },
+  },
+  {
+    commandPath: "errand link",
+    schema: ErrandLinkInputSchema,
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.from-inbox": "fromInbox",
+      "option.inbox-title-file": "inboxTitleFile",
+      "option.inbox-entry-file": "inboxEntryFile",
+    },
+  },
+  {
+    commandPath: "errand close",
+    schema: ErrandCloseInputSchema,
+    schemaFields: { "operand.slug": "slug", "option.force": "force" },
+  },
+  {
+    commandPath: "errand retire",
+    schema: z.object({ slug: SlugSchema }).strict(),
+    schemaFields: { "operand.slug": "slug" },
+  },
+  {
+    commandPath: "errand promote",
+    schema: ErrandPromoteInputSchema,
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.name": "name",
+      "option.type": "type",
+      "option.floor": "floor",
+      "option.priority": "priority",
+      "option.class": "class",
+    },
+  },
 ] as const satisfies readonly CommandInputRegistration[];
+
+/** Input and interaction policies owned by errand command adapters. */
+export const errandCommandInputPolicyDeclarations = [
+  {
+    commandPath: "errand check", aliases: [], sites: [declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable", automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    })],
+  },
+  {
+    commandPath: "errand open", aliases: [], sites: [1, 2].map((occurrence) => declareInteractionSite(
+      { file: "lib/inbox-entry-operand.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence },
+      {
+        acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
+        mutationBoundary: "errand open input preflight", subprocess: "explicit-stdin",
+      },
+    )),
+  },
+] satisfies readonly CommandInputDeclaration[];
 
 /**
  * Promote an errand to a work unit: rename its branch (commits preserved), mint
@@ -909,9 +988,9 @@ async function dropOriginatingInboxCapture(
 }
 
 /** The current worktree's root, in `git worktree list` path form (for self-exclusion). */
-async function currentWorktreePath(fallback: string): Promise<string> {
+async function currentWorktreePath(fallback: string, exec: GitExec): Promise<string> {
   try {
-    const { stdout } = await gitExec("git", ["rev-parse", "--show-toplevel"]);
+    const { stdout } = await exec("git", ["rev-parse", "--show-toplevel"]);
     const top = stdout.trim();
     return top === "" ? fallback : top;
   } catch {

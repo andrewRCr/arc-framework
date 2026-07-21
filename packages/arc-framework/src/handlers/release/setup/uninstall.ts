@@ -13,7 +13,7 @@ import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
 import { resolveAllSettings, type ResolvedSettingsResult } from "../../../lib/config/resolved-settings.js";
-import { gitExec } from "../../../lib/io-context.js";
+import { createGitExec } from "../../../lib/io-context.js";
 import { resolveArcRoot } from "../../../lib/paths.js";
 import {
   readMarker,
@@ -30,6 +30,7 @@ import {
   type InteractionContext,
 } from "../../../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
 
 import { runReleaseOptOut, type RunReleaseOptResult } from "../record.js";
 import { runReleaseSetupPrintPatterns } from "./print-patterns.js";
@@ -48,7 +49,36 @@ export type ReleaseSetupUninstallInput = z.infer<typeof ReleaseSetupUninstallInp
 export const releaseSetupUninstallInputRegistration = {
   commandPath: "release setup uninstall",
   schema: ReleaseSetupUninstallInputSchema,
+  schemaFields: {
+    "option.harness": "harness",
+    "option.cleanup-verified": "cleanupVerified",
+    "option.json": "json",
+  },
 } satisfies CommandInputRegistration;
+
+/** Input and interaction policies owned by release setup removal. */
+export const releaseSetupUninstallInputPolicyDeclarations = [{
+  commandPath: "release setup uninstall",
+  aliases: [],
+  sites: [
+    {
+      id: "option.json", source: { file: "cli.ts", symbol: "program" }, origin: "syntax",
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable", automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    },
+    declareInteractionSite(
+      { file: "handlers/release/setup/uninstall.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
+      {
+        acquisition: "required-evidence", schemaOwnership: "none", cancellation: "stop",
+        automation: {
+          noInput: "require-explicit", flags: ["--cleanup-verified"], acceptedSyntax: ["--cleanup-verified"],
+        },
+        mutationBoundary: "release cleanup verification", subprocess: "none",
+      },
+    ),
+  ],
+}] satisfies readonly CommandInputDeclaration[];
 
 /** Commander syntax for release setup removal. */
 export interface ReleaseSetupUninstallOptions {
@@ -266,6 +296,7 @@ export async function handleReleaseSetupUninstall(
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false, machineReadable: opts.json === true, yes: "absent",
   });
+  const exec = createGitExec(context.subprocess);
   const parsedSyntax = ReleaseSetupUninstallInputSchema.safeParse({
     harness: opts.harness,
     cleanupVerified: opts.cleanupVerified === true,
@@ -287,7 +318,7 @@ export async function handleReleaseSetupUninstall(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(exec);
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -295,7 +326,7 @@ export async function handleReleaseSetupUninstall(
 
   const settings = await resolveAllSettings({
     cwd,
-    exec: gitExec,
+    exec,
     readFile: (path) => readFile(path, "utf-8"),
     warn: (message) => {
       process.stderr.write(`${message}\n`);
@@ -328,7 +359,7 @@ export async function handleReleaseSetupUninstall(
     marker,
     cleanupResult,
     removeHarness: (name) => removeHarness({ cwd, identity }, name),
-    recordOptOut: () => runReleaseOptOut({ exec: gitExec }),
+    recordOptOut: () => runReleaseOptOut({ exec }),
   });
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;

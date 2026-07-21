@@ -18,6 +18,7 @@ import { access, readdir, readFile } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
 import { z } from "zod";
+import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 
 import {
   buildSessionInitStatusSummary,
@@ -102,7 +103,9 @@ import {
   type ResolvedSettingsResult,
 } from "../lib/config/resolved-settings.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { createUserIOContext, gitExec, readGitBlobBytes } from "../lib/io-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+import type { GitExec } from "../lib/git/index.js";
+import { createGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
 import {
   listErrandRecordsResult,
   type ErrandRecord,
@@ -190,7 +193,46 @@ export const StatusCommandInputSchema = z.object({
 export const statusCommandInputRegistration = {
   commandPath: "status",
   schema: StatusCommandInputSchema,
+  schemaFields: {
+    "operand.slug": "slug",
+    "option.session-init": "sessionInit",
+    "option.session-handoff": "sessionHandoff",
+    "option.recover": "recover",
+    "option.user": "user",
+    "option.project": "project",
+    "option.local": "local",
+    "option.no-fetch": "fetch",
+    "option.staged": "staged",
+    "option.fetch": "fetch",
+    "option.json": "json",
+    "option.write-compaction-seed": "writeCompactionSeed",
+  },
 } satisfies CommandInputRegistration;
+
+/** Machine-output policies owned by the status adapter. */
+export const statusCommandInputPolicyDeclarations = [{
+  commandPath: "status",
+  aliases: [],
+  sites: ([
+    ["json", "json"], ["recover", "recover"], ["session-handoff", "sessionHandoff"],
+    ["session-init", "sessionInit"],
+  ] as const).map(([option, schemaField]) => declareCliOptionSite(option, {
+    acquisition: "machine-mode", schemaOwnership: "owned", schemaField,
+    cancellation: "not-applicable", automation: { noInput: "same", flags: [`--${option}`], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })).concat({
+    id: "semantic.interaction-context",
+    source: { file: "handlers/status.ts", symbol: "handleStatus" },
+    origin: "declaration",
+    acquisition: "derived",
+    schemaOwnership: "none",
+    derivationSource: "shared InteractionContext",
+    cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--no-input", "--json"], acceptedSyntax: [] },
+    mutationBoundary: "status probe orchestration",
+    subprocess: "terminal-prompts",
+  }),
+}] satisfies readonly CommandInputDeclaration[];
 
 function writeProjectReadinessWarnings(warnings: readonly ProjectReadinessWarning[]): void {
   for (const warning of warnings) process.stderr.write(`warning: ${warning.rendered}\n`);
@@ -203,13 +245,13 @@ export function normalizeGitConfigValue(value: string | undefined): string | nul
   return trimmed.length === 0 ? null : trimmed;
 }
 
-async function readIdentityPointers(): Promise<{
+async function readIdentityPointers(exec: GitExec): Promise<{
   identity: string | null;
   role: string | null;
 }> {
   const [identityRaw, roleRaw] = await Promise.all([
-    gitConfigGet(gitExec, "arc.identity"),
-    gitConfigGet(gitExec, "arc.role"),
+    gitConfigGet(exec, "arc.identity"),
+    gitConfigGet(exec, "arc.role"),
   ]);
   return {
     identity: normalizeGitConfigValue(identityRaw),
@@ -273,7 +315,12 @@ async function resolveNudgeState(
   };
 }
 
-export async function handleStatus(slug: string | undefined, opts: StatusCliOptions): Promise<void> {
+export async function handleStatus(
+  slug: string | undefined,
+  opts: StatusCliOptions,
+  interaction?: InteractionContext,
+): Promise<void> {
+  const exec = createGitExec(interaction?.subprocess);
   const parsed = StatusCommandInputSchema.safeParse({ slug, ...opts });
   if (!parsed.success) {
     process.stderr.write(`${z.prettifyError(parsed.error)}\n`);
@@ -313,12 +360,12 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // Errand records still feed the oracle so recorded `chore/`/`fix/` errand
     // branches are not mis-emitted as `no-record-or-meta` residue.
     const { settings } = await readConfigSettings(cwd);
-    const { identity } = await readIdentityPointers();
+    const { identity } = await readIdentityPointers(exec);
     // No identity ⇒ no errand-record ref to read; empty+complete is authoritative
     // (not degraded). Degraded `complete: false` is only for a failed read.
     const recordResult: ListErrandRecordsResult = identity === null
       ? { records: [], complete: true, warnings: [] }
-      : await listErrandRecordsResult({ exec: gitExec, identity });
+      : await listErrandRecordsResult({ exec, identity });
     const errandSlugByBranch = new Map(
       recordResult.records.map((record) => [record.branch, record.slug]),
     );
@@ -329,7 +376,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         readFile: (path) => readFile(path, "utf8"),
       },
       oracle: {
-        exec: gitExec,
+        exec,
         localOnly: opts.fetch !== true,
         baseBranch: settings["branch.base"],
         errandSlugByBranch,
@@ -363,13 +410,13 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     readdir: (path: string) => readdir(path, { withFileTypes: true }),
     readFile: (path: string) => readFile(path, "utf8"),
   };
-  const io = createUserIOContext();
-  const { identity, role } = await readIdentityPointers();
+  const io = createUserIOContext(interaction?.subprocess);
+  const { identity, role } = await readIdentityPointers(exec);
   const userSurfaceResolvers = new Map<string, ReturnType<typeof resolveUserSurfaceResolver>>();
   const userSurfacesFor = (id: string): Promise<UserSurfaceResolver> => {
     let resolver = userSurfaceResolvers.get(id);
     if (resolver === undefined) {
-      resolver = resolveUserSurfaceResolver({ cwd, identity: id, exec: gitExec });
+      resolver = resolveUserSurfaceResolver({ cwd, identity: id, exec });
       userSurfaceResolvers.set(id, resolver);
     }
     return resolver;
@@ -395,13 +442,13 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // command and breaking the composite-result contract. The mode-validation
     // early-return above runs first to avoid leaving an unawaited rejection on
     // the non-JSON exit path.
-    const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
     const probes: SessionHandoffProbes = {
-      dirty: () => runDirtyStateStatus({ exec: gitExec }),
+      dirty: () => runDirtyStateStatus({ exec }),
       worktree: async () => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+        return runWorktreeSyncStatus({ exec, remoteSyncEnabled });
       },
       user: async (id) => {
         const resolved = await resolvedSettingsP;
@@ -417,10 +464,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         const source = resolved.source === "yaml" ? "default" : resolved.source;
         return { value: resolved.value, source };
       },
-      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
-      head: () => runHeadHashStatus({ exec: gitExec }),
+      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec }),
+      head: () => runHeadHashStatus({ exec }),
       pushability: () => runPushabilityStatus({
-        exec: gitExec,
+        exec,
         access,
         target: "worktree",
       }),
@@ -432,7 +479,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
             sessionNotes = await io.readFile(path).catch(() => null);
           }
         }
-        return deriveRestateCandidates({ exec: gitExec, sessionNotes });
+        return deriveRestateCandidates({ exec, sessionNotes });
       },
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
@@ -455,7 +502,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       role,
       probes: createRecoverStatusProbes({
         cwd,
-        dirty: () => runDirtyStateStatus({ exec: gitExec }),
+        dirty: () => runDirtyStateStatus({ exec }),
       }),
       identityGlobalUserDir: identity === null ? null : (await userSurfacesFor(identity)).identityGlobalRoot,
     });
@@ -467,9 +514,9 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
   if (opts.sessionInit) {
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
-    const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
     const compactionSeedGitSnapshotP = opts.writeCompactionSeed
-      ? readCompactionSeedGitSnapshot(cwd)
+      ? readCompactionSeedGitSnapshot(cwd, exec)
       : null;
     // Shared in-flight oracle slice — the bounded network read (live remote
     // membership → pruned-ref derivation) feeding both the errand-state and
@@ -490,7 +537,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     const getErrandRecordsResult = (): Promise<ListErrandRecordsResult> => {
       errandRecordsPromise ??= identity === null
         ? Promise.resolve({ records: [], complete: true, warnings: [] })
-        : listErrandRecordsResult({ exec: gitExec, identity });
+        : listErrandRecordsResult({ exec, identity });
       return errandRecordsPromise;
     };
     const getErrandRecords = async (): Promise<ErrandRecord[]> => (await getErrandRecordsResult()).records;
@@ -503,7 +550,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       oraclePromise ??= (async () => {
         // Fire the dead-ref prune before derivation so every oracle caller
         // observes the same pruned ref set, regardless of call order.
-        await pruneRemoteTrackingRefs(gitExec);
+        await pruneRemoteTrackingRefs(exec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
         const [recordResult, parkedSlugs] = await Promise.all([
@@ -513,7 +560,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         const records = recordResult.records;
         const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
         const result = await deriveInFlight({
-          exec: gitExec,
+          exec,
           localOnly: false,
           baseBranch: resolved.settings["branch.base"],
           identity,
@@ -545,13 +592,13 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       worktree: async () => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+        return runWorktreeSyncStatus({ exec, remoteSyncEnabled });
       },
-      worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
+      worktreeIdentity: () => resolveWorktreeIdentity(exec),
       currentHusk: async (worktreePath) => {
         const [marker, headResult, resolved] = await Promise.all([
           readWorktreeMarker(worktreePath),
-          gitExec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
+          exec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
           resolvedSettingsP,
         ]);
         return await resolveCurrentHuskAdvisory({
@@ -562,7 +609,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         }, async (stamp, decoded) => {
           const baseBranch = resolved.settings["branch.base"];
           return await revalidateDecodedHuskRetirementEvidence(
-            gitExec,
+            exec,
             stamp,
             decoded,
             resolved.settings["branch.protection"] === "full" ? `origin/${baseBranch}` : baseBranch,
@@ -574,37 +621,37 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
         return runBaseDrift({
-          exec: gitExec,
+          exec,
           baseBranch: resolved.settings["branch.base"],
           mode: "advisory",
           remoteSyncEnabled,
-          ...createCurrentBaseDriftAdapters(gitExec),
+          ...createCurrentBaseDriftAdapters(exec),
         });
       },
       baseBranchSync: async () => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
         return runBaseBranchSyncStatus({
-          exec: gitExec,
+          exec,
           baseBranch: resolved.settings["branch.base"],
           remoteSyncEnabled,
         });
       },
-      supersession: (branch) => detectSupersession({ exec: gitExec, branch }),
+      supersession: (branch) => detectSupersession({ exec, branch }),
       dirty: () => resolveSessionInitDirtyState({
         compactionSeedGitSnapshotP,
-        fallback: () => runDirtyStateStatus({ exec: gitExec }),
+        fallback: () => runDirtyStateStatus({ exec }),
       }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
-      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
+      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
       roster: async () => {
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
         const roster = await runWorktreeRoster({
-          exec: gitExec,
+          exec,
           fs: {
             readdir: (path) => readdir(path),
             readFile: (path) => readFile(path, "utf8"),
@@ -616,7 +663,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
         return runIdentityScopedWorktreeRoster({
-          exec: gitExec,
+          exec,
           fs: {
             readdir: (path) => readdir(path),
             readFile: (path) => readFile(path, "utf8"),
@@ -628,7 +675,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       recovery: async (roster, currentBranch) => {
         const resolved = await resolvedSettingsP;
         const recentBranches = await runRecentRemoteBranches({
-          exec: gitExec,
+          exec,
           withinDays: RECOVERY_RECENCY_DAYS,
         });
         return runBranchGoneRecovery({
@@ -636,7 +683,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           currentBranch,
           baseBranch: resolved.settings["branch.base"],
           recentBranches,
-          exec: gitExec,
+          exec,
         });
       },
       sweep: async (roster, worktreeIdentity) => {
@@ -645,7 +692,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           roster,
           worktreeIdentity,
           baseBranch: resolved.settings["branch.base"],
-          exec: gitExec,
+          exec,
           identity,
           teamMode: resolved.settings["team.mode"] === "true",
           protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
@@ -665,7 +712,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           baseBranch: resolved.settings["branch.base"],
           errandBranches:
             errandRecords === null ? null : new Set(errandRecords.map((record) => record.branch)),
-          exec: gitExec,
+          exec,
         });
       },
       retiredSubdirs: async (id) => {
@@ -674,7 +721,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           cwd,
           identity: id,
           baseBranch: resolved.settings["branch.base"],
-          exec: gitExec,
+          exec,
           readDir: io.readDir,
           readFile: io.readFile,
         });
@@ -702,7 +749,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           oracleWarnings = [...oracleWarnings, ...oracle.warnings.map(renderInFlightWarning)];
         }
         return runErrandState({
-          exec: gitExec,
+          exec,
           currentBranch: input.currentBranch,
           hasBackingMeta: input.hasBackingMeta,
           includeDiscovery: input.includeDiscovery,
@@ -728,7 +775,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           2,
         );
         return runWorkUnitState({
-          exec: gitExec,
+          exec,
           roster: input.roster.entries,
           identity,
           baseBranch: resolved.settings["branch.base"],
@@ -740,17 +787,17 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
             WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE,
             userSurfacesFor,
           ),
-          prSource: input.includeSharpening ? createGhWorkUnitPrSource(gitExec) : undefined,
+          prSource: input.includeSharpening ? createGhWorkUnitPrSource(exec) : undefined,
         });
       },
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
       partialPushMarker: (id) => runPartialPushMarkerSurface({
-        exec: gitExec,
+        exec,
         identity: id,
         now: new Date().toISOString(),
       }),
       compactionAdvisory: async (id) => runNotesCompactionSessionAdvisory({
-        exec: gitExec,
+        exec,
         identity: id,
         nudge: await resolveNudgeState(
           cwd,
@@ -805,13 +852,13 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
   }
 
   if (opts.user) {
-    const resolved = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const resolved = await resolveAllSettings({ cwd, exec, readFile: io.readFile });
     const teamMode = resolved.settings["team.mode"] === "true";
     const localOnly = Boolean(opts.local) || opts.fetch === false;
     const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd, fs: lifecycleFs }));
     const view = await assembleStatusUserView({
       cwd,
-      exec: gitExec,
+      exec,
       identity,
       teamMode,
       localOnly,
@@ -830,7 +877,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
   }
 
   if (opts.project) {
-    const resolved = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const resolved = await resolveAllSettings({ cwd, exec, readFile: io.readFile });
     if (opts.staged) {
       // Render the project view from the git index — the same source the
       // pre-commit ROADMAP regen check validates against, so
@@ -838,7 +885,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       // hook expects (staged sweep or clean tree).
       const { result } = await renderRoadmapFromIndexViewResult({
         cwd,
-        exec: gitExec,
+        exec,
         baseBranch: resolved.settings["branch.base"],
       });
       if (json) {
@@ -854,7 +901,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
       identity === null
         ? Promise.resolve<ListErrandRecordsResult>({ records: [], complete: true, warnings: [] })
-        : listErrandRecordsResult({ exec: gitExec, identity }),
+        : listErrandRecordsResult({ exec, identity }),
     ]);
     const errandSlugByBranch = new Map(
       recordResult.records.map((record) => [record.branch, record.slug]),
@@ -863,7 +910,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       cwd,
       fs: lifecycleFs,
       oracle: {
-        exec: gitExec,
+        exec,
         localOnly,
         baseBranch: resolved.settings["branch.base"],
         parkedSlugs,
@@ -874,7 +921,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     const result = composeProjectReadinessViewResult({
       ...input,
       renderedRef: await resolveProjectReadinessRenderStamp({
-        exec: gitExec,
+        exec,
         cwd,
         scope: localOnly ? "tree + local refs" : "tree + live refs",
         liveView: "arc status --project",
@@ -907,10 +954,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
   p.outro("Done.");
 }
 
-async function readCompactionSeedGitSnapshot(cwd: string): Promise<CompactionSeedGitSnapshot> {
+async function readCompactionSeedGitSnapshot(cwd: string, exec: GitExec): Promise<CompactionSeedGitSnapshot> {
   const [headResult, statusResult] = await Promise.all([
-    gitExec("git", ["rev-parse", "HEAD"], { cwd }),
-    gitExec("git", ["status", "--porcelain=v1", "-z"], { cwd }),
+    exec("git", ["rev-parse", "HEAD"], { cwd }),
+    exec("git", ["status", "--porcelain=v1", "-z"], { cwd }),
   ]);
   return {
     head: headResult.stdout.trim(),

@@ -167,8 +167,8 @@ function capitalize(value: string): string {
  * Resolve identity for user commands. Requires arc.identity to be set.
  * Throws UserFacingError if identity is not configured.
  */
-export async function resolveUserIdentity(): Promise<string> {
-  const identity = await resolveIdentity({ exec: gitExec });
+export async function resolveUserIdentity(exec = gitExec): Promise<string> {
+  const identity = await resolveIdentity({ exec });
   if (!identity) {
     throw new UserFacingError({
       code: "IDENTITY_MISSING",

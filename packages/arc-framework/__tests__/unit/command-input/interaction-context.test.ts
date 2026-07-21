@@ -18,6 +18,16 @@ const signals = (overrides: Partial<InteractionSignals> = {}): InteractionSignal
 });
 
 describe("interaction context", () => {
+  it("decodes Commander's negated --no-input option", () => {
+    const action = withInteractionContext({}, (context) => context.interaction);
+    const command = {
+      opts: () => ({}),
+      optsWithGlobals: () => ({ input: false }),
+    };
+
+    expect(action(command)).toBe("forbidden");
+  });
+
   it("allows prompts and asks for confirmation for an ordinary interactive invocation", () => {
     expect(resolveInteractionContext(signals())).toMatchObject({
       interaction: "allowed",

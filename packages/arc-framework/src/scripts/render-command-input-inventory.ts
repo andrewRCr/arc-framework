@@ -7,7 +7,10 @@ import {
   buildRepositoryCommandInputInventory,
   renderCommandInputInventory,
 } from "../lib/command-input/repository-inventory.js";
-import { commandInputRegistrations } from "../command-input-registrations.js";
+import {
+  commandInputPolicyDeclarations,
+  commandInputRegistrations,
+} from "../command-input-registrations.js";
 
 async function main(): Promise<void> {
   const outputIndex = process.argv.indexOf("--output");
@@ -17,7 +20,11 @@ async function main(): Promise<void> {
   }
   const sourceRoot = resolve(import.meta.dirname, "..");
   const rendered = renderCommandInputInventory(
-    await buildRepositoryCommandInputInventory(sourceRoot, commandInputRegistrations),
+    await buildRepositoryCommandInputInventory(
+      sourceRoot,
+      commandInputRegistrations,
+      commandInputPolicyDeclarations,
+    ),
   );
   if (output === undefined) process.stdout.write(rendered);
   else await writeFile(resolve(output), rendered, "utf8");

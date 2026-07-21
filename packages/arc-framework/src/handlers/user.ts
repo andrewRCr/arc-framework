@@ -27,6 +27,11 @@ import {
 import { isRefusalCondition } from "../lib/git/index.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
 import { SlugSchema } from "../lib/kernel/index.js";
+import {
+  declareCliOptionSite,
+  declareInteractionSite,
+  type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
@@ -607,13 +612,81 @@ export const UserPullInputSchema = z.object({ identity: SlugSchema.optional() })
 
 /** Registry contributions owned by schema-bearing user commands. */
 export const userCommandInputRegistrations = [
-  { commandPath: "user add", schema: UserAddInputSchema },
-  { commandPath: "user open", schema: z.object({ wuName: SlugSchema }).strict() },
-  { commandPath: "user close", schema: z.object({ wuName: SlugSchema }).strict() },
-  { commandPath: "user inbox-remove", schema: UserInboxRemoveInputSchema },
-  { commandPath: "user fetch", schema: UserFetchInputSchema },
-  { commandPath: "user pull", schema: UserPullInputSchema },
+  { commandPath: "user add", schema: UserAddInputSchema, schemaFields: { "operand.identity": "identity" } },
+  {
+    commandPath: "user open",
+    schema: z.object({ wuName: SlugSchema }).strict(),
+    schemaFields: { "operand.wu-name": "wuName" },
+  },
+  {
+    commandPath: "user close",
+    schema: z.object({ wuName: SlugSchema }).strict(),
+    schemaFields: { "operand.wu-name": "wuName" },
+  },
+  {
+    commandPath: "user inbox-remove",
+    schema: UserInboxRemoveInputSchema,
+    schemaFields: {
+      "operand.slug": "literal",
+      "option.inbox-title-file": "inboxTitleFile",
+      "option.inbox-entry-file": "inboxEntryFile",
+    },
+  },
+  { commandPath: "user fetch", schema: UserFetchInputSchema, schemaFields: { "option.identity": "identity" } },
+  { commandPath: "user pull", schema: UserPullInputSchema, schemaFields: { "option.identity": "identity" } },
 ] as const satisfies readonly CommandInputRegistration[];
+
+/** Command-owned policy that syntax cannot express for user-state acquisition. */
+export const userCommandInputPolicyDeclarations = [{
+  commandPath: "user open",
+  aliases: [],
+  sites: [declareInteractionSite(
+    { file: "handlers/user.ts", kind: "prompt", callee: "p.select", occurrence: 1 },
+    {
+    acquisition: "safe-default",
+    schemaOwnership: "none",
+    defaultSource: "keep",
+    cancellation: "safe-default",
+    automation: { noInput: "use-default", flags: [], acceptedSyntax: [] },
+    mutationBoundary: "stale user subdirectory removal",
+    subprocess: "none",
+    },
+  )],
+}, {
+  commandPath: "user pull",
+  aliases: [],
+  sites: [declareCliOptionSite("yes", {
+    acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
+    mutationBoundary: "user pull handler", subprocess: "none",
+  }), declareInteractionSite(
+    { file: "handlers/user.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
+    {
+      acquisition: "protected-confirmation",
+      schemaOwnership: "none",
+      cancellation: "stop",
+      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+      mutationBoundary: "local notes overwrite",
+      subprocess: "none",
+    },
+  )],
+}, {
+  commandPath: "user compact",
+  aliases: [],
+  sites: [declareCliOptionSite("json", {
+    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })],
+}, {
+  commandPath: "user status",
+  aliases: [],
+  sites: (["json", "session-init"] as const).map((option) => declareCliOptionSite(option, {
+    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: [`--${option}`], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })),
+}] satisfies readonly CommandInputDeclaration[];
 
 export async function handleUserPull(
   opts: UserPullOptions,

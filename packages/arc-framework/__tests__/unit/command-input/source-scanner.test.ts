@@ -14,10 +14,11 @@ describe("command-input source scanner", () => {
         program.command("direct <name>").option("--kind <kind>").action(handleDirect);
         const parent = program.command("parent");
         parent.command("child [slug]").action((slug) => handleChild(slug));
+        program.command("wrapped").action(withInteractionContext({}, (context) => handleWrapped(context)));
       `,
     });
 
-    expect(result.commands.map((command) => command.path)).toEqual(["direct", "parent", "parent child"]);
+    expect(result.commands.map((command) => command.path)).toEqual(["direct", "parent", "parent child", "wrapped"]);
     expect(result.commands[0]).toMatchObject({
       operands: [{ name: "name", required: true, variadic: false }],
       options: [{ flags: "--kind <kind>", valueName: "kind", required: true }],
@@ -27,6 +28,7 @@ describe("command-input source scanner", () => {
       operands: [{ name: "slug", required: false, variadic: false }],
       action: { symbol: "handleChild" },
     });
+    expect(result.commands[3]?.action).toMatchObject({ symbol: "handleWrapped", interactionContext: true });
   });
 
   it("retains aliases, required and variadic values, addOption policy, and opaque paths", () => {
@@ -73,6 +75,7 @@ describe("command-input source scanner", () => {
         import { promisify } from "node:util";
         const spawnAsync = promisify(spawn);
         const value = await p.text({ message: "Name" });
+        const tools = await p.autocompleteMultiselect({ message: "Tools", options: [] });
         const accepted = await ctx.output.confirm({ message: "Proceed?" });
         const automated = process.env.CI === "true" || !process.stdin.isTTY;
         for await (const chunk of process.stdin) consume(chunk);
@@ -84,6 +87,7 @@ describe("command-input source scanner", () => {
 
     expect(result.sites.map((site) => site.kind)).toEqual([
       "prompt",
+      "prompt",
       "prompt-helper",
       "environment-policy",
       "environment-policy",
@@ -94,6 +98,7 @@ describe("command-input source scanner", () => {
     ]);
     expect(result.sites.map((site) => site.callee)).toEqual([
       "p.text",
+      "p.autocompleteMultiselect",
       "ctx.output.confirm",
       "process.env.CI",
       "process.stdin",

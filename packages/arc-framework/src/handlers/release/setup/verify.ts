@@ -49,6 +49,7 @@ export type ReleaseSetupVerifyOptions = z.input<typeof ReleaseSetupVerifyInputSc
 export const releaseSetupVerifyInputRegistration = {
   commandPath: "release setup verify",
   schema: ReleaseSetupVerifyInputSchema,
+  schemaFields: { "option.harness": "harness" },
 } satisfies CommandInputRegistration;
 
 export interface RunReleaseSetupVerifyResult {

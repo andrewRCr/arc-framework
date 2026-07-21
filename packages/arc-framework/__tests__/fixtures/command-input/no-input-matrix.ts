@@ -3,7 +3,10 @@
 export interface NoInputMatrixCase {
   readonly commandPath: string;
   readonly args: readonly string[];
+  readonly fixture?: "bare" | "arc-project";
+  readonly expected: { readonly exitCode: number; readonly outputIncludes?: string };
   readonly stdin?: string;
+  readonly preservesWorktree?: true;
 }
 
 /**
@@ -11,23 +14,23 @@ export interface NoInputMatrixCase {
  * Repository inventory tests exact-match these command paths to live interaction sites.
  */
 export const NO_INPUT_MATRIX = Object.freeze([
-  { commandPath: "check commit-msg", args: ["check", "commit-msg", "-", "--json"], stdin: "feat(check): validate stdin\n" },
-  { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n" },
-  { commandPath: "hook-remedy-roadmap-conflict", args: ["hook-remedy-roadmap-conflict"] },
-  { commandPath: "hook-validate-decompose-record", args: ["hook-validate-decompose-record"] },
-  { commandPath: "init", args: ["init", "--name", "matrix", "--identity", "matrix"] },
-  { commandPath: "join", args: ["join", "--identity", "matrix"] },
-  { commandPath: "promote", args: ["promote", "matrix"] },
-  { commandPath: "release commit", args: ["release", "commit"] },
-  { commandPath: "release setup install", args: ["release", "setup", "install", "--json"] },
-  { commandPath: "release setup uninstall", args: ["release", "setup", "uninstall", "--harness", "matrix", "--json"] },
-  { commandPath: "start", args: ["start", "matrix"] },
-  { commandPath: "status", args: ["status", "--json"] },
-  { commandPath: "stub", args: ["stub", "matrix"] },
-  { commandPath: "sync", args: ["sync", "--json"] },
-  { commandPath: "update", args: ["update", "--quiet"] },
-  { commandPath: "user open", args: ["user", "open", "matrix"] },
-  { commandPath: "user pull", args: ["user", "pull"] },
-  { commandPath: "user sync", args: ["user", "sync"] },
-  { commandPath: "view", args: ["view"] },
+  { commandPath: "check commit-msg", args: ["check", "commit-msg", "-", "--json"], stdin: "feat(check): validate stdin\n\nContext: standalone (maintenance)\n", fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "\"verdict\":\"pass\"" } },
+  { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "full-protection verb" } },
+  { commandPath: "hook-remedy-roadmap-conflict", args: ["hook-remedy-roadmap-conflict"], fixture: "bare", expected: { exitCode: 0 } },
+  { commandPath: "hook-validate-decompose-record", args: ["hook-validate-decompose-record"], fixture: "bare", expected: { exitCode: 0 } },
+  { commandPath: "init", args: ["init", "--name", "matrix", "--identity", "matrix"], fixture: "bare", expected: { exitCode: 0, outputIncludes: "Installation complete" } },
+  { commandPath: "join", args: ["join", "--identity", "matrix"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "Workspace setup complete" } },
+  { commandPath: "promote", args: ["promote", "matrix"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "not a provisional stub" } },
+  { commandPath: "release commit", args: ["release", "commit"], expected: { exitCode: 11, outputIncludes: "interlock-not-authorized" } },
+  { commandPath: "release setup install", args: ["release", "setup", "install", "--json"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "missing required input" } },
+  { commandPath: "release setup uninstall", args: ["release", "setup", "uninstall", "--harness", "matrix", "--json"], preservesWorktree: true, expected: { exitCode: 0, outputIncludes: "\"command\": \"uninstall\"" } },
+  { commandPath: "start", args: ["start", "matrix"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "does not exist on the base branch" } },
+  { commandPath: "status", args: ["status", "--json"], expected: { exitCode: 0, outputIncludes: "\"mode\":\"full\"" } },
+  { commandPath: "stub", args: ["stub", "matrix"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Missing required input" } },
+  { commandPath: "sync", args: ["sync", "--json"], expected: { exitCode: 1, outputIncludes: "notes-blocked" } },
+  { commandPath: "update", args: ["update", "--quiet"], expected: { exitCode: 0, outputIncludes: "Update complete" } },
+  { commandPath: "user open", args: ["user", "open", "matrix"], expected: { exitCode: 0, outputIncludes: "User workspace opened" } },
+  { commandPath: "user pull", args: ["user", "pull"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Remote unavailable" } },
+  { commandPath: "user sync", args: ["user", "sync"], expected: { exitCode: 1, outputIncludes: "No remote configured" } },
+  { commandPath: "view", args: ["view"], expected: { exitCode: 1, outputIncludes: "No active work unit" } },
 ] satisfies readonly NoInputMatrixCase[]);

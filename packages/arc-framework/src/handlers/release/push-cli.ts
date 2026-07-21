@@ -29,12 +29,25 @@ import {
   resolveProcessInteractionContext,
   type InteractionContext,
 } from "../../lib/command-input/interaction-context.js";
+import type { CommandInputDeclaration } from "../../lib/command-input/declaration.js";
 
 import { runReleasePush, type SpawnPush } from "./push.js";
 
 export interface HandleReleasePushOptions {
   args: readonly string[];
 }
+
+/** Opaque argument policy owned by the release-push adapter. */
+export const releasePushInputPolicyDeclarations = [{
+  commandPath: "release push",
+  aliases: [],
+  sites: [{
+    id: "operand.args", source: { file: "cli.ts", symbol: "program" }, origin: "syntax",
+    acquisition: "opaque-passthrough", schemaOwnership: "opaque", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: [], acceptedSyntax: ["[args]"] },
+    mutationBoundary: "release push handler", subprocess: "opaque-arguments",
+  }],
+}] satisfies readonly CommandInputDeclaration[];
 
 /**
  * `arc release push` Commander entry point. Resolves the I/O surface

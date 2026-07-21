@@ -39,6 +39,7 @@ import {
   resolveProcessInteractionContext,
   type InteractionContext,
 } from "../../lib/command-input/interaction-context.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../../lib/command-input/declaration.js";
 
 import {
   runReleaseCommit,
@@ -51,6 +52,36 @@ import { createCommitMessagePreflight } from "./commit-message-preflight.js";
 export interface HandleReleaseCommitOptions {
   args: readonly string[];
 }
+
+/** Input and interaction policies owned by the release-commit adapter. */
+export const releaseCommitInputPolicyDeclarations = [{
+  commandPath: "release commit",
+  aliases: [],
+  sites: [
+    {
+      id: "operand.args", source: { file: "cli.ts", symbol: "program" }, origin: "syntax",
+      acquisition: "opaque-passthrough", schemaOwnership: "opaque", cancellation: "not-applicable",
+      automation: { noInput: "same", flags: [], acceptedSyntax: ["[args]"] },
+      mutationBoundary: "release commit handler", subprocess: "opaque-arguments",
+    },
+    declareInteractionSite(
+      { file: "handlers/release/commit-cli.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
+      {
+        acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
+        mutationBoundary: "release commit input preflight", subprocess: "explicit-stdin",
+      },
+    ),
+    declareInteractionSite(
+      { file: "handlers/release/commit-cli.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
+      {
+        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "disable-terminal-input", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "release commit subprocess boundary", subprocess: "editor",
+      },
+    ),
+  ],
+}] satisfies readonly CommandInputDeclaration[];
 
 const capturedGitExec = createExecaGitExec();
 

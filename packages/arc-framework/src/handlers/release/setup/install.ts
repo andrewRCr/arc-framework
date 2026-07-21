@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
 import { resolveAllSettings, type ResolvedSettingsResult } from "../../../lib/config/resolved-settings.js";
-import { gitExec } from "../../../lib/io-context.js";
+import { createGitExec } from "../../../lib/io-context.js";
 import { resolveArcRoot } from "../../../lib/paths.js";
 import {
   isHarnessMode,
@@ -32,6 +32,7 @@ import {
   type InteractionContext,
 } from "../../../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
 
 import { runReleaseOptIn, type RunReleaseOptResult } from "../record.js";
 
@@ -58,7 +59,78 @@ export type ReleaseSetupInstallInput = z.infer<typeof ReleaseSetupInstallInputSc
 export const releaseSetupInstallInputRegistration = {
   commandPath: "release setup install",
   schema: ReleaseSetupInstallInputSchema,
+  schemaFields: {
+    "option.harness": "harness",
+    "option.mode": "mode",
+    "option.idempotency-action": "idempotencyAction",
+    "option.yes": "trustAccepted",
+    "option.workflow-verified": "workflowVerified",
+    "option.json": "json",
+  },
 } satisfies CommandInputRegistration;
+
+/** Input and interaction policies owned by release setup installation. */
+export const releaseSetupInstallInputPolicyDeclarations = [{
+  commandPath: "release setup install",
+  aliases: [],
+  sites: [
+    {
+      id: "option.yes", source: { file: "cli.ts", symbol: "program" }, origin: "syntax",
+      acquisition: "protected-confirmation", schemaOwnership: "owned", schemaField: "trustAccepted",
+      cancellation: "not-applicable",
+      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
+      mutationBoundary: "release setup install handler", subprocess: "none",
+    },
+    {
+      id: "option.json", source: { file: "cli.ts", symbol: "program" }, origin: "syntax",
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable", automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    },
+    declareInteractionSite(
+      { file: "handlers/release/setup/install.ts", kind: "prompt", callee: "p.text", occurrence: 1 },
+      {
+        acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+        automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--harness <name>"] },
+        mutationBoundary: "release setup install handler", subprocess: "none",
+      },
+    ),
+    declareInteractionSite(
+      { file: "handlers/release/setup/install.ts", kind: "prompt", callee: "p.select", occurrence: 1 },
+      {
+        acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+        automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--mode <mode>"] },
+        mutationBoundary: "release setup install handler", subprocess: "none",
+      },
+    ),
+    declareInteractionSite(
+      { file: "handlers/release/setup/install.ts", kind: "prompt", callee: "p.select", occurrence: 2 },
+      {
+        acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+        automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--idempotency-action <action>"] },
+        mutationBoundary: "release setup install handler", subprocess: "none",
+      },
+    ),
+    declareInteractionSite(
+      { file: "handlers/release/setup/install.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
+      {
+        acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
+        automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+        mutationBoundary: "release setup installation", subprocess: "none",
+      },
+    ),
+    declareInteractionSite(
+      { file: "handlers/release/setup/install.ts", kind: "prompt", callee: "p.confirm", occurrence: 2 },
+      {
+        acquisition: "required-evidence", schemaOwnership: "none", cancellation: "stop",
+        automation: {
+          noInput: "require-explicit", flags: ["--workflow-verified"], acceptedSyntax: ["--workflow-verified"],
+        },
+        mutationBoundary: "release workflow verification", subprocess: "none",
+      },
+    ),
+  ],
+}] satisfies readonly CommandInputDeclaration[];
 
 /** Commander syntax for the release setup install adapter. */
 export interface ReleaseSetupInstallOptions {
@@ -212,6 +284,7 @@ export async function handleReleaseSetupInstall(
     machineReadable: opts.json === true,
     yes: opts.yes === true ? "authority" : "absent",
   });
+  const exec = createGitExec(context.subprocess);
   const parsedSyntax = ReleaseSetupInstallInputSchema.safeParse({
     ...(opts.harness === undefined ? {} : { harness: opts.harness }),
     ...(opts.mode === undefined ? {} : { mode: opts.mode }),
@@ -235,7 +308,7 @@ export async function handleReleaseSetupInstall(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(exec);
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -243,7 +316,7 @@ export async function handleReleaseSetupInstall(
 
   const settings = await resolveAllSettings({
     cwd,
-    exec: gitExec,
+    exec,
     readFile: (path) => readFile(path, "utf-8"),
     warn: (message) => {
       process.stderr.write(`${message}\n`);
@@ -319,7 +392,7 @@ export async function handleReleaseSetupInstall(
     marker,
     input,
     upsertHarness: (entry) => upsertHarness({ cwd, identity }, entry),
-    recordOptIn: () => runReleaseOptIn({ exec: gitExec }),
+    recordOptIn: () => runReleaseOptIn({ exec }),
   });
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;

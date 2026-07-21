@@ -37,6 +37,14 @@ export const LogStandaloneInputSchema = z.object({
 export const logStandaloneInputRegistration = {
   commandPath: "log standalone",
   schema: LogStandaloneInputSchema,
+  schemaFields: {
+    "option.since": "since",
+    "option.ref": "ref",
+    "option.limit": "limit",
+    "option.all": "all",
+    "option.category": "category",
+    "option.author": "author",
+  },
 } satisfies CommandInputRegistration;
 
 export async function handleLogStandalone(opts: LogStandaloneOptions): Promise<void> {

@@ -69,7 +69,10 @@ const declaration = (): CommandInputDeclaration => ({
     },
     {
       id: "prompt.name",
-      source: { file: "handlers/create.ts", line: 4 },
+      source: {
+        file: "handlers/create.ts",
+        interaction: { kind: "prompt", callee: "p.text", occurrence: 1 },
+      },
       origin: "declaration",
       acquisition: "handler-required",
       schemaOwnership: "owned",

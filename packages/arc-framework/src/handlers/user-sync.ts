@@ -36,6 +36,11 @@ import {
   resolveProcessInteractionContext,
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
+import {
+  declareCliOptionSite,
+  declareInteractionSite,
+  type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
 import { createSyncOutput } from "../lib/sync-output.js";
 import { resolveNotesPushPolicy } from "../lib/config/resolved-settings.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
@@ -52,6 +57,48 @@ type SyncAction = "noop" | "push" | "pull" | "load" | "push-load" | "guidance" |
 export interface UserSyncOptions {
   yes?: boolean;
 }
+
+/** Command-owned policy for the contested-direction safe default. */
+export const userSyncCommandInputPolicyDeclarations = [{
+  commandPath: "user sync",
+  aliases: [],
+  sites: [declareCliOptionSite("yes", {
+    acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
+    mutationBoundary: "user sync handler", subprocess: "none",
+  }), declareInteractionSite(
+    { file: "handlers/user-sync.ts", kind: "prompt", callee: "p.select", occurrence: 1 },
+    {
+    acquisition: "safe-default",
+    schemaOwnership: "none",
+    defaultSource: "save-only",
+    cancellation: "stop",
+    automation: { noInput: "use-default", flags: [], acceptedSyntax: [] },
+    mutationBoundary: "notes direction selection",
+    subprocess: "none",
+    },
+  ), declareInteractionSite(
+    { file: "handlers/user-sync.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
+    {
+      acquisition: "protected-confirmation",
+      schemaOwnership: "none",
+      cancellation: "stop",
+      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+      mutationBoundary: "remote notes overwrite",
+      subprocess: "none",
+    },
+  ), declareInteractionSite(
+    { file: "handlers/user-sync.ts", kind: "prompt", callee: "p.confirm", occurrence: 2 },
+    {
+      acquisition: "protected-confirmation",
+      schemaOwnership: "none",
+      cancellation: "stop",
+      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+      mutationBoundary: "notes push escalation",
+      subprocess: "none",
+    },
+  )],
+}] satisfies readonly CommandInputDeclaration[];
 
 type DirectionParams = {
   cwd: string;

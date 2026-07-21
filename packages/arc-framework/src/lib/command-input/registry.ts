@@ -20,6 +20,8 @@ export interface CommandInputRegistration<T extends z.ZodType = z.ZodType> {
   readonly commandPath: string;
   readonly aliases?: readonly string[];
   readonly schema: T;
+  /** Explicit AST site-to-schema-field mapping owned by the command adapter. */
+  readonly schemaFields?: Readonly<Record<string, string>>;
 }
 
 /** Kernel registry extended with canonical command-path lookup. */

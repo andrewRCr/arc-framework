@@ -139,7 +139,7 @@ export function resolveCommandInteractionContext(
     promptOutputIsTTY: promptOutput.isTTY,
   };
   return resolveInteractionContext({
-    noInput: globalOptions.noInput === true,
+    noInput: globalOptions.input === false || globalOptions.noInput === true,
     machineReadable,
     yes,
     ...environment,

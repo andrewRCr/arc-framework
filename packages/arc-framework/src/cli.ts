@@ -82,10 +82,17 @@ import {
   type UserLoadOptions,
   type UserPullOptions,
 } from "./handlers/user.js";
-import { handleExtensionsStatus } from "./handlers/extensions.js";
-import { handleConfigStatus } from "./handlers/config.js";
-import { handleActiveStatus, handleActiveRoster, handleActiveInFlight } from "./handlers/active.js";
-import { handleStatus } from "./handlers/status.js";
+import { handleExtensionsStatus, type ExtensionsStatusCliOptions } from "./handlers/extensions.js";
+import { handleConfigStatus, type ConfigStatusCliOptions } from "./handlers/config.js";
+import {
+  handleActiveStatus,
+  handleActiveRoster,
+  handleActiveInFlight,
+  type ActiveStatusCliOptions,
+  type ActiveRosterCliOptions,
+  type ActiveInFlightCliOptions,
+} from "./handlers/active.js";
+import { handleStatus, type StatusCliOptions } from "./handlers/status.js";
 import { handleView, type ViewCliOptions } from "./handlers/view.js";
 import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
@@ -158,11 +165,14 @@ checkCmd
   .argument("[input...]", "Commit-message file path, or - for stdin")
   .allowUnknownOption(true)
   .option("--json", "Emit a versioned JSON envelope")
-  .action((input: string[], opts: HandleCheckCommitMessageOptions) =>
-    handleCheckCommitMessage(input, {
-      ...opts,
-      dashPrefixedSourceAllowed: isDashPrefixedCheckSourceEscaped(process.argv, input),
-    }));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, input: string[], opts: HandleCheckCommitMessageOptions) =>
+      handleCheckCommitMessage(input, {
+        ...opts,
+        dashPrefixedSourceAllowed: isDashPrefixedCheckSourceEscaped(process.argv, input),
+      }, context),
+  ));
 
 // --- Init & Join ---
 
@@ -379,7 +389,10 @@ errand
   .option("--local", "Skip the oracle's network read; check local refs only (alias: --no-fetch)")
   .option("--no-fetch", "Skip the oracle's network read; check local refs only")
   .option("--json", "Emit overlap facts as JSON (for skill consumption)")
-  .action((opts: ErrandCheckOptions) => handleErrandCheck(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: ErrandCheckOptions) => handleErrandCheck(opts, context),
+  ));
 
 errand
   .command("open <slug>")
@@ -443,7 +456,10 @@ housekeep
   .command("check")
   .description("Classify the write context — base-branch (proceed), WU branch (relocate), or degenerate (refuse)")
   .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
-  .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: HousekeepCheckOptions) => handleHousekeepCheck(opts, context),
+  ));
 
 const baseCmd = program
   .command("base")
@@ -453,13 +469,19 @@ baseCmd
   .command("drift")
   .description("Analyze current branch drift from a freshly fetched integration base")
   .option("--json", "Emit the typed base-drift analysis as JSON")
-  .action((opts: BaseDriftOptions) => handleBaseDrift(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: BaseDriftOptions) => handleBaseDrift(opts, context),
+  ));
 
 baseCmd
   .command("sync")
   .description("Safely fast-forward the local base from any worktree")
   .option("--json", "Emit the typed synchronization outcome as JSON")
-  .action((opts: BaseSyncOptions) => handleBaseSync(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: BaseSyncOptions) => handleBaseSync(opts, context),
+  ));
 
 const plan = program
   .command("plan")
@@ -473,7 +495,10 @@ plan
   .description("Classify the planning-entry route — committable (proceed) or not (redirect to start / stub / errand)")
   .option("--name <slug>", "The design's WU-name slug — gates the draft-presence check")
   .option("--json", "Emit the planning-entry route as JSON (for skill consumption)")
-  .action((opts: PlanCheckOptions) => handlePlanCheck(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: PlanCheckOptions) => handlePlanCheck(opts, context),
+  ));
 
 // --- Lifecycle ---
 
@@ -617,7 +642,10 @@ extensionsCmd
   .option("--session-init", "Emit the active-extensions list consumed by session-init")
   .option("--all", "Include the full orphan-reference detail list")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleExtensionsStatus);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
+    (_context, opts: ExtensionsStatusCliOptions) => handleExtensionsStatus(opts),
+  ));
 
 // --- Config ---
 
@@ -630,7 +658,10 @@ configCmd
   .description("Show arc-config.yml settings (agent-consumable; hooks.* excluded)")
   .option("--session-init", "Emit the init-gating subset consumed by session-init")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleConfigStatus);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
+    (_context, opts: ConfigStatusCliOptions) => handleConfigStatus(opts),
+  ));
 
 // --- Active ---
 
@@ -643,13 +674,19 @@ activeCmd
   .description("Enumerate in-flight work units and their status-file fields")
   .option("--session-init", "Emit resolved path / null / candidate list for session-init")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleActiveStatus);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
+    (context, opts: ActiveStatusCliOptions) => handleActiveStatus(opts, context),
+  ));
 
 activeCmd
   .command("roster")
   .description("Emit the cross-worktree in-flight work-unit roster (concurrency-advisory data input)")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleActiveRoster);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: ActiveRosterCliOptions) => handleActiveRoster(opts, context),
+  ));
 
 activeCmd
   .command("in-flight")
@@ -657,7 +694,10 @@ activeCmd
   .option("--local", "Skip the network read; derive from local refs (alias: --no-fetch)")
   .option("--no-fetch", "Skip the network read; derive from local refs")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleActiveInFlight);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: ActiveInFlightCliOptions) => handleActiveInFlight(opts, context),
+  ));
 
 // --- View ---
 
@@ -726,7 +766,15 @@ program
     ).conflicts(["recover", "session-handoff", "user", "project"]),
   )
   .option("--json", "Emit the typed result as JSON")
-  .action(handleStatus);
+  .action(withInteractionContext(
+    {
+      machineReadable: (opts) => opts.json === true
+        || opts.sessionInit === true
+        || opts.sessionHandoff === true
+        || opts.recover === true,
+    },
+    (context, slug: string | undefined, opts: StatusCliOptions) => handleStatus(slug, opts, context),
+  ));
 
 // --- Recover ---
 
@@ -738,7 +786,10 @@ recoverCmd
   .command("audit")
   .description("Audit the latest compaction seed against fresh recovery state")
   .option("--json", "Emit the typed result as JSON")
-  .action((opts: RecoverAuditOptions) => handleRecoverAudit(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: RecoverAuditOptions) => handleRecoverAudit(opts, context),
+  ));
 
 // --- Sync (orchestrator) ---
 

@@ -35,6 +35,7 @@ import {
 } from "../../lib/git/index.js";
 import { createUserIOContext, gitExec } from "../../lib/io-context.js";
 import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
+import { declareCliOptionSite, type CommandInputDeclaration } from "../../lib/command-input/declaration.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { resolveReleaseRouting, type ReleaseRoutingValue } from "../../lib/release/routing.js";
 import {
@@ -182,6 +183,15 @@ interface ReleaseStatusJsonEnvelope {
   activeValueLayers: string;
   releaseRouting: ReleaseRoutingValue;
 }
+
+/** Machine-output policy owned by the release status adapter. */
+export const releaseStatusCommandInputPolicyDeclarations = [{
+  commandPath: "release status", aliases: [], sites: [declareCliOptionSite("json", {
+    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })],
+}] satisfies readonly CommandInputDeclaration[];
 
 /**
  * Run the `arc release status` sub-command. Renders the resolved opt-in flag

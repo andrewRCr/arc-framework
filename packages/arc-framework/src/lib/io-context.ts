@@ -29,6 +29,13 @@ export { environmentForGitCwd } from "../lib/git/process-executor.js";
 
 const candidateGitExec = createExecaGitExec();
 
+/** Bind captured-output Git execution to one invocation's subprocess policy. */
+export function createGitExec(interaction?: InteractionContext["subprocess"]): GitExec {
+  return interaction === undefined
+    ? candidateGitExec
+    : (command, args, options) => candidateGitExec(command, args, { ...options, interaction });
+}
+
 /** Read one exact Git tree/index blob as bytes; `null` means the object path is absent. */
 export async function readGitBlobBytes(
   cwd: string,
@@ -210,13 +217,11 @@ export async function prepareGitRefVerification(
 }
 
 /** Production captured-output Git executor. */
-export const gitExec: GitExec = candidateGitExec;
+export const gitExec: GitExec = createGitExec();
 
 /** Real IOContext using node:fs/promises. Used by init, join, update. */
 export function createIOContext(interaction?: InteractionContext["subprocess"]): IOContext {
-  const exec: GitExec = interaction === undefined
-    ? gitExec
-    : (command, args, options) => candidateGitExec(command, args, { ...options, interaction });
+  const exec = createGitExec(interaction);
   return {
     readFile: (path) => readFile(path, "utf-8"),
     writeFile: (path, content) => writeFile(path, content, "utf-8"),

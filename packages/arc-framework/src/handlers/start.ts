@@ -42,6 +42,7 @@ import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import {
   resolveProcessInteractionContext,
@@ -93,7 +94,45 @@ export const StartCommandInputSchema = z.object({
 export const startCommandInputRegistration = {
   commandPath: "start",
   schema: StartCommandInputSchema,
+  schemaFields: {
+    "operand.name": "name",
+    "option.here": "here",
+    "option.from": "from",
+    "option.class": "class",
+    "option.new": "new",
+    "option.yes": "yes",
+  },
 } satisfies CommandInputRegistration;
+
+/** Command-owned interaction and safety policies for start. */
+export const startCommandInputPolicyDeclarations = [{
+  commandPath: "start",
+  aliases: [],
+  sites: [
+    declareInteractionSite(
+      { file: "handlers/start.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
+      {
+        acquisition: "courtesy-confirmation",
+        schemaOwnership: "none",
+        cancellation: "stop",
+        automation: { noInput: "proceed", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+        mutationBoundary: "start dispatch",
+        subprocess: "none",
+      },
+    ),
+    {
+      id: "safety.indeterminate-lifecycle",
+      source: { file: "handlers/start.ts", symbol: "handleStart" },
+      origin: "declaration",
+      acquisition: "interactive-only-override",
+      schemaOwnership: "none",
+      cancellation: "stop",
+      automation: { noInput: "refuse", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "start lifecycle safety gate",
+      subprocess: "none",
+    },
+  ],
+}] satisfies readonly CommandInputDeclaration[];
 
 /** Whether courtesy confirmation is unavailable for this invocation. */
 function skipConfirm(context: InteractionContext, courtesyAccepted = false): boolean {

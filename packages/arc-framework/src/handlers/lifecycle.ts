@@ -26,6 +26,12 @@ import * as p from "@clack/prompts";
 import { z } from "zod";
 
 import {
+  declareCliOptionSite,
+  declareInteractionSite,
+  type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
+
+import {
   parseIdentifierList,
   parseMetaRecord,
   readActiveMetaCandidates,
@@ -356,24 +362,149 @@ export const RepointDesignCommandInputSchema = z.object({
 
 /** Registry contributions owned by lifecycle backlog commands. */
 export const lifecycleCommandInputRegistrations = [
-  { commandPath: "stub", schema: StubCommandInputSchema },
-  { commandPath: "decompose", schema: DecomposeCommandInputSchema },
-  { commandPath: "promote", schema: PromoteCommandInputSchema },
-  { commandPath: "demote", schema: DemoteCommandInputSchema },
-  { commandPath: "park", schema: ParkCommandInputSchema },
-  { commandPath: "resume", schema: ResumeCommandInputSchema },
-  { commandPath: "materialize", schema: MaterializeCommandInputSchema },
-  { commandPath: "activate", schema: ActivateCommandInputSchema },
-  { commandPath: "deactivate", schema: DeactivateCommandInputSchema },
-  { commandPath: "integrate", schema: IntegrateCommandInputSchema },
-  { commandPath: "reopen", schema: ReopenCommandInputSchema },
-  { commandPath: "abandon", schema: AbandonCommandInputSchema },
-  { commandPath: "archive", schema: ArchiveCommandInputSchema },
-  { commandPath: "teardown", schema: TeardownCommandInputSchema },
-  { commandPath: "set-stage", schema: SetStageCommandInputSchema },
-  { commandPath: "finalize", schema: FinalizeCommandInputSchema },
-  { commandPath: "repoint-design", schema: RepointDesignCommandInputSchema },
+  {
+    commandPath: "stub",
+    schema: StubCommandInputSchema,
+    schemaFields: {
+      "operand.name": "name",
+      "option.commitment": "commitment",
+      "option.priority": "priority",
+      "option.origin": "origin",
+      "option.design": "design",
+      "option.cohort": "cohort",
+      "option.class": "class",
+    },
+  },
+  {
+    commandPath: "decompose",
+    schema: DecomposeCommandInputSchema,
+    schemaFields: { "operand.origin": "origin", "option.cut-map": "cutMap", "option.finalize": "finalize" },
+  },
+  {
+    commandPath: "promote",
+    schema: PromoteCommandInputSchema,
+    schemaFields: { "operand.slug": "slug", "option.class": "class" },
+  },
+  { commandPath: "demote", schema: DemoteCommandInputSchema, schemaFields: { "operand.slug": "slug" } },
+  {
+    commandPath: "park",
+    schema: ParkCommandInputSchema,
+    schemaFields: { "operand.slug": "slug", "option.reason": "reason", "option.land": "land" },
+  },
+  {
+    commandPath: "resume",
+    schema: ResumeCommandInputSchema,
+    schemaFields: { "operand.slug": "slug", "option.here": "here" },
+  },
+  {
+    commandPath: "materialize",
+    schema: MaterializeCommandInputSchema,
+    schemaFields: { "operand.slug": "slug", "option.here": "here" },
+  },
+  {
+    commandPath: "activate",
+    schema: ActivateCommandInputSchema,
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.type": "type",
+      "option.task": "task",
+      "option.action": "action",
+    },
+  },
+  { commandPath: "deactivate", schema: DeactivateCommandInputSchema, schemaFields: { "operand.slug": "slug" } },
+  {
+    commandPath: "integrate",
+    schema: IntegrateCommandInputSchema,
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.last-completed": "lastCompleted",
+      "option.action": "action",
+    },
+  },
+  {
+    commandPath: "reopen",
+    schema: ReopenCommandInputSchema,
+    schemaFields: { "operand.slug": "slug", "option.keep-pr": "keepPr" },
+  },
+  { commandPath: "abandon", schema: AbandonCommandInputSchema, schemaFields: { "operand.slug": "slug" } },
+  {
+    commandPath: "archive",
+    schema: ArchiveCommandInputSchema,
+    schemaFields: { "operand.slug": "slug", "option.pr-url": "prUrl", "option.completed": "completed" },
+  },
+  {
+    commandPath: "teardown",
+    schema: TeardownCommandInputSchema,
+    schemaFields: {
+      "operand.name": "name",
+      "option.branch": "branch",
+      "option.husk": "husk",
+      "option.force": "force",
+    },
+  },
+  {
+    commandPath: "set-stage",
+    schema: SetStageCommandInputSchema,
+    schemaFields: { "operand.stage": "stage", "option.advance": "advance" },
+  },
+  {
+    commandPath: "finalize",
+    schema: FinalizeCommandInputSchema,
+    schemaFields: { "operand.fire-point": "firePoint", "option.class": "class" },
+  },
+  {
+    commandPath: "repoint-design",
+    schema: RepointDesignCommandInputSchema,
+    schemaFields: { "operand.event": "event" },
+  },
 ] as const satisfies readonly CommandInputRegistration[];
+
+/** Interaction policies owned by the lifecycle command adapters. */
+export const lifecycleCommandInputPolicyDeclarations = [
+  {
+    commandPath: "stub",
+    aliases: [],
+    sites: [
+      declareInteractionSite(
+        { file: "handlers/lifecycle.ts", kind: "prompt", callee: "p.select", occurrence: 1 },
+        {
+          acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+          automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--commitment <tier>"] },
+          mutationBoundary: "stub handler", subprocess: "none",
+        },
+      ),
+      declareInteractionSite(
+        { file: "handlers/lifecycle.ts", kind: "prompt", callee: "p.select", occurrence: 2 },
+        {
+          acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+          automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--priority <priority>"] },
+          mutationBoundary: "stub handler", subprocess: "none",
+        },
+      ),
+    ],
+  },
+  {
+    commandPath: "promote",
+    aliases: [],
+    sites: [declareInteractionSite(
+      { file: "handlers/lifecycle.ts", kind: "prompt", callee: "p.select", occurrence: 3 },
+      {
+        acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+        automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--class <value>"] },
+        mutationBoundary: "promote handler", subprocess: "none",
+      },
+    )],
+  },
+  {
+    commandPath: "abandon",
+    aliases: [],
+    sites: [declareCliOptionSite("yes", {
+      acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
+      mutationBoundary: "abandon handler", subprocess: "none",
+    })],
+  },
+] satisfies readonly CommandInputDeclaration[];
 
 /**
  * `arc stub <name>` — create a new backlog work unit at a committed tier. Refuses

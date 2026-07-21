@@ -38,6 +38,7 @@ import {
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import { resolveViewClock } from "../lib/view/clock.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -81,7 +82,27 @@ export const ViewCommandInputSchema = z.object({
 export const viewCommandInputRegistration = {
   commandPath: "view",
   schema: ViewCommandInputSchema,
+  schemaFields: {
+    "operand.kind": "kind",
+    "option.project": "project",
+    "option.current": "current",
+    "option.for": "forSlug",
+  },
 } satisfies CommandInputRegistration;
+
+/** Presenter-process policies owned by the view adapter. */
+export const viewCommandInputPolicyDeclarations = [{
+  commandPath: "view",
+  aliases: [],
+  sites: (["execFileAsync", "spawn"] as const).map((callee) => declareInteractionSite(
+    { file: "handlers/view.ts", kind: "subprocess", callee, occurrence: 1 },
+    {
+      acquisition: "presenter", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "render-directly", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "view subprocess boundary", subprocess: "presenter",
+    },
+  )),
+}] satisfies readonly CommandInputDeclaration[];
 
 /** Convert the command-owned active envelope into the neutral viewer target. */
 export function adaptActiveViewTarget(
