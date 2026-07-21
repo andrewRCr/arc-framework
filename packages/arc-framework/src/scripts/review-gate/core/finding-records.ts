@@ -42,7 +42,30 @@ export type NormalizedReviewFinding = z.infer<typeof NormalizedReviewFindingSche
 export const ProviderFindingSeveritySchema = z.enum(["critical", "high", "medium", "low", "info"]);
 export type ProviderFindingSeverity = z.infer<typeof ProviderFindingSeveritySchema>;
 
-/** Normalize provider-native severity only at an adapter boundary. */
+/**
+ * Detect an explicit provider polish marker.
+ *
+ * A bracketed tag counts anywhere; a bare term counts only where a line presents it as a marker, so
+ * prose that merely mentions the term — including a negation — is not treated as a classification.
+ *
+ * @param body - Provider-authored comment body
+ * @returns True when the body carries an explicit polish marker
+ */
+export function hasExplicitPurePolishMarker(body: string): boolean {
+  return /\[nit\]/iu.test(body)
+    || /(?:^|\n)[^\w\n]*(?:nitpick|pure[- ]polish)\b/iu.test(body);
+}
+
+/**
+ * Normalize provider-native severity only at an adapter boundary.
+ *
+ * Polish is retained only where the normalized severity admits it, so contradictory provider input
+ * yields the more severe classification instead of an unrepresentable one.
+ *
+ * @param providerSeverity - Provider-native severity label
+ * @param purePolish - Whether the provider marked the finding as pure polish
+ * @returns A representable classification
+ */
 export function normalizeProviderFindingClassification(
   providerSeverity: ProviderFindingSeverity,
   purePolish: boolean,
@@ -54,7 +77,7 @@ export function normalizeProviderFindingClassification(
       : "minor";
   return FindingClassificationSchema.parse({
     severity,
-    ...(purePolish ? { nit: true } : {}),
+    ...(purePolish && severity === "minor" ? { nit: true } : {}),
   });
 }
 

@@ -6,6 +6,7 @@ import type { GitHubRestClient } from "../../hosts/github/api/rest.js";
 import { resolveReviews, resolveThreads } from "../../hosts/github/native-review.js";
 import type { CodeRabbitApi, CodeRabbitRunContext, CodeRabbitSignal } from "./adapter.js";
 import {
+  hasExplicitPurePolishMarker,
   normalizeProviderFindingClassification,
 } from "../../core/finding-records.js";
 import type { ReviewSeverity } from "../../core/review-primitives.js";
@@ -110,10 +111,6 @@ export function parseCodeRabbitFindingSeverity(body: string): ReviewSeverity | n
     : normalizeProviderFindingClassification(providerSeverity, false).severity;
 }
 
-function isExplicitPurePolish(body: string): boolean {
-  return /(?:\[nit\]|\bnitpick\b|\bpure[- ]polish\b)/iu.test(body);
-}
-
 /** Concrete diagnostic-only GitHub observation boundary for the CodeRabbit provider adapter. */
 export class GitHubCodeRabbitObservationApi implements Pick<CodeRabbitApi, "readRunContext" | "readSignals" | "readCapacity"> {
   private readonly rest: GitHubRestClient;
@@ -199,7 +196,7 @@ export class GitHubCodeRabbitObservationApi implements Pick<CodeRabbitApi, "read
         botUserId: comment.actor.identity,
         locus: `${comment.path}:${line}`,
         severity,
-        ...(isExplicitPurePolish(comment.body) ? { nit: true as const } : {}),
+        ...(severity === "minor" && hasExplicitPurePolishMarker(comment.body) ? { nit: true as const } : {}),
         url: comment.url,
       }];
     }));

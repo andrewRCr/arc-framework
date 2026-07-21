@@ -7,6 +7,7 @@ import {
   LocalDispositionTerminalV2Schema,
   NormalizedReviewFindingSchema,
   ProviderNativeConversationClosureV2Schema,
+  hasExplicitPurePolishMarker,
   normalizeProviderFindingClassification,
 } from "../../../../../src/scripts/review-gate/core/finding-records.js";
 import { reduceNormalizedFindings } from "../../../../../src/scripts/review-gate/core/findings.js";
@@ -81,6 +82,37 @@ describe("normalized finding records", () => {
     expect(normalizeProviderFindingClassification("low", false)).toEqual({ severity: "minor" });
     expect(normalizeProviderFindingClassification("low", true)).toEqual({ severity: "minor", nit: true });
     expect(() => NormalizedReviewFindingSchema.parse({ ...finding, severity: "major" })).toThrow(/nit/iu);
+  });
+
+  it.each(["critical", "high", "medium"] as const)(
+    "drops polish rather than failing on contradictory %s input",
+    (providerSeverity) => {
+      const classification = normalizeProviderFindingClassification(providerSeverity, true);
+      expect(classification.nit).toBeUndefined();
+      expect(NormalizedReviewFindingSchema.parse({
+        findingId: finding.findingId,
+        locus: finding.locus,
+        evidenceUrlOrId: finding.evidenceUrlOrId,
+        ...classification,
+      })).toBeTruthy();
+    },
+  );
+
+  it.each([
+    "[nit] prefer the shorter form",
+    "Nitpick: prefer the shorter form",
+    "🧹 Nitpick comments (3)",
+    "> pure-polish — naming only",
+  ])("recognizes explicit polish marker %j", (body) => {
+    expect(hasExplicitPurePolishMarker(body)).toBe(true);
+  });
+
+  it.each([
+    "This is not a nitpick — it drops a required guard.",
+    "Beyond pure polish, this breaks the version contract.",
+    "The nitpick threshold does not apply to this finding.",
+  ])("does not treat prose mentioning polish as a marker: %j", (body) => {
+    expect(hasExplicitPurePolishMarker(body)).toBe(false);
   });
 
   it("reduces the registered finding shape and rejects reused source identities", () => {

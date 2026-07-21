@@ -1,7 +1,10 @@
 /** GitHub-backed hosted Codex review and clean-comment observations. */
 
 import { arrayAt, integerAt, objectAt, stringAt, timestampAt } from "../../core/validation.js";
-import { normalizeProviderFindingClassification } from "../../core/finding-records.js";
+import {
+  hasExplicitPurePolishMarker,
+  normalizeProviderFindingClassification,
+} from "../../core/finding-records.js";
 import type { ReviewSeverity } from "../../core/review-primitives.js";
 import type { GitHubGraphQLClient } from "../../hosts/github/api/graphql.js";
 import type { GitHubRestClient } from "../../hosts/github/api/rest.js";
@@ -49,10 +52,6 @@ export function parseCodexFindingSeverity(body: string): ReviewSeverity | null {
   return providerSeverity === null
     ? null
     : normalizeProviderFindingClassification(providerSeverity, false).severity;
-}
-
-function isExplicitPurePolish(body: string): boolean {
-  return /(?:\[nit\]|\bnitpick\b|\bpure[- ]polish\b)/iu.test(body);
 }
 
 /** Extract normalized reviewed-commit markers from a hosted-Codex comment. */
@@ -151,7 +150,9 @@ export class GitHubCodexObservationApi implements Pick<CodexApi, "readRunContext
         botUserId: comment.actor.identity,
         locus: `${comment.path}:${line}`,
         severity: findingSeverity,
-        ...(isExplicitPurePolish(comment.body) ? { nit: true as const } : {}),
+        ...(findingSeverity === "minor" && hasExplicitPurePolishMarker(comment.body)
+          ? { nit: true as const }
+          : {}),
         url: comment.url,
       }];
     }));
