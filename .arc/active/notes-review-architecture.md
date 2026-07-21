@@ -5,6 +5,7 @@
 - Scope and proportionality boundaries
 - Touched-surface map (task-gen scoping)
 - Key implementation loci
+- Pre-integration review record
 
 ## Scope and proportionality boundaries
 
@@ -84,3 +85,85 @@ marked project-only. Ripple is wide but individually small.
 - `.arc/system/methods/review-triage.md`, `.arc/system/methods/diff-review.md` — upgrade / rename.
 - `.arc/system/arc-config.yml` — `review.pre_merge` retires.
 - `.arc/system/extensions/{pre-pr-open,post-pr-open,pre-merge,pre-commit-review,pre-push-review}.md`.
+
+## Pre-integration review record
+
+### Why the review was chunked
+
+The aggregate change set (307 files, ~24.4k insertions) exceeds what any single AI review invocation can navigate;
+a whole-diff pass dilutes attention rather than covering the surface. The review was therefore decomposed into
+eight path-scoped passes against the base branch, reviewing the aggregate delta in bounded pieces. Merge topology
+was left untouched — one branch, one PR — so this is review decomposition, not a re-split into a mergeable stack.
+
+### Coverage
+
+Eight bounded passes over 10,789 lines covered all production code plus the shipped methodology: `src/lib`,
+`review-gate/{core,policy,runtime,hosts,providers}`, `scripts/classify-change.sh`, and `.arc/system`. Package-source
+mirror parity was established mechanically rather than re-reviewed: every Framework file touched here is
+byte-identical across both copies, with `arc-config.yml` diverging only as the intended Configurable
+package-default-vs-project-override split. WU planning artifacts were excluded as record, not change. Test
+directories were not separately reviewed; their coverage is asserted by the suite itself.
+
+### Outcome
+
+37 findings — 12 real, 6 advisory, 14 false, 5 settled by design review. Every finding was verified against source
+before disposition; no reviewer conclusion was adopted unverified. Two findings changed class under verification:
+one reported as a defect proved unreachable behind an exact-equality check upstream, and one reported narrowly
+proved broader than stated once its real-world path shapes were examined.
+
+Corrected in this work unit:
+
+- Provider `nit` detection matched the bare word anywhere in a comment body, and provider severity normalization
+  set the polish flag regardless of severity. Composed, a Critical provider comment containing that word produced
+  an invalid blocker-plus-polish record that threw at parse — breaking the observation pipeline. Both adapters
+  carried the first half verbatim.
+- The response-plan schema registered a kernel version inconsistent with its own payload version literal.
+- Normalized-finding conflict detection omitted the recurrence field, silently overwriting a disagreeing candidate.
+- The review-method activity boundary accepted prototype-bearing input, so inherited values could disable both
+  review methods without raising a diagnostic.
+- Project rubric dimensions were checked for uniqueness only among themselves, permitting collision with baseline
+  dimension identities at the augmentation boundary.
+- The local receipt store returned an array position instead of the ledger version on idempotent replay,
+  producing an inconsistent optimistic-concurrency token.
+- A carry derived from the lifecycle tail recorded the applicability identifier of a proof it did not rest on,
+  attributing coverage to an identifier whose target binding need not match.
+- Ownership grouping accepted cohort documents only directly beneath the planned and provisional roots, while the
+  surface-authority predicate accepts them at any depth under active, planned, or provisional. Because cohort
+  documents sit beside the work units they coordinate, every one of them nests a level deeper — so the grouping
+  branch matched none of the cohort documents that exist, and they resolved as unrecognized rather than ownerless.
+
+The non-author evaluator invariant, previously restated verbatim across three request-validation schemas, now has a
+single definition those schemas share — a change in structure only, with behavior unchanged.
+
+Routed onward (code paths with no production caller — `review-surface-binding` scope): frontline execution binds
+its accepted CLI version to a caller-supplied string rather than the executed binary; the before/after head check
+admits a return-to-origin mutation during a run; the GitHub coverage boundary never receives a byte-preserving
+executor, so its lossy fallback always runs.
+
+### Settled by design review
+
+Five findings turned on design intent rather than further reading, and were settled deliberately. Two became the
+corrections above. The remaining three are recorded as decisions so they are not re-litigated:
+
+- **A legacy receipt's embedded request needs no additional contract binding.** The sole consumer of the versioned
+  receipt parser classifies every version-1 receipt as legacy-audit-only before examining its content, so such a
+  receipt cannot become forward evidence regardless of what it carries. The quarantine is structural, and tightening
+  the parser would harden a path whose output is already inert.
+
+- **The ledger-envelope path needs no nested version check.** Its sibling cross-checks because it receives target,
+  requirement, and request as separate inputs that must agree; a ledger record is one self-contained envelope with
+  nothing to agree with, so the asymmetry is structural rather than an omission.
+
+- **Forward applicability stays bound surface-to-surface, not surface-to-target.** The proof is produced in process
+  by the host adapter on each observe cycle and cached for that cycle; it never round-trips through storage, so it
+  does not cross a trust boundary. The validator also receives no independently computed current surface, so the
+  binding could not be checked without widening its inputs. The residual exposure is producer correctness, which
+  belongs in the producer's own tests. **Revisit if lifecycle-tail proofs are ever persisted and replayed** — the
+  record is schema-registered, so that remains possible, and the binding becomes load-bearing the moment it happens.
+
+### Method observations
+
+The decomposition's own failure modes were recorded and routed to the work unit that owns review chunking, so the
+mechanism's cost profile is captured rather than rediscovered. In short: chunk cohesion predicts accuracy far
+better than chunk size, cross-boundary claims concentrate the false positives, a full type check refutes an entire
+class of them in seconds, and excluding tests from a chunk makes its verification-dimension findings unreliable.
