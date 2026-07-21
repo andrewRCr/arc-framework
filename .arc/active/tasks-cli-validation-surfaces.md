@@ -479,20 +479,10 @@ version-1 review-gate identity behind a repository-private frozen serializer.
 - _Goal:_ Existing receipts, attestation event ids, checkpoints, and activation candidates remain verifiable with
   their original bytes after the shared helper adopts kernel canonicalization.
 
-    - `[ ]` **7.1.a Extract the exact legacy serializer**
-        - Add repository-private `core/legacy-canonical-v1.ts` with the current `normalizePlainJson()` algorithm
-          copied exactly and exported only as `canonicalizeReviewGateV1`; do not add a package export or barrel
-          re-export.
-        - Preserve the existing `localeCompare()` comparator, unchanged strings, `Array.map()` traversal, ordinary
-          `{}` accumulator, and `JSON.stringify()` output. Do not harden or normalize this compatibility seam.
-        - Build `test-first` (one behavior at a time):
-            - pin representative recursive ASCII bytes and the current locale-sensitive key order;
-            - preserve composed and decomposed strings as distinct bytes and retain `JSON.stringify()`'s numeric
-              ordering for integer-like object keys;
-            - preserve lone-surrogate escaping, sparse-array holes serialized as `null`, and omission of an own
-              `__proto__` key through the ordinary-object accumulator;
-            - continue rejecting cycles, symbol keys, non-finite numbers, explicit `undefined`, functions, `bigint`,
-              and non-plain objects.
+    - `[x]` **7.1.a Extract the exact legacy serializer**
+        - Copied the pre-cutover normalizer unchanged into the repository-private version-1 serializer and pinned its
+          recursive bytes, ambient locale ordering, non-normalized strings, numeric-key reordering, lone-surrogate,
+          sparse-array, `__proto__`, and complete refusal behavior without exporting it through a barrel.
 
     - `[ ]` **7.1.b Route receipt and attestation identities through the frozen seam**
         - In `core/request-key.ts`, use `canonicalizeReviewGateV1()` for both private receipt identity helpers so
