@@ -1,7 +1,7 @@
 /** Architecture coverage for the layout subsystem's pure dependency boundary. */
 
 import { readFileSync, readdirSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
@@ -36,5 +36,37 @@ describe("layout import boundary", () => {
     }
 
     expect(forbidden).toEqual([]);
+  });
+
+  it("exposes layout consumers only through the downward public library barrel", () => {
+    const packageRoot = resolve(import.meta.dirname, "../../..");
+    const sourceRoot = join(packageRoot, "src");
+    const violations: { file: string; specifier: string }[] = [];
+    const directConsumers: string[] = [];
+
+    for (const file of sourceFiles(sourceRoot)) {
+      if (file.includes(`${join("lib", "layout")}${sep}`)) continue;
+      const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+      for (const statement of source.statements) {
+        if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) continue;
+        const specifier = statement.moduleSpecifier;
+        if (specifier === undefined || !ts.isStringLiteralLike(specifier)) continue;
+        const value = specifier.text;
+        if (!value.includes("layout/")) continue;
+
+        const sourcePath = relative(sourceRoot, file);
+        if (!value.endsWith("layout/index.js")) violations.push({ file: sourcePath, specifier: value });
+        if (sourcePath.startsWith(`commands${sep}`) || sourcePath.startsWith(`handlers${sep}`)) {
+          directConsumers.push(sourcePath);
+          if (!value.includes("lib/layout/index.js")) violations.push({ file: sourcePath, specifier: value });
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+    expect(directConsumers).toEqual(expect.arrayContaining([
+      join("commands", "init.ts"),
+      join("handlers", "start.ts"),
+    ]));
   });
 });

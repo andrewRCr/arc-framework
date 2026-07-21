@@ -119,6 +119,13 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(briefing).toContain("Integration Test Project");
   });
 
+  it("installs literal transformed outputs beneath the supplied root, independent of ambient cwd", () => {
+    expect(tempDir).not.toBe(process.cwd());
+    expect(result.filesWritten).toContain("reference/briefs/AGENT-BRIEF.PROJECT.md");
+    expect(result.filesWritten).toContain("system/rules/DEV-RULES.ARC.md");
+    expect(result.filesWritten).not.toContain("reference/briefs/AGENT-BRIEF.PROJECT.template.md");
+  });
+
   it("leaves no init-time token residuals in rendered files", async () => {
     const files = await listFiles(arcDir, { skipInternal: false });
     // Only check rendered files — non-template files may legitimately reference
@@ -676,6 +683,40 @@ describe("init integration (existing installation)", () => {
       expect(ufErr.whatToDo).toContain("arc join");
       expect(ufErr.whatToDo).toContain("arc update");
     }
+  });
+});
+
+describe("init integration — template path boundary", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await createTempRepo("arc-init-invalid-template-");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("rejects an unsafe enumerated source before creating installation files", async () => {
+    const unsafeRecipe: Recipe = {
+      include_files: ["../outside.template.md"],
+      prompts: [],
+      conditions: {},
+    };
+
+    await expect(runInit({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir,
+      internalTemplateDir,
+      recipe: unsafeRecipe,
+      prompts,
+      identityResult: "test-user",
+    })).rejects.toThrow();
+
+    await expect(stat(join(tempDir, ".arc"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(join(tempDir, "outside.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(join(tempDir, ".arc-init.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
 

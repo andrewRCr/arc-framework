@@ -396,36 +396,33 @@ dispositions in Phase 5.
 - _Outcome:_ Installation and update planning now share one validated binding transform without conflating package
   source identities, transformed destinations, rendering policy, classification, or manifest provenance.
 
-### `[ ]` **4.5 Preserve independent oracles and representative compatibility**
+### `[x]` **4.5 Preserve independent oracles and representative compatibility**
 
 - _Goal:_ Cross-module evidence demonstrates unchanged valid behavior without reimplementing earlier unit coverage
   or turning the resolver into its own oracle.
 
-    - `[ ]` **4.5.a Exercise installation-root integrations**
-        - Cover fresh install and update/reconfigure in separate integration or E2E cases using literal persisted
-          paths and public outputs.
-        - Include a non-repository ambient working directory so materialization cannot accidentally depend on
-          process `cwd` instead of the supplied root.
+    - `[x]` **4.5.a Exercise installation-root integrations**
+        - Fresh install now explicitly proves literal outputs land beneath a supplied temporary repository distinct
+          from ambient `cwd`; existing update and reconfigure integration/E2E cases remain green on literal paths.
 
-    - `[ ]` **4.5.b Exercise procedure-load integration**
-        - Cover planning, execution, and integration load-set workflow selection with independently authored expected
-          entries while preserving ordering and exact status-supplied pointers.
+    - `[x]` **4.5.b Exercise procedure-load integration**
+        - Confirmed planning, execution, and integration load-set projections against independently authored workflow
+          entries, including ordering, task-list slicing, and exact caller-supplied pointers.
 
-    - `[ ]` **4.5.c Exercise readiness integration**
-        - Cover readiness regeneration and staging end to end with byte-stable output, exact Git operands, and a
-          literal expected project-document path.
-        - Reuse lifecycle cases attached to Phase 3 rather than duplicating their full matrix.
+    - `[x]` **4.5.c Exercise readiness integration**
+        - Reused the real-Git archive transition to prove byte-stable readiness regeneration and the literal staged
+          project-document operand, alongside the focused lifecycle cases established in Phase 3.
 
-    - `[ ]` **4.5.d Exercise template install/update integration**
-        - Cover templated and untemplated install/update flows while asserting original source provenance and literal
-          transformed destinations.
-        - Include unsafe enumerated input rejection before filesystem writes.
+    - `[x]` **4.5.d Exercise template install/update integration**
+        - Validated templated and copy-as-is install/update flows with literal destinations and source provenance;
+          real-filesystem cases reject unsafe init and update inputs before creating or mutating installed files.
 
-    - `[ ]` **4.5.e Prove package and architecture compatibility**
-        - Verify the public layout barrel is packaged through the existing build, no new runtime dependency lands,
-          and kernel JSON Schema generation does not publish layout roots.
-        - Extend import-boundary tests so commands and handlers consume downward into the pure/injectable library
-          layer and layout remains free of lifecycle, discovery, user-root, prompt, and storage imports.
+    - `[x]` **4.5.e Prove package and architecture compatibility**
+        - Build metadata includes the public layout barrel with no dependency-manifest change, kernel schema output
+          remains vocabulary-only, and architecture tests enforce both barrel-only consumers and the pure layout graph.
+
+- _Outcome:_ Representative unit, integration, E2E, build, schema, and architecture evidence closes compatibility
+  without making the resolver an oracle for literal destinations, Git operands, persisted bytes, or workflow entries.
 
 ## **Phase 5:** Deterministic migration proof and residual ownership
 
