@@ -219,8 +219,11 @@ describe("GitHub host read adapter", () => {
     }).resolveChangeRequest(changeRequest.hostRef);
 
     expect(resolved.context.changedPaths).toEqual([
-      { status: "copied", path: "src/copy.ts", previousPath: "src/original.ts" },
-      { status: "type-changed", path: "src/link.ts" },
+      {
+        status: "copied", path: "src/copy.ts", previousPath: "src/original.ts",
+        oldMode: "100644", newMode: "100644",
+      },
+      { status: "type-changed", path: "src/link.ts", oldMode: "100644", newMode: "120000" },
     ]);
   });
 
