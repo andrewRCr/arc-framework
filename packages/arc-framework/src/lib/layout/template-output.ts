@@ -10,6 +10,12 @@ import {
 /** Binding marker removed when it immediately precedes a final extension. */
 export const TEMPLATE_BINDING_SUFFIX = ".template";
 
+/** One validated template source and its transformed output path. */
+export interface TemplateOutputBinding {
+  templatePath: string;
+  outputPath: TemplateOutputPath;
+}
+
 /**
  * Transform a validated package-template-relative path to its output-relative role.
  *
@@ -32,4 +38,29 @@ export function resolveTemplateOutputPath(templatePath: string): TemplateOutputP
     });
   }
   return output.data;
+}
+
+/**
+ * Resolve a template file list while rejecting non-injective output transforms.
+ *
+ * @param templatePaths - Candidate paths relative to the package template root
+ * @returns Validated source-to-output bindings in input order
+ * @throws {@link LayoutError} when a path is unsafe or two sources map to one output
+ */
+export function resolveTemplateOutputBindings(
+  templatePaths: readonly string[],
+): TemplateOutputBinding[] {
+  const sourcesByOutput = new Map<TemplateOutputPath, string>();
+  return templatePaths.map((templatePath) => {
+    const outputPath = resolveTemplateOutputPath(templatePath);
+    const previousSource = sourcesByOutput.get(outputPath);
+    if (previousSource !== undefined) {
+      throw new LayoutError(
+        `Template paths "${previousSource}" and "${templatePath}" map to the same output "${outputPath}"`,
+        "layout.invalid-template-path",
+      );
+    }
+    sourcesByOutput.set(outputPath, templatePath);
+    return { templatePath, outputPath };
+  });
 }

@@ -546,6 +546,31 @@ describe("runInit", () => {
       prompts: DEFAULT_PROMPTS,
       identityResult: "andrew",
     })).rejects.toThrow();
+    expect(io.exclusiveCreate).not.toHaveBeenCalled();
+    expect(io.removeFile).not.toHaveBeenCalled();
+    expect(io.readFile).not.toHaveBeenCalled();
+    expect(io.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("fresh mode: rejects colliding template outputs before acquiring the init lock", async () => {
+    const recipe: Recipe = {
+      include_files: ["reference/foo.md", "reference/foo.template.md"],
+      prompts: minimalRecipe.prompts,
+      conditions: {},
+    };
+    const io = mockIO({});
+
+    await expect(runInit({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
+      recipe,
+      prompts: DEFAULT_PROMPTS,
+      identityResult: "andrew",
+    })).rejects.toMatchObject({ code: "layout.invalid-template-path" });
+    expect(io.exclusiveCreate).not.toHaveBeenCalled();
+    expect(io.removeFile).not.toHaveBeenCalled();
     expect(io.readFile).not.toHaveBeenCalled();
     expect(io.writeFile).not.toHaveBeenCalled();
   });

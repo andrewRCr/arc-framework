@@ -5,6 +5,7 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   LayoutError,
   TEMPLATE_BINDING_SUFFIX,
+  resolveTemplateOutputBindings,
   resolveTemplateOutputPath,
   type TemplateOutputPath,
 } from "../../../src/lib/layout/index.js";
@@ -40,4 +41,19 @@ describe("resolveTemplateOutputPath", () => {
       expect((thrown as Error).cause).toBeDefined();
     },
   );
+});
+
+describe("resolveTemplateOutputBindings", () => {
+  it("returns validated source-to-output bindings", () => {
+    expect(resolveTemplateOutputBindings(["nested/plain.md", "nested/rendered.template.md"]))
+      .toEqual([
+        { templatePath: "nested/plain.md", outputPath: "nested/plain.md" },
+        { templatePath: "nested/rendered.template.md", outputPath: "nested/rendered.md" },
+      ]);
+  });
+
+  it("rejects two template sources that transform to the same output path", () => {
+    expect(() => resolveTemplateOutputBindings(["nested/file.md", "nested/file.template.md"]))
+      .toThrow(expect.objectContaining({ code: "layout.invalid-template-path" }));
+  });
 });

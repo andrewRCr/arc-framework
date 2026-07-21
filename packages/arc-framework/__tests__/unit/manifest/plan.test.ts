@@ -237,5 +237,16 @@ describe("buildChangePlan", () => {
         expect(thrown).toMatchObject({ code: "layout.invalid-template-path" });
       },
     );
+
+    test("rejects template paths that transform to the same output path", () => {
+      const manifest = makeManifest({});
+
+      expect(() => buildChangePlan(
+        manifest,
+        ["reference/foo.md", "reference/foo.template.md"],
+        {},
+        new Set(),
+      )).toThrow(expect.objectContaining({ code: "layout.invalid-template-path" }));
+    });
   });
 });

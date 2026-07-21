@@ -41,7 +41,7 @@ import { applyExecutableInstallPermissions } from "../lib/install-permissions.js
 import {
   materializeArcPath,
   resolveArcPath,
-  resolveTemplateOutputPath,
+  resolveTemplateOutputBindings,
 } from "../lib/layout/index.js";
 
 // --- Types ---
@@ -138,6 +138,12 @@ export async function runInit(
     return null;
   }
 
+  // Validate the complete template projection before acquiring the init lock
+  // or performing any other filesystem effect.
+  const config = buildConfigMap(prompts);
+  const templateFiles = resolveFileList(recipe, config);
+  const templateBindings = resolveTemplateOutputBindings(templateFiles);
+
   const lockPath = join(cwd, ".arc-init.lock");
 
   // Acquire the init lock. While another `arc init` holds the lock, installed
@@ -176,15 +182,7 @@ export async function runInit(
     const arcDir = materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" }));
 
     // Build maps
-    const config = buildConfigMap(prompts);
     const tokens = buildTokenMap(prompts);
-
-    // Resolve file list
-    const templateFiles = resolveFileList(recipe, config);
-    const templateBindings = templateFiles.map((templatePath) => ({
-      templatePath,
-      outputPath: resolveTemplateOutputPath(templatePath),
-    }));
 
     // Build config_key overrides for arc-config.yml
     const configKeyOverrides = buildConfigKeyOverrides(prompts);
