@@ -311,15 +311,11 @@ transaction boundary before operation composers consume it.
           outside the exact record lock, reruns state and directed Git guards under ownership, and permits only one
           recordless-primary contender to apply local state.
 
-    - `[ ]` **4.1.b Extract generic linked-worktree creation and shared setup seams**
-        - Extract `packages/arc-framework/src/lib/git/linked-worktree.ts` with `createLinkedWorktree()`: a
-          target-agnostic configured-location plus `git worktree add` primitive that returns a proof-bearing creation
-          receipt and does not infer or write WU/transient provenance.
-        - Extract reusable post-create and registered harness-directory setup from the existing WU mutator without
-          changing `reconcileWorktree()` behavior or migrating its callers in this increment.
-        - Build `test-first` (one behavior at a time):
-            - Cover configured fresh/existing-branch creation receipts, path collision, `git worktree add` failure,
-              setup success/failure, and proof that the generic primitive writes no WU/transient provenance.
+    - `[x]` **4.1.b Extract generic linked-worktree creation and shared setup seams**
+        - Added a provenance-free configured-placement/`git worktree add` primitive with exact fresh/existing branch
+          receipts and typed collision or Git-failure outcomes. Post-create execution and registered harness copying
+          now live in a reusable setup boundary consumed by the unchanged WU mutator; focused tests prove setup
+          ordering/failure containment and that generic creation writes no ownership marker.
 
     - `[ ]` **4.1.c Expose the renamed WU wrapper behind a compatibility alias**
         - Rename the WU-specific API/module to `reconcileWorkUnitWorktree()` and compose its fresh-spawn arm through

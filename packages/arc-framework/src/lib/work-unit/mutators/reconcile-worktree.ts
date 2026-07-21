@@ -36,10 +36,9 @@
  */
 
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
-import { parseRegisteredHarnessDirs } from "../../git/worktree-harness-dirs.js";
 import { isWorktreeClean } from "../../git/worktree-cleanup.js";
 import {
   ensureWorktreeMarkerIgnored,
@@ -47,6 +46,7 @@ import {
 } from "../../git/worktree-marker.js";
 import { resolveWorktreeLocation } from "../../git/worktree-location.js";
 import { resolvePrimaryWorktreePath } from "../../git/worktree-roster.js";
+import { setupLinkedWorktree } from "../../git/linked-worktree-setup.js";
 import { localPathContains } from "../../local-path-identity.js";
 import {
   reconcileLinkedIdentityGlobalUserSurfaces,
@@ -174,10 +174,6 @@ export type ReconcileWorktreeResult =
   | { mutation: "spawn"; worktreePath: string; branch: string; postCreateNotice?: string }
   | { mutation: "teardown"; worktreePath: string; locusHopped: boolean };
 
-/** Notice surfaced when the project has not configured its worktree provisioning script. */
-const POST_CREATE_UNCONFIGURED_NOTICE =
-  "No `worktree.post_create` script configured; deps must be provisioned before running ARC commands in this worktree.";
-
 /**
  * Whether `locus` sits inside (or at) `worktreePath` — the self-teardown test.
  * A non-`..`, non-absolute relative path means `locus` is contained.
@@ -186,38 +182,8 @@ export function isSelfTeardown(worktreePath: string, locus: string): Promise<boo
   return localPathContains(worktreePath, locus);
 }
 
-/** Shell invocation for a project-supplied post-create script. */
-function postCreateShellCommand(script: string): { cmd: string; args: string[] } {
-  return process.platform === "win32"
-    ? { cmd: "cmd.exe", args: ["/d", "/s", "/c", script] }
-    : { cmd: "sh", args: ["-c", script] };
-}
-
 function isErrnoException(err: unknown): err is { code?: string } {
   return typeof err === "object" && err !== null && "code" in err;
-}
-
-async function copyRegisteredHarnessDirs(
-  ctx: ReconcileWorktreeContext,
-  params: {
-    primaryWorktreePath: string | undefined;
-    worktreePath: string;
-    registeredHarnessDirs: string | undefined;
-  },
-): Promise<void> {
-  const dirs = parseRegisteredHarnessDirs(params.registeredHarnessDirs);
-  if (dirs.length === 0) return;
-
-  const primaryWorktreePath = params.primaryWorktreePath ?? (await resolvePrimaryWorktreePath(ctx.exec));
-  if (primaryWorktreePath === null) {
-    throw new Error("could not resolve the primary worktree path to copy registered harness dirs");
-  }
-
-  for (const dir of dirs) {
-    const source = join(primaryWorktreePath, dir);
-    if (!(await ctx.fs.directoryExists(source))) continue;
-    await ctx.fs.copyDirectory(source, join(params.worktreePath, dir));
-  }
 }
 
 /**
@@ -286,22 +252,10 @@ export async function reconcileWorktree(
         ? ["worktree", "add", worktreePath, op.branch]
         : ["worktree", "add", worktreePath, "-b", op.branch, op.base];
     await ctx.exec("git", add);
-    const postCreateScript = op.postCreateScript?.trim();
-    let postCreateNotice: string | undefined;
-    if (postCreateScript) {
-      const { cmd, args } = postCreateShellCommand(postCreateScript);
-      try {
-        await ctx.exec(cmd, args, { cwd: worktreePath });
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        throw new Error(`worktree.post_create failed: ${detail}`, { cause: err });
-      }
-    } else {
-      postCreateNotice = POST_CREATE_UNCONFIGURED_NOTICE;
-    }
-    await copyRegisteredHarnessDirs(ctx, {
-      primaryWorktreePath: op.primaryWorktreePath,
+    const setup = await setupLinkedWorktree(ctx, {
       worktreePath,
+      primaryWorktreePath: op.primaryWorktreePath,
+      postCreateScript: op.postCreateScript,
       registeredHarnessDirs: op.registeredHarnessDirs,
     });
     await ensureWorktreeMarkerIgnored(worktreePath, ctx.exec, ctx.fs);
@@ -315,7 +269,7 @@ export async function reconcileWorktree(
       mutation: "spawn",
       worktreePath,
       branch: op.branch,
-      ...(postCreateNotice === undefined ? {} : { postCreateNotice }),
+      ...setup,
     };
   }
 
