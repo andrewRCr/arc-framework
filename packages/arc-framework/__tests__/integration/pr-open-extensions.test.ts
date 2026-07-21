@@ -342,6 +342,19 @@ describe("PR-open lifecycle extensions", () => {
     expect(workflow).toContain("invalid or ambiguous tail");
   });
 
+  it("recomposes review coordination after every authority-bearing scope change", async () => {
+    const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
+    for (const invalidator of [
+      "approved fix", "base merge", "lifecycle-tail identity", "provider-event identity", "policy identity",
+    ]) expect(workflow).toContain(invalidator);
+    expect(workflow).toContain("typed applicability proof");
+    expect(workflow).toContain("interacting reconcile");
+    expect(workflow).toContain("discard the composition basis");
+    for (const arm of ["stale", "exempt", "recommended", "required", "attention"]) {
+      expect(workflow).toContain(`\`${arm}\``);
+    }
+  });
+
   it("keeps project actions populated but inactive until cutover", async () => {
     for (const name of ["post-pr-open", "pre-merge"]) {
       const project = await readFile(resolve(projectArc, `system/extensions/${name}.md`), "utf8");

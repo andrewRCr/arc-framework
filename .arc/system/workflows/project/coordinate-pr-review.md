@@ -17,7 +17,9 @@ closure authority.
 ## 1. Run the Typed Action Loop
 
 Pass the explicit `hostRef` to each repository launcher; the launchers resolve and validate the remaining canonical
-coordinates. Keep the resulting scope unchanged for one loop iteration:
+coordinates. Bind one loop iteration to the canonical target and head, policy identity, lifecycle-tail identity, and
+provider-event identity. An approved fix, base merge, or change to any bound identity invalidates that scope: re-read
+the canonical target and routing result before another action.
 
 1. Run `npm run review-gate:next-action -- <hostRef>` and parse its JSON contract. Never infer an action from summary
    prose.
@@ -30,6 +32,19 @@ coordinates. Keep the resulting scope unchanged for one loop iteration:
 4. On `terminal: success`, continue to § 4. On `attention` or an await failure/attention result, enter § 2. On
    `stale-head`, recompose the full `openedChangeRequest` and restart. On timeout, re-read `next-action` before
    deciding whether to wait again. Authentication, host, or malformed-projection results stop for operator repair.
+
+Dispatch the current normalized routing/controller arm without weakening it:
+
+- `stale` — discard the loop scope and recompose from canonical state.
+- `exempt` — skip review request mechanics and await current-head CI readiness.
+- `recommended` — keep an unavailable or failed review visible but non-blocking; coordinate the admitted source when
+  one is selected.
+- `required` — block until the exact requirement is satisfied or an authoritative decision changes it.
+- `attention` — enter § 2 for findings; otherwise stop on the typed operator-repair reason.
+
+Treat any carried lifecycle or integration state as a bound composition basis. An approved substantive fix or an
+interacting reconcile must discard the composition basis. Carry only when a typed applicability proof establishes that
+the reviewed work-unit delta is unchanged; otherwise recompose it from the current target, policy, and source state.
 
 This is the `next-action` → `perform-action` → `await` → canonical re-entry loop. It is idempotent from both
 `post-pr-open` and final `pre-merge`; no arm bypasses the controller.
@@ -60,8 +75,7 @@ planner state:
 
 After a head update, recompose the exact scope and return to § 1. The controller decides whether full or incremental
 coverage is admissible and exposes any actor-owned trigger through `next-action`; never synthesize a command from
-provider state or prose. Run the resulting typed action/wait loop, then re-enter from canonical state. A changed head
-invalidates the loop scope before any action or settlement decision.
+provider state or prose. Run the resulting typed action/wait loop, then re-enter from canonical state.
 
 ## 3. Close Findings With Authority
 

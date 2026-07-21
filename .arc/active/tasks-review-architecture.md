@@ -641,12 +641,12 @@ provisional integration candidate to compose, reconcile, suspend, and re-enter b
           thread-state handles with declared resolution capability, while provider-native findings return reply,
           thread-state, and decisive-review handles without acquiring controller closure authority.
 
-    - `[ ]` **6.1.c Recompose after every head or policy change**
-        - Invalidate the loop scope after a fix, base merge, lifecycle tail, provider event, or policy identity
-          change; re-read canonical target and route before another action.
-        - Invalidate a bound composition basis after a substantive fix or interacting reconcile; carry it only when
-          typed applicability proves the WU delta unchanged.
-        - Extend project workflow/controller tests for stale, exempt, recommended, required, and attention arms.
+    - `[x]` **6.1.c Recompose after every head or policy change**
+        - The coordinator now binds each iteration to canonical target, policy, lifecycle-tail, and provider-event
+          identities; every authority-bearing change forces canonical rerouting before another action.
+        - Substantive fixes and interacting reconciles discard the composition basis, while carry-forward requires a
+          typed applicability proof that the reviewed work-unit delta is unchanged.
+        - Project contracts cover the stale, exempt, recommended, required, and attention dispatch arms.
 
     - `[ ]` **6.1.d Coordinate source-neutral independent analysis**
         - Consume routing plus explicit `local | hosted | both` channel policy, materialize the exact
