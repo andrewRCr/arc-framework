@@ -138,6 +138,10 @@ From the pushed branch, compose the exact aggregate review target and canonical 
 - `offer` — surface its preparation or authorization action; execute only when accepted and the carrier is ready.
 - `attempt` — prepare the registered source and run [`frontline-review`][frontline-review] against the exact target.
 
+Resolve `frontline-run` through `ReviewOperationStateStore` before execution. Reuse only an unchanged exact
+target/source/policy/generation binding; otherwise invalidate it. Publish pending state before the carrier effect and
+the normalized outcome after it. This operational record never enters review receipts or gate reduction.
+
 Route normalized findings through [`review-response`][review-response]. Apply only the approved fix set, run Tier 1
 quality gates, commit through the applicable interlock, and push through the workflow-wide push contract. After every
 persisted fix, recompose the exact target and resolve frontline routing again; run only the bounded follow-up the

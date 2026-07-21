@@ -604,13 +604,11 @@ that shapes review spend without producing satisfying evidence.
           and bounded reroute cycle before PR resolution; merge lanes remain presentation-only and partial-protection
           direct-base Errands stay outside the PR-only path.
 
-    - `[ ]` **5.4.c Surface frontline outcome without gate claims**
-        - Carry clean/findings/unavailable/cap results into publication orientation for attention/spend decisions,
-          but never emit a receipt or weaken a required independent-analysis obligation.
-        - Persist the registered `frontline-run` variant through `ReviewOperationStateStore`, keyed by exact target,
-          source, and generation; unchanged-target retries reuse it, head/source/policy/generation changes invalidate
-          it, and gate reduction rejects it.
-        - Remove provider-specific commands and billing prose from shipped workflow bodies.
+    - `[x]` **5.4.c Surface frontline outcome without gate claims**
+        - Added deterministic exact-target/source/generation operation keys, source-binding and policy invalidation,
+          pending-before-effect plus terminal outcome publication, unchanged-binding replay, and fail-closed identity
+          conflicts through `ReviewOperationStateStore`. Publication surfaces remain provider-neutral and advisory,
+          while gate reduction now validates and rejects non-evidence records at runtime.
 
     - `[ ]` **5.4.d Validate extension and publication contracts**
         - Extend `pr-open-extensions`, `review-gate-workflows`, framework-sync, and relevant Errand/WU workflow tests

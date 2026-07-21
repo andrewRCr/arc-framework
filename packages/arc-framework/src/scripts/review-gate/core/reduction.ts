@@ -5,7 +5,7 @@ import { deriveReviewGateAction, type ReviewGateAction } from "./next-action.js"
 import { applyRequiredOverride, COMMAND_RECEIPT_SOURCE } from "./command-receipts.js";
 import type { NormalizedChangeRequest, ReviewRequirement, SourceKind } from "./contracts.js";
 import { reduceCoverage } from "./coverage.js";
-import type { Evidence } from "./evidence.js";
+import { parseEvidence, type Evidence } from "./evidence.js";
 import {
   REVIEW_SEMANTICS_VERSION,
   type GateProjection,
@@ -189,6 +189,7 @@ function policyProjection(decision: ReviewGatePolicyDecision): GateProjection["p
 /** Reduce one canonical self-hosting snapshot into the next request and neutral gate projection. */
 export function reduceReviewGate(input: ReviewGateReductionInput): GateReductionDecision {
   const policyDecision = input.policyDecision;
+  const normalizedEvidence = input.evidence.map(parseEvidence);
   const inconsistencies = [...input.inconsistencies];
   const verdictRequirements: VerdictRequirement[] = [];
   const projectionEvidence: GateProjection["evidence"] = [];
@@ -198,7 +199,7 @@ export function reduceReviewGate(input: ReviewGateReductionInput): GateReduction
   for (const policyRequirement of policyDecision.requirements) {
     const requirement = applyRequiredOverride(policyRequirement, input.receipts);
     const receipts = input.receipts.filter((receipt) => receiptCurrent(requirement, receipt));
-    const evidence = input.evidence.filter((item) => item.requirementId === requirement.id
+    const evidence = normalizedEvidence.filter((item) => item.requirementId === requirement.id
       && evidenceQualified(requirement, item, input.qualifications));
     const settlementReceipts = input.receipts.filter((receipt) => receiptPolicyRelevant(requirement, receipt));
     const coverage = reduceCoverage({

@@ -19,7 +19,7 @@ export const FrontlineRunStateSchema = z.strictObject({
   targetId: CanonicalDigestSchema,
   sourceIdentity: IdentifierSchema,
   generation: z.number().int().nonnegative(),
-  outcome: z.enum(["pending", "clean", "findings", "failed", "unavailable"]),
+  outcome: z.enum(["pending", "clean", "findings", "failed", "unavailable", "pass-cap-exhausted"]),
   passCount: z.number().int().nonnegative(),
   policyVersion: CanonicalDigestSchema,
   sourceBindingId: CanonicalDigestSchema,

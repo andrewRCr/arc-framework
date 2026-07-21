@@ -229,6 +229,27 @@ function waivedReceipt(policy: SelfHostingPolicy): ReviewReceipt {
 }
 
 describe("self-hosting gate reduction", () => {
+  it("rejects frontline operation state at the evidence boundary", () => {
+    const frontlineRun = {
+      schemaVersion: 1,
+      semanticsVersion: "review-operation/v1",
+      operationId: "frontline-1",
+      updatedAt: "2026-07-20T20:00:00Z",
+      kind: "frontline-run",
+      targetId: `sha256:${"a".repeat(64)}`,
+      sourceIdentity: "review-cli",
+      generation: 0,
+      outcome: "clean",
+      passCount: 1,
+      policyVersion: `sha256:${"b".repeat(64)}`,
+      sourceBindingId: `sha256:${"c".repeat(64)}`,
+    };
+
+    expect(() => reduceSelfHostingGate(input({
+      evidence: [frontlineRun as unknown as Evidence],
+    }))).toThrow(/evidence/iu);
+  });
+
   it("reduces only normalized evidence recovered from authenticated receipt envelopes", () => {
     const normalized = evidence();
     const attestation = createReceipt({
