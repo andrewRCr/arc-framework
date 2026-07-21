@@ -508,35 +508,40 @@ layout hit has exactly one semantic owner.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source and test typechecks; 537 passing test files with
+  7,104 passing tests and one environment-gated skip; the 10,265-hit layout migration assertion; and build passed.
+- _Success criteria:_ All 11 criteria met. Adversarial verification exposed false root-only classifications; the
+  missed semantic constructors were migrated and the index-pinned ledger was refreshed to the corrected universe.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The public layout subsystem exposes strict schemas, derived types, nine isolated registry roots, pure
+- `[x]` The public layout subsystem exposes strict schemas, derived types, nine isolated registry roots, pure
   semantic projection across project- and contributor-active scopes, contained native materialization, validated
   template transformation, and only the four specified local error codes without introducing kernel or
   storage-policy coupling.
-- `[ ]` Every semantic address projects to the current canonical POSIX path, every unsafe operand and native-root
+- `[x]` Every semantic address projects to the current canonical POSIX path, every unsafe operand and native-root
   escape is rejected, and canonical Git, persisted, digest, and wire values never contain host separators.
-- `[ ]` Configured identity reads preserve exact bytes and distinguish absence from invalid presence; status,
+- `[x]` Configured identity reads preserve exact bytes and distinguish absence from invalid presence; status,
   recovery, and readiness callers retain their established missing/error behavior while rejecting invalid identity
   before user-path construction.
-- `[ ]` Covered lifecycle, cohort, archive, procedure, readiness, template, and user-document producers consume the
+- `[x]` Covered lifecycle, cohort, archive, procedure, readiness, template, and user-document producers consume the
   resolver while exact discovery, record, manifest, and configured-pointer paths remain authoritative.
-- `[ ]` Project- and contributor-active viewing resolve conventional siblings from branded identity and placement,
+- `[x]` Project- and contributor-active viewing resolve conventional siblings from branded identity and placement,
   preserve exact pointers, and leave the agent-facing `ActiveSessionInitResult` serialization unchanged.
-- `[ ]` The final index-pinned ledger binds the canonical class inventory and accounts for every hit in all fifteen
+- `[x]` The final index-pinned ledger binds the canonical class inventory and accounts for every hit in all fifteen
   selected classes exactly once, rejects evidence, canonical-byte, or member-set drift, and reports deterministic
   residual counts and semantic owners.
-- `[ ]` The tracked-planning Git packet introduces no layout-owned executor; hook and procedure residuals remain
+- `[x]` The tracked-planning Git packet introduces no layout-owned executor; hook and procedure residuals remain
   explicitly owned and the existing `GitExec` relocation seam stays authoritative.
-- `[ ]` Golden expectations remain independent of the resolver under test, and unit plus representative integration
+- `[x]` Golden expectations remain independent of the resolver under test, and unit plus representative integration
   coverage exercises all address families, invalid inputs, identity behavior, registry composition, native
   materialization, consumer migrations, and residual enforcement.
-- `[ ]` No storage mode, tracking boolean, lifecycle inference, existence probe, worktree-root policy, procedure
+- `[x]` No storage mode, tracking boolean, lifecycle inference, existence probe, worktree-root policy, procedure
   identity, reverse parser, generic descendant join, or reusable compatibility shim enters the layout API.
-- `[ ]` All quality gates pass (tests, linting, type checking, shell lint where applicable, Markdown linting, and
+- `[x]` All quality gates pass (tests, linting, type checking, shell lint where applicable, Markdown linting, and
   build).
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.

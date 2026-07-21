@@ -22,6 +22,7 @@ import {
 
 interface UserSurfacePaths {
   identityGlobalPath: (...segments: readonly string[]) => string;
+  workingMemoryPath: string;
 }
 
 export interface ViewArtifactDependencies {
@@ -86,8 +87,10 @@ async function resolveViewArtifactUnchecked(
       cwd: options.cwd,
       identity: options.identity,
     });
-    const filename = kind === "working-memory" ? "WORKING-MEMORY.md" : "USER-INBOX.md";
-    return presentOrAbsent(kind, surfaces.identityGlobalPath(filename), null, dependencies);
+    const path = kind === "working-memory"
+      ? surfaces.workingMemoryPath
+      : surfaces.identityGlobalPath("USER-INBOX.md");
+    return presentOrAbsent(kind, path, null, dependencies);
   }
 
   const target = await resolveTarget(options, dependencies);

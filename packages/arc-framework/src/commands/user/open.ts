@@ -8,9 +8,11 @@
  */
 
 import { rm } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { DirEntry } from "../../lib/git/index.js";
+import { SlugSchema } from "../../lib/kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../../lib/layout/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import type { UserIOContext, UserOpenOptions } from "./types.js";
 
@@ -26,11 +28,15 @@ import type { UserIOContext, UserOpenOptions } from "./types.js";
  */
 export async function runUserOpen(options: UserOpenOptions): Promise<void> {
   const { cwd, io, identity, wuName, internalTemplateDir, sessionNotesSeed } = options;
-  const wuDir = join(cwd, ".arc", "user", identity, wuName);
+  const seedPath = materializeArcPath(cwd, resolveArcPath({
+    kind: "user-document",
+    identity: SlugSchema.parse(identity),
+    document: { kind: "session-notes", workUnit: SlugSchema.parse(wuName) },
+  }));
+  const wuDir = dirname(seedPath);
 
   await ensureDir(wuDir, io.mkdir);
 
-  const seedPath = join(wuDir, "SESSION-NOTES.md");
   if (await fileExists(io, seedPath)) {
     return;
   }

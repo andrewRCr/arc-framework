@@ -64,6 +64,15 @@ import {
 
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
+function projectActiveMetaPath(slugValue: string) {
+  return resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: SlugSchema.parse(slugValue),
+    artifact: "meta",
+  });
+}
+
 export interface StartOptions {
   /** Cold-start in place (the current worktree) instead of spawning a new one. */
   here?: boolean;
@@ -320,7 +329,7 @@ async function createNew(
       `Work unit: ${r.wuName}`,
       `Branch:    ${r.branch}`,
       `Worktree:  ${r.worktreePath}`,
-      `Meta:      ${r.worktreePath}/.arc/active/meta-${r.wuName}.md`,
+      `Meta:      ${materializeArcPath(r.worktreePath, projectActiveMetaPath(r.wuName))}`,
     ].join("\n"),
     "Spawned",
   );
@@ -336,7 +345,7 @@ async function createNew(
   const ceremony = await commitAndPushStartCeremony(ctx, {
     cwd: r.worktreePath,
     branch: r.branch,
-    stagePaths: [`.arc/active/meta-${r.wuName}.md`, ROADMAP_PATH],
+    stagePaths: [projectActiveMetaPath(r.wuName), ROADMAP_PATH],
     message: buildCreateNewCeremonyCommitMessage(r.wuName),
   });
   if (!ceremony.ok) {
@@ -538,7 +547,7 @@ async function graduate(
     const ceremony = await commitAndPushStartCeremony(ctx, {
       cwd: result.worktreePath,
       branch: result.branch,
-      stagePaths: [`.arc/active/meta-${wuName}.md`, ROADMAP_PATH],
+      stagePaths: [projectActiveMetaPath(wuName), ROADMAP_PATH],
       message: buildGraduateCeremonyCommitMessage(wuName),
     });
     if (!ceremony.ok) {
@@ -697,7 +706,7 @@ async function coldStart(
   const lines = [
     `Work unit: ${r.wuName}`,
     `Branch:    ${r.branch}${r.cutFromBase ? ` (cut off protected base ${r.cutFromBase})` : ""}`,
-    `Meta:      .arc/active/meta-${r.wuName}.md`,
+    `Meta:      ${projectActiveMetaPath(r.wuName)}`,
   ];
   if (r.origin) lines.push(`Origin:    ${r.origin}`);
   if (r.design) lines.push(`Design:    ${r.design}`);

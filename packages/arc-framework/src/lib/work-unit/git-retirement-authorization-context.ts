@@ -16,6 +16,8 @@ import {
 } from "../canonical/content-digest.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import { artifactGroupDigest, preparationId, receiptId, type RetirementTransition } from "../canonical/receipt-id.js";
+import { SlugSchema, type Slug } from "../kernel/index.js";
+import { resolveArcPath } from "../layout/index.js";
 import { scanDecomposeContent, resolveDecomposeContentLocator } from "./decompose-content.js";
 import {
   retirementAllocationRefusal,
@@ -449,9 +451,19 @@ async function readAllocationTarget(
     const root = posix.dirname(indexed.path);
     return { root, artifacts: await readArtifactGroup(exec, ref, root, entry.target.slug, readBlob) };
   }
-  const path = validateManagedPath(
-    `.arc/backlog/planned/${entry.cohort}/cohort-${posix.basename(entry.cohort)}.md`,
-  );
+  const segments = entry.cohort.split("/").map((segment) => SlugSchema.parse(segment));
+  let cohort: [Slug] | [Slug, Slug];
+  if (segments.length === 1 && segments[0] !== undefined) cohort = [segments[0]];
+  else if (segments.length === 2 && segments[0] !== undefined && segments[1] !== undefined) {
+    cohort = [segments[0], segments[1]];
+  } else {
+    throw new Error(`invalid cohort coordinate: ${entry.cohort}`);
+  }
+  const path = resolveArcPath({
+    kind: "cohort-document",
+    placement: { kind: "planned" },
+    cohort,
+  });
   const bytes = await readBytesAt(ref, path, readBlob);
   return bytes === null ? null : { root: posix.dirname(path), artifacts: [{ path, bytes }] };
 }

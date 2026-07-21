@@ -29,6 +29,7 @@ function deps(overrides: Partial<ViewArtifactDependencies> = {}): ViewArtifactDe
     resolveUserSurfaces: vi.fn().mockResolvedValue({
       identityGlobalPath: (...segments: readonly string[]) =>
         ["/primary/.arc/user/andrew", ...segments].join("/"),
+      workingMemoryPath: "/primary/.arc/user/andrew/WORKING-MEMORY.md",
     }),
     pathExists: vi.fn().mockResolvedValue(true),
     ...overrides,

@@ -24,6 +24,8 @@
 import { join } from "node:path";
 
 import { renderMetaFile, type MetaFieldOverrides } from "../active/meta-reader.js";
+import { SlugSchema } from "../kernel/index.js";
+import { resolveArcPath } from "../layout/index.js";
 import { ensureDir, type MkdirFn, type ReadFileFn, type WriteFileFn } from "../template/files.js";
 import { reconcileErrandPush, type ErrandPushOutcome } from "./merge.js";
 import { readErrandRecord, removeErrandRecord, type ErrandRecord } from "./record.js";
@@ -71,7 +73,7 @@ export type PromoteErrandResult =
   | { kind: "name-taken"; metaPath: string };
 
 /** The active-work directory the promoted meta lands in, repo-relative. */
-const ACTIVE_DIR = ".arc/active";
+const ACTIVE_DIR = resolveArcPath({ kind: "placement-root", tier: "active" });
 
 /**
  * Promote an errand to a work unit: rename its branch (commits preserved), mint
@@ -107,7 +109,12 @@ export async function promoteErrand(
   const record = await readErrandRecord(io, slug);
   if (record === null) return { kind: "no-record", slug };
 
-  const metaPath = join(ACTIVE_DIR, `meta-${name}.md`);
+  const metaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: SlugSchema.parse(name),
+    artifact: "meta",
+  });
   if (await fileExists(fs.readFile, join(cwd, metaPath))) {
     return { kind: "name-taken", metaPath };
   }
