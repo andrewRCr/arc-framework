@@ -365,7 +365,7 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
 _Purpose:_ Move the remaining adapter-local and graph-refined boundaries to schema authority without advertising
 incomplete durable contracts through the registry.
 
-### `[ ]` **5.1 Establish the decomposition cut-map schema authority**
+### `[x]` **5.1 Establish the decomposition cut-map schema authority**
 
 - _Goal:_ Cut maps derive their structural types from one strict version-2 schema while retaining graph invariants,
   targeted diagnostics, canonical ordering, and receipt bytes.
@@ -388,13 +388,15 @@ incomplete durable contracts through the registry.
           structures while `DecomposeParams`, `CutEntry`, and direct consumer construction remain source-compatible;
           the handwritten structural decoder and declarations are removed.
 
-    - `[ ]` **5.1.d Prove preparation, retirement, and receipt compatibility**
-        - Exercise the inferred map through preparation decoding, retirement authorization and finalization, receipt
-          decoding, and real-repository decomposition shapes without changing their caller-specific policy.
-        - Build `test-first` (one behavior at a time):
-            - preserve canonical preparation acceptance and rejection of non-canonical stored allocation order;
-            - preserve retirement-only ownership, inventory, dependency, and result-validation outcomes;
-            - keep cut-map digests, preparation records, retirement receipts, and existing fixtures byte-identical.
+    - `[x]` **5.1.d Prove preparation, retirement, and receipt compatibility**
+        - Exercised inferred maps through preparation decode, retirement authorization/finalization, receipt decode, and
+          real-repository decomposition shapes. Canonical preparations remain accepted, non-canonical stored allocation
+          order is rejected, and existing inventory, dependency, ownership, digest, record, receipt, and fixture
+          behavior remains unchanged.
+
+- _Outcome:_ The version-2 cut map now has one schema-derived structural and graph authority, while its public no-throw
+  adapter, canonical post-parse ordering, retirement-policy separation, and byte-addressed preparation/receipt chain
+  remain compatible.
 
 ### `[ ]` **5.2 Extract and validate Git worktree porcelain records**
 

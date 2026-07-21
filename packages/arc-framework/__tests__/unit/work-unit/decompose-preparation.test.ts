@@ -156,6 +156,8 @@ describe("prepareDecomposeRetirement", () => {
     const locator = raw.locator as Record<string, unknown>;
     const sourceInventory = raw.sourceInventory as Array<Record<string, unknown>>;
     const allowedPaths = raw.allowedPaths as string[];
+    const storedAllocation = raw.allocation as Record<string, unknown>;
+    const storedEntries = storedAllocation.entries as unknown[];
     const cases = [
       { ...raw, unexpected: true },
       { ...raw, locator: { ...locator, receiptId: canonicalDigest("forged-receipt") } },
@@ -168,6 +170,7 @@ describe("prepareDecomposeRetirement", () => {
       },
       { ...raw, allowedPaths: [...allowedPaths, allowedPaths[0]] },
       { ...raw, allocation: { schemaVersion: 2 } },
+      { ...raw, allocation: { ...storedAllocation, entries: [...storedEntries].reverse() } },
     ];
     for (const candidate of cases) {
       expect(parseDecomposePreparationRecord(canonicalize(candidate))).toBeNull();
