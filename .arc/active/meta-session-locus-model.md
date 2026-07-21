@@ -12,11 +12,11 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 5.2.a — Replace branch-shaped candidates with exact v3 resume projections
-- **Next Task:** Task 5.2.b — Implement and register `arc errand materialize <slug>` (line ~495)
+- **Last Completed:** Task 5.6.c — Cover stateful command boundaries end to end
+- **Next Task:** Task 6.1.a — Mint WU roles beside spawn and materialize markers (line ~623)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.2.b — implement the exact-generation Errand materialization command
+- **Next Action:** Start Task 6.1.a — mint WU roles beside spawn and materialize markers
 
 - **PR URL:** [none]
 - **Completed:** [none]
