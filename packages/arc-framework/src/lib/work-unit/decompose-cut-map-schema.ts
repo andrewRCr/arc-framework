@@ -20,6 +20,7 @@ const CohortPathSchema = z.string().min(1).refine(
   "must be a safe cohort path",
 );
 const CanonicalDigestSchema = z.custom<CanonicalDigest>(isCanonicalDigest, "must be a canonical digest");
+const DecomposeSlugSchema = SlugSchema.transform((value): string => value);
 
 export const TransformShapeSchema = z.enum(["symmetric", "extraction", "backlog-stub-source", "heterogeneous-home"]);
 export const ParentPositionSchema = z.enum(["standalone", "in-cohort", "at-cap"]);
@@ -30,13 +31,14 @@ export const DecomposeSourceOwnershipSchema = z.enum(["destination-owned", "coho
 export const OriginPhaseSchema = WorkUnitStateSchema.extract(["Planning", "Active"]);
 
 export const OriginPositionSchema = z.strictObject({
-  slug: SlugSchema,
+  slug: DecomposeSlugSchema,
   phase: OriginPhaseSchema,
   location: OriginLocationSchema,
 });
 
 const DropDispositionSchema = z.strictObject({ kind: z.literal("drop"), reason: NonEmptyStringSchema });
-export const TargetSetSchema = z.array(SlugSchema).min(1);
+export const TargetSetSchema = z.array(DecomposeSlugSchema)
+  .min(1, "must be a non-empty target array; use a reasoned drop for none");
 
 export const DecomposeEdgeDispositionSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("targets"), targets: TargetSetSchema }),
@@ -68,21 +70,21 @@ export const DecomposeSourceDispositionSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const DecomposeExistingTargetSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("work-unit"), slug: SlugSchema }),
-  z.strictObject({ kind: z.literal("draft-block"), slug: SlugSchema, locator: DecomposeContentLocatorSchema }),
+  z.strictObject({ kind: z.literal("work-unit"), slug: DecomposeSlugSchema }),
+  z.strictObject({ kind: z.literal("draft-block"), slug: DecomposeSlugSchema, locator: DecomposeContentLocatorSchema }),
   z.strictObject({ kind: z.literal("document"), path: ManagedDocumentPathSchema }),
 ]);
 
 export const NewMemberEntrySchema = z.strictObject({
   kind: z.literal("new-member"),
   destinationId: NonEmptyStringSchema,
-  slug: SlugSchema,
+  slug: DecomposeSlugSchema,
   workClass: WorkClassSchema,
 });
 export const SurvivingOriginEntrySchema = z.strictObject({
   kind: z.literal("surviving-origin"),
   destinationId: NonEmptyStringSchema,
-  slug: SlugSchema,
+  slug: DecomposeSlugSchema,
   disposition: OriginDispositionSchema,
 });
 export const ExistingHomeEntrySchema = z.strictObject({
@@ -103,18 +105,18 @@ export const DecomposeAllocationEntrySchema = z.discriminatedUnion("kind", [
   CohortCoordinationEntrySchema,
 ]);
 
-export const InternalEdgeSchema = z.strictObject({ from: SlugSchema, to: SlugSchema });
+export const InternalEdgeSchema = z.strictObject({ from: DecomposeSlugSchema, to: DecomposeSlugSchema });
 export const SourceAllocationSchema = z.strictObject({
   sourceId: CanonicalDigestSchema,
   ownership: DecomposeSourceOwnershipSchema,
   disposition: DecomposeSourceDispositionSchema,
 });
 export const IncomingEdgeSchema = z.strictObject({
-  dependent: SlugSchema,
+  dependent: DecomposeSlugSchema,
   disposition: DecomposeIncomingEdgeDispositionSchema,
 });
 export const OutgoingEdgeSchema = z.strictObject({
-  prerequisite: SlugSchema,
+  prerequisite: DecomposeSlugSchema,
   disposition: DecomposeEdgeDispositionSchema,
 });
 
@@ -231,10 +233,10 @@ function refinePlacementAndShape(map: StructuralMap, ctx: z.RefinementCtx): void
 function refineIdentities(map: StructuralMap, ctx: z.RefinementCtx): void {
   const duplicateId = duplicate(map.entries.map((entry) => entry.destinationId));
   if (duplicateId !== null) addIssue(ctx, ["entries"], `duplicate destinationId ${duplicateId}`);
-  const duplicateIdentity = duplicate(map.entries.map(entryIdentity));
-  if (duplicateIdentity !== null) addIssue(ctx, ["entries"], `duplicate destination identity ${duplicateIdentity}`);
   const coordinations = map.entries.filter((entry) => entry.kind === "cohort-coordination");
   if (coordinations.length > 1) addIssue(ctx, ["entries"], "at most one cohort-coordination entry is allowed");
+  const duplicateIdentity = duplicate(map.entries.map(entryIdentity));
+  if (duplicateIdentity !== null) addIssue(ctx, ["entries"], `duplicate destination identity ${duplicateIdentity}`);
   if (coordinations[0] !== undefined && coordinations[0].cohort !== map.cohort) {
     addIssue(ctx, ["entries", map.entries.indexOf(coordinations[0]), "cohort"], "must name the declared cohort");
   }
@@ -282,7 +284,11 @@ function refineEdgesAndAllocations(map: StructuralMap, ctx: z.RefinementCtx): vo
     }
     for (const [targetIndex, target] of edge.disposition.replacementTargets.entries()) {
       if (!recipients.has(target)) {
-        addIssue(ctx, ["incomingEdges", index, "disposition", "replacementTargets", targetIndex], "cannot receive WU dependencies");
+        addIssue(
+          ctx,
+          ["incomingEdges", index, "disposition", "replacementTargets", targetIndex],
+          `replacement target \`${target}\` cannot receive WU dependencies`,
+        );
       }
       if (target === edge.dependent) addIssue(ctx, ["incomingEdges", index], "cannot create a self-dependency");
     }
@@ -294,7 +300,11 @@ function refineEdgesAndAllocations(map: StructuralMap, ctx: z.RefinementCtx): vo
     }
     for (const [targetIndex, target] of edge.disposition.targets.entries()) {
       if (!recipients.has(target)) {
-        addIssue(ctx, ["outgoingEdges", index, "disposition", "targets", targetIndex], "cannot receive WU dependencies");
+        addIssue(
+          ctx,
+          ["outgoingEdges", index, "disposition", "targets", targetIndex],
+          `outgoing consumer \`${target}\` cannot receive WU dependencies`,
+        );
       }
       if (target === edge.prerequisite) addIssue(ctx, ["outgoingEdges", index], "cannot create a self-dependency");
     }
@@ -304,8 +314,8 @@ function refineEdgesAndAllocations(map: StructuralMap, ctx: z.RefinementCtx): vo
 /** Complete version-2 map schema with cross-record and graph invariants. */
 export const DecomposeAllocationMapSchema = DecomposeAllocationMapStructuralSchema.superRefine((map, ctx) => {
   refineEntryCoupling(map, ctx);
-  refinePlacementAndShape(map, ctx);
   refineIdentities(map, ctx);
+  refinePlacementAndShape(map, ctx);
   refineEdgesAndAllocations(map, ctx);
 });
 

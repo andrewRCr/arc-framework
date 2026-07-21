@@ -382,18 +382,11 @@ incomplete durable contracts through the registry.
           self-dependencies. Acceptance remains ordering-neutral and permits extraction independently of the unchanged
           retirement-policy decision.
 
-    - `[ ]` **5.1.c Preserve the public no-throw adapter and type surface**
-        - Rebase `parseCutMap()` on `safeParse`, retaining the handwritten `CutMapParseResult`, exact version-1 upgrade
-          guidance, unknown-version refusal, and path-aware translation to the established version-2 boundary reasons.
-        - Cut `parseDecomposeContentLocator()` over to its child schema while preserving its public null-return outcome.
-        - Re-export the inferred structural types from `decompose-cut-map.ts`; retain `DecomposeParams` and `CutEntry`
-          as compatibility aliases and remove the superseded handwritten structural declarations.
-        - Migrate direct map constructors and imports to validated inferred values without bypassing `parseCutMap()`.
-        - Build `test-first` (one behavior at a time):
-            - preserve non-object, version-1, unknown-version, and representative version-2 rejection reasons;
-            - accept unsorted valid maps and normalize every set-valued collection into canonical order;
-            - preserve the locator helper's accepted values and null outcomes;
-            - keep established type imports valid while eliminating parallel structural authorities.
+    - `[x]` **5.1.c Preserve the public no-throw adapter and type surface**
+        - Rebased map and locator decoding on schema `safeParse`, retained version-specific refusals, translated issue
+          paths to boundary reasons, and normalized ordering only after acceptance. The adapter re-exports inferred
+          structures while `DecomposeParams`, `CutEntry`, and direct consumer construction remain source-compatible;
+          the handwritten structural decoder and declarations are removed.
 
     - `[ ]` **5.1.d Prove preparation, retirement, and receipt compatibility**
         - Exercise the inferred map through preparation decoding, retirement authorization and finalization, receipt
