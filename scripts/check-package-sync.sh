@@ -37,8 +37,20 @@ fi
 
 unsynced_framework=""
 clobbered_configurable=""
+# Merge commits stage content inherited from the incoming parent; a staged blob
+# byte-identical to its MERGE_HEAD version was resolved, not authored, in this
+# commit — exempt it from both checks (e.g., merging in a base where the two
+# copies of a Configurable file deliberately converged).
+merge_head=$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null || true)
 while IFS= read -r arc_file; do
     [ -z "$arc_file" ] && continue
+    if [ -n "$merge_head" ]; then
+        staged_blob=$(git show ":$arc_file" 2>/dev/null || true)
+        merge_head_blob=$(git show "MERGE_HEAD:$arc_file" 2>/dev/null || true)
+        if [ -n "$staged_blob" ] && [ "$staged_blob" = "$merge_head_blob" ]; then
+            continue
+        fi
+    fi
     # Get .arc/-relative path for manifest lookup
     rel_path="${arc_file#.arc/}"
     # Check classification in manifest (simple grep — one entry per file)
