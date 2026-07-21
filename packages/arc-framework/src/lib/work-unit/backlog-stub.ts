@@ -41,6 +41,11 @@ export interface BacklogStub {
   draftPath: string | null;
 }
 
+/** Exact fixed-set resolution for a grooming claim. */
+export type GroomStubSetResult =
+  | { kind: "resolved"; anchor: BacklogStub; members: BacklogStub[] }
+  | { kind: "refused"; reason: string };
+
 /**
  * Recursively collect every stub under one backlog state-dir. A missing
  * directory yields none — backlog state-dirs are optional. Cohort docs
@@ -128,4 +133,60 @@ export async function listBacklogStubs(cwd: string): Promise<BacklogStub[]> {
     out.push(...(await collectStubs(join(cwd, ".arc", "backlog", stateDir), stateDir)));
   }
   return out;
+}
+
+/** Resolve a unique, branchless backlog-only fixed set without precedence. */
+export async function resolveGroomStubSet(
+  cwd: string,
+  anchorSlug: string,
+  included: readonly string[],
+): Promise<GroomStubSetResult> {
+  const requested = [anchorSlug, ...included].map((value) => value.trim());
+  if (requested.some((value) => value === "")) return { kind: "refused", reason: "Groom members must be non-empty" };
+  if (new Set(requested).size !== requested.length) {
+    return { kind: "refused", reason: "Groom members must not repeat" };
+  }
+  const [planned, provisional, active] = await Promise.all([
+    collectStubs(join(cwd, ".arc", "backlog", "planned"), "planned"),
+    collectStubs(join(cwd, ".arc", "backlog", "provisional"), "provisional"),
+    collectActiveSlugs(join(cwd, ".arc", "active")),
+  ]);
+  const all = [...planned, ...provisional];
+  const resolved: BacklogStub[] = [];
+  for (const slug of requested) {
+    if (active.has(slug)) return { kind: "refused", reason: `Groom member '${slug}' is already active` };
+    const matches = all.filter((stub) => stub.slug === slug);
+    if (matches.length === 0) return { kind: "refused", reason: `Groom member '${slug}' is absent` };
+    if (matches.length !== 1) {
+      return { kind: "refused", reason: `Groom member '${slug}' is ambiguous across backlog states` };
+    }
+    const match = matches[0];
+    if (match === undefined) return { kind: "refused", reason: `Groom member '${slug}' is absent` };
+    resolved.push(match);
+  }
+  const anchor = resolved[0];
+  if (anchor === undefined) return { kind: "refused", reason: "A grooming anchor is required" };
+  return {
+    kind: "resolved",
+    anchor,
+    members: [...resolved].sort((left, right) => Buffer.compare(Buffer.from(left.slug), Buffer.from(right.slug))),
+  };
+}
+
+async function collectActiveSlugs(root: string): Promise<Set<string>> {
+  let entries;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch (error) {
+    const code = typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code)
+      : undefined;
+    if (code === "ENOENT") return new Set();
+    throw error;
+  }
+  return new Set(entries.flatMap((entry) => {
+    if (!entry.isFile()) return [];
+    const slug = META_FILE_RE.exec(entry.name)?.[1];
+    return slug === undefined ? [] : [slug];
+  }));
 }

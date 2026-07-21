@@ -503,24 +503,11 @@ result so workflows consume verbs and precomposed verdicts.
 - _Goal:_ One pre-WU grooming pass can co-design an explicit fixed set of related stubs through one edit-and-review
   tail without allowing overlapping claims, arbitrary planning riders, or started-WU branch contamination.
 
-    - `[ ]` **5.3.a Add exact-set `arc plan open <anchor-stub> [--include <stub>...]` claim and allocation**
-        - Extend or replace `resolveBacklogStub()` with strict set resolution that scans planned, provisional, and
-          active lifecycle state. Require every member to resolve uniquely to a branchless planned/provisional stub;
-          canonicalize one anchor plus unique explicitly included members, and refuse cross-state/nested duplicates,
-          repeated members, or any active/started subject instead of silently preferring planned.
-        - Extend `packages/arc-framework/src/handlers/plan.ts` with v3 groom create-if-absent,
-          protection-aware allocation, role/lease provisioning, shared-result rendering, and CLI registration.
-        - Full mode uses `chore/groom-<anchor-stub>`; partial mode keeps the same identity-backed set claim while
-          editing the free primary base with `branch: null`. The set is immutable for that claim generation; a larger
-          set requires close/abandon plus a fresh open rather than an in-place authority expansion.
-        - Refresh the configured base before claiming, pin its exact tip as `openedBaseHead`, and create the
-          full-mode branch at that OID. In partial mode, revalidate unchanged base `HEAD` while acquiring the primary
-          role/lease. Roll back only the unchanged claim if either transition loses its base generation.
-        - Build `test-first` (one behavior at a time):
-            - Cover exact/absent/duplicate/incompatible member resolution, canonical ordering, single/multi-member
-              first claimants, disjoint concurrency, overlapping refusal, exact-set cross-machine loser adoption,
-              exact conflicting-member guidance, base-refresh failure, moved-base claim rollback, draft-present
-              routing, failed allocation rollback, and JSON/human parity.
+    - `[x]` **5.3.a Add exact-set `arc plan open <anchor-stub> [--include <stub>...]` claim and allocation**
+        - Added strict fixed-set resolution across planned, provisional, and active state, refusing missing, repeated,
+          ambiguous, or already-started members while retaining the explicit anchor and byte-sorting claim members.
+        - Registered `plan open` with fresh base pinning, immutable v3 claim/adoption, full/partial allocation,
+          role/lease provisioning, exact claim rollback, pinned partial-base revalidation, and shared JSON/human output.
 
     - `[ ]` **5.3.b Add groom close and review-tail transitions**
         - Validate that the grooming diff touches only claimed members' planning artifacts, cohort coordination

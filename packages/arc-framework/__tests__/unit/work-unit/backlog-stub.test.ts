@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import {
   resolveBacklogStub,
   listBacklogStubs,
+  resolveGroomStubSet,
 } from "../../../src/lib/work-unit/backlog-stub.js";
 
 describe("resolveBacklogStub", () => {
@@ -103,5 +104,31 @@ describe("resolveBacklogStub", () => {
     await seedStub(["planned", "cohort-b"], "dup");
 
     await expect(resolveBacklogStub(root, "dup")).rejects.toThrow(/Ambiguous backlog stub "dup"/);
+  });
+
+  it("resolves and byte-sorts one exact grooming set while preserving its anchor", async () => {
+    await seedStub(["planned"], "zeta");
+    await seedStub(["provisional"], "alpha", { draft: true });
+    const result = await resolveGroomStubSet(root, "zeta", ["alpha"]);
+    expect(result).toMatchObject({
+      kind: "resolved",
+      anchor: { slug: "zeta" },
+      members: [{ slug: "alpha" }, { slug: "zeta" }],
+    });
+  });
+
+  it("refuses duplicates, cross-state ambiguity, and active members", async () => {
+    await seedStub(["planned"], "alpha");
+    expect(await resolveGroomStubSet(root, "alpha", ["alpha"]))
+      .toMatchObject({ kind: "refused", reason: expect.stringContaining("repeat") });
+
+    await seedStub(["provisional"], "alpha");
+    expect(await resolveGroomStubSet(root, "alpha", []))
+      .toMatchObject({ kind: "refused", reason: expect.stringContaining("ambiguous") });
+
+    await mkdir(join(root, ".arc", "active"), { recursive: true });
+    await writeFile(join(root, ".arc", "active", "meta-alpha.md"), "# active\n", "utf8");
+    expect(await resolveGroomStubSet(root, "alpha", []))
+      .toMatchObject({ kind: "refused", reason: expect.stringContaining("already active") });
   });
 });

@@ -42,7 +42,7 @@ import {
   type BaseDriftOptions,
   type BaseSyncOptions,
 } from "./handlers/base.js";
-import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
+import { handlePlanCheck, handlePlanOpen, type PlanCheckOptions, type PlanOpenOptions } from "./handlers/plan.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -444,6 +444,13 @@ const plan = program
     "Planning-entry operations. `check` classifies the write context before drafting (committable "
     + "→ proceed, else redirect to start / stub / errand) so a draft never lands where it can't commit.",
   );
+
+plan
+  .command("open <anchor-stub>")
+  .description("Claim and open an immutable single- or multi-stub grooming set")
+  .option("--include <stubs...>", "Additional related backlog stubs")
+  .option("--json", "Emit the producer-validated locus mutation result")
+  .action((anchorStub: string, opts: PlanOpenOptions) => handlePlanOpen(anchorStub, opts));
 
 plan
   .command("check")

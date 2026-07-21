@@ -216,6 +216,9 @@ async function checkoutPrimary(
   const previousHead = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
   if (previousBranch === "" || previousHead === "") throw new Error("Primary checkout state is unavailable");
   if (branch === null) {
+    if (expectedBranchHead !== null && previousHead !== expectedBranchHead) {
+      throw new Error("Primary checkout does not match the expected pinned base head");
+    }
     return { kind: "idempotent", branchCreated: false, previousBranch, head: previousHead };
   }
   if (expectedBranchHead !== null) {

@@ -20,7 +20,8 @@
  * @module
  */
 
-import { readFile, stat } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { access, lstat, readFile, realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import { parseMetaFile } from "../lib/active/meta-reader.js";
@@ -32,11 +33,34 @@ import {
   type ProtectionMode,
 } from "../lib/git/write-context.js";
 import { gitExec } from "../lib/io-context.js";
+import { createUserIOContext } from "../lib/io-context.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
-import { resolveBacklogStub } from "../lib/work-unit/backlog-stub.js";
-import { requireArcProjectRoot } from "./shared.js";
+import { resolveBacklogStub, resolveGroomStubSet } from "../lib/work-unit/backlog-stub.js";
+import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
+import { mintClaimId, projectLocusIdentity, TransientIdentityRecordV3Schema } from "../lib/errand/identity-record.js";
+import {
+  groomClaimConflictResolver,
+  groomClaimTransform,
+  pinGroomOpenedBaseHead,
+  rollbackIdentityClaim,
+} from "../lib/errand/identity-claims.js";
+import { transactTransientIdentities } from "../lib/errand/identity-transaction.js";
+import { acquireSessionAnchor } from "../lib/locus/process-inspector.js";
+import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "../lib/locus/platform-inspectors.js";
+import { createLocusEvidenceIO } from "../lib/locus/evidence.js";
+import { readLocusState } from "../lib/locus/reader.js";
+import { readPrimarySafety } from "../lib/locus/primary-safety.js";
+import { planLocusAllocation } from "../lib/locus/allocator.js";
+import { provisionTransientLocus } from "../lib/locus/provisioning.js";
+import { createNodeProvisioningDependencies } from "../lib/locus/provisioning-runtime.js";
+import { createLocusMutationResult } from "../lib/locus/mutation.js";
+import type { LocusRefusalReason } from "../lib/locus/schema/index.js";
+import { formatErrandOpenResult } from "./errand.js";
+import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
+import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 
 import * as p from "@clack/prompts";
 
@@ -48,6 +72,151 @@ export interface PlanCheckOptions {
   name?: string;
   /** Emit the planning-entry route as JSON (for skill consumption). */
   json?: boolean;
+}
+
+export interface PlanOpenOptions {
+  include?: string[];
+  json?: boolean;
+}
+
+/** Claim and provision one immutable single- or multi-stub grooming set. */
+export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions): Promise<void> {
+  if (opts.json !== true) p.intro("arc plan open");
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+  const resolved = await resolveGroomStubSet(cwd, anchorSlug, opts.include ?? []);
+  if (resolved.kind === "refused") { emitPlanFailure("stub-ambiguous", resolved.reason, opts.json === true); return; }
+  const { settings } = await readConfigSettings(cwd);
+  const protection = settings["branch.protection"] === "full" ? "full" : "partial";
+  const base = settings["branch.base"];
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) { emitPlanError("identity", "No identity resolved.", opts.json === true); return; }
+  const io = createUserIOContext();
+  if (!io.execInput) { emitPlanError("identity", "The stdin Git boundary is unavailable.", opts.json === true); return; }
+  const execInput = io.execInput;
+  const pinned = await pinGroomOpenedBaseHead(io.exec, { remote: "origin", baseRef: base });
+  if (pinned.kind !== "pinned") {
+    const message = pinned.kind === "refused" ? pinned.reason : pinned.message;
+    emitPlanError("base", message, opts.json === true); return;
+  }
+  const now = new Date().toISOString();
+  const slug = `groom-${resolved.anchor.slug}`;
+  const parsed = TransientIdentityRecordV3Schema.safeParse({
+    version: 3, kind: "groom", slug, claimId: mintClaimId(),
+    createdAt: now, updatedAt: now, anchorStub: resolved.anchor.slug,
+    members: resolved.members.map((member) => member.slug), openedBaseHead: pinned.head,
+    protection, branch: protection === "full" ? `chore/${slug}` : null,
+    state: "open", changeRequest: null,
+  });
+  if (!parsed.success || parsed.data.kind !== "groom") {
+    emitPlanError("claim", "The grooming claim is invalid.", opts.json === true); return;
+  }
+  const claimed = await transactTransientIdentities({ exec: io.exec, execInput: io.execInput, identity }, {
+    remote: "origin", message: `arc: open groom ${resolved.anchor.slug}`,
+    transform: groomClaimTransform(parsed.data), resolveConflict: groomClaimConflictResolver(parsed.data),
+  });
+  if (claimed.kind !== "applied" && claimed.kind !== "idempotent") {
+    const message = claimed.kind === "error" ? claimed.message : claimed.reason;
+    emitPlanFailure("identity-conflict", message, opts.json === true); return;
+  }
+  const record = claimed.value.record;
+  const inspector = createPlatformProcessInspector();
+  const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
+  if (anchor.kind !== "process") {
+    if (claimed.kind === "applied") await rollbackGroomClaim(io.exec, execInput, identity, resolved.anchor.slug, record);
+    emitPlanFailure("cold-entry-required", anchor.reason, opts.json === true); return;
+  }
+  const primaryPath = await resolvePrimaryWorktreePath(io.exec);
+  if (primaryPath === null) {
+    if (claimed.kind === "applied") await rollbackGroomClaim(io.exec, execInput, identity, resolved.anchor.slug, record);
+    emitPlanError("topology", "Primary checkout unavailable.", opts.json === true); return;
+  }
+  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
+  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+    cwd, identity: SlugSchema.parse(identity), exec: io.exec,
+  })).identityGlobalRoot;
+  const state = await readLocusState({
+    identity, pathFlavor: process.platform === "win32" ? "windows" : "posix",
+    evidenceIO: createLocusEvidenceIO({ exec: io.exec, identity, inspector }),
+    subjectMetaIO: {
+      readFile: (path) => readFile(path, "utf8"),
+      pathExists: async (path) => access(path).then(() => true, () => false), realpath, lstat,
+    },
+    identityGlobalUserDir, activeExtensions: activeExtensions.active, enteringAnchor: anchor,
+    readPrimarySafety: (path) => readPrimarySafety({ primaryPath: path, baseBranch: base, exec: io.exec }),
+  });
+  const proposal = planLocusAllocation({
+    state, protection, isolation: "prefer-primary",
+    subject: { kind: "groom", key: slug, claimId: record.claimId },
+  });
+  const activeRecordId = state.current.kind === "resolved" ? state.current.activeRecordId : null;
+  const parentCheckoutPath = activeRecordId === null
+    ? null
+    : state.roster.rows.find((row) => row.recordId === activeRecordId)?.checkoutPath ?? null;
+  const sessionHomePath = parentCheckoutPath ?? primaryPath;
+  if (proposal.kind === "refused") {
+    if (claimed.kind === "applied") await rollbackGroomClaim(io.exec, execInput, identity, resolved.anchor.slug, record);
+    emitPlanFailure(proposal.reason, `Groom allocation refused: ${proposal.reason}.`, opts.json === true); return;
+  }
+  const provisioned = await provisionTransientLocus({
+    proposal, protection, identity: projectLocusIdentity(record), branch: record.branch,
+    expectedBranchHead: protection === "partial" ? pinned.head : null,
+    base: pinned.head, locationTemplate: settings["worktree.location_template"],
+    repo: primaryPath.split(/[\\/]/u).at(-1) ?? "repo", spawningIdentity: identity,
+    parentCheckoutPath, sessionHomePath, establishedAt: now, anchor,
+    leaseId: randomBytes(16).toString("hex"),
+    dependencies: createNodeProvisioningDependencies({
+      exec: io.exec, identity, anchor, inspector,
+      pathFlavor: process.platform === "win32" ? "windows" : "posix", base,
+      branch: record.branch, postCreateScript: settings["worktree.post_create"],
+      registeredHarnessDirs: settings["worktree.harness_dirs"],
+    }),
+  });
+  if (provisioned.kind !== "provisioned") {
+    if (claimed.kind === "applied") await rollbackGroomClaim(io.exec, execInput, identity, resolved.anchor.slug, record);
+    const message = provisioned.kind === "error" ? provisioned.error.message : provisioned.reason;
+    emitPlanError("provision", message, opts.json === true); return;
+  }
+  emitPlanResult(createLocusMutationResult({
+    outcome: claimed.kind === "idempotent" ? "idempotent" : "applied", operation: "plan-open",
+    allocation: { kind: provisioned.receipt.allocation, checkoutPath: provisioned.receipt.checkoutPath },
+    recordId: provisioned.receipt.record.recordId, leaseId: provisioned.receipt.leaseToken,
+    activeLocusPath: provisioned.receipt.checkoutPath, sessionHomePath,
+    identity: projectLocusIdentity(record), originEntry: null, dispatchId: null, routingPlanDigest: null,
+    restoredParent: null, nextOffer: null,
+    recommendedPromptText: `Grooming set opened at ${provisioned.receipt.checkoutPath}.`,
+  }), opts.json === true);
+}
+
+async function rollbackGroomClaim(
+  exec: ReturnType<typeof createUserIOContext>["exec"],
+  execInput: NonNullable<ReturnType<typeof createUserIOContext>["execInput"]>,
+  identity: string,
+  anchorSlug: string,
+  record: Parameters<typeof projectLocusIdentity>[0],
+): Promise<void> {
+  await rollbackIdentityClaim({ exec, execInput, identity }, {
+    remote: "origin", message: `arc: roll back groom ${anchorSlug}`, expected: record,
+  });
+}
+
+function emitPlanResult(result: Parameters<typeof formatErrandOpenResult>[0], json: boolean): void {
+  const formatted = formatErrandOpenResult(result, json);
+  if (json) process.stdout.write(formatted.text);
+  else if (formatted.stream === "stderr") p.log.error(formatted.text);
+  else { p.log.success(formatted.text); p.outro("Done."); }
+  process.exitCode = formatted.exitCode;
+}
+
+function emitPlanFailure(reason: LocusRefusalReason, message: string, json: boolean): void {
+  emitPlanResult(createLocusMutationResult({ outcome: "refused", operation: "plan-open", reason, recommendedPromptText: message }), json);
+}
+
+function emitPlanError(suffix: string, message: string, json: boolean): void {
+  emitPlanResult(createLocusMutationResult({
+    outcome: "error", operation: "plan-open", error: { code: `locus.plan-open.${suffix}`, message },
+    recommendedPromptText: "Inspect the retained grooming identity before retrying.",
+  }), json);
 }
 
 export async function handlePlanCheck(opts: PlanCheckOptions): Promise<void> {
