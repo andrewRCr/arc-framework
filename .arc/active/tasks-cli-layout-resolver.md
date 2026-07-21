@@ -449,32 +449,29 @@ layout hit has exactly one semantic owner.
 - _Outcome:_ The final migration proof now has a disposition-independent canonical source inventory and strict,
   class-aware ledger contracts without weakening the historical audit's candidate/disposition behavior.
 
-### `[ ]` **5.2 Implement the index-pinned migration assertion and command surface**
+### `[x]` **5.2 Implement the index-pinned migration assertion and command surface**
 
 - _Goal:_ The pending implementation commit and a clean CI checkout are certified from the same Git-index bytes,
   with relevant untracked files and evidence drift failing closed.
 
-    - `[ ]` **5.2.a Build a staged-tree coupling-audit input seam**
-        - Enumerate `git ls-files --cached`, require indexed manifest and ledger inputs, and read exact bytes through
-          the existing `readGitBlobBytes` adapter rather than ordinary trimmed `GitExec` output.
-        - Refuse untracked paths selected by the corpus membership/exclusion rules, add the ledger itself to the
-          manifest's excluded derived-bookkeeping set, and exercise staged bytes that differ from working-tree bytes.
+    - `[x]` **5.2.a Build a staged-tree coupling-audit input seam**
+        - Added shared corpus-path selection and indexed-byte collection, required both proof inputs in the index,
+          excluded the derived ledger, rejected relevant untracked paths, and proved dirty working-tree bytes are ignored.
 
-    - `[ ]` **5.2.b Validate canonical indexed inputs and source digests**
-        - Fatal-decode and validate the indexed manifest and ledger, then require the ledger bytes to equal
-          `canonicalJson(validatedLedger)` exactly, including its trailing LF.
-        - Rerun `scanClassInventory` from indexed corpus bytes and verify the manifest, corpus, class-inventory,
-          selected-class, selected-count, and selected-hit-set fields against the frozen digest recipes.
+    - `[x]` **5.2.b Validate canonical indexed inputs and source digests**
+        - Fatal-decodes and validates indexed artifacts, enforces exact canonical ledger bytes including LF, reruns the
+          class inventory from indexed corpus blobs, and checks every frozen source and selected-hit receipt.
 
-    - `[ ]` **5.2.c Assert exactly-one disposition coverage**
-        - Derive hit keys from `classInventory.classes[].hits`, reject duplicates, and expand exact and bulk entries.
-        - Reject exact misses, zero-member or drifted bulk rules, overlaps, and unmatched hits.
+    - `[x]` **5.2.c Assert exactly-one disposition coverage**
+        - Added class-aware exact and predicate-based bulk expansion with duplicate, miss, empty cohort, member drift,
+          overlap, and unmatched-hit rejection, returning deterministic per-class owner counts only after full coverage.
 
-    - `[ ]` **5.2.d Expose deterministic diagnostics and the root package script**
-        - Add `src/scripts/assert-layout-migration.ts` and the repository-root `package.json` script
-          `npm run audit:layout-migration`, with per-class residual counts and owners suitable for the cohort tail.
-        - Build `test-first` (one behavior at a time) across clean command success and failures from missing indexed
-          inputs, relevant untracked files, non-canonical ledger bytes, and source or coverage drift.
+    - `[x]` **5.2.d Expose deterministic diagnostics and the root package script**
+        - Added `assert-layout-migration.ts` and `npm run audit:layout-migration` with stable exit diagnostics and
+          per-class owner summaries; unit and real-Git tests cover clean success plus all named closed-failure paths.
+
+- _Outcome:_ The migration assertion is bound exclusively to the pending index, shares corpus membership rules with the
+  historical audit, and fails closed unless canonical source receipts and exactly-once residual ownership both hold.
 
 ### `[ ]` **5.3 Populate exact and bulk dispositions for the final selected-hit universe**
 
