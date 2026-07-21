@@ -96,6 +96,7 @@ export function reduceNormalizedFindings(evidence: readonly NormalizedFindingEvi
         || prior.nit !== finding.nit
         || prior.locus !== finding.locus
         || prior.evidenceUrlOrId !== finding.evidenceUrlOrId
+        || prior.recursFindingId !== finding.recursFindingId
       )) {
         throw new Error(`finding-identity-reused:${item.sourceIdentity}:${finding.findingId}`);
       }

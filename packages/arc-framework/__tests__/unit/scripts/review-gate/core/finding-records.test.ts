@@ -123,6 +123,13 @@ describe("normalized finding records", () => {
       { sourceIdentity: "codex-pr", findings: [{ ...finding, locus: "src/other.ts:1" }] },
     ])).toThrow(/finding-identity-reused/u);
   });
+
+  it("surfaces a recurrence-chain disagreement instead of overwriting it", () => {
+    expect(() => reduceNormalizedFindings([
+      { sourceIdentity: "codex-pr", findings: [finding] },
+      { sourceIdentity: "codex-pr", findings: [{ ...finding, recursFindingId: "finding-0" }] },
+    ])).toThrow(/finding-identity-reused/u);
+  });
 });
 
 describe("forward finding settlement", () => {
