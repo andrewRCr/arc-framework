@@ -283,7 +283,7 @@ the distinct recovery and precedence policies of existing adapters.
 _Purpose:_ Replace manual persisted-state and note-payload checks with schema-owned adapters while retaining
 backward-compatible hydration, concurrent-write behavior, and lossless Markdown reconstruction.
 
-### `[ ]` **4.1 Establish versioned local sync-state schemas and normalization**
+### `[x]` **4.1 Establish versioned local sync-state schemas and normalization**
 
 - _Goal:_ Persisted versions 2–4 enter through an explicit backward-compatible reader and hydrate to one strict
   version-4 internal record without rejecting tolerated extensions.
@@ -296,17 +296,14 @@ backward-compatible hydration, concurrent-write behavior, and lossless Markdown 
           Nineteen focused checks cover version acceptance, malformed required and extension fields, lexical tolerance,
           strict producer shape, inferred types, and refinement-free JSON Schema projection.
 
-    - `[ ]` **4.1.b Normalize tolerated persisted extensions**
-        - Implement `normalizeLocalSyncState()` after persisted structural parsing, narrowing each known extension
-          through its child schema and ignoring malformed extensions plus unknown additive fields.
-        - Retain valid `savedAt`, `verifiedAt`, `notesRefTip`, `partialPush`, `partialPushErrand`, `priorFileList`, and
-          `remoteMarkerProvenance` values while upgrading the discriminant to version 4.
-        - Ensure normalized reads never expose legacy `machineId` and always satisfy `LocalSyncStateSchema`.
-        - Build `test-first` (one behavior at a time):
-            - hydrate each persisted version to the same strict version-4 base;
-            - retain every valid known extension independently and in combination;
-            - discard each malformed extension and unknown field without losing valid base or sibling state;
-            - exclude `machineId` from every normalized result.
+    - `[x]` **4.1.b Normalize tolerated persisted extensions**
+        - Added `normalizeLocalSyncState()` as a fresh-record adapter that upgrades every persisted discriminant to
+          version 4, independently narrows each known extension through its child schema, and validates the assembled
+          producer record. Malformed extensions, unknown fields, and legacy `machineId` are discarded without losing
+          valid base or sibling state; public compatibility barrels expose the normalizer.
+
+- _Outcome:_ Persisted local state now has an acceptance-equivalent loose reader and one strict current record type;
+  normalization preserves compatible extension state while preventing legacy or malformed data from escaping ingress.
 
 ### `[ ]` **4.2 Preserve sync-state persistence and migration behavior**
 

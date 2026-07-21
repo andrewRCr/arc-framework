@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   LocalSyncStateSchema,
   PersistedLocalSyncStateSchema,
+  normalizeLocalSyncState,
   type LocalSyncState,
   type PartialPushMarker,
 } from "../../../src/lib/user-sync/schema.js";
@@ -89,5 +90,61 @@ describe("LocalSyncStateSchema", () => {
   it("derives the public record and marker types", () => {
     expectTypeOf<LocalSyncState>().toEqualTypeOf<z.infer<typeof LocalSyncStateSchema>>();
     expectTypeOf<PartialPushMarker>().toMatchTypeOf<{ localRefHash: string; sourceCommit: string }>();
+  });
+});
+
+describe("normalizeLocalSyncState", () => {
+  it.each([2, 3, 4] as const)("hydrates persisted version %s to the same version-4 base", (version) => {
+    const persisted = PersistedLocalSyncStateSchema.parse({ version, ...base });
+    expect(normalizeLocalSyncState(persisted)).toEqual({ version: 4, ...base });
+  });
+
+  it("retains every independently valid known extension", () => {
+    const extensions = {
+      savedAt: "saved",
+      verifiedAt: "verified",
+      notesRefTip: "tip",
+      partialPush: { localRefHash: "notes", sourceCommit: "source" },
+      partialPushErrand: { localRefHash: "errand", sourceCommit: "errand-source" },
+      priorFileList: ["one", "two"],
+      remoteMarkerProvenance: { worktree: { arbitrary: true } },
+    };
+    const persisted = PersistedLocalSyncStateSchema.parse({ version: 2, ...base, ...extensions });
+
+    expect(normalizeLocalSyncState(persisted)).toEqual({ version: 4, ...base, ...extensions });
+  });
+
+  it("drops malformed extensions without losing valid siblings", () => {
+    const persisted = PersistedLocalSyncStateSchema.parse({
+      version: 3,
+      ...base,
+      savedAt: 42,
+      verifiedAt: "verified",
+      notesRefTip: "",
+      partialPush: { localRefHash: "", sourceCommit: "source" },
+      partialPushErrand: { localRefHash: "errand", sourceCommit: "errand-source" },
+      priorFileList: ["one", 2],
+      remoteMarkerProvenance: [],
+      futureExtension: true,
+    });
+
+    expect(normalizeLocalSyncState(persisted)).toEqual({
+      version: 4,
+      ...base,
+      verifiedAt: "verified",
+      partialPushErrand: { localRefHash: "errand", sourceCommit: "errand-source" },
+    });
+  });
+
+  it("never exposes a legacy machine id or unknown additive field", () => {
+    const persisted = PersistedLocalSyncStateSchema.parse({
+      version: 4,
+      ...base,
+      machineId: "legacy",
+      futureExtension: { value: true },
+    });
+
+    expect(normalizeLocalSyncState(persisted)).toEqual({ version: 4, ...base });
+    expect(LocalSyncStateSchema.parse(normalizeLocalSyncState(persisted))).toEqual({ version: 4, ...base });
   });
 });

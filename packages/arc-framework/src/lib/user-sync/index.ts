@@ -164,6 +164,7 @@ export {
   recordErrandPartialPushMarker,
   recordPartialPushMarker,
   LocalSyncStateSchema,
+  normalizeLocalSyncState,
   PartialPushMarkerSchema,
   PersistedLocalSyncStateSchema,
   PriorFileListSchema,

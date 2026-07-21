@@ -27,6 +27,7 @@ import type { LocalSyncState, PartialPushMarker } from "./schema.js";
 
 export {
   LocalSyncStateSchema,
+  normalizeLocalSyncState,
   PartialPushMarkerSchema,
   PersistedLocalSyncStateSchema,
   PriorFileListSchema,

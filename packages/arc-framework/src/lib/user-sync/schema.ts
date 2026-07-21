@@ -29,6 +29,7 @@ export const PriorFileListSchema = z.array(z.string());
 
 /** Object-map provenance extension retained in normalized local state. */
 export const RemoteMarkerProvenanceSchema = z.record(z.string(), z.unknown());
+const NonEmptyPersistedStringSchema = z.string().min(1);
 
 /** Backward-compatible persisted reader for local sync-state versions 2–4. */
 export const PersistedLocalSyncStateSchema = z.union([
@@ -72,3 +73,44 @@ export type PartialPushMarker = z.infer<typeof PartialPushMarkerSchema>;
 export type PriorFileList = z.infer<typeof PriorFileListSchema>;
 /** Per-worktree remote marker provenance map. */
 export type RemoteMarkerProvenance = z.infer<typeof RemoteMarkerProvenanceSchema>;
+
+function normalizedExtension<Schema extends z.ZodType>(
+  schema: Schema,
+  value: unknown,
+): z.output<Schema> | undefined {
+  const result = schema.safeParse(value);
+  return result.success ? result.data : undefined;
+}
+
+/**
+ * Normalize a structurally valid persisted record to strict version 4.
+ *
+ * @param persisted - Parsed persisted sync state with tolerant extension slots
+ * @returns Strict current state containing only independently valid known extensions
+ */
+export function normalizeLocalSyncState(persisted: PersistedLocalSyncState): LocalSyncState {
+  const savedAt = normalizedExtension(NonEmptyPersistedStringSchema, persisted.savedAt);
+  const verifiedAt = normalizedExtension(NonEmptyPersistedStringSchema, persisted.verifiedAt);
+  const notesRefTip = normalizedExtension(NonEmptyPersistedStringSchema, persisted.notesRefTip);
+  const partialPush = normalizedExtension(PartialPushMarkerSchema, persisted.partialPush);
+  const partialPushErrand = normalizedExtension(PartialPushMarkerSchema, persisted.partialPushErrand);
+  const priorFileList = normalizedExtension(PriorFileListSchema, persisted.priorFileList);
+  const remoteMarkerProvenance = normalizedExtension(
+    RemoteMarkerProvenanceSchema,
+    persisted.remoteMarkerProvenance,
+  );
+
+  return LocalSyncStateSchema.parse({
+    version: 4,
+    materializedManifestHash: persisted.materializedManifestHash,
+    sourceCommit: persisted.sourceCommit,
+    sourceOperation: persisted.sourceOperation,
+    ...(savedAt === undefined ? {} : { savedAt }),
+    ...(verifiedAt === undefined ? {} : { verifiedAt }),
+    ...(notesRefTip === undefined ? {} : { notesRefTip }),
+    ...(partialPush === undefined ? {} : { partialPush }),
+    ...(partialPushErrand === undefined ? {} : { partialPushErrand }),
+    ...(priorFileList === undefined ? {} : { priorFileList }),
+    ...(remoteMarkerProvenance === undefined ? {} : { remoteMarkerProvenance }),
+  });
+}
