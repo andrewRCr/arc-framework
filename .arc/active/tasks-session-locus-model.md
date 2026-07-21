@@ -304,18 +304,12 @@ transaction boundary before operation composers consume it.
 - _Goal:_ Every transient open gets a safe active checkout without branch-switching a WU workspace or inventing a
   partial-mode fallback that weakens base-branch safety.
 
-    - `[ ]` **4.1.a Resolve allocation from typed availability and live Git guards**
-        - Add `packages/arc-framework/src/lib/locus/allocator.ts` over fresh `LocusStateV1`, protection mode,
-          requested isolation, and the operation's subject.
-        - Return only a primary/spawn proposal or typed refusal; a record-free, clean, base-resting primary does not
-          become allocated until the operation coordinator reruns the final reader, acquires its derived record
-          lock, and revalidates the proof-bearing target state plus directed Git guards under that owned lock.
-        - Keep identity claim/transition and exact-claim rollback outside the local critical section so no remote
-          I/O runs under a locus lock. Partial allocation remains primary-only; partial Errand/housekeep are
-          identity-free, while a partial groom carries its already-created shared claim through the same boundary.
-        - Build `test-first` (one behavior at a time):
-            - Cover free primary, every occupied lease state, dirty/off-base state, malformed/duplicate/unknown
-              refusal, two recordless-primary contenders, changed Git facts under lock, and remote/local ordering.
+    - `[x]` **4.1.a Resolve allocation from typed availability and live Git guards**
+        - Added a protection-aware planner that emits only primary/spawn proposals or typed refusals, preserves the
+          identity-free partial Errand/housekeep and claimed partial-groom boundary, and refuses unsafe primary
+          evidence without weakening partial mode. Primary linearization now prepares/rolls back remote claims
+          outside the exact record lock, reruns state and directed Git guards under ownership, and permits only one
+          recordless-primary contender to apply local state.
 
     - `[ ]` **4.1.b Extract generic linked-worktree creation and shared setup seams**
         - Extract `packages/arc-framework/src/lib/git/linked-worktree.ts` with `createLinkedWorktree()`: a
