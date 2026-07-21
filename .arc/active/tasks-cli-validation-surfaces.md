@@ -169,27 +169,12 @@ the distinct recovery and precedence policies of existing adapters.
 - _Goal:_ Every active project-level key has one declared authoring domain, default, and policy classification,
   with schema-derived record types for raw, authorable, and completed views.
 
-    - `[ ]` **3.1.a Build the authoritative field catalog**
-        - Add `src/lib/config/schema.ts` with `ARC_CONFIG_FIELDS` derived from the packaged config, TypeScript
-          consumers, and installed validator key sets.
-        - Give every descriptor its key, projectable Zod string schema, documented omission default, and policy
-          classification, including a quoted-empty posture of `default`, `unset`, or `invalid`; do not treat the
-          currently configured package literal as the default authority.
-        - Define enum, boolean-token, exact positive safe-integer, regex/pattern, branch, worktree-template,
-          harness-directory, and shell-command leaf schemas with their existing minima and acceptance behavior.
-        - Keep the registered leaves expressible by `z.toJSONSchema`: use structural string patterns rather than
-          transforms or refinements, including the safe-integer ceiling, leading-zero behavior, and per-key minima.
-        - Do not compile custom commit patterns or add lexical policy to branch, template, pattern, or command strings;
-          adapter-only normalization remains outside the catalog.
-        - Remove `hooks.subject_warn_length` from the known domain and retire the stale `hooks.code_extensions`
-          validator comment without introducing new policy.
-        - Build `test-first` (one behavior at a time):
-            - accept every enum and boolean token while rejecting neighboring invalid values;
-            - accept positive safe integers at each minimum and at `Number.MAX_SAFE_INTEGER`, including compatible
-              leading-zero forms, while rejecting signs, non-decimal forms, overflow, and below-minimum values;
-            - preserve the existing open-string and harness-directory domains without compiling pattern contents;
-            - classify quoted-empty values per key, with positive-integer leaves always `invalid`;
-            - prove descriptor keys and documented defaults are unique.
+    - `[x]` **3.1.a Build the authoritative field catalog**
+        - Added the 36-field `ARC_CONFIG_FIELDS` catalog with projectable Zod leaves, documented omission defaults,
+          domain policy, and explicit quoted-empty posture. Exact string-integer bounds preserve leading zeros through
+          `Number.MAX_SAFE_INTEGER`; open strings remain uncompiled and adapter normalization stays local.
+        - Retired `hooks.subject_warn_length` from the installed known-key domain and removed the stale
+          `hooks.code_extensions` comment in both framework and self-hosting validator copies.
 
     - `[ ]` **3.1.b Define raw, authorable, and completed config schemas**
         - Define the unregistered open `RawArcConfigSchema`, registered `ArcConfigSchema`, and unregistered strict
