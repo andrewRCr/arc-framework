@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** Draft design formalization-ready after adversarial and coherence review
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Review and capture the formalization-ready draft at the `draft-design` workflow interlock
 
 - **PR URL:** [none]
 - **Completed:** [none]
