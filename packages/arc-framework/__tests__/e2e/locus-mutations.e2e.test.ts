@@ -1,7 +1,8 @@
 /** Built-command coverage for stateful locus companions. */
 
 import { execFile, spawn } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -9,24 +10,27 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runCli } from "../helpers/run-cli.js";
-import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, removeGitBackedDir, runArc } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
 describe("arc locus mutation commands", () => {
   let repository: string;
   let linkedCheckout: string | null;
+  let remote: string | null;
 
   beforeEach(async () => {
     repository = await createTempRepo();
     linkedCheckout = null;
+    remote = null;
     const initialized = await runArc(["init", "--yes", "--name", "locus-mutation-fixture"], repository);
     expect(initialized.exitCode).toBe(0);
     await git(repository, ["config", "arc.identity", "test-user"]);
-    await git(repository, ["commit", "--allow-empty", "--no-verify", "-m", "initialize fixture"]);
     const configPath = join(repository, ".arc", "system", "arc-config.yml");
     const config = await readFile(configPath, "utf8");
     await writeFile(configPath, config.replace("branch.protection: partial", "branch.protection: full"), "utf8");
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "--no-verify", "-m", "initialize fixture"]);
   });
 
   afterEach(async () => {
@@ -34,6 +38,7 @@ describe("arc locus mutation commands", () => {
       await git(repository, ["worktree", "remove", "--force", linkedCheckout]).catch(() => undefined);
     }
     await cleanupTempDir(repository);
+    if (remote !== null) await removeGitBackedDir(remote);
   });
 
   it("adopts a trusted directed transient checkout and releases only its exact lease", async () => {
@@ -225,6 +230,66 @@ describe("arc locus mutation commands", () => {
 
   });
 
+  it("materializes a remote-only work-unit with exact provenance", async () => {
+    remote = await createBareRemote(repository);
+    await git(repository, ["push", "-u", "origin", "main"]);
+
+    const workUnit = "remote-work-unit";
+    const workUnitBranch = `feat/${workUnit}`;
+    await git(repository, ["switch", "-c", workUnitBranch]);
+    await writeWorkUnitMeta(repository, workUnit, workUnitBranch);
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "--no-verify", "-m", "add remote work unit"]);
+    await git(repository, ["push", "origin", workUnitBranch]);
+    await git(repository, ["switch", "main"]);
+    await git(repository, ["branch", "-D", workUnitBranch]);
+
+    const materializedWorkUnit = await runArc(["materialize", workUnit], repository);
+    expect(materializedWorkUnit.exitCode, materializedWorkUnit.stdout + materializedWorkUnit.stderr).toBe(0);
+    expect(materializedWorkUnit.stdout).toContain(`Work unit: ${workUnit}`);
+    linkedCheckout = await checkoutForBranch(repository, workUnitBranch);
+    expect(linkedCheckout).not.toBeNull();
+    expect(await readMarker(linkedCheckout as string)).toMatchObject({
+      spawnedByArc: true,
+      createdFor: { kind: "work-unit", name: workUnit },
+    });
+  });
+
+  it("materializes a remote-only paused Errand with exact provenance", async () => {
+    remote = await createBareRemote(repository);
+    await git(repository, ["push", "-u", "origin", "main"]);
+    const errand = "remote-errand";
+    const errandBranch = `chore/${errand}`;
+    const claimId = "e".repeat(32);
+    await git(repository, ["switch", "-c", errandBranch, "main"]);
+    const expectedHead = await git(repository, ["rev-parse", "HEAD"]);
+    await git(repository, ["push", "origin", errandBranch]);
+    await seedPausedErrandIdentity(repository, errand, claimId, expectedHead.trim());
+    await git(repository, ["push", "origin", "refs/arc/user/test-user/errands:refs/arc/user/test-user/errands"]);
+    await git(repository, ["switch", "main"]);
+    await git(repository, ["branch", "-D", errandBranch]);
+    await git(repository, ["update-ref", "-d", "refs/arc/user/test-user/errands"]);
+
+    const materializedErrand = await runAnchored(["errand", "materialize", errand, "--json"], repository);
+    expect(materializedErrand.exitCode, materializedErrand.stdout + materializedErrand.stderr).toBe(0);
+    const result = JSON.parse(materializedErrand.stdout.trim()) as {
+      activeLocusPath: string;
+      identity: { claimId: string; state: string };
+    };
+    expect(result).toMatchObject({
+      outcome: "applied",
+      operation: "errand-materialize",
+      allocation: { kind: "spawned" },
+      identity: { claimId, state: "open" },
+    });
+    linkedCheckout = result.activeLocusPath;
+    expect(await readMarker(linkedCheckout)).toMatchObject({
+      spawnedByArc: true,
+      createdFor: { kind: "errand", slug: errand, claimId },
+      provisioning: "ready",
+    });
+  });
+
   it("keeps operational JSON on stdout and exposes the exact public operands", async () => {
     const help = await runCli(["locus", "release", "--help"], { cwd: repository });
     expect(help.exitCode).toBe(0);
@@ -266,6 +331,77 @@ async function seedOpenErrandIdentity(cwd: string, slug: string, claimId: string
   const tree = (await gitWithInput(cwd, ["mktree"], `100644 blob ${blob}\t${slug}\n`)).trim();
   const commit = await git(cwd, ["commit-tree", tree, "-m", `seed ${slug}`]);
   await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
+}
+
+async function seedPausedErrandIdentity(
+  cwd: string,
+  slug: string,
+  claimId: string,
+  savedHead: string,
+): Promise<void> {
+  const record = {
+    version: 3,
+    slug,
+    claimId,
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:00:00.000Z",
+    kind: "errand",
+    purpose: "errand",
+    intent: slug,
+    branch: `chore/${slug}`,
+    origin: "description",
+    originEntry: null,
+    dispatchId: null,
+    state: "paused",
+    savedHead,
+    changeRequest: null,
+  };
+  const blob = (await gitWithInput(cwd, ["hash-object", "-w", "--stdin"], `${JSON.stringify(record)}\n`)).trim();
+  const tree = (await gitWithInput(cwd, ["mktree"], `100644 blob ${blob}\t${slug}\n`)).trim();
+  const commit = await git(cwd, ["commit-tree", tree, "-m", `seed ${slug}`]);
+  await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
+}
+
+async function createBareRemote(cwd: string): Promise<string> {
+  const path = await mkdtemp(join(tmpdir(), "arc-locus-materialize-remote-"));
+  await execFileAsync("git", ["init", "--bare", "--initial-branch=main", path]);
+  await git(cwd, ["remote", "add", "origin", path]);
+  return path;
+}
+
+async function writeWorkUnitMeta(cwd: string, slug: string, branch: string): Promise<void> {
+  await mkdir(join(cwd, ".arc", "active"), { recursive: true });
+  await writeFile(join(cwd, ".arc", "active", `meta-${slug}.md`), [
+    `# Metadata: ${slug}`,
+    "",
+    "- **State:** Active",
+    "- **Owner:** test-user",
+    `- **Branch:** ${branch}`,
+    "- **Class:** Light",
+    "- **Cohort:** [none]",
+    "- **Task List:** [none]",
+    "- **Current Workflow:** [none]",
+    "- **Last Completed:** [none]",
+    "- **Next Task:** [none]",
+    "- **Blockers:** [none]",
+    "- **Next Action:** Continue execution",
+    "",
+  ].join("\n"), "utf8");
+}
+
+async function checkoutForBranch(cwd: string, branch: string): Promise<string | null> {
+  const output = await git(cwd, ["worktree", "list", "--porcelain"]);
+  const blocks = output.trim().split("\n\n");
+  for (const block of blocks) {
+    const lines = block.split("\n");
+    if (!lines.includes(`branch refs/heads/${branch}`)) continue;
+    return lines.find((line) => line.startsWith("worktree "))?.slice("worktree ".length) ?? null;
+  }
+  return null;
+}
+
+async function readMarker(cwd: string): Promise<unknown> {
+  return JSON.parse(await readFile(join(cwd, ".arc", "system", ".internal", "worktree-marker.json"), "utf8"));
 }
 
 function gitWithInput(cwd: string, args: string[], input: string): Promise<string> {

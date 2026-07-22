@@ -869,9 +869,11 @@ protection modes, recovery boundaries, and package/source parity.
           grooming replay now returns its live allocation, while full housekeeping matches and retires its
           identity-backed role without confusing it with the partial-mode role shape.
 
-    - `[ ]` **7.4.d Cover materialization, adoption, and ambiguous residue**
-        - Exercise WU/Errand materialization provenance, recordless ARC-marked backfill, failed claim rollback,
-          malformed/duplicate records, unknown liveness, and partial-mode primary-only refusal.
+    - `[x]` **7.4.d Cover materialization, adoption, and ambiguous residue**
+        - Added real CLI materialization of remote-only work-unit and paused Errand generations, asserting their
+          exact ARC provenance markers and resumed identity. The focused matrix also covers recordless marked
+          adoption, failed-claim recovery, malformed/duplicate evidence, unknown liveness, and partial-mode
+          primary-only refusal.
 
     - `[ ]` **7.4.e Cover cleanup and rollout compatibility**
         - Race attach against physical removal, prove live/unknown vetoes, retain every existing teardown guard, and
