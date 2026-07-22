@@ -68,6 +68,12 @@
       now that the default topology is the low-cost integration-branch mechanic rather than fragile stacking.
       Toggle existence + placement weighs `principle-anchored-core` / `scalable-core` and the configuration cohort.
       Recorded as an open question in the release-gates posture, to confirm at this grooming.
+    - **PR-surface naming** — the group key is the work-unit slug (the deliverable / branch name, already public in
+      `feat/<slug>` and legible without ARC context — not a planning-ID leak), lean `<slug> [n/N]: <chunk title>`.
+      Grouping _identity_ rides structure (base branch plus a label), never title parsing — titles are a
+      list-scanning courtesy, disposable once native stack UI exists. The work-unit → `main` PR keeps the canonical
+      conventional title (the cover-letter / `[0/N]` slot). `[n/N]` drift under up-front planning (kernel-style
+      series re-versioning vs. bare `[n]`) settles with the terminology call below.
     - **Ship-variant terminology** — the origin owns the review unit's name; this member owns the name for the
       optional ship-to-`main` variant (`deliverable` / `stack` reserved for it). Settle after the origin's call so
       the two read together.
