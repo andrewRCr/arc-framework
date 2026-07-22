@@ -151,7 +151,7 @@ repository-only. Singular `_Note:_` is the sole peer descriptor spelling.
 - _Outcome:_ Canonical strategy, workflow, and template guidance now agree on wrapped-cluster spacing and singular
   `_Note:_`; fresh initialization installs the registered task template with both framework links resolving.
 
-### `[ ]` **5.2 Implement descriptor validation and focused fixtures**
+### `[x]` **5.2 Implement descriptor validation and focused fixtures**
 
 - _Goal:_ A pure repository rule detects only malformed documented root descriptor clusters and leaves unrelated
   Markdown grammar outside its authority.
@@ -160,17 +160,10 @@ repository-only. Singular `_Note:_` is the sole peer descriptor spelling.
         - Extracted canonical task grammar into stable phase, parent, subtask, section, fence, and content events;
           cursor analysis and region extraction now ignore backtick- and tilde-fenced task examples.
 
-    - `[ ]` **5.2.b Validate documented root descriptor clusters**
-        - Implement the pure `{ path, content }` rule over scanner events for parent boundaries, documented
-          singular root descriptors, `Additional Context`, operational-child boundaries, and completion shapes;
-          leave unknown list content outside its authority.
-        - Build `test-first` (one behavior at a time):
-            - All-one-line clusters may remain tight or loose.
-            - Every supported descriptor position requires loose spacing when any cluster entry wraps.
-            - `Additional Context`, completed tasks, operational children, `_Outcome:_`, nested list content, and
-              fenced examples terminate or preserve the intended cluster boundary.
-            - Canonical package-source template fixtures and current selected `tasks-*.md` paths are included.
-            - Diagnostics name the file, parent task, offending descriptor pair, and required spacing.
+    - `[x]` **5.2.b Validate documented root descriptor clusters**
+        - Added a pure scanner-event validator with path-, parent-, and descriptor-pair diagnostics; focused
+          fixtures cover every supported label, loose one-line clusters, completion and operational boundaries,
+          fenced examples, the canonical template, and the current work-unit task list.
 
 ### `[ ]` **5.3 Compose descriptor validation into worktree lint and normalize live tasks**
 
