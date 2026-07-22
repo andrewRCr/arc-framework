@@ -12,11 +12,11 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 6.6.b — Render CLI-precomposed reconciliation and cleanup text
-- **Next Task:** Task 7.1.a — Rework session initialization and its probe reference (line ~768)
+- **Last Completed:** Task 7.5.b — Wire the supported-OS CI matrix
+- **Next Task:** Task 8.1 — Complete verification (line ~903)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 7.1.a — rework session initialization and its probe reference
+- **Next Action:** Start Task 8.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
