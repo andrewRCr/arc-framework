@@ -105,25 +105,25 @@ generated consistently for every selected harness.
   maps its three caller inputs across both public methods, and reports combined read-only recommendations through
   the existing design-audit severity vocabulary.
 
-### `[ ]` **4.2 Register and project the canonical design-audit skill**
+### `[x]` **4.2 Register and project the canonical design-audit skill**
 
 - _Goal:_ Normal init and update generation includes `arc-design-audit` for every selected harness and keeps its
   typed description and canonical source synchronized.
 
-- _Note:_ Design coverage: PD6, PD8.
+    - `[x]` **4.2.a Register and install the canonical skill source**
+        - Registered the typed canonical member and description fixture, added its recipe-derived Framework/core
+          source and manifest hash, and covered focused unit plus init/update inventory visibility.
 
-    - Build `test-first` (one behavior at a time):
-        - `[x]` **4.2.a Register and install the canonical skill source**
-            - Registered the typed canonical member and description fixture, added its recipe-derived Framework/core
-              source and manifest hash, and covered focused unit plus init/update inventory visibility.
+    - `[x]` **4.2.b Exercise canonical generation and update loops**
+        - Existing per-skill loops now exercise design-audit output directories, byte parity, and Codex supplements,
+          while the update test mutates this new member specifically and proves canonical restore.
 
-        - `[x]` **4.2.b Exercise canonical generation and update loops**
-            - Existing per-skill loops now exercise design-audit output directories, byte parity, and Codex
-              supplements, while the update test mutates this new member specifically and proves canonical restore.
+    - `[x]` **4.2.c Index the standalone door in both canonical skill READMEs**
+        - Added a directive, trigger-bearing default-set entry through package-source projection without growing
+          always-loaded session context.
 
-    - `[ ]` **4.2.c Index the standalone door in both canonical skill READMEs**
-        - Add a directive, trigger-bearing entry for `arc-design-audit` to the package and self-hosted
-          `system/.internal/skills/README.md` lists without growing the always-loaded session context.
+- _Outcome:_ Normal init and update now install, generate, restore, and advertise the canonical design-audit door
+  for every selected harness from one typed, manifest-tracked source.
 
 ## **Phase 5:** Behavioral acceptance
 
