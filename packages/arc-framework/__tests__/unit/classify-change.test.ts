@@ -264,7 +264,12 @@ describe("classify-change.sh classify", () => {
       await readFile(join(root, "packages/arc-framework/package.json"), "utf8"),
     ) as { scripts: Record<string, string> };
     const command = manifest.scripts["test:arc-contracts"];
-    const suites = ["framework-sync", "pr-open-extensions", "review-gate-workflows"];
+    const suites = [
+      "framework-sync",
+      "locus-methodology-contracts",
+      "pr-open-extensions",
+      "review-gate-workflows",
+    ];
 
     expect(command).toBe(`vitest run --project integration ${suites.join(" ")}`);
     for (const suite of suites) {
