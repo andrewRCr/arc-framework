@@ -67,8 +67,8 @@ describe("validateTaskDescriptorSpacing", () => {
       path: ".arc/active/tasks-example.md",
       parent: { id: "1.1", title: "Describe the work" },
     });
-    expect(diagnostics[0]?.message).toContain(
-      ".arc/active/tasks-example.md: Task 1.1 \"Describe the work\" requires a blank line",
+    expect(diagnostics[0]?.message).toMatch(
+      /^\.arc\/active\/tasks-example\.md:\d+: Task 1\.1 "Describe the work" requires a blank line/u,
     );
     expect(diagnostics[0]?.message).toContain("because this root descriptor cluster contains a wrapped entry");
   });

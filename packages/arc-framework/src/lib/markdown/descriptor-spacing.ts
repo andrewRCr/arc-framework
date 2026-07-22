@@ -141,6 +141,6 @@ function createDiagnostic(
     parent: { id: parent.id, title: parent.title },
     previous: previous.label,
     next: next.label,
-    message: `${path}: Task ${parent.id} "${parent.title}" requires a blank line between ${displayLabel(previous.label)} and ${displayLabel(next.label)} because this root descriptor cluster contains a wrapped entry`,
+    message: `${path}:${next.startLine}: Task ${parent.id} "${parent.title}" requires a blank line between ${displayLabel(previous.label)} and ${displayLabel(next.label)} because this root descriptor cluster contains a wrapped entry`,
   };
 }

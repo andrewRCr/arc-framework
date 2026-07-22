@@ -4,6 +4,7 @@ export * from "./authority.js";
 export * from "./contracts.js";
 export * from "./dependency-alignment.js";
 export * from "./descriptor-spacing.js";
+export * from "./descriptor-worktree.js";
 export * from "./display-width.js";
 export * from "./emphasis-audit.js";
 export * from "./format-plan.js";
