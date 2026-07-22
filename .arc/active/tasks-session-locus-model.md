@@ -911,21 +911,20 @@ already attach. Operator-facing exactness gates (harness capability table, host-
 digests, claim arbitration) reduce to advisory or simple-conflict semantics; data-destroying paths keep their
 full guard set unchanged.
 
-### `[ ]` **7.R.a Settle the right-sizing deltas in the spec** — D1, D4-D8, D11
+### `[x]` **7.R.a Settle the right-sizing deltas in the spec** — D1, D4-D8, D11
 
 - _Goal:_ The spec records the trimmed design as settled decisions — verb-scoped leases, advisory warm entry,
   open-change-request re-entry, digest-free housekeep, simple-conflict grooming, session-locus naming — so the
   tasks below implement an amended design rather than drifting from the written one.
 
-    - Amend D1/D5 (capability table → advisory), D4/D11 (lease scope and the session-init attach expectation),
-      D6 (frame-matrix claims, narration register), D7 (awaiting-merge resume/materialize predicates), D8
-      (housekeep plan protocol, groom claim semantics); revise spec Success Criteria 3, 7, 10, 11 and this
-      file's § Success Criteria to match.
-    - Settle the two open sub-decisions: whether execute-bound captures keep grouped dispatch IDs or reduce to a
-      plain entry flag with file-order next-offer, and whether the routing lane stays persisted or derives at
-      close from what the sweep touched.
-    - Record the keep-list rationale (inspectors, record locks, staged provisioning, identity transaction core)
-      with an explicit do-not-extend note so verification reads retained weight as intentional.
+- _Outcome:_ Amended D1/D4/D5/D6/D7/D8/D11: advisory warm entry over best-effort `unverifiable` anchors;
+  verb-scoped leases with idle-as-normal frame framing; open-change-request re-entry (unreachable host degrades to
+  confirm); slug-only housekeep open with lane derived at close; groom same-key/overlap conflict semantics.
+  Dropped `cold-entry-required` plus every dispatch/lane/plan-digest field and refusal reason from the wire and
+  record types; added the Non-Goals arbitration line, § Proportionality boundary (keep-list, do-not-extend), the
+  D11 "session locus" narration rule, and a pre-release schema-narrowing rollout note. Spec Success Criteria
+  7/8/10 revised, 16 added; this file's § Success Criteria mirrored. Sub-decisions settled: dispatch IDs removed
+  in favor of the plain execute-bound flag with file-order next-offer; the routing lane derives at close.
 
 ### `[ ]` **7.R.b Ratify verb-scoped leases and align spec, workflow, and narration** — D4, D6, D11
 
@@ -1027,23 +1026,25 @@ full guard set unchanged.
 - `[ ]` Live or unknown primary occupancy and duplicate or malformed topology always refuse automatic allocation.
 - `[ ]` Existing ARC-owned worktrees and the exact markerless in-place WU case adopt safely, live grooming is never
   offered as residue/orphan cleanup, and unverified markerless or unresolved cases stay manual.
-- `[ ]` Single- or multi-member grooming claims admit disjoint co-design sets, produce one unique winner for every
-  overlap, adopt retries only for the same anchor and exact member set, bound writes to the claimed planning concern,
+- `[ ]` Single- or multi-member grooming claims admit disjoint co-design sets, resume on a same-anchor exact-set
+  reopen, refuse other overlaps with the conflicting members named, bound writes to the claimed planning concern,
   and require exact change-request and branch-generation retirement before reuse.
-- `[ ]` Errand materialization accepts only exact paused or requested-work awaiting-merge v3 heads and writes both
-  ARC ownership provenance and the matching local role.
+- `[ ]` Errand materialization accepts only exact paused v3 heads, or awaiting-merge heads whose recorded change
+  request is verified still open, and writes both ARC ownership provenance and the matching local role.
 - `[ ]` Teardown holds the locus lock across final revalidation, physical removal, and expected-generation role pop.
-- `[ ]` One full-mode housekeeping sweep uses one identity, immutable canonical plan digest, persisted strictest
-  lane, and review tail; adopts only an exact re-supplied plan, excludes a concurrent sweep under every other slug,
-  safely reuses repeated branch names only after exact generation cleanup, then opens execute-now work as
-  exact-dispatch sibling Errands without leaking interrupted groups into later drains. Partial mode is explicitly
-  machine-local, carries the same plan digest in its role, and mints that role before any dispatch marking.
+- `[ ]` One full-mode housekeeping sweep uses one identity, branch, PR, and review tail with its lane classified at
+  close from the writes it landed; excludes a concurrent sweep under every other slug, safely reuses repeated
+  branch names only after exact generation cleanup, then opens execute-now work as sibling Errands offered from
+  visible execute-bound inbox markings in file order. Partial mode is explicitly machine-local primary occupancy.
 - `[ ]` Exact v3 promotion converts one Errand locus into the sole active WU session home and preserves its inbox
   capture until the WU meta commit, with no standalone v3 retirement command.
 - `[ ]` Full-mode Errands can pause or await merge without leaving an unleased transient role as normal waiting state.
 - `[ ]` Partial-mode Errands remain direct-base, machine-local, non-materializable, and non-pausable.
 - `[ ]` Handoff releases an exact restored WU lease once; a cold between-WUs transient closes to a record-free primary
   without fabricating a lease-release operation.
+- `[ ]` Ordinary WU session entry proceeds leaseless on the durable role, warm entry never hard-refuses on harness
+  identity, and routine session narration renders no locus lines for expected state, naming the model only as
+  "session locus" where diagnostics require it.
 - `[ ]` Linux, macOS/BSD, and Windows inspectors enforce PID-plus-start-token liveness with unknown-safe degradation.
 - `[ ]` Locus schemas compose with the landed kernel and session envelope without a parallel type or codec authority.
 - `[ ]` Package/source parity and all required tests, lint, type checks, builds, and platform CI pass.

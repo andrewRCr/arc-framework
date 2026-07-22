@@ -65,6 +65,8 @@ keeps identity, lifecycle, and machine occupancy in their existing authority dom
   them.
 - Making age a liveness or deletion signal.
 - Adding a storage mode, per-artifact tracking flag, harness-specific configuration axis, or resident service.
+- Cross-machine arbitration of simultaneous transient claims. Identity claims are first-writer-wins with explicit
+  conflict surfacing; concurrent duplicate opens sit outside ARC's operator scale.
 
 ## Proposed Design
 
@@ -94,15 +96,16 @@ active locus while preserving the originating worktree and session:
 - under partial protection, run direct-base transient work only in the free primary. A dirty, off-base, or occupied
   primary refuses with defer/finish guidance; ARC never double-checks out the base or invents a branch to imitate
   the full-protection mechanism;
-- permit warm entry only when the entering process anchor selects Codex or Claude in a fixed directed-command
-  capability table. Every other selector, an interactive shell, shared host, or unverifiable anchor refuses with
-  `cold-entry-required` before identity or local allocation state changes and recommends a cold session.
+- surface a directed-command capability advisory on warm entry when the entering process anchor is not a
+  recognized directed-command harness — an interactive shell, shared host, unrecognized selector, or unverifiable
+  anchor gets a confirm-with-recommendation (cold session suggested), never an identity-keyed refusal. Anchor
+  recognition is lease metadata and advisory input only; it carries no permission semantics.
 
 State-touching open and attach commands acquire the entering process anchor from bounded native ancestor evidence
 before identity or local allocation mutation. They skip only recognized ARC/npm invocation descendants, select the
-durable per-session harness or direct interactive shell process, and refuse when ancestry, command identity, start
-token, or interactive/controlling-terminal evidence is unavailable or ambiguous. A short-lived CLI child is never
-the lease anchor.
+durable per-session harness or direct interactive shell process, and record an `unverifiable` anchor (unknown
+liveness) when ancestry, command identity, start token, or interactive/controlling-terminal evidence is
+unavailable or ambiguous. A short-lived CLI child is never the lease anchor.
 
 The originating agent performs work against the allocated checkout through an explicit working-directory or
 absolute-path boundary. The human's terminal and the WU worktree do not move. Every warm open reports the session
@@ -158,9 +161,7 @@ Schema v1 is an exact-key, versioned record:
     "subject": { "kind": "work-unit", "key": "session-locus-model", "claimId": null },
     "establishedAt": "2026-07-18T00:00:00.000Z",
     "parentCheckoutPath": null,
-    "dispatchId": null,
-    "originEntry": null,
-    "routingPlanDigest": null
+    "originEntry": null
   },
   "lease": {
     "leaseId": "<unguessable per-attach token>",
@@ -208,13 +209,10 @@ Field semantics:
 - `parentCheckoutPath` is always present and nullable. A non-null value is legal only on a warm transient role and
   points to the suspended session-home checkout. Maximum parent depth is one. A parent record that itself has a
   non-null parent is invalid and fails closed.
-- `dispatchId`, `originEntry`, and `routingPlanDigest` are always present and nullable execution-context fields. A
-  partial inbox-origin Errand carries `originEntry` because it has no shared identity record, plus `dispatchId`
-  exactly when that capture is execute-bound; a description-origin partial Errand carries neither. Every full
-  Errand derives both from its exact v3 identity and requires all three role fields null. A partial housekeep role
-  carries its freshly minted dispatch ID and exact routing-plan digest with a null origin entry. WU, groom, and
-  unrelated transient roles require all three null. These fields coordinate continuation only; they never grant
-  identity, branch, or cleanup authority.
+- `originEntry` is an always-present, nullable execution-context field. A partial inbox-origin Errand carries it
+  because it has no shared identity record; a description-origin partial Errand, every full Errand (whose origin
+  lives in its exact v3 identity), and WU, groom, and housekeep roles require null. The field coordinates capture
+  continuation only; it never grants identity, branch, or cleanup authority.
 - `lease` is nullable. A durable WU role with `lease: null` is an idle checkout between sessions. A transient role
   with no live lease is crash-or-walk-away residue requiring resume-and-ship or abandon.
 - `anchor` is a tagged union. The shown `process` variant requires a positive PID and non-empty creation token.
@@ -264,8 +262,8 @@ Role creation and removal bind to the operations that establish or end a checkou
 
 | Operation | Role action |
 | --- | --- |
-| WU spawn / materialize / in-place entry | Mint durable WU role; attach the applicable entering lease. |
-| WU session-init | Adopt/backfill the WU role if needed; attach or refresh the session lease. |
+| WU spawn / materialize / in-place entry | Mint durable WU role; attach an entering lease only when the invoking session continues there. |
+| WU session-init | Adopt/backfill the WU role if needed; re-attach only a resolved live-lease re-entry. |
 | WU handoff | Release only the matching lease; retain the durable role. |
 | WU teardown | Linearize final lease validation and role pop with linked removal or in-place base restoration. |
 | Errand open / resume | Mint `errand` role in the allocated checkout; link the entering WU parent when warm. |
@@ -309,10 +307,18 @@ permits an exact-identity missing-role adoption. Existing claimless transient ma
 but grant neither adoption nor cleanup authority. A primary transient role has no ownership marker because ARC did
 not create the primary checkout.
 
+Session leases are verb-scoped, not session-scoped. Transient operation verbs, explicit `arc locus attach`, and
+mutation revalidation create and carry them; ordinary WU session entry does not mint one, and a durable WU role
+with `lease: null` while a session works in its checkout is the normal mainline state, never residue. The lease's
+consumers are the transient frame graph, cleanup's occupancy veto, and residue classification — none of which a
+plain WU resume requires. Spawn-for-handoff therefore mints the WU role with no lease — the spawning session does
+not continue in the new checkout; in-place entry and promotion, where the session does continue, attach one.
+
 Lease attach is single-session: a null WU lease accepts a new token; the same token/anchor is idempotent; a
 different conclusively live anchor refuses as occupied; and unknown liveness stops for reconciliation. A dead WU
-lease may be replaced during session entry with a fresh token. A dead transient lease is not silently replaced:
-the caller must choose resume-and-ship or abandon, after which the chosen operation attaches or pops explicitly.
+lease may be replaced by the next attaching operation with a fresh token. A dead transient lease is not silently
+replaced: the caller must choose resume-and-ship or abandon, after which the chosen operation attaches or pops
+explicitly.
 
 Transient roles are session-bounded; transient identity may outlive one local occupancy. A full-protection Errand
 may become `paused` only after its exact WIP head is committed and pushed, or `awaiting-merge` after its exact change
@@ -363,9 +369,9 @@ Production adapters use native machine-local sources:
 Entry acquisition walks a bounded, cycle-checked ancestor chain from the invoking ARC process and captures the
 selector's complete evidence through argument-array native calls. The walk returns one ordered snapshot or an
 unverifiable reason; a missing parent, permission boundary, malformed record, ambiguous wrapper identity, or
-unsupported facility refuses before any state mutation rather than truncating the chain into a guess. Production
-open and attach drivers derive this anchor once and carry the exact PID/start token through allocation and lease
-provisioning.
+unsupported facility resolves to an `unverifiable` anchor rather than truncating the chain into a guess, and state
+mutation proceeds with that anchor at unknown liveness. Production open and attach drivers derive this anchor once
+and carry the exact PID/start token through allocation and lease provisioning.
 
 Missing platform facilities, permission failures, malformed output, unsupported operating systems, and legacy
 records return `unverifiable`; they never guess dead.
@@ -465,8 +471,8 @@ type LocusIdentityV1 =
       branch: string;
       purpose: "errand";
     } & (
-      | { origin: "description"; originEntry: null; dispatchId: null }
-      | { origin: "inbox"; originEntry: string; dispatchId: string | null }
+      | { origin: "description"; originEntry: null }
+      | { origin: "inbox"; originEntry: string }
     ) & (
       | { state: "open"; savedHead: null; changeRequest: null }
       | { state: "paused"; savedHead: string; changeRequest: null }
@@ -479,9 +485,6 @@ type LocusIdentityV1 =
       protection: "full";
       branch: string;
       purpose: "housekeep-routing";
-      routingLane: "auto" | "reviewed";
-      dispatchId: string;
-      routingPlanDigest: string;
     } & (
       | { state: "open"; savedHead: null; changeRequest: null }
       | { state: "awaiting-merge"; savedHead: null; changeRequest: LocusChangeRequestV1 }
@@ -527,9 +530,7 @@ interface LocusRowV1 {
     kind: string;
     subject: { kind: string; key: string; claimId: string | null };
     parentCheckoutPath: string | null;
-    dispatchId: string | null;
     originEntry: string | null;
-    routingPlanDigest: string | null;
   };
   identity: LocusIdentityV1 | null;
   lease: null | {
@@ -581,8 +582,7 @@ matching `cli-session-envelope`'s versionless-envelope convention.
 
 The identity projection preserves the v3 discriminants and immutable `claimId`: Errands are always `full`, have
 non-null `purpose` and `branch`, and carry `savedHead` only while paused. Ordinary Errands preserve their origin
-entry and optional execute-dispatch binding; housekeep identities preserve their required dispatch ID, routing-plan
-digest, and routing lane. Grooms have `purpose` null, preserve the anchor and canonical member set, carry the
+entry. Grooms have `purpose` null, preserve the anchor and canonical member set, carry the
 protection/branch pairing defined in D8, and never carry `savedHead`.
 `changeRequest` is non-null exactly for an awaiting-merge identity. An identity joined to its local role appears
 only on that managed row after role-subject kind, key, and `claimId` all match; a valid identity without a locus has
@@ -671,8 +671,11 @@ type LocusReconcileAction = {
 
 Frame derivation uses one exact matrix. A conclusively live role is `active` unless a conclusively live child names
 it through the one legal parent edge, in which case the parent is `suspended` and the child is `active`. A WU role
-with `lease: null` and a valid identity-only tail are `idle`. Any other managed role whose lease is absent, dead, or
-unknown is `residue`; recovery may replace a conclusively dead WU lease on entry, but unknown liveness always stops.
+with `lease: null` and a valid identity-only tail are `idle` — for a WU checkout the normal state between and
+during ordinary sessions, since leases are verb-scoped (D4), never a finding. A WU role whose lease is conclusively
+dead likewise reads `idle`, carrying a `lease-dead` diagnostic — the durable role, not the lease, holds WU
+ownership, and the next attaching operation reaps the stale lease. Any other managed role whose lease is absent,
+dead, or unknown is `residue`; attach may replace a conclusively dead WU lease, but unknown liveness always stops.
 Malformed, unmanaged, duplicate, and unresolved rows have `frame: null`. Current-state selection follows D9: among
 live leases matching the entering anchor, prefer the transient role, resolve its optional parent, otherwise take the
 matching WU; multiple plausible children or parents are ambiguous.
@@ -686,7 +689,8 @@ themselves make the primary unsafe or stop reconciliation.
 `inFlightIdentities.actions` lists state-appropriate next operations, not authorization to perform them: `open`
 and `paused` offer resume/abandon, while `awaiting-merge` advertises wait/finalize/abandon/resume as possible. The
 network-free reader does not query host state; each selected mutation revalidates its local, ref, remote, and
-change-request predicates, and permits awaiting-merge resume only for host-reported requested work.
+change-request predicates, and permits awaiting-merge resume once the recorded change request is verified still
+open at its stored head.
 
 Allocation runs only inside state-touching verbs, after protection mode and the requested operation are known. All
 such verbs return the exact shared result shape below; there are no undisclosed command-specific JSON fields:
@@ -710,13 +714,10 @@ type LocusMutationResultV1 =
       sessionHomePath: string | null;
       identity: LocusIdentityV1 | null;
       originEntry: string | null;
-      dispatchId: string | null;
-      routingPlanDigest: string | null;
       restoredParent: null | { recordId: string; checkoutPath: string };
       nextOffer: null | {
-        kind: "errand" | "housekeep";
+        kind: "errand";
         key: string;
-        dispatchId: string;
         parentCheckoutPath: string | null;
       };
       recommendedPromptText: string;
@@ -729,12 +730,12 @@ type LocusMutationResultV1 =
         | "topology-unknown" | "record-malformed" | "duplicate-locus"
         | "checkout-missing" | "lease-live" | "lease-unknown"
         | "lease-generation-mismatch" | "role-conflict"
-        | "full-protection-required" | "cold-entry-required"
+        | "full-protection-required"
         | "remote-unreachable" | "identity-conflict" | "change-request-open"
         | "change-request-unverifiable"
         | "partial-handoff-forbidden" | "preservation-unproven"
         | "inbox-link-conflict" | "work-unit-name-taken" | "promotion-source-invalid"
-        | "dispatch-conflict" | "routing-plan-mismatch" | "routing-lane-downgrade" | "stub-ambiguous";
+        | "stub-ambiguous";
       recommendedPromptText: string;
     }
   | {
@@ -750,7 +751,7 @@ one. Human rendering uses the same `recommendedPromptText`, so workflows dispatc
 `error.code`, and never reconstruct safety logic or narration. Expected safety denials remain `refused`; unexpected
 parse, topology, persistence, locking, or mutation-boundary failures retain the locally exhaustive `LocusErrorCode`
 in the `error` arm. Open/resume success makes allocation, record/lease IDs, active locus, and session home non-null.
-Leave/close may instead populate `identity`, `originEntry`, `dispatchId`, `routingPlanDigest`, `restoredParent`, and
+Leave/close may instead populate `identity`, `originEntry`, `restoredParent`, and
 `nextOffer`; promotion returns the originating capture until its WU meta commit makes removal safe. Fields
 irrelevant to the completed operation are null. Repeating an already-applied mutation with its exact expected
 generation is `idempotent`; a different lease token or generation is `refused` with
@@ -798,8 +799,8 @@ A shared allocator backs the existing operation verbs instead of adding workflow
 
 - under full protection, `arc errand open <slug>` allocates the free primary or a spawned transient worktree and
   mints/updates the shared Errand identity; under partial protection it occupies only the free primary, creates no
-  branch or shared identity, and retains the direct-base commit path. An inbox-origin open reads any exact
-  execute-dispatch binding and carries it in the v3 identity or partial role. Before either mode mutates identity
+  branch or shared identity, and retains the direct-base commit path. An inbox-origin open records its originating
+  entry in the v3 identity or partial role. Before either mode mutates identity
   or occupancy, the driver acquires and selects the entering process anchor defined by D5; the selected anchor is
   the single lease input carried through allocation, provisioning, and the shared result;
 - `arc errand link <slug>` remains the late inbox-adoption edge, but mutates only an exact ordinary v3 claim through
@@ -826,16 +827,15 @@ A shared allocator backs the existing operation verbs instead of adding workflow
 - new `arc housekeep open <slug>` / `arc housekeep close <slug>` / `arc housekeep abandon <slug>` verbs own
   session-bounded routing occupancy. In full mode `<slug>` identifies the complete confirmed pure-routing sweep and
   its one v3 Errand identity with `purpose: "housekeep-routing"`; every routed entry shares that identity's branch
-  and PR. Open receives a canonical complete-plan file plus its `auto | reviewed` lane, mints one dispatch ID, and
-  persists the plan's canonical digest; re-entry may upgrade `auto` to `reviewed` but never downgrade it, and adopts
-  only when the supplied plan re-digests exactly. Partial mode uses the same sweep slug for one direct-base
-  occupancy and carries a fresh dispatch ID plus plan digest in its local role. The sweep role closes before any
+  and PR, whose review lane derives at close from the writes the sweep actually landed. Partial mode uses the same
+  sweep slug for one direct-base occupancy. The sweep role closes before any
   execute-now Errand begins. Abandonment requires explicit selection and the same preservation checks as Errand
   abandonment; an awaiting-merge routing identity additionally requires exact host truth that its change request
   closed unmerged;
 - new full-protection `arc errand materialize <slug>` replaces session-init's raw `git worktree add` path; partial
   Errands have no remote branch to materialize. Materialization accepts only an identity-only paused claim at
-  `savedHead`, or an awaiting-merge claim at `changeRequest.headSha` after exact host truth requests work. It refuses
+  `savedHead`, or an awaiting-merge claim at `changeRequest.headSha` whose recorded change request is verified
+  still open — no stricter host-review state is required. It refuses
   `open` identities, branch-derived legacy candidates, changed/missing remote heads, and incomplete snapshots;
 - `arc start`, `arc materialize`, and worktree lifecycle mutators mint WU roles beside ownership markers.
 
@@ -860,8 +860,8 @@ recorded groom anchor/member set), which validates the identity state before all
 The fresh role links the entering process's current WU when warm or records a null parent when cold; the portable
 identity tail never persists a machine-local checkout path. Resume reuses the retained branch only at the exact
 `savedHead` or `changeRequest.headSha`, and allocation failure restores the unchanged identity tail rather than
-retiring it. Awaiting-merge resume additionally requires exact host truth that the recorded change request needs
-work.
+retiring it. Awaiting-merge resume additionally requires the recorded change request to be verified still open at
+its stored head; an unreachable host degrades to an explicit operator confirm rather than a refusal.
 
 Three new state-touching companions cover lifecycle sites that do not already own allocation:
 
@@ -897,8 +897,8 @@ Full-mode Errand completion is independent of local-locus close. A reviewed or a
 `arc errand leave --state awaiting-merge` after its PR reaches the waiting state. An explicitly interrupted Errand
 may use `--state paused` only after committing and pushing the WIP head; needing a durable cross-session plan instead
 fires promotion. The later merge finalizer calls `arc errand close` to prove completion, retire the identity, clean
-refs, and remove its inbox capture. Paused resume, or awaiting-merge resume after exact host truth reports requested
-work, allocates a new local locus and returns identity state to `open`.
+refs, and remove its inbox capture. Paused resume, or awaiting-merge resume once the recorded change request is
+verified still open, allocates a new local locus and returns identity state to `open`.
 
 Promotion is neither leave nor resume. The workflow decides that a wrapper floor has been crossed, then the command
 performs one generation-checked frame replacement. It cannot infer “promotion-worthy” work, and `leave` does not
@@ -969,13 +969,11 @@ v3 tagged union. Every v3 record carries an immutable, randomly minted `claimId`
 it identifies the claimant generation across lifecycle transitions and is never inferred from timestamps or record
 content. A v3 Errand carries `version: 3`, its current fields, `kind: "errand"`, `purpose: "errand" |
 "housekeep-routing"`, and `updatedAt`; new v3 records never carry `returnBranch`. Ordinary Errands permit
-`state: "open" | "paused" | "awaiting-merge"`; its existing origin fields gain nullable `dispatchId`, which is
-non-null only for an inbox origin carrying the same execute binding. Housekeep routing permits only
+`state: "open" | "paused" | "awaiting-merge"` and keep their existing origin fields. Housekeep routing permits only
 `open | awaiting-merge` because the confirmed sweep must complete or be explicitly abandoned before handoff. A
 `housekeep-routing` record's branch-safe slug identifies the complete confirmed routing sweep and its single
-branch/PR; it also carries required `routingLane: "auto" | "reviewed"`, `dispatchId`, and `routingPlanDigest`
-fields, with lane updates monotonic toward `reviewed` and the digest immutable for the claim generation.
-`routingPlanDigest` uses the canonical `sha256:<64 lowercase hex>` grammar. `savedHead` is required for `paused` and
+branch/PR, whose review lane derives at close from the writes the sweep actually landed — no lane, dispatch, or
+plan-digest field persists in the record. `savedHead` is required for `paused` and
 must be proven on the remote; `awaiting-merge` requires
 `changeRequest: { repositoryRef, hostRef, baseRef, headRef, headSha }`. A v3 groom carries `version: 3`,
 `kind: "groom"`, `slug: "groom-<anchorStub>"`, `anchorStub`, canonical non-empty `members`, immutable
@@ -994,18 +992,12 @@ letting two branches co-design the same WU concurrently. Housekeep sweep slugs m
 non-overlapping drains, but each reuse is a fresh `claimId` generation and cannot begin while any live
 `housekeep-routing` identity exists, even under a different slug.
 
-Housekeep open accepts one bounded exact-key `HousekeepPlanV1` JSON file representing the confirmation gate's
-write-affecting decisions in inbox order. Each entry carries its exact current inbox title plus a closed disposition
-and a `sourceDigest` over that entry block's UTF-8 bytes after CRLF-to-LF normalization and exactly one terminal
-newline. It selects a closed disposition (`dismiss`, `existing-stub`, `owner-adoption`, `new-stub`, `defer`,
-`retain`, or `execute-now`) and only the destination/commitment fields legal for that disposition. The canonical
-digest covers this ordered entry set and its disposition-specific data. It deliberately excludes overlap
-advisories, review-increment chunking, and the separately persisted lane, so presentational changes and monotonic
-`auto → reviewed` escalation do not create a new plan generation. Unknown keys, duplicate titles, illegal field
-combinations, oversized input, or a title/source digest that does not match the current inbox snapshot refuses
-before claim or role mutation. The notes-lock phase revalidates every planned entry preimage; a race rolls back only
-the unchanged claim rather than applying a stale plan. The normalized plan is an invocation input, not another
-persisted queue: only its digest enters identity or role state.
+Housekeep open takes the sweep slug alone; the confirmation gate's dispositions (`dismiss`, `existing-stub`,
+`owner-adoption`, `new-stub`, `defer`, `retain`, `execute-now`) stay a session-held decision set, not a persisted
+plan artifact. No canonical plan file, per-entry source digest, or plan-digest generation exists: the durable
+record of an interrupted sweep is what it already wrote — routed entries on the sweep branch and visible
+execute-bound markings in the inbox — and a resumed or later drain re-confirms whatever remains unrouted against
+the live inbox before continuing.
 
 Every v3 identity mutation is a complete-read, expected-state ref transaction over tip-pinned local and remote
 snapshots. With a configured remote it fetches the exact identity ref into a caller-unique temporary ref; a proven
@@ -1021,21 +1013,21 @@ held, and no read or transport failure is interpreted as absence.
 
 Groom open applies that transaction as a create-if-absent, no-overlap claim rather than the existing upsert: the
 deterministic `groom-<anchorStub>` key must be absent and its canonical member set must be disjoint from every live
-groom on the complete basis. The first claimant wins; a losing exact-set retry CAS-adopts the winner at that key
-while preserving unrelated entries and returns resume/wait, so its competing blob cannot remain as a recurring
-same-slug conflict. An overlapping non-identical claim returns `identity-conflict` with the conflicts named in
-`recommendedPromptText`. The claimant's random `claimId` distinguishes simultaneous otherwise-identical records.
+groom on the complete basis. An existing same-anchor exact-set claim returns the state-appropriate resume/wait
+verdict; an overlapping non-identical claim returns `identity-conflict` with the conflicts named in
+`recommendedPromptText`. No winner-arbitration or retry-adoption machinery exists — concurrent duplicate opens sit
+outside ARC's operator scale, so a raced CAS simply refuses and re-reads.
 If subsequent locus allocation fails, open CAS-retires only the unchanged record carrying its own `claimId`; a
 failed rollback surfaces the claim for explicit resume/abandon rather than hiding it.
 
-Tail retirement and requested-work resume use a narrow developer-authenticated change-request lifecycle port, not
+Tail retirement and awaiting-merge re-entry use a narrow developer-authenticated change-request lifecycle port, not
 a review-provider result. The port validates the configured repository/base against the stored `repositoryRef`,
-`hostRef`, `baseRef`,
-`headRef`, and `headSha`, then returns exactly `merged | open | closed-unmerged | changed-head | missing | ambiguous |
-unreachable | requested-work`. `requested-work` means the exact stored head is still open and the host's native
-aggregate review decision is changes-requested; plain open review state remains `open`. Only `merged` for the exact
-stored change request authorizes automatic retirement; `closed-unmerged` authorizes only explicit abandonment,
-while every other result retains the claim and prompts.
+`hostRef`, `baseRef`, `headRef`, and `headSha`, then returns exactly
+`merged | open | closed-unmerged | changed-head | missing | ambiguous | unreachable`. Only `merged` for the exact
+stored change request authorizes automatic retirement; `closed-unmerged` authorizes only explicit abandonment;
+`open` at the stored head permits resume and materialization. Every other result retains the claim and prompts —
+an unreachable host degrades re-entry to an explicit operator confirm and never blocks a path that retires
+nothing.
 Branch absence and base containment are never merge proof, so merge, squash, and rebase strategies share one rule.
 An incomplete or malformed identity-ref read likewise blocks open/retirement; unreadable state is never absence.
 
@@ -1044,13 +1036,11 @@ not `chore/groom-*` branch shape, and stop emitting cleanup warnings for live gr
 
 A full-mode housekeep open first finalizes any exact host-proven merged routing tail, then scans the complete
 identity tree and CAS-creates one sweep identity only when no live `housekeep-routing` identity exists. This is a
-global per-identity gate, not a same-slug check: choosing another sweep slug cannot admit a parallel drain. A losing
-cross-machine retry adopts the winner only when its canonical plan digest matches; a missing or changed plan returns
-resume/abandon guidance rather than cutting from a base that may not contain its routing writes. All confirmed
-routing entries use that one identity, branch, and PR; the persisted strictest lane classifies the PR after
-compaction or resume. Large sweeps may contain multiple ordered review increments and commits without minting
-another identity. Until the exact routing change request merges or is explicitly abandoned, its identity tail
-blocks a second drain but not the already-confirmed execute-now sibling Errands.
+global per-identity gate, not a same-slug check: choosing another sweep slug cannot admit a parallel drain. All
+confirmed routing entries use that one identity, branch, and PR; lane classification happens once, at close, from
+the writes the sweep landed. Large sweeps may contain multiple ordered review increments and commits without
+minting another identity. Until the exact routing change request merges or is explicitly abandoned, its identity
+tail blocks a second drain but not the already-confirmed execute-now sibling Errands.
 
 Repeated sweep names such as `inbox-drain` are intentionally reusable only across generations. Exact merged-tail
 finalization or explicit closed-unmerged abandonment first cleans the recorded local branch and deletes the remote
@@ -1061,37 +1051,30 @@ machine-local primary occupancy; it does not claim cross-machine serialization. 
 recoverable without storing an Errand queue or treating the harness summary as authority.
 
 After confirmation, housekeeping updates all execute-now captures in one identity-notes-lock critical section. It
-writes visible managed fields ``- _Disposition:_ `execute-bound` `` and ``- _Dispatch:_ `<dispatchId>` `` through
-one atomic same-file replacement, so partial marking cannot create a smaller accidental queue. These entries are
-triaged and do not re-enter ordinary housekeep routing, while the existing session-init inbox-state slot reports
-their exact pending dispatch groups separately from its routable count. Inbox removal at completion uses the same
-notes lock so a sibling worktree cannot overwrite concurrent dispatch marking or another completion. The mutation
-returns its exact post-image for next-offer derivation; the selected Errand open revalidates that entry and dispatch
-before execution.
+writes the visible managed field ``- _Disposition:_ `execute-bound` `` through one atomic same-file replacement, so
+partial marking cannot create a smaller accidental queue. These entries are triaged and do not re-enter ordinary
+housekeep routing, while the existing session-init inbox-state slot reports them separately from its routable
+count. Inbox removal at completion uses the same notes lock so a sibling worktree cannot overwrite concurrent
+marking or another completion. Execute-bound captures are a plain durable queue: any session may offer the next one
+in file order, and the selected Errand open revalidates the entry before execution.
 
-Housekeep open composes that write recoverably. It validates and canonicalizes the complete plan before mutation.
-Full mode first owns the exact routing claim, dispatch ID, and immutable plan digest. Partial mode first acquires the
-free primary under its record lock and mints the exact housekeep role/lease carrying dispatch ID and plan digest; it
-does not mark the inbox while the proposal is still memory-only. It releases the record lock before the notes-lock
-transaction revalidates and marks the complete confirmed entry set; the two locks are never nested. Full mode
-subsequently allocates/provisions its local locus; partial mode already owns its primary locus. A notes-write failure
-rolls back only the unchanged full claim or partial role. A
-later full-mode allocation failure clears only unchanged bindings carrying that dispatch ID and CAS-retires only the
-unchanged claim. If any rollback loses a race, the identity, role, or visible dispatch group remains as explicit
-resume/abandon work. A retry adopts that generation only after re-supplied plan content produces the same digest; a
-different or unavailable plan cannot bind to the live sweep.
+Housekeep open composes that write recoverably. Full mode first owns the exact routing claim; partial mode first
+acquires the free primary under its record lock and mints the housekeep role/lease. Either releases the record lock
+before the notes-lock transaction marks the confirmed execute-now entries; the two locks are never nested. Full
+mode subsequently allocates/provisions its local locus; partial mode already owns its primary locus. A notes-write
+failure rolls back only the unchanged full claim or partial role, and a later full-mode allocation failure
+CAS-retires only the unchanged claim. If any rollback loses a race, the identity, role, or already-marked entries
+remain visible as explicit resume/abandon work; a later session re-confirms the remaining unrouted entries against
+the live inbox rather than replaying a stored plan.
 
 Housekeeping closes its sweep role before the first execute-now item. `run-errand` completion/leave then receives
-one precomputed next-offer selected only from well-formed captures carrying the caller's exact dispatch ID, in file
-order. It never scans all execute-bound captures as one queue. A different housekeep run may report an older pending
-group but cannot consume or rebind it without a newly confirmed plan. Explicit housekeep abandonment clears only
-an open sweep's exact still-pending bindings before handoff; after successful close, the dispatch group is
-independent of later routing-tail abandonment. Errand abandonment clears its own binding without deleting the
-capture.
-Malformed, unreadable, or partially inconsistent dispatch state refuses and surfaces reconciliation instead of
-skipping to another group. When matching captures remain, the result offers the next sibling Errand in the same
-session, parented directly to the original WU when warm. Execute-now captures remain visible in the inbox until
-their own Errand completion; no separate Errand queue artifact or nested execution model is introduced.
+one precomputed next-offer: the next well-formed execute-bound capture in file order. Explicit housekeep
+abandonment clears an open sweep's still-pending execute-bound markings before handoff; Errand abandonment clears
+its own marking without deleting the capture. A malformed or unreadable marking surfaces reconciliation for that
+entry instead of being silently skipped. When execute-bound captures remain, the result offers the next sibling
+Errand in the same session, parented directly to the original WU when warm. Execute-now captures remain visible in
+the inbox until their own Errand completion; no separate Errand queue artifact or nested execution model is
+introduced.
 
 ### D9. Recovery and compaction
 
@@ -1120,11 +1103,10 @@ seed lacking `locus` still reads. When the object is present, any record, lease,
 against the fresh reader is a recovery stop. Its stored workflow/load-set/task-cursor values likewise remain audit
 inputs, not authority.
 
-Execute-dispatch continuity derives from the visible inbox bindings rather than the compaction seed or routing
-identity tail. The inbox-state probe preserves file order, groups well-formed execute-bound entries by exact
-dispatch ID, excludes them from the routable housekeep count, and surfaces malformed or partial bindings as typed
-diagnostics. Recovery may offer an exact pending group, but an unrelated later drain cannot consume or rebind it
-without a newly confirmed routing plan.
+Execute-now continuity derives from the visible inbox markings rather than the compaction seed or routing
+identity tail. The inbox-state probe preserves file order, reports well-formed execute-bound entries separately
+from the routable housekeep count, and surfaces malformed markings as typed diagnostics. Recovery offers the next
+pending execute-bound entry the same way any session does.
 
 Recovery consumes the fresh reader rather than resolving the graph a second time:
 
@@ -1211,7 +1193,8 @@ Workflow changes use precomputed CLI verdicts and operation verbs:
 
 - session-init dispatches on `locusState` current, primary-availability, in-flight-identity, recovery, and
   reconciliation results;
-- session-init attaches the selected role. Handoff dispatches from the active locus before branch/meta heuristics:
+- session-init re-attaches only a resolved live-lease re-entry; ordinary resume proceeds leaseless on the durable
+  role (D4). Handoff dispatches from the active locus before branch/meta heuristics:
   it leaves an active full-mode ordinary Errand through its subject driver, refuses an incomplete housekeep,
   unshipped groom, or incomplete partial transient until completion/abandonment, then hands off the restored WU or
   record-free between-WUs frame. It releases the restored WU lease when one exists; a cold transient close/pop
@@ -1229,7 +1212,11 @@ Workflow changes use precomputed CLI verdicts and operation verbs:
   co-design set of branchless backlog WUs without weakening started-WU isolation;
 - materialize arms invoke ARC verbs rather than narrating raw worktree mechanics;
 - recovery consumes the locus graph and validated seed references;
-- cleanup surfaces render CLI-precomposed lease/residue text.
+- cleanup surfaces render CLI-precomposed lease/residue text;
+- user-facing narration names the model only where a diagnostic or recovery surface requires it, and then always
+  as "session locus", never bare "locus"; routine happy-path output speaks in concrete terms (checkout, worktree,
+  branch) or stays silent. Non-actionable roster facts — unmanaged sibling worktrees, an unleased durable role,
+  clean reconciliation — render nothing at session entry.
 
 This keeps deterministic branching in TypeScript, typed record/slot structure in code, and only orientation,
 recommendation, and user-choice framing in workflow prose.
@@ -1329,6 +1316,16 @@ anchor proves death; age may explain a prompt but cannot authorize removal.
 - Heartbeats write only on state-touching CLI operations, not on read/status polling.
 - Per-record files avoid rewriting a machine-wide index when one session advances.
 
+### Proportionality boundary
+
+Exactness in this design is budgeted by consequence. Data-destroying paths — teardown, cleanup, abandonment,
+record reap — keep their full guard set: provenance, cleanliness, exact-head, generation, and liveness checks, with
+uncertainty degrading to a prompt. Routine operator paths — entry, resume, re-entry, drain continuation — use
+advisory or simple-conflict semantics and never hard-refuse on identity recognition or replayable-state exactness.
+Retained hardening behind this line (platform inspectors, record-scoped locks with stale-break, staged provisioning
+receipts, the complete-basis identity transaction) is deliberate and closed: extend none of it without a new
+motivating failure.
+
 ### Testing
 
 - Unit tests cover Zod parse/emit enforcement, `z.infer` type parity, kernel registration/versioning, opaque future
@@ -1342,7 +1339,7 @@ anchor proves death; age may explain a prompt but cannot authorize removal.
 - Integration tests use temporary repositories with linked worktrees to cover primary allocation, occupied-primary
   spawn, partial-mode primary-only refusal, cross-directory heartbeat, close ordering, async Errand leave/resume,
   three-way identity reconciliation, ambiguous-push retry, one-sweep housekeep claims, repeated sweep-name branch
-  reuse, cross-machine routing-claim races, disjoint/overlapping groom-set races, materialization provenance, and
+  reuse, disjoint/overlapping groom-set conflicts, materialization provenance, and
   attach racing physical removal.
 - E2E tests cover a warm WU → Errand → WU round trip, compaction/recovery mid-Errand, single- and multi-WU grooming
   passes, multi-lane one-PR housekeep → sibling Errand continuation (including compaction mid-sweep and at the
@@ -1366,6 +1363,9 @@ anchor proves death; age may explain a prompt but cannot authorize removal.
   unscheduled.
 - Unknown schema versions and legacy markerless worktrees remain manual; no compatibility parser silently widens
   cleanup authority.
+- The record and identity field narrowing (no dispatch, lane, or plan-digest fields) lands pre-release: no adopter
+  state exists, and this repository's own live v3 records and machine-local loci reconcile by finalizing or
+  re-opening them on the narrowed schema.
 - The default warm path turns on only when record, allocator, recovery, and cleanup consumers land together in the
   WU. No long-lived configuration flag or dual authority is introduced.
 
@@ -1431,24 +1431,23 @@ anchor proves death; age may explain a prompt but cannot authorize removal.
    grooming is neither classified as residue nor offered as an orphan branch deletion, and
    stale/malformed/unverified-markerless cases fail closed with deterministic guidance.
 7. Grooming may claim one explicit fixed set of related backlog WUs under one anchor, identity, branch, role, and
-   review tail. Disjoint sets may proceed concurrently; every overlapping open across machines produces one uniquely
-   generated fresh-CAS winner, and only a same-anchor exact-set retry adopts it. Writes remain bounded to the claimed
+   review tail. Disjoint sets may proceed; a same-anchor exact-set reopen resumes, and any other overlap refuses
+   with the conflicting members named. Writes remain bounded to the claimed
    pre-WU planning concern, while reuse of `chore/groom-<anchorStub>` waits for exact change-request, claim, and
    recorded branch-generation retirement.
-8. Full-mode Errand materialization accepts only an exact paused or requested-work awaiting-merge v3 identity head,
+8. Full-mode Errand materialization accepts only an exact paused v3 identity head, or an awaiting-merge head whose
+   recorded change request is verified still open,
    writes ARC ownership provenance and a role record, and leaves session-init with no raw materialization path that
    can create a markerless ARC-owned worktree.
 9. Cleanup suppresses every live lease, prompts on unknown occupancy, and holds the target locus lock across its
    final expected-generation recheck, local physical removal, and role pop, so attach cannot race deletion.
 10. Full-mode housekeeping globally serializes the complete confirmed pure-routing sweep under one identity,
-    branch, and PR, safely reuses repeated sweep names only after exact tail and branch-generation retirement,
-    persists an immutable digest of the canonical write-affecting plan plus the strictest lane touched (reviewed
-    wins over auto-merge), and adopts a retry only when its re-supplied plan matches that digest. It closes its sole
-    routing locus before execute-now work, then opens each concern on its own sibling Errand PR whose
-    completion/leave offers only the next capture in the same visible dispatch group without creating a third
-    frame. Interrupted groups stay separately visible and cannot leak into an unrelated later drain. Partial
-    protection promises only machine-local primary serialization, but carries the same exact-plan digest in a role
-    minted before dispatch marking.
+    branch, and PR, safely reuses repeated sweep names only after exact tail and branch-generation retirement, and
+    classifies the routing PR's lane at close from the writes the sweep landed (reviewed wins over auto-merge). It
+    closes its sole routing locus before execute-now work, then opens each concern on its own sibling Errand PR
+    whose completion/leave offers the next visible execute-bound capture in file order without creating a third
+    frame. An interrupted sweep's already-marked entries stay visible in the inbox and re-confirm at the next
+    drain. Partial protection promises only machine-local primary serialization.
 11. A full-mode Errand may leave its local locus in remote-preserved `paused` or exact `awaiting-merge` identity
     state, resume in a newly allocated locus, and finalize later without turning operational re-entry into a durable
     plan or classifying any unleased transient role as normal waiting.
@@ -1462,6 +1461,10 @@ anchor proves death; age may explain a prompt but cannot authorize removal.
 15. `arc errand promote` converts one exact live v3 Errand checkout into the sole active WU session home, leaves any
     former warm parent as an idle WU, preserves its originating capture until the WU meta commit, and exposes no
     independent v3 identity-retirement command.
+16. Ordinary WU session entry proceeds leaseless on the durable role, warm entry never hard-refuses on harness
+    identity, and routine session narration renders no locus lines for expected state — unmanaged sibling
+    worktrees, an unleased durable role, and clean reconciliation stay silent, with the model named only as
+    "session locus" where diagnostics require it.
 
 ## Open Questions
 
