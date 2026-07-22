@@ -32,6 +32,11 @@ Require `mode: "recover-audit"`. If the command fails or the report is malformed
 surface that recovery cannot establish live state, and ask for direction.
 Do not manually reconstruct a seed from the harness summary.
 
+The report's required `recover.locusState` is the sole topology/frame read. `recover.recoveryFrame`,
+`recover.loadSet`, and `recover.taskCursor` are reader-owned projections from that same value; consume them rather
+than resolving worktrees, branches, metas, or parent edges again. `recover.locusGuidance` carries CLI-composed
+recovery/refusal narration.
+
 Treat active-meta progress fields as soft orientation after compaction, not recovery authority:
 `Next Task`, `Next Action`, `Last Completed`, `Current Workflow`, and `Blockers` may be stale.
 Use them only as context after the deterministic recovery checks and harness summary are aligned.
@@ -43,12 +48,19 @@ If `verdict.status === "stop"`, inspect `verdict.stopReasons`:
 - For any reason other than `planning-workflow-uncertain`, stop and surface the structured reason
   details. The CLI has already checked seed presence/schema, identity, fresh recovery state,
   load-set drift, dirty path-set drift, and non-planning task-cursor drift when a cursor exists.
+- For locus, lease, parent, path, or optional seed-hint failures, render the matching structured detail and
+  `report.recover.locusGuidance` text verbatim. Do not choose another row or repair the graph in workflow prose.
 - If `planning-workflow-uncertain` is the only reason, continue only when the harness compaction
   summary names a planning workflow/stage that can be verified against the recovered load set and
   artifacts. If the summary is missing, vague, or contradictory, stop for direction. Do not fall
   back to active-meta `Current Workflow`.
 
 If `verdict.status === "ready"`, continue without prompting.
+
+Require `verdict.locusHint.match === true`. A pre-model seed with no `locus` hint remains valid when the fresh frame
+itself resolves; when the hint is present, the audit has already compared its session-home path, active-locus path,
+record, lease, and parent tokens against the fresh reader. Any mismatch is a stop, never an invitation to fall back
+to branch or harness-summary inference.
 
 Use the **fresh** report surfaces for context loading:
 
@@ -144,28 +156,20 @@ for /f "delims=" %i in ('git rev-parse --show-toplevel') do node "%i\.arc\system
 Clearing the marker prints an `=== ARC post-compaction recovery: COMPLETE ===` banner that closes the
 recovery window the injected `PENDING` banner opened. If recovery stops for direction, leave the marker in place.
 
-Resume from the harness-summary locus, bounded by the recovered ARC context, without a routine
-prompt:
+Resume without a routine prompt by dispatching only on `report.recover.recoveryFrame.value`:
 
-- `execution` - continue the summarized current task through `process-task-loop.md`.
-- `planning` - continue the recovered planning workflow when the stage is verified; otherwise stop.
-- `integration` - continue `integrate-work-unit.md`.
+- `kind: "resolved"` — continue its `workflow`, already included in the fresh load set. A transient workflow
+  (`run-errand`, `draft-design`, or `drain-inbox`) resumes before its optional parent WU; when it leaves/closes,
+  re-run the recovery probe and continue from the freshly derived parent WU or record-free between-WUs frame.
+  Never persist or reconstruct a third frame.
+- `kind: "none"` — the reader proves a record-free between-WUs frame. Use the harness summary only for the
+  volatile current leaf; if it claims an open transient, stop because durable state and summary disagree.
+- `kind: "legacy-errand"` — use the bounded legacy close/resume compatibility carried by the typed frame. No new
+  operation may recreate its `returnBranch` shape.
 
-**Out-of-work-unit loci.** The three types above assume an active work unit. A compaction can also land in
-a between-WU locus — inbox drain / housekeep, an errand, or planning-grooming — where no active meta
-resolves and the load set carries no lifecycle workflow. Key recovery off the **indicated intent in the
-harness summary, not branch presence**: a compaction can land before the locus cuts its `chore/<slug>` or
-grooming branch, so the branch is not a reliable signal. When the summary indicates such a locus, rehydrate
-the floor above, then load its workflow through its normal trigger and resume:
-
-- **inbox drain / housekeep** - load `drain-inbox.md`.
-- **errand** - load `run-errand.md`.
-- **planning-grooming** - load the planning workflow the summary names (verify the stage as for `planning`).
-
-Resolve the resume mode from the working branch: on a `chore/<slug>` or grooming branch the locus already
-exists — resume mid-flow; on bare base with no such branch the cut had not happened — re-enter the workflow
-at its Launch/entry phase (safe to replay: classify and `arc errand check` are read-only, `arc errand open`
-cuts fresh). If the summary is missing, vague, or contradictory about the locus, stop for direction.
+For a resolved WU, `workflow` selects execution, planning, or integration directly. For a resolved transient, the
+subject workflow owns resume/leave/close and reports the restored frame. Branch prefixes, active-meta fields, and
+the harness summary never select recovery mode.
 
 Recovery restores the init-time ARC load set plus the state-selected lifecycle workflow only.
 On-demand context loaded mid-task before compaction is not restored here; reload it through its

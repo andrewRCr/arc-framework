@@ -770,13 +770,10 @@ protection modes, recovery boundaries, and package/source parity.
           `locusState`: exact role attachment and load-set dispatch now use locus verbs and CLI narration, Errand
           materialization uses `arc errand materialize`, and cleanup/recovery no longer rebuild branch heuristics.
 
-    - `[ ]` **7.1.b Rework deterministic compaction recovery**
-        - Under authoritative package `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`, update
-          `session-recover.md`, then sync its project copy.
-        - Consume the same required reader-owned `locusState` rows as init/handoff, validate any atomic optional seed
-          `locus` hint, recover a transient first, and rederive the restored WU or record-free between-WUs frame.
-        - Remove branch-prefix frame selection and second graph resolution; dispatch only on typed verdicts and
-          precomposed refusal/recovery text.
+    - `[x]` **7.1.b Rework deterministic compaction recovery**
+        - Reworked canonical and self-hosted recovery to consume the single reader-owned `locusState`, its derived
+          recovery frame/load set, and the audited optional seed hint. Typed frames now resume transients before
+          rederiving the parent or record-free frame, with no branch-prefix or second-graph selection.
 
     - `[ ]` **7.1.c Rework handoff around subject leave and exact WU release**
         - Under authoritative package `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`, update
