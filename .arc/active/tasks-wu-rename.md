@@ -22,22 +22,12 @@ compilation breaks are where "rename is not teardown authority" physically lives
   both result validation and teardown authorization explicitly refuse it as `unsupported-transition`; the shipped
   authorization paths remain unchanged.
 
-### `[ ]` **1.2 Rename result kind and matrix row**
+### `[x]` **1.2 Rename result kind and matrix row**
 
 - _Goal:_ A receipt can name the slug the subject becomes and digest the renamed set at its new names, and the
   fixed matrix admits that combination and no other.
-
-    - `RetirementReceipt["result"]` gains `{ kind: "rename"; targetSlug: string; artifactDigest: CanonicalDigest }`
-      — `targetSlug` so the gate can prove the old slug was renamed rather than discarded.
-    - `artifactDigest` digests the artifact set **at its renamed paths**, mirroring the shipped source digest so
-      the record carries both endpoints of the rename. The producer binds it to the result paths it derives, so a
-      digest taken over the source set will not match.
-    - `validateReceiptMatrix` gains exactly one row: `rename` + `identity-renamed` + `nonexistent` +
-      `result.kind === "rename"`.
-    - Build `test-first` (one behavior at a time):
-        - The matrix admits the rename row.
-        - The matrix rejects `rename` paired with any shipped authorization, and `identity-renamed` paired with
-          any shipped transition.
+- _Outcome:_ Rename receipts now carry the target slug and renamed artifact digest, and the fixed matrix admits
+  only `rename` + `identity-renamed` + `nonexistent` + the rename result kind while rejecting crossed pairings.
 
 ### `[ ]` **1.3 Receipt codec `rename` arm**
 

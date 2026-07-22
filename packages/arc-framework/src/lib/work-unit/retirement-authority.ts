@@ -119,7 +119,8 @@ export interface RetirementReceipt {
           artifactDigest: CanonicalDigest;
         }>;
       }
-    | { kind: "relocate"; plannedArtifactDigest: CanonicalDigest };
+    | { kind: "relocate"; plannedArtifactDigest: CanonicalDigest }
+    | { kind: "rename"; targetSlug: string; artifactDigest: CanonicalDigest };
 }
 
 /** Exact source and result projections bound by an authority snapshot. */
@@ -271,7 +272,11 @@ export function validateReceiptMatrix(
     || (receipt.transition === "park-planning"
       && receipt.authorization === "planning-relocated"
       && expectedLifecycle === "planned"
-      && receipt.result.kind === "relocate");
+      && receipt.result.kind === "relocate")
+    || (receipt.transition === "rename"
+      && receipt.authorization === "identity-renamed"
+      && expectedLifecycle === "nonexistent"
+      && receipt.result.kind === "rename");
   return valid ? null : "evidence-mismatch";
 }
 
