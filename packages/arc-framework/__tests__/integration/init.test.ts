@@ -122,7 +122,13 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   it("installs literal transformed outputs beneath the supplied root, independent of ambient cwd", async () => {
     expect(tempDir).not.toBe(process.cwd());
     expect(result.filesWritten).toContain("reference/briefs/AGENT-BRIEF.PROJECT.md");
+    expect(result.filesWritten).toContain(
+      "reference/strategies/arc/strategy-concurrent-work.md",
+    );
     expect(result.filesWritten).toContain("system/rules/DEV-RULES.ARC.md");
+    expect(result.filesWritten).toContain(
+      "system/workflows/arc/supplemental/drain-inbox.md",
+    );
     expect(result.filesWritten).not.toContain("reference/briefs/AGENT-BRIEF.PROJECT.template.md");
     expect((await stat(join(arcDir, "reference/briefs/AGENT-BRIEF.PROJECT.md"))).isFile()).toBe(true);
     expect((await stat(join(arcDir, "system/rules/DEV-RULES.ARC.md"))).isFile()).toBe(true);

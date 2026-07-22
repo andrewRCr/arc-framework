@@ -106,6 +106,23 @@ describe("init", () => {
     // Key files exist
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-config.yml"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "system", "rules", "DEV-RULES.ARC.md"))).toBe(true);
+    expect(await pathExists(join(
+      tmpDir,
+      ".arc",
+      "reference",
+      "strategies",
+      "arc",
+      "strategy-concurrent-work.md",
+    ))).toBe(true);
+    expect(await pathExists(join(
+      tmpDir,
+      ".arc",
+      "system",
+      "workflows",
+      "arc",
+      "supplemental",
+      "drain-inbox.md",
+    ))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "reference", "templates", "arc", "work-unit", "template-draft.md"))).toBe(true);
   });
 

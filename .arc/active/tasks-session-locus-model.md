@@ -833,15 +833,10 @@ protection modes, recovery boundaries, and package/source parity.
           matches its project copy, rendered-template parity passes, the configurable quick reference retains its
           project sections, and shipped surfaces contain no WU identifiers or internal rollout seams.
 
-    - `[ ]` **7.3.b Close install-recipe and self-hosted parity blind spots**
-        - Add `system/workflows/arc/supplemental/drain-inbox.md` and
-          `reference/strategies/arc/strategy-concurrent-work.md` to `packages/arc-framework/init-recipe.json` so
-          generated housekeep guidance and installed strategy references never point at missing files.
-        - Strengthen `packages/arc-framework/__tests__/integration/framework-sync.test.ts` to derive the resolved
-          Framework output universe from the current install recipe as well as the installed manifest, render
-          templates through the stored install config, and continue excluding Configurable/Scaffolded byte parity.
-        - Cover fresh init, update, exact concurrent-work/drain-inbox recipe reach, general reference completeness,
-          and canonical-to-generated skill parity in the existing init/update/skills integration and E2E suites.
+    - `[x]` **7.3.b Close install-recipe and self-hosted parity blind spots**
+        - Added concurrent-work and drain-inbox to the install recipe, then made self-hosted parity range over the
+          union of manifest-tracked and currently resolved Framework outputs under the stored install config.
+          Fresh init, update, E2E, and existing canonical-skill parity coverage now close the affected install paths.
 
     - `[ ]` **7.3.c Add and run methodology structural contracts**
         - Add a focused integration contract for required locus verbs and `locusState`, exact-set planning syntax,

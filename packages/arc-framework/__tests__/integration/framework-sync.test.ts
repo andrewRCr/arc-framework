@@ -25,6 +25,13 @@ import { fileURLToPath } from "node:url";
 import { renderTokens, renderConditionals } from "../../src/lib/template/render.js";
 import { readManifest } from "../../src/lib/manifest/index.js";
 import { buildConfigMap, buildTokenMap } from "../../src/lib/config/index.js";
+import {
+  classifyFile,
+  needsRendering,
+  resolveFileList,
+} from "../../src/lib/classification.js";
+import { loadRecipeFile } from "../../src/lib/template/recipe.js";
+import { resolveTemplateOutputBindings } from "../../src/lib/layout/index.js";
 import type { Manifest } from "../../src/lib/types.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -65,6 +72,7 @@ describe("framework sync (self-hosting drift check)", () => {
   let manifest: Manifest;
   let tokens: Record<string, string>;
   let conditionals: Record<string, string>;
+  let resolvedFrameworkSources: Map<string, string>;
 
   beforeAll(async () => {
     const loaded = await readManifest(
@@ -83,15 +91,49 @@ describe("framework sync (self-hosting drift check)", () => {
       tools: cfg.tools,
       team_mode: cfg.team_mode,
     });
+
+    const recipe = await loadRecipeFile(
+      join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"),
+      (p) => readFile(p, "utf-8"),
+    );
+    const resolvedFiles = resolveFileList(recipe, conditionals);
+    resolvedFrameworkSources = new Map(
+      resolveTemplateOutputBindings(resolvedFiles)
+        .filter(({ templatePath }) => classifyFile(templatePath) === "Framework")
+        .map(({ outputPath, templatePath }) => [outputPath, templatePath]),
+    );
+  });
+
+  it("the resolved recipe includes concurrency and inbox-drain guidance", () => {
+    expect(
+      resolvedFrameworkSources.get(
+        "reference/strategies/arc/strategy-concurrent-work.md",
+      ),
+    ).toBe("reference/strategies/arc/strategy-concurrent-work.md");
+    expect(
+      resolvedFrameworkSources.get(
+        "system/workflows/arc/supplemental/drain-inbox.md",
+      ),
+    ).toBe("system/workflows/arc/supplemental/drain-inbox.md");
   });
 
   it("every Framework file in .arc/ matches its rendered package source", async () => {
     const drifts: string[] = [];
+    const frameworkPaths = new Set(resolvedFrameworkSources.keys());
 
     for (const [relPath, entry] of Object.entries(manifest.files)) {
-      if (entry.classification !== "Framework") continue;
+      if (entry.classification === "Framework") frameworkPaths.add(relPath);
+    }
 
-      const pkg = await loadPackageSource(relPath);
+    for (const relPath of frameworkPaths) {
+      const templatePath = resolvedFrameworkSources.get(relPath);
+      const pkg = templatePath
+        ? {
+            content: await readFile(join(PKG_ARC_DIR, templatePath), "utf-8"),
+            rendered: needsRendering(templatePath),
+          }
+        : await loadPackageSource(relPath);
+
       if (!pkg) {
         drifts.push(`${relPath}: package source missing`);
         continue;
