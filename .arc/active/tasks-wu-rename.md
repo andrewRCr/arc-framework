@@ -218,43 +218,28 @@ _Design decisions:_ Every leg names the shipped primitive it composes from; a le
 subject shape is a designed skip, never a faked success. Idempotence lives in the caller's post-state checks, not
 in the mutators' own no-op arms.
 
-### `[ ]` **5.1 Local branch rename leg**
+### `[x]` **5.1 Local branch rename leg**
 
 - _Goal:_ The local branch reads the new name, and a re-run over an already-renamed branch skips the leg rather
   than failing on a missing ref.
-- _Rationale:_ The shipped rename mutation's only no-op is a same-name rename, which is not the resume state this
-  must converge from — after a completed leg the old ref is absent, and re-invoking would fail on the missing
-  refname. The mutator is reused; it is never the idempotence mechanism.
+- _Outcome:_ `reconcileRenameLocalBranch` classifies the exact old/new local refs before delegating to the shipped
+  rename mutator, accepting the completed post-state and refusing missing or conflicting identities explicitly.
 
-    - Check ref presence first, then delegate to the shipped rename mutation, which also clears any inherited
-      upstream.
-    - Build `test-first` (one behavior at a time):
-        - A branch at the old name is renamed and its inherited upstream cleared.
-        - A branch already at the new name is skipped without error.
-        - Neither ref present is an error naming both names.
-
-### `[ ]` **5.2 Remote push-new and leased delete-old**
+### `[x]` **5.2 Remote push-new and leased delete-old**
 
 - _Goal:_ The new remote head exists with upstream tracking and the old head is gone — unless the branch was
   never published, in which case nothing is published now.
-- _Note:_ The never-pushed predicate must be captured at preflight. The branch leg unsets the inherited upstream,
-  destroying the natural signal before this leg runs; the preflight remote-head lookup supplies both the predicate
-  and the lease operand.
 
-    - `[ ]` **5.2.a Push the new branch with tracking**
-        - Skip entirely when the preflight found no remote head — publishing a deliberately-unpublished branch is
-          not this verb's business.
-        - Build `test-first` (one behavior at a time):
-            - A previously-pushed branch is pushed under its new name with upstream tracking set.
-            - A never-pushed branch results in no push and no error.
+    - `[x]` **5.2.a Push the new branch with tracking**
+        - The preflight old-head OID gates a tracking push of the new name; a null proof preserves the unpublished
+          state without remote I/O.
 
-    - `[ ]` **5.2.b Leased delete of the old head**
-        - Pass the preflight OID so the delete is leased against the proven tip.
-        - Build `test-first` (one behavior at a time):
-            - A present old head at the expected OID is deleted.
-            - An already-absent old head is the idempotent no-op.
-            - A head that moved since the proof yields the stale outcome, leaving the old head in place and
-              surfacing both OIDs.
+    - `[x]` **5.2.b Leased delete of the old head**
+        - The shipped delete uses the captured OID as its lease, treats absence as converged, and re-reads a stale
+          head so the typed outcome carries both expected and live OIDs.
+
+- _Outcome:_ One preflight lookup supplies both the publication predicate and deletion lease, preserving
+  intentionally local branches while making remote races explicit and recoverable.
 
 ### `[ ]` **5.3 User-notes subdir move**
 
