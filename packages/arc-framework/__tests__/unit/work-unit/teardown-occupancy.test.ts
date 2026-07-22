@@ -132,6 +132,7 @@ describe("teardown locus occupancy", () => {
       leaseState: "absent",
       recordGeneration: null,
       lockGeneration: null,
+      markerGeneration: expect.any(String),
     });
   });
 

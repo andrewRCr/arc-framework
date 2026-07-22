@@ -719,16 +719,11 @@ as their machine-local occupancy authority.
           generation-stable pre-removal revalidation. Live leases suppress cleanup; indeterminate or untrusted
           occupancy stays manual, while dead/absent generations leave every existing retirement guard intact.
 
-    - `[ ]` **6.5.b Hold the target lock across final local revalidation and removal**
-        - Derive the target lock from the live roster path even when no record exists, then reread the role/lease
-          generation, worktree roster, clean tree, `HEAD`, marker/evidence, current-locus, and subject authority.
-        - Hold the lock across local `git worktree remove` and expected-generation role pop; perform no fetch, push,
-          or host query inside.
-        - Leave the record unchanged when physical removal fails and release the lock safely.
-        - Build `test-first` (one behavior at a time):
-            - Cover record-present/absent target locks, every final predicate changing after advisory selection,
-              physical-removal failure, exact role-pop mismatch, lock release, and no remote call in the critical
-              section.
+    - `[x]` **6.5.b Hold the target lock across final local revalidation and removal**
+        - Added a roster-path-derived retirement transaction for record-present and record-absent targets. It
+          revalidates exact role/lease bytes, roster `HEAD`, cleanliness, marker/evidence, live process locus, and
+          local subject authority under lock, then encloses removal or base restoration plus compare-pop without
+          remote work; failures preserve the record and always release the lock.
 
     - `[ ]` **6.5.c Prove attach-versus-delete linearization**
         - Add deterministic race tests where attach wins and vetoes removal, removal wins and makes attach fail on

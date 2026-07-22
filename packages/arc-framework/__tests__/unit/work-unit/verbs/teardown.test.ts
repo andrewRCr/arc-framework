@@ -21,6 +21,7 @@ import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import type { RetirementAuthorityPort } from "../../../../src/lib/work-unit/retirement-authority.js";
+import { deriveTeardownMarkerGeneration } from "../../../../src/lib/work-unit/teardown-occupancy.js";
 
 const CWD = "/repo";
 
@@ -564,11 +565,107 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       leaseState: "dead",
       recordGeneration: `sha256:${"c".repeat(64)}`,
       lockGeneration: null,
+      markerGeneration: `sha256:${"d".repeat(64)}`,
     });
 
     await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
       status: "rejected",
       reason: expect.stringMatching(/generation changed/iu),
+    });
+    expect(calls).not.toContainEqual(["git", "worktree", "remove", "/repo-feat-demo"]);
+  });
+
+  it("revalidates marker evidence inside the target-lock callback", async () => {
+    const porcelain = PRIMARY_PORCELAIN
+      + "\nworktree /repo-feat-demo\nHEAD def\nbranch refs/heads/feat/demo\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: porcelain,
+    });
+    const marker: WorktreeMarker = {
+      spawnedByArc: true,
+      wuName: "demo",
+      createdFor: { kind: "work-unit", name: "demo" },
+      spawningIdentity: "andrew",
+      createdAt: "2026-07-21T00:00:00.000Z",
+    };
+    ctx.readLocusOccupancy = async () => ({
+      kind: "clear",
+      recordId: null,
+      leaseId: null,
+      leaseState: "absent",
+      recordGeneration: null,
+      lockGeneration: null,
+      markerGeneration: deriveTeardownMarkerGeneration({ kind: "present", marker }),
+    });
+    ctx.readMarker = async () => ({
+      kind: "present",
+      marker: { ...marker, createdAt: "2026-07-21T01:00:00.000Z" },
+    });
+    ctx.teardownLocus = {
+      retire: async (options) => {
+        await options.revalidateLocal();
+        await options.retireProjection();
+        return { roleRemoved: false };
+      },
+    };
+
+    await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(/marker generation changed/iu),
+    });
+    expect(calls).not.toContainEqual(["git", "worktree", "remove", "/repo-feat-demo"]);
+  });
+
+  it("revalidates lifecycle subject authority without remote work inside the target lock", async () => {
+    const porcelain = PRIMARY_PORCELAIN
+      + "\nworktree /repo-feat-demo\nHEAD def\nbranch refs/heads/feat/demo\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: porcelain,
+    });
+    const marker: WorktreeMarker = {
+      spawnedByArc: true,
+      wuName: "demo",
+      createdFor: { kind: "work-unit", name: "demo" },
+      spawningIdentity: "andrew",
+      createdAt: "2026-07-21T00:00:00.000Z",
+    };
+    ctx.readLocusOccupancy = async () => ({
+      kind: "clear",
+      recordId: null,
+      leaseId: null,
+      leaseState: "absent",
+      recordGeneration: null,
+      lockGeneration: null,
+      markerGeneration: deriveTeardownMarkerGeneration({ kind: "present", marker }),
+    });
+    ctx.readMarker = async () => ({ kind: "present", marker });
+    const baseExec = ctx.exec;
+    let insideLock = false;
+    ctx.exec = async (command, args, options) => {
+      if (insideLock && ["fetch", "push", "ls-remote"].includes(args[0] ?? "")) {
+        throw new Error("remote command entered target lock");
+      }
+      if (insideLock && args[0] === "ls-tree") return { stdout: "" };
+      return await baseExec(command, args, options);
+    };
+    ctx.teardownLocus = {
+      retire: async (options) => {
+        insideLock = true;
+        try {
+          await options.revalidateLocal();
+          await options.retireProjection();
+          return { roleRemoved: false };
+        } finally {
+          insideLock = false;
+        }
+      },
+    };
+
+    await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(/lifecycle authority changed/iu),
     });
     expect(calls).not.toContainEqual(["git", "worktree", "remove", "/repo-feat-demo"]);
   });

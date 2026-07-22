@@ -426,6 +426,16 @@ describe("reconcileWorkUnitWorktree — spawn in place (--here)", () => {
 });
 
 describe("reconcileWorkUnitWorktree — teardown", () => {
+  const clearOccupancy = {
+    kind: "clear" as const,
+    recordId: null,
+    leaseId: null,
+    leaseState: "absent" as const,
+    recordGeneration: null,
+    lockGeneration: null,
+    markerGeneration: null,
+  };
+
   it("removes an oracle-approved husk from outside after reconciling final user surfaces", async () => {
     const worktreePath = "/work/wt/demo";
     const { ctx, events } = buildCtx({
@@ -512,6 +522,57 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
     ).rejects.toThrow(/dirty|clean/i);
 
     expect(events).toEqual([["git", "status", "--porcelain"]]);
+  });
+
+  it("reruns cleanliness inside the target-lock retirement callback", async () => {
+    const worktreePath = "/work/wt/demo";
+    const { ctx, events } = buildCtx({ worktreeList: porcelain("/work/primary", worktreePath) });
+    const baseExec = ctx.exec;
+    let statusReads = 0;
+    ctx.exec = async (command, args, options) => {
+      if (args[0] === "status" && statusReads++ > 0) return { stdout: " M changed.ts" };
+      return await baseExec(command, args, options);
+    };
+    ctx.teardownLocus = {
+      retire: async (options) => {
+        await options.revalidateLocal();
+        await options.retireProjection();
+        return { roleRemoved: false };
+      },
+    };
+
+    await expect(reconcileWorkUnitWorktree(ctx, {
+      mutation: "teardown",
+      worktreePath,
+      currentLocus: "/work/primary",
+      subject: { kind: "work-unit", name: "demo" },
+      expectedHead: "2".repeat(40),
+      expectedOccupancy: clearOccupancy,
+    })).rejects.toThrow(/dirty worktree/iu);
+    expect(events).not.toContainEqual(["git", "worktree", "remove", worktreePath]);
+  });
+
+  it("rereads the current locus inside the target-lock retirement callback", async () => {
+    const worktreePath = "/work/wt/demo";
+    const { ctx, events } = buildCtx({ worktreeList: porcelain("/work/primary", worktreePath) });
+    ctx.readCurrentLocus = () => `${worktreePath}/nested`;
+    ctx.teardownLocus = {
+      retire: async (options) => {
+        await options.revalidateLocal();
+        await options.retireProjection();
+        return { roleRemoved: false };
+      },
+    };
+
+    await expect(reconcileWorkUnitWorktree(ctx, {
+      mutation: "teardown",
+      worktreePath,
+      currentLocus: "/work/primary",
+      subject: { kind: "work-unit", name: "demo" },
+      expectedHead: "2".repeat(40),
+      expectedOccupancy: clearOccupancy,
+    })).rejects.toThrow(/current worktree/iu);
+    expect(events).not.toContainEqual(["git", "worktree", "remove", worktreePath]);
   });
 
   it("hops the locus to the primary checkout before removing the worktree it runs from", async () => {

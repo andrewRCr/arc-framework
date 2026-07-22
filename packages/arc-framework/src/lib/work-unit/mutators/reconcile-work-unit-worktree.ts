@@ -52,6 +52,9 @@ import {
   type UserSurfaceMigrationDirent,
 } from "../../user-surface-migration.js";
 import type { WorkUnitLocusDriver } from "../work-unit-locus.js";
+import type { TeardownLocusDriver } from "../teardown-locus.js";
+import type { TeardownOccupancyDecision } from "../teardown-occupancy.js";
+import type { WorktreeSubject } from "../../git/worktree-marker.js";
 
 /** Dependencies for {@link reconcileWorkUnitWorktree}. */
 export interface ReconcileWorkUnitWorktreeContext {
@@ -59,10 +62,14 @@ export interface ReconcileWorkUnitWorktreeContext {
   exec: GitExec;
   /** Relocate the agent's process locus on a self-teardown. Production binds `process.chdir`. */
   chdir: (dir: string) => void;
+  /** Read the live command locus during final locked revalidation. */
+  readCurrentLocus?: () => string;
   /** Filesystem seam for post-create harness-dir provisioning. */
   fs: ReconcileWorkUnitWorktreeFs;
   /** Machine-local role composer; production always binds it. */
   locus?: WorkUnitLocusDriver;
+  /** Target-lock driver for physical teardown; production teardown always binds it. */
+  teardownLocus?: TeardownLocusDriver;
 }
 
 /** Filesystem operations used by the fresh-worktree post-create provisioning leg. */
@@ -176,6 +183,14 @@ export type ReconcileWorkUnitWorktreeOp =
       currentLocus: string;
       /** Managed WU whose durable role ends with this physical checkout. */
       wuName?: string;
+      /** Exact logical owner of the checkout being removed. */
+      subject?: WorktreeSubject;
+      /** Roster HEAD selected by advisory authorization. */
+      expectedHead?: string;
+      /** Exact clear occupancy generation selected by advisory authorization. */
+      expectedOccupancy?: Extract<TeardownOccupancyDecision, { kind: "clear" }>;
+      /** Remaining network-free local predicates to rerun under the target lock. */
+      revalidateLocal?: () => Promise<void>;
       /** Caller has approved a detached husk; skip the redundant cleanliness probe, but reconcile user surfaces. */
       huskApproved?: boolean;
     };
@@ -214,7 +229,7 @@ export async function reconcileWorkUnitWorktree(
   ctx: ReconcileWorkUnitWorktreeContext,
   op: ReconcileWorkUnitWorktreeOp,
 ): Promise<ReconcileWorkUnitWorktreeResult> {
-  if (op.mutation === "teardown" && op.huskApproved === true) {
+  if (op.mutation === "teardown" && op.huskApproved === true && ctx.teardownLocus === undefined) {
     if (await isSelfTeardown(op.worktreePath, op.currentLocus)) {
       throw new Error(`refusing to remove the current detached worktree: ${op.worktreePath}`);
     }
@@ -306,16 +321,53 @@ export async function reconcileWorkUnitWorktree(
     throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
   }
 
-  const primary = await reconcileUserSurfacesForRemoval(ctx, worktreePath);
+  const lockedRetirement = ctx.teardownLocus !== undefined
+    && op.subject !== undefined
+    && op.expectedHead !== undefined
+    && op.expectedOccupancy !== undefined
+    ? {
+        driver: ctx.teardownLocus,
+        subject: op.subject,
+        expectedHead: op.expectedHead,
+        expectedOccupancy: op.expectedOccupancy,
+      }
+    : null;
+  let primary: string;
+  if (lockedRetirement === null) {
+    primary = await reconcileUserSurfacesForRemoval(ctx, worktreePath);
+  } else {
+    primary = await resolvePrimaryWorktreePath(ctx.exec) ?? "";
+    if (primary === "") throw new Error(`cannot resolve the primary worktree before teardown of ${worktreePath}`);
+  }
 
   let locusHopped = false;
+  let finalLocus = currentLocus;
   if (await isSelfTeardown(worktreePath, currentLocus)) {
     ctx.chdir(primary);
     locusHopped = true;
+    finalLocus = primary;
   }
 
   const removeCheckout = () => ctx.exec("git", ["worktree", "remove", worktreePath]).then(() => undefined);
-  if (op.wuName !== undefined && ctx.locus?.retire !== undefined) {
+  if (lockedRetirement !== null) {
+    await lockedRetirement.driver.retire({
+      checkoutPath: worktreePath,
+      expectedHead: lockedRetirement.expectedHead,
+      subject: lockedRetirement.subject,
+      expectedOccupancy: lockedRetirement.expectedOccupancy,
+      revalidateLocal: async () => {
+        if (!(await isWorktreeClean({ exec: ctx.exec, cwd: worktreePath }))) {
+          throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
+        }
+        if (await isSelfTeardown(worktreePath, ctx.readCurrentLocus?.() ?? finalLocus)) {
+          throw new Error(`refusing to remove the current worktree: ${worktreePath}`);
+        }
+        await op.revalidateLocal?.();
+        await reconcileUserSurfacesForRemoval(ctx, worktreePath);
+      },
+      retireProjection: removeCheckout,
+    });
+  } else if (op.wuName !== undefined && ctx.locus?.retire !== undefined) {
     await ctx.locus.retire({ checkoutPath: worktreePath, wuName: op.wuName, removeCheckout });
   } else {
     await removeCheckout();

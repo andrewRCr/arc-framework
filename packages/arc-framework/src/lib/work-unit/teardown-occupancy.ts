@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
-import type { WorktreeMarker, WorktreeSubject } from "../git/worktree-marker.js";
+import type { WorktreeMarker, WorktreeMarkerReadResult, WorktreeSubject } from "../git/worktree-marker.js";
+import { canonicalDigest } from "../canonical/canonical-json.js";
 import { canonicalLocalPath } from "../local-path-identity.js";
 import {
   acquireLocusEvidence,
@@ -34,6 +35,7 @@ export type TeardownOccupancyDecision =
       readonly leaseState: "absent" | "dead";
       readonly recordGeneration: string | null;
       readonly lockGeneration: string | null;
+      readonly markerGeneration: string | null;
     }
   | { readonly kind: "suppress"; readonly reason: "lease-live"; readonly message: string }
   | { readonly kind: "manual"; readonly reason: TeardownOccupancyManualReason; readonly message: string };
@@ -129,6 +131,7 @@ export function classifyTeardownOccupancy(options: {
       leaseState: "absent",
       recordGeneration: null,
       lockGeneration,
+      markerGeneration: deriveTeardownMarkerGeneration(checkout.marker),
     };
   }
   if (direct.result.kind === "unsupported") {
@@ -155,6 +158,7 @@ export function classifyTeardownOccupancy(options: {
       leaseState: "absent",
       recordGeneration: digestBytes(direct.result.bytes),
       lockGeneration,
+      markerGeneration: deriveTeardownMarkerGeneration(checkout.marker),
     };
   }
   if (direct.liveness === "live") {
@@ -170,6 +174,7 @@ export function classifyTeardownOccupancy(options: {
     leaseState: "dead",
     recordGeneration: digestBytes(direct.result.bytes),
     lockGeneration,
+    markerGeneration: deriveTeardownMarkerGeneration(checkout.marker),
   };
 }
 
@@ -232,4 +237,11 @@ function message(error: unknown): string {
 
 function digestBytes(bytes: Uint8Array): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+/** Derive a stable semantic generation for a successfully read ownership marker. */
+export function deriveTeardownMarkerGeneration(
+  marker: WorktreeMarkerReadResult | { readonly kind: "error"; readonly message: string },
+): string | null {
+  return marker.kind === "present" ? canonicalDigest(marker.marker) : null;
 }

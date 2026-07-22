@@ -106,6 +106,7 @@ import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-sourc
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createNodeWorkUnitLocusDriver } from "../lib/work-unit/work-unit-locus.js";
 import { createNodeTeardownOccupancyReader } from "../lib/work-unit/teardown-occupancy.js";
+import { createNodeTeardownLocusDriver } from "../lib/work-unit/teardown-locus.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 
 // ---------------------------------------------------------------------------
@@ -1286,6 +1287,7 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
   let locus = base.cwd;
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
   const readLocusOccupancy = createNodeTeardownOccupancyReader({ exec, identity: base.identity });
+  const teardownLocus = createNodeTeardownLocusDriver({ exec, identity: base.identity });
   if (branchArg !== undefined && branchArg !== "") {
     const result = await runBranchTeardown(
       {
@@ -1293,8 +1295,10 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
         exec,
         indexFs: lifecycleFs,
         chdir: (dir) => { process.chdir(dir); locus = dir; },
+        readCurrentLocus: () => locus,
         readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
         readLocusOccupancy,
+        teardownLocus,
       },
       { branch: branchArg, base: baseBranch },
     );
@@ -1324,9 +1328,11 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
       exec,
       indexFs: lifecycleFs,
       chdir: (dir) => { process.chdir(dir); locus = dir; },
+      readCurrentLocus: () => locus,
       readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
       workUnitLocus: createNodeWorkUnitLocusDriver({ exec, identity: base.identity }),
       readLocusOccupancy,
+      teardownLocus,
     },
     {
       name: wuName ?? "",
