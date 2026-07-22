@@ -511,9 +511,10 @@ export function setMetaBranch(content: string, branch: string): string {
  */
 export function setMetaTitle(content: string, name: string): string {
   const lines = content.split("\n");
-  const index = lines.findIndex((line) => /^# Metadata: .+$/u.test(line));
+  const index = lines.findIndex((line) => /^# Metadata: .+\r?$/u.test(line));
   if (index === -1) throw new Error("Cannot set metadata title: managed H1 not found.");
-  lines[index] = `# Metadata: ${name}`;
+  const line = lines[index];
+  lines[index] = `# Metadata: ${name}${line?.endsWith("\r") === true ? "\r" : ""}`;
   return lines.join("\n");
 }
 

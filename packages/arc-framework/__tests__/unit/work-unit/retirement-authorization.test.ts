@@ -49,9 +49,15 @@ function receipt(
     transitionPatchDigest: contentDigest(new TextEncoder().encode("patch")),
     retiringProjection: { kind: "direct-transition" },
     authorization: renamed ? "identity-renamed" : parked ? "planning-relocated" : "discard-confirmed",
-    result: parked
-      ? { kind: "relocate", plannedArtifactDigest: contentDigest(new TextEncoder().encode("planned")) }
-      : { kind: "discard", artifactDigest: "absent" },
+    result: renamed
+      ? {
+          kind: "rename",
+          targetSlug: "renamed-sample",
+          artifactDigest: contentDigest(new TextEncoder().encode("renamed")),
+        }
+      : parked
+        ? { kind: "relocate", plannedArtifactDigest: contentDigest(new TextEncoder().encode("planned")) }
+        : { kind: "discard", artifactDigest: "absent" },
   };
 }
 

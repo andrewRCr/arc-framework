@@ -473,6 +473,8 @@ export async function handleRename(sourceSlug: string, targetSlug: string): Prom
           );
         }
       }
+    } else if (result.worktree.status === "already-moved") {
+      lines.push(`Worktree:  unchanged; registered path already carries the new slug: ${result.worktree.worktreePath}`);
     } else if (result.worktree.status === "unmatched") {
       lines.push(`Worktree:  unchanged; registered path does not contain the old slug: ${result.worktree.worktreePath}`);
     } else {

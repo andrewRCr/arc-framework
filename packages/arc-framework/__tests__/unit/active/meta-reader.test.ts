@@ -26,6 +26,7 @@ import {
   setMetaDesign,
   setMetaFinalizeFields,
   setMetaState,
+  setMetaTitle,
   reconcileMetaFields,
   validateMetaFieldBlockShape,
   META_FIELDS,
@@ -1370,6 +1371,16 @@ describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
     const noNextTask = META.replace("- **Next Task:** `Task 3.1 — the executor (line ~150)`\n", "");
     expect(() => setMetaBulletFields(noNextTask, { "Next Task": "[none]" })).toThrow(
       /Next Task.*not found/i,
+    );
+  });
+});
+
+describe("setMetaTitle — managed heading rewrite", () => {
+  it("rewrites a CRLF heading without changing the document's line endings", () => {
+    const content = "# Metadata: old-name\r\n\r\n- **State:** Active\r\n";
+
+    expect(setMetaTitle(content, "new-name")).toBe(
+      "# Metadata: new-name\r\n\r\n- **State:** Active\r\n",
     );
   });
 });

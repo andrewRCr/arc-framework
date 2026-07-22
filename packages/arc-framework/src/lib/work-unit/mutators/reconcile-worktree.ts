@@ -202,6 +202,7 @@ export type ReconcileWorktreeResult =
 /** Result of deriving a worktree move from live branch registration. */
 export type RenameWorktreeMoveResolution =
   | { status: "move"; from: string; to: string }
+  | { status: "already-moved"; worktreePath: string }
   | { status: "unmatched"; worktreePath: string }
   | { status: "in-place" };
 
@@ -225,6 +226,13 @@ export async function resolveRenameWorktreeMove(
 
   const leaf = basename(from);
   const slugOffset = leaf.lastIndexOf(params.oldSlug);
+  const targetOffset = leaf.lastIndexOf(params.newSlug);
+  if (
+    targetOffset !== -1
+    && (slugOffset === -1 || (slugOffset >= targetOffset && slugOffset < targetOffset + params.newSlug.length))
+  ) {
+    return { status: "already-moved", worktreePath: from };
+  }
   if (slugOffset === -1) return { status: "unmatched", worktreePath: from };
   const renamedLeaf = `${leaf.slice(0, slugOffset)}${params.newSlug}${leaf.slice(slugOffset + params.oldSlug.length)}`;
   return {
