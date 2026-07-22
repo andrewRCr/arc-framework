@@ -82,20 +82,14 @@ institutionalizes unsupported machinery.
   before content fill. A clean result preserves the resolved path silently; an approved revision amends the spec,
   discards the superseded skeleton, and rebuilds from the scale/Class read without weakening the Class ratchet.
 
-### `[ ]` **3.2 Lock direct planning-workflow declarations to the package source**
+### `[x]` **3.2 Lock direct planning-workflow declarations to the package source**
 
 - _Goal:_ The three direct planning consumers cannot silently drop the proportionality method from their loading
   contracts while general trigger coverage continues to enforce non-orphaned methods.
 
-- _Note:_ Design coverage: PD4, PD5, PD7, PD8.
-
-    - In `packages/arc-framework/__tests__/integration/framework-sync.test.ts`, use the exported
-      `parseWorkflowFrontmatter` helper from `src/scripts/audit-method-triggers.ts` in a focused real-corpus test over
-      package `draft-design.md`, `create-spec.md`, and `generate-tasks.template.md`.
-    - Assert that every named consumer declares `assess-design-proportionality` directly; do not replace the
-      general `lint:arc:triggers` coverage check.
-    - Retain the existing whole-file Framework comparison as the proof that rendering preserves declarations and
-      surrounding call sites in all three self-hosted workflows; do not duplicate that projection contract.
+- _Outcome:_ A focused real-corpus integration assertion now parses the three package planning workflows and locks
+  their direct proportionality declarations, complementing the general trigger audit and existing whole-file
+  projection proof without duplicating either contract.
 
 ## **Phase 4:** Standalone audit door and skill projection
 

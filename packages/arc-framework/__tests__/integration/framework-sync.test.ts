@@ -27,6 +27,7 @@ import { readManifest } from "../../src/lib/manifest/index.js";
 import { buildConfigMap, buildTokenMap } from "../../src/lib/config/index.js";
 import { classifyFile, resolveFileList } from "../../src/lib/classification.js";
 import { resolveTemplateOutputPath } from "../../src/lib/layout/index.js";
+import { parseWorkflowFrontmatter } from "../../src/scripts/audit-method-triggers.js";
 import type { Manifest, Recipe } from "../../src/lib/types.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -164,6 +165,21 @@ describe("framework sync (self-hosting drift check)", () => {
         readFile(join(ARC_DIR, path), "utf8"),
       ]);
       expect(project, `${path} must retain the shipped neutral contract`).toBe(packaged);
+    }
+  });
+
+  it("declares design proportionality at every direct planning consumer", async () => {
+    const workflowPaths = [
+      "system/workflows/arc/draft-design.md",
+      "system/workflows/arc/create-spec.md",
+      "system/workflows/arc/generate-tasks.template.md",
+    ];
+
+    for (const path of workflowPaths) {
+      const content = await readFile(join(PKG_ARC_DIR, path), "utf8");
+      const declarations = parseWorkflowFrontmatter(content);
+      expect(declarations.parseError, `${path} frontmatter`).toBeUndefined();
+      expect(declarations.methods, `${path} direct methods`).toContain("assess-design-proportionality");
     }
   });
 
