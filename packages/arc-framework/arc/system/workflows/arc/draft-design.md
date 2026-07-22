@@ -27,9 +27,12 @@ start.
 
 ## Planning-entry gate
 
-**Grooming-entry skip.** A `--plan <stub>` grooming session enters already on a committable grooming branch —
-under full protection, session-init's signal-leaf relocate uses `chore/groom-<slug>` cut from the base. Skip this
-gate and continue to **Resolve depth & Class**. The gate still runs on every other entry.
+**Grooming entry.** For `--plan <anchor-stub>`, settle the complete co-design set with the developer, then invoke
+`arc plan open <anchor-stub> [--include <related-stub>...] --json`. The anchor is always a member and the set is
+fixed for this generation. On `applied` / `idempotent`, render `recommendedPromptText`, retain the returned identity
+and record/lease IDs, and perform every grooming edit from `activeLocusPath`; `sessionHomePath` is the return frame.
+On `refused` / `error`, render the supplied text and stop. Skip the remaining planning-entry check and continue to
+**Resolve depth & Class**. Never infer the set, protection mode, branch, or placement from Git state.
 
 Before drafting, run the mechanical preflight — it resolves whether a draft can be committed from the current
 context and routes so a draft never lands where it can't be committed:
@@ -198,17 +201,12 @@ back-edge), advance the stage pointer: `arc set-stage create-spec --advance` rew
 draft-design → create-spec` and resets `**Next Action:**` to the `[begin current workflow]` boundary sentinel,
 bundled into this capture commit — so a fresh session after handoff resumes in create-spec.
 
-**Groom-and-stop (the `--plan` grooming exit).** A `--plan <stub>` grooming session ends here without advancing —
-a complete outcome, not an incomplete forward path. Capture the draft to the grooming branch and **do not advance
-the stage pointer**: the stub stays in its backlog state, and the session resumes by re-invoking `--plan <stub>`.
-The tracked `draft-*` is the continuity artifact — pausing is commit + push; write no marker and no new durable
-state.
-
-**Ship instead of pause (optional).** After the capture commit and push, a path-pure grooming branch may ship as a
-lean PR on the auto-merge lane: one-line Summary, Test Plan only when non-obvious, then native auto-merge per the
-[merge-gate setup][setup-merge-gate]. Resolve the merge method from the repository/ruleset or config surface; do
-not assume the repo's advertised default is the allowed method. After the PR lands, return to the base checkout,
-fast-forward it, and remove the local grooming branch if it is still present.
+**Groom-and-ship (the `--plan` exit).** A grooming pass ends here without advancing the target stub's stage pointer.
+The fixed set is one pre-WU co-design concern: edit only the claimed members' planning artifacts, their already-named
+cohort records, and required derived project views. A started WU is never a member; route its coordination through
+the normal cross-WU path. Commit the capture through the ceremony below, then ship the complete generation before
+leaving—partial mode pushes the direct-base result; full mode pushes one path-pure planning branch and opens its lean
+PR (one-line Summary, Test Plan only when non-obvious). Resolve the merge method from live repository policy.
 
 **Post-settle coherence re-read** (always-on, in-context): when folds landed after the readiness read —
 adversarial-pass findings, review amendments — re-read the settled draft for coherence (the readiness bar's
@@ -228,13 +226,19 @@ chore(arc): capture draft for {name}
 Context: draft-{name}.md (planning)
 ```
 
+For a grooming pass, after the push/PR boundary invoke `arc plan close <anchor-stub> --json`. The verb revalidates
+the immutable member set, allowed path set, base ancestry, exact review tail or pushed partial base, and then pops
+only the owned grooming role. Consume `restoredParent` / `sessionHomePath`; a full review tail may later replay the
+same close from base context to finalize after merge. Use `arc plan abandon <anchor-stub> --json` only on explicit
+direction and exact safe evidence. Grooming is session-bounded: it finishes or abandons rather than handoff-pausing.
+
 ---
 
 ## Next Step
 
-Run [create-spec](create-spec.md) — it re-reads the derivation axis at its own entry, with the draft (or the
-determinacy confirmation) as its richest evidence. The draft's _shape_ carries forward, not a depth value: the
-planning-depth level is never recorded.
+Outside grooming, run [create-spec](create-spec.md) — it re-reads the derivation axis at its own entry, with the
+draft (or determinacy confirmation) as its richest evidence. The draft's _shape_ carries forward, not a depth value:
+the planning-depth level is never recorded. A grooming pass instead returns to its restored frame after close.
 
 ---
 
@@ -243,5 +247,4 @@ planning-depth level is never recorded.
 [assess-cohort-fit]: ../../methods/assess-cohort-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [template-draft]: ../../../reference/templates/arc/work-unit/template-draft.md
-[setup-merge-gate]: supplemental/setup-merge-gate.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md

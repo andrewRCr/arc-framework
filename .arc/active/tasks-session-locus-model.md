@@ -786,16 +786,11 @@ protection modes, recovery boundaries, and package/source parity.
           missing partial-mode close/abandon runtime so direct-base completion and clean abandonment pop the exact
           role without inventing a portable identity.
 
-    - `[ ]` **7.1.e Rework grooming and one-sweep housekeeping procedures**
-        - Update authoritative package `packages/arc-framework/arc/system/workflows/arc/draft-design.md` grooming
-          entry to exact-set `arc plan open → groom → ship → close`, then sync its project copy. Support an anchor
-          plus explicit related backlog members as one fixed pre-WU co-design concern; keep started-WU branches
-          isolated and route their cross-WU coordination normally.
-        - Update authoritative package `packages/arc-framework/arc/system/workflows/arc/supplemental/drain-inbox.md`,
-          then sync its project copy: open one routing sweep with the confirmed strictest lane and complete
-          canonical plan file, establish the full identity or partial role before visible dispatch bindings, render
-          its digest, require exact-plan re-supply on retry, close routing occupancy, and only then hand the exact
-          dispatch group to sibling Errands.
+    - `[x]` **7.1.e Rework grooming and one-sweep housekeeping procedures**
+        - Reworked canonical and self-hosted grooming around an immutable `plan open → groom → ship → close` set,
+          and housekeeping around one strictest-lane allocation, exact plan replay, occupancy-first dispatch binding,
+          close-before-sibling continuation, and typed restoration. Added `arc housekeep plan` so the CLI compiles
+          confirmed dispositions against current inbox generations and emits the canonical plan/digest.
 
     - `[ ]` **7.1.f Align work-unit placement procedures with primary launchpad occupancy**
         - Under authoritative package `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/`, update

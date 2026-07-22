@@ -17,19 +17,20 @@
  */
 
 import * as p from "@clack/prompts";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 import { resolveWriteContext } from "../lib/git/write-context.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
-import { parseHousekeepPlan } from "../lib/housekeep/plan.js";
+import { compileHousekeepPlan, parseHousekeepPlan } from "../lib/housekeep/plan.js";
 import { openHousekeepAtRuntime } from "../lib/housekeep/open-runtime.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
 import { formatErrandOpenResult } from "./errand.js";
 import { closeHousekeepAtRuntime, settleHousekeepAtRuntime } from "../lib/housekeep/lifecycle-runtime.js";
+import { withLockedUserInbox } from "../commands/user.js";
 
 export interface HousekeepCheckOptions {
   /** Emit the write-context classification as JSON (for skill consumption). */
@@ -42,8 +43,51 @@ export interface HousekeepOpenOptions {
   json?: boolean;
 }
 
+export interface HousekeepPlanOptions {
+  intentFile: string;
+  output: string;
+  json?: boolean;
+}
+
 export interface HousekeepCloseOptions { json?: boolean }
 export interface HousekeepAbandonOptions { json?: boolean }
+
+/** Compile judgment-only dispositions into an exact replayable housekeeping plan. */
+export async function handleHousekeepPlan(opts: HousekeepPlanOptions): Promise<void> {
+  if (opts.json !== true) p.intro("arc housekeep plan");
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) { emitHousekeepPlanError("identity", "No identity resolved.", opts.json === true); return; }
+  const io = createUserIOContext();
+  try {
+    const intent = await readPlanInput(opts.intentFile);
+    const transaction = await withLockedUserInbox({ cwd, io, identity }, ({ content }) => {
+      if (content === null) throw new Error("USER-INBOX is missing.");
+      return { result: compileHousekeepPlan(intent, content) };
+    });
+    const compiled = transaction.result;
+    const bytes = `${compiled.canonicalJson}\n`;
+    let outcome: "applied" | "idempotent" = "applied";
+    try {
+      await writeFile(opts.output, bytes, { encoding: "utf8", flag: "wx" });
+    } catch (error) {
+      if (!isAlreadyExists(error) || await readFile(opts.output, "utf8") !== bytes) throw error;
+      outcome = "idempotent";
+    }
+    const result = {
+      mode: "housekeep-plan",
+      outcome,
+      planPath: opts.output,
+      routingPlanDigest: compiled.digest,
+      recommendedPromptText: `Canonical housekeeping plan written to ${opts.output}.`,
+    };
+    if (opts.json === true) process.stdout.write(`${JSON.stringify(result)}\n`);
+    else { p.log.success(result.recommendedPromptText); p.outro("Done."); }
+  } catch (error) {
+    emitHousekeepPlanError("compile", error instanceof Error ? error.message : String(error), opts.json === true);
+  }
+}
 
 /** Close one exact routing occupancy or finalize its merged tail. */
 export async function handleHousekeepClose(slug: string, opts: HousekeepCloseOptions): Promise<void> {
@@ -161,6 +205,23 @@ async function readPlanInput(path: string): Promise<string> {
     content += chunk;
   }
   return content;
+}
+
+function emitHousekeepPlanError(suffix: string, message: string, json: boolean): void {
+  const result = {
+    mode: "housekeep-plan",
+    outcome: "error",
+    error: { code: `housekeep.plan.${suffix}`, message },
+    recommendedPromptText: "Resolve the routing intent or inbox generation error before retrying.",
+  };
+  if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
+  else p.log.error(`${result.error.code}: ${result.error.message}`);
+  process.exitCode = 1;
+}
+
+function isAlreadyExists(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error
+    && (error as { code?: unknown }).code === "EEXIST";
 }
 
 function emitHousekeepResult(result: Parameters<typeof formatErrandOpenResult>[0], json: boolean): void {

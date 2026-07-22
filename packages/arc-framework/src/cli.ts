@@ -40,10 +40,12 @@ import {
   handleHousekeepClose,
   handleHousekeepAbandon,
   handleHousekeepOpen,
+  handleHousekeepPlan,
   type HousekeepAbandonOptions,
   type HousekeepCheckOptions,
   type HousekeepCloseOptions,
   type HousekeepOpenOptions,
+  type HousekeepPlanOptions,
 } from "./handlers/housekeep.js";
 import {
   handleBaseDrift,
@@ -447,6 +449,14 @@ housekeep
   .description("Classify the write context — base-branch (proceed), WU branch (relocate), or degenerate (refuse)")
   .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
   .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
+
+housekeep
+  .command("plan")
+  .description("Compile confirmed routing dispositions into an exact source-qualified plan")
+  .requiredOption("--intent-file <path>", "Judgment-only routing intent path, or - for stdin")
+  .requiredOption("--output <path>", "Destination for the canonical replayable plan")
+  .option("--json", "Emit the compiled plan path and digest as JSON")
+  .action((opts: HousekeepPlanOptions) => handleHousekeepPlan(opts));
 
 housekeep
   .command("open <slug>")

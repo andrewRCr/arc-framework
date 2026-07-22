@@ -5,7 +5,7 @@
  * including the resolved branch-protection mode that selects its write lane.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -42,6 +42,47 @@ describe("arc housekeep check", () => {
     expect(JSON.parse(result.stdout.trim())).toMatchObject({
       baseBranch: "main",
       branchProtection: "full",
+    });
+  });
+
+  it("compiles routing intent into a source-qualified canonical plan", async () => {
+    if (tmpDir === undefined) throw new Error("Test setup did not initialize a temporary repository");
+    const userDir = join(tmpDir, ".arc", "user", "test-user");
+    await mkdir(userDir, { recursive: true });
+    await writeFile(join(userDir, "USER-INBOX.md"), [
+      "# User Inbox",
+      "",
+      "## Errand",
+      "",
+      "### `[ ]` **Run now**",
+      "",
+      "- _Observation:_ Execute this capture.",
+      "",
+      "## Work Unit",
+      "",
+      "---",
+      "",
+    ].join("\n"), "utf8");
+    const intentPath = join(tmpDir, "intent.json");
+    const planPath = join(tmpDir, "plan.json");
+    await writeFile(intentPath, JSON.stringify({
+      version: 1,
+      entries: [{ title: "Run now", disposition: "execute-now" }],
+    }), "utf8");
+
+    const result = await runArc([
+      "housekeep", "plan", "--intent-file", intentPath, "--output", planPath, "--json",
+    ], tmpDir);
+
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      mode: "housekeep-plan",
+      outcome: "applied",
+      planPath,
+      routingPlanDigest: expect.stringMatching(/^sha256:/u),
+    });
+    expect(JSON.parse(await readFile(planPath, "utf8"))).toMatchObject({
+      entries: [{ title: "Run now", disposition: "execute-now", sourceDigest: expect.stringMatching(/^sha256:/u) }],
     });
   });
 });

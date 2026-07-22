@@ -18,10 +18,8 @@ atomic is handed to the [`run-errand`][run-errand] lifecycle as an explicit, opt
 [DEV-RULES.ARC § Discovered Work Routing][dev-rules-arc] for the capture-vs-execution boundary this mechanism
 enforces.
 
-**Mode/tier-agnostic spine.** The phases below are the routing spine; they do not vary by protection mode or
-tier. Only the **write mechanics** differ by protection mode, and they are isolated to one block (§ 5) that
-defers to [strategy-work-organization § Cheap-branch path][cheap-branch] / [§ Auto-Merge Lane][auto-lane] —
-never scattered through the spine.
+**Mode/tier-agnostic spine.** The routing plan and judgment do not vary by protection mode or tier. The open/close
+verbs own mode-specific allocation and settlement; the workflow consumes their typed paths and results.
 
 ## When This Workflow Applies
 
@@ -30,35 +28,12 @@ never scattered through the spine.
 - **Mid-WU on demand** — invoked deliberately to clear accumulated captures without waiting for the next
   between-WUs boundary. The precondition below governs _where_ the drain may write, not _when_ it runs.
 
-## Precondition: base-branch write context
+## Entry
 
-The drain writes shared base-branch paths — stub edits, freshly scaffolded `provisional/` stubs, and homeless
-flushes to the shared inbox. Those writes must originate from a **base-branch write context**, never a work-unit
-worktree's branch, or they land on the wrong branch and tangle an unrelated WU's PR with grooming.
-
-This is a **machine-checked guard, not prose discipline**. Resolve the write context first:
-
-```bash
-arc housekeep check --json
-```
-
-The check resolves the current worktree path, the current branch, the configured base branch (`branch.base`),
-and `branchProtection` (`full` or `partial`) — the same context `arc errand check` resolves — and classifies the
-invocation:
-
-- **Base-branch write context** → proceed to the drain steps. Under full protection, § 5 relocates onto a
-  short-lived grooming branch cut from here before any shared-path write — the base context is the fork
-  point, not the write target.
-- **Work-unit branch** → **refuse and offer to relocate**: hop to a base-branch write context, run the sweep
-  there, and return. The relocation mechanics follow protection mode — see
-  [strategy-work-organization § Cheap-branch path][cheap-branch] and [§ Branch Protection Modes][branch-modes].
-  Launching from any worktree is not a blocker; only _writing_ shared paths from a WU branch is.
-- **Degenerate context** (detached HEAD, or no resolvable base) → **safe refusal**, never a silent write.
-
-The guard is **guidance keyed on write context, not a gate on having an active WU**: the precondition is a
-base-branch write context, _not_ "no active work unit." Housekeep is therefore invokable mid-WU — hop to the
-primary worktree, sweep as a batched errand, and return. Let captures stack before a mid-WU sweep rather than
-thrashing the drain per item.
+Housekeeping may enter between WUs or warm from a WU. Do not relocate or select a write branch before the routing
+plan is confirmed: `arc housekeep open` owns protection-aware allocation and preserves the optional WU parent.
+Read-only classification and overlap checks may run from the current frame. Let captures accumulate before a
+mid-WU sweep rather than thrashing the drain per item.
 
 ## Drain steps
 
@@ -107,9 +82,9 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
 - **Execute-now bias.** When an atomic is a genuine quick win and executing it now is cheaper than routing plus a
   later session, prefer **execute-now** over defer. Keep the bias bounded by errand character: if it crosses a
   wrapper floor, reclassify to a stub; if context budget cannot carry it now, choose defer or fresh-session
-  execute-bound per § 6.
+  execute-bound per § 7.
 - **Atomic disposition.** For each atomic, propose **execute-now**, **defer**, or **retain** (the escape-hatch) —
-  acted on in § 5 / § 6.
+  acted on in § 5 / § 7.
 - **Destination-path overlap (advisory).** After destinations resolve and **before** the § 3 confirmation
   interlock, collect the write paths the plan will touch (stub drafts / notes, shared inbox, errand targets when
   execute-now). Run the existing overlap read over those paths:
@@ -133,6 +108,26 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
 
 The user may adjust any proposal: regroup, change a commitment level, flip an atomic between execute-now / defer /
 retain, or **retain** an entry that would otherwise route. Routing (§ 5) proceeds only on the confirmed plan.
+
+After confirmation, save a judgment-only intent containing every entry's title and confirmed disposition plus any
+destination/commitment fields. Compile it against the current inbox generations:
+
+```bash
+arc housekeep plan --intent-file <intent-path> --output <canonical-plan-path> --json
+```
+
+Use the returned `planPath` and `routingPlanDigest` without recomputing either. Select the sweep's strictest lane:
+`reviewed` if any confirmed write needs owner review, otherwise `auto`. Then establish occupancy before any routing
+write or visible execute binding:
+
+```bash
+arc housekeep open <sweep-slug> --plan-file <canonical-plan-path> --lane <auto|reviewed> --json
+```
+
+On `applied` / `idempotent`, require the returned digest to match the compiler result, render
+`recommendedPromptText`, and route only from `activeLocusPath`; retain `sessionHomePath` and exact IDs. A retry
+re-supplies the same canonical plan file and lane—never reconstruct a partial plan from visible dispatch marks.
+On `refused` / `error`, render the supplied text and stop.
 
 ### 4. Chunk if the sweep is large
 
@@ -178,60 +173,40 @@ routing write.
   `true` and **re-stamp** _Created:_ to the retain date (both values backtick-delimited per the managed-field
   grammar), so the reminder floor (never same-day) applies from now. A retained entry is _triaged_ — it does not
   count toward `inboxState.housekeepNeeded`, and the reminder sweep keeps it from rotting.
-- **Execute-now atomic** — held aside here; executed in § 6, not written by the drain.
+- **Execute-now atomic** — held aside here; executed in § 7, not written by the drain.
 
-**Write mechanics (protection-mode block).** This is the only mode-dependent step; it defers to
-[§ Cheap-branch path][cheap-branch] / [§ Auto-Merge Lane][auto-lane]:
+Perform every routing write from the returned active locus. The complete plan is one routing generation and uses
+its one strictest lane; chunking changes commit/review increments, not the claim, dispatch ID, or plan digest. Full
+mode ships the pure-routing diff in one PR for that lane (lean Summary plus the confirmed routing plan); partial
+mode pushes the direct-base commits. Never open an Errand branch for routing or split foreign-owner writes into a
+second sweep generation.
 
-- **Fully protected** — **relocate first, then write.** Before any routing write, `arc errand open <slug>`
-  cuts the short-lived grooming branch `chore/<slug>` off the configured base branch and occupies it in place
-  (folding cut→occupy, as [run-errand][run-errand] § Launch step 3 does), so the routing writes never land on
-  the launch branch; idempotent — re-running reuses an existing branch. The base context the precondition
-  established is the fork point, not the write target: full protection forbids committing the shared paths to
-  the base branch itself. The planning-routing writes (existing-stub edits, new provisional stubs, the
-  homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane
-  off that branch (chunked per § 4 if large). Open it with a **lean grooming-PR body** — a one-line Summary
-  plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections, mirroring
-  [run-errand][run-errand] § Ship step 3. A write touching a **foreign owner's** artifact is reviewed-lane
-  and ships on its own.
+> [!IMPORTANT]
+> `integration-interlock`: Under full protection, stop before arming auto-merge or merging the routing PR. Surface
+> checks and the resolved lane; await explicit integration approval. The routing confirmation did not approve merge.
 
-  > [!IMPORTANT]
-  > `integration-interlock`: Stop before arming auto-merge or merging the grooming PR. Surface PR status
-  > (checks, resolved lane) and await explicit integration approval — never infer it from the § 3 routing
-  > confirmation, which approved the _routing_, not the merge.
-- **Partially protected** — every routing write is a **direct base-branch commit** with no PR or merge-wait;
-  keep coherent commit boundaries (the § 4 chunk shape). No lanes, no review-chunking.
+### 6. Close routing occupancy
 
-### 6. Execution transition — committed atomics → `run-errand`
+After the routing commits are pushed and any full-mode PR is open, invoke
+`arc housekeep close <sweep-slug> --json`. The verb validates the exact canonical plan, pure-routing write set,
+pushed partial base or full review tail, then closes only this routing occupancy. Render its text and consume
+`restoredParent`, `sessionHomePath`, and `nextOffer`. A full awaiting-merge identity may be finalized later by
+replaying the same close after merge; sibling execution does not wait for that tail. On explicit abandonment, use
+`arc housekeep abandon <sweep-slug> --json`; never clear dispatch marks or locus records by hand.
 
-For each **execute-now** atomic, hand off to the [`run-errand`][run-errand] lifecycle — the drain never executes
-atomic work itself. The atomic's `USER-INBOX` entry is the errand's **originating capture**: pass it to
-`run-errand` so `arc errand open` mints an `inbox`-origin record, using `--from-inbox <entry-title>` or
-`--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title. The entry drops at the errand's
-`close` off that back-pointer rather than being orphaned. Two explicit paths, the user's choice by context budget
-(never a structural gate):
+### 7. Execution transition — exact next-offers → `run-errand`
 
-- **Same session** — transition into `run-errand`, then **return here for the next**. Run the committed atomics
-  **one at a time, sequentially** (batch only when they are genuinely one concern). `run-errand`'s Launch
-  resolves and relocates its own execution locus off the base via the shared write-context primitive (the same
-  `arc housekeep check` resolution this drain used); the isolation shape — a separate worktree where spawning is
-  available, otherwise an in-place `chore/<slug>` branch in the primary base checkout — follows protection mode
-  and worktree availability (see `run-errand`). Either way the errand never executes on the drain's launching
-  branch, and control returns to the base context after each. No dependency on having entered through
-  session-init's errand arm.
-- **Fresh session** — leave the execute-now atomics in place and resume each via `arc-session --errand` later;
-  the drain still closes (§ 7) with those entries triaged-but-pending.
+Only after housekeeping occupancy closes, offer the returned `nextOffer`. On acceptance, open that exact sibling
+through [`run-errand`][run-errand] using its `key`, `dispatchId`, and `parentCheckoutPath`; do not rescan the inbox or
+invent another sibling. Each completed Errand returns the next dispatch-qualified offer, producing a sequential
+chain. On decline or insufficient context budget, leave the remaining execute-bound entries in place for a fresh
+session; their visible dispatch generation plus session-init recovery owns continuation.
 
-**The drain does not block on merges.** `run-errand` commits and opens/arms the PR, but the `USER-INBOX` line
-the errand record back-points to is removed at the errand's **completion** (merge) — asynchronous on the
-auto-merge lane, review-gated on the reviewed lane. So a dispatched atomic's line legitimately lingers; session-init's
-in-flight-errand sweep is the backstop against orphaning (an abandoned errand keeps both its line and its pushed
-branch — both swept). On an _unattended_ merge (auto-merge lane), `run-errand`'s completion does not fire
-in-session; teardown and line-removal are replayed from base context by the same-session finalize pass or, next
-session, by this sweep — idempotent backstops to the authoritative removal in [`run-errand`][run-errand]
-§ Complete.
+Each execute-bound capture remains the Errand's originating entry until that Errand completes. Full-mode async
+review tails and unattended merges therefore leave the line legitimately present; exact close/finalize replay is
+the idempotent removal backstop. Abandonment retains the capture and clears only its dispatch binding.
 
-### 7. Confirm the drain is complete
+### 8. Confirm the drain is complete
 
 The drain **closes on dispositions, not on a physically empty file.** Verify every entry has a terminal
 disposition — **routed** / **dismissed** / **flushed** (line removed with the write), **retained** (`_Hold:_`,
@@ -248,6 +223,3 @@ in-flight-errand staleness belong to session-init orientation, not the drain.
 [run-errand]: run-errand.md
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
-[cheap-branch]: ../../../../reference/strategies/arc/strategy-work-organization.md#cheap-branch-path
-[branch-modes]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
-[auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
