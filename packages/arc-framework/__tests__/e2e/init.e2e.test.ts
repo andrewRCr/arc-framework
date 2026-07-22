@@ -155,10 +155,11 @@ describe("init", () => {
     expect(result.exitCode).toBe(0);
 
     const methodNames = [
+      "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
       "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "independent-analysis",
-      "implementation-audit", "self-review",
+      "implementation-audit", "self-review", "design-audit",
       "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
-      "session-state", "spec-review", "test-first",
+      "session-state", "spec-review", "task-audit", "test-first",
     ];
     const extensionNames = [
       "post-context-load", "post-task-completion", "post-task-quality",
@@ -195,7 +196,7 @@ describe("init", () => {
       await pathExists(join(tmpDir, ".arc/system/extensions/arc-extensions.md")),
     ).toBe(false);
 
-    // All 18 registered in manifest with expected classifications.
+    // Every installed method and extension is registered with its expected classification.
     const manifestRaw = await readFile(
       join(tmpDir, ".arc/system/.internal/manifest.json"),
       "utf-8",
