@@ -1,8 +1,8 @@
 # Metadata: Markdown Formatting Hygiene
 
-| **State**     | **Owner** | **Branch**                 | **Class** | **Priority** |
-| ------------- | --------- | -------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/markdown-formatting` | `Heavy`   | `P3`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/326>
+- **Completed:** 2026-07-21
 
 ---
 
