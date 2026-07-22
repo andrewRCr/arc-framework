@@ -15,6 +15,19 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Bind qualification to the complete local review surface**
+
+- _Routed from:_ two `USER-INBOX § Work Unit` captures, housekeep drain (2026-07-21); captured during
+  `review-architecture` task generation and `review-surface-binding` draft review.
+- _Concern:_ qualification still points only at the shipped cutover and claims strict-parser work now owned by
+  `review-architecture`. It also lacks the live dependency on `review-surface-binding`, whose local target/request
+  derivation, guidance-digest proof, receipt, attestation, and settlement path must exist before a local review can
+  count as shared satisfying evidence.
+- _Fold-in:_ replace the stale dependency/action with `Depends On: review-surface-binding`; consume the finalized
+  review projection and local attested path without rebuilding their parsers; retain lifecycle-readiness,
+  live-provider qualification, required-check authority, and the promotion handoff here. Reconcile the go/no-go and
+  required-output language so hosted-provider absence can be satisfied by one fully bound local path.
+
 ### `[ ]` **Evaluate the `integration/review-gate/` test layout against the test-architecture principle**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during `cli-test-hardening`

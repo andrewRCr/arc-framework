@@ -31,6 +31,33 @@
   Prefer on-demand or explicitly materialized/base-owned views sourced from authoritative operational state, aligned
   with `operational-state-docs`, `local-mode`, `arc-backend`, and the storage-evolution north star. Keep the existing
   resolver wiring as an interim mitigation, but do not mistake faster recovery for the long-term boundary.
+- _Additional evidence (routed 2026-07-21):_ the projection header pins the render to a HEAD hash, so every commit
+  invalidates it. A verification close that touched one render field across three commits required two renders, with
+  the second failure appearing only at pre-commit after message composition. The tax scales with commit count, not
+  only concurrent merge conflicts. If branch-carried projection retirement is deferred, dropping or read-time
+  deriving the hash is the cheap interim correction.
+
+### `[ ]` **Align activation staging with ceremony commit boundaries**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
+  `cli-layout-resolver` activation.
+- _Concern:_ `arc activate` staged a nontrivial `ROADMAP` change with the activation meta while the workflow requires
+  a separate projection ceremony commit; manual unstaging and a second staged-index render were needed. The verb
+  also surfaced transient stale-branch evidence while its own rename and field rotation were incomplete.
+- _Fold-in:_ make lifecycle verb and workflow ownership agree for trivial versus nontrivial refreshes, preserve the
+  staged-index renderer as commit-check authority, and suppress transition-internal residue. Keep the longer-term
+  target that WU branches do not carry project-level projections.
+
+### `[ ]` **Expose a first-class readiness-view render verb**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured after hand-editing a dependency
+  edge staled the view emitted by `arc stub`.
+- _Concern:_ lifecycle verbs render as side effects, but no discoverable CLI verb performs the mandatory
+  staged-index refresh after a manual render-field edit; operators learn the shell redirection only from a failed
+  pre-commit diagnostic.
+- _Approach:_ expose the existing staged-index projection as a verb, or eliminate the manual path by making every
+  render-field mutator regenerate before returning. Coordinate with branch-carried projection retirement rather
+  than creating a permanent command solely for a surface this WU may dematerialize.
 
 ### `[ ]` **Materialize pollutes ROADMAP consistency; in-flight rows key on ephemeral refs**
 

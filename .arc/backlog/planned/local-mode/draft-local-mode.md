@@ -34,6 +34,16 @@ the substrate, which raises the stakes on getting them right here.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Reconsider append-only branch history after notes retirement**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during decomposition-program
+  grooming.
+- _Concern:_ the prohibition on rebasing pushed WU branches is mechanically load-bearing while session state is
+  stored in SHA-keyed git notes. Once this WU retires that substrate, the rule becomes a history-policy choice.
+- _Approach:_ permit safe rewrite as an explicit user/team choice at minimum, reconsider whether pre-integration
+  linearization should ever be preferred, and retain supersession detection as the compatibility net. Coordinate
+  with `pr-decomposition`'s settled rebase freedom for stateless review refs.
+
 ### `[ ]` **Make non-git substitutability an acceptance criterion of the storage abstraction**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: local-mode`), housekeep drain (2026-07-18); captured during
