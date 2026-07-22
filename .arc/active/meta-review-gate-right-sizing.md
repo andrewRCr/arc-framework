@@ -13,7 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** draft-design pass 1 — target state settled and re-cut drafted; draft consolidated (`maturing`)
+- **Last Completed:** draft-design complete — draft settled through four adversarial passes + coherence re-read,
+  captured (`formalization-ready`)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
