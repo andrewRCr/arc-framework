@@ -898,6 +898,115 @@ protection modes, recovery boundaries, and package/source parity.
 - _Outcome:_ Every supported runner now exercises the same exact-generation liveness contract under the existing
   portability cost policy, while unavailable host facilities remain distinguishable from parser or adapter drift.
 
+## **Phase 7.R:** Right-Sizing Remediation
+
+_Purpose:_ Trim the delivered model where its exactness exceeds the motivating intent and adds operational
+friction, before verification locks the surface. Scope follows `notes-session-locus-model.md` § Right-sizing
+audit (2026-07-22): behavior-changing trims land here; internal hardening already shipped (inspectors, record
+locks, staged provisioning, v3 transaction core) is kept and marked do-not-extend.
+
+_Design decisions:_ Session leases are verb-scoped, not session-init-scoped — plain WU resume stays leaseless and
+`frame: idle` on a live checkout is normal; the cleanup veto and frame graph matter only where transient verbs
+already attach. Operator-facing exactness gates (harness capability table, host-truth re-entry predicates, plan
+digests, claim arbitration) reduce to advisory or simple-conflict semantics; data-destroying paths keep their
+full guard set unchanged.
+
+### `[ ]` **7.R.a Settle the right-sizing deltas in the spec** — D1, D4-D8, D11
+
+- _Goal:_ The spec records the trimmed design as settled decisions — verb-scoped leases, advisory warm entry,
+  open-change-request re-entry, digest-free housekeep, simple-conflict grooming, session-locus naming — so the
+  tasks below implement an amended design rather than drifting from the written one.
+
+    - Amend D1/D5 (capability table → advisory), D4/D11 (lease scope and the session-init attach expectation),
+      D6 (frame-matrix claims, narration register), D7 (awaiting-merge resume/materialize predicates), D8
+      (housekeep plan protocol, groom claim semantics); revise spec Success Criteria 3, 7, 10, 11 and this
+      file's § Success Criteria to match.
+    - Settle the two open sub-decisions: whether execute-bound captures keep grouped dispatch IDs or reduce to a
+      plain entry flag with file-order next-offer, and whether the routing lane stays persisted or derives at
+      close from what the sweep touched.
+    - Record the keep-list rationale (inspectors, record locks, staged provisioning, identity transaction core)
+      with an explicit do-not-extend note so verification reads retained weight as intentional.
+
+### `[ ]` **7.R.b Ratify verb-scoped leases and align spec, workflow, and narration** — D4, D6, D11
+
+- _Goal:_ A plain WU session neither attaches nor releases a lease, nothing downstream depends on mainline lease
+  liveness, and an unleased live checkout is presented as normal rather than noteworthy.
+
+    - Keep session-init attach only for the resolved live-lease re-entry arm; make the handoff release arm
+      no-op cleanly when no lease exists; confirm cleanup predicates and current-frame selection never require a
+      mainline WU lease (transient verbs still attach).
+    - Align `frame` derivation narration and `locusGuidance.currentFrame` copy with idle-as-normal; scope
+      heartbeat expectations to state-touching transient operations.
+
+### `[ ]` **7.R.c Demote the warm-entry capability gate to advisory** — D1, D5
+
+- _Goal:_ Warm entry never hard-refuses on harness identity: anchor acquisition stays best-effort lease metadata,
+  and directed-command capability becomes an operator-confirmed advisory.
+
+    - Replace the `cold-entry-required` refusal and its fixed selector allow-list with an advisory/confirm path
+      in the open/attach drivers; an unverifiable anchor yields the existing unverifiable-anchor lease and
+      unknown-liveness tier instead of refusing.
+    - Keep selector detection as anchor metadata only; update the refusal-reason union, tests, and workflow
+      narration accordingly.
+
+### `[ ]` **7.R.d Relax awaiting-merge re-entry to open-change-request** — D7, D8
+
+- _Goal:_ Resuming or materializing an awaiting-merge Errand or groom requires only an open change request at the
+  recorded head; head drift warns instead of refusing, and host truth is required only where identity retires.
+
+    - Relax the `requested-work`-only predicates in the resume/materialize drivers; keep merged-proof for
+      retirement and closed-unmerged for abandonment unchanged.
+    - Degrade an unreachable host to warn-and-proceed on paths that retire nothing; update tests and narration.
+
+### `[ ]` **7.R.e Remove the housekeep plan-commitment protocol** — D8
+
+- _Goal:_ A drain opens from slug plus lane confirmation alone; execute-bound inbox marking remains the durable
+  dispatch record, and an interrupted sweep re-confirms its remaining entries instead of replaying a
+  digest-matched plan.
+
+    - Remove the `HousekeepPlanV1` file input, the `arc housekeep plan` compiler, and the
+      sourceDigest/routingPlanDigest/plan-adoption machinery from identity and role schemas (v3 is machine-young
+      and self-hosted only — no migration shim); keep one-live-sweep serialization via identity existence.
+    - Apply the 7.R.a dispatch-binding and lane decisions; update `drain-inbox`/`run-errand` workflows, the
+      inbox-state dispatch-group slot, and tests.
+
+### `[ ]` **7.R.f Simplify groom claims to same-key conflict semantics** — D8
+
+- _Goal:_ Groom open claims a member set with plain conflict semantics — occupied key or overlapping member
+  resolves to resume, wait, or refuse — without cross-machine winner arbitration or exact-set retry adoption.
+
+    - Remove the CAS-winner adopt-on-retry machinery from the groom open arm; keep the member-set record, the
+      disjointness scan, same-anchor resume, and `openedBaseHead` close validation.
+    - Update the grooming arm of `draft-design`, tests, and conflict narration.
+
+### `[ ]` **7.R.g Rename user-facing narration to "session locus"** — D6, D11
+
+- _Goal:_ Routine narration never names the model; where diagnostics and recovery surfaces must, they say
+  "session locus", while the `arc locus` command name and internal identifiers stay unchanged.
+
+    - Sweep CLI-composed strings (`session-guidance.ts`, `recommendedPromptText` composition sites, locus error
+      text) and workflow/skill prose in both package and project copies.
+
+### `[ ]` **7.R.h Silence non-actionable locus surfaces at session entry** — D6, D11
+
+- _Goal:_ A clean session-init renders zero locus lines: unmanaged sibling worktrees and unleased frames are
+  expected state, and cleanup/diagnostic narration surfaces only actionable rows.
+
+    - Filter `locusGuidance` emission — suppress `worktree-without-role` diagnostics for unmanaged siblings and
+      the per-row no-deletion-authority cleanup litany; render `currentFrame` only when it carries action.
+    - Align session-init Step 6's locus conditional list; consider the once-per-day nudge-marker pattern for any
+      recurring advisory that survives. Scope-limit to locus-owned surfaces — the general session-init register
+      discipline routes to a `USER-INBOX` capture, not this branch.
+
+### `[ ]` **7.R.i Reconcile contracts, docs, and criteria after the trims** — D11
+
+- _Goal:_ Packaged and self-hosted copies, the locus-methodology structural contracts, orientation surfaces, and
+  the spec and task Success Criteria all agree with the trimmed behavior.
+
+    - Re-run parity and contract suites; update `probe-envelope.md` and quick-reference/orientation surfaces;
+      confirm no stale mentions of removed machinery (plan digests, capability table) survive in strategies or
+      skills.
+
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`

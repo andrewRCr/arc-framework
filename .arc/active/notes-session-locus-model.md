@@ -5,6 +5,7 @@
 - [Codebase pointers](#codebase-pointers)
 - [Dogfood evidence trail](#dogfood-evidence-trail)
 - [Adjacent work and shipped substrate](#adjacent-work-and-shipped-substrate)
+- [Right-sizing audit (2026-07-22)](#right-sizing-audit-2026-07-22)
 
 ## Codebase pointers
 
@@ -47,3 +48,42 @@ The model was motivated by FP (finalize-parallelism) wave-2/wave-3 dogfooding; t
   now), `worktree-teardown-decoupling` (the shipped-husk transition plus the driver socket the lease composes with),
   and PR #241 (the v2 `returnBranch` topological close fix — consumed as the degrade-path shape, superseded for the
   default by displacement removal).
+
+## Right-sizing audit (2026-07-22)
+
+Standalone `design-audit` run over the spec and the delivered implementation against the draft's motivating
+intent, ahead of verification — prompted by the disproportion pattern remediated in `review-architecture`.
+Efficacy holds: all six motivating failures (worktree displacement, base-held close failure, lost suspended
+frame, groom-residue misclassification, markerless materialization, cleanup-vs-live-session) are solved. The
+findings are fit/optimality: the spec answered every question the draft deliberately left open at the
+maximum-exactness end of the range, and several operator-facing surfaces pay for guarantees the single-operator,
+machine-local domain does not need. Phase 7.R carries the remediation; task letters below.
+
+Major findings:
+
+- **Lease scope gap (7.R.b)** — spec D4/D11 expect session-init to attach/refresh the session lease; the shipped
+  workflow attaches only on a resolved live-lease match, which a fresh session never produces. Plain WU sessions
+  therefore run leaseless (`frame: idle` on a live checkout), leaving the liveness apparatus mainline-idle and the
+  roster's session-visibility goal unmet. Resolution: ratify verb-scoped leases and align spec, workflow, and
+  narration claims.
+- **Warm-entry capability table (7.R.c)** — hard `cold-entry-required` refusal keyed to harness process forensics;
+  table churn began pre-ship (`f6d6bda87`). Demote to an operator-confirmed advisory.
+- **Awaiting-merge rigidity (7.R.d)** — resume/materialize demand host-proven `requested-work`, so a plain-open
+  own PR cannot be resumed to push one more commit. Relax to open-change-request-at-recorded-head; host truth
+  stays required only where identity retires.
+- **Housekeep plan-commitment protocol (7.R.e)** — canonical plan file, per-entry source digests, immutable plan
+  digest, persisted monotonic lane, and dispatch IDs protect against a mid-sweep interruption whose real cost is
+  re-confirming a list. Trim to execute-bound marking plus one-live-sweep serialization.
+- **Groom overlap arbitration (7.R.f)** — cross-machine unique-winner CAS with exact-set retry adoption, for a
+  race a single operator cannot meaningfully lose. Trim to same-key/overlapping-member conflict semantics.
+
+Minor: `locusGuidance` renders non-actionable litany every init — seven `worktree-without-role` diagnostics plus
+per-row no-deletion-authority cleanup lines in this repo (7.R.h); routine narration presents bare "locus" to the
+operator (7.R.g); `heartbeatAt` changes no verdict and grants nothing (kept as-is; do not extend).
+
+Keep-list (retained deliberately; do not extend): platform inspectors and PID-plus-start-token liveness, the
+record store with atomic replace plus record-scoped locks and stale-break protocol, staged provisioning receipts,
+teardown linearization, determinism/sorting rules, the v3 identity state model and complete-basis transaction
+core, and the `arc locus` reader with typed session-init verdicts. These are internal, tested, and
+friction-neutral; deleting them buys churn, not simplicity. Guiding boundary for future edits: full exactness on
+data-destroying paths; advisory or simple-conflict semantics on operator-facing routine paths.
