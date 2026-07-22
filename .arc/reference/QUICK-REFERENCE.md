@@ -51,6 +51,9 @@ npm run -s lint:md:file -- "path/to/file.md"
 # Auto-fix specific file
 npm run -s lint:md:fix:file -- "path/to/file.md"
 
+# Certify the exact staged candidate (normally run by pre-commit)
+npm run -s lint:md:staged
+
 # Lint specific directory
 npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 ```

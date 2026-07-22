@@ -218,21 +218,15 @@ fires.
   Markdown, recognized configs, dependencies, fixtures, and checker code; executing checker bytes must match the
   index, and real Git tests cover rename, deletion, partial staging, unusual names, and linked worktrees.
 
-### `[ ]` **6.3 Reconcile formatting remedies and command discoverability**
+### `[x]` **6.3 Reconcile formatting remedies and command discoverability**
 
 - _Goal:_ Contributors encounter one width-aware table remedy at reference and failure surfaces, with no stale
   third-party formatter guidance or duplicate policy.
 
-    - Replace the interim table-tool guidance only in the project-instance `.arc/system/rules/DEV-RULES.PROJECT.md`
-      and `.arc/reference/QUICK-REFERENCE.md` through targeted Configurable edits that preserve overrides; keep the
-      generic package templates unchanged.
-    - Align lint, formatter, authority-refusal, and staged-gate diagnostics on
-      `npm run format:tables -- <path>`; keep semantic details in the implementation rather than duplicating them
-      across reference docs.
-    - Search the selected current surface for stale `markdown-table-formatter` and
-      `markdown-table-prettify` remedies, preserving historical/excluded references.
-    - Run framework-sync and package-neutrality checks, verify root script discoverability, and reconcile the final
-      selected-scope inventory.
+- _Outcome:_ The two project-instance reference surfaces now expose both exact staged certification and the shared
+  width-aware table remedy, while generic package templates remain unchanged. All failure paths derive table remedies
+  from the central diagnostic contract; remaining third-party formatter mentions are rejected alternatives, historical
+  audit evidence, analytical examples, or sibling planning content governed by the routed ownership transfers.
 
 ### `[ ]` **6.4 Keep copied harness projections inside their worktree**
 

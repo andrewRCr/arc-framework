@@ -29,6 +29,7 @@ For ARC methodology rules (commit discipline, task execution, session management
 
 1. **Markdown Linting**: Zero violations
     - Command: `npm run -s lint:md`
+    - Exact staged candidate: `npm run -s lint:md:staged` (normally run by pre-commit)
     - Auto-fix: `npm run -s lint:md:fix`
     - Table alignment (`MD060`): `lint:md:fix` does **not** realign table columns — use
       `npm run format:tables -- <file> [<file> ...]`. The command requires explicit tracked Markdown paths and
