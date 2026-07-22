@@ -1,8 +1,8 @@
 # Metadata: solution-proportionality
 
-| **State**  | **Owner** | **Branch**                      | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/solution-proportionality` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                      | **Class** | **Priority** |
+| --------- | --------- | ------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/solution-proportionality` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-solution-proportionality.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Land the canonical method, drafting guard, and method inventory atomically
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — implement the canonical method, drafting guard, and method delivery slice
 
 - **PR URL:** [none]
 - **Completed:** [none]
