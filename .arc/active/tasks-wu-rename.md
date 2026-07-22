@@ -273,23 +273,13 @@ in the mutators' own no-op arms.
 - _Outcome:_ The physically disruptive leg now closes with either a relocated process and exact new path or a
   bounded follow-up, without converting platform occupancy into failure after durable rename work has landed.
 
-### `[ ]` **5.6 Worktree ownership marker rewrite**
+### `[x]` **5.6 Worktree ownership marker rewrite**
 
 - _Goal:_ ARC's own worktree-identity surfaces name the renamed unit, so the stale-worktree sweep, worktree
   cleanup, the branch-gone cascade, and teardown stop offering commands built from a slug that no longer resolves.
-- _Rationale:_ The marker holds `wuName` and `createdFor`, and the shipped consistency check only requires the two
-  to agree with each other — so a stale pair stays structurally valid while naming the wrong unit. Nothing else in
-  the sweep touches it: the marker is gitignored, so it sits outside the staged patch and perturbs neither the
-  receipt nor the gate.
-- _Note:_ A separate leg, not a step of the move — the marker names the subject rather than the path, so it is
-  equally wrong when the move is skipped or degrades. It runs ahead of the move, so the corrected marker travels
-  with the directory. Spawned subjects only; the in-place shape mints no marker.
-
-    - Build `test-first` (one behavior at a time):
-        - Both marker fields read the new slug after the rewrite, and the pair stays internally consistent.
-        - The rewrite lands even when the worktree move is skipped or degraded.
-        - An in-place subject with no marker is a designed skip, not a failure.
-        - A marker naming some other work unit is left alone.
+- _Outcome:_ The marker leg rewrites `wuName` and `createdFor` together while preserving provenance, remains
+  independent of the later physical move, and treats absent, malformed, or foreign ownership as non-mutating
+  outcomes rather than minting or appropriating identity.
 
 ## **Phase 6:** Guards and the `arc rename` verb
 
