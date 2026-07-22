@@ -241,25 +241,13 @@ in the mutators' own no-op arms.
 - _Outcome:_ One preflight lookup supplies both the publication predicate and deletion lease, preserving
   intentionally local branches while making remote races explicit and recoverable.
 
-### `[ ]` **5.3 User-notes subdir move**
+### `[x]` **5.3 User-notes subdir move**
 
 - _Goal:_ Session continuity survives the rename — the developer's working notes move with the subdirectory
   rather than being discarded.
-- _Rationale:_ The shipped workspace close is a recursive remove, so a close-then-open would discard
-  `SESSION-NOTES.md` (A5). Notes content is commit-keyed and survives the branch rename untouched; only the
-  path-keyed subdir moves.
-
-    - Move the identity-scoped work-unit subdir from the old slug to the new one, then save through the
-      non-interactive save function rather than the CLI handler, matching how the workspace side-effect routes.
-      The destructive hazard this task guards against belongs to the workspace _close_ path — a recursive remove
-      that would discard the session notes — not to save; a move plus save never reaches it.
-    - Build `test-first` (one behavior at a time):
-        - The subdir and its contents appear under the new slug, with session notes intact.
-        - An already-moved subdir is skipped without error.
-        - An absent source subdir is a skip, not a failure.
-        - Both subdirs present — an interrupted move — refuses and surfaces both paths rather than choosing.
-          No shipped primitive merges two workspaces, a single destination holds one set of session notes, and
-          silently picking a winner is the loss this leg exists to prevent; the operator reconciles.
+- _Outcome:_ The directory state machine preserves session notes, accepts absent and completed post-states, and
+  refuses split state. `runUserRenameWorkspace` performs the move and verified non-interactive save under one
+  identity notes lock, re-saving an already-moved directory to close the interruption window.
 
 ### `[ ]` **5.4 `reconcile-worktree` `move` mutation**
 
