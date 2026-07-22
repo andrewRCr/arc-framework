@@ -130,29 +130,14 @@ generated consistently for every selected harness.
 _Purpose:_ Exercise the judgment contract against the motivating precedents and both adequacy rails without
 inventing a runtime evaluation subsystem.
 
-### `[ ]` **5.1 Record the four proportionality case-family results**
+### `[x]` **5.1 Record the four proportionality case-family results**
 
 - _Goal:_ The method demonstrates that it removes unsupported lifecycle cost, preserves consequence-justified
   complexity, and rejects simplification that drops required behavior.
 
-- _Note:_ Design coverage: PD1-PD3, PD5, PD9.
-
-- **Additional Context:** Resolve the live `review-surface-binding` and `session-locus-model` work units with
-  `npx arc status <slug>` before reading `draft-review-surface-binding.md` § Grooming status, Proportionality
-  posture, Approved dispositions and the fix path, and Scope boundaries and downstream fit;
-  `notes-session-locus-model.md` § Right-sizing audit; and `tasks-session-locus-model.md` Phase 7.R.
-
-    - Create `notes-solution-proportionality.md` and write each applied-method result as it is exercised so every
-      judgment remains durable within this single review increment.
-    - Record how the pre-revision `review-surface-binding` candidate flags durable fix carry, local anti-tamper,
-      excessive public verbs, and over-broad evidence persistence, while the reduced candidate clears.
-    - Record how the pre-7.R `session-locus-model` candidate flags maximum exactness on routine operator paths while
-      retaining exactness for destructive paths.
-    - Record a complex candidate whose mechanisms trace to concrete security, trust, compatibility, or failure
-      consequences as `proportionate` regardless of project/team status.
-    - Record a smaller candidate that loses stated behavior as `revise` with `adequacy-regression`.
-    - Keep the evidence concise and read-only: no runtime state, evaluation subsystem, or mutation of the sibling
-      work units.
+- _Outcome:_ Four read-only case families in `notes-solution-proportionality.md` exercise both verdicts and the
+  adequacy rail: the precedent reductions remove unsupported lifecycle cost while consequence-backed exactness
+  survives independently of project or team status.
 
 ## **Phase 6:** Verification
 
