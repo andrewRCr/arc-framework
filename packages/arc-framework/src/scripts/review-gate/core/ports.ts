@@ -2,7 +2,18 @@
 
 import type { CapabilitySet, NormalizedChangeRequest } from "./contracts.js";
 import type { Evidence, FindingClosure } from "./evidence.js";
-import type { LifecycleTailProof } from "./lifecycle-tail.js";
+import type {
+  ForwardLifecycleSurface,
+  ForwardLifecycleTailProof,
+  LifecycleTailProof,
+} from "./lifecycle-tail.js";
+import type {
+  ReviewReceiptV2,
+  ReviewRequestV2,
+  ReviewTarget,
+} from "./gate-contract-v2-schema.js";
+import type { ForwardGateProjection } from "./projection.js";
+import type { ReviewOperationState } from "./operation-state-schema.js";
 import type {
   GateProjection,
   ReceiptEnvelope,
@@ -37,6 +48,30 @@ export interface LifecycleTailProofResolutionInput {
 /** Storage adapter boundary; `null` represents a storage tier with no code-head tail. */
 export interface LifecycleTailProofAdapter {
   resolveLifecycleTail(input: LifecycleTailProofResolutionInput): Promise<LifecycleTailProof | null>;
+}
+
+/** One exact target-side scope supplied to forward lifecycle-tail classification. */
+export interface ForwardLifecycleTailScope {
+  target: ReviewTarget;
+  surface: ForwardLifecycleSurface;
+  policyVersion: string;
+  rubricVersion: string;
+  rubricDigest: string;
+  sourceIdentity: string;
+}
+
+/** Neutral forward input for a storage adapter that may classify a lifecycle tail. */
+export interface ForwardLifecycleTailProofResolutionInput {
+  predicateId: "lifecycle-bookkeeping-tail/v2";
+  reviewed: ForwardLifecycleTailScope;
+  current: ForwardLifecycleTailScope;
+}
+
+/** Forward storage adapter boundary; null means the target has no post-review lifecycle tail. */
+export interface ForwardLifecycleTailProofAdapter {
+  resolveForwardLifecycleTail(
+    input: ForwardLifecycleTailProofResolutionInput,
+  ): Promise<ForwardLifecycleTailProof | null>;
 }
 
 /** Stable diagnostics for an untrusted or unavailable receipt ledger. */
@@ -104,8 +139,20 @@ export interface ActorAddress {
 
 /** Host-neutral changed-path record used by policy classification. */
 export type HostChangedPath =
-  | { status: "added" | "modified" | "deleted"; path: string; previousPath?: never }
-  | { status: "renamed"; path: string; previousPath: string };
+  | {
+      status: "added" | "modified" | "deleted" | "type-changed";
+      path: string;
+      previousPath?: never;
+      oldMode?: string;
+      newMode?: string;
+    }
+  | {
+      status: "renamed" | "copied";
+      path: string;
+      previousPath: string;
+      oldMode?: string;
+      newMode?: string;
+    };
 
 /** Host-neutral context retained beside a normalized change request. */
 export interface HostChangeContext {
@@ -201,4 +248,77 @@ export interface ReviewProviderAdapter {
   request(request: ReviewRequest): Promise<RequestAcknowledgement>;
   observe(requestIdentity: string): Promise<ProviderObservation[]>;
   normalizeEvidence(observations: ProviderObservation[]): Promise<Evidence[]>;
+}
+
+/** Versioned forward receipt snapshot, optionally filtered to one target. */
+export interface ForwardReceiptLedger {
+  ledgerVersion: number;
+  receipts: ReviewReceiptV2[];
+}
+
+/** Dormant forward receipt persistence boundary, isolated from schema-v1 ledgers. */
+export interface ForwardReviewReceiptStore {
+  readReceipts(targetId: string): Promise<ForwardReceiptLedger>;
+  appendReceipt(
+    receipt: ReviewReceiptV2,
+    expectedLedgerVersion: number,
+  ): Promise<{ ledgerVersion: number; durableEvidenceRef: string }>;
+}
+
+/** Versioned storage boundary for resumable, explicitly non-evidentiary review operations. */
+export interface ReviewOperationStateStore {
+  readOperation(operationId: string): Promise<{
+    version: number;
+    state: ReviewOperationState | null;
+  }>;
+  publishOperation(
+    state: ReviewOperationState,
+    expectedVersion: number,
+  ): Promise<{ version: number }>;
+}
+
+/** Exact, deduplicated request accepted only by a promoted review watcher capability. */
+export interface ReviewWakeupRequest {
+  operationId: string;
+  vehicle: { kind: "work-unit" | "errand"; identity: string };
+  repositoryId: string;
+  changeRequestId: string | null;
+  targetId: string;
+  requestId: string;
+  sourceIdentity: string;
+  generation: number;
+  deadlineAt: string;
+  wakeupToken: string;
+}
+
+/** Optional watcher seam; production remains unbound until review-gate promotion. */
+export interface ReviewWakeupCapability {
+  arm(request: ReviewWakeupRequest): Promise<{ status: "armed"; wakeupRef: string }>;
+}
+
+/** Bounded request accepted only by an injected scheduler. */
+export interface ReviewScheduledWakeupRequest extends ReviewWakeupRequest {
+  scheduledFor: string;
+}
+
+/** Optional scheduling seam used only after the promoted watcher is unavailable. */
+export interface ReviewScheduledWakeupCapability {
+  schedule(request: ReviewScheduledWakeupRequest): Promise<{ status: "scheduled"; wakeupRef: string }>;
+}
+
+/** Forward provider boundary carrying exact v2 request identity without provider finding normalization. */
+export interface ForwardReviewProviderAdapter {
+  qualifyRequest(request: ReviewRequestV2): Promise<{ qualified: boolean; reason: string }>;
+  request(request: ReviewRequestV2): Promise<{
+    requestId: string;
+    providerEventIdentity: string | null;
+  }>;
+}
+
+/** Forward host projection boundary keyed by the exact target rather than legacy change-set aliases. */
+export interface ForwardGitHostProjectionAdapter {
+  publishForwardProjection(input: {
+    target: ReviewTarget;
+    projection: ForwardGateProjection;
+  }): Promise<HostProjectionRef[]>;
 }

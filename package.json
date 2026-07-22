@@ -33,6 +33,7 @@
     "lint:arc:domain-rules": "tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
     "lint:arc:section-refs": "tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
     "audit:coupling": "tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
+    "audit:layout-migration": "tsx packages/arc-framework/src/scripts/assert-layout-migration.ts",
     "review-gate:next-action": "tsx packages/arc-framework/src/scripts/review-gate/run-next-action.ts",
     "review-gate:perform-action": "tsx packages/arc-framework/src/scripts/review-gate/run-perform-action.ts",
     "review-gate:await": "tsx packages/arc-framework/src/scripts/review-gate/run-await.ts",

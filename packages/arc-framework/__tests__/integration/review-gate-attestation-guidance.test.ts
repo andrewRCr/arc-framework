@@ -3,6 +3,11 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  admitSelfHostingGuidanceCarrier,
+  SELF_HOSTING_REVIEW_CHECKLIST_BLOCK,
+} from "../../src/scripts/review-gate/policy/self-hosting/guidance.js";
+
 describe("provider-neutral attestation guidance", () => {
   it("gives every satisfying local mechanism the same full-rubric input/output contract", async () => {
     const content = await readFile(
@@ -15,5 +20,11 @@ describe("provider-neutral attestation guidance", () => {
     expect(content).toContain("independent-analysis/v1");
     expect(content).toContain("full current change set");
     expect(content).not.toMatch(/codex review|claude review|coderabbit review/iu);
+    expect(content).toContain(SELF_HOSTING_REVIEW_CHECKLIST_BLOCK);
+    expect(admitSelfHostingGuidanceCarrier("local-attestation", content)).toMatchObject({
+      carrierId: "local-attestation",
+      admitted: true,
+      guidanceDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+    });
   });
 });

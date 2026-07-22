@@ -21,7 +21,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { parseArcConfig } from "./index.js";
-import { ARC_CONFIG_SEGMENTS } from "../constants.js";
+import { ARC_CONFIG_SUFFIX } from "../constants.js";
+import { materializeArcPath, resolveArcPath } from "../layout/index.js";
 import { DEFAULT_WORKTREE_HARNESS_DIRS } from "../git/worktree-harness-dirs.js";
 import type { ConfigSettings } from "../../commands/config/types.js";
 
@@ -41,8 +42,8 @@ const DEFAULTS: ConfigSettings = {
   "commit.custom_pattern": "",
   "commit.context_pattern": "",
   "merge.strategy": "merge",
-  "review.pre_merge": "enabled",
   "platform.type": "github",
+  "review.frontline_source": "",
   "pm.mode": "none",
   "team.mode": "false",
   "session.remote_sync": "enabled",
@@ -90,7 +91,7 @@ export interface ReaderResult {
  * the caller to surface — both recoverable, since defaults substitute.
  */
 export async function readConfigSettings(cwd: string): Promise<ReaderResult> {
-  const configPath = join(cwd, ...ARC_CONFIG_SEGMENTS);
+  const configPath = join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...ARC_CONFIG_SUFFIX);
   const warnings: string[] = [];
   const defaultsApplied: string[] = [];
 

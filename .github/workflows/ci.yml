@@ -71,7 +71,7 @@ jobs:
       # explicitly because disposable runners do not carry a system Node install.
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 'lts/*'
+          node-version: 24
       - id: defer
         env:
           EVENT_NAME: ${{ github.event_name }}

@@ -3,15 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 import { hashContent } from "../../../../../src/lib/manifest/hash.js";
 import { QUALIFICATION_CELL_IDS, type QualificationCheckpoint } from "../../../../../src/scripts/review-gate/runtime/qualification-contract.js";
 import { runQualification } from "../../../../../src/scripts/review-gate/runtime/qualification-runner.js";
-import { qualificationCell, qualificationScope } from "./qualification-fixtures.js";
+import { legacyV1QualificationCell, legacyV1QualificationScope } from "./qualification-fixtures.js";
 
 function harness(failAt: string | null = null) {
-  const scope = qualificationScope();
+  const scope = legacyV1QualificationScope();
   let checkpoint: QualificationCheckpoint | null = null;
   const execute = vi.fn(async (cellId: typeof QUALIFICATION_CELL_IDS[number], observedScope = scope) => {
     expect(observedScope).toBe(scope);
     if (cellId === failAt) throw new Error("raw failure credential-secret");
-    const { rawCheckpointHash, ...result } = qualificationCell(cellId);
+    const { rawCheckpointHash, ...result } = legacyV1QualificationCell(cellId);
     expect(rawCheckpointHash).toMatch(/^[a-f0-9]{64}$/u);
     return { result, rawNonSecret: { cellId, observed: true } };
   });

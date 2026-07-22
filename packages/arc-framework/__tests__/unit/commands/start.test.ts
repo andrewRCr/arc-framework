@@ -90,10 +90,12 @@ describe("deriveColdStartWuName", () => {
     expect(deriveColdStartWuName("custom", "feat/widget")).toBe("custom");
   });
 
-  it("refuses a name that is empty or not filename-safe", () => {
+  it("refuses a name that is not a canonical work-unit slug", () => {
     expect(deriveColdStartWuName(undefined, "feat/")).toBeNull();
     expect(deriveColdStartWuName(undefined, "team/sub/widget")).toBeNull();
     expect(deriveColdStartWuName("  ", "feat/widget")).toBeNull();
+    expect(deriveColdStartWuName("Not-A-Slug", "feat/widget")).toBeNull();
+    expect(deriveColdStartWuName("has space", "feat/widget")).toBeNull();
   });
 });
 
@@ -219,6 +221,21 @@ describe("runColdStart — protected-base auto-cut (candidate J)", () => {
     // The scaffolded meta records the new plan branch, not the protected base.
     const record = parseMetaRecord(await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")));
     expect(record.Branch).toBe("plan/widget");
+  });
+
+  it("refuses an invalid explicit name before cutting a protected base", async () => {
+    await writeArcConfig(worktree, { "branch.protection": "full", "branch.base": "main" });
+
+    const outcome = await runColdStart(ctx(io), {
+      worktreePath: worktree,
+      branch: "main",
+      identity: "andrew",
+      name: "Not-A-Slug",
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(calls).toEqual([]);
+    expect(await pathExists(join(worktree, ".arc", "active"))).toBe(false);
   });
 
   it("leaves a feature branch under full protection unchanged (no cut)", async () => {

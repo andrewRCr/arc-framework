@@ -30,14 +30,13 @@
 import { join } from "node:path";
 
 import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { SlugSchema } from "../../kernel/index.js";
+import { resolveArcPath } from "../../layout/index.js";
 import {
   executeTransition,
   type ExecuteTransitionContext,
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
-
-/** The flat `active/` tier — where an activated / planning-on-branch WU's meta lives. */
-const ACTIVE_DIR = ".arc/active";
 
 /** The judgment + orientation inputs an `activate` supplies. */
 export interface ActivateParams {
@@ -79,7 +78,16 @@ export type DeactivateResult =
  */
 export async function runActivate(ctx: ExecuteTransitionContext, params: ActivateParams): Promise<ActivateResult> {
   const { name, toBranch, nextTask, nextAction } = params;
-  const metaPath = `${ACTIVE_DIR}/meta-${name}.md`;
+  const slug = SlugSchema.safeParse(name);
+  if (!slug.success) {
+    return { status: "rejected", reason: `\`${name}\` is not a planning WU in \`active/\` — nothing to activate.` };
+  }
+  const metaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: slug.data,
+    artifact: "meta",
+  });
 
   let record: Record<MetaFieldName, string | null>;
   try {
@@ -119,7 +127,16 @@ export async function runDeactivate(
   params: DeactivateParams,
 ): Promise<DeactivateResult> {
   const { name } = params;
-  const metaPath = `${ACTIVE_DIR}/meta-${name}.md`;
+  const slug = SlugSchema.safeParse(name);
+  if (!slug.success) {
+    return { status: "rejected", reason: `\`${name}\` is not an active WU in \`active/\` — nothing to deactivate.` };
+  }
+  const metaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: slug.data,
+    artifact: "meta",
+  });
 
   let record: Record<MetaFieldName, string | null>;
   try {

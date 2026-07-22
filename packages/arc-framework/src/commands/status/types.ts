@@ -717,16 +717,16 @@ export interface RunSessionInitStatusOptions {
   identity: string | null;
   role: string | null;
   probes: SessionInitProbes;
-  /** Canonical identity-global user root resolved by the handler. */
-  identityGlobalUserDir?: string | null;
+  /** Exact identity-global working-memory path resolved by the handler. */
+  workingMemoryPath?: string | null;
 }
 
 export interface RunRecoverStatusOptions {
   identity: string | null;
   role: string | null;
   probes: SessionRecoverProbes;
-  /** Canonical identity-global user root resolved by the handler. */
-  identityGlobalUserDir?: string | null;
+  /** Exact identity-global working-memory path resolved by the handler. */
+  workingMemoryPath?: string | null;
 }
 
 export interface RunSessionHandoffStatusOptions {

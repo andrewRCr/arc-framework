@@ -2,9 +2,10 @@
 
 import { join } from "node:path";
 
-import { classifyFile, resolveFileList, toOutputPath } from "../classification.js";
+import { classifyFile, resolveFileList } from "../classification.js";
 import { buildConfigMap } from "../config/index.js";
 import { ArcError, validateManagedPath, type ManagedPath } from "../kernel/index.js";
+import { resolveTemplateOutputPath } from "../layout/index.js";
 import { readManifest, validateManifest } from "../manifest/index.js";
 import { loadRecipeFile, validateRecipe } from "../template/recipe.js";
 import type { Classification, Manifest, Recipe } from "../types.js";
@@ -139,7 +140,7 @@ export function createMarkdownAuthority(options: CreateMarkdownAuthorityOptions)
 
   for (const sourceRelative of selectedSources) {
     const source = validateManagedPath(`${PACKAGE_ARC_PREFIX}${sourceRelative}`);
-    const outputRelative = toOutputPath(sourceRelative);
+    const outputRelative = resolveTemplateOutputPath(sourceRelative);
     const output = validateManagedPath(`${PROJECT_ARC_PREFIX}${outputRelative}`);
     const classification = classifyFile(sourceRelative);
     const existing = byOutput.get(output);
@@ -257,7 +258,7 @@ export async function loadMarkdownAuthorityContext(
   }
   const existingPaths = new Set<string>();
   for (const sourceRelative of resolveFileList(recipe, buildConfigMap(manifest.install_config))) {
-    const output = validateManagedPath(`${PROJECT_ARC_PREFIX}${toOutputPath(sourceRelative)}`);
+    const output = validateManagedPath(`${PROJECT_ARC_PREFIX}${resolveTemplateOutputPath(sourceRelative)}`);
     try {
       const stat = await options.lstat(join(options.root, ...output.split("/")));
       if (stat.isFile()) existingPaths.add(output);

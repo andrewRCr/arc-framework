@@ -18,6 +18,7 @@ import {
   parseMetaFile,
   parseMetaRecord,
   normalizeMetaCoreTable,
+  parseReviewRubric,
   readActiveMetaCandidates,
   renderMetaFile,
   setMetaBulletFields,
@@ -26,6 +27,7 @@ import {
   setMetaCurrentWorkflow,
   setMetaDesign,
   setMetaFinalizeFields,
+  setMetaState,
   reconcileMetaFields,
   validateMetaFieldBlockShape,
   META_FIELDS,
@@ -610,7 +612,10 @@ describe("renderMetaFile — bullet groups", () => {
     expect(md).toContain("- **Cohort:** [none]\n- **Depends On:** [none]");
     // ...blank line between groups, in order
     expect(md).toContain("- **Depends On:** [none]\n\n- **Origin:** [internal]");
-    expect(md).toContain("- **Task List:** [none]\n\n- **Current Workflow:** [none]\n- **Last Completed:** [none]");
+    expect(md).toContain(
+      "- **Task List:** [none]\n- **Review Rubric:** [none]\n\n" +
+      "- **Current Workflow:** [none]\n- **Last Completed:** [none]",
+    );
     expect(md).toContain("- **Blockers:** [none]\n\n- **Next Action:** Begin planning — draft the spec");
   });
 });
@@ -803,6 +808,7 @@ describe("reconcileMetaFields — forward-reconcile against the field model", ()
     expect(content).toContain("- **Origin:** [internal]");
     expect(content).toContain("- **Design:** [none]");
     expect(content).toContain("- **Task List:** [none]");
+    expect(content).toContain("- **Review Rubric:** [none]");
     expect(content).toContain("- **PR URL:** [none]");
     expect(content).toContain("- **Completed:** [none]");
 
@@ -810,6 +816,7 @@ describe("reconcileMetaFields — forward-reconcile against the field model", ()
       "Origin",
       "Design",
       "Task List",
+      "Review Rubric",
       "Current Workflow",
       "PR URL",
       "Completed",
@@ -1015,6 +1022,7 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
       Cohort: "gamma",
       Priority: "P1",
       "Task List": "tasks-foo.md",
+      "Review Rubric": "implementation-audit",
       "Last Completed": "Task 1.1 — kicked off (line ~10)",
       "Next Task": "Task 1.2 — next up (line ~20)",
       Blockers: "waiting on review",
@@ -1037,6 +1045,7 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
     expect(record["Depends On"]).toBe("[none]");
     expect(record.Cohort).toBe("[none]");
     expect(record["Task List"]).toBe("[none]");
+    expect(record["Review Rubric"]).toBe("[none]");
     expect(record["Last Completed"]).toBe("[none]");
     expect(record["Next Task"]).toBe("[none]");
     expect(record.Blockers).toBe("[none]");
@@ -1087,6 +1096,52 @@ describe("Class field — value-set semantics", () => {
       "",
     ].join("\n");
     expect(parseMetaRecord(content).Class).toBeNull();
+  });
+});
+
+describe("Review Rubric field — optional safe identity", () => {
+  it("renders semantic absence by default and resolves one safe identity", () => {
+    const absent = parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES))["Review Rubric"];
+    const resolved = parseMetaRecord(renderMetaFile("foo", {
+      ...SPAWN_OVERRIDES,
+      "Review Rubric": "implementation-audit",
+    }))["Review Rubric"];
+
+    expect(absent).toBe("[none]");
+    expect(parseReviewRubric(absent)).toBeNull();
+    expect(parseReviewRubric(resolved)).toBe("implementation-audit");
+  });
+
+  it.each([
+    "methods/security-audit.md",
+    "security-audit, privacy-audit",
+    "check authentication boundaries",
+    "../security-audit",
+    "[TBD]",
+  ])("rejects unsafe or non-scalar identity %s", (value) => {
+    expect(() => parseReviewRubric(value)).toThrow(/one safe rubric or method identity/u);
+  });
+
+  it("survives managed planning and execution projections", () => {
+    let content = renderMetaFile("foo", {
+      ...SPAWN_OVERRIDES,
+      "Review Rubric": "implementation-audit",
+    });
+    const transitions = [
+      (value: string): string => setMetaState(value, "Active"),
+      (value: string): string => setMetaBranch(value, "feat/foo"),
+      (value: string): string => setMetaClass(value, "Novel"),
+      (value: string): string => setMetaCurrentWorkflow(value, "create-spec"),
+      (value: string): string => setMetaDesign(value, "spec-foo.md"),
+      (value: string): string => setMetaFinalizeFields(value, { completed: "2026-07-20" }),
+      (value: string): string => reconcileMetaFields(value).content,
+    ];
+
+    for (const transition of transitions) {
+      content = transition(content);
+      expect(parseReviewRubric(parseMetaRecord(content)["Review Rubric"]))
+        .toBe("implementation-audit");
+    }
   });
 });
 

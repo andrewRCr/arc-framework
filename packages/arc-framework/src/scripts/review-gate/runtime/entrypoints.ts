@@ -8,6 +8,7 @@ import { runAwaitMain } from "./await-main.js";
 import { createAttestRuntime, createReconcileRuntime } from "./composition.js";
 import { runDiscoveryMain } from "./discovery-main.js";
 import { recordProviderClosure, settleFixedFinding, settleNonFixFinding } from "./finding-settlement.js";
+import { projectForwardReviewContract } from "./forward-contract.js";
 import { createReadOnlyHeadMutabilityReader } from "./head-mutability-composition.js";
 import { runAssertHeadMutable } from "./head-mutability-main.js";
 import { runReconcileMain } from "./reconcile-main.js";
@@ -33,6 +34,7 @@ export const SELF_HOSTING_REVIEW_GATE = Object.freeze({
   settleFixedFinding,
   settleNonFixFinding,
   recordProviderClosure,
+  projectForwardReviewContract,
   ensureDirectReply,
   ensureThreadResolution,
   parseRepairDispatchEvent,

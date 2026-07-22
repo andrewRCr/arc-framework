@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { NormalizedChangeRequest } from "../../../../../src/scripts/review-gate/core/contracts.js";
 import type { ReviewRequest } from "../../../../../src/scripts/review-gate/core/execution.js";
+import type { HostChangedPath } from "../../../../../src/scripts/review-gate/core/ports.js";
 import type { GitExec } from "../../../../../src/lib/git/exec.js";
 import type { HttpFetch } from "../../../../../src/scripts/review-gate/hosts/github/api/http.js";
 import type { ChangeRequestResolution } from "../../../../../src/scripts/review-gate/hosts/github/change-request.js";
@@ -168,11 +169,21 @@ describe("review-gate composition roots", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("retains the source path when a code file is renamed to a routine destination", async () => {
+  it.each<[string, HostChangedPath[]]>([
+    ["package manifest", [{ status: "modified", path: "package.json" }]],
+    ["shell", [{ status: "modified", path: "scripts/check.sh" }]],
+    ["test fixture", [{ status: "modified", path: "packages/arc-framework/__tests__/fixtures/example.md" }]],
+    ["packaged workflow", [{ status: "modified", path: "packages/arc-framework/arc/system/workflows/example.md" }]],
+    ["project extension", [{ status: "modified", path: ".arc/system/extensions/example.md" }]],
+    ["deleted package manifest", [{ status: "deleted", path: "package.json" }]],
+    ["type change", [{ status: "type-changed", path: "package-lock.json" }]],
+    ["copied source endpoint", [{ status: "copied", path: "docs/copy.md", previousPath: "package.json" }]],
+    ["renamed source endpoint", [{ status: "renamed", path: "docs/controller.md", previousPath: "src/controller.ts" }]],
+  ])("uses canonical code-surface membership for %s", async (_label, changedPaths) => {
     const { io } = makeIo();
     const renamed = resolvedChange();
     if (renamed.kind !== "resolved") throw new Error("expected resolved fixture");
-    renamed.context.changedPaths = [{ status: "renamed", path: "docs/controller.md", previousPath: "src/controller.ts" }];
+    renamed.context.changedPaths = changedPaths;
     const composition = await createAttestRuntime({
       ...baseConfig(),
       dispatchActorLogin: "maintainer",

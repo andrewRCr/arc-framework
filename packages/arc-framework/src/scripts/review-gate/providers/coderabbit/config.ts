@@ -1,6 +1,7 @@
 /** Static repository-delta validation and live resolved-config qualification. */
 
 import { arrayAt, exactKeys, objectAt, stringAt } from "../../core/validation.js";
+import { admitSelfHostingGuidanceCarrier } from "../../policy/self-hosting/guidance.js";
 import type { CodeRabbitCapabilities, CodeRabbitRequestMechanism } from "./adapter.js";
 
 /** Minimal repository-owned CodeRabbit configuration. */
@@ -10,6 +11,7 @@ export interface CodeRabbitRepositoryDelta {
     request_changes_workflow: true;
     commit_status: true;
     fail_commit_status: true;
+    path_instructions: [{ path: "**/*"; instructions: string }];
     auto_review: {
       enabled: true;
       labels: ["arc-review-gate"];
@@ -35,11 +37,31 @@ export function validateCodeRabbitRepositoryDelta(input: unknown): CodeRabbitRep
     "request_changes_workflow",
     "commit_status",
     "fail_commit_status",
+    "path_instructions",
     "auto_review",
   ], "coderabbit.reviews");
   exactBoolean(reviews.request_changes_workflow, true, "coderabbit.reviews.request_changes_workflow");
   exactBoolean(reviews.commit_status, true, "coderabbit.reviews.commit_status");
   exactBoolean(reviews.fail_commit_status, true, "coderabbit.reviews.fail_commit_status");
+  const pathInstructions = arrayAt(
+    reviews.path_instructions,
+    "coderabbit.reviews.path_instructions",
+    (value, path) => {
+      const instruction = objectAt(value, path);
+      exactKeys(instruction, ["path", "instructions"], path);
+      return {
+        path: stringAt(instruction.path, `${path}.path`),
+        instructions: stringAt(instruction.instructions, `${path}.instructions`),
+      };
+    },
+  );
+  const repositoryInstruction = pathInstructions[0];
+  if (pathInstructions.length !== 1 || repositoryInstruction?.path !== "**/*") {
+    throw new Error("coderabbit.reviews.path_instructions: expected one repository-wide instruction");
+  }
+  if (!admitSelfHostingGuidanceCarrier("hosted-coderabbit", repositoryInstruction.instructions).admitted) {
+    throw new Error("coderabbit.reviews.path_instructions: expected current managed review guidance");
+  }
   const autoReview = objectAt(reviews.auto_review, "coderabbit.reviews.auto_review");
   exactKeys(autoReview, [
     "enabled",
@@ -64,6 +86,7 @@ export function validateCodeRabbitRepositoryDelta(input: unknown): CodeRabbitRep
       request_changes_workflow: true,
       commit_status: true,
       fail_commit_status: true,
+      path_instructions: [{ path: "**/*", instructions: repositoryInstruction.instructions }],
       auto_review: {
         enabled: true,
         labels: ["arc-review-gate"],

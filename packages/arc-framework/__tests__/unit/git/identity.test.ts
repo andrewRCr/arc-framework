@@ -6,7 +6,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { slugifyIdentity, resolveIdentity } from "../../../src/lib/git/identity.js";
+import { UserFacingError } from "../../../src/lib/errors.js";
+import { readConfiguredIdentity, slugifyIdentity, resolveIdentity } from "../../../src/lib/git/identity.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
 
 // --- slugifyIdentity ---
@@ -53,12 +54,17 @@ describe("slugifyIdentity", () => {
 /** Creates a mock GitExec that returns predefined values for config keys. */
 function mockExec(configValues: Record<string, string>): GitExec {
   return vi.fn(async (_cmd: string, args: string[]) => {
+    if (args[0] === "config" && args[1] === "--null" && args[2] === "--get") {
+      const key = args[3];
+      if (key && key in configValues) return { stdout: `${configValues[key]!}\0` };
+      throw { exitCode: 1 };
+    }
     if (args[0] === "config" && args[1] === "--get") {
       const key = args[2];
       if (key && key in configValues) {
         return { stdout: configValues[key]! + "\n" };
       }
-      throw new Error(`Config key not found: ${key}`);
+      throw { exitCode: 1 };
     }
     throw new Error(`Unexpected command: ${args.join(" ")}`);
   });
@@ -91,6 +97,7 @@ describe("resolveIdentity", () => {
   it("passes slugified user.name as prompt default", async () => {
     // user.name exists but arc.identity doesn't — prompt should get the suggestion
     const exec = vi.fn(async (_cmd: string, args: string[]) => {
+      if (args[0] === "config" && args[1] === "--null") throw { exitCode: 1 };
       if (args[0] === "config" && args[1] === "--get") {
         if (args[2] === "user.name") return { stdout: "Jane Doe\n" };
         throw new Error("not found");
@@ -105,6 +112,17 @@ describe("resolveIdentity", () => {
       "jane-doe",
     );
     expect(result).toBe("jane-doe");
+  });
+
+  it("does not fall back when a configured identity is invalid", async () => {
+    const exec = mockExec({ "arc.identity": " Andrew ", "user.name": "Fallback Name" });
+
+    await expect(resolveIdentity({ exec })).rejects.toMatchObject({
+      code: "identity.invalid",
+      whatHappened: "Configured ARC identity is invalid",
+      why: "arc.identity must be a lowercase alphanumeric slug whose segments are separated by single hyphens.",
+      whatToDo: "Set a valid identity with:\n    git config --local arc.identity <identity>",
+    });
   });
 
   it("returns null when no identity found and no prompt provided", async () => {
@@ -127,5 +145,35 @@ describe("resolveIdentity", () => {
     });
     const result = await resolveIdentity({ exec });
     expect(result).toBe("custom-name");
+  });
+});
+
+describe("readConfiguredIdentity", () => {
+  it("returns a canonical configured value and null only for absence", async () => {
+    await expect(readConfiguredIdentity(mockExec({ "arc.identity": "andrew" }))).resolves.toBe("andrew");
+    await expect(readConfiguredIdentity(mockExec({}))).resolves.toBeNull();
+  });
+
+  it.each(["", " Andrew ", "two--segments", "../unsafe", "UPPER"])(
+    "rejects present invalid configured bytes %j",
+    async (value) => {
+      await expect(readConfiguredIdentity(mockExec({ "arc.identity": value })))
+        .rejects.toBeInstanceOf(UserFacingError);
+    },
+  );
+
+  it("propagates non-absence Git failures unchanged", async () => {
+    const failure = new Error("executor unavailable");
+    const exec: GitExec = vi.fn(async () => { throw failure; });
+
+    await expect(readConfiguredIdentity(exec)).rejects.toBe(failure);
+  });
+
+  it("requires exactly one terminal NUL delimiter", async () => {
+    const missing: GitExec = vi.fn(async () => ({ stdout: "andrew" }));
+    const repeated: GitExec = vi.fn(async () => ({ stdout: "andrew\0\0" }));
+
+    await expect(readConfiguredIdentity(missing)).rejects.toMatchObject({ code: "identity.invalid" });
+    await expect(readConfiguredIdentity(repeated)).rejects.toMatchObject({ code: "identity.invalid" });
   });
 });

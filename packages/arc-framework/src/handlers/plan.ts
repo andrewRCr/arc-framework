@@ -32,6 +32,8 @@ import {
   type ProtectionMode,
 } from "../lib/git/write-context.js";
 import { gitExec } from "../lib/io-context.js";
+import { SlugSchema } from "../lib/kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { resolveBacklogStub } from "../lib/work-unit/backlog-stub.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -117,8 +119,16 @@ async function resolveActiveWorkUnitFacts(
 export async function resolveDraftPresent(cwd: string, name: string | undefined): Promise<boolean> {
   const slug = name?.trim();
   if (!slug) return false;
+  const validatedSlug = SlugSchema.safeParse(slug);
+  if (!validatedSlug.success) return false;
+  const activeDraftPath = materializeArcPath(cwd, resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: validatedSlug.data,
+    artifact: "draft",
+  }));
   try {
-    if ((await stat(join(cwd, ".arc", "active", `draft-${slug}.md`))).isFile()) return true;
+    if ((await stat(activeDraftPath)).isFile()) return true;
   } catch (err) {
     // Only an absent draft falls through to the backlog-stub lookup; real errors
     // (EACCES, etc.) must fail fast rather than silently mis-routing `--plan`.

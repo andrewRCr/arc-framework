@@ -15,6 +15,7 @@ import { hashContent } from "../lib/manifest/index.js";
 import { manifestMissingError } from "../lib/errors.js";
 import { INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME } from "../lib/constants.js";
 import type { Classification, Manifest, ReadIO } from "../lib/types.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 
 // --- Types ---
 
@@ -73,8 +74,8 @@ export interface HealthOptions {
  */
 export async function runHealth(options: HealthOptions): Promise<HealthResult> {
   const { cwd, io, frameworkVersion } = options;
-  const manifestPath = join(cwd, ".arc", ...INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME);
-  const arcDir = join(cwd, ".arc");
+  const arcDir = materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" }));
+  const manifestPath = join(arcDir, ...INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME);
 
   // Read manifest — hard fail if missing
   const manifest = await io.readManifest(manifestPath);

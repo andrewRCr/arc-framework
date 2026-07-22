@@ -7,6 +7,7 @@
 export {
   runActiveStatus,
   runActiveSessionInitStatus,
+  runActiveSessionInitStatusInternal,
   resolveTaskListPath,
 } from "./active/status.js";
 export {
@@ -29,6 +30,8 @@ export type {
   ActiveSessionInitOptions,
   ActiveSessionInitResolution,
   ActiveSessionInitResult,
+  ActiveSessionInitInternalResult,
+  ActiveCandidateSemantics,
   ActiveStatusOptions,
   ActiveStatusResult,
   MetaFileCandidate,

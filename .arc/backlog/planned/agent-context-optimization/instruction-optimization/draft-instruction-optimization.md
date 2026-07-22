@@ -279,7 +279,7 @@ Methods are mostly already concise (avg ~250 words). Modest opportunities:
 - **`issue-triage.md`** — Severity bands compress to 3-row table. ~40 tokens.
 - **`commit-context-format.md`** — Per-section "used when" framing duplicates across artifact-type
   sections. ~50 tokens of de-dup.
-- **`commit-format.md`, `diff-review.md`, `session-state.md`, `quality-gate-commands.md`** — Already
+- **`commit-format.md`, `self-review.md`, `session-state.md`, `quality-gate-commands.md`** — Already
   concise. No findings worth pursuing.
 
 Extensions audit returned **no meaningful findings**. All eight extensions are stub-shaped (80-280
@@ -554,7 +554,7 @@ No compression candidates.
 
 ### Most methods are already concise
 
-`commit-format.md`, `diff-review.md`, `session-state.md`, `quality-gate-commands.md` are short
+`commit-format.md`, `self-review.md`, `session-state.md`, `quality-gate-commands.md` are short
 enough that compression yields diminishing returns. Modest wins exist in `review-triage.md`,
 `test-first.md`, `issue-triage.md`, `commit-context-format.md` — all rolled into Pillar 1.
 

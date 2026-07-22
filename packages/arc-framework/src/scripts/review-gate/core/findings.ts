@@ -1,6 +1,10 @@
 /** Immutable finding history and authority-bearing closure reduction. */
 
 import type { Evidence, ReviewFinding } from "./evidence.js";
+import {
+  NormalizedReviewFindingSchema,
+  type NormalizedReviewFinding,
+} from "./finding-records.js";
 
 /** Finding paired with its stable source identity. */
 export interface SourceFinding extends ReviewFinding {
@@ -18,6 +22,15 @@ export interface FindingReductionResult {
   consistent: boolean;
   findings: SourceFinding[];
   errors: string[];
+}
+
+/** One normalized v2 finding paired with its source authority. */
+export type SourceNormalizedFinding = NormalizedReviewFinding & { sourceIdentity: string };
+
+/** Forward finding evidence already normalized by its source adapter. */
+export interface NormalizedFindingEvidence {
+  sourceIdentity: string;
+  findings: NormalizedReviewFinding[];
 }
 
 function findingKey(sourceIdentity: string, findingId: string): string {
@@ -68,4 +81,27 @@ export function reduceFindings(input: FindingReductionInput): FindingReductionRe
     findings: [...findings.values()],
     errors,
   };
+}
+
+/** Reduce normalized v2 findings without admitting legacy severity labels. */
+export function reduceNormalizedFindings(evidence: readonly NormalizedFindingEvidence[]): SourceNormalizedFinding[] {
+  const findings = new Map<string, SourceNormalizedFinding>();
+  for (const item of evidence) {
+    for (const candidate of item.findings) {
+      const finding = NormalizedReviewFindingSchema.parse(candidate);
+      const identity = findingKey(item.sourceIdentity, finding.findingId);
+      const prior = findings.get(identity);
+      if (prior !== undefined && (
+        prior.severity !== finding.severity
+        || prior.nit !== finding.nit
+        || prior.locus !== finding.locus
+        || prior.evidenceUrlOrId !== finding.evidenceUrlOrId
+        || prior.recursFindingId !== finding.recursFindingId
+      )) {
+        throw new Error(`finding-identity-reused:${item.sourceIdentity}:${finding.findingId}`);
+      }
+      findings.set(identity, { ...finding, sourceIdentity: item.sourceIdentity });
+    }
+  }
+  return [...findings.values()];
 }

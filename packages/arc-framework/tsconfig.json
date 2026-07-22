@@ -11,6 +11,13 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    "incremental": true,
+    // Set explicitly because the derived default is unusable here. TypeScript
+    // resolves it by taking this file's path relative to `rootDir` and applying
+    // that to `outDir`; since the config sits above `src`, the result walks back
+    // out of `dist` and lands an untracked `tsconfig.tsbuildinfo` at the package
+    // root, which no .gitignore covers.
+    "tsBuildInfoFile": "node_modules/.cache/tsc/src.tsbuildinfo",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

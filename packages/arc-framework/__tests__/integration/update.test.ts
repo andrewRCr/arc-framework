@@ -154,15 +154,16 @@ describe("update integration — baseline (real recipe)", () => {
     // through added/removed/updated/conflicts.
     const perFilePaths = [
       ...[
-        "commit-footer", "commit-format", "diff-review",
-        "issue-triage", "quality-gate-commands", "review-triage",
-        "session-state", "test-first",
+        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "independent-analysis",
+        "implementation-audit", "self-review",
+        "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
+        "session-state", "spec-review", "test-first",
       ].map((n) => `system/methods/${n}.md`),
       ...[
         "post-context-load", "post-task-completion", "post-task-quality",
         "post-unit-quality", "post-work-unit-activate",
         "post-work-unit-archive", "pre-activation", "pre-commit-review",
-        "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review",
+        "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
       ].map((n) => `system/extensions/${n}.md`),
       "system/methods/README.md",
       "system/extensions/README.md",
@@ -1022,6 +1023,31 @@ describe("update integration — error cases", () => {
         name: "UserFacingError",
       }),
     );
+  });
+
+  it("rejects an unsafe enumerated source before mutating installed files", async () => {
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: "# Existing\n", classification: "Framework" },
+    });
+    const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
+    const boundedTemplateDir = join(templateDir, "templates");
+    await ensureDir(boundedTemplateDir);
+    await writeFile(join(boundedTemplateDir, FRAMEWORK_FILE), "# Content\n", "utf-8");
+    await writeFile(join(templateDir, "outside.template.md"), "outside\n", "utf-8");
+
+    await expect(runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir: boundedTemplateDir,
+      recipe: makeRecipe([FRAMEWORK_FILE, "../outside.template.md"]),
+    })).rejects.toMatchObject({
+      name: "LayoutError",
+      code: "layout.invalid-template-path",
+    });
+
+    expect(await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8")).toBe("# Existing\n");
+    expect(await readFile(manifestPath(tempDir), "utf-8")).toBe(manifestBefore);
+    expect(await fileExists(join(tempDir, "outside.md"))).toBe(false);
   });
 });
 

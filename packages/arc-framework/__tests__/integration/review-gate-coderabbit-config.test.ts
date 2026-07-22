@@ -5,6 +5,10 @@ import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
 
 import { validateCodeRabbitRepositoryDelta } from "../../src/scripts/review-gate/providers/coderabbit/config.js";
+import {
+  admitSelfHostingGuidanceCarrier,
+  SELF_HOSTING_REVIEW_GUIDANCE_BLOCK,
+} from "../../src/scripts/review-gate/policy/self-hosting/guidance.js";
 
 describe("repository CodeRabbit configuration", () => {
   it("matches the validated minimal inherited delta", async () => {
@@ -16,7 +20,12 @@ describe("repository CodeRabbit configuration", () => {
         commit_status: true,
         fail_commit_status: true,
         auto_review: { enabled: true, labels: ["arc-review-gate"] },
+        path_instructions: [{ path: "**/*", instructions: `${SELF_HOSTING_REVIEW_GUIDANCE_BLOCK}\n` }],
       },
+    });
+    expect(admitSelfHostingGuidanceCarrier("hosted-coderabbit", content)).toMatchObject({
+      carrierId: "hosted-coderabbit",
+      admitted: true,
     });
   });
 });

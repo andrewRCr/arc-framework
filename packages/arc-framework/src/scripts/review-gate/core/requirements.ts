@@ -1,6 +1,22 @@
 /** Typed requirement reduction without source substitution. */
 
 import type { ReviewRequirement, SourceKind } from "./contracts.js";
+import {
+  validateReviewReceipt,
+  validateReviewRequest,
+  validateReviewRequirement,
+  validateReviewTarget,
+} from "./gate-contract-v2.js";
+import type {
+  ReviewReceiptV2,
+  ReviewRequestV2,
+  ReviewRequirementV2,
+  ReviewTarget,
+} from "./gate-contract-v2-schema.js";
+import {
+  qualifyForwardReviewSource,
+  type ReviewChannel,
+} from "./forward-source-qualification.js";
 
 /** Candidate evidence chain already proven current by the evidence reducer. */
 export interface RequirementCandidate {
@@ -43,6 +59,24 @@ export interface AggregateRequirementDisposition {
   disposition: "required" | "recommended" | "exempt";
   evaluations: RequirementEvaluation[];
   blockers: string[];
+}
+
+/** Exact v2 records accepted by the forward requirement boundary. */
+export interface ForwardRequirementEvaluationInput {
+  channel: ReviewChannel;
+  target: unknown;
+  requirement: unknown;
+  request: unknown;
+  receipt: unknown;
+}
+
+/** One validated forward requirement chain and its terminal state. */
+export interface ForwardRequirementEvaluation {
+  target: ReviewTarget;
+  requirement: ReviewRequirementV2 | null;
+  request: ReviewRequestV2 | null;
+  receipt: ReviewReceiptV2 | null;
+  state: "inapplicable" | "unrequested" | "pending" | "unqualified" | "clean" | "findings" | "failed" | "unavailable";
 }
 
 function sourceAccepted(requirement: ReviewRequirement, candidate: RequirementCandidate): boolean {
@@ -99,4 +133,37 @@ export function aggregateRequirementDisposition(
     evaluations,
     blockers: evaluations.flatMap((evaluation) => evaluation.blockers),
   };
+}
+
+/** Validate one complete or partial v2 requirement chain without consulting legacy evidence. */
+export function evaluateForwardRequirement(
+  input: ForwardRequirementEvaluationInput,
+): ForwardRequirementEvaluation {
+  const target = validateReviewTarget(input.target);
+  if (input.requirement === null) {
+    if (input.request !== null || input.receipt !== null) {
+      throw new Error("forward review request or receipt cannot exist without a requirement");
+    }
+    return { target, requirement: null, request: null, receipt: null, state: "inapplicable" };
+  }
+
+  const requirement = validateReviewRequirement(target, input.requirement);
+  if (input.request === null) {
+    if (input.receipt !== null) throw new Error("forward review receipt cannot exist without a request");
+    return { target, requirement, request: null, receipt: null, state: "unrequested" };
+  }
+
+  const request = validateReviewRequest(target, input.request);
+  if (request.requirementId !== requirement.requirementId) {
+    throw new Error("forward review request does not match its requirement");
+  }
+  if (input.receipt === null) {
+    return { target, requirement, request, receipt: null, state: "pending" };
+  }
+
+  const receipt = validateReviewReceipt(target, requirement, request, input.receipt);
+  if (!qualifyForwardReviewSource({ channel: input.channel, requirement, request, receipt }).qualified) {
+    return { target, requirement, request, receipt, state: "unqualified" };
+  }
+  return { target, requirement, request, receipt, state: receipt.result };
 }
