@@ -1,8 +1,8 @@
 # Metadata: solution-proportionality
 
-| **State** | **Owner** | **Branch**                      | **Class** | **Priority** |
-| --------- | --------- | ------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/solution-proportionality` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                      | **Class** | **Priority** |
+| ------------- | --------- | ------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/solution-proportionality` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
