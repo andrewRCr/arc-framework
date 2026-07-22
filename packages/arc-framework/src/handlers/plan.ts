@@ -321,7 +321,7 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
       allocation: { kind: existing.primary === true ? "primary" : "spawned", checkoutPath: existing.checkoutPath },
       recordId: existing.recordId, leaseId: existing.lease.leaseId,
       activeLocusPath: existing.checkoutPath, sessionHomePath: existing.lease.sessionHomePath,
-      identity: projectLocusIdentity(record), originEntry: null, dispatchId: null, routingPlanDigest: null,
+      identity: projectLocusIdentity(record), originEntry: null,
       restoredParent: null, nextOffer: null,
       recommendedPromptText: `Grooming set is already open at ${existing.checkoutPath}.`
         + (resumeAdvisory === null ? "" : ` ${resumeAdvisory}`),
@@ -367,7 +367,7 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
     allocation: { kind: provisioned.receipt.allocation, checkoutPath: provisioned.receipt.checkoutPath },
     recordId: provisioned.receipt.record.recordId, leaseId: provisioned.receipt.leaseToken,
     activeLocusPath: provisioned.receipt.checkoutPath, sessionHomePath,
-    identity: projectLocusIdentity(record), originEntry: null, dispatchId: null, routingPlanDigest: null,
+    identity: projectLocusIdentity(record), originEntry: null,
     restoredParent: null, nextOffer: null,
     recommendedPromptText: `Grooming set opened at ${provisioned.receipt.checkoutPath}.`
       + (resumeAdvisory === null ? "" : ` ${resumeAdvisory}`),

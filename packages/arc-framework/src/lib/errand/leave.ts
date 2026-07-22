@@ -118,8 +118,6 @@ export async function leaveOrdinaryErrand(
     sessionHomePath: cleanup.restoredParent?.checkoutPath ?? null,
     identity: projectLocusIdentity(target),
     originEntry: target.originEntry,
-    dispatchId: target.dispatchId,
-    routingPlanDigest: null,
     restoredParent: cleanup.restoredParent,
     nextOffer: null,
     recommendedPromptText: cleanup.restoredParent === null

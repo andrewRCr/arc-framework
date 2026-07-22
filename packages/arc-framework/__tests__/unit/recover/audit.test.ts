@@ -153,9 +153,7 @@ function freshLocusState(): LocusStateV1 {
           kind: "work-unit",
           subject: { kind: "work-unit", key: "compaction-recovery", claimId: null },
           parentCheckoutPath: null,
-          dispatchId: null,
           originEntry: null,
-          routingPlanDigest: null,
         },
         identity: null,
         lease: {

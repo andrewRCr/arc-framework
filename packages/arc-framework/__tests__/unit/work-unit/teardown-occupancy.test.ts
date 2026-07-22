@@ -30,9 +30,7 @@ function record(options: { path?: string; lease?: boolean; subject?: string } = 
       subject: { kind: "work-unit", key: options.subject ?? "demo", claimId: null },
       establishedAt: "2026-07-21T00:00:00.000Z",
       parentCheckoutPath: null,
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     },
     lease: options.lease === false ? null : {
       leaseId: "a".repeat(32),

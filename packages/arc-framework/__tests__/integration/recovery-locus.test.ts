@@ -25,9 +25,7 @@ function workUnit(
       kind: "work-unit",
       subject: { kind: "work-unit", key: "demo", claimId: null },
       parentCheckoutPath: null,
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     },
     identity: null,
     lease: {
@@ -76,7 +74,6 @@ function errand(subjectKind: "errand" | "partial-errand" = "errand"): LocusRowV1
     purpose: "errand",
     origin: "description",
     originEntry: null,
-    dispatchId: null,
     state: "open",
     savedHead: null,
     changeRequest: null,
@@ -90,9 +87,7 @@ function errand(subjectKind: "errand" | "partial-errand" = "errand"): LocusRowV1
       kind: "errand",
       subject: { kind: subjectKind, key: "fix-one", claimId: subjectKind === "errand" ? CLAIM : null },
       parentCheckoutPath: "/repo.demo",
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     },
     identity,
     lease: {
@@ -115,9 +110,7 @@ function housekeep(): LocusRowV1 {
       kind: "housekeep",
       subject: { kind: "housekeep", key: "sweep", claimId: null },
       parentCheckoutPath: "/repo.demo",
-      dispatchId: "dispatch-7",
       originEntry: null,
-      routingPlanDigest: `sha256:${"f".repeat(64)}`,
     },
   };
 }

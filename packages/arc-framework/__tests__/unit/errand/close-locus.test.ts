@@ -20,7 +20,6 @@ function awaiting(): OrdinaryErrandRecord {
     branch: "chore/done",
     origin: "inbox",
     originEntry: "Done capture",
-    dispatchId: "dispatch-1",
     state: "awaiting-merge",
     savedHead: null,
     changeRequest: {
@@ -39,7 +38,7 @@ function merged(record: OrdinaryErrandRecord): ChangeRequestLifecycleEvidence {
 }
 
 describe("closeOrdinaryErrand", () => {
-  it("finalizes exact merged refs, removes the inbox capture, and returns its next dispatch offer", async () => {
+  it("finalizes exact merged refs, removes the inbox capture, and returns the next execute-bound offer", async () => {
     const record = awaiting();
     const events: string[] = [];
     const result = await closeOrdinaryErrand({
@@ -52,7 +51,7 @@ describe("closeOrdinaryErrand", () => {
         cleanupRefs: async () => (events.push("refs"), { kind: "applied" }),
         removeInbox: async () => (events.push("inbox"), {
           kind: "removed",
-          nextOffer: { kind: "errand", key: "next", dispatchId: "dispatch-1", parentCheckoutPath: null },
+          nextOffer: { kind: "errand", key: "next", parentCheckoutPath: null },
         }),
         retire: async () => (events.push("identity"), { kind: "applied" }),
       },
@@ -64,8 +63,7 @@ describe("closeOrdinaryErrand", () => {
       operation: "errand-close",
       identity: null,
       originEntry: "Done capture",
-      dispatchId: "dispatch-1",
-      nextOffer: { key: "next", dispatchId: "dispatch-1" },
+      nextOffer: { key: "next" },
     });
   });
 

@@ -65,7 +65,7 @@ import {
   inspectInboxEntry,
   recordErrandPartialPushMarker,
 } from "../lib/user-sync/index.js";
-import { resolveDispatchNextOffer } from "../lib/housekeep/dispatch-offer.js";
+import { resolveExecutionNextOffer } from "../lib/housekeep/execution-offer.js";
 import { readHousekeepState } from "../lib/housekeep/open-runtime.js";
 import { acquireSessionAnchor } from "../lib/locus/process-inspector.js";
 import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "../lib/locus/platform-inspectors.js";
@@ -333,7 +333,6 @@ export async function handleErrandMaterialize(
     const result = await openOrdinaryErrandAtRuntime({
       slug,
       originEntry: record.originEntry,
-      dispatchId: record.dispatchId,
       protection: "full",
       isolation: "require-isolation",
       base: settings["branch.base"],
@@ -396,9 +395,9 @@ function emitMaterializeError(suffix: string, message: string, json: boolean): v
  * a free primary or spawned checkout; partial protection remains branch- and
  * identity-free in the free primary.
  *
- * `--from-inbox <entry-title>` adopts a `USER-INBOX` capture: the record is
- * is revalidated under the identity notes lock and its exact dispatch binding
- * is carried into the identity or partial role.
+ * `--from-inbox <entry-title>` adopts a `USER-INBOX` capture: the entry is
+ * revalidated under the identity notes lock and its title is carried into the
+ * identity or partial role.
  */
 export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): Promise<void> {
   if (opts.json !== true) p.intro("arc errand open");
@@ -449,7 +448,6 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
   }
 
   let originEntry: string | null = null;
-  let dispatchId: string | null = null;
   if (
     opts.fromInbox !== undefined
     || opts.inboxTitleFile !== undefined
@@ -464,7 +462,6 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
         file: opts.inboxTitleFile ?? opts.inboxEntryFile,
       });
       originEntry = adoption.title;
-      dispatchId = adoption.dispatchId;
     } catch (err) {
       emitErrandOpenFailure(
         "locus.errand-open.inbox",
@@ -499,7 +496,6 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
       slug,
       intent: opts.intent,
       originEntry,
-      dispatchId,
       protection,
       base,
       createdAt,
@@ -899,12 +895,11 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
           settleInbox: async (binding) => {
             if (binding.originEntry === null) return { kind: "idempotent", nextOffer: null };
             const removed = await removeCurrentInboxEntry({ cwd, io, identity, title: binding.originEntry });
-            if (binding.dispatchId === null || removed.postImage.state !== "present") {
+            if (removed.postImage.state !== "present") {
               return { kind: removed.removed ? "applied" : "idempotent", nextOffer: null };
             }
-            const offer = resolveDispatchNextOffer({
+            const offer = resolveExecutionNextOffer({
               content: removed.postImage.content,
-              dispatchId: binding.dispatchId,
               completedTitle: binding.originEntry,
               parentCheckoutPath: binding.parentCheckoutPath,
             });
@@ -930,12 +925,11 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
         removeInbox: async (record) => {
           if (record.originEntry === null) return { kind: "absent", nextOffer: null };
           const removed = await removeCurrentInboxEntry({ cwd, io, identity, title: record.originEntry });
-          if (record.dispatchId === null || removed.postImage.state !== "present") {
+          if (removed.postImage.state !== "present") {
             return { kind: removed.removed ? "removed" : "absent", nextOffer: null };
           }
-          const offer = resolveDispatchNextOffer({
+          const offer = resolveExecutionNextOffer({
             content: removed.postImage.content,
-            dispatchId: record.dispatchId,
             completedTitle: record.originEntry,
             parentCheckoutPath,
           });
@@ -1061,7 +1055,7 @@ export async function handleErrandAbandon(slug: string, opts: ErrandAbandonOptio
         registeredHarnessDirs: settings["worktree.harness_dirs"],
         exec: io.exec,
         settleInbox: async (binding) => {
-          if (binding.originEntry === null || binding.dispatchId === null) {
+          if (binding.originEntry === null) {
             return { kind: "idempotent", nextOffer: null };
           }
           const cleared = await unmarkCurrentInboxEntry({
@@ -1069,7 +1063,6 @@ export async function handleErrandAbandon(slug: string, opts: ErrandAbandonOptio
             io,
             identity,
             title: binding.originEntry,
-            dispatchId: binding.dispatchId,
           });
           return { kind: cleared.changed ? "applied" : "idempotent", nextOffer: null };
         },
@@ -1085,14 +1078,13 @@ export async function handleErrandAbandon(slug: string, opts: ErrandAbandonOptio
         registeredHarnessDirs: settings["worktree.harness_dirs"],
         exec: io.exec,
         execInput: io.execInput,
-        clearDispatch: async (record) => {
-          if (record.originEntry === null || record.dispatchId === null) return { kind: "idempotent" };
+        clearExecuteBound: async (record) => {
+          if (record.originEntry === null) return { kind: "idempotent" };
           const cleared = await unmarkCurrentInboxEntry({
             cwd,
             io,
             identity,
             title: record.originEntry,
-            dispatchId: record.dispatchId,
           });
           return { kind: cleared.changed ? "applied" : "idempotent" };
         },
@@ -1151,8 +1143,8 @@ async function closeLegacyErrandResult(
   if (result.kind === "no-record") {
     return createLocusMutationResult({
       outcome: "idempotent", operation: "errand-close", allocation: null, recordId: null, leaseId: null,
-      activeLocusPath: null, sessionHomePath: null, identity: null, originEntry: null, dispatchId: null,
-      routingPlanDigest: null, restoredParent: null, nextOffer: null,
+      activeLocusPath: null, sessionHomePath: null, identity: null, originEntry: null,
+      restoredParent: null, nextOffer: null,
       recommendedPromptText: `Errand '${slug}' is already closed.`,
     });
   }
@@ -1170,7 +1162,7 @@ async function closeLegacyErrandResult(
   return createLocusMutationResult({
     outcome: "applied", operation: "errand-close", allocation: null, recordId: null, leaseId: null,
     activeLocusPath: null, sessionHomePath: null, identity: null,
-    originEntry: result.record.originEntry ?? null, dispatchId: null, routingPlanDigest: null,
+    originEntry: result.record.originEntry ?? null,
     restoredParent: null, nextOffer: null,
     recommendedPromptText: `Closed legacy Errand '${slug}' and reaped '${result.record.branch}'. ${remote}`,
   });

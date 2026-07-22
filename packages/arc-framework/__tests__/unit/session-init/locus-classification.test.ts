@@ -26,11 +26,10 @@ describe("locus cleanup classification", () => {
   it.each<LocusIdentityV1>([
     {
       ...common, kind: "errand", key: "ordinary", branch: "chore/ordinary", purpose: "errand",
-      origin: "description", originEntry: null, dispatchId: null,
+      origin: "description", originEntry: null,
     },
     {
       ...common, kind: "errand", key: "routing", branch: "chore/routing", purpose: "housekeep-routing",
-      routingLane: "auto", dispatchId: "dispatch-1", routingPlanDigest: `sha256:${"d".repeat(64)}`,
     },
     {
       ...common, kind: "groom", key: "widget", branch: "chore/groom-widget", purpose: null,

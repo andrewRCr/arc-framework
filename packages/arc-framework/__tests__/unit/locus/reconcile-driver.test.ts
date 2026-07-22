@@ -37,7 +37,6 @@ const TRANSIENT_AUTHORITY: LocusTransientAdoptionAuthority = {
     purpose: "errand",
     origin: "description",
     originEntry: null,
-    dispatchId: null,
     state: "open",
     savedHead: null,
     changeRequest: null,
@@ -235,9 +234,7 @@ describe("locus reconciliation driver", () => {
         subject: { kind: "work-unit", key: "demo", claimId: null },
         establishedAt: "2026-07-20T00:00:00.000Z",
         parentCheckoutPath: null,
-        dispatchId: null,
         originEntry: null,
-        routingPlanDigest: null,
       },
       lease: null,
     };

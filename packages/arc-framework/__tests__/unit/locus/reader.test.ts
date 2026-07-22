@@ -116,9 +116,7 @@ describe("readLocusEnvelope", () => {
         subject: { kind: "partial-errand", key: "local", claimId: null },
         establishedAt: "2026-07-20T00:00:00.000Z",
         parentCheckoutPath: null,
-        dispatchId: null,
         originEntry: null,
-        routingPlanDigest: null,
       },
       lease: {
         leaseId: "2".repeat(32),

@@ -23,9 +23,7 @@ export const LocusRoleSchema = z.strictObject({
   subject: LocusRoleSubjectSchema,
   establishedAt: LocusTimestampSchema,
   parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
-  dispatchId: LocusOpaqueTextSchema.nullable(),
   originEntry: LocusOpaqueTextSchema.nullable(),
-  routingPlanDigest: LocusDigestSchema.nullable(),
 }).superRefine((role, context) => {
   const pair = `${role.kind}/${role.subject.kind}`;
   const knownKinds = new Set(["work-unit", "errand", "groom", "housekeep"]);
@@ -53,19 +51,8 @@ export const LocusRoleSchema = z.strictObject({
     context.addIssue({ code: "custom", path: ["subject", "claimId"], message: "Identity-free role requires null claimId" });
   }
 
-  if (pair === "errand/partial-errand") {
-    if (role.routingPlanDigest !== null) {
-      context.addIssue({ code: "custom", path: ["routingPlanDigest"], message: "Partial Errand rejects routing plan" });
-    }
-    if (role.dispatchId !== null && role.originEntry === null) {
-      context.addIssue({ code: "custom", path: ["originEntry"], message: "Dispatch-bound partial Errand requires origin entry" });
-    }
-  } else if (pair === "housekeep/housekeep") {
-    if (role.dispatchId === null || role.routingPlanDigest === null || role.originEntry !== null) {
-      context.addIssue({ code: "custom", path: ["dispatchId"], message: "Partial housekeep requires dispatch and plan digest only" });
-    }
-  } else if (role.dispatchId !== null || role.originEntry !== null || role.routingPlanDigest !== null) {
-    context.addIssue({ code: "custom", path: ["dispatchId"], message: "Execution context is not stored for this role" });
+  if (pair !== "errand/partial-errand" && role.originEntry !== null) {
+    context.addIssue({ code: "custom", path: ["originEntry"], message: "Origin entry is stored only for a partial Errand" });
   }
 });
 

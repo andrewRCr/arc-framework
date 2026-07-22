@@ -156,7 +156,6 @@ describe("closeErrand", () => {
       branch: "chore/v3-finalize",
       origin: "description",
       originEntry: null,
-      dispatchId: null,
       state: "awaiting-merge",
       savedHead: null,
       changeRequest: {

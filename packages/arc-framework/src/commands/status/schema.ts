@@ -153,7 +153,6 @@ const MaterializableErrandViewSchema = z
     expectedHead: NON_EMPTY_TEXT,
     state: z.enum(["paused", "awaiting-merge"]),
     originEntry: NON_EMPTY_TEXT.nullable(),
-    dispatchId: NON_EMPTY_TEXT.nullable(),
   })
   .loose();
 

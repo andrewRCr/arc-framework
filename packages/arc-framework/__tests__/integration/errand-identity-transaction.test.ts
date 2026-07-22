@@ -37,7 +37,6 @@ function record(slug: string, intent = slug): TransientIdentityRecord {
     purpose: "errand",
     origin: "description",
     originEntry: null,
-    dispatchId: null,
     intent,
     branch: `chore/${slug}`,
     state: "open",

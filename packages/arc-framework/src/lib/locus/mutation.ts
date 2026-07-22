@@ -25,15 +25,10 @@ export type LocusRoleAuthority =
       readonly kind: "partial-errand";
       readonly key: string;
       readonly originEntry: string | null;
-      readonly dispatchId: string | null;
-      readonly routingPlanDigest: null;
     }
   | {
       readonly kind: "partial-housekeep";
       readonly key: string;
-      readonly originEntry: null;
-      readonly dispatchId: string;
-      readonly routingPlanDigest: string;
     };
 
 export interface LocusRoleMintIO {
@@ -415,8 +410,6 @@ function popSuccess(
     sessionHomePath: null,
     identity: null,
     originEntry: null,
-    dispatchId: null,
-    routingPlanDigest: null,
     restoredParent: null,
     nextOffer: null,
     recommendedPromptText: options.recommendedPromptText,
@@ -479,9 +472,7 @@ function deriveRole(
       null,
       parentCheckoutPath,
       establishedAt,
-      authority.dispatchId,
       authority.originEntry,
-      authority.routingPlanDigest,
     );
   } else {
     candidate = role(
@@ -491,9 +482,6 @@ function deriveRole(
       null,
       parentCheckoutPath,
       establishedAt,
-      authority.dispatchId,
-      authority.originEntry,
-      authority.routingPlanDigest,
     );
   }
   const parsed = LocusRoleSchema.safeParse(candidate);
@@ -509,18 +497,14 @@ function role(
   claimId: string | null,
   parentCheckoutPath: string | null,
   establishedAt: string,
-  dispatchId: string | null = null,
   originEntry: string | null = null,
-  routingPlanDigest: string | null = null,
 ): unknown {
   return {
     kind,
     subject: { kind: subjectKind, key, claimId },
     establishedAt,
     parentCheckoutPath,
-    dispatchId,
     originEntry,
-    routingPlanDigest,
   };
 }
 

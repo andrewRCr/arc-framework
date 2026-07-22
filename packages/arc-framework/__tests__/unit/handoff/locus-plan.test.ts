@@ -20,9 +20,7 @@ function workUnit(frame: "active" | "suspended" = "active"): LocusRowV1 {
       kind: "work-unit",
       subject: { kind: "work-unit", key: "demo", claimId: null },
       parentCheckoutPath: null,
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     },
     identity: null,
     lease: {
@@ -59,9 +57,7 @@ function transient(
       kind: roleKind,
       subject,
       parentCheckoutPath: warm ? "/repo.demo" : null,
-      dispatchId: kind === "housekeep" ? "dispatch-1" : null,
       originEntry: null,
-      routingPlanDigest: kind === "housekeep" ? `sha256:${"f".repeat(64)}` : null,
     },
     identity: kind === "full" ? {
       kind: "errand",
@@ -72,7 +68,6 @@ function transient(
       purpose: "errand",
       origin: "description",
       originEntry: null,
-      dispatchId: null,
       state: "open",
       savedHead: null,
       changeRequest: null,

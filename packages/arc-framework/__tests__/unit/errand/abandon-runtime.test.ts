@@ -22,7 +22,6 @@ function paused(savedHead = HEAD): OrdinaryErrandRecord {
     branch: "chore/discard",
     origin: "description",
     originEntry: null,
-    dispatchId: null,
     state: "paused",
     savedHead,
     changeRequest: null,

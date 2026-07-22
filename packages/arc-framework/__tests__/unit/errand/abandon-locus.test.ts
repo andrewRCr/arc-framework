@@ -24,7 +24,6 @@ function record(state: "open" | "paused" | "awaiting-merge"): OrdinaryErrandReco
     branch: "chore/discard",
     origin: "inbox",
     originEntry: "Discard capture",
-    dispatchId: "dispatch-1",
     state,
     savedHead: state === "paused" ? head : null,
     changeRequest: state === "awaiting-merge" ? {
@@ -53,12 +52,12 @@ describe("abandonOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record: value }),
         cleanupResidue: async () => (events.push("cleanup"), { kind: "applied" }),
         readLifecycle: vi.fn(),
-        clearDispatch: async () => (events.push("dispatch"), { kind: "applied" }),
+        clearExecuteBound: async () => (events.push("inbox"), { kind: "applied" }),
         retire: async () => (events.push("identity"), { kind: "applied" }),
       },
     });
 
-    expect(events).toEqual(["cleanup", "dispatch", "identity"]);
+    expect(events).toEqual(["cleanup", "inbox", "identity"]);
     expect(result).toMatchObject({ outcome: "applied", operation: "errand-abandon", identity: null });
   });
 
@@ -73,7 +72,7 @@ describe("abandonOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record: value }),
         cleanupResidue,
         readLifecycle: async () => lifecycle(value, "closed-unmerged"),
-        clearDispatch: async () => ({ kind: "idempotent" }),
+        clearExecuteBound: async () => ({ kind: "idempotent" }),
         retire,
       },
     });
@@ -89,7 +88,7 @@ describe("abandonOrdinaryErrand", () => {
           readIdentity: async () => ({ kind: "ready", record: value }),
           cleanupResidue,
           readLifecycle: async () => lifecycle(value, kind),
-          clearDispatch: vi.fn(),
+          clearExecuteBound: vi.fn(),
           retire,
         },
       });
@@ -112,7 +111,7 @@ describe("abandonOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record: value }),
         cleanupResidue: vi.fn(),
         readLifecycle: async () => evidence,
-        clearDispatch: vi.fn(),
+        clearExecuteBound: vi.fn(),
         retire: vi.fn(),
       },
     });
@@ -132,7 +131,7 @@ describe("abandonOrdinaryErrand", () => {
           readIdentity: async () => ({ kind: "ready", record: value }),
           cleanupResidue: async () => ({ kind: "refused", reason, message: reason }),
           readLifecycle: vi.fn(),
-          clearDispatch: vi.fn(),
+          clearExecuteBound: vi.fn(),
           retire,
         },
       });
@@ -141,7 +140,7 @@ describe("abandonOrdinaryErrand", () => {
     },
   );
 
-  it("retains identity when exact dispatch unbinding races and replays a completed abandonment", async () => {
+  it("retains identity when execute-bound clearing refuses and replays a completed abandonment", async () => {
     const value = record("open");
     const retire = vi.fn(async () => ({ kind: "applied" as const }));
     const raced = await abandonOrdinaryErrand({
@@ -151,11 +150,13 @@ describe("abandonOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record: value }),
         cleanupResidue: async () => ({ kind: "idempotent" }),
         readLifecycle: vi.fn(),
-        clearDispatch: async () => ({ kind: "refused", reason: "dispatch-conflict", message: "changed inbox" }),
+        clearExecuteBound: async () => ({
+          kind: "refused", reason: "record-malformed", message: "malformed inbox entry",
+        }),
         retire,
       },
     });
-    expect(raced).toMatchObject({ outcome: "refused", reason: "dispatch-conflict" });
+    expect(raced).toMatchObject({ outcome: "refused", reason: "record-malformed" });
     expect(retire).not.toHaveBeenCalled();
 
     const replay = await abandonOrdinaryErrand({
@@ -165,7 +166,7 @@ describe("abandonOrdinaryErrand", () => {
         readIdentity: async () => ({ kind: "ready", record: null }),
         cleanupResidue: vi.fn(),
         readLifecycle: vi.fn(),
-        clearDispatch: vi.fn(),
+        clearExecuteBound: vi.fn(),
         retire: vi.fn(),
       },
     });

@@ -92,7 +92,6 @@ export interface OpenOrdinaryErrandOptions {
   slug: string;
   intent?: string;
   originEntry?: string | null;
-  dispatchId?: string | null;
   protection: "full" | "partial";
   base: string;
   createdAt: string;
@@ -112,10 +111,6 @@ export async function openOrdinaryErrand(
   const slug = options.slug.trim();
   if (slug === "") return openRefusal("identity-conflict", "Errand slug must be non-empty.");
   const originEntry = options.originEntry?.trim() || null;
-  const dispatchId = options.dispatchId?.trim() || null;
-  if (originEntry === null && dispatchId !== null) {
-    return openRefusal("dispatch-conflict", "A dispatch binding requires an inbox-origin Errand.");
-  }
 
   let anchor: LocusAnchor;
   try {
@@ -152,8 +147,8 @@ export async function openOrdinaryErrand(
       if (existing.version !== 3 || existing.kind !== "errand" || existing.purpose !== "errand") {
         return openRefusal("identity-conflict", `Identity '${slug}' is not a resumable ordinary v3 Errand.`);
       }
-      const continuity = validateResumeContinuity(existing, options.intent, originEntry, dispatchId);
-      if (continuity !== null) return openRefusal("dispatch-conflict", continuity);
+      const continuity = validateResumeContinuity(existing, options.intent, originEntry);
+      if (continuity !== null) return openRefusal("identity-conflict", continuity);
       if (existing.state === "open") {
         if (options.dependencies.recoverOpen !== undefined) {
           let recovery: OpenRecoveryResult;
@@ -212,7 +207,6 @@ export async function openOrdinaryErrand(
         branch,
         origin: originEntry === null ? "description" : "inbox",
         originEntry,
-        dispatchId,
         state: "open",
         savedHead: null,
         changeRequest: null,
@@ -257,8 +251,6 @@ export async function openOrdinaryErrand(
           kind: "partial-errand" as const,
           key: slug,
           originEntry,
-          dispatchId,
-          routingPlanDigest: null,
         },
       } : {}),
       branch,
@@ -283,7 +275,6 @@ export async function openOrdinaryErrand(
     return rollbackAfterRefusal(options, record, previousRecord, claimKind, provisioningReason(provisioned.reason));
   }
   const resultOriginEntry = record?.origin === "inbox" ? record.originEntry : originEntry;
-  const resultDispatchId = record?.dispatchId ?? dispatchId;
   return appendDirectedCommandAdvisory(createLocusMutationResult({
     outcome: claimKind === "idempotent" ? "idempotent" : "applied",
     operation: "errand-open",
@@ -294,8 +285,6 @@ export async function openOrdinaryErrand(
     sessionHomePath,
     identity: record === null ? null : projectLocusIdentity(record),
     originEntry: resultOriginEntry,
-    dispatchId: resultDispatchId,
-    routingPlanDigest: null,
     restoredParent: null,
     nextOffer: null,
     recommendedPromptText: `Errand opened at ${provisioned.receipt.checkoutPath}; session home remains `
@@ -328,7 +317,6 @@ function validateResumeContinuity(
   record: OrdinaryErrandRecord,
   intent: string | undefined,
   originEntry: string | null,
-  dispatchId: string | null,
 ): string | null {
   const requestedIntent = intent?.trim();
   if (requestedIntent !== undefined && requestedIntent !== "" && requestedIntent !== record.intent) {
@@ -336,9 +324,6 @@ function validateResumeContinuity(
   }
   if (originEntry !== null && (record.origin !== "inbox" || record.originEntry !== originEntry)) {
     return "Resume cannot change the originating inbox entry.";
-  }
-  if (dispatchId !== null && record.dispatchId !== dispatchId) {
-    return "Resume cannot change the execute-dispatch generation.";
   }
   return null;
 }

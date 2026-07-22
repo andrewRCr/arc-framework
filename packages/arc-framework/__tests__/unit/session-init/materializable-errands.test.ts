@@ -22,7 +22,7 @@ function paused(over: Record<string, unknown> = {}): TransientIdentityRecord {
     version: 3, slug: "fix-typo", claimId: "c".repeat(32),
     createdAt: "2026-07-21T00:00:00.000Z", updatedAt: "2026-07-21T00:01:00.000Z",
     kind: "errand", purpose: "errand", intent: "fix typo", branch: "chore/fix-typo",
-    origin: "inbox", originEntry: "Fix typo", dispatchId: "dispatch-1",
+    origin: "inbox", originEntry: "Fix typo",
     state: "paused", savedHead: HEAD, changeRequest: null, ...over,
   } as TransientIdentityRecord;
 }
@@ -44,11 +44,11 @@ describe("findMaterializableErrands", () => {
     expect(result.candidates).toEqual([
       {
         slug: "fix-typo", claimId: "c".repeat(32), branch: "chore/fix-typo", expectedHead: HEAD,
-        state: "paused", originEntry: "Fix typo", dispatchId: "dispatch-1",
+        state: "paused", originEntry: "Fix typo",
       },
       {
         slug: "review", claimId: "c".repeat(32), branch: "chore/review", expectedHead: "b".repeat(40),
-        state: "awaiting-merge", originEntry: "Fix typo", dispatchId: "dispatch-1",
+        state: "awaiting-merge", originEntry: "Fix typo",
       },
     ]);
   });

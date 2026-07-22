@@ -168,7 +168,6 @@ function ordinaryRecord(): OrdinaryErrandRecord {
     branch: "chore/growing",
     origin: "inbox",
     originEntry: "Grow this concern",
-    dispatchId: "dispatch-1",
     state: "open",
     savedHead: null,
     changeRequest: null,
@@ -220,9 +219,7 @@ function errandLocusRecord(
       subject: { kind: "errand", key: identity.slug, claimId: identity.claimId },
       establishedAt: UPDATED_AT,
       parentCheckoutPath,
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     },
     lease: lease(parentCheckoutPath ?? checkoutPath, anchor),
   };
@@ -243,9 +240,7 @@ function workUnitLocusRecord(
       subject: { kind: "work-unit", key: name, claimId: null },
       establishedAt: UPDATED_AT,
       parentCheckoutPath: null,
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     },
     lease: lease(checkoutPath, anchor),
   };

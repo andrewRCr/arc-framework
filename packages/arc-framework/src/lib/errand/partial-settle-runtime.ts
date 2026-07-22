@@ -41,7 +41,6 @@ export interface SettlePartialErrandRuntimeOptions {
   readonly exec: GitExec;
   readonly settleInbox: (binding: {
     readonly originEntry: string | null;
-    readonly dispatchId: string | null;
     readonly parentCheckoutPath: string | null;
   }) => Promise<PartialErrandInboxSettlement>;
 }
@@ -84,7 +83,6 @@ export async function settlePartialErrandAtRuntime(
   try {
     inbox = await options.settleInbox({
       originEntry: role.originEntry,
-      dispatchId: role.dispatchId,
       parentCheckoutPath: role.parentCheckoutPath,
     });
   } catch (error) {
@@ -224,8 +222,6 @@ function success(
     sessionHomePath: parent?.checkoutPath ?? null,
     identity: null,
     originEntry: row?.role?.originEntry ?? null,
-    dispatchId: row?.role?.dispatchId ?? null,
-    routingPlanDigest: null,
     restoredParent: parent,
     nextOffer,
     recommendedPromptText: text,

@@ -14,7 +14,6 @@ const record = TransientIdentityRecordV3Schema.parse({
   purpose: "errand",
   origin: "description",
   originEntry: null,
-  dispatchId: null,
   intent: "Fix output",
   branch: "chore/fix-output",
   state: "open",

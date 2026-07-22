@@ -22,7 +22,6 @@ function awaiting(): OrdinaryErrandRecord {
     branch: "chore/fix-output",
     origin: "description",
     originEntry: null,
-    dispatchId: null,
     state: "awaiting-merge",
     savedHead: null,
     changeRequest: {

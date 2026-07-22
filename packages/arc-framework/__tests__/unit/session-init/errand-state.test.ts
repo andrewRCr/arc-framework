@@ -74,7 +74,6 @@ const paused = (over: Record<string, unknown> = {}): TransientIdentityRecord => 
   branch: "chore/fix-typo",
   origin: "inbox",
   originEntry: "Fix typo",
-  dispatchId: "dispatch-1",
   state: "paused",
   savedHead: "a".repeat(40),
   changeRequest: null,
@@ -114,7 +113,6 @@ describe("runErrandState", () => {
       purpose: "errand" as const,
       origin: "inbox" as const,
       originEntry: "Fix typo",
-      dispatchId: "dispatch-1",
       state: "paused" as const,
       savedHead: "a".repeat(40),
       changeRequest: null,
@@ -285,7 +283,7 @@ describe("runErrandState", () => {
     expect(result.materializable.candidates).toEqual([
       {
         slug: "record-slug", claimId: "c".repeat(32), branch: "fix/typo",
-        expectedHead: "a".repeat(40), state: "paused", originEntry: "Fix typo", dispatchId: "dispatch-1",
+        expectedHead: "a".repeat(40), state: "paused", originEntry: "Fix typo",
       },
     ]);
   });
@@ -321,7 +319,7 @@ describe("runErrandState", () => {
     expect(result.materializable.candidates).toEqual([
       {
         slug: "remote-a", claimId: "c".repeat(32), branch: "chore/remote-a",
-        expectedHead: "a".repeat(40), state: "paused", originEntry: "Fix typo", dispatchId: "dispatch-1",
+        expectedHead: "a".repeat(40), state: "paused", originEntry: "Fix typo",
       },
     ]);
   });

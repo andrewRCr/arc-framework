@@ -15,8 +15,7 @@ export const LocusRefusalReasonSchema = z.enum([
   "duplicate-locus", "checkout-missing", "lease-live", "lease-unknown", "lease-generation-mismatch",
   "role-conflict", "full-protection-required", "remote-unreachable", "identity-conflict",
   "change-request-open", "change-request-unverifiable", "partial-handoff-forbidden", "preservation-unproven",
-  "inbox-link-conflict", "work-unit-name-taken", "promotion-source-invalid", "dispatch-conflict",
-  "routing-plan-mismatch", "routing-lane-downgrade", "stub-ambiguous",
+  "inbox-link-conflict", "work-unit-name-taken", "promotion-source-invalid", "stub-ambiguous",
 ]);
 const common = { operation: LocusOperationSchema, recommendedPromptText: LocusOpaqueTextSchema };
 const success = {
@@ -28,10 +27,12 @@ const success = {
   sessionHomePath: LocusAbsolutePathSchema.nullable(),
   identity: LocusIdentityV1Schema.nullable(),
   originEntry: LocusOpaqueTextSchema.nullable(),
-  dispatchId: LocusOpaqueTextSchema.nullable(),
-  routingPlanDigest: LocusDigestSchema.nullable(),
   restoredParent: z.strictObject({ recordId: LocusDigestSchema, checkoutPath: LocusAbsolutePathSchema }).nullable(),
-  nextOffer: z.strictObject({ kind: z.enum(["errand", "housekeep"]), key: LocusOpaqueTextSchema, dispatchId: LocusOpaqueTextSchema, parentCheckoutPath: LocusAbsolutePathSchema.nullable() }).nullable(),
+  nextOffer: z.strictObject({
+    kind: z.literal("errand"),
+    key: LocusOpaqueTextSchema,
+    parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
+  }).nullable(),
 };
 
 const LOCUS_OPEN_OPERATIONS = new Set(["errand-open", "plan-open", "housekeep-open"]);

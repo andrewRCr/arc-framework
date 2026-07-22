@@ -30,9 +30,7 @@ function record(leaseId = "0123456789abcdef0123456789abcdef") {
       subject: { kind: "work-unit", key: "sample", claimId: null },
       establishedAt: timestamp,
       parentCheckoutPath: null,
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     },
     lease: {
       leaseId,

@@ -6,7 +6,6 @@ import {
   TransientIdentityRecordV3Schema,
   groomClaimConflictResolver,
   groomClaimTransform,
-  housekeepClaimConflictResolver,
   housekeepClaimTransform,
   pinGroomOpenedBaseHead,
   readTransientIdentitySnapshot,
@@ -28,7 +27,6 @@ import {
 
 const identity = "andrew";
 const createdAt = "2026-07-20T00:00:00.000Z";
-const digest = `sha256:${"d".repeat(64)}`;
 
 function ioFor(dir: string): ErrandRecordIO {
   return { identity, exec: makeGitExec(dir), execInput: makeGitExecInput(dir) };
@@ -57,7 +55,7 @@ function groom(
   }) as GroomIdentityRecord;
 }
 
-function housekeep(slug: string, claimId: string, dispatchId: string): HousekeepIdentityRecord {
+function housekeep(slug: string, claimId: string): HousekeepIdentityRecord {
   return TransientIdentityRecordV3Schema.parse({
     version: 3,
     kind: "errand",
@@ -65,9 +63,6 @@ function housekeep(slug: string, claimId: string, dispatchId: string): Housekeep
     claimId,
     purpose: "housekeep-routing",
     branch: `chore/${slug}`,
-    routingLane: "auto",
-    dispatchId,
-    routingPlanDigest: digest,
     state: "open",
     savedHead: null,
     changeRequest: null,
@@ -174,9 +169,9 @@ describe("identity claim races", () => {
     expect([...snapshot.records.keys()].sort()).toEqual([local.slug, remote.slug].sort());
   });
 
-  it("collapses different-slug same-plan housekeep claimants to one stable dispatch", async () => {
-    const loser = housekeep("route-local", "3".repeat(32), "dispatch-local");
-    const winner = housekeep("route-remote", "4".repeat(32), "dispatch-remote");
+  it("refuses competing different-slug housekeep claimants", async () => {
+    const loser = housekeep("route-local", "3".repeat(32));
+    const winner = housekeep("route-remote", "4".repeat(32));
     await transactTransientIdentities(ioFor(dir), {
       remote: null,
       message: "write local routing claimant",
@@ -191,23 +186,15 @@ describe("identity claim races", () => {
 
     const outcome = await transactTransientIdentities(ioFor(dir), {
       remote: "origin",
-      message: "adopt routing winner",
+      message: "refuse competing routing claimant",
       transform: housekeepClaimTransform(loser),
-      resolveConflict: housekeepClaimConflictResolver(loser),
     });
-    if (outcome.kind === "error") throw new Error(`${outcome.stage}: ${outcome.message}`);
-    expect(outcome).toMatchObject({
-      kind: "applied",
-      value: { kind: "resume", record: { slug: winner.slug, dispatchId: winner.dispatchId } },
-    });
-    const snapshot = await readTransientIdentitySnapshot(ioFor(dir));
-    if (snapshot.kind !== "complete") throw new Error("expected complete identity snapshot");
-    expect([...snapshot.records.keys()]).toEqual([winner.slug]);
+    expect(outcome).toMatchObject({ kind: "refused" });
   });
 
-  it("adopts the published same-slug housekeep winner only for the validated plan", async () => {
-    const loser = housekeep("route-inbox", "6".repeat(32), "dispatch-local");
-    const winner = housekeep("route-inbox", "7".repeat(32), "dispatch-remote");
+  it("refuses a divergent same-slug housekeep write race", async () => {
+    const loser = housekeep("route-inbox", "6".repeat(32));
+    const winner = housekeep("route-inbox", "7".repeat(32));
     await transactTransientIdentities(ioFor(dir), {
       remote: null,
       message: "write same-slug local claimant",
@@ -222,12 +209,10 @@ describe("identity claim races", () => {
 
     await expect(transactTransientIdentities(ioFor(dir), {
       remote: "origin",
-      message: "adopt same-slug routing winner",
+      message: "refuse divergent same-slug routing winner",
       transform: housekeepClaimTransform(loser),
-      resolveConflict: housekeepClaimConflictResolver(loser),
     })).resolves.toMatchObject({
-      kind: "idempotent",
-      value: { kind: "resume", record: { claimId: winner.claimId, dispatchId: winner.dispatchId } },
+      kind: "refused",
     });
   });
 

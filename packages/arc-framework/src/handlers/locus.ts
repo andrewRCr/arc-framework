@@ -96,10 +96,10 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
           slug: key, protection: "full", base: common.base, identity, identityGlobalUserDir,
           activeExtensions: activeExtensions.active, postCreateScript: common.postCreateScript,
           registeredHarnessDirs: common.registeredHarnessDirs, exec: io.exec, execInput,
-          clearDispatch: async (record) => {
-            if (record.originEntry === null || record.dispatchId === null) return { kind: "idempotent" };
+          clearExecuteBound: async (record) => {
+            if (record.originEntry === null) return { kind: "idempotent" };
             const cleared = await unmarkCurrentInboxEntry({
-              cwd, io, identity, title: record.originEntry, dispatchId: record.dispatchId,
+              cwd, io, identity, title: record.originEntry,
             });
             return { kind: cleared.changed ? "applied" : "idempotent" };
           },

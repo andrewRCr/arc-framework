@@ -40,12 +40,12 @@ import {
   handleHousekeepClose,
   handleHousekeepAbandon,
   handleHousekeepOpen,
-  handleHousekeepPlan,
+  handleHousekeepMarkExecute,
   type HousekeepAbandonOptions,
   type HousekeepCheckOptions,
   type HousekeepCloseOptions,
   type HousekeepOpenOptions,
-  type HousekeepPlanOptions,
+  type HousekeepMarkExecuteOptions,
 } from "./handlers/housekeep.js";
 import {
   handleBaseDrift,
@@ -452,18 +452,14 @@ housekeep
   .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
 
 housekeep
-  .command("plan")
-  .description("Compile confirmed routing dispositions into an exact source-qualified plan")
-  .requiredOption("--intent-file <path>", "Judgment-only routing intent path, or - for stdin")
-  .requiredOption("--output <path>", "Destination for the canonical replayable plan")
-  .option("--json", "Emit the compiled plan path and digest as JSON")
-  .action((opts: HousekeepPlanOptions) => handleHousekeepPlan(opts));
+  .command("mark-execute <titles...>")
+  .description("Atomically mark confirmed inbox entries for execute-now follow-up")
+  .option("--json", "Emit the execute-bound mutation result")
+  .action((titles: string[], opts: HousekeepMarkExecuteOptions) => handleHousekeepMarkExecute(titles, opts));
 
 housekeep
   .command("open <slug>")
   .description("Open or exactly resume one confirmed housekeeping routing sweep")
-  .requiredOption("--plan-file <path>", "Complete canonical routing plan path, or - for stdin")
-  .requiredOption("--lane <lane>", "Strictest routing lane: auto | reviewed")
   .option("--json", "Emit the producer-validated locus mutation result")
   .action((slug: string, opts: HousekeepOpenOptions) => handleHousekeepOpen(slug, opts));
 

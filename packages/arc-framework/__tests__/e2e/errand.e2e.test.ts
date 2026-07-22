@@ -88,7 +88,6 @@ async function seedAwaitingV3Errand(cwd: string, slug: string): Promise<void> {
     branch: `chore/${slug}`,
     origin: "description",
     originEntry: null,
-    dispatchId: null,
     state: "awaiting-merge",
     savedHead: null,
     changeRequest: {
@@ -122,7 +121,6 @@ async function seedOpenV3Errand(cwd: string, slug: string): Promise<void> {
     branch,
     origin: "description",
     originEntry: null,
-    dispatchId: null,
     state: "open",
     savedHead: null,
     changeRequest: null,
@@ -554,7 +552,7 @@ describe("arc errand close", () => {
     await writeFile(
       inboxPath,
       "# User Inbox\n\n## Errand\n\n### `[ ]` **Broken capture**\n\n"
-        + "- _Disposition:_ `execute-bound`\n\n---\n",
+        + "- _Disposition:_ execute-bound\n\n---\n",
       "utf-8",
     );
     const malformed = await runArc([

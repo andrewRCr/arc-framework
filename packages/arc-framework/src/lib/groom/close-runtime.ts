@@ -213,8 +213,8 @@ function success(
   return createLocusMutationResult({
     outcome, operation: "plan-close", allocation: null, recordId: null, leaseId: null,
     activeLocusPath: null, sessionHomePath: restoredParent?.checkoutPath ?? null,
-    identity: record === null ? null : projectLocusIdentity(record), originEntry: null, dispatchId: null,
-    routingPlanDigest: null, restoredParent, nextOffer: null, recommendedPromptText: text,
+    identity: record === null ? null : projectLocusIdentity(record), originEntry: null,
+    restoredParent, nextOffer: null, recommendedPromptText: text,
   });
 }
 

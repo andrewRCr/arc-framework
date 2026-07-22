@@ -28,10 +28,9 @@ import type {
   LocusRowV1,
   LocusStateV1,
 } from "../locus/schema/index.js";
-import { listDispatchInboxEntries, mutateInboxEntries } from "../user-sync/inbox-writer.js";
 import { classifyHousekeepChangedPaths } from "./path-policy.js";
 import { exactHousekeepRow, exactPartialHousekeepRow, readHousekeepState } from "./open-runtime.js";
-import { resolveDispatchNextOffer, type DispatchNextOffer } from "./dispatch-offer.js";
+import { resolveExecutionNextOffer, type ExecutionNextOffer } from "./execution-offer.js";
 
 export interface HousekeepLifecycleRuntimeOptions {
   readonly slug: string;
@@ -60,7 +59,7 @@ export async function closeHousekeepAtRuntime(
       return success("housekeep-close", "idempotent", null, null, "Housekeeping occupancy is already closed.");
     }
     if (record.state !== "awaiting-merge") return refusal("checkout-missing", "Exact housekeeping occupancy is absent.");
-    const offer = await nextOffer(options, record.dispatchId, currentWorkUnitPath(runtime.state));
+    const offer = await nextOffer(options, currentWorkUnitPath(runtime.state));
     if (offer.kind === "refused") return refusal("identity-conflict", offer.reason);
     return success(
       "housekeep-close", "idempotent", record, null, "Housekeeping change request is awaiting merge.", offer.nextOffer,
@@ -74,7 +73,7 @@ export async function closeHousekeepAtRuntime(
     if (head !== record.changeRequest.headSha) {
       return refusal("preservation-unproven", "Housekeeping head moved after its review tail was preserved.");
     }
-    const offer = await nextOffer(options, record.dispatchId, row.role?.parentCheckoutPath ?? null);
+    const offer = await nextOffer(options, row.role?.parentCheckoutPath ?? null);
     if (offer.kind === "refused") return refusal("identity-conflict", offer.reason);
     const popped = await cleanupOccupancy(
       options, runtime.state, row, record, runtime.anchor, runtime.inspector, head,
@@ -94,9 +93,7 @@ export async function closeHousekeepAtRuntime(
     if (head !== pinned.head) {
       return refusal("preservation-unproven", "Partial housekeeping HEAD is not the freshly pushed base head.");
     }
-    const dispatchId = row.role?.dispatchId;
-    if (dispatchId === null || dispatchId === undefined) return refusal("record-malformed", "Partial dispatch is absent.");
-    const offer = await nextOffer(options, dispatchId, row.role?.parentCheckoutPath ?? null);
+    const offer = await nextOffer(options, row.role?.parentCheckoutPath ?? null);
     if (offer.kind === "refused") return refusal("identity-conflict", offer.reason);
     const popped = await cleanupOccupancy(options, runtime.state, row, null, runtime.anchor, runtime.inspector, head);
     if (popped.outcome === "refused" || popped.outcome === "error") return popped;
@@ -113,7 +110,7 @@ export async function closeHousekeepAtRuntime(
   }
   const observed = await observeOpenChangeRequest(options.io.exec, record.branch, options.base, head);
   if (observed.kind !== "observed") return refusal("change-request-unverifiable", observed.message);
-  const offer = await nextOffer(options, record.dispatchId, row.role?.parentCheckoutPath ?? null);
+  const offer = await nextOffer(options, row.role?.parentCheckoutPath ?? null);
   if (offer.kind === "refused") return refusal("identity-conflict", offer.reason);
   const persisted = await transactTransientIdentities(identityIO(options), {
     remote: "origin", message: `arc: close housekeep ${options.slug}`,
@@ -184,7 +181,6 @@ export async function settleHousekeepAtRuntime(
     );
     if (cleanup.outcome === "refused" || cleanup.outcome === "error") return cleanup;
   }
-  if (record.state === "open") await unbindDispatch(options, record.dispatchId);
   const pinned = await pinGroomOpenedBaseHead(options.io.exec, { remote: "origin", baseRef: options.base });
   if (pinned.kind !== "pinned") {
     return refusal("preservation-unproven", pinned.kind === "refused" ? pinned.reason : pinned.message, operation);
@@ -212,7 +208,7 @@ async function abandonPartialHousekeep(
   if (row === null) {
     return success("housekeep-abandon", "idempotent", null, null, "Partial housekeeping generation is already retired.");
   }
-  if (row.checkoutPath === null || row.role?.dispatchId === null || row.role?.dispatchId === undefined) {
+  if (row.checkoutPath === null || row.role === null) {
     return refusal("record-malformed", "Partial housekeeping occupancy is incomplete.", "housekeep-abandon");
   }
   const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: row.checkoutPath })).stdout;
@@ -228,7 +224,6 @@ async function abandonPartialHousekeep(
     options, runtime.state, row, null, runtime.anchor, runtime.inspector, head, "housekeep-abandon",
   );
   if (cleanup.outcome === "refused" || cleanup.outcome === "error") return cleanup;
-  await unbindDispatch(options, row.role.dispatchId);
   return success("housekeep-abandon", "applied", null, cleanup.restoredParent, "Partial housekeeping sweep abandoned.");
 }
 
@@ -325,24 +320,14 @@ async function changedPaths(
   return output.split("\0").filter((path) => path !== "");
 }
 
-async function unbindDispatch(options: HousekeepLifecycleRuntimeOptions, dispatchId: string): Promise<void> {
-  await withLockedUserInbox(options, ({ content }) => {
-    if (content === null) throw new Error("USER-INBOX is missing");
-    const entries = listDispatchInboxEntries(content, dispatchId);
-    const result = mutateInboxEntries(content, entries.map((entry) => ({ kind: "unmark" as const, ...entry })));
-    return { result: undefined, ...(result.changed ? { replacement: result.content } : {}) };
-  });
-}
-
 async function nextOffer(
   options: HousekeepLifecycleRuntimeOptions,
-  dispatchId: string,
   parentCheckoutPath: string | null,
-): Promise<ReturnType<typeof resolveDispatchNextOffer>> {
+): Promise<ReturnType<typeof resolveExecutionNextOffer>> {
   const transaction = await withLockedUserInbox(options, ({ content }) => ({
     result: content === null
       ? { kind: "refused" as const, reason: "USER-INBOX is missing." }
-      : resolveDispatchNextOffer({ content, dispatchId, completedTitle: null, parentCheckoutPath }),
+      : resolveExecutionNextOffer({ content, completedTitle: null, parentCheckoutPath }),
   }));
   return transaction.result;
 }
@@ -424,13 +409,12 @@ function success(
   record: HousekeepIdentityRecord | null,
   restoredParent: { recordId: string; checkoutPath: string } | null,
   text: string,
-  nextOffer: DispatchNextOffer = null,
+  nextOffer: ExecutionNextOffer = null,
 ): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome, operation, allocation: null, recordId: null, leaseId: null,
     activeLocusPath: null, sessionHomePath: restoredParent?.checkoutPath ?? null,
     identity: record === null ? null : projectLocusIdentity(record), originEntry: null,
-    dispatchId: record?.dispatchId ?? null, routingPlanDigest: record?.routingPlanDigest ?? null,
     restoredParent, nextOffer, recommendedPromptText: text,
   });
 }

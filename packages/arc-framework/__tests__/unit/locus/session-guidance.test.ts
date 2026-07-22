@@ -50,7 +50,7 @@ describe("deriveLocusSessionGuidance", () => {
       identity: {
         kind: "errand", key: "review", claimId: "c".repeat(32), protection: "full",
         branch: "chore/review", purpose: "errand", origin: "description", originEntry: null,
-        dispatchId: null, state: "awaiting-merge", savedHead: null,
+        state: "awaiting-merge", savedHead: null,
         changeRequest: {
           repositoryRef: "owner/repo", hostRef: "github", baseRef: "main", headRef: "chore/review",
           headSha: "a".repeat(40),

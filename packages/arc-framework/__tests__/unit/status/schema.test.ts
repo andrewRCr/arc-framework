@@ -382,7 +382,7 @@ describe("deep advisory routing views", () => {
       materializable: {
         candidates: [{
           slug: "legacy-title", claimId: "c".repeat(32), branch: "chore/legacy",
-          expectedHead: "a".repeat(40), state: "paused", originEntry: null, dispatchId: null,
+          expectedHead: "a".repeat(40), state: "paused", originEntry: null,
         }],
       },
       nudge: { shouldNudge: true, markerPath: "kept" },
@@ -395,7 +395,7 @@ describe("deep advisory routing views", () => {
         materializable: {
           candidates: [{
             slug: "", claimId: "c".repeat(32), branch: "chore/legacy",
-            expectedHead: "a".repeat(40), state: "paused", originEntry: null, dispatchId: null,
+            expectedHead: "a".repeat(40), state: "paused", originEntry: null,
           }],
         },
       }).success,

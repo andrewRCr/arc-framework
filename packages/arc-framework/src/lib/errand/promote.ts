@@ -136,8 +136,6 @@ function success(
     sessionHomePath: frame.checkoutPath,
     identity: null,
     originEntry: record?.originEntry ?? null,
-    dispatchId: record?.dispatchId ?? null,
-    routingPlanDigest: null,
     restoredParent: null,
     nextOffer: null,
     recommendedPromptText: `Promoted Errand '${slug}' to '${frame.branch}' and made its checkout the work-unit session home.`,

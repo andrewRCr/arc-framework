@@ -356,7 +356,6 @@ async function resumeDeadAtRuntime(
       recordId: row.recordId, leaseId: resumed.record.lease?.leaseId ?? null,
       activeLocusPath: row.checkoutPath, sessionHomePath: row.checkoutPath,
       identity: row.identity, originEntry: row.role?.originEntry ?? null,
-      dispatchId: row.role?.dispatchId ?? null, routingPlanDigest: row.role?.routingPlanDigest ?? null,
       restoredParent: null, nextOffer: null,
       recommendedPromptText: `Resumed the exact dead transient generation at ${row.checkoutPath}.`,
     });
@@ -422,7 +421,6 @@ function success(
     activeLocusPath: operation === "locus-attach" ? row.checkoutPath : null,
     sessionHomePath: operation === "locus-attach" ? row.checkoutPath : null,
     identity: row.identity, originEntry: row.role?.originEntry ?? null,
-    dispatchId: row.role?.dispatchId ?? null, routingPlanDigest: row.role?.routingPlanDigest ?? null,
     restoredParent: null, nextOffer: null,
     recommendedPromptText: operation === "locus-attach"
       ? `Attached the entering session to ${row.checkoutPath}.`

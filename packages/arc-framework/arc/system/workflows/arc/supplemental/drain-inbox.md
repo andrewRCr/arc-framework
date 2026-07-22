@@ -1,5 +1,5 @@
 ---
-purpose: Drain the personal capture inbox to authoritative homes via a gated, phased pass — classify with no writes, confirm the routing plan, route to homes, and hand committed atomic execution to run-errand, leaving no un-triaged entries.
+purpose: Drain the personal capture inbox to authoritative homes via a gated pass that confirms routes before writing and hands committed atomic execution to run-errand.
 audience: agent
 ---
 
@@ -7,7 +7,7 @@ audience: agent
 
 Routing body for the `arc-housekeep` skill, and the shared logic the `session-handoff` between-WUs path
 dispatches — one workflow, two doors. It reads the personal capture inbox (`USER-INBOX`) and, in a **gated,
-phased** pass, classifies each entry, **confirms the routing plan before any write**, routes every entry to its
+phased** pass, classifies each entry, **confirms the routing proposal before any write**, routes every entry to its
 authoritative home, and hands any committed atomic execution to `run-errand` — leaving `USER-INBOX` with **no
 un-triaged entries**.
 
@@ -18,7 +18,7 @@ atomic is handed to the [`run-errand`][run-errand] lifecycle as an explicit, opt
 [DEV-RULES.ARC § Discovered Work Routing][dev-rules-arc] for the capture-vs-execution boundary this mechanism
 enforces.
 
-**Mode/tier-agnostic spine.** The routing plan and judgment do not vary by protection mode or tier. The open/close
+**Mode/tier-agnostic spine.** The routing judgment does not vary by protection mode or tier. The open/close
 verbs own mode-specific allocation and settlement; the workflow consumes their typed paths and results.
 
 ## When This Workflow Applies
@@ -31,7 +31,7 @@ verbs own mode-specific allocation and settlement; the workflow consumes their t
 ## Entry
 
 Housekeeping may enter between WUs or warm from a WU. Do not relocate or select a write branch before the routing
-plan is confirmed: `arc housekeep open` owns protection-aware allocation and preserves the optional WU parent.
+proposal is confirmed: `arc housekeep open` owns protection-aware allocation and preserves the optional WU parent.
 Read-only classification and overlap checks may run from the current frame. Let captures accumulate before a
 mid-WU sweep rather than thrashing the drain per item.
 
@@ -50,7 +50,7 @@ These are the entries to route; the shared inbox (`ATOMIC-INBOX`) is a _destinat
 
 Classify every entry against the **logical model** — _entry · character · home_ — not its markdown shape, so a
 later structured-record swap leaves the routing intact. This pass **makes no writes**; it produces the routing
-plan the interlock (§ 3) confirms. Resolve, per entry:
+proposal the interlock (§ 3) confirms. Resolve, per entry:
 
 - **Verify before routing.** A capture may already be **done or obsolete** — resolved inline by a later commit,
   or by the host WU itself. Confirm against the current tree before proposing a route; a resolved capture is
@@ -86,7 +86,7 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
 - **Atomic disposition.** For each atomic, propose **execute-now**, **defer**, or **retain** (the escape-hatch) —
   acted on in § 5 / § 7.
 - **Destination-path overlap (advisory).** After destinations resolve and **before** the § 3 confirmation
-  interlock, collect the write paths the plan will touch (stub drafts / notes, shared inbox, errand targets when
+  interlock, collect the write paths the proposal will touch (stub drafts / notes, shared inbox, errand targets when
   execute-now). Run the existing overlap read over those paths:
 
   ```bash
@@ -94,49 +94,50 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
   ```
 
   Apply [`assess-parallel-fit`][assess-parallel-fit] (overlap read only — no design-load). Include any shared-
-  surface advisory in the routing plan presented at § 3 so sequencing and coordination are visible **before**
+  surface advisory in the routing proposal presented at § 3 so sequencing and coordination are visible **before**
   edits land. **Non-gating:** never block the drain on overlap; surface and let the operator reorder, retain, or
   proceed. Do not build a second overlap oracle.
 
 ### 3. Confirmation interlock
 
 > [!IMPORTANT]
-> Stop. Present the **full routing plan** — every entry's proposed route, the groupings, new-stub commitment levels,
+> Stop. Present the **full routing proposal** — every entry's proposed route, the groupings, new-stub commitment
+> levels,
 > in-flight owner-adoption handoffs, atomic dispositions, any destination-path overlap advisories from § 2, and
-> the chunk plan (§ 4) if the sweep is large — and await explicit confirmation. **The drain makes no write before
+> the batch shape (§ 4) if the sweep is large — and await explicit confirmation. **The drain makes no write before
 > this gate.**
 
 The user may adjust any proposal: regroup, change a commitment level, flip an atomic between execute-now / defer /
-retain, or **retain** an entry that would otherwise route. Routing (§ 5) proceeds only on the confirmed plan.
+retain, or **retain** an entry that would otherwise route. Routing (§ 5) proceeds only on the confirmed proposal.
 
-After confirmation, save a judgment-only intent containing every entry's title and confirmed disposition plus any
-destination/commitment fields. Compile it against the current inbox generations:
-
-```bash
-arc housekeep plan --intent-file <intent-path> --output <canonical-plan-path> --json
-```
-
-Use the returned `planPath` and `routingPlanDigest` without recomputing either. Select the sweep's strictest lane:
-`reviewed` if any confirmed write needs owner review, otherwise `auto`. Then establish occupancy before any routing
-write or visible execute binding:
+After confirmation, establish the one routing occupancy before any routing write or visible execute marking:
 
 ```bash
-arc housekeep open <sweep-slug> --plan-file <canonical-plan-path> --lane <auto|reviewed> --json
+arc housekeep open <sweep-slug> --json
 ```
 
-On `applied` / `idempotent`, require the returned digest to match the compiler result, render
-`recommendedPromptText`, and route only from `activeLocusPath`; retain `sessionHomePath` and exact IDs. A retry
-re-supplies the same canonical plan file and lane—never reconstruct a partial plan from visible dispatch marks.
-When the rendered text asks for directed-command confirmation, confirm the current session can run there; otherwise
-recommend a cold session at that checkout and stop before routing.
-On `refused` / `error`, render the supplied text and stop.
+On `applied` / `idempotent`, render `recommendedPromptText`, route only from `activeLocusPath`, and retain
+`sessionHomePath` plus exact IDs. A retry opens the same slug and re-confirms the remaining live inbox entries
+before further writes. When the rendered text asks for directed-command confirmation, confirm the current session
+can run there; otherwise recommend a cold session at that checkout and stop before routing. On `refused` / `error`,
+render the supplied text and stop.
+
+When the confirmed proposal contains execute-now entries, mark the complete selected title set in one operation:
+
+```bash
+arc housekeep mark-execute "<title>"... --json
+```
+
+The verb revalidates every title under one notes lock and writes all markings through one atomic replacement. A
+failure leaves the occupancy and inbox evidence visible for explicit retry or abandonment; never mark entries one
+at a time.
 
 ### 4. Chunk if the sweep is large
 
-Default a single routing batch. When the confirmed plan exceeds **one reviewable batch**, chunk by
-**concern-coherence + review-reachability** — split only when one unit would exceed a reviewer's reach. The chunk
-shape follows protection mode (§ 5): under full, one auto-merge PR per lane; under partial, coherent commit
-boundaries (there are no routing PRs to chunk). Surface the chunk plan at the interlock; never silently truncate.
+Default a single routing increment. When the confirmed proposal exceeds **one reviewable increment**, chunk by
+**concern-coherence + review-reachability** — split only when one unit would exceed a reviewer's reach. Under full
+protection, ordered commits and review passes stay inside the sweep's one branch and PR; under partial protection,
+use coherent commit boundaries. Surface the batch shape at the interlock; never silently truncate.
 
 ### 5. Route — write to homes
 
@@ -177,36 +178,37 @@ routing write.
   count toward `inboxState.housekeepNeeded`, and the reminder sweep keeps it from rotting.
 - **Execute-now atomic** — held aside here; executed in § 7, not written by the drain.
 
-Perform every routing write from the returned active locus. The complete plan is one routing generation and uses
-its one strictest lane; chunking changes commit/review increments, not the claim, dispatch ID, or plan digest. Full
-mode ships the pure-routing diff in one PR for that lane (lean Summary plus the confirmed routing plan); partial
-mode pushes the direct-base commits. Never open an Errand branch for routing or split foreign-owner writes into a
-second sweep generation.
+Perform every routing write from the returned active locus. The confirmed sweep is one routing generation;
+chunking changes only commit/review increments. Full mode ships the pure-routing diff in one PR. At close, classify
+its lane from the routes actually landed (`reviewed` if any write needs owner review, otherwise `auto`). Partial mode
+pushes the direct-base commits. Never open an Errand branch for routing or split foreign-owner writes into a second
+sweep generation.
 
 > [!IMPORTANT]
 > `integration-interlock`: Under full protection, stop before arming auto-merge or merging the routing PR. Surface
-> checks and the resolved lane; await explicit integration approval. The routing confirmation did not approve merge.
+> checks and the close-derived lane; await explicit integration approval. Routing confirmation did not approve merge.
 
 ### 6. Close routing occupancy
 
 After the routing commits are pushed and any full-mode PR is open, invoke
-`arc housekeep close <sweep-slug> --json`. The verb validates the exact canonical plan, pure-routing write set,
-pushed partial base or full review tail, then closes only this routing occupancy. Render its text and consume
+`arc housekeep close <sweep-slug> --json`. The verb validates the pure-routing write set and the pushed partial base
+or full review tail, then closes only this routing occupancy. Render its text and consume
 `restoredParent`, `sessionHomePath`, and `nextOffer`. A full awaiting-merge identity may be finalized later by
 replaying the same close after merge; sibling execution does not wait for that tail. On explicit abandonment, use
-`arc housekeep abandon <sweep-slug> --json`; never clear dispatch marks or locus records by hand.
+`arc housekeep abandon <sweep-slug> --json`. Abandonment preserves execute-bound markings as the next session's
+recovery trail; never clear markings or locus records by hand.
 
 ### 7. Execution transition — exact next-offers → `run-errand`
 
 Only after housekeeping occupancy closes, offer the returned `nextOffer`. On acceptance, open that exact sibling
-through [`run-errand`][run-errand] using its `key`, `dispatchId`, and `parentCheckoutPath`; do not rescan the inbox or
-invent another sibling. Each completed Errand returns the next dispatch-qualified offer, producing a sequential
-chain. On decline or insufficient context budget, leave the remaining execute-bound entries in place for a fresh
-session; their visible dispatch generation plus session-init recovery owns continuation.
+through [`run-errand`][run-errand] using its `key` and `parentCheckoutPath`; do not invent another sibling. Each
+completed Errand returns the next well-formed execute-bound entry in file order, producing a sequential chain. On
+decline or insufficient context budget, leave the remaining execute-bound entries in place for a fresh session;
+their visible markings plus the inbox-state projection own continuation.
 
 Each execute-bound capture remains the Errand's originating entry until that Errand completes. Full-mode async
 review tails and unattended merges therefore leave the line legitimately present; exact close/finalize replay is
-the idempotent removal backstop. Abandonment retains the capture and clears only its dispatch binding.
+the idempotent removal backstop. Errand abandonment retains the capture and clears only that entry's marking.
 
 ### 8. Confirm the drain is complete
 

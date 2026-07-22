@@ -24,7 +24,6 @@ function record(): OrdinaryErrandRecord {
     branch: "chore/growing",
     origin: "inbox",
     originEntry: "Grow this concern",
-    dispatchId: "dispatch-1",
     state: "open",
     savedHead: null,
     changeRequest: null,

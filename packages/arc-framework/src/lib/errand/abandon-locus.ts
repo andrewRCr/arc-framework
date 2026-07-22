@@ -25,7 +25,7 @@ export interface AbandonOrdinaryErrandDependencies {
   readIdentity(): Promise<IdentityRead>;
   cleanupResidue(record: OrdinaryErrandRecord): Promise<AbandonStepResult>;
   readLifecycle(record: OrdinaryErrandRecord): Promise<ChangeRequestLifecycleEvidence>;
-  clearDispatch(record: OrdinaryErrandRecord): Promise<AbandonStepResult>;
+  clearExecuteBound(record: OrdinaryErrandRecord): Promise<AbandonStepResult>;
   retire(record: OrdinaryErrandRecord, lifecycle: ChangeRequestLifecycleEvidence | null): Promise<RetirementResult>;
 }
 
@@ -80,8 +80,8 @@ export async function abandonOrdinaryErrand(
 
   const cleanup = await runStep("locus.errand-abandon.cleanup", () => options.dependencies.cleanupResidue(record));
   if ("result" in cleanup) return cleanup.result;
-  const dispatch = await runStep("locus.errand-abandon.inbox", () => options.dependencies.clearDispatch(record));
-  if ("result" in dispatch) return dispatch.result;
+  const inbox = await runStep("locus.errand-abandon.inbox", () => options.dependencies.clearExecuteBound(record));
+  if ("result" in inbox) return inbox.result;
 
   let retired: RetirementResult;
   try {
@@ -92,7 +92,7 @@ export async function abandonOrdinaryErrand(
   if (retired.kind === "refused") return refusal("identity-conflict", retired.reason);
   if (retired.kind === "error") return failure("locus.errand-abandon.identity", retired.message);
 
-  const outcome = cleanup.step.kind === "applied" || dispatch.step.kind === "applied" || retired.kind === "applied"
+  const outcome = cleanup.step.kind === "applied" || inbox.step.kind === "applied" || retired.kind === "applied"
     ? "applied"
     : "idempotent";
   return createLocusMutationResult({
@@ -105,8 +105,6 @@ export async function abandonOrdinaryErrand(
     sessionHomePath: null,
     identity: null,
     originEntry: record.originEntry,
-    dispatchId: record.dispatchId,
-    routingPlanDigest: null,
     restoredParent: null,
     nextOffer: null,
     recommendedPromptText: `Abandoned Errand '${slug}', retained its capture, and retired its identity.`,
@@ -146,8 +144,8 @@ function sameChangeRequest(evidence: ChangeRequestLifecycleEvidence, record: Ord
 function alreadyAbandoned(slug: string): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome: "idempotent", operation: "errand-abandon", allocation: null, recordId: null, leaseId: null,
-    activeLocusPath: null, sessionHomePath: null, identity: null, originEntry: null, dispatchId: null,
-    routingPlanDigest: null, restoredParent: null, nextOffer: null,
+    activeLocusPath: null, sessionHomePath: null, identity: null, originEntry: null,
+    restoredParent: null, nextOffer: null,
     recommendedPromptText: `Errand '${slug}' is already abandoned.`,
   });
 }

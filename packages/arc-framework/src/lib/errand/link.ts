@@ -61,17 +61,12 @@ export async function linkOrdinaryErrand(
   if (record.origin === "inbox" && record.originEntry !== options.inbox.title) {
     return linkRefusal("inbox-link-conflict", `Errand '${slug}' is already linked to another inbox capture.`);
   }
-  if (record.origin === "inbox" && record.dispatchId !== options.inbox.dispatchId) {
-    return linkRefusal("dispatch-conflict", `Errand '${slug}' is linked to another dispatch generation.`);
-  }
-
   let outcome: IdentityTransactionOutcome<OrdinaryErrandRecord | null>;
   try {
     outcome = await options.dependencies.transact({
       kind: "link",
       previous: record,
       originEntry: options.inbox.title,
-      dispatchId: options.inbox.dispatchId,
       updatedAt: options.updatedAt,
     });
   } catch (error) {
@@ -90,8 +85,6 @@ export async function linkOrdinaryErrand(
     sessionHomePath: null,
     identity: projectLocusIdentity(outcome.value),
     originEntry: outcome.value.originEntry,
-    dispatchId: outcome.value.dispatchId,
-    routingPlanDigest: null,
     restoredParent: null,
     nextOffer: null,
     recommendedPromptText: outcome.kind === "applied"
@@ -101,7 +94,7 @@ export async function linkOrdinaryErrand(
 }
 
 function linkRefusal(
-  reason: "identity-conflict" | "inbox-link-conflict" | "dispatch-conflict",
+  reason: "identity-conflict" | "inbox-link-conflict",
   message: string,
 ): LocusMutationResultV1 {
   return createLocusMutationResult({

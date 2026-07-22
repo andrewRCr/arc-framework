@@ -13,7 +13,6 @@ import {
 
 const timestamp = "2026-07-18T00:00:00.000Z";
 const claimId = "0123456789abcdef0123456789abcdef";
-const digest = `sha256:${"a".repeat(64)}`;
 const head = "a".repeat(40);
 const changeRequest = {
   repositoryRef: "owner/repo",
@@ -32,7 +31,6 @@ function ordinary(overrides: Record<string, unknown> = {}): unknown {
     purpose: "errand",
     origin: "description",
     originEntry: null,
-    dispatchId: null,
     intent: "Fix output",
     branch: "chore/fix-output",
     state: "open",
@@ -50,7 +48,7 @@ describe("v3 transient identity records", () => {
       ordinary(),
       ordinary({ state: "paused", savedHead: head }),
       ordinary({ state: "awaiting-merge", changeRequest }),
-      ordinary({ origin: "inbox", originEntry: "Fix output", dispatchId: "dispatch-1" }),
+      ordinary({ origin: "inbox", originEntry: "Fix output" }),
     ];
     for (const value of values) {
       const parsed = TransientIdentityRecordSchema.parse(value);
@@ -63,8 +61,7 @@ describe("v3 transient identity records", () => {
     const values: unknown[] = [
       {
         version: 3, kind: "errand", slug: "inbox-drain", claimId, purpose: "housekeep-routing",
-        branch: "chore/inbox-drain", routingLane: "reviewed", dispatchId: "dispatch-1",
-        routingPlanDigest: digest, state: "open", savedHead: null, changeRequest: null,
+        branch: "chore/inbox-drain", state: "open", savedHead: null, changeRequest: null,
         createdAt: timestamp, updatedAt: timestamp,
       },
       {
@@ -91,6 +88,12 @@ describe("v3 transient identity records", () => {
       ordinary({ createdAt: "yesterday" }),
       ordinary({ updatedAt: "2026-07-17T00:00:00.000Z" }),
       ordinary({ state: "awaiting-merge", changeRequest: { ...changeRequest, headRef: "chore/other" } }),
+      ordinary({ dispatchId: "legacy" }),
+      {
+        version: 3, kind: "errand", slug: "inbox-drain", claimId, purpose: "housekeep-routing",
+        branch: "chore/inbox-drain", dispatchId: "legacy", state: "open", savedHead: null, changeRequest: null,
+        createdAt: timestamp, updatedAt: timestamp,
+      },
       {
         version: 3, kind: "groom", slug: "groom-alpha", claimId, anchorStub: "alpha",
         members: ["beta", "alpha"], openedBaseHead: head, protection: "partial", branch: null,

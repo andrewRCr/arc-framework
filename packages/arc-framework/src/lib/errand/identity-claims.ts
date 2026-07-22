@@ -1,7 +1,5 @@
 /** Complete-basis first-writer claims for transient grooming and housekeeping identities. */
 
-import { randomUUID } from "node:crypto";
-
 import {
   TransientIdentityRecordV3Schema,
   serializeTransientIdentityRecord,
@@ -92,11 +90,6 @@ export type PinGroomOpenedBaseHeadOutcome =
   | { kind: "pinned"; head: string }
   | { kind: "refused"; reason: string }
   | { kind: "error"; stage: "base-ref" | "fetch" | "resolve" | "cleanup"; message: string };
-
-/** Mint an opaque dispatch generation for a housekeeping routing claim. */
-export function mintHousekeepDispatchId(): string {
-  return randomUUID();
-}
 
 /**
  * Fetch and pin the configured remote base before a grooming claim transform runs.
@@ -348,7 +341,7 @@ export function housekeepAwaitMergeTransform(request: HousekeepAwaitMergeRequest
 /**
  * Build a global first-writer housekeeping routing claim over a complete identity basis.
  *
- * @param candidate - Fresh open claim with a minted dispatch and validated plan digest.
+ * @param candidate - Fresh open routing claim.
  * @returns A complete-basis transaction transform.
  */
 export function housekeepClaimTransform(candidate: HousekeepIdentityRecord) {
@@ -360,46 +353,28 @@ export function housekeepClaimTransform(candidate: HousekeepIdentityRecord) {
       return { kind: "refused", reason: "A housekeeping claim must be a valid open routing identity" };
     }
     const occupied = basis.get(candidate.slug);
+    const routingRecords = [...basis.values()].filter(isHousekeep);
     if (occupied !== undefined && !isHousekeep(occupied)) {
       return { kind: "refused", reason: `Identity '${candidate.slug}' is already occupied` };
     }
-    const routingRecords = [...basis.values()].filter(isHousekeep);
-    if (routingRecords.length > 1) {
-      const own = routingRecords.find((record) => sameRecord(record, candidate));
-      const winners = routingRecords.filter((record) => record !== own);
-      const [winner] = winners;
-      if (own === undefined || winner === undefined || winners.length !== 1) {
+    if (occupied !== undefined) {
+      if (routingRecords.some((record) => record.slug !== candidate.slug)) {
         return { kind: "refused", reason: "Multiple live housekeeping routing identities already exist" };
       }
-      return adoptHousekeepWinner(basis, candidate, winner, true);
+      return {
+        kind: "idempotent",
+        value: { kind: occupied.state === "open" ? "resume" : "wait", record: occupied },
+      };
     }
-    const winner = routingRecords[0];
-    if (winner !== undefined) {
-      return adoptHousekeepWinner(basis, candidate, winner, false);
+    if (routingRecords.length > 0) {
+      const [winner] = routingRecords;
+      return routingRecords.length === 1 && winner !== undefined
+        ? { kind: "refused", reason: `Live housekeeping routing identity '${winner.slug}' already exists` }
+        : { kind: "refused", reason: "Multiple live housekeeping routing identities already exist" };
     }
     const records = new Map(basis);
     records.set(candidate.slug, candidate);
     return { kind: "applied", records, value: { kind: "claimed", record: candidate } };
-  };
-}
-
-/**
- * Resolve only a same-key, same-plan housekeeping race by adopting the remote first writer.
- *
- * @param candidate - This claimant's fresh generation and validated plan digest.
- * @returns A resolver suitable for the complete-basis transaction.
- */
-export function housekeepClaimConflictResolver(candidate: HousekeepIdentityRecord): IdentityConflictResolver {
-  return ({ key, local, remote }) => {
-    if (key === candidate.slug
-      && local !== undefined && remote !== undefined
-      && isHousekeep(local) && isHousekeep(remote)
-      && sameRecord(local, candidate)
-      && local.routingPlanDigest === candidate.routingPlanDigest
-      && remote.routingPlanDigest === candidate.routingPlanDigest) {
-      return { kind: "select-remote" };
-    }
-    return { kind: "refused", reason: `Divergent identity key cannot be adopted: ${key}` };
   };
 }
 
@@ -449,40 +424,6 @@ export async function rollbackIdentityClaim(
     actions: ["resume", "abandon"],
     cause: outcome,
   };
-}
-
-function adoptHousekeepWinner(
-  basis: ReadonlyMap<string, TransientIdentityRecord>,
-  candidate: HousekeepIdentityRecord,
-  winner: HousekeepIdentityRecord,
-  removeCandidate: boolean,
-): IdentityTransformDecision<HousekeepClaimVerdict> {
-  if (winner.routingPlanDigest !== candidate.routingPlanDigest) {
-    return { kind: "refused", reason: "The live housekeeping routing identity has a different plan digest" };
-  }
-  const verdictKind = winner.state === "open" ? "resume" : "wait";
-  let adopted = winner;
-  let changed = removeCandidate;
-  if (winner.state === "open" && candidate.routingLane === "reviewed" && winner.routingLane === "auto") {
-    if (Date.parse(candidate.updatedAt) <= Date.parse(winner.updatedAt)) {
-      return { kind: "refused", reason: "Routing-lane escalation must advance updatedAt" };
-    }
-    const escalated = TransientIdentityRecordV3Schema.parse({
-      ...winner,
-      routingLane: "reviewed",
-      updatedAt: candidate.updatedAt,
-    });
-    if (!isHousekeep(escalated)) {
-      return { kind: "refused", reason: "Routing-lane escalation produced an invalid identity" };
-    }
-    adopted = escalated;
-    changed = true;
-  }
-  if (!changed) return { kind: "idempotent", value: { kind: verdictKind, record: adopted } };
-  const records = new Map(basis);
-  if (removeCandidate) records.delete(candidate.slug);
-  records.set(winner.slug, adopted);
-  return { kind: "applied", records, value: { kind: verdictKind, record: adopted } };
 }
 
 function isGroom(record: TransientIdentityRecord): record is GroomIdentityRecord {

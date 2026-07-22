@@ -7,7 +7,6 @@ import { z } from "zod";
 import { SlugSchema } from "../kernel/index.js";
 import {
   LocusChangeRequestV1Schema,
-  LocusDigestSchema,
   LocusGitOidSchema,
   LocusIdentityV1Schema,
   LocusOpaqueTextSchema,
@@ -52,12 +51,10 @@ const OrdinaryBaseShape = {
 const DescriptionOriginShape = {
   origin: z.literal("description"),
   originEntry: z.null(),
-  dispatchId: z.null(),
 };
 const InboxOriginShape = {
   origin: z.literal("inbox"),
   originEntry: LocusOpaqueTextSchema,
-  dispatchId: LocusOpaqueTextSchema.nullable(),
 };
 const OpenStateShape = { state: z.literal("open"), savedHead: z.null(), changeRequest: z.null() };
 const PausedStateShape = { state: z.literal("paused"), savedHead: LocusGitOidSchema, changeRequest: z.null() };
@@ -80,9 +77,6 @@ const RoutingBaseShape = {
   kind: z.literal("errand"),
   purpose: z.literal("housekeep-routing"),
   branch: LocusOpaqueTextSchema,
-  routingLane: z.enum(["auto", "reviewed"]),
-  dispatchId: LocusOpaqueTextSchema,
-  routingPlanDigest: LocusDigestSchema,
 };
 const routingSchemas = [
   z.strictObject({ ...RoutingBaseShape, ...OpenStateShape }),
@@ -248,9 +242,6 @@ export function projectLocusIdentity(record: TransientIdentityRecordV3): LocusId
       protection: "full",
       branch: record.branch,
       purpose: record.purpose,
-      routingLane: record.routingLane,
-      dispatchId: record.dispatchId,
-      routingPlanDigest: record.routingPlanDigest,
       state: record.state,
       savedHead: null,
       changeRequest: record.changeRequest,
@@ -265,7 +256,6 @@ export function projectLocusIdentity(record: TransientIdentityRecordV3): LocusId
     purpose: record.purpose,
     origin: record.origin,
     originEntry: record.originEntry,
-    dispatchId: record.dispatchId,
     state: record.state,
     savedHead: record.savedHead,
     changeRequest: record.changeRequest,

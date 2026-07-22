@@ -23,7 +23,6 @@ const record = serializeTransientIdentityRecord(TransientIdentityRecordV3Schema.
   purpose: "errand",
   origin: "description",
   originEntry: null,
-  dispatchId: null,
   intent: "Fix output",
   branch: "chore/fix-output",
   state: "open",

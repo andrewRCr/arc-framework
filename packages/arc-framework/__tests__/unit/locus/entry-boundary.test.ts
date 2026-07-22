@@ -18,8 +18,6 @@ const SUCCESS: LocusMutationResultV1 = {
   sessionHomePath: "/work/session-home",
   identity: null,
   originEntry: null,
-  dispatchId: null,
-  routingPlanDigest: null,
   restoredParent: null,
   nextOffer: null,
   recommendedPromptText: "Continue in /work/transient.",

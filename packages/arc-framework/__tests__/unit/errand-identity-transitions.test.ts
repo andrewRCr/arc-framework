@@ -38,7 +38,6 @@ function open(overrides: Record<string, unknown> = {}): OrdinaryErrandRecord {
     purpose: "errand",
     origin: "description",
     originEntry: null,
-    dispatchId: null,
     intent: "Fix output",
     branch: "chore/fix-output",
     state: "open",
@@ -90,23 +89,21 @@ describe("ordinary Errand identity transitions", () => {
       kind: "link",
       previous,
       originEntry: "Fix output capture",
-      dispatchId: "dispatch-1",
       updatedAt,
     });
     expect(decision).toMatchObject({
       kind: "applied",
-      value: { origin: "inbox", originEntry: "Fix output capture", dispatchId: "dispatch-1", claimId },
+      value: { origin: "inbox", originEntry: "Fix output capture", claimId },
     });
     if (decision.kind !== "applied") throw new Error("expected applied link");
     expect(apply(decision.records, {
       kind: "link",
       previous,
       originEntry: "Fix output capture",
-      dispatchId: "dispatch-1",
       updatedAt,
     })).toMatchObject({ kind: "idempotent" });
-    expect(apply(new Map([[previous.slug, open({ origin: "inbox", originEntry: "other", dispatchId: null })]]), {
-      kind: "link", previous, originEntry: "Fix output capture", dispatchId: null, updatedAt,
+    expect(apply(new Map([[previous.slug, open({ origin: "inbox", originEntry: "other" })]]), {
+      kind: "link", previous, originEntry: "Fix output capture", updatedAt,
     })).toMatchObject({ kind: "refused" });
   });
 
@@ -114,7 +111,6 @@ describe("ordinary Errand identity transitions", () => {
     const previous = open({
       origin: "inbox",
       originEntry: "Fix output capture",
-      dispatchId: "dispatch-1",
       updatedAt,
     });
 
@@ -122,7 +118,6 @@ describe("ordinary Errand identity transitions", () => {
       kind: "link",
       previous,
       originEntry: "Fix output capture",
-      dispatchId: "dispatch-1",
       updatedAt: "2026-07-18T00:02:00.000Z",
     })).toMatchObject({ kind: "idempotent", value: previous });
   });

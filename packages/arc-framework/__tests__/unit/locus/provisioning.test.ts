@@ -29,7 +29,6 @@ const identity: LocusIdentityV1 = {
   purpose: "errand",
   origin: "description",
   originEntry: null,
-  dispatchId: null,
   state: "open",
   savedHead: null,
   changeRequest: null,
@@ -304,9 +303,7 @@ describe("provisionTransientLocus", () => {
         subject: { kind: "errand", key: "demo", claimId: "d".repeat(32) },
         establishedAt: "2026-07-19T00:00:00.000Z",
         parentCheckoutPath: null,
-        dispatchId: null,
         originEntry: null,
-        routingPlanDigest: null,
       },
       lease: null,
     } satisfies LocusRecordV1;
@@ -466,9 +463,6 @@ describe("provisionTransientLocus", () => {
       authority: {
         kind: "partial-housekeep",
         key: "inbox-drain",
-        originEntry: null,
-        dispatchId: "dispatch-1",
-        routingPlanDigest: `sha256:${"9".repeat(64)}`,
       },
       branch: null,
     }));
@@ -484,7 +478,6 @@ describe("provisionTransientLocus", () => {
     expect(harness.record()?.role).toMatchObject({
       kind: "housekeep",
       subject: { kind: "housekeep", key: "inbox-drain", claimId: null },
-      dispatchId: "dispatch-1",
     });
   });
 

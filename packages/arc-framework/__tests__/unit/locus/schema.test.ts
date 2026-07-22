@@ -19,9 +19,7 @@ function record(role: unknown = {
   subject: { kind: "work-unit", key: "session-locus-model", claimId: null },
   establishedAt: timestamp,
   parentCheckoutPath: null,
-  dispatchId: null,
   originEntry: null,
-  routingPlanDigest: null,
 }): unknown {
   return {
     schemaVersion: 1,
@@ -51,9 +49,7 @@ describe("locus record schema", () => {
       subject: { kind: "future-subject", key: "opaque-key", claimId: null },
       establishedAt: timestamp,
       parentCheckoutPath: null,
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     });
     expect(LocusRecordV1Schema.parse(value)).toEqual(value);
   });
@@ -64,9 +60,7 @@ describe("locus record schema", () => {
       subject: { kind: "errand", key: "fix-output", claimId },
       establishedAt: timestamp,
       parentCheckoutPath: "/repo-worktree",
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     };
     expect(LocusRecordV1Schema.safeParse(record(errand)).success).toBe(true);
     expect(LocusRecordV1Schema.safeParse(record({
@@ -80,18 +74,21 @@ describe("locus record schema", () => {
     })).success).toBe(false);
   });
 
-  it("enforces partial execution-context pairings and exact keys", () => {
+  it("limits origin back-pointers to partial errands and enforces exact keys", () => {
     const partial = {
       kind: "errand",
       subject: { kind: "partial-errand", key: "fix-output", claimId: null },
       establishedAt: timestamp,
       parentCheckoutPath: null,
-      dispatchId: "dispatch-1",
       originEntry: "Fix output",
-      routingPlanDigest: null,
     };
     expect(LocusRecordV1Schema.safeParse(record(partial)).success).toBe(true);
-    expect(LocusRecordV1Schema.safeParse(record({ ...partial, originEntry: null })).success).toBe(false);
+    expect(LocusRecordV1Schema.safeParse(record({ ...partial, originEntry: null })).success).toBe(true);
+    expect(LocusRecordV1Schema.safeParse(record({
+      ...partial,
+      subject: { kind: "errand", key: "fix-output", claimId },
+    })).success).toBe(false);
+    expect(LocusRecordV1Schema.safeParse(record({ ...partial, dispatchId: "legacy" })).success).toBe(false);
     expect(LocusRecordV1Schema.safeParse({ ...(record() as object), extra: true }).success).toBe(false);
   });
 });
@@ -101,13 +98,12 @@ describe("locus identity schema", () => {
     const values = [
       {
         kind: "errand", key: "fix-output", claimId, protection: "full", branch: "chore/fix-output",
-        purpose: "errand", origin: "description", originEntry: null, dispatchId: null,
+        purpose: "errand", origin: "description", originEntry: null,
         state: "open", savedHead: null, changeRequest: null,
       },
       {
         kind: "errand", key: "inbox-drain", claimId, protection: "full", branch: "chore/inbox-drain",
-        purpose: "housekeep-routing", routingLane: "reviewed", dispatchId: "dispatch-1",
-        routingPlanDigest: digest, state: "open", savedHead: null, changeRequest: null,
+        purpose: "housekeep-routing", state: "open", savedHead: null, changeRequest: null,
       },
       {
         kind: "groom", key: "groom-alpha", claimId, purpose: null, anchorStub: "alpha",
@@ -116,6 +112,7 @@ describe("locus identity schema", () => {
       },
     ];
     for (const value of values) expect(LocusIdentityV1Schema.parse(value)).toEqual(value);
+    expect(LocusIdentityV1Schema.safeParse({ ...values[1], dispatchId: "legacy" }).success).toBe(false);
   });
 
   it("rejects illegal lifecycle and canonical-member combinations", () => {
@@ -148,10 +145,10 @@ describe("locus public value schemas", () => {
       {
         ...common, outcome: "applied", allocation: { kind: "primary", checkoutPath: "/repo" },
         recordId: digest, leaseId: claimId, activeLocusPath: "/repo", sessionHomePath: "/repo",
-        identity: null, originEntry: null, dispatchId: null, routingPlanDigest: null,
+        identity: null, originEntry: null,
         restoredParent: null, nextOffer: null,
       },
-      { ...common, outcome: "refused", reason: "routing-plan-mismatch" },
+      { ...common, outcome: "refused", reason: "identity-conflict" },
       { ...common, outcome: "error", error: { code: "locus.persistence.read", message: "read failed" } },
     ];
     for (const value of values) expect(LocusMutationResultV1Schema.parse(value)).toEqual(value);
@@ -168,8 +165,6 @@ describe("locus public value schemas", () => {
       sessionHomePath: "/session-home",
       identity: null,
       originEntry: null,
-      dispatchId: null,
-      routingPlanDigest: null,
       restoredParent: null,
       nextOffer: null,
       recommendedPromptText: "Continue.",
@@ -178,5 +173,6 @@ describe("locus public value schemas", () => {
     expect(LocusMutationResultV1Schema.safeParse({ ...openSuccess, activeLocusPath: null }).success).toBe(false);
     expect(LocusMutationResultV1Schema.safeParse({ ...openSuccess, sessionHomePath: null }).success).toBe(false);
     expect(LocusMutationResultV1Schema.safeParse(openSuccess).success).toBe(true);
+    expect(LocusMutationResultV1Schema.safeParse({ ...openSuccess, dispatchId: "legacy" }).success).toBe(false);
   });
 });

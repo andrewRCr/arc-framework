@@ -129,8 +129,8 @@ function identityIO(options: SettleGroomRuntimeOptions) {
 function success(outcome: "applied" | "idempotent", text: string): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome, operation: "plan-abandon", allocation: null, recordId: null, leaseId: null,
-    activeLocusPath: null, sessionHomePath: null, identity: null, originEntry: null, dispatchId: null,
-    routingPlanDigest: null, restoredParent: null, nextOffer: null, recommendedPromptText: text,
+    activeLocusPath: null, sessionHomePath: null, identity: null, originEntry: null,
+    restoredParent: null, nextOffer: null, recommendedPromptText: text,
   });
 }
 

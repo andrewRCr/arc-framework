@@ -363,9 +363,7 @@ function recordRow(
       kind: record.role.kind,
       subject: record.role.subject,
       parentCheckoutPath: record.role.parentCheckoutPath,
-      dispatchId: record.role.dispatchId,
       originEntry: record.role.originEntry,
-      routingPlanDigest: record.role.routingPlanDigest,
     },
     identity: resolved?.identity ?? null,
     lease: record.lease === null ? null : {

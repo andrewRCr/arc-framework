@@ -1,5 +1,5 @@
 /**
- * Pure `USER-INBOX` entry mutation — exact batch dispatch binding, unbinding,
+ * Pure `USER-INBOX` entry mutation — exact execute-bound marking, unmarking,
  * and completion removal over title/source-digest-qualified preimages.
  *
  * Mutations are **title-keyed**, idempotent on exact replay, and targeted: only
@@ -29,8 +29,8 @@ export interface RemoveInboxEntryResult {
 
 /** One exact entry mutation in a lock-serialized inbox batch. */
 export type InboxEntryMutation =
-  | { kind: "mark"; title: string; sourceDigest: CanonicalDigest; dispatchId: string }
-  | { kind: "unmark"; title: string; sourceDigest: CanonicalDigest; dispatchId: string }
+  | { kind: "mark"; title: string; sourceDigest: CanonicalDigest }
+  | { kind: "unmark"; title: string; sourceDigest: CanonicalDigest }
   | { kind: "remove"; title: string; sourceDigest: CanonicalDigest };
 
 /** Per-entry disposition from an inbox mutation batch. */
@@ -51,24 +51,13 @@ export interface MutateInboxEntriesResult {
 export interface InspectedInboxEntry {
   title: string;
   sourceDigest: CanonicalDigest;
-  dispatchId: string | null;
+  executeBound: boolean;
 }
 
-/** First well-formed remaining capture bound to one exact dispatch generation. */
-export interface NextDispatchInboxEntry {
+/** One well-formed capture in the global execute-bound queue. */
+export interface ExecuteBoundInboxEntry {
   title: string;
-  dispatchId: string;
-}
-
-/** Exact well-formed captures belonging to one dispatch, in file order. */
-export interface DispatchInboxEntry extends NextDispatchInboxEntry {
   sourceDigest: CanonicalDigest;
-}
-
-/** One pending execute group in first-occurrence order. */
-export interface InboxDispatchGroup {
-  dispatchId: string;
-  titles: string[];
 }
 
 interface LocatedInboxEntry {
@@ -78,7 +67,6 @@ interface LocatedInboxEntry {
 }
 
 const DISPOSITION_LINE = "- _Disposition:_ `execute-bound`";
-const DISPATCH_PREFIX = "- _Dispatch:_ `";
 
 function locateInboxEntries(lines: readonly string[]): LocatedInboxEntry[] {
   const headings = [...entryHeadingLines(lines)];
@@ -96,43 +84,33 @@ function locateInboxEntries(lines: readonly string[]): LocatedInboxEntry[] {
   return entries;
 }
 
-function dispatchBinding(
+function executeBoundMark(
   lines: readonly string[],
   entry: LocatedInboxEntry,
-): { dispatchId: string; insertedLineCount: number } | null {
+): { insertedLineCount: number } | null {
   const body = lines.slice(entry.start + 1, entry.end);
   const dispositionIndices = body.flatMap((line, index) => line.startsWith("- _Disposition:_") ? [index] : []);
   const dispatchIndices = body.flatMap((line, index) => line.startsWith("- _Dispatch:_") ? [index] : []);
   if (dispositionIndices.length === 0 && dispatchIndices.length === 0) return null;
   const dispositionIndex = dispositionIndices[0];
-  const dispatchIndex = dispatchIndices[0];
-  const dispatchLine = dispatchIndex === undefined ? undefined : body[dispatchIndex];
   if (
     dispositionIndices.length !== 1
-    || dispatchIndices.length !== 1
+    || dispatchIndices.length !== 0
     || dispositionIndex !== 1
-    || dispatchIndex !== 2
     || body[0] !== ""
     || body[1] !== DISPOSITION_LINE
-    || dispatchLine === undefined
-    || !dispatchLine.startsWith(DISPATCH_PREFIX)
-    || !dispatchLine.endsWith("`")
   ) {
-    throw new Error(`Malformed USER-INBOX dispatch fields for '${entry.title}'.`);
+    throw new Error(`Malformed USER-INBOX disposition fields for '${entry.title}'.`);
   }
-  const dispatchId = dispatchLine.slice(DISPATCH_PREFIX.length, -1);
-  if (dispatchId === "" || /[\r\n`]/.test(dispatchId)) {
-    throw new Error(`Malformed USER-INBOX dispatch fields for '${entry.title}'.`);
-  }
-  return { dispatchId, insertedLineCount: 3 };
+  return { insertedLineCount: 2 };
 }
 
 function unboundEntryLines(lines: readonly string[], entry: LocatedInboxEntry): string[] {
-  const binding = dispatchBinding(lines, entry);
-  if (binding === null) return [...lines.slice(entry.start, entry.end)];
+  const mark = executeBoundMark(lines, entry);
+  if (mark === null) return [...lines.slice(entry.start, entry.end)];
   return [
     ...lines.slice(entry.start, entry.start + 1),
-    ...lines.slice(entry.start + 1 + binding.insertedLineCount, entry.end),
+    ...lines.slice(entry.start + 1 + mark.insertedLineCount, entry.end),
   ];
 }
 
@@ -153,7 +131,7 @@ export function inboxEntrySourceDigest(content: string, title: string): Canonica
   return unboundDigest(lines, matches[0] as LocatedInboxEntry);
 }
 
-/** Read one unique entry's normalized source digest and exact dispatch generation. */
+/** Read one unique entry's normalized source digest and execute-bound disposition. */
 export function inspectInboxEntry(content: string, title: string): InspectedInboxEntry {
   const normalizedTitle = title.trim();
   const lines = content.split("\n");
@@ -167,43 +145,16 @@ export function inspectInboxEntry(content: string, title: string): InspectedInbo
   return {
     title: entry.title,
     sourceDigest: unboundDigest(lines, entry),
-    dispatchId: dispatchBinding(lines, entry)?.dispatchId ?? null,
+    executeBound: executeBoundMark(lines, entry) !== null,
   };
 }
 
-/** Select the first remaining capture carrying the exact dispatch ID, in file order. */
-export function findNextDispatchInboxEntry(
-  content: string,
-  dispatchId: string,
-): NextDispatchInboxEntry | null {
+/** List every well-formed execute-bound capture in file order. */
+export function listExecuteBoundInboxEntries(content: string): ExecuteBoundInboxEntry[] {
   const lines = content.split("\n");
-  for (const entry of locateInboxEntries(lines)) {
-    const binding = dispatchBinding(lines, entry);
-    if (binding?.dispatchId === dispatchId) return { title: entry.title, dispatchId };
-  }
-  return null;
-}
-
-/** List every well-formed capture bound to one exact dispatch generation. */
-export function listDispatchInboxEntries(content: string, dispatchId: string): DispatchInboxEntry[] {
-  const lines = content.split("\n");
-  return locateInboxEntries(lines).flatMap((entry) => dispatchBinding(lines, entry)?.dispatchId === dispatchId
-    ? [{ title: entry.title, sourceDigest: unboundDigest(lines, entry), dispatchId }]
+  return locateInboxEntries(lines).flatMap((entry) => executeBoundMark(lines, entry) !== null
+    ? [{ title: entry.title, sourceDigest: unboundDigest(lines, entry) }]
     : []);
-}
-
-/** Group every well-formed execute binding by exact dispatch generation. */
-export function listInboxDispatchGroups(content: string): InboxDispatchGroup[] {
-  const lines = content.split("\n");
-  const groups = new Map<string, string[]>();
-  for (const entry of locateInboxEntries(lines)) {
-    const binding = dispatchBinding(lines, entry);
-    if (binding === null) continue;
-    const titles = groups.get(binding.dispatchId) ?? [];
-    titles.push(entry.title);
-    groups.set(binding.dispatchId, titles);
-  }
-  return [...groups].map(([dispatchId, titles]) => ({ dispatchId, titles }));
 }
 
 /** Apply one all-or-nothing title/digest-qualified inbox mutation batch. */
@@ -215,7 +166,11 @@ export function mutateInboxEntries(
   if (new Set(titles).size !== titles.length) throw new Error("Duplicate USER-INBOX mutation title.");
   const lines = content.split("\n");
   const entries = locateInboxEntries(lines);
-  const actions: Array<{ entry: LocatedInboxEntry; mutation: InboxEntryMutation; binding: ReturnType<typeof dispatchBinding> }> = [];
+  const actions: Array<{
+    entry: LocatedInboxEntry;
+    mutation: InboxEntryMutation;
+    mark: ReturnType<typeof executeBoundMark>;
+  }> = [];
   const outcomes: InboxEntryMutationOutcome[] = [];
 
   for (const mutation of mutations) {
@@ -230,34 +185,30 @@ export function mutateInboxEntries(
     }
     if (matches.length !== 1) throw new Error(`Duplicate USER-INBOX entry title '${title}'.`);
     const entry = matches[0] as LocatedInboxEntry;
-    const binding = dispatchBinding(lines, entry);
+    const mark = executeBoundMark(lines, entry);
     if (unboundDigest(lines, entry) !== mutation.sourceDigest) {
       throw new Error(`USER-INBOX source digest changed for '${title}'.`);
     }
     if (mutation.kind === "mark") {
-      if (binding?.dispatchId === mutation.dispatchId) {
+      if (mark !== null) {
         outcomes.push({ title, state: "already-applied" });
         continue;
       }
-      if (binding !== null) throw new Error(`USER-INBOX entry '${title}' is bound to another dispatch.`);
     } else if (mutation.kind === "unmark") {
-      if (binding === null) {
+      if (mark === null) {
         outcomes.push({ title, state: "already-applied" });
         continue;
-      }
-      if (binding.dispatchId !== mutation.dispatchId) {
-        throw new Error(`USER-INBOX entry '${title}' is bound to another dispatch.`);
       }
     }
-    actions.push({ entry, mutation, binding });
+    actions.push({ entry, mutation, mark });
     outcomes.push({ title, state: "applied" });
   }
 
-  for (const { entry, mutation, binding } of actions.sort((left, right) => right.entry.start - left.entry.start)) {
+  for (const { entry, mutation, mark } of actions.sort((left, right) => right.entry.start - left.entry.start)) {
     if (mutation.kind === "mark") {
-      lines.splice(entry.start + 1, 0, "", DISPOSITION_LINE, `${DISPATCH_PREFIX}${mutation.dispatchId}\``);
+      lines.splice(entry.start + 1, 0, "", DISPOSITION_LINE);
     } else if (mutation.kind === "unmark") {
-      lines.splice(entry.start + 1, binding?.insertedLineCount ?? 0);
+      lines.splice(entry.start + 1, mark?.insertedLineCount ?? 0);
     } else {
       lines.splice(entry.start, entry.end - entry.start);
     }

@@ -313,10 +313,10 @@ arc errand close <slug> [--json]
 arc errand abandon <slug> [--json]
 arc errand promote <slug>
 
-# One confirmed housekeep routing sweep — exact plan, one occupancy, strictest lane
+# One confirmed housekeep routing sweep — one occupancy and a file-ordered execute queue
 arc housekeep check
-arc housekeep plan --intent-file <path|-> --output <path> [--json]
-arc housekeep open <slug> --plan-file <path|-> --lane <auto|reviewed> [--json]
+arc housekeep open <slug> [--json]
+arc housekeep mark-execute <titles...> [--json]
 arc housekeep close <slug> [--json]
 arc housekeep abandon <slug> [--json]
 ```

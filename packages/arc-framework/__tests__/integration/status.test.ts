@@ -1247,7 +1247,7 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
       expect(result.inboxState.value).toEqual({
-        routableCount: 2, housekeepNeeded: true, pendingDispatchGroups: [], dispatchDiagnostics: [],
+        routableCount: 2, housekeepNeeded: true, pendingExecuteBound: [], executeBoundDiagnostics: [],
       });
     }
   });
@@ -1262,7 +1262,7 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
       expect(result.inboxState.value).toEqual({
-        routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [], dispatchDiagnostics: [],
+        routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [], executeBoundDiagnostics: [],
       });
     }
   });
@@ -1338,12 +1338,12 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
       expect(result.inboxState.value).toEqual({
-        routableCount: 2, housekeepNeeded: true, pendingDispatchGroups: [], dispatchDiagnostics: [],
+        routableCount: 2, housekeepNeeded: true, pendingExecuteBound: [], executeBoundDiagnostics: [],
       });
     }
   });
 
-  it("preserves pending execute dispatch groups across the post-housekeep recovery boundary", async () => {
+  it("preserves the pending execute-bound queue across the post-housekeep recovery boundary", async () => {
     const userDir = join(fixture.root, ".arc", "user", "andrew");
     await mkdir(userDir, { recursive: true });
     await writeFile(
@@ -1356,13 +1356,11 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
         "### `[ ]` **first sibling**",
         "",
         "- _Disposition:_ `execute-bound`",
-        "- _Dispatch:_ `dispatch-7`",
         "- _Observation:_ queued.",
         "",
         "### `[ ]` **second sibling**",
         "",
         "- _Disposition:_ `execute-bound`",
-        "- _Dispatch:_ `dispatch-7`",
         "- _Observation:_ queued.",
         "",
         "## Work Unit",
@@ -1381,11 +1379,8 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
       value: {
         routableCount: 0,
         housekeepNeeded: false,
-        pendingDispatchGroups: [{
-          dispatchId: "dispatch-7",
-          titles: ["first sibling", "second sibling"],
-        }],
-        dispatchDiagnostics: [],
+        pendingExecuteBound: ["first sibling", "second sibling"],
+        executeBoundDiagnostics: [],
       },
     });
   });
@@ -1400,7 +1395,7 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
       expect(result.inboxState.value).toEqual({
-        routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [], dispatchDiagnostics: [],
+        routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [], executeBoundDiagnostics: [],
       });
     }
   });

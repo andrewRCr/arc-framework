@@ -37,7 +37,7 @@ export interface AbandonOrdinaryErrandRuntimeOptions {
   readonly registeredHarnessDirs: string;
   readonly exec: GitExec;
   readonly execInput: GitExecInput;
-  readonly clearDispatch: (record: OrdinaryErrandRecord) => Promise<AbandonStepResult>;
+  readonly clearExecuteBound: (record: OrdinaryErrandRecord) => Promise<AbandonStepResult>;
 }
 
 /** Abandon one exact ordinary-v3 identity and any provably dead local residue. */
@@ -76,7 +76,7 @@ export async function abandonOrdinaryErrandAtRuntime(
         return lifecyclePort.read(configured, record.changeRequest);
       },
       cleanupResidue: (record) => cleanupResidue(options, record, anchor, inspector, pathFlavor),
-      clearDispatch: options.clearDispatch,
+      clearExecuteBound: options.clearExecuteBound,
       retire: async (record, lifecycle) => {
         const result = await transactTransientIdentities(io, {
           remote,

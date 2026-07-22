@@ -452,7 +452,7 @@ describe("session-init envelope schema", () => {
       ["errandState", "value", "materializable", "candidates"],
       [{
         slug: "", claimId: "c".repeat(32), branch: "chore/test", expectedHead: "a".repeat(40),
-        state: "paused", originEntry: null, dispatchId: null,
+        state: "paused", originEntry: null,
       }],
       "errandState.value.materializable.candidates.0.slug",
     ],
@@ -461,7 +461,7 @@ describe("session-init envelope schema", () => {
       ["errandState", "value", "materializable", "candidates"],
       [{
         slug: "entry", claimId: "c".repeat(32), branch: "", expectedHead: "a".repeat(40),
-        state: "paused", originEntry: null, dispatchId: null,
+        state: "paused", originEntry: null,
       }],
       "errandState.value.materializable.candidates.0.branch",
     ],

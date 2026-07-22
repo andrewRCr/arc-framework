@@ -18,7 +18,6 @@ const previous = TransientIdentityRecordV3Schema.parse({
   purpose: "errand",
   origin: "description",
   originEntry: null,
-  dispatchId: null,
   intent: "Fix output",
   branch: "chore/fix-output",
   state: "open",
@@ -31,7 +30,7 @@ const previous = TransientIdentityRecordV3Schema.parse({
 const inbox = {
   title: "Fix output capture",
   sourceDigest: `sha256:${"b".repeat(64)}` as `sha256:${string}`,
-  dispatchId: "dispatch-1",
+  executeBound: false,
 };
 
 function basis(
@@ -43,7 +42,7 @@ function basis(
 describe("linkOrdinaryErrand", () => {
   it("adopts a live inbox generation through the exact identity transaction", async () => {
     const linked = { ...previous, origin: "inbox" as const, originEntry: "Fix output capture",
-      dispatchId: "dispatch-1", updatedAt: "2026-07-18T00:01:00.000Z" };
+      updatedAt: "2026-07-18T00:01:00.000Z" };
     const transact = vi.fn().mockResolvedValue({ kind: "applied", value: linked, tip: "a".repeat(40) });
 
     const result = await linkOrdinaryErrand({
@@ -60,14 +59,13 @@ describe("linkOrdinaryErrand", () => {
       outcome: "applied",
       operation: "errand-link",
       originEntry: "Fix output capture",
-      dispatchId: "dispatch-1",
       identity: { claimId: previous.claimId },
     });
   });
 
-  it("reports an exact same-entry and dispatch replay as idempotent", async () => {
+  it("reports an exact same-entry replay as idempotent", async () => {
     const linked = { ...previous, origin: "inbox" as const, originEntry: inbox.title,
-      dispatchId: inbox.dispatchId, updatedAt: "2026-07-18T00:01:00.000Z" };
+      updatedAt: "2026-07-18T00:01:00.000Z" };
     const result = await linkOrdinaryErrand({
       slug: previous.slug,
       inbox,
@@ -81,13 +79,12 @@ describe("linkOrdinaryErrand", () => {
     expect(result).toMatchObject({
       outcome: "idempotent",
       originEntry: inbox.title,
-      dispatchId: inbox.dispatchId,
     });
   });
 
   it("refuses a different existing inbox origin before mutation", async () => {
     const linked = { ...previous, origin: "inbox" as const, originEntry: "Other capture",
-      dispatchId: null, updatedAt: "2026-07-18T00:01:00.000Z" };
+      updatedAt: "2026-07-18T00:01:00.000Z" };
     const result = await linkOrdinaryErrand({
       slug: previous.slug,
       inbox,
@@ -99,22 +96,6 @@ describe("linkOrdinaryErrand", () => {
     });
 
     expect(result).toMatchObject({ outcome: "refused", reason: "inbox-link-conflict" });
-  });
-
-  it("refuses a conflicting dispatch generation before mutation", async () => {
-    const linked = { ...previous, origin: "inbox" as const, originEntry: inbox.title,
-      dispatchId: "dispatch-other", updatedAt: "2026-07-18T00:01:00.000Z" };
-    const result = await linkOrdinaryErrand({
-      slug: previous.slug,
-      inbox,
-      updatedAt: "2026-07-18T00:02:00.000Z",
-      dependencies: {
-        readIdentity: vi.fn().mockResolvedValue(basis(linked)),
-        transact: vi.fn(),
-      },
-    });
-
-    expect(result).toMatchObject({ outcome: "refused", reason: "dispatch-conflict" });
   });
 
   it("refuses missing, legacy, and incomplete identity bases", async () => {

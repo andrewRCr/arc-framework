@@ -330,13 +330,14 @@ crash/walk-away residue rather than a normal pause/review wait.
 
 Housekeeping never parents an Errand frame. Under full protection, one confirmed pure-routing sweep opens one
 `housekeep/errand` role and one v3 Errand identity; every routing write in that sweep shares its branch and PR. The
-PR is classified by the strictest lane touched. A large sweep may use multiple ordered in-session review increments
-and commits on that PR, but never splits into per-lane or per-chunk routing PRs. Under partial protection, one
-`housekeep/housekeep` role covers the same sweep's direct-base commits. Once the complete routing sweep is preserved,
-its full-mode change request is recorded, and the routing role closes, the drain hands execute-now work to
-`run-errand`. The routing PR tail remains as one identity-only v3 Errand. Each execute-now Errand is a sibling
-transient frame whose parent is the original WU session home, or null for a between-WUs session. The inbox and
-Errand identity preserve pending work; `run-errand`'s next-offer replaces “return to the still-open drain frame.”
+workflow classifies the PR by the strictest lane touched at close. A large sweep may use multiple ordered in-session
+review increments and commits on that PR, but never splits into per-lane or per-chunk routing PRs. Under partial
+protection, one `housekeep/housekeep` role covers the same sweep's direct-base commits. Once the complete routing
+sweep is preserved, its full-mode change request is recorded, and the routing role closes, the drain hands
+execute-now work to `run-errand`. The routing PR tail remains as one identity-only v3 Errand. Each execute-now Errand
+is a sibling transient frame whose parent is the original WU session home, or null for a between-WUs session. The
+inbox and Errand identity preserve pending work; `run-errand`'s next-offer replaces “return to the still-open drain
+frame.”
 Maximum persisted depth remains two.
 
 State-touching transient commands refresh `heartbeatAt` only when their resolved durable process anchor matches
@@ -826,13 +827,13 @@ A shared allocator backs the existing operation verbs instead of adding workflow
   the WU meta. The standalone `arc errand retire` command disappears because retirement has no independently safe
   v3 transition;
 - new `arc housekeep open <slug>` / `arc housekeep close <slug>` / `arc housekeep abandon <slug>` verbs own
-  session-bounded routing occupancy. In full mode `<slug>` identifies the complete confirmed pure-routing sweep and
-  its one v3 Errand identity with `purpose: "housekeep-routing"`; every routed entry shares that identity's branch
-  and PR, whose review lane derives at close from the writes the sweep actually landed. Partial mode uses the same
-  sweep slug for one direct-base occupancy. The sweep role closes before any
-  execute-now Errand begins. Abandonment requires explicit selection and the same preservation checks as Errand
-  abandonment; an awaiting-merge routing identity additionally requires exact host truth that its change request
-  closed unmerged;
+  session-bounded routing occupancy, while `arc housekeep mark-execute <titles...>` atomically marks one confirmed
+  execute-now batch. In full mode `<slug>` identifies the complete confirmed pure-routing sweep and its one v3
+  Errand identity with `purpose: "housekeep-routing"`; every routed entry shares that identity's branch and PR,
+  whose review lane the workflow classifies at close from the writes the sweep actually landed. Partial mode uses
+  the same sweep slug for one direct-base occupancy. The sweep role closes before any execute-now Errand begins.
+  Abandonment requires explicit selection and the same preservation checks as Errand abandonment; an awaiting-merge
+  routing identity additionally requires exact host truth that its change request closed unmerged;
 - new full-protection `arc errand materialize <slug>` replaces session-init's raw `git worktree add` path; partial
   Errands have no remote branch to materialize. Materialization accepts only an identity-only paused claim at
   `savedHead`, or an awaiting-merge claim at `changeRequest.headSha` whose recorded change request is verified
@@ -973,8 +974,8 @@ content. A v3 Errand carries `version: 3`, its current fields, `kind: "errand"`,
 `state: "open" | "paused" | "awaiting-merge"` and keep their existing origin fields. Housekeep routing permits only
 `open | awaiting-merge` because the confirmed sweep must complete or be explicitly abandoned before handoff. A
 `housekeep-routing` record's branch-safe slug identifies the complete confirmed routing sweep and its single
-branch/PR, whose review lane derives at close from the writes the sweep actually landed — no lane, dispatch, or
-plan-digest field persists in the record. `savedHead` is required for `paused` and
+branch/PR, whose review lane the workflow classifies at close from the writes the sweep actually landed — no lane,
+dispatch, or plan-digest field persists in the record. `savedHead` is required for `paused` and
 must be proven on the remote; `awaiting-merge` requires
 `changeRequest: { repositoryRef, hostRef, baseRef, headRef, headSha }`. A v3 groom carries `version: 3`,
 `kind: "groom"`, `slug: "groom-<anchorStub>"`, `anchorStub`, canonical non-empty `members`, immutable
@@ -1038,8 +1039,8 @@ not `chore/groom-*` branch shape, and stop emitting cleanup warnings for live gr
 A full-mode housekeep open first finalizes any exact host-proven merged routing tail, then scans the complete
 identity tree and CAS-creates one sweep identity only when no live `housekeep-routing` identity exists. This is a
 global per-identity gate, not a same-slug check: choosing another sweep slug cannot admit a parallel drain. All
-confirmed routing entries use that one identity, branch, and PR; lane classification happens once, at close, from
-the writes the sweep landed. Large sweeps may contain multiple ordered review increments and commits without
+confirmed routing entries use that one identity, branch, and PR; the workflow classifies its lane once, at close,
+from the writes the sweep landed. Large sweeps may contain multiple ordered review increments and commits without
 minting another identity. Until the exact routing change request merges or is explicitly abandoned, its identity
 tail blocks a second drain but not the already-confirmed execute-now sibling Errands.
 
@@ -1059,23 +1060,21 @@ count. Inbox removal at completion uses the same notes lock so a sibling worktre
 marking or another completion. Execute-bound captures are a plain durable queue: any session may offer the next one
 in file order, and the selected Errand open revalidates the entry before execution.
 
-Housekeep open composes that write recoverably. Full mode first owns the exact routing claim; partial mode first
-acquires the free primary under its record lock and mints the housekeep role/lease. Either releases the record lock
-before the notes-lock transaction marks the confirmed execute-now entries; the two locks are never nested. Full
-mode subsequently allocates/provisions its local locus; partial mode already owns its primary locus. A notes-write
-failure rolls back only the unchanged full claim or partial role, and a later full-mode allocation failure
-CAS-retires only the unchanged claim. If any rollback loses a race, the identity, role, or already-marked entries
-remain visible as explicit resume/abandon work; a later session re-confirms the remaining unrouted entries against
-the live inbox rather than replaying a stored plan.
+Housekeep open establishes the routing occupancy before marking begins. Full mode owns the exact routing claim and
+allocates/provisions its local locus; partial mode acquires the free primary under its record lock and mints the
+housekeep role/lease. The separate `mark-execute` verb then takes the notes lock, revalidates the complete selected
+title set, and writes all markings through one atomic replacement. Locus-record and notes locks are never nested. A
+marking failure leaves the occupancy and inbox evidence visible for explicit retry or abandonment; a later session
+re-confirms the remaining unrouted entries against the live inbox rather than replaying a stored plan.
 
 Housekeeping closes its sweep role before the first execute-now item. `run-errand` completion/leave then receives
 one precomputed next-offer: the next well-formed execute-bound capture in file order. Explicit housekeep
-abandonment clears an open sweep's still-pending execute-bound markings before handoff; Errand abandonment clears
-its own marking without deleting the capture. A malformed or unreadable marking surfaces reconciliation for that
-entry instead of being silently skipped. When execute-bound captures remain, the result offers the next sibling
-Errand in the same session, parented directly to the original WU when warm. Execute-now captures remain visible in
-the inbox until their own Errand completion; no separate Errand queue artifact or nested execution model is
-introduced.
+abandonment preserves still-pending execute-bound markings as the durable recovery trail for a later session;
+Errand abandonment clears only its own marking without deleting the capture. A malformed or unreadable marking
+surfaces reconciliation for that entry instead of being silently skipped. When execute-bound captures remain, the
+result offers the next sibling Errand in the same session, parented directly to the original WU when warm.
+Execute-now captures remain visible in the inbox until their own Errand completion; no separate Errand queue
+artifact or nested execution model is introduced.
 
 ### D9. Recovery and compaction
 
@@ -1444,7 +1443,8 @@ motivating failure.
    final expected-generation recheck, local physical removal, and role pop, so attach cannot race deletion.
 10. Full-mode housekeeping globally serializes the complete confirmed pure-routing sweep under one identity,
     branch, and PR, safely reuses repeated sweep names only after exact tail and branch-generation retirement, and
-    classifies the routing PR's lane at close from the writes the sweep landed (reviewed wins over auto-merge). It
+    has the workflow classify the routing PR's lane at close from the writes the sweep landed (reviewed wins over
+    auto-merge). It
     closes its sole routing locus before execute-now work, then opens each concern on its own sibling Errand PR
     whose completion/leave offers the next visible execute-bound capture in file order without creating a third
     frame. An interrupted sweep's already-marked entries stay visible in the inbox and re-confirm at the next

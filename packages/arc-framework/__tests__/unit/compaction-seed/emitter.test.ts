@@ -84,9 +84,7 @@ function workUnitRow(recordId: string, leaseId: string): LocusRowV1 {
       kind: "work-unit",
       subject: { kind: "work-unit", key: "compaction-recovery", claimId: null },
       parentCheckoutPath: null,
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     },
     identity: null,
     lease: {
@@ -331,11 +329,11 @@ describe("emitCompactionSeed", () => {
                 kind: "managed-role", checkoutPath: "/repo/worktrees/errand", primary: false, recordId,
                 role: {
                   kind: "errand", subject: { kind: "errand", key: "task", claimId },
-                  parentCheckoutPath: "/repo", dispatchId: null, originEntry: null, routingPlanDigest: null,
+                  parentCheckoutPath: "/repo", originEntry: null,
                 },
                 identity: {
                   kind: "errand", key: "task", claimId, protection: "full", branch: "chore/task",
-                  purpose: "errand", origin: "description", originEntry: null, dispatchId: null,
+                  purpose: "errand", origin: "description", originEntry: null,
                   state: "open", savedHead: null, changeRequest: null,
                 },
                 lease: {

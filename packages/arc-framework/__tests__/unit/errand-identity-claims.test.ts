@@ -13,16 +13,13 @@ import {
   type ChangeRequestLifecycleEvidence,
   type GroomIdentityRecord,
   housekeepClaimTransform,
-  housekeepClaimConflictResolver,
   housekeepAwaitMergeTransform,
   identityClaimRollbackTransform,
-  mintHousekeepDispatchId,
   type HousekeepIdentityRecord,
 } from "../../src/lib/errand/index.js";
 
 const createdAt = "2026-07-20T00:00:00.000Z";
 const baseHead = "a".repeat(40);
-const digest = `sha256:${"d".repeat(64)}`;
 const changeRequest = {
   repositoryRef: "owner/repo",
   hostRef: "github.com",
@@ -58,9 +55,6 @@ function housekeep(overrides: Record<string, unknown> = {}): HousekeepIdentityRe
     claimId: "4".repeat(32),
     purpose: "housekeep-routing",
     branch: "chore/route-inbox",
-    routingLane: "auto",
-    dispatchId: "dispatch-winner",
-    routingPlanDigest: digest,
     state: "open",
     savedHead: null,
     changeRequest: null,
@@ -225,34 +219,29 @@ describe("groom identity claims", () => {
 });
 
 describe("housekeep routing identity claims", () => {
-  it("mints opaque stable-quality dispatch identifiers", () => {
-    expect(mintHousekeepDispatchId()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u);
-    expect(mintHousekeepDispatchId()).not.toBe(mintHousekeepDispatchId());
-  });
-
-  it("creates one global routing claim with its minted dispatch and confirmed plan", () => {
+  it("creates one global routing claim", () => {
     const candidate = housekeep();
     expect(housekeepClaimTransform(candidate)(new Map())).toMatchObject({
       kind: "applied",
-      value: {
-        kind: "claimed",
-        record: { dispatchId: "dispatch-winner", routingLane: "auto", routingPlanDigest: digest },
-      },
+      value: { kind: "claimed", record: { slug: candidate.slug, claimId: candidate.claimId } },
     });
   });
 
-  it("adopts a same-plan winner across slugs without rotating its dispatch", () => {
+  it("resumes the same live slug and refuses a different slug", () => {
     const winner = housekeep();
-    const loser = housekeep({
-      slug: "second-route",
-      claimId: "5".repeat(32),
-      branch: "chore/second-route",
-      dispatchId: "dispatch-loser",
-    });
-    expect(housekeepClaimTransform(loser)(new Map([[winner.slug, winner]]))).toMatchObject({
+    expect(housekeepClaimTransform(housekeep({ claimId: "5".repeat(32) }))(
+      new Map([[winner.slug, winner]]),
+    )).toMatchObject({
       kind: "idempotent",
-      value: { kind: "resume", record: { slug: winner.slug, claimId: winner.claimId, dispatchId: "dispatch-winner" } },
+      value: { kind: "resume", record: { slug: winner.slug, claimId: winner.claimId } },
     });
+    const other = housekeep({ slug: "second-route", claimId: "6".repeat(32), branch: "chore/second-route" });
+    expect(housekeepClaimTransform(other)(new Map([[winner.slug, winner]])))
+      .toMatchObject({ kind: "refused", reason: expect.stringContaining(winner.slug) });
+    expect(housekeepClaimTransform(winner)(new Map([
+      [winner.slug, winner],
+      [other.slug, other],
+    ]))).toMatchObject({ kind: "refused", reason: expect.stringContaining("Multiple") });
   });
 
   it("returns wait for a matching awaiting-merge routing winner", () => {
@@ -264,74 +253,6 @@ describe("housekeep routing identity claims", () => {
       .toMatchObject({ kind: "idempotent", value: { kind: "wait", record: { claimId: winner.claimId } } });
   });
 
-  it("refuses a competing plan and only escalates the winning lane", () => {
-    const winner = housekeep();
-    const changedPlan = housekeep({
-      slug: "second-route",
-      claimId: "5".repeat(32),
-      branch: "chore/second-route",
-      dispatchId: "dispatch-loser",
-      routingPlanDigest: `sha256:${"e".repeat(64)}`,
-    });
-    expect(housekeepClaimTransform(changedPlan)(new Map([[winner.slug, winner]])))
-      .toMatchObject({ kind: "refused", reason: expect.stringContaining("digest") });
-
-    const reviewed = housekeep({
-      slug: "second-route",
-      claimId: "5".repeat(32),
-      branch: "chore/second-route",
-      dispatchId: "dispatch-loser",
-      routingLane: "reviewed",
-      updatedAt: "2026-07-20T00:01:00.000Z",
-    });
-    const escalated = housekeepClaimTransform(reviewed)(new Map([[winner.slug, winner]]));
-    expect(escalated).toMatchObject({
-      kind: "applied",
-      value: {
-        kind: "resume",
-        record: { slug: winner.slug, claimId: winner.claimId, dispatchId: winner.dispatchId, routingLane: "reviewed" },
-      },
-    });
-
-    const alreadyReviewed = housekeep({ routingLane: "reviewed", updatedAt: "2026-07-20T00:01:00.000Z" });
-    const downgrade = housekeepClaimTransform(housekeep())(new Map([[alreadyReviewed.slug, alreadyReviewed]]));
-    expect(downgrade).toMatchObject({
-      kind: "idempotent",
-      value: { record: { routingLane: "reviewed" } },
-    });
-  });
-
-  it("collapses a different-slug same-plan loser into the winning identity", () => {
-    const winner = housekeep();
-    const loser = housekeep({
-      slug: "second-route",
-      claimId: "5".repeat(32),
-      branch: "chore/second-route",
-      dispatchId: "dispatch-loser",
-    });
-    const decision = housekeepClaimTransform(loser)(new Map([
-      [winner.slug, winner],
-      [loser.slug, loser],
-    ]));
-    expect(decision).toMatchObject({
-      kind: "applied",
-      value: { kind: "resume", record: { slug: winner.slug, dispatchId: winner.dispatchId } },
-    });
-    if (decision.kind !== "applied") throw new Error("expected loser adoption");
-    expect([...decision.records.keys()]).toEqual([winner.slug]);
-  });
-
-  it("refuses same-key adoption when the validated plan does not match", () => {
-    const candidate = housekeep();
-    const otherPlan = housekeep({ routingPlanDigest: `sha256:${"e".repeat(64)}` });
-    expect(housekeepClaimConflictResolver(candidate)({
-      key: candidate.slug,
-      base: undefined,
-      local: candidate,
-      remote: otherPlan,
-    })).toMatchObject({ kind: "refused" });
-  });
-
   it("persists only an exact open routing generation as awaiting merge", () => {
     const previous = housekeep();
     const decision = housekeepAwaitMergeTransform({
@@ -341,7 +262,7 @@ describe("housekeep routing identity claims", () => {
     })(new Map([[previous.slug, previous]]));
     expect(decision).toMatchObject({
       kind: "applied",
-      value: { state: "awaiting-merge", dispatchId: previous.dispatchId, routingPlanDigest: previous.routingPlanDigest },
+      value: { state: "awaiting-merge", claimId: previous.claimId },
     });
     expect(housekeepAwaitMergeTransform({
       previous,

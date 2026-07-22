@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import {
+  markCurrentInboxEntriesExecuteBound,
   runUserInboxMutation,
   runUserInboxRemove,
   unmarkCurrentInboxEntry,
@@ -149,21 +150,16 @@ describe("runUserInboxRemove", () => {
 
 describe("runUserInboxMutation", () => {
   it("atomically marks an exact batch and returns the bytes that reached disk", async () => {
-    const mutations = ["Fix the flaky log assertion", "Keep me"].map((title) => ({
-      kind: "mark" as const,
-      title,
-      sourceDigest: inboxEntrySourceDigest(INBOX, title),
-      dispatchId: "dispatch-11",
-    }));
+    const titles = ["Fix the flaky log assertion", "Keep me"];
 
-    const result = await runUserInboxMutation({ cwd, io: io(), identity: IDENTITY, mutations });
+    const result = await markCurrentInboxEntriesExecuteBound({ cwd, io: io(), identity: IDENTITY, titles });
 
     expect(result.changed).toBe(true);
-    expect(result.outcomes).toEqual(mutations.map(({ title }) => ({ title, state: "applied" })));
+    expect(result.outcomes).toEqual(titles.map((title) => ({ title, state: "applied" })));
     expect(result.postImage.state).toBe("present");
     if (result.postImage.state !== "present") throw new Error("expected a present post-image");
     expect(await readFile(inboxPath, "utf-8")).toBe(result.postImage.content);
-    expect(result.postImage.content.match(/- _Dispatch:_ `dispatch-11`/g)).toHaveLength(2);
+    expect(result.postImage.content.match(/- _Disposition:_ `execute-bound`/g)).toHaveLength(2);
   });
 
   it("serializes concurrent mark and remove writers without losing either update", async () => {
@@ -175,7 +171,7 @@ describe("runUserInboxMutation", () => {
         cwd,
         io: io(),
         identity: IDENTITY,
-        mutations: [{ kind: "mark", title: "Keep me", sourceDigest: markDigest, dispatchId: "dispatch-race" }],
+        mutations: [{ kind: "mark", title: "Keep me", sourceDigest: markDigest }],
       }),
       runUserInboxMutation({
         cwd,
@@ -189,7 +185,7 @@ describe("runUserInboxMutation", () => {
     expect(removed.changed).toBe(true);
     const content = await readFile(inboxPath, "utf-8");
     expect(content).not.toContain("Fix the flaky log assertion");
-    expect(content).toContain("- _Dispatch:_ `dispatch-race`");
+    expect(content).toContain("- _Disposition:_ `execute-bound`");
   });
 
   it("leaves the preimage intact when atomic replacement fails and releases the lock for retry", async () => {
@@ -197,7 +193,6 @@ describe("runUserInboxMutation", () => {
       kind: "mark" as const,
       title: "Keep me",
       sourceDigest: inboxEntrySourceDigest(INBOX, "Keep me"),
-      dispatchId: "dispatch-retry",
     };
 
     await expect(runUserInboxMutation(
@@ -208,10 +203,10 @@ describe("runUserInboxMutation", () => {
 
     const retry = await runUserInboxMutation({ cwd, io: io(), identity: IDENTITY, mutations: [mutation] });
     expect(retry.changed).toBe(true);
-    expect(await readFile(inboxPath, "utf-8")).toContain("- _Dispatch:_ `dispatch-retry`");
+    expect(await readFile(inboxPath, "utf-8")).toContain("- _Disposition:_ `execute-bound`");
   });
 
-  it("clears only the exact dispatch binding and keeps the capture", async () => {
+  it("clears only the execute-bound flag and keeps the capture", async () => {
     const title = "Fix the flaky log assertion";
     await runUserInboxMutation({
       cwd,
@@ -221,24 +216,14 @@ describe("runUserInboxMutation", () => {
         kind: "mark",
         title,
         sourceDigest: inboxEntrySourceDigest(INBOX, title),
-        dispatchId: "dispatch-abandon",
       }],
     });
-
-    await expect(unmarkCurrentInboxEntry({
-      cwd,
-      io: io(),
-      identity: IDENTITY,
-      title,
-      dispatchId: "another-dispatch",
-    })).rejects.toThrow(/bound to another dispatch/);
 
     const cleared = await unmarkCurrentInboxEntry({
       cwd,
       io: io(),
       identity: IDENTITY,
       title,
-      dispatchId: "dispatch-abandon",
     });
     expect(cleared.changed).toBe(true);
     expect(await readFile(inboxPath, "utf-8")).toBe(INBOX);
@@ -248,7 +233,6 @@ describe("runUserInboxMutation", () => {
       io: io(),
       identity: IDENTITY,
       title,
-      dispatchId: "another-dispatch",
     })).resolves.toMatchObject({ changed: false });
   });
 });

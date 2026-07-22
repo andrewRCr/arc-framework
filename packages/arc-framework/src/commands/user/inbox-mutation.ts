@@ -137,23 +137,39 @@ export async function removeCurrentInboxEntry(
   return { ...transaction.result, postImage: transaction.postImage };
 }
 
-/** Clear only one exact current dispatch binding without deleting its capture. */
+/** Mark selected current entries execute-bound in one lock-serialized transaction. */
+export async function markCurrentInboxEntriesExecuteBound(
+  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity"> & { titles: readonly string[] },
+  dependencies: UserInboxMutationDependencies = {},
+): Promise<RunUserInboxMutationResult> {
+  const transaction = await withLockedUserInbox(options, ({ content }) => {
+    if (content === null) throw new Error("USER-INBOX is missing.");
+    const mutations = options.titles.map((title) => {
+      const entry = inspectInboxEntry(content, title);
+      return { kind: "mark" as const, title: entry.title, sourceDigest: entry.sourceDigest };
+    });
+    const result = mutateInboxEntries(content, mutations);
+    return {
+      result: { changed: result.changed, outcomes: result.outcomes },
+      ...(result.changed ? { replacement: result.content } : {}),
+    };
+  }, dependencies);
+  return { ...transaction.result, postImage: transaction.postImage };
+}
+
+/** Clear one current execute-bound mark without deleting its capture. */
 export async function unmarkCurrentInboxEntry(
-  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity"> & { title: string; dispatchId: string },
+  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity"> & { title: string },
   dependencies: UserInboxMutationDependencies = {},
 ): Promise<{ changed: boolean; postImage: UserInboxPostImage }> {
   const transaction = await withLockedUserInbox(options, ({ content }) => {
     if (content === null) throw new Error("USER-INBOX is missing.");
     const entry = inspectInboxEntry(content, options.title);
-    if (entry.dispatchId === null) return { result: { changed: false } };
-    if (entry.dispatchId !== options.dispatchId) {
-      throw new Error(`USER-INBOX entry '${entry.title}' is bound to another dispatch.`);
-    }
+    if (!entry.executeBound) return { result: { changed: false } };
     const result = mutateInboxEntries(content, [{
       kind: "unmark",
       title: entry.title,
       sourceDigest: entry.sourceDigest,
-      dispatchId: options.dispatchId,
     }]);
     return { result: { changed: result.changed }, replacement: result.content };
   }, dependencies);

@@ -20,7 +20,6 @@ export interface MaterializableErrand {
   expectedHead: string;
   state: "paused" | "awaiting-merge";
   originEntry: string | null;
-  dispatchId: string | null;
 }
 
 export interface FindMaterializableErrandsOptions {
@@ -58,7 +57,6 @@ export function findMaterializableErrands(
         expectedHead: record.savedHead,
         state: record.state,
         originEntry: record.originEntry,
-        dispatchId: record.dispatchId,
       }];
     }
     if (record.state === "awaiting-merge" && record.changeRequest.headRef === record.branch) {
@@ -69,7 +67,6 @@ export function findMaterializableErrands(
         expectedHead: record.changeRequest.headSha,
         state: record.state,
         originEntry: record.originEntry,
-        dispatchId: record.dispatchId,
       }];
     }
     return [];

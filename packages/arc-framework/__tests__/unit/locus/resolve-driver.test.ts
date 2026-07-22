@@ -12,7 +12,7 @@ function row(kind: "errand" | "housekeep" | "groom", lease: "dead" | "live" | "u
     kind: "managed-role", checkoutPath: "/repo-child", primary: false, recordId: `sha256:${"1".repeat(64)}`,
     role: {
       kind, subject: { kind: subjectKind, key: "subject", claimId: "2".repeat(32) }, parentCheckoutPath: "/repo-wu",
-      dispatchId: null, originEntry: null, routingPlanDigest: null,
+      originEntry: null,
     },
     identity: null,
     lease: {
@@ -30,7 +30,7 @@ describe("locus resolve driver", () => {
         outcome: "idempotent", operation: subject === "errand" ? "errand-abandon"
           : subject === "housekeep" ? "housekeep-abandon" : "plan-abandon",
         allocation: null, recordId: null, leaseId: null, activeLocusPath: null, sessionHomePath: null,
-        identity: null, originEntry: null, dispatchId: null, routingPlanDigest: null,
+        identity: null, originEntry: null,
         restoredParent: null, nextOffer: null, recommendedPromptText: "Delegated.",
       }));
       const result = await resolveLocusGeneration({

@@ -38,7 +38,6 @@ export interface OpenOrdinaryErrandRuntimeOptions {
   readonly slug: string;
   readonly intent?: string;
   readonly originEntry: string | null;
-  readonly dispatchId: string | null;
   readonly protection: "full" | "partial";
   readonly base: string;
   readonly createdAt: string;
@@ -67,7 +66,6 @@ export async function openOrdinaryErrandAtRuntime(
     slug: options.slug,
     intent: options.intent,
     originEntry: options.originEntry,
-    dispatchId: options.dispatchId,
     protection: options.protection,
     base: options.base,
     createdAt: options.createdAt,

@@ -44,13 +44,13 @@ describe("runInboxState", () => {
     const content = ["# User Inbox", "", "## Errand", "", "## Work Unit", ""].join("\n");
 
     expect(runInboxState({ content })).toEqual({
-      routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [], dispatchDiagnostics: [],
+      routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [], executeBoundDiagnostics: [],
     });
   });
 
   it("treats empty content as zero count with housekeepNeeded false", () => {
     expect(runInboxState({ content: "" })).toEqual({
-      routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [], dispatchDiagnostics: [],
+      routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [], executeBoundDiagnostics: [],
     });
   });
 
@@ -92,38 +92,34 @@ describe("runInboxState", () => {
     ].join("\n");
 
     expect(runInboxState({ content })).toEqual({
-      routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [], dispatchDiagnostics: [],
+      routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [], executeBoundDiagnostics: [],
     });
   });
 
-  it("surfaces pending dispatch groups separately without reoffering them for routing", () => {
-    const bound = (title: string, dispatchId: string): string => [
-      `### \`[ ]\` **${title}**`, "", "- _Disposition:_ `execute-bound`", `- _Dispatch:_ \`${dispatchId}\``,
+  it("surfaces the execute-bound queue separately without reoffering it for routing", () => {
+    const bound = (title: string): string => [
+      `### \`[ ]\` **${title}**`, "", "- _Disposition:_ `execute-bound`",
       "- _Observation:_ queued.", "",
     ].join("\n");
     const content = [
-      "## Errand", "", bound("first", "dispatch-7"), bound("second", "dispatch-7"),
-      bound("other", "dispatch-8"), "## Work Unit", "",
+      "## Errand", "", bound("first"), bound("second"), bound("other"), "## Work Unit", "",
     ].join("\n");
 
     expect(runInboxState({ content })).toMatchObject({
       routableCount: 0,
       housekeepNeeded: false,
-      pendingDispatchGroups: [
-        { dispatchId: "dispatch-7", titles: ["first", "second"] },
-        { dispatchId: "dispatch-8", titles: ["other"] },
-      ],
-      dispatchDiagnostics: [],
+      pendingExecuteBound: ["first", "second", "other"],
+      executeBoundDiagnostics: [],
     });
   });
 
-  it("reports malformed partial dispatch state without making it routable", () => {
+  it("reports malformed execute-bound state without making it routable", () => {
     const content = [
-      "## Errand", "", "### `[ ]` **broken**", "", "- _Disposition:_ `execute-bound`", "- body", "",
+      "## Errand", "", "### `[ ]` **broken**", "- _Disposition:_ `execute-bound`", "- body", "",
     ].join("\n");
     const result = runInboxState({ content });
-    expect(result).toMatchObject({ routableCount: 0, housekeepNeeded: false, pendingDispatchGroups: [] });
-    expect(result.dispatchDiagnostics?.[0]).toContain("Malformed");
+    expect(result).toMatchObject({ routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [] });
+    expect(result.executeBoundDiagnostics?.[0]).toContain("Malformed");
   });
 });
 

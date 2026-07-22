@@ -58,7 +58,6 @@ export type OrdinaryErrandTransition =
       kind: "link";
       previous: OrdinaryErrandRecord;
       originEntry: string;
-      dispatchId: string | null;
       updatedAt: string;
     }
   | {
@@ -265,9 +264,8 @@ function desiredRecord(request: Exclude<OrdinaryErrandTransition, { kind: "creat
   if (request.kind === "retire") return retirementDesired(request);
   if (request.kind === "link" && request.previous.state === "open" && request.previous.origin === "inbox") {
     return request.previous.originEntry === request.originEntry
-      && request.previous.dispatchId === request.dispatchId
       ? { kind: "desired", record: request.previous }
-      : { kind: "refused", reason: "Errand is already linked to a different inbox generation" };
+      : { kind: "refused", reason: "Errand is already linked to a different inbox capture" };
   }
   if (!timestampAdvances(request.previous.updatedAt, request.updatedAt)) {
     return { kind: "refused", reason: "updatedAt must advance monotonically" };
@@ -283,7 +281,6 @@ function desiredRecord(request: Exclude<OrdinaryErrandTransition, { kind: "creat
         ...request.previous,
         origin: "inbox",
         originEntry: request.originEntry,
-        dispatchId: request.dispatchId,
         updatedAt: request.updatedAt,
       };
       break;

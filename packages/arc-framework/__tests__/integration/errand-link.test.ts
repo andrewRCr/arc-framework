@@ -99,7 +99,6 @@ describe("linkErrandToInbox", () => {
       purpose: "errand",
       origin: "description",
       originEntry: null,
-      dispatchId: null,
       intent: "Late match",
       branch: "chore/late-match",
       state: "open",
@@ -120,7 +119,7 @@ describe("linkErrandToInbox", () => {
       inbox: {
         title: "Existing capture",
         sourceDigest: `sha256:${"b".repeat(64)}` as `sha256:${string}`,
-        dispatchId: "dispatch-1",
+        executeBound: false,
       },
       updatedAt: "2026-06-19T12:01:00.000Z",
       identity: IDENTITY,
@@ -131,7 +130,6 @@ describe("linkErrandToInbox", () => {
     expect(result).toMatchObject({
       outcome: "applied",
       originEntry: "Existing capture",
-      dispatchId: "dispatch-1",
     });
     const snapshot = await readTransientIdentitySnapshot(io);
     expect(snapshot).toMatchObject({ kind: "complete" });
@@ -140,7 +138,6 @@ describe("linkErrandToInbox", () => {
       claimId: record.claimId,
       origin: "inbox",
       originEntry: "Existing capture",
-      dispatchId: "dispatch-1",
     });
   });
 });

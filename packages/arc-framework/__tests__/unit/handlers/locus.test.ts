@@ -19,9 +19,7 @@ const SUCCESS: LocusEnvelopeV1 = {
         kind: "work-unit",
         subject: { kind: "work-unit", key: "reader", claimId: null },
         parentCheckoutPath: null,
-        dispatchId: null,
         originEntry: null,
-        routingPlanDigest: null,
       },
       identity: null,
       lease: {
@@ -151,7 +149,6 @@ describe("runLocusCli", () => {
       purpose: "errand" as const,
       origin: "description" as const,
       originEntry: null,
-      dispatchId: null,
       state: "paused" as const,
       savedHead: "c".repeat(40),
       changeRequest: null,

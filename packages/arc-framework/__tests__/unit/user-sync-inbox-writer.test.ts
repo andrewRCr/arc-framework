@@ -11,10 +11,9 @@
 import { describe, it, expect } from "vitest";
 
 import {
-  findNextDispatchInboxEntry,
   inboxEntrySourceDigest,
   inspectInboxEntry,
-  listDispatchInboxEntries,
+  listExecuteBoundInboxEntries,
   listInboxEntryTitles,
   mutateInboxEntries,
   removeInboxEntry,
@@ -57,13 +56,13 @@ const INBOX = `# User Inbox
 `;
 
 describe("mutateInboxEntries", () => {
-  it("marks an exact batch with one visible dispatch generation", () => {
+  it("marks an exact batch as one visible execute-bound queue", () => {
     const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
     const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
 
     const result = mutateInboxEntries(INBOX, [
-      { kind: "mark", title: "First atomic", sourceDigest: firstDigest, dispatchId: "dispatch-7" },
-      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest, dispatchId: "dispatch-7" },
+      { kind: "mark", title: "First atomic", sourceDigest: firstDigest },
+      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest },
     ]);
 
     expect(result.changed).toBe(true);
@@ -72,72 +71,54 @@ describe("mutateInboxEntries", () => {
       { title: "Second atomic", state: "applied" },
     ]);
     expect(result.content.match(/- _Disposition:_ `execute-bound`/g)).toHaveLength(2);
-    expect(result.content.match(/- _Dispatch:_ `dispatch-7`/g)).toHaveLength(2);
+    expect(result.content).not.toContain("_Dispatch:_");
     expect(result.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
   });
 
-  it("projects the exact visible dispatch binding for an Errand adoption read", () => {
+  it("projects the visible execute-bound disposition for an Errand adoption read", () => {
     const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
     const marked = mutateInboxEntries(INBOX, [
-      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+      { kind: "mark", title: "First atomic", sourceDigest },
     ]);
 
     expect(inspectInboxEntry(marked.content, "First atomic")).toEqual({
       title: "First atomic",
       sourceDigest,
-      dispatchId: "dispatch-7",
+      executeBound: true,
     });
   });
 
-  it("selects the first remaining capture in the exact dispatch generation", () => {
+  it("lists all execute-bound captures in stable file order", () => {
     const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
     const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
     const marked = mutateInboxEntries(INBOX, [
-      { kind: "mark", title: "First atomic", sourceDigest: firstDigest, dispatchId: "dispatch-7" },
-      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest, dispatchId: "dispatch-7" },
-    ]);
-    const removed = mutateInboxEntries(marked.content, [
-      { kind: "remove", title: "First atomic", sourceDigest: firstDigest },
+      { kind: "mark", title: "First atomic", sourceDigest: firstDigest },
+      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest },
     ]);
 
-    expect(findNextDispatchInboxEntry(removed.content, "dispatch-7")).toEqual({
-      title: "Second atomic",
-      dispatchId: "dispatch-7",
-    });
-    expect(findNextDispatchInboxEntry(removed.content, "dispatch-8")).toBeNull();
-  });
-
-  it("lists an exact dispatch generation in stable file order", () => {
-    const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
-    const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
-    const marked = mutateInboxEntries(INBOX, [
-      { kind: "mark", title: "First atomic", sourceDigest: firstDigest, dispatchId: "dispatch-7" },
-      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest, dispatchId: "dispatch-7" },
+    expect(listExecuteBoundInboxEntries(marked.content)).toEqual([
+      { title: "First atomic", sourceDigest: firstDigest },
+      { title: "Second atomic", sourceDigest: secondDigest },
     ]);
-    expect(listDispatchInboxEntries(marked.content, "dispatch-7")).toEqual([
-      { title: "First atomic", sourceDigest: firstDigest, dispatchId: "dispatch-7" },
-      { title: "Second atomic", sourceDigest: secondDigest, dispatchId: "dispatch-7" },
-    ]);
-    expect(listDispatchInboxEntries(marked.content, "dispatch-8")).toEqual([]);
   });
 
   it("replays an exact mark, unmark, and removal without widening the write", () => {
     const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
     const marked = mutateInboxEntries(INBOX, [
-      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+      { kind: "mark", title: "First atomic", sourceDigest },
     ]);
     const markReplay = mutateInboxEntries(marked.content, [
-      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+      { kind: "mark", title: "First atomic", sourceDigest },
     ]);
     expect(markReplay).toMatchObject({ changed: false, content: marked.content });
     expect(markReplay.outcomes).toEqual([{ title: "First atomic", state: "already-applied" }]);
 
     const unmarked = mutateInboxEntries(marked.content, [
-      { kind: "unmark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+      { kind: "unmark", title: "First atomic", sourceDigest },
     ]);
     expect(unmarked.content).toBe(INBOX);
     expect(mutateInboxEntries(unmarked.content, [
-      { kind: "unmark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+      { kind: "unmark", title: "First atomic", sourceDigest },
     ])).toMatchObject({ changed: false, content: INBOX });
 
     const removed = mutateInboxEntries(marked.content, [
@@ -152,10 +133,10 @@ describe("mutateInboxEntries", () => {
   it("rejects changed, missing, duplicate, and malformed entry preimages", () => {
     const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
     expect(() => mutateInboxEntries(INBOX.replace("first.", "changed."), [
-      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+      { kind: "mark", title: "First atomic", sourceDigest },
     ])).toThrow(/source digest changed/);
     expect(() => mutateInboxEntries(INBOX, [
-      { kind: "mark", title: "Missing", sourceDigest, dispatchId: "dispatch-7" },
+      { kind: "mark", title: "Missing", sourceDigest },
     ])).toThrow(/Missing USER-INBOX entry/);
 
     const duplicate = INBOX.replace(
@@ -163,35 +144,38 @@ describe("mutateInboxEntries", () => {
       "### `[ ]` **First atomic**\n\n- _Observation:_ duplicate.\n\n## Work Unit",
     );
     expect(() => mutateInboxEntries(duplicate, [
-      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+      { kind: "mark", title: "First atomic", sourceDigest },
     ])).toThrow(/Duplicate USER-INBOX entry title/);
 
     const malformed = INBOX.replace("### `[ ]` **First atomic**", "### `[ ]` First atomic");
     expect(() => mutateInboxEntries(malformed, [
-      { kind: "mark", title: "Second atomic", sourceDigest: inboxEntrySourceDigest(INBOX, "Second atomic"), dispatchId: "dispatch-7" },
+      { kind: "mark", title: "Second atomic", sourceDigest: inboxEntrySourceDigest(INBOX, "Second atomic") },
     ])).toThrow(/Malformed USER-INBOX entry heading/);
   });
 
-  it("preserves unrelated bytes and rejects partial or cross-generation dispatch fields", () => {
+  it("preserves unrelated bytes and rejects malformed or legacy disposition fields", () => {
     const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
     const marked = mutateInboxEntries(INBOX, [
-      { kind: "mark", title: "First atomic", sourceDigest, dispatchId: "dispatch-7" },
+      { kind: "mark", title: "First atomic", sourceDigest },
     ]);
     expect(marked.content.replace(
-      "\n\n- _Disposition:_ `execute-bound`\n- _Dispatch:_ `dispatch-7`",
+      "\n\n- _Disposition:_ `execute-bound`",
       "",
     )).toBe(INBOX);
-    expect(() => mutateInboxEntries(marked.content, [
-      { kind: "unmark", title: "First atomic", sourceDigest, dispatchId: "dispatch-8" },
-    ])).toThrow(/bound to another dispatch/);
 
-    const partial = INBOX.replace(
+    const malformed = INBOX.replace(
       "### `[ ]` **First atomic**",
-      "### `[ ]` **First atomic**\n\n- _Disposition:_ `execute-bound`",
+      "### `[ ]` **First atomic**\n- _Disposition:_ `execute-bound`",
     );
-    expect(() => mutateInboxEntries(partial, [
+    expect(() => mutateInboxEntries(malformed, [
       { kind: "remove", title: "First atomic", sourceDigest },
-    ])).toThrow(/Malformed USER-INBOX dispatch fields/);
+    ])).toThrow(/Malformed USER-INBOX disposition fields/);
+
+    const legacy = marked.content.replace(
+      "- _Disposition:_ `execute-bound`",
+      "- _Disposition:_ `execute-bound`\n- _Dispatch:_ `dispatch-7`",
+    );
+    expect(() => listExecuteBoundInboxEntries(legacy)).toThrow(/Malformed USER-INBOX disposition fields/);
   });
 });
 

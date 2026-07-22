@@ -33,9 +33,7 @@ function workUnitRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
       kind: "work-unit",
       subject: { kind: "work-unit", key: "demo", claimId: null },
       parentCheckoutPath: null,
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     },
     identity: null,
     lease: {
@@ -78,7 +76,6 @@ function transientRow(
         purpose: "errand" as const,
         origin: "description" as const,
         originEntry: null,
-        dispatchId: null,
         state: "open" as const,
         savedHead: null,
         changeRequest: null,
@@ -112,9 +109,7 @@ function transientRow(
           ? { kind: "groom", key: "groom-demo", claimId: CLAIM }
           : { kind: "housekeep", key: "sweep", claimId: null },
       parentCheckoutPath: "/repo-wu",
-      dispatchId: role === "housekeep" ? "dispatch-1" : null,
       originEntry: null,
-      routingPlanDigest: role === "housekeep" ? `sha256:${"f".repeat(64)}` : null,
     },
     identity,
     lease: {

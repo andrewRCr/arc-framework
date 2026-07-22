@@ -954,17 +954,16 @@ full guard set unchanged.
   preserved head drift and unreachable host truth proceed with explicit warnings while provisioning reuses the
   recorded head. Exact merged retirement and closed-unmerged abandonment remain unchanged.
 
-### `[ ]` **7.R.e Remove the housekeep plan-commitment protocol** — D8
+### `[x]` **7.R.e Remove the housekeep plan-commitment protocol** — D8
 
 - _Goal:_ A drain opens from slug plus lane confirmation alone; execute-bound inbox marking remains the durable
   dispatch record, and an interrupted sweep re-confirms its remaining entries instead of replaying a
   digest-matched plan.
 
-    - Remove the `HousekeepPlanV1` file input, the `arc housekeep plan` compiler, and the
-      sourceDigest/routingPlanDigest/plan-adoption machinery from identity and role schemas (v3 is machine-young
-      and self-hosted only — no migration shim); keep one-live-sweep serialization via identity existence.
-    - Apply the 7.R.a dispatch-binding and lane decisions; update `drain-inbox`/`run-errand` workflows, the
-      inbox-state dispatch-group slot, and tests.
+- _Outcome:_ Housekeep now opens from slug only; a separate atomic verb marks confirmed execute-now titles into a
+  global file-order queue that survives interrupted or abandoned sweeps. Removed the plan compiler, digests, and
+  dispatch/lane wire fields; ordinary Errands use their origin titles to clear and advance the queue. Identity-only
+  interrupted opens rematerialize occupancy, while awaiting-merge generations refuse pathless open success.
 
 ### `[ ]` **7.R.f Simplify groom claims to same-key conflict semantics** — D8
 

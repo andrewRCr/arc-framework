@@ -3,7 +3,6 @@
 import { z } from "zod";
 
 import {
-  LocusDigestSchema,
   LocusGitOidSchema,
   LocusOpaqueTextSchema,
   LocusTokenSchema,
@@ -27,10 +26,10 @@ const ordinaryBase = {
   purpose: z.literal("errand"),
 };
 const descriptionOrigin = {
-  origin: z.literal("description"), originEntry: z.null(), dispatchId: z.null(),
+  origin: z.literal("description"), originEntry: z.null(),
 };
 const inboxOrigin = {
-  origin: z.literal("inbox"), originEntry: LocusOpaqueTextSchema, dispatchId: LocusOpaqueTextSchema.nullable(),
+  origin: z.literal("inbox"), originEntry: LocusOpaqueTextSchema,
 };
 const openState = { state: z.literal("open"), savedHead: z.null(), changeRequest: z.null() };
 const pausedState = { state: z.literal("paused"), savedHead: LocusGitOidSchema, changeRequest: z.null() };
@@ -51,9 +50,6 @@ const routingBase = {
   protection: z.literal("full"),
   branch: LocusOpaqueTextSchema,
   purpose: z.literal("housekeep-routing"),
-  routingLane: z.enum(["auto", "reviewed"]),
-  dispatchId: LocusOpaqueTextSchema,
-  routingPlanDigest: LocusDigestSchema,
 };
 const routingErrands = [
   z.strictObject({ ...routingBase, ...openState }),

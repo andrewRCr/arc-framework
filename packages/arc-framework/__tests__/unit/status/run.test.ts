@@ -125,9 +125,7 @@ function recoveryWorkUnitLocus(): LocusStateV1 {
           kind: "work-unit",
           subject: { kind: "work-unit", key: "x", claimId: null },
           parentCheckoutPath: null,
-          dispatchId: null,
           originEntry: null,
-          routingPlanDigest: null,
         },
         identity: null,
         lease: {
@@ -2508,7 +2506,7 @@ describe("runSessionInitStatus — errand-state slot", () => {
         errandStateResult({
           materializable: { candidates: [{
             slug: "fix", claimId: "c".repeat(32), branch: "chore/fix", expectedHead: "a".repeat(40),
-            state: "paused", originEntry: null, dispatchId: null,
+            state: "paused", originEntry: null,
           }] },
         })),
     });
@@ -2525,7 +2523,7 @@ describe("runSessionInitStatus — errand-state slot", () => {
       expect(result.errandState.value.materializable.candidates).toEqual([
         {
           slug: "fix", claimId: "c".repeat(32), branch: "chore/fix", expectedHead: "a".repeat(40),
-          state: "paused", originEntry: null, dispatchId: null,
+          state: "paused", originEntry: null,
         },
       ]);
     }

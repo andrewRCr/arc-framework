@@ -73,13 +73,10 @@ function errandIdentity(purpose: "errand" | "housekeep-routing"): LocusIdentityV
     changeRequest: null,
   };
   return purpose === "errand"
-    ? { ...common, purpose, origin: "description", originEntry: null, dispatchId: null }
+    ? { ...common, purpose, origin: "description", originEntry: null }
     : {
         ...common,
         purpose,
-        routingLane: "auto",
-        dispatchId: "dispatch-1",
-        routingPlanDigest: `sha256:${"4".repeat(64)}`,
       };
 }
 
@@ -120,9 +117,7 @@ describe("durable locus role minting", () => {
           subject: { kind: "work-unit", key: "demo", claimId: null },
           establishedAt: BASE.establishedAt,
           parentCheckoutPath: null,
-          dispatchId: null,
           originEntry: null,
-          routingPlanDigest: null,
         },
         lease: null,
       } satisfies Partial<LocusRecordV1>,
@@ -132,16 +127,14 @@ describe("durable locus role minting", () => {
   it("derives full and partial transient role pairs with exact claim and context fields", async () => {
     const cases: Array<{
       authority: LocusRoleAuthority;
-      expected: Pick<NonNullable<LocusRecordV1["role"]>, "kind" | "subject" | "dispatchId" | "originEntry" | "routingPlanDigest">;
+      expected: Pick<NonNullable<LocusRecordV1["role"]>, "kind" | "subject" | "originEntry">;
     }> = [
       {
         authority: { kind: "identity", identity: errandIdentity("errand") },
         expected: {
           kind: "errand",
           subject: { kind: "errand", key: "demo", claimId: "2".repeat(32) },
-          dispatchId: null,
           originEntry: null,
-          routingPlanDigest: null,
         },
       },
       {
@@ -149,9 +142,7 @@ describe("durable locus role minting", () => {
         expected: {
           kind: "groom",
           subject: { kind: "groom", key: "groom-demo", claimId: "5".repeat(32) },
-          dispatchId: null,
           originEntry: null,
-          routingPlanDigest: null,
         },
       },
       {
@@ -159,9 +150,7 @@ describe("durable locus role minting", () => {
         expected: {
           kind: "housekeep",
           subject: { kind: "errand", key: "inbox-drain", claimId: "3".repeat(32) },
-          dispatchId: null,
           originEntry: null,
-          routingPlanDigest: null,
         },
       },
       {
@@ -169,15 +158,11 @@ describe("durable locus role minting", () => {
           kind: "partial-errand",
           key: "demo",
           originEntry: null,
-          dispatchId: null,
-          routingPlanDigest: null,
         },
         expected: {
           kind: "errand",
           subject: { kind: "partial-errand", key: "demo", claimId: null },
-          dispatchId: null,
           originEntry: null,
-          routingPlanDigest: null,
         },
       },
       {
@@ -185,47 +170,22 @@ describe("durable locus role minting", () => {
           kind: "partial-errand",
           key: "demo",
           originEntry: "Inbox entry",
-          dispatchId: null,
-          routingPlanDigest: null,
         },
         expected: {
           kind: "errand",
           subject: { kind: "partial-errand", key: "demo", claimId: null },
-          dispatchId: null,
           originEntry: "Inbox entry",
-          routingPlanDigest: null,
-        },
-      },
-      {
-        authority: {
-          kind: "partial-errand",
-          key: "demo",
-          originEntry: "Inbox entry",
-          dispatchId: "dispatch-2",
-          routingPlanDigest: null,
-        },
-        expected: {
-          kind: "errand",
-          subject: { kind: "partial-errand", key: "demo", claimId: null },
-          dispatchId: "dispatch-2",
-          originEntry: "Inbox entry",
-          routingPlanDigest: null,
         },
       },
       {
         authority: {
           kind: "partial-housekeep",
           key: "inbox-drain",
-          originEntry: null,
-          dispatchId: "dispatch-3",
-          routingPlanDigest: `sha256:${"6".repeat(64)}`,
         },
         expected: {
           kind: "housekeep",
           subject: { kind: "housekeep", key: "inbox-drain", claimId: null },
-          dispatchId: "dispatch-3",
           originEntry: null,
-          routingPlanDigest: `sha256:${"6".repeat(64)}`,
         },
       },
     ];
@@ -264,54 +224,6 @@ describe("durable locus role minting", () => {
       },
       io: store.io,
     })).toEqual({ kind: "refused", reason: "role-conflict" });
-  });
-
-  it("refuses every illegal partial dispatch, origin, and plan combination", async () => {
-    const invalid = [
-      {
-        kind: "partial-errand",
-        key: "demo",
-        originEntry: null,
-        dispatchId: "dispatch",
-        routingPlanDigest: null,
-      },
-      {
-        kind: "partial-errand",
-        key: "demo",
-        originEntry: "Inbox entry",
-        dispatchId: null,
-        routingPlanDigest: `sha256:${"a".repeat(64)}`,
-      },
-      {
-        kind: "partial-housekeep",
-        key: "inbox-drain",
-        originEntry: "Inbox entry",
-        dispatchId: "dispatch",
-        routingPlanDigest: `sha256:${"a".repeat(64)}`,
-      },
-      {
-        kind: "partial-housekeep",
-        key: "inbox-drain",
-        originEntry: null,
-        dispatchId: null,
-        routingPlanDigest: `sha256:${"a".repeat(64)}`,
-      },
-      {
-        kind: "partial-housekeep",
-        key: "inbox-drain",
-        originEntry: null,
-        dispatchId: "dispatch",
-        routingPlanDigest: null,
-      },
-    ] as unknown as LocusRoleAuthority[];
-
-    for (const authority of invalid) {
-      expect(await mintDurableLocusRole({
-        ...BASE,
-        authority,
-        io: memoryIO().io,
-      })).toEqual({ kind: "refused", reason: "role-conflict" });
-    }
   });
 
   it("attaches a minted lease to an unleased role and replays its exact token and anchor", async () => {
@@ -801,9 +713,7 @@ describe("durable locus role minting", () => {
         subject: { kind: "work-unit", key: "demo", claimId: null },
         establishedAt: BASE.establishedAt,
         parentCheckoutPath: null,
-        dispatchId: null,
         originEntry: null,
-        routingPlanDigest: null,
       },
       expectedLeaseId: null,
       observedLiveness: null,

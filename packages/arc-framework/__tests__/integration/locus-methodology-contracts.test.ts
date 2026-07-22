@@ -36,8 +36,8 @@ describe("locus methodology contracts", () => {
       "arc errand leave <slug> --state <paused|awaiting-merge> [--json]",
       "arc errand close <slug> [--json]",
       "arc errand abandon <slug> [--json]",
-      "arc housekeep plan --intent-file <path|-> --output <path> [--json]",
-      "arc housekeep open <slug> --plan-file <path|-> --lane <auto|reviewed> [--json]",
+      "arc housekeep mark-execute <titles...> [--json]",
+      "arc housekeep open <slug> [--json]",
       "arc housekeep close <slug> [--json]",
       "arc housekeep abandon <slug> [--json]",
     ];

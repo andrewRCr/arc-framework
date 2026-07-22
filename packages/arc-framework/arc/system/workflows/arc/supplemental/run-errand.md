@@ -33,7 +33,7 @@ identity without a meta, task list, or SESSION-NOTES; partial mode must complete
 the current session.
 
 Every state-touching Errand command uses `--json`. On `applied` / `idempotent`, render `recommendedPromptText` and
-consume returned paths, record/lease IDs, restored parent, origin/dispatch IDs, and `nextOffer`; on `refused` or
+consume returned paths, record/lease IDs, restored parent, origin back-pointer, and `nextOffer`; on `refused` or
 `error`, render the supplied text and stop. Never reconstruct allocation, preservation, cleanup, or continuation
 from Git branch shape.
 
@@ -81,7 +81,7 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
 
 4. **Late inbox adoption, when needed.** If an in-flight ordinary full-mode Errand acquires a matching capture
    after open, run `arc errand link <slug> --from-inbox <entry-title> --json` (or `--inbox-title-file`). It may add
-   only one exact origin/dispatch binding to an otherwise linkable v3 claim. Conflicts, legacy records, missing
+   only one exact origin back-pointer to an otherwise linkable v3 claim. Conflicts, legacy records, missing
    captures, and partial mode refuse; never edit the identity or inbox by hand.
 
 ## Execute
@@ -110,8 +110,8 @@ take the WU initialization route chosen by the owning lifecycle.
 **Explicit abandon.** On explicit direction to discard a safely preserved generation, invoke
 `arc errand abandon <slug> --json`. Open/paused full identities and closed-unmerged review tails abandon only when
 the verb proves provenance, cleanliness, exact refs, and host disposition. A partial Errand abandons only while its
-clean primary is at the freshly pushed base. Both modes retain the originating capture and clear any execute-dispatch
-mark; never simulate abandonment by deleting a branch, record, or locus file.
+clean primary is at the freshly pushed base. Both modes retain the originating capture and clear its execute-bound
+marking; never simulate abandonment by deleting a branch, record, or locus file.
 
 Run each review increment (one for a typical errand; a few for an extended one):
 
@@ -303,13 +303,13 @@ On merge (full) or final commit (partial), invoke `arc errand close <slug> --jso
 - **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
   removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.
 
-When the result carries `nextOffer`, offer only that exact dispatch-qualified sibling (`kind`, `key`, `dispatchId`,
-and `parentCheckoutPath`). On acceptance, re-enter this workflow through the sibling's open driver; on decline,
+When the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`, `key`, and
+`parentCheckoutPath`). On acceptance, re-enter this workflow through the sibling's open driver; on decline,
 return to the restored parent/between-WUs frame. Never scan the inbox for a replacement continuation.
 
 **Unattended merge (auto-merge lane).** If the merge lands after local leave, `arc errand close` is replayed from
 base context by the [finalize pass][finalize-pass] or the identity's session-init `finalize` action. Exact replay is
-idempotent and may return the dispatch-qualified next offer.
+idempotent and may return the next file-ordered execute-bound offer.
 
 ---
 

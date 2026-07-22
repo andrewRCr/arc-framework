@@ -41,7 +41,6 @@ function pausedIdentity() {
     branch: "chore/paused",
     origin: "inbox",
     originEntry: "Paused capture",
-    dispatchId: "dispatch-1",
     state: "paused",
     savedHead: "b".repeat(40),
     changeRequest: null,
@@ -152,35 +151,6 @@ describe("openOrdinaryErrand", () => {
     expect(result).toMatchObject({ outcome: "refused", reason: "primary-dirty" });
   });
 
-  it("refuses a changed dispatch binding before resume mutation", async () => {
-    const previous = pausedIdentity();
-    const authorizeResume = vi.fn();
-    const result = await openOrdinaryErrand({
-      slug: previous.slug,
-      originEntry: previous.originEntry,
-      dispatchId: "dispatch-other",
-      protection: "full",
-      base: "main",
-      createdAt: "2026-07-21T12:00:00.000Z",
-      identityName: "andrew",
-      locationTemplate: "/work/{repo}.{name}",
-      repo: "repo",
-      leaseId: LEASE_ID,
-      dependencies: {
-        acquireAnchor: async () => ANCHOR,
-        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
-        readIdentity: async () => ({ kind: "ready", record: previous }),
-        authorizeResume,
-        claim: vi.fn(),
-        rollbackClaim: vi.fn(),
-        provision: vi.fn(),
-      },
-    });
-
-    expect(authorizeResume).not.toHaveBeenCalled();
-    expect(result).toMatchObject({ outcome: "refused", reason: "dispatch-conflict" });
-  });
-
   it("reuses a remote-preserved branch for an open identity left by interrupted allocation", async () => {
     const tail = pausedIdentity();
     const record = { ...tail, state: "open" as const, savedHead: null, changeRequest: null };
@@ -227,7 +197,6 @@ describe("openOrdinaryErrand", () => {
       branch: "chore/paused",
       origin: "inbox",
       originEntry: "Paused capture",
-      dispatchId: "dispatch-1",
       state: "paused",
       savedHead,
       changeRequest: null,
@@ -281,13 +250,12 @@ describe("openOrdinaryErrand", () => {
 
     expect(resume).toHaveBeenCalledWith(previous, authorization, "2026-07-21T12:00:00.000Z");
     expect(provision.mock.calls[0]?.[0]).toMatchObject({
-      identity: { key: "paused", claimId: CLAIM_ID, state: "open", dispatchId: "dispatch-1" },
+      identity: { key: "paused", claimId: CLAIM_ID, state: "open" },
     });
     expect(result).toMatchObject({
       outcome: "applied",
       identity: { claimId: CLAIM_ID, state: "open" },
       originEntry: "Paused capture",
-      dispatchId: "dispatch-1",
     });
   });
 
@@ -427,7 +395,6 @@ describe("openOrdinaryErrand", () => {
     const result = await openOrdinaryErrand({
       slug: "local-docs",
       originEntry: "Captured docs fix",
-      dispatchId: "dispatch-12",
       protection: "partial",
       base: "main",
       createdAt: "2026-07-21T12:00:00.000Z",
@@ -453,14 +420,12 @@ describe("openOrdinaryErrand", () => {
       authority: {
         kind: "partial-errand",
         originEntry: "Captured docs fix",
-        dispatchId: "dispatch-12",
       },
     });
     expect(result).toMatchObject({
       outcome: "applied",
       identity: null,
       originEntry: "Captured docs fix",
-      dispatchId: "dispatch-12",
       activeLocusPath: "/repo",
     });
   });
@@ -481,9 +446,7 @@ describe("openOrdinaryErrand", () => {
         kind: "work-unit",
         subject: { kind: "work-unit", key: "parent", claimId: null },
         parentCheckoutPath: null,
-        dispatchId: null,
         originEntry: null,
-        routingPlanDigest: null,
       },
       identity: null,
       lease: null,

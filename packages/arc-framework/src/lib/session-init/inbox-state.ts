@@ -19,7 +19,7 @@
 
 import { z } from "zod";
 
-import { listInboxDispatchGroups, parseCrossWuEntries } from "../user-sync/index.js";
+import { listExecuteBoundInboxEntries, parseCrossWuEntries } from "../user-sync/index.js";
 import { managedFlagIsTrue } from "./managed-field.js";
 
 /** Runtime authority for the inbox-state advisory result. */
@@ -27,11 +27,8 @@ export const InboxStateResultSchema = z
   .object({
     routableCount: z.number().int().nonnegative(),
     housekeepNeeded: z.boolean(),
-    pendingDispatchGroups: z.array(z.strictObject({
-      dispatchId: z.string().min(1),
-      titles: z.array(z.string().min(1)).min(1),
-    })).optional(),
-    dispatchDiagnostics: z.array(z.string().min(1)).optional(),
+    pendingExecuteBound: z.array(z.string().min(1)).optional(),
+    executeBoundDiagnostics: z.array(z.string().min(1)).optional(),
   })
   .strict()
   .refine((value) => value.housekeepNeeded === (value.routableCount > 0), {
@@ -61,17 +58,17 @@ export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
       && !parse.entry.raw.includes("- _Disposition:_ `execute-bound`")
       && !parse.entry.raw.includes("- _Dispatch:_"),
   ).length;
-  let pendingDispatchGroups: ReturnType<typeof listInboxDispatchGroups> = [];
-  const dispatchDiagnostics: string[] = [];
+  let pendingExecuteBound: string[] = [];
+  const executeBoundDiagnostics: string[] = [];
   try {
-    pendingDispatchGroups = listInboxDispatchGroups(options.content);
+    pendingExecuteBound = listExecuteBoundInboxEntries(options.content).map((entry) => entry.title);
   } catch (error) {
-    dispatchDiagnostics.push(error instanceof Error ? error.message : String(error));
+    executeBoundDiagnostics.push(error instanceof Error ? error.message : String(error));
   }
   return {
     routableCount,
     housekeepNeeded: routableCount > 0,
-    pendingDispatchGroups,
-    dispatchDiagnostics,
+    pendingExecuteBound,
+    executeBoundDiagnostics,
   };
 }

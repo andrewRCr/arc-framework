@@ -33,9 +33,7 @@ function row(options: {
       kind: role,
       subject: { kind: role, key: options.id, claimId: role === "errand" ? "a".repeat(32) : null },
       parentCheckoutPath: options.parent ?? null,
-      dispatchId: null,
       originEntry: null,
-      routingPlanDigest: null,
     },
     identity: null,
     lease: options.lease === null || options.lease === undefined ? null : {
@@ -62,7 +60,6 @@ function errandIdentity(key: string, state: "open" | "paused" | "awaiting-merge"
     purpose: "errand" as const,
     origin: "description" as const,
     originEntry: null,
-    dispatchId: null,
   };
   if (state === "paused") {
     return { ...common, state, savedHead: "a".repeat(40), changeRequest: null };
