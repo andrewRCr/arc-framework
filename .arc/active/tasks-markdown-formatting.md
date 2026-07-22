@@ -194,24 +194,11 @@ fires.
           blobs. Real repositories cover divergent worktree bytes, deletion, rename, unusual names, and linked
           worktree indexes.
 
-    - `[ ]` **6.1.b Resolve the indexed Markdown configuration cascade**
-        - Enumerate the indexed `.markdownlint-cli2.{jsonc,yaml,cjs,mjs}` and
-          `.markdownlint.{jsonc,json,yaml,yml,cjs,mjs}` filename families recognized by pinned
-          `markdownlint-cli2`. Support only `.markdownlint-cli2.jsonc`; fail closed with a conversion diagnostic on
-          every other recognized format rather than ignoring or evaluating it.
-        - Declare `jsonc-parser` as a direct root development dependency and load every supported config through
-          the same exact indexed-blob primitive; require the root config.
-        - Validate parse errors, UTF-8, object shape, and the supported top-level option surface; reject missing,
-          malformed, or unsupported configuration instead of silently changing semantics.
-        - Treat root `globs`, `ignores`, and `gitignore` as an integrity mirror: require exact structural equality
-          with the shared selector's canonical declaration, including array order; reject those options in nested
-          configs, and never evaluate arbitrary indexed globs as a second path authority.
-        - Merge ancestor `.config` rule objects by directory and group files by effective configuration, including
-          the existing `docs/` override; keep selected-path authority in the shared selector.
-        - Build `test-first` for root-only and nested inheritance, staged root/nested rule changes, canonical root
-          path options, config-only selector drift, nested path-option refusal, every recognized unsupported
-          filename family, empty supported options, unsupported executable options, deletion, malformed JSONC,
-          and deterministic config groups.
+    - `[x]` **6.1.b Resolve the indexed Markdown configuration cascade**
+        - Added exact-index discovery and one-read loading for every recognized configuration name, with fatal
+          parsing and fail-closed handling for unsupported formats or executable options. Root selector parity and
+          nested rule-only boundaries are enforced before deterministic ancestor inheritance groups the selected
+          Markdown paths, including staged `docs/` overrides.
 
     - `[ ]` **6.1.c Certify the indexed snapshot through both lint engines**
         - Build `test-first` (one behavior at a time):

@@ -20,14 +20,21 @@ export interface LoadWorktreeMarkdownConfigurationsOptions {
 
 const MARKDOWN_CONFIG_RE = /(?:^|\/)\.(?:markdownlint-cli2\.(?:jsonc|yaml|cjs|mjs)|markdownlint\.(?:jsonc|json|yaml|yml|cjs|mjs))$/u;
 
+/** Whether a repository-relative path is a configuration name recognized by markdownlint-cli2. */
+export function isMarkdownConfigurationPath(path: string): boolean {
+  return MARKDOWN_CONFIG_RE.test(path);
+}
+
 /** Enumerate every tracked filename recognized by markdownlint-cli2. */
 export async function enumerateMarkdownConfigurationPaths(
   root: string,
   exec: GitExec,
+  source: "worktree" | "index" = "worktree",
 ): Promise<readonly string[]> {
-  const { stdout } = await exec("git", ["ls-files", "-z"], { cwd: root });
+  const args = source === "index" ? ["ls-files", "--cached", "-z"] : ["ls-files", "-z"];
+  const { stdout } = await exec("git", args, { cwd: root });
   return stdout.split("\0")
-    .filter((path) => path !== "" && MARKDOWN_CONFIG_RE.test(path));
+    .filter((path) => path !== "" && isMarkdownConfigurationPath(path));
 }
 
 /** Load supported worktree configs and require selector parity before linting. */
