@@ -46,7 +46,12 @@ Precise meanings — assume the technical sense.
   resolves and reads that `cohort-{name}.md`, so the group's shared coordination loads as session context.
 - **Errand:** Off-WU wrapper for a single _self-evident_ concern — below the spec-worthiness floor (no design
   worth recording, no durable plan a correct execution must navigate). Always **atomic** (below); no meta or
-  lifecycle — state derives from its branch + PR.
+  WU lifecycle. A transient identity may preserve exact pause/review re-entry without becoming a durable plan.
+- **Locus:** One checkout plus its durable ARC role and optional lease. A WU-owned locus is exclusive from spawn,
+  materialization, or explicit `--here` entry through exact teardown. The physical primary is the launchpad only
+  while record-free, clean, and on the configured base; transient allocation never displaces a WU role.
+- **Transient identity:** The exact logical claim for an Errand, grooming set, or housekeep sweep. It may outlive
+  local occupancy while paused or awaiting merge, but creates no WU meta, task list, or SESSION-NOTES.
 - **atomic:** Work _character_ — one _indivisible_ concern in a single session, no stage needing _durable_
   (cross-session) decomposition. _Typically_ one review increment, but pass- and commit-count are incidental:
   a _determinate_ concern may run a bounded few _in-session_ passes (an _extended errand_) and stay atomic. A

@@ -809,12 +809,10 @@ protection modes, recovery boundaries, and package/source parity.
           availability, exclusive WU locus ownership, explicit in-place conversion, allocation without displacement,
           exact-set groom-and-ship claims, one-PR routing sweeps, and operational-only pause/review identity tails.
 
-    - `[ ]` **7.2.b Update concise command and agent orientation surfaces**
-        - Update authoritative package `reference/QUICK-REFERENCE.template.md` and
-          `reference/briefs/AGENT-BRIEF.ARC.md`, then render/sync their project copies.
-        - Add `arc locus`, new transient verbs, and the minimal durable-role vocabulary only where each operation is
-          discovered; preserve project-specific sections while rendering the configurable quick reference.
-        - Keep all emitted prompt/advisory templates CLI-side and avoid new agent-interpreted control-flow markup.
+    - `[x]` **7.2.b Update concise command and agent orientation surfaces**
+        - Added `arc locus`, exact-set planning, transient lifecycle, and one-sweep housekeep commands to the
+          canonical template and project-specific quick reference without disturbing configurable project sections.
+          Added only the minimal locus/transient-identity vocabulary to canonical and self-hosted agent orientation.
 
     - `[ ]` **7.2.c Update canonical entry skills without editing generated copies**
         - Update package and project canonical `arc-session`, `arc-errand`, `arc-housekeep`, `arc-handoff`, and
