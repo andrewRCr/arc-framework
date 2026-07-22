@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec — `spec-wu-rename.md` finalized (`detailed`·RFC); draft retired
+- **Last Completed:** generate-tasks — `tasks-wu-rename.md` finalized (8 phases, 47 increments); WU activated
 - **Next Task:** Task 1.1 — Transition and authorization unions with their refusal arms (line ~17)
 - **Blockers:** [none]
 
