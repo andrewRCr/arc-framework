@@ -178,6 +178,21 @@ describe("trusted review-gate workflows", () => {
     expect(crossPlatform.strategy).toMatchObject({
       matrix: { os: ["windows-latest", "macos-latest"] },
     });
+
+    const packageManifest = JSON.parse(await readRepositoryFile("packages/arc-framework/package.json")) as {
+      scripts: Record<string, string>;
+    };
+    expect(packageManifest.scripts["test:portability"]).toBe(
+      "vitest run user-sync-notes-lock ref-tree-cas state-ref-race.e2e git-executor process-inspector-native",
+    );
+    for (const job of [portability, crossPlatform]) {
+      const steps = job.steps as Array<Record<string, unknown>>;
+      expect(steps).toContainEqual({
+        name: "Run portability contracts (${{ runner.os }})",
+        run: "npm run test:portability",
+        env: { ARC_E2E_SKIP_BUILD: "1" },
+      });
+    }
   });
 
   it("contains Actions spend while retaining explicit and bounded portability coverage", async () => {

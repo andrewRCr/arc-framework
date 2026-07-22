@@ -33,15 +33,18 @@ function nativeFailureInspector(failure: "permission" | "malformed") {
   return createPlatformProcessInspector(process.platform, { exec });
 }
 
-describe.runIf(SUPPORTED_PLATFORMS.includes(process.platform))("native process inspector", () => {
+describe.runIf(SUPPORTED_PLATFORMS.includes(process.platform))(`native process inspector (${process.platform})`, () => {
   it("observes a stable PID generation and verifies only the exact start token as live", async () => {
     const inspector = createPlatformProcessInspector();
     const first = await inspector.inspect(process.pid);
     const second = await inspector.inspect(process.pid);
 
+    if (first.kind !== "present") {
+      const detail = first.kind === "unverifiable" ? `: ${first.reason}` : "";
+      throw new Error(`Native ${inspector.kind} could not inspect the current process${detail}`);
+    }
     expect(first).toMatchObject({ kind: "present", pid: process.pid });
     expect(second).toEqual(first);
-    if (first.kind !== "present") throw new Error(`Current process is ${first.kind}`);
 
     const anchor = {
       kind: "process" as const,
@@ -65,7 +68,11 @@ describe.runIf(SUPPORTED_PLATFORMS.includes(process.platform))("native process i
       selector: "native-contract",
     };
 
-    await expect(inspector.inspect(MISSING_PID)).resolves.toEqual({ kind: "absent" });
+    const missing = await inspector.inspect(MISSING_PID);
+    if (missing.kind === "unverifiable") {
+      throw new Error(`Native ${inspector.kind} could not distinguish a missing process: ${missing.reason}`);
+    }
+    expect(missing).toEqual({ kind: "absent" });
     await expect(verifyProcessAnchor(anchor, inspector)).resolves.toBe("dead");
   });
 

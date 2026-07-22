@@ -16,9 +16,9 @@ on:
         default: false
   # Weekly cross-platform portability. The Windows/macOS pair fires only here or
   # on an explicit dispatch opt-in — never from PR synchronizes — so the weekly
-  # cadence is a post-merge backstop against OS-specific concurrency-guard
-  # regressions at a trivial cost (macOS bills 10×, but a single weekly firing is
-  # a few billed minutes). classify still computes portability_target as the
+  # cadence is a post-merge backstop against OS-specific concurrency and native
+  # inspector regressions at a trivial cost. macOS bills 10×, but a single weekly
+  # firing is a few billed minutes. classify still computes portability_target as the
   # relevance signal; the pair no longer consumes it.
   schedule:
     - cron: '17 8 * * 1'
@@ -387,9 +387,9 @@ jobs:
       env:
         ARC_E2E_SKIP_BUILD: '1'
 
-  # Linux confirmation for the same-machine write-safety guards. The
-  # exclusive-create (`wx`/`O_EXCL`), advisory-lock (`mkdir` + `process.kill`
-  # liveness), and CAS primitives - and the bounded true-race smoke that spawns
+  # Linux confirmation for same-machine write-safety guards and native process
+  # inspection. The exclusive-create (`wx`/`O_EXCL`), advisory-lock (`mkdir` +
+  # `process.kill` liveness), and CAS primitives - and the bounded true-race smoke that spawns
   # real concurrent writers - are OS-sensitive in a way the ubuntu-only jobs
   # above can't confirm. This required PR leg stays on Linux; the costlier
   # Windows/macOS confirmation below runs only when its focused surface changes.
@@ -422,7 +422,8 @@ jobs:
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
-    - run: npm run test:portability
+    - name: Run portability contracts (${{ runner.os }})
+      run: npm run test:portability
       env:
         ARC_E2E_SKIP_BUILD: '1'
 
@@ -452,7 +453,8 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - run: npm run build
-    - run: npm run test:portability
+    - name: Run portability contracts (${{ runner.os }})
+      run: npm run test:portability
       env:
         ARC_E2E_SKIP_BUILD: '1'
 

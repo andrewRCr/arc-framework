@@ -880,7 +880,7 @@ protection modes, recovery boundaries, and package/source parity.
           end-to-end v2 `returnBranch` generation that refuses a new displaced open before closing back to its recorded
           parent. The cleanup matrix retains live/unknown vetoes and all existing teardown guards.
 
-### `[ ]` **7.5 Exercise process-inspector contracts on every supported operating system** — D5
+### `[x]` **7.5 Exercise process-inspector contracts on every supported operating system** — D5
 
 - _Goal:_ Native CI confirms that each production inspector observes the same PID-plus-start-token contract and
   degrades unavailable evidence to unknown on Linux, macOS, and Windows.
@@ -890,12 +890,13 @@ protection modes, recovery boundaries, and package/source parity.
           liveness, and injected permission/malformed evidence, plus an elapsed-time bound alongside the existing
           argument-array and output-size bounds for production native calls.
 
-    - `[ ]` **7.5.b Wire the supported-OS CI matrix**
-        - Add the inspector contract to `test:portability`, extend `scripts/classify-change.sh` so inspector source
-          and focused tests trigger that suite, and update classifier/workflow contract tests with the new members.
-        - Run it on qualifying Linux PRs and on scheduled or explicitly dispatched macOS/Windows jobs through the
-          existing portability policy; do not add the costlier pair to every PR or alter general heavy-CI routing.
-        - Publish enough failure context to distinguish adapter drift from unavailable host facilities.
+    - `[x]` **7.5.b Wire the supported-OS CI matrix**
+        - Registered the native probe in `test:portability`, made inspector sources and focused tests portability
+          classifier inputs, and bound package/workflow contracts to the required Linux leg plus scheduled or
+          explicitly dispatched macOS/Windows legs with OS-named failure output.
+
+- _Outcome:_ Every supported runner now exercises the same exact-generation liveness contract under the existing
+  portability cost policy, while unavailable host facilities remain distinguishable from parser or adapter drift.
 
 ## **Phase 8:** Verification
 
