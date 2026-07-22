@@ -65,7 +65,7 @@ import type { RecommendedAction } from "../../lib/session-init/recommended-actio
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
 import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
-import type { RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
+import type { RecoveryLocusContext, RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
 
 export type { RecommendedAction, WorktreeIdentity };
 
@@ -698,6 +698,12 @@ export interface SessionInitProbes extends SessionSharedProbes {
 export interface SessionRecoverProbes {
   /** Resolve the shared, network-free machine-local locus interpretation. */
   locusState: (identity: string) => Promise<LocusStateV1>;
+  /** Resolve the one close-only pre-locus Errand rollout shape, or null. */
+  legacyErrand: (
+    identity: string | null,
+    role: string | null,
+    workingMemoryPath: string | null,
+  ) => Promise<RecoveryLocusContext | null>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;

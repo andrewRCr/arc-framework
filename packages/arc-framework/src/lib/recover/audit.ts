@@ -249,6 +249,17 @@ function auditLocusHint(
 
   const state = options.recover.locusState.value;
   const frame = options.recover.recoveryFrame.value;
+  if (frame.kind === "legacy-errand") {
+    if (state.current.kind === "none" && expected === null) {
+      return { expected: null, actual: null, match: true };
+    }
+    stopReasons.push({
+      kind: "locus-unresolved",
+      message: "legacy Errand recovery requires no current locus generation or seed hint",
+      detail: { expected, current: state.current, frame },
+    });
+    return { expected, actual: null, match: false };
+  }
   if (frame.kind === "none") {
     if (state.current.kind !== "none" || expected !== null) {
       stopReasons.push({
@@ -373,10 +384,17 @@ function auditLoadSet(
     return null;
   }
 
-  const verdict = auditLoadSetManifest({
+  let verdict = auditLoadSetManifest({
     baseline: options.seed.loadSet,
     fresh: options.recover.loadSet.value,
   });
+  if (verdict.diverged && options.recover.recoveryFrame.ok
+    && options.recover.recoveryFrame.value.kind === "legacy-errand") {
+    const compatibilityLoadSet = withoutLegacyErrandWorkflow(options.recover.loadSet.value);
+    if (compatibilityLoadSet !== null) {
+      verdict = auditLoadSetManifest({ baseline: options.seed.loadSet, fresh: compatibilityLoadSet });
+    }
+  }
   if (verdict.diverged) {
     stopReasons.push({
       kind: "load-set-drift",
@@ -385,6 +403,13 @@ function auditLoadSet(
     });
   }
   return verdict;
+}
+
+function withoutLegacyErrandWorkflow(loadSet: LoadSetManifest): LoadSetManifest | null {
+  const last = loadSet.entries.at(-1);
+  if (last?.path !== ".arc/system/workflows/arc/supplemental/run-errand.md"
+    || last.readMode.kind !== "full") return null;
+  return { manifestVersion: loadSet.manifestVersion, entries: loadSet.entries.slice(0, -1) };
 }
 
 function auditDirtyFiles(
@@ -535,7 +560,7 @@ function auditTaskCursor(
 
 function requiresTaskCursor(options: AuditRecoveryStateOptions): boolean {
   const freshSessionType = options.recover.recoveryFrame.ok
-    && options.recover.recoveryFrame.value.kind === "resolved"
+    && options.recover.recoveryFrame.value.kind !== "none"
     ? options.recover.recoveryFrame.value.sessionType
     : null;
   if (

@@ -166,6 +166,30 @@ describe("deriveRecoveryLocusContext", () => {
     expect(result.taskCursor).toEqual(wu.derived?.taskCursor);
   });
 
+  it("uses the selected planning stage as the governing recovery workflow", () => {
+    const wu = workUnitRow({
+      derived: {
+        ...workUnitRow().derived!,
+        workflow: "planning",
+        stage: "create-spec",
+        sessionType: "planning",
+        taskCursor: null,
+      },
+    });
+    const result = deriveRecoveryLocusContext({
+      state: state([wu], {
+        kind: "resolved",
+        sessionHomeRecordId: RECORD_WU,
+        activeRecordId: RECORD_WU,
+        parentRecordId: null,
+      }),
+      identity: "andrew",
+      workingMemoryPath: "/users/andrew/WORKING-MEMORY.md",
+    });
+
+    expect(result.frame).toMatchObject({ workflow: "create-spec", sessionType: "planning" });
+  });
+
   it("resumes a warm transient first while retaining its suspended WU context", () => {
     const parent = workUnitRow({ frame: "suspended" });
     const child = transientRow();

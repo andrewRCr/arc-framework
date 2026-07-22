@@ -13,7 +13,7 @@
  * deliberate spot-checks.
  */
 
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,7 +21,7 @@ import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
-import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir, git } from "./helpers.js";
+import { runArc, runArcAnchored, createTempRepo, cleanupTempDir, removeGitBackedDir, git } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -133,6 +133,16 @@ interface CompactionSeedJson {
 interface RecoverAuditReport {
   mode: string;
   seedPath: string | null;
+  recover?: {
+    recoveryFrame: {
+      ok: boolean;
+      value?: { kind: string; workflow: string; slug?: string; returnBranch?: string };
+    };
+    loadSet: {
+      ok: boolean;
+      value?: { entries: Array<{ path: string }> };
+    };
+  };
   verdict: {
     status: string;
     ready: boolean;
@@ -143,6 +153,40 @@ interface RecoverAuditReport {
       match: boolean;
     } | null;
   };
+}
+
+async function gitWithInput(cwd: string, args: string[], input: string): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const child = spawn("git", ["-c", "core.hooksPath=/dev/null", ...args], { cwd, stdio: "pipe" });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => { stdout += chunk; });
+    child.stderr.on("data", (chunk: string) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve(stdout.trim());
+      else reject(new Error(`git ${args.join(" ")} exited ${String(code)}: ${stderr}`));
+    });
+    child.stdin.end(input);
+  });
+}
+
+async function seedLegacyRecoveryRecord(cwd: string): Promise<void> {
+  const record = {
+    version: 2,
+    slug: "legacy-recovery",
+    origin: "description",
+    intent: "Close after compaction",
+    branch: "chore/legacy-recovery",
+    createdAt: "2026-07-21T00:00:00.000Z",
+    returnBranch: "feat/parent",
+  };
+  const blob = await gitWithInput(cwd, ["hash-object", "-w", "--stdin"], `${JSON.stringify(record)}\n`);
+  const tree = await gitWithInput(cwd, ["mktree"], `100644 blob ${blob}\tlegacy-recovery\n`);
+  const commit = await git(cwd, ["commit-tree", tree, "-m", "seed legacy recovery"]);
+  await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
 }
 
 async function writeStatusFixture(
@@ -377,6 +421,50 @@ describe("session-init E2E — sessionType across type variants", () => {
       ]),
       taskCursor: { match: false, actual: null },
     });
+  });
+
+  it("recovers one pre-locus v2 Errand through its recorded return branch", async () => {
+    const configPath = join(tmpDir, ".arc", "system", "arc-config.yml");
+    const config = await readFile(configPath, "utf8");
+    await writeFile(configPath, config.replace("branch.protection: partial", "branch.protection: full"));
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "init"], { cwd: tmpDir });
+    await execFileAsync("git", ["checkout", "-b", "feat/parent"], { cwd: tmpDir });
+    await writeStatusFixture(tmpDir, "feat", "parent", {
+      taskList: "tasks-parent.md",
+      nextAction: "Start Task 1.1",
+    });
+    await writeFile(join(tmpDir, ".arc", "active", "tasks-parent.md"), taskListFixture("Resume parent"));
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "parent fixture"], { cwd: tmpDir });
+    await execFileAsync("git", ["switch", "-c", "chore/legacy-recovery"], { cwd: tmpDir });
+    await seedLegacyRecoveryRecord(tmpDir);
+
+    const seeded = await runArcAnchored(
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      tmpDir,
+    );
+    expect(seeded.exitCode).toBe(0);
+    const audit = await runArcAnchored(["recover", "audit", "--json"], tmpDir);
+    expect(audit.exitCode).toBe(0);
+    const report = parseRecoverAuditReport(audit.stdout);
+
+    expect(report.verdict).toMatchObject({ status: "ready", ready: true, stopReasons: [] });
+    expect(report.recover?.recoveryFrame).toMatchObject({
+      ok: true,
+      value: {
+        kind: "legacy-errand",
+        workflow: "run-errand",
+        slug: "legacy-recovery",
+        returnBranch: "feat/parent",
+      },
+    });
+    expect(report.recover?.loadSet.value?.entries.at(-1)?.path)
+      .toBe(".arc/system/workflows/arc/supplemental/run-errand.md");
+
+    const closed = await runArc(["errand", "close", "legacy-recovery", "--force", "--json"], tmpDir);
+    expect(closed.exitCode, closed.stderr || closed.stdout).toBe(0);
+    expect(await git(tmpDir, ["branch", "--show-current"])).toBe("feat/parent");
   });
 
   it("reports unreadable compaction seeds distinctly from missing seeds", async () => {

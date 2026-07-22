@@ -657,7 +657,7 @@ as their machine-local occupancy authority.
 - _Outcome:_ Session init, recovery, and handoff now expose one schema-validated occupancy interpretation from the
   same reader and registry family, so later workflow dispatch can consume locus authority without recomputation.
 
-### `[ ]` **6.3 Recover active and suspended frames from locus-aware compaction state** — D4, D9
+### `[x]` **6.3 Recover active and suspended frames from locus-aware compaction state** — D4, D9
 
 - _Goal:_ Compaction recovery resumes the authoritative active transient frame and restores its parent context even
   when the harness summary is missing or the stored snapshot is stale.
@@ -679,10 +679,15 @@ as their machine-local occupancy authority.
           fresh state are structured stops. Workflow and cursor requirements use the fresh recovery frame, including
           transient-first dispatch, restored-WU rederivation, planning recovery, and record-free cold completion.
 
-    - `[ ]` **6.3.d Preserve bounded rollout recovery**
-        - Allow an already-open v2 `returnBranch` Errand with no child record to use the shipped restore path once.
-        - Cover warm planning/execution WU→Errand compaction, partial Errand recovery, identity-only tails, pending
-          execute dispatches, and both sides of the housekeep→sibling boundary in integration/E2E tests.
+    - `[x]` **6.3.d Preserve bounded rollout recovery**
+        - Added one exact close-only projection for a current-branch v2 `returnBranch` Errand with no locus child,
+          retaining the shipped restore path without admitting branch inference into normal recovery. Integration and
+          E2E coverage lock warm planning/execution children, partial Errands, identity tails, dispatch groups, and
+          the housekeep-to-sibling boundary.
+
+- _Outcome:_ Fresh locus state now governs compaction recovery across active WUs, transient-first resumes, restored
+  parent frames, and between-WU tails, while one narrowly selected pre-model Errand shape remains closable during
+  rollout.
 
 ### `[ ]` **6.4 Release or refuse transient frames correctly at handoff** — D4, D7, D9
 

@@ -76,6 +76,7 @@ import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-c
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js";
 import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
+import type { RecoveryLocusContext } from "../../../src/lib/recover/locus-context.js";
 
 // --- Fixtures ---
 
@@ -498,6 +499,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
 function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): SessionRecoverProbes {
   return {
     locusState: vi.fn(async () => locusState()),
+    legacyErrand: vi.fn(async () => null),
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     dirty: vi.fn(async () => dirtyState()),
@@ -1183,6 +1185,44 @@ describe("runRecoverStatus — lean recover envelope", () => {
       ok: true,
       value: expect.objectContaining({ status: "found" }),
     });
+  });
+
+  it("uses the bounded legacy Errand context only when the locus has no current frame", async () => {
+    const probes = sessionRecoverProbes({
+      legacyErrand: vi.fn(async (): Promise<RecoveryLocusContext> => ({
+        frame: {
+          kind: "legacy-errand",
+          workflow: "run-errand",
+          sessionType: "execution",
+          slug: "legacy",
+          branch: "chore/legacy",
+          returnBranch: "feat/parent",
+        },
+        loadSet: {
+          manifestVersion: 1,
+          entries: [
+            { path: ".arc/active/tasks-parent.md", readMode: { kind: "partial-strategic" } },
+            { path: ".arc/system/workflows/arc/supplemental/run-errand.md", readMode: { kind: "full" } },
+          ],
+        },
+        taskCursor: {
+          status: "found",
+          cursor: {
+            section: { id: "2.1", title: "Parent", lineHint: 10 },
+            leaf: { id: "2.1.a", title: "Continue", lineHint: 14 },
+          },
+        },
+      })),
+    });
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.recoveryFrame).toEqual({
+      ok: true,
+      value: expect.objectContaining({ kind: "legacy-errand", slug: "legacy", workflow: "run-errand" }),
+    });
+    expect(result.loadSet.ok && result.loadSet.value.entries.at(-1)?.path)
+      .toBe(".arc/system/workflows/arc/supplemental/run-errand.md");
+    expect(result.taskCursor?.ok).toBe(true);
   });
 
   it("isolates an inconsistent locus projection across derived recovery slots", async () => {

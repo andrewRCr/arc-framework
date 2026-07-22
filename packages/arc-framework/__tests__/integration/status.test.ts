@@ -1342,6 +1342,53 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
     }
   });
 
+  it("preserves pending execute dispatch groups across the post-housekeep recovery boundary", async () => {
+    const userDir = join(fixture.root, ".arc", "user", "andrew");
+    await mkdir(userDir, { recursive: true });
+    await writeFile(
+      join(userDir, "USER-INBOX.md"),
+      [
+        "# User Inbox",
+        "",
+        "## Errand",
+        "",
+        "### `[ ]` **first sibling**",
+        "",
+        "- _Disposition:_ `execute-bound`",
+        "- _Dispatch:_ `dispatch-7`",
+        "- _Observation:_ queued.",
+        "",
+        "### `[ ]` **second sibling**",
+        "",
+        "- _Disposition:_ `execute-bound`",
+        "- _Dispatch:_ `dispatch-7`",
+        "- _Observation:_ queued.",
+        "",
+        "## Work Unit",
+        "",
+      ].join("\n"),
+    );
+
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: realInboxStateProbes(fixture),
+    });
+
+    expect(result.inboxState).toMatchObject({
+      ok: true,
+      value: {
+        routableCount: 0,
+        housekeepNeeded: false,
+        pendingDispatchGroups: [{
+          dispatchId: "dispatch-7",
+          titles: ["first sibling", "second sibling"],
+        }],
+        dispatchDiagnostics: [],
+      },
+    });
+  });
+
   it("reports a missing inbox as zero count with housekeepNeeded false (empty)", async () => {
     const result = await runSessionInitStatus({
       identity: "andrew",

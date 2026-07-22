@@ -88,6 +88,34 @@ export async function runArc(
   }
 }
 
+/** Invoke ARC beneath one real interactive-shell anchor for locus-aware commands. */
+export async function runArcAnchored(
+  args: string[],
+  cwd: string,
+  options?: { timeout?: number; env?: Record<string, string> },
+): Promise<RunResult> {
+  assertCliBuilt();
+  const timeout = options?.timeout ?? 30_000;
+  const env = { ...process.env, NO_COLOR: "1", PS1: "", ...options?.env };
+  const command = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
+  const interactiveCommand = `${command}; command_status=$?; exit $command_status`;
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      "script",
+      ["-qec", `bash --noprofile --norc -ic ${shellEscape(interactiveCommand)}`, "/dev/null"],
+      { cwd, timeout, env },
+    );
+    return { stdout: normalizeAnchoredOutput(stdout), stderr, exitCode: 0 };
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
+    return {
+      stdout: normalizeAnchoredOutput(failure.stdout ?? ""),
+      stderr: failure.stderr ?? "",
+      exitCode: typeof failure.code === "number" ? failure.code : 1,
+    };
+  }
+}
+
 /**
  * Like {@link runArc}, but always invokes the CLI directly via `node` — never
  * through `script` — so stdin and stdout are real pipes, not a pseudo-TTY. Use
@@ -205,6 +233,10 @@ function buildScriptCommand(args: string[], useExec = true): string {
 
 function shellEscape(value: string): string {
   return `'${value.replaceAll("'", "'\"'\"'")}'`;
+}
+
+function normalizeAnchoredOutput(value: string): string {
+  return value.replaceAll("\r", "").split("\n").filter((line) => line !== "exit").join("\n");
 }
 
 /**

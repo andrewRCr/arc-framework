@@ -337,6 +337,44 @@ describe("auditRecoveryState", () => {
     expect(result.locusHint).toEqual({ expected: null, actual: null, match: true });
   });
 
+  it("accepts one close-only legacy Errand workflow beyond the pre-model seed load set", async () => {
+    const noneState = freshLocusState();
+    noneState.roster.rows = [];
+    noneState.current = { kind: "none" };
+    noneState.primaryAvailability = { kind: "free", checkoutPath: "/repo" };
+    noneState.recovery = { kind: "none" };
+    const legacyLoadSet = {
+      ...LOAD_SET,
+      entries: [
+        ...LOAD_SET.entries,
+        { path: ".arc/system/workflows/arc/supplemental/run-errand.md", readMode: { kind: "full" as const } },
+      ],
+    };
+    const result = await runAudit({
+      seed: seed(),
+      recover: {
+        locusState: ok(noneState),
+        recoveryFrame: ok({
+          kind: "legacy-errand",
+          workflow: "run-errand",
+          sessionType: "execution",
+          slug: "legacy",
+          branch: "chore/legacy",
+          returnBranch: "feat/parent",
+        }),
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(legacyLoadSet),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.loadSetAudit?.status).toBe("match");
+    expect(result.locusHint).toEqual({ expected: null, actual: null, match: true });
+  });
+
   it("stops when the live checkout branch differs even if HEAD is unchanged", async () => {
     const result = await runAudit({
       seed: seed(),

@@ -29,6 +29,14 @@ export const RecoveryLocusFrameSchema = z.discriminatedUnion("kind", [
     sessionType: z.null(),
   }),
   RecoveryLocusFrameResolvedSchema,
+  z.strictObject({
+    kind: z.literal("legacy-errand"),
+    workflow: z.literal("run-errand"),
+    sessionType: z.enum(["planning", "execution", "integration"]),
+    slug: LocusOpaqueTextSchema,
+    branch: LocusOpaqueTextSchema,
+    returnBranch: LocusOpaqueTextSchema,
+  }),
 ]);
 
 export type RecoveryLocusFrame = z.infer<typeof RecoveryLocusFrameSchema>;
@@ -105,7 +113,7 @@ export function deriveRecoveryLocusContext(options: {
     return {
       frame: RecoveryLocusFrameSchema.parse({
         kind: "resolved",
-        workflow: derived.workflow,
+        workflow: recoveryWorkflowForWorkUnit(derived),
         sessionType: derived.sessionType,
         activeRecordId: current.activeRecordId,
         parentRecordId: null,
@@ -118,7 +126,7 @@ export function deriveRecoveryLocusContext(options: {
   assertTransientIdentity(active);
   const parentDerived = parent === null ? null : requireWorkUnitProjection(parent, "parent");
   const workflow = transientWorkflow(active);
-  const loadSet = appendWorkflow(
+  const loadSet = appendRecoveryWorkflow(
     parentDerived?.loadSet ?? baseLoadSet(options),
     workflow.path,
   );
@@ -133,6 +141,16 @@ export function deriveRecoveryLocusContext(options: {
     loadSet,
     taskCursor: parentDerived?.taskCursor ?? null,
   };
+}
+
+function recoveryWorkflowForWorkUnit(
+  derived: NonNullable<LocusRowV1["derived"]> & { workflow: string },
+): string {
+  if (derived.sessionType !== "planning") return derived.workflow;
+  if (derived.stage === null) {
+    throw new RecoveryLocusContextError("Selected planning work-unit projection has no stage");
+  }
+  return derived.stage;
 }
 
 function refuseUnresolvedResidue(state: LocusStateV1): void {
@@ -292,7 +310,8 @@ function baseLoadSet(options: {
   });
 }
 
-function appendWorkflow(loadSet: LoadSetManifest, path: string): LoadSetManifest {
+/** Append one governing recovery workflow without duplicating an existing entry. */
+export function appendRecoveryWorkflow(loadSet: LoadSetManifest, path: string): LoadSetManifest {
   if (loadSet.entries.some((entry) => entry.path === path)) return loadSet;
   return {
     manifestVersion: loadSet.manifestVersion,

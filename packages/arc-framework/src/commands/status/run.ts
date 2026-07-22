@@ -473,6 +473,8 @@ export async function runRecoverStatus(
 
   const worktreeTask = safeProbe("worktree", () => probes.worktree());
   const locusStateTask = locusStateSlot(identity, (id) => probes.locusState(id));
+  const legacyErrandTask = safeProbe("legacyErrand", () =>
+    probes.legacyErrand(identity, role, workingMemoryPath ?? null));
   const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
   const extensionsTask = safeProbe("extensions", () => probes.extensions());
@@ -482,6 +484,7 @@ export async function runRecoverStatus(
 
   const [
     locusState,
+    legacyErrand,
     worktree,
     worktreeIdentitySlot,
     dirty,
@@ -491,6 +494,7 @@ export async function runRecoverStatus(
     releaseRouting,
   ] = await Promise.all([
     locusStateTask,
+    legacyErrandTask,
     worktreeTask,
     worktreeIdentityTask,
     dirtyTask,
@@ -516,7 +520,15 @@ export async function runRecoverStatus(
     }),
     (cause) => new SessionCompositionError("derive-recovery-locus", "recoveryFrame", cause),
   );
-  const recoveryContext = locusState.andThen(deriveContext);
+  let recoveryContext = locusState.andThen(deriveContext);
+  const legacyLocusEligible = locusState.isOk()
+    && locusState.value.current.kind === "none"
+    && !locusState.value.roster.rows.some((row) => row.kind === "managed-role" && row.frame === "residue");
+  if (legacyLocusEligible && legacyErrand.isOk() && legacyErrand.value !== null) {
+    recoveryContext = legacyErrand.map((value) => value as NonNullable<typeof value>);
+  } else if (legacyLocusEligible && legacyErrand.isErr()) {
+    recoveryContext = err(legacyErrand.error);
+  }
   const recoveryFrame = recoveryContext.map((value) => value.frame);
   const loadSet = recoveryContext.map((value) => value.loadSet);
   const taskCursor = recoveryContext.isOk() && recoveryContext.value.taskCursor !== null
