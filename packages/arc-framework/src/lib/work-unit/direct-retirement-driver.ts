@@ -287,10 +287,16 @@ function createInRepoDirectRetirementContext(
     captureSource,
     stageTransition: async (source) => {
       const bound = requireCaptured(captured, source);
-      await stageUnstagedPaths(
+      const alreadyStaged = new Set(await readStagedPaths(deps.exec, deps.cwd));
+      await stagePaths(
         deps.exec,
         deps.cwd,
-        [...bound.sourceArtifactPaths, ...bound.resultArtifactPaths, ...bound.additionalPaths, ROADMAP_PATH],
+        [
+          ...bound.sourceArtifactPaths.filter((path) => !alreadyStaged.has(path)),
+          ...bound.resultArtifactPaths,
+          ...bound.additionalPaths,
+          ROADMAP_PATH,
+        ],
       );
     },
     rollbackTransition: async (source) => {

@@ -37,6 +37,17 @@ export interface RenameReferenceSweepResult {
   changedPaths: string[];
 }
 
+/** One precomputed reference rewrite, safe to apply after evidence capture. */
+export interface RenameReferenceEdit {
+  path: string;
+  content: string;
+}
+
+/** A deterministic reference-sweep plan and its authority-bound path set. */
+export interface RenameReferencePlan extends RenameReferenceSweepResult {
+  edits: RenameReferenceEdit[];
+}
+
 /** Rewrite one member heading only inside a cohort doc's `## Members` section. */
 export function rewriteCohortMemberHeading(content: string, sourceSlug: string, targetSlug: string): string {
   let inMembers = false;
@@ -61,10 +72,28 @@ export async function sweepRenameReferences(
   params: RenameReferenceSweepParams,
   ctx: RenameReferenceSweepContext = nodeContext,
 ): Promise<RenameReferenceSweepResult> {
+  const plan = await planRenameReferences(params, ctx);
+  await applyRenameReferencePlan(plan, ctx);
+  return { changedPaths: plan.changedPaths };
+}
+
+/**
+ * Compute reference rewrites without mutating disk, so authority capture can
+ * bind the exact additive path set before applying the sweep.
+ *
+ * @param params - ARC root, slug map, and optional cohort document
+ * @param ctx - Injectable filesystem traversal
+ * @returns Planned edits and repository-relative changed paths
+ */
+export async function planRenameReferences(
+  params: RenameReferenceSweepParams,
+  ctx: RenameReferenceSweepContext = nodeContext,
+): Promise<RenameReferencePlan> {
   const files = (await ctx.listFiles(params.arcRoot))
     .filter(isLifecycleTierFile)
     .sort();
   const changedPaths: string[] = [];
+  const edits: RenameReferenceEdit[] = [];
   for (const relativePath of files) {
     const path = join(params.arcRoot, relativePath);
     const original = await ctx.readFile(path);
@@ -76,10 +105,18 @@ export async function sweepRenameReferences(
       rewritten = rewriteCohortMemberHeading(rewritten, params.sourceSlug, params.targetSlug);
     }
     if (rewritten === original) continue;
-    await ctx.writeFile(path, rewritten);
+    edits.push({ path, content: rewritten });
     changedPaths.push(posix.join(params.arcRoot.replaceAll("\\", "/"), relativePath));
   }
-  return { changedPaths };
+  return { changedPaths, edits };
+}
+
+/** Apply a previously computed reference plan in deterministic order. */
+export async function applyRenameReferencePlan(
+  plan: RenameReferencePlan,
+  ctx: RenameReferenceSweepContext = nodeContext,
+): Promise<void> {
+  for (const edit of plan.edits) await ctx.writeFile(edit.path, edit.content);
 }
 
 function isLifecycleTierFile(path: string): boolean {

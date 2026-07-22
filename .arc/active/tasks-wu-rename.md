@@ -194,19 +194,12 @@ cross-reference sweep, which would otherwise rewrite a cohort reference into a f
 - _Outcome:_ The bounded sweep returns every changed sibling/cohort path for inclusion in the authority binding's
   additive patch while preserving semantically distinct cohort names and historical tiers.
 
-### `[ ]` **4.6 ROADMAP regeneration**
+### `[x]` **4.6 ROADMAP regeneration**
 
 - _Goal:_ The staged readiness view matches a fresh render, so the rename commit never publishes a dangling
   dependency edge or a self-inconsistent view.
-- _Shape:_ Compose the shipped readiness-regen side-effect rather than rendering here; this task wires it into
-  the sweep and confirms the staged output is what a fresh render produces.
-- _Note:_ No behavior list — the regen only has a staged set to act on once the verb assembles one, so its
-  coverage lands with the orchestration rather than in this phase.
-
-    - Required on two counts: the renamed unit's own row carries the slug, and the cross-reference sweep rewrites
-      a render field on sibling metas.
-    - The shipped nudge and freshness checks cover it unchanged; because the whole sweep is one commit, no
-      intermediate state is ever published.
+- _Outcome:_ The command adapter regenerates the tracked readiness view after applying the full artifact and
+  reference sweep, and the authority port stages its exact blob in the same receipt-bound commit.
 
 ## **Phase 5:** Identity relocation legs
 
@@ -342,39 +335,24 @@ exists to enable unreachable.
 - _Outcome:_ Stub renames now have a resumable protected-branch locus and an explicit pending-integration result,
   while the primary checkout's base resting state survives both successful and refused commits.
 
-### `[ ]` **6.5 `arc rename` orchestration**
+### `[x]` **6.5 `arc rename` orchestration**
 
 - _Goal:_ One invocation carries a subject through every applicable leg in the order the port fixes, and a re-run
   after any interruption completes only what is outstanding.
-- _Shape:_ Everything durable completes before the one physically disruptive leg. The port fixes steps 1–5;
-  steps 6–10 are the identity legs, skipped wholesale for a stub, with the marker and worktree legs additionally
-  designed no-ops in place.
+    - `[x]` **6.5.a Verb module, preflight, and evidence capture**
+        - Added the ordered verb and production command adapter: live truth is refreshed and composed, the full
+          guard set resolves the subject shape, and the old remote OID plus exact additive paths cross capture.
 
-    - `[ ]` **6.5.a Verb module, preflight, and evidence capture**
-        - Create the rename verb module beside the shipped lifecycle verbs. Everything Phases 2–5 built is
-          binding- and mutator-level; this is the first task that assembles a verb, and it owns the error
-          presentation those phases deliberately left to it — including rendering the binding's conservation
-          error as a conservation failure rather than a generic "receipt could not be prepared".
-        - Resolve the subject, run the guards, read the old branch's remote head for the later lease, and — for a
-          stub — cut or attach the short-lived branch. Then capture source evidence against a clean index and
-          read the authority snapshot.
+    - `[x]` **6.5.b Stage, record, commit, roll back on refusal**
+        - The tracked sweep, renamed meta, cohort/reference edits, and regenerated readiness view now restage as
+          one authority-bound patch; record or commit refusal restores the full path set and removes the record.
 
-    - `[ ]` **6.5.b Stage, record, commit, roll back on refusal**
-        - Stage the sweep, the backlog directory move and cohort edit where applicable, and the regenerated
-          readiness view; record the receipt through the port; commit. On refusal, roll back over the full patch
-          path set and remove the record so a re-run starts clean.
-        - Build `test-first` (one behavior at a time):
-            - The staged set, the recorded patch digest, and the committed change set agree.
-            - A refused commit leaves a clean tree, a clean index, and no record.
+    - `[x]` **6.5.c Sequence the identity legs and their skips**
+        - The verb commits tracked truth before converging branch, notes, remote, marker, and worktree in order;
+          subject-shape skips and post-commit resume paths preserve the designed boundaries.
 
-    - `[ ]` **6.5.c Sequence the identity legs and their skips**
-        - Branch, notes, remote, ownership marker, worktree — in that order, each gated on its own post-state
-          check. The marker precedes the move so the corrected file travels with the directory.
-        - Build `test-first` (one behavior at a time):
-            - A spawned subject runs all five legs.
-            - An in-place subject runs three and reports the marker and worktree legs as designed skips.
-            - A stub subject runs none.
-            - A re-run after an interruption at each leg boundary completes only the outstanding legs.
+- _Outcome:_ One command-layer adapter now composes the evidence transaction and every applicable identity leg;
+  focused orchestration tests and real-repository probes close staged-byte parity, rollback, shape, and resume.
 
 ### `[ ]` **6.6 CLI registration and handler**
 
