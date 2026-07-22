@@ -103,7 +103,7 @@ export interface RetirementReceipt {
   };
   transitionPatchDigest: CanonicalDigest;
   retiringProjection: { kind: "direct-transition" } | { kind: "unchanged" };
-  authorization: Exclude<HuskAuthorization, "merged-preserved">;
+  authorization: Exclude<HuskAuthorization, "merged-preserved"> | "identity-renamed";
   result:
     | { kind: "discard"; artifactDigest: "absent" }
     | {

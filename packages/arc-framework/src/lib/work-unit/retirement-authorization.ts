@@ -159,6 +159,9 @@ async function authorizeFromReceipt(
   if (!worktreeSubjectsEqual(receipt.subject, request.subject) || receipt.source.branch !== request.branch) {
     return { status: "refused", reason: "evidence-mismatch" };
   }
+  if (receipt.transition === "rename" || receipt.authorization === "identity-renamed") {
+    return { status: "refused", reason: "unsupported-transition" };
+  }
   const expectedLifecycle = receipt.transition === "park-planning" ? "planned" : "nonexistent";
   const matrixRefusal = validateReceiptMatrix(receipt, expectedLifecycle);
   if (matrixRefusal !== null) return { status: "refused", reason: matrixRefusal };

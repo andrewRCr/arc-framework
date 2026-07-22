@@ -14,36 +14,13 @@ _Design decisions:_ The transition union is the designed extension point (Altern
 authorization lives in a receipt-scoped union rather than widening `HuskAuthorization` (A4) — so the two named
 compilation breaks are where "rename is not teardown authority" physically lives, not incidental fallout.
 
-### `[ ]` **1.1 Transition and authorization unions with their refusal arms**
+### `[x]` **1.1 Transition and authorization unions with their refusal arms**
 
 - _Goal:_ The receipt vocabulary admits a rename, and the two sites that would otherwise let one through as
   teardown authority refuse it explicitly.
-- _Shape:_ One increment, not three. Widening either union breaks compilation at exactly one site, and both
-  repairs are forced by the widening — so the union edits and their refusal arms land together or the tree does
-  not compile between them.
-- _Rationale:_ The safety property already holds by invisibility: candidate derivation covers only the three
-  shipped transitions, and husk-evidence validation compares the receipt's authorization against a teardown-scoped
-  value that `identity-renamed` can never equal. These arms make it hold by intent, so a later change to candidate
-  derivation cannot silently open it.
-
-    - `RetirementTransition` in `receipt-id.ts` gains `"rename"`; `receiptId` derivation is unchanged, since the
-      transition is already a hashed field.
-    - `RetirementReceipt["authorization"]` becomes `Exclude<HuskAuthorization, "merged-preserved"> |
-      "identity-renamed"`, leaving `HuskAuthorization` itself closed over teardown's own cases.
-    - The three-case `switch` in `validateReceiptResult` becomes non-exhaustive; its new arm returns
-      `"unsupported-transition"`.
-    - `authorizedDecision`'s authorization parameter excludes `"identity-renamed"` by construction, so
-      `authorizeFromReceipt` refuses with `"unsupported-transition"` before the call — never by widening the
-      decision type and never by casting. Place that refusal **ahead of the matrix check**, which does not gain
-      its rename row until the next task and would otherwise refuse first with a mismatch.
-    - Build `test-first` (one behavior at a time):
-        - A rename receipt and an abandon receipt over the same subject, branch, and head derive different
-          `receiptId` values.
-        - `receiptId` for a rename is stable across repeated derivation from the same tuple.
-        - A rename receipt presented as teardown evidence is refused with `unsupported-transition`, never an
-          authorized decision.
-        - That refusal is distinguishable from the missing-evidence refusal a non-candidate receipt produces.
-        - The three shipped transitions still authorize exactly as before.
+- _Outcome:_ Rename now has distinct, stable receipt identity and receipt-scoped authorization vocabulary, while
+  both result validation and teardown authorization explicitly refuse it as `unsupported-transition`; the shipped
+  authorization paths remain unchanged.
 
 ### `[ ]` **1.2 Rename result kind and matrix row**
 
