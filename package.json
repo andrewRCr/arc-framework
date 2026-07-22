@@ -16,6 +16,7 @@
     "format:tables": "tsx packages/arc-framework/src/scripts/format-tables.ts",
     "render:framework": "tsx packages/arc-framework/src/scripts/render-framework.ts",
     "audit:tables": "tsx packages/arc-framework/src/scripts/audit-tables.ts",
+    "audit:emphasis": "tsx packages/arc-framework/src/scripts/audit-emphasis.ts",
     "build": "npm run build -w packages/arc-framework",
     "benchmark:session-envelope": "npm run benchmark:session-envelope -w packages/arc-framework",
     "test": "npm run test -w packages/arc-framework",

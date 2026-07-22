@@ -116,22 +116,14 @@ derived readiness output through the ordinary AST path; each class follows its o
 _Purpose:_ Add delimiter-specific semantic proof before enabling deterministic emphasis rules and normalizing the
 authority-selected corpus without mixing the pass with table churn.
 
-### `[ ]` **4.1 Build the emphasis migration proof audit**
+### `[x]` **4.1 Build the emphasis migration proof audit**
 
 - _Goal:_ The emphasis pass can prove that its raw diff changes only permitted delimiter bytes while preserving
   the complete position-free GFM tree.
 
-    - Declare `micromark-extension-gfm` and `mdast-util-gfm` as direct package development dependencies so the
-      proof parses complete GFM rather than the table-only syntax configured by the formatter.
-    - Reuse the table audit's exact-commit baseline loader for explicit authority-selected paths, parse both
-      documents as full GFM, strip position metadata, and require structural equality.
-    - Validate raw diff hunks as underscore-italic and asterisk-strong delimiter substitutions only; reject changes
-      to text, code spans, links, HTML, task markers, line endings, or unrelated whitespace.
-    - Build `test-first` (one behavior at a time):
-        - Nested emphasis and escaped-marker fixtures permit only the selected delimiter substitutions.
-        - Code, links, HTML, task markers, text, line endings, and unrelated whitespace remain byte-stable.
-        - Forbidden drift and untracked baselines fail; repeated audits reproduce the same evidence, while rerunning
-          the pinned fixer over migrated input produces no changes.
+- _Outcome:_ `audit:emphasis` now shares the exact-commit migration loader, proves full position-free GFM equality,
+  and restricts raw changes to parser-identified underscore-italic and asterisk-strong delimiter bytes. Integration
+  coverage reproduces the evidence from Git and proves the pinned fixer is idempotent.
 
 ### `[ ]` **4.2 Enable `MD049` and `MD050` with source-first emphasis normalization**
 
