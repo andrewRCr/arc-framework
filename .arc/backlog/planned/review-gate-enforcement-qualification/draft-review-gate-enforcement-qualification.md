@@ -13,26 +13,26 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
 ### `[ ]` **Bind qualification to the complete local review surface**
 
-- *Routed from:* two `USER-INBOX § Work Unit` captures, housekeep drain (2026-07-21); captured during
+- _Routed from:_ two `USER-INBOX § Work Unit` captures, housekeep drain (2026-07-21); captured during
   `review-architecture` task generation and `review-surface-binding` draft review.
-- *Concern:* qualification still points only at the shipped cutover and claims strict-parser work now owned by
+- _Concern:_ qualification still points only at the shipped cutover and claims strict-parser work now owned by
   `review-architecture`. It also lacks the live dependency on `review-surface-binding`, whose local target/request
   derivation, guidance-digest proof, receipt, attestation, and settlement path must exist before a local review can
   count as shared satisfying evidence.
-- *Fold-in:* replace the stale dependency/action with `Depends On: review-surface-binding`; consume the finalized
+- _Fold-in:_ replace the stale dependency/action with `Depends On: review-surface-binding`; consume the finalized
   review projection and local attested path without rebuilding their parsers; retain lifecycle-readiness,
   live-provider qualification, required-check authority, and the promotion handoff here. Reconcile the go/no-go and
   required-output language so hosted-provider absence can be satisfied by one fully bound local path.
 
 ### `[ ]` **Evaluate the `integration/review-gate/` test layout against the test-architecture principle**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during `cli-test-hardening`
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during `cli-test-hardening`
   create-spec planning close.
-- *Concern:* `cli-test-hardening` (spec Decision 11) codifies the test-architecture principle — layouts named by
+- _Concern:_ `cli-test-hardening` (spec Decision 11) codifies the test-architecture principle — layouts named by
   production surfaces, mocks at system boundaries, assertions on observable outcomes, scenario suites split only
   at independently navigable behavior — and applies it to files it touches, but defers the full
   `integration/review-gate/` layout evaluation: the surface is half-built with a three-WU chain pending
@@ -42,15 +42,15 @@
 
 ### `[ ]` **Consume the review-lane vocabulary rather than minting a parallel classification**
 
-> *Superseded 2026-07-19 — `review-architecture`'s settled `exempt / recommended / required` obligation model
+> _Superseded 2026-07-19 — `review-architecture`'s settled `exempt / recommended / required` obligation model
 > replaces this channel-combination lane vocabulary; see "Repoint the review-gate trigger seam to
 > review-architecture's settled obligation contract" below. Repoint (don't accumulate) at this WU's next planning
-> iteration.*
+> iteration._
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during FP
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during FP
   wave-3 external-budget contention analysis — CodeRabbit adaptive-limit hit; metering data in
   `notes-finalize-parallelism.md` § Day-2 evidence.
-- *Concern:* the holistic review WU (rescoped `review-method-family` — grooming pending) will define a review-lane
+- _Concern:_ the holistic review WU (rescoped `review-method-family` — grooming pending) will define a review-lane
   vocabulary (roughly `none / local-only / local+pr / pr-only`) that decides which changes spend a metered PR
   review. The review-gate must consume that enum as its trigger policy — "don't request a PR review when the lane
   says it shouldn't" — rather than minting a parallel classification. Routed here as the next WU in the chain to
@@ -59,29 +59,29 @@
 
 ### `[ ]` **Reduce Review Gate Wakeup relay billing overhead**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during FP
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during FP
   wave-3 external-budget contention analysis; run-rate data in `notes-finalize-parallelism.md` § Day-2 evidence.
-- *Concern:* the wakeup relay (`review-gate-wakeup.yml`) is an echo-only job firing per review-comment event
+- _Concern:_ the wakeup relay (`review-gate-wakeup.yml`) is an echo-only job firing per review-comment event
   (`pull_request_review`, `pull_request_review_comment`) and bills GitHub's one-minute-per-job minimum each run —
   49 runs (~50 billable no-op minutes) in wave-3 day 1's 27-hour sample, comparable to a dozen heavy CI runs.
   Concurrency already collapses bursts within a PR (one running, one pending); chatty reviews across parallel PRs
   multiply it anyway.
-- *Approach:* review-gate-owned design input, not a freestanding errand — the relay is the unprivileged-event →
+- _Approach:_ review-gate-owned design input, not a freestanding errand — the relay is the unprivileged-event →
   privileged-controller bridge, so any change (controller subscribing to review events directly, harder
   debouncing, batching) needs gate-architecture judgment.
 
 ### `[ ]` **Adopt the attestation-first fallback as the qualification go/no-go decision rule**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: review-gate-enforcement-qualification`), housekeep drain
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-gate-enforcement-qualification`), housekeep drain
   (2026-07-18); captured during post-FP wave-planning discussion, 2026-07-18.
-- *Concern:* qualification requires at least one hosted adapter proven **satisfying**, and both hosted providers
+- _Concern:_ qualification requires at least one hosted adapter proven **satisfying**, and both hosted providers
   ship `partial` pre-qualification (`coderabbit-pr` cannot close findings, `codex-pr` is parser-only —
   `policy/self-hosting/schema.ts`). It is plausible neither proves satisfying under live probes, and no third
   hosted service is likely to expose better primitives. That would falsify the product bet ("hosted AI reviewers
   can be promoted to merge authority"), **not** the design: the core is provider-agnostic by construction
   (injected ports, independently qualified adapters), and a provider failing its capability matrix is the
   qualification system working as intended.
-- *Approach — the decision rule:* two softening axes with opposite answers. (1) **Never soften the evidence
+- _Approach — the decision rule:_ two softening axes with opposite answers. (1) **Never soften the evidence
   discipline** — exact-head, authenticated, fail-closed; weakening it rebuilds the decorative-green hole the gate
   exists to close. (2) **Reshaping the evidence class is legitimate:** pivot to an **attestation-first gate** —
   promote the already-enabled attestation identities (`claude-code` / `codex-cli` / `coderabbit-cli`) from
@@ -95,15 +95,15 @@
 
 ### `[ ]` **Require lifecycle completion before the review gate can report merge-ready**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: review-gate-enforcement-qualification`), housekeep drain
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-gate-enforcement-qualification`), housekeep drain
   (2026-07-18); captured during `base-drift-guidance` post-merge lifecycle repair and the PR #288 merge gate,
   2026-07-18.
-- *Concern:* the current `lifecycle-bookkeeping-tail/v1` predicate can carry exact-head review evidence across a
+- _Concern:_ the current `lifecycle-bookkeeping-tail/v1` predicate can carry exact-head review evidence across a
   valid archival tail, but it does not make that tail mandatory. A reviewed, CI-green ARC work-unit head can
   therefore satisfy the gate before Release Notes, Completion Notes, and the `with-integration` archive sweep
   exist; a maintainer can press Merge early and bypass the remaining ARC integration ceremony. PR #287
   demonstrated the gap and required lifecycle-only repair PR #288.
-- *Approach:* add a storage-neutral lifecycle-readiness obligation distinct from review-evidence carry-forward.
+- _Approach:_ add a storage-neutral lifecycle-readiness obligation distinct from review-evidence carry-forward.
   When the host adapter can unambiguously classify a PR as an ARC work unit, fail closed until the
   cadence-required products are present at the exact head: composition always, and a valid `Shipped`/completed
   artifact group under `with-integration`. Qualification must prove that the pre-composition reviewed head cannot
@@ -111,7 +111,7 @@
   repair, and future-storage cases have explicit applicability behavior. If the shipped controller lacks the
   capability, treat that as a qualification defect requiring a separate repair before activation, not as an
   accepted limitation.
-- *Coordination:* `review-gate-enforcement-promotion` must consume this qualification proof before making the App
+- _Coordination:_ `review-gate-enforcement-promotion` must consume this qualification proof before making the App
   check authoritative; `review-gate-github-adapter` should productize the neutral obligation and expose
   setup/doctor coverage rather than defining a GitHub-only lifecycle rule.
 
@@ -119,10 +119,10 @@
 
 ### `[ ]` **Repoint the review-gate trigger seam to review-architecture's settled obligation contract**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: review-gate-enforcement-qualification`), housekeep drain
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-gate-enforcement-qualification`), housekeep drain
   (2026-07-19); captured during `review-architecture`'s `create-spec` re-examination, 2026-07-19 (reciprocal to that
   WU's Cross-cutting "Review-gate qualification seam").
-- *Supersedes:* the **"Consume the review-lane vocabulary rather than minting a parallel classification"** item above
+- _Supersedes:_ the **"Consume the review-lane vocabulary rather than minting a parallel classification"** item above
   — **repoint, do not accumulate.** `review-architecture` (rescoped `review-method-family`) re-settled at its
   2026-07-19 `create-spec` re-examination and **rejected** the channel-combination lane vocabulary
   (`none / local-only / local+pr / pr-only`) that the stale item still tells the gate to consume. The settled model
@@ -130,7 +130,7 @@
   (change-set state / content / review risk, ownership relation, artifact authority, work context, change
   determinacy, `Class`) and **projected to the gate by review-architecture's gate-projection contract** — not a lane
   enum, not a parallel classification.
-- *Fold-in:* at this WU's next planning iteration, supersede (repoint) the stale lane item rather than accumulating a
+- _Fold-in:_ at this WU's next planning iteration, supersede (repoint) the stale lane item rather than accumulating a
   second one. The gate's trigger policy consumes the projected `independentAnalysis` record —
   `obligation: exempt | recommended | required`, typed `reasons`, `rubricVersion` + `rubricDigest`,
   `retrigger: none | incremental | full-final` — via a **forward-only v2 gate-contract bump** (current v1 receipts
@@ -138,12 +138,12 @@
   requirement; `recommended` a visible non-blocking one; `required` a blocking one. PR count never multiplies
   requirements — one per normalized change set (the multi-PR assurance-group binding routes to `pr-decomposition`,
   not enforced here).
-- *Convergence:* stress-test against the existing **"Adopt the attestation-first fallback…"** item — a local
+- _Convergence:_ stress-test against the existing **"Adopt the attestation-first fallback…"** item — a local
   fresh-agent attested pass and a hosted-provider attestation should satisfy one shared satisfying-evidence contract,
   so qualification's go/no-go holds even when no hosted provider qualifies.
-- *Dependency:* add `Depends On: review-architecture` at grooming (currently only `review-gate-enforcement-cutover`),
+- _Dependency:_ add `Depends On: review-architecture` at grooming (currently only `review-gate-enforcement-cutover`),
   before launch — per `review-architecture`'s Cross-cutting seam.
-- *Scope:* `review-architecture` owns the obligation vocabulary, the closed routing record, and the gate-projection
+- _Scope:_ `review-architecture` owns the obligation vocabulary, the closed routing record, and the gate-projection
   contract; this WU owns live-provider qualification, required-check authority, project-hook activation, the
   strict-parser migration, and the go/no-go decision rule — consuming the projected record as typed input, not
   re-deriving routing.

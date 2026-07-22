@@ -6,7 +6,7 @@
   orthogonal axis layered onto them — `composable-workflows`-shaped. References to the conductor's now-retired
   sibling sections have been re-anchored to their shipped equivalents (`resolve-planning-depth`, `draft-design`,
   `init-work-unit` / `run-errand`, session-init planning detection).
-- **Purpose:** Add a **modality** axis to pre-spec synthesis, orthogonal to planning depth: *how* the synthesis
+- **Purpose:** Add a **modality** axis to pre-spec synthesis, orthogonal to planning depth: _how_ the synthesis
   happens — through document iteration, through bounded code spikes, or through both interleaved. Where depth
   selects how heavily planning engages, modality selects whether the dominant unknowns are resolved by refining a
   document or by testing the world with code.
@@ -15,27 +15,27 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Extend modality selection through the planning terminus**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured from the
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured from the
   `reviewed-lane-review-gate` planning-terminus spikes.
-- *Concern:* empirical unknowns can crystallize after spec and tasks are drafted but before finalization. Decide
+- _Concern:_ empirical unknowns can crystallize after spec and tasks are drafted but before finalization. Decide
   whether modality remains selectable through that boundary or a final "empirical assumptions validated?" check
   may trigger a bounded spike. Preserve the distinction: unknowns that reshape implementation spike before it;
   rollout probes select among pre-built fallback paths.
 
 ### `[ ]` **Record compaction-recovery as a prototype-modality live instance**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: synthesis-modality`), housekeep drain (2026-06-30);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: synthesis-modality`), housekeep drain (2026-06-30);
   captured during the between-WU post-mortem after `compaction-recovery` shipped.
-- *Concern:* `compaction-recovery` was planned through the normal document-first draft/spec/tasks path, but its
+- _Concern:_ `compaction-recovery` was planned through the normal document-first draft/spec/tasks path, but its
   original design failure surfaced only during late live e2e verification of the harness compaction path. That is
   a concrete instance where the dominant unknown was empirical rather than purely conceptual: whether the harness
   hooks and post-compaction recovery carrier behaved the way the design assumed.
-- *Approach:* use this as a live motivating example for selecting prototype or hybrid modality during pre-spec
+- _Approach:_ use this as a live motivating example for selecting prototype or hybrid modality during pre-spec
   synthesis. Signal: when a design depends on harness behavior, external tool lifecycle events, or a live e2e
   integration seam, run a bounded spike before declaring the design settled. This complements, rather than
   replaces, `planning-iteration-mechanics`' open-question and writable-task checks.
@@ -46,8 +46,8 @@
 
 ARC's existing planning model is document-driven: a `draft-*` doc is iterated through collaborative refinement
 passes (`draft-design`) until it reaches formalization-ready shape, then graduates to a spec. This works cleanly
-when the dominant unknowns are *conceptual* — "what is this, what's the shape, what are the boundaries" — but it
-under-supports work where the dominant unknowns are *empirical*: "will library X behave the way I think under
+when the dominant unknowns are _conceptual_ — "what is this, what's the shape, what are the boundaries" — but it
+under-supports work where the dominant unknowns are _empirical_: "will library X behave the way I think under
 load Y? what's the right integration shape when the external system's actual behavior is ambiguous? can this even
 be built the way the document is describing?"
 
@@ -83,17 +83,17 @@ empirical learning. ARC reclaims XP's original meaning explicitly:
 - **Bounded** — time-boxed (default ~2-4 hour blocks; one focused review-increment scale) and scope-boxed (one
   hypothesis per spike; artifact-bounded where possible)
 - **Hypothesis-framed** — every spike has an answerable question
-- **Learning-oriented** — spike output is *empirical answers*, not production code
+- **Learning-oriented** — spike output is _empirical answers_, not production code
 - **Default-throwaway disposition** — spike code is scratch unless explicitly elected to evolve (see
   § Disposition lifecycle below)
 
-This explicitly *reclaims* "spike" from its drifted contemporary meaning (which has often become "week-long
+This explicitly _reclaims_ "spike" from its drifted contemporary meaning (which has often become "week-long
 investigation that might ship"). Modern practice has lost the bounded / throwaway / learning-oriented
 constraints; ARC restores them and documents the qualification in the glossary so the term reads through ARC's
 lens, not the drifted one.
 
-> **XP spike-type taxonomy:** XP distinguishes *technical* (implementation feasibility), *functional* (UX or
-> requirements), and *architectural* (design viability) spikes. ARC treats these as descriptive categories rather
+> **XP spike-type taxonomy:** XP distinguishes _technical_ (implementation feasibility), _functional_ (UX or
+> requirements), and _architectural_ (design viability) spikes. ARC treats these as descriptive categories rather
 > than required metadata — the hypothesis carries the structural meaning. Glossary entries explain the typology;
 > spike artifacts are not required to carry a type field.
 
@@ -139,7 +139,7 @@ Three canonical stances for spike code:
 | **Reference**           | Spike's investigation path itself has documentation value beyond the decision | Code archived on a non-merging branch or tag; main implementation rewritten fresh                                     |
 
 **Default to throwaway.** This enforces the boundary: spike code is learning, not implementation. Carrying spike
-code forward via the evolutionary path requires *explicit decision* and a *stabilization contract* — refactoring
+code forward via the evolutionary path requires _explicit decision_ and a _stabilization contract_ — refactoring
 requirements, test coverage, doc expectations enumerated before the spike code is considered part of
 implementation.
 
@@ -157,7 +157,7 @@ Spike learnings flow through ARC's existing artifact surfaces, depth-dependent:
 | Expanded | Spike findings → `draft-*` (promoted structure with findings register) + ADRs; per-spike pointer for loop continuity |
 
 ADRs are the durable record across all depths — they survive spike code disposal and serve as the long-term
-decision archeology. Spike commits are *not* a substitute for ADRs (they're scratch by design and don't carry
+decision archeology. Spike commits are _not_ a substitute for ADRs (they're scratch by design and don't carry
 decision rationale reliably; they're dropped at graduation-cleanup).
 
 ## refine-prototype-loop workflow
@@ -246,7 +246,7 @@ at the pass boundary. No new interlock types needed.
 
 ## Failure-mode coverage
 
-The following failure modes are *actively prevented* by the design above:
+The following failure modes are _actively prevented_ by the design above:
 
 - **Sunk-cost fallacy** — throwaway-default + explicit stabilization contract for evolve
 - **Scope creep ("just one more spike")** — soft cap + spike-cycle exit conditions tied to empirical questions

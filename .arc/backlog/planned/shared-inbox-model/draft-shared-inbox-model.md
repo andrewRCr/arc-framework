@@ -1,44 +1,44 @@
 # Draft: Shared-Inbox Model — `INBOX.PROJECT` Semantics, Consumption, and Concurrency
 
 - **Origin:** [internal] — surfaced at the follow-up housekeep drain (2026-06-01) as a re-homing sweep for rotting
-  `ATOMIC-INBOX` entries; reframed at the 2026-07-02 grooming pass to decide the shared-inbox *model* first — the
+  `ATOMIC-INBOX` entries; reframed at the 2026-07-02 grooming pass to decide the shared-inbox _model_ first — the
   sweep is one deliverable inside it, in service of the model rather than the assumed status quo.
 - **Purpose:** Codify the two-inbox model — the semantics separating the personal and project inboxes, the
   consumption wiring that keeps the project inbox from rotting, and the concurrency shape that holds identically
   from solo to team and lifts onto the arc-backend substrate without reshaping.
 - **Renamed (2026-07-02):** `shared-inbox-housekeep` → `shared-inbox-model` — the name signals "own the model,"
-  not "maintain the assumed one." The `ATOMIC-INBOX` → `INBOX.PROJECT` *surface* rename stays
+  not "maintain the assumed one." The `ATOMIC-INBOX` → `INBOX.PROJECT` _surface_ rename stays
   naming-conventions' (coordinated, not blocked on).
 
 ---
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
 ### `[ ]` **Reopen promote-by-default under parallelism-GA shared-file churn**
 
-- *Routed from:* parallelism-GA operating review and housekeep drain (2026-07-20).
-- *Evidence:* the tracked project inbox has become a multi-writer hotspot under three to six parallel work units plus
+- _Routed from:_ parallelism-GA operating review and housekeep drain (2026-07-20).
+- _Evidence:_ the tracked project inbox has become a multi-writer hotspot under three to six parallel work units plus
   recurring errands. Its churn cost now exceeds the value of draining homeless atomics out of the identity-global
   user inbox, and entries become less actionable when moved sight unseen into a shared file.
-- *Interim posture:* evacuate `ATOMIC-INBOX`, prohibit new promotion into it, and let explicitly held atomics remain in
+- _Interim posture:_ evacuate `ATOMIC-INBOX`, prohibit new promotion into it, and let explicitly held atomics remain in
   `USER-INBOX` until this WU supplies a concurrency-safe project surface. The prohibition lifts on the capability, not
   merely this WU's merge: the replacement must be non-hotspot storage or an earlier materialized project-inbox model
   aligned with `operational-state-docs`, `local-mode`, `arc-backend`, and storage evolution.
-- *Grooming decision:* re-evaluate the draft's diagnosis that rot is only a missing-consumer bug. Preserve the semantic
+- _Grooming decision:_ re-evaluate the draft's diagnosis that rot is only a missing-consumer bug. Preserve the semantic
   need for durable project-scoped tenure, but do not preserve a tracked shared file as its assumed implementation.
 
 ### `[ ]` **Multi-entry errand drain only tombstones the `--from-inbox`-adopted capture**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: shared-inbox-model`), housekeep drain (2026-07-18);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: shared-inbox-model`), housekeep drain (2026-07-18);
   captured during FP wave-4 burn-in (2026-07-17).
-- *Concern:* the CI-billing errand (PR #281) executed **two** inbox captures — "Cut CI billed minutes" (adopted
+- _Concern:_ the CI-billing errand (PR #281) executed **two** inbox captures — "Cut CI billed minutes" (adopted
   via `--from-inbox`) and "Wire ci-defer-heavy awareness" (folded into the same errand's scope, commit
   `726ba38b`). At close, only the adopted entry landed in `## Removed:` with a tombstone; the second vanished
   from `USER-INBOX` with **no tombstone**. No outcome lost (both shipped), but the removal was untracked — a
   tombstone-free disappearance is exactly the shape that reads as silent loss on inspection.
-- *Fold-in:* first confirm the mechanism vs. operator error — did the executing agent drop the second entry via
+- _Fold-in:_ first confirm the mechanism vs. operator error — did the executing agent drop the second entry via
   `arc user inbox-remove` (which should tombstone) or a raw file edit (which wouldn't)? If the former, the drop
   path has a tombstone gap; if the latter, the lesson is "always route removals through the verb." Either way an
   errand carries a single inbox back-pointer (`origin`), so a drain that executes N captures auto-drops only 1 —
@@ -46,17 +46,17 @@
 
 ### `[ ]` **Give disciplined drains machine-readable lane provenance**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after PR #221 was classified as
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after PR #221 was classified as
   reviewed despite being a disciplined routing PR.
-- *Concern:* settle a machine-readable drain provenance/attestation shape, then let reviewed-lane classification
+- _Concern:_ settle a machine-readable drain provenance/attestation shape, then let reviewed-lane classification
   consume it without baking inbox paths or mutable labels into provider policy. Coordinate the eventual shared
   inbox rename so path churn cannot silently regress classification.
 
 ### `[ ]` **Make inbox-to-stub routing interruption-safe**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during wave-3 housekeep routing
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during wave-3 housekeep routing
   PR #255.
-- *Concern:* A ten-entry housekeep batch required ten hand-authored destination writes followed by ten sequential
+- _Concern:_ A ten-entry housekeep batch required ten hand-authored destination writes followed by ten sequential
   `arc user inbox-remove` calls. The workflow describes each pair as a move, but no primitive binds the tracked
   destination and the notes-backed source: interruption can leave duplicate entries, and removing the source
   before the grooming PR merges can strand the only routed copy on an abandoned branch. Define the drain's
@@ -72,7 +72,7 @@
 
 ## Problem / Motivation
 
-The core invariant — *no item with a known home may rest in a capture surface* — is enforced at **write-time**
+The core invariant — _no item with a known home may rest in a capture surface_ — is enforced at **write-time**
 (capture / drain) but never **maintained as the stub landscape evolves**. A new stub lands; an atomic that was
 legitimately homeless when captured now has a home — and nothing re-checks. The invariant silently decays.
 
@@ -92,11 +92,11 @@ consumption, and sharpen the semantics so the two surfaces cannot blur.
 
 ## The Model — two inboxes split by scope and tenure
 
-The primary axis is **scope + tenure**, not "personal vs. shared" — multi-writer sharing is a *consequence* of
+The primary axis is **scope + tenure**, not "personal vs. shared" — multi-writer sharing is a _consequence_ of
 project scope, not the definition:
 
 - **`INBOX.USER`** (`USER-INBOX` today) — private, **volatile, near-term**. A working buffer: live capture at
-  any moment, plus entries the owner is *actively committing to executing personally, soon*. Tenure is measured
+  any moment, plus entries the owner is _actively committing to executing personally, soon_. Tenure is measured
   in days-to-a-few-drains. Single-writer by construction (identity-scoped, notes-backed).
 - **`INBOX.PROJECT`** (`ATOMIC-INBOX` today) — project-scoped, **durable-until-claimed**. The project's holding
   surface for homeless atomic concerns: anything worth keeping that no stub owns and no one is committing to
@@ -128,7 +128,7 @@ config of one substrate, never a separate axis). Concretely:
 - The forcing function is the drain fork below: personal retention requires an explicit self-commitment, so
   homeless not-self-committed items flow to `INBOX.PROJECT` mechanically, solo or not.
 - Design constraint: if any of this feels like added ceremony solo, that is a **model failure to fix in the
-  mechanics** — consumption rides *existing* fire-points; there is nothing new to remember.
+  mechanics** — consumption rides _existing_ fire-points; there is nothing new to remember.
 
 ## The retention line (drain fork, sharpened)
 
@@ -156,26 +156,26 @@ Four consumers, all riding existing fire-points:
    `errandSweep` / `inboxState`. Never gates. (Corrects the "sweep-based and nudge-free" assumption recorded in
    `draft-operational-state-docs.md`'s `_Awaiting:_` buffer entry — see Coordination.)
 2. **Housekeep shared-scope sweep leg** — the original deliverable, now one consumer among four. The between-WUs
-   drain gains the project scope: re-home entries against the *current* stub landscape. Closing semantics differ
-   by scope: `INBOX.USER` closes at *empty / triaged*; `INBOX.PROJECT` closes at *swept against current stubs* —
+   drain gains the project scope: re-home entries against the _current_ stub landscape. Closing semantics differ
+   by scope: `INBOX.USER` closes at _empty / triaged_; `INBOX.PROJECT` closes at _swept against current stubs_ —
    still-homeless entries legitimately stay.
 3. **WU-init / activation domain-match absorption** — unchanged; becomes the pull-based fallback rather than the
    only consumer.
 4. **Discovery-at-WU-start sweep** (the fracturing fix). A new stub / WU checks capture surfaces + sibling stubs
-   for in-domain prior thinking and consolidates — right-place-*eventually* over right-place-*immediately*.
+   for in-domain prior thinking and consolidates — right-place-_eventually_ over right-place-_immediately_.
    Candidate scope; may land via `inbound-routing-method`'s `assess-wu-target` family (see Coordination).
 
 **Sweep mechanics the project scope owns** (integrated from prior captures):
 
-- **Aggregation discovery** — noticing N errand-class captures that *combined* are either a WU (aggregate needs
+- **Aggregation discovery** — noticing N errand-class captures that _combined_ are either a WU (aggregate needs
   design) or one extended errand. The classification rule is errand-lattice's (the spec-worthiness gate applied
-  to the aggregate); the *discovery* is the sweep's.
+  to the aggregate); the _discovery_ is the sweep's.
 - **Deterministic completion-order reorder** — incomplete `[ ]` on top, blank-line gap, completed in
   chronological completion order; currently hand-run in `process-task-loop` § Atomic Task Completion (steps
   2–3), no CLI owner. A deterministic partition+sort the sweep owns.
 - **Mechanics-vs-judgment CLI split** — lift only genuinely-deterministic, currently-hand-run steps into
   `arc housekeep` / `arc inbox` verbs (executing a decided routing, flushing promoted entries, the reorder); the
-  routing *decision* stays judgment in the drain workflow. `arc housekeep` remains a weaker CLI-verb candidate
+  routing _decision_ stays judgment in the drain workflow. `arc housekeep` remains a weaker CLI-verb candidate
   than the errand lattice for exactly this reason.
 
 ## Routing disposition (over-routing / under-execution)
@@ -189,15 +189,15 @@ for months, when it could simply be executed.
 
 Two tests gate the route-to-WU disposition, ahead of homing:
 
-- **Coupling test** — does the concern *shape the target WU's design* (a design input that must be decided with
-  the WU → route), or merely *share its domain* (a neighbor → don't route on fit alone)?
+- **Coupling test** — does the concern _shape the target WU's design_ (a design input that must be decided with
+  the WU → route), or merely _share its domain_ (a neighbor → don't route on fit alone)?
 - **Horizon test** — is the target WU's (opaque) activation horizon acceptable for this concern's value?
   High-value + errand-shaped + separable → the execute lane (personal errand if self-committed, else
   `INBOX.PROJECT`), with at most a cross-reference to the WU.
 
 Ownership: the codified rubric belongs to **`inbound-routing-method`** — completing a disposition → homing
 (`assess-wu-target`) → integration method family; routed to its buffer at this grooming (2026-07-02). The
-principle backstop is **`justified-deferral`** (anti-rider's dual). This WU owns the *surfaces* the dispositions
+principle backstop is **`justified-deferral`** (anti-rider's dual). This WU owns the _surfaces_ the dispositions
 route onto and their semantics.
 
 ## Concurrency (consumes shipped `concurrent-work-doctrine`)
@@ -209,11 +209,11 @@ writes ride the entry-level all-owner gate (R22); foreign-owned overlap → coor
 - **Entry-granular, slug-keyed operations.** Every mutation is an entry-level append / remove / re-home keyed on
   the OSD slug grammar, idempotent (no-op-when-absent, honoring `async-merge-lifecycle`'s contract). Never
   file-granular rewrites.
-- **Two writer classes.** The drain *appends* (promotions flowing in); the sweep *removes / re-homes* — a
+- **Two writer classes.** The drain _appends_ (promotions flowing in); the sweep _removes / re-homes_ — a
   second, heavier writer class. Interim (in-repo tier): both run serialized as base-branch ceremonies — today's
   write isolation, extended to the sweep. Concurrent drain + sweep across two developers is the known interim
   hazard the serialization convention bounds, with git text-merge as the backstop.
-- **Foreign entries.** Re-homing another owner's promoted entry is sweep-sanctioned (the sweep *is* the
+- **Foreign entries.** Re-homing another owner's promoted entry is sweep-sanctioned (the sweep _is_ the
   coordination point); outside the sweep, foreign-entry writes surface the R22 gate.
 - **Backend lift.** Entry-granular ops map 1:1 onto the arc-backend event log (append-plus-tombstone), and
   per-entry version-checked writes replace the serialization convention at the shared tier. Compose notes
@@ -231,7 +231,7 @@ two-paths alternative is rejected.
 With promote-by-default, `INBOX.PROJECT` entries are executable by anyone — adopting an errand directly from the
 project inbox becomes a real path. Today adoption is bound to the personal inbox in three coupled places, all
 internally consistent: the `--from-inbox <entry-title>` flag, the errand record's binary
-`origin: "description" | "inbox"` (where `"inbox"` *means* user-inbox — `lib/errand/record.ts`, `version: 1`),
+`origin: "description" | "inbox"` (where `"inbox"` _means_ user-inbox — `lib/errand/record.ts`, `version: 1`),
 and the close drop-leg's hardwired `runUserInboxRemove` (`handlers/errand.ts`). Build scope (integrated from the
 2026-06-24 capture): an inbox discriminator via a forward record-version migration (a new `origin` value or a
 source-surface field), route the close-drop on it, qualify the flag. Nothing forecloses this today (flag
@@ -274,7 +274,7 @@ on (it now does). The visible consequence — entries rotting — is the trigger
   `STATUS.*` line (zero mutation, concurrency-free); decide at its render-standard pass.
 - **`goal-aware-direction`** — two seams (routed at its 2026-07-02 grooming). (1) **`_Hold:_` → `_Queued:_`
   rename proposal:** its `VECTOR.USER` composed view derives membership from the retained set, making "retain"
-  a real destination — the personal queue. `_Queued:_` names what the entry *is* (queued in my vector view)
+  a real destination — the personal queue. `_Queued:_` names what the entry _is_ (queued in my vector view)
   rather than what it isn't, and the drain fork's four dispositions all become destinations (Route / Execute /
   Queue / Promote); the aging nudge reads as a falsified commitment claim unchanged. This WU owns the call (the
   retention-line semantics are its); OSD codifies the flag schema downstream. (2) **The horizon test gains its
@@ -284,7 +284,7 @@ on (it now does). The visible consequence — entries rotting — is the trigger
 - **`frictionless-capture`** — composes cleanly and reinforces the model: its cold fast-path is another
   `INBOX.USER`-only writer (capture-personal-first invariant above); higher capture volume raises the value of
   the drain's promote-by-default fork and OSD's deterministic `arc inbox add`. Its capture-time judgment
-  (errand-vs-WU, `WU_Target` suggestion) stays a *provisional hint* — the drain's disposition gate is
+  (errand-vs-WU, `WU_Target` suggestion) stays a _provisional hint_ — the drain's disposition gate is
   authoritative.
 - **`composable-workflows`** — the dual-mode spine is a forward-compat case (coordinate-with, not blocked-on).
 - **arc-backend / `strategy-storage-evolution`** — self-check run at this grooming (2026-07-02): entry-granular

@@ -91,6 +91,11 @@
       "layer": "core",
       "pristine_hash": "9a9cf078652644436c83cf0f4ce5e2e340812ae651c23acb9aa38ecb784afaa7"
     },
+    "reference/templates/arc/work-unit/template-tasks.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "6acf973092473d1be909191751120715bfcdb7fce26fc500ce42cace3ae9e1cd"
+    },
     "reference/templates/arc/work-unit/spec/template-spec-brief.md": {
       "classification": "Framework",
       "layer": "core",

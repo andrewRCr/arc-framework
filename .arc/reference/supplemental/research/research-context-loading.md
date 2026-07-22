@@ -9,7 +9,7 @@ on-demand / discoverable), or suggest a different distribution of context across
 
 **Companion research:** [Context Degradation in Large Windows][context-degradation] covers general
 context window degradation — positioning effects, effective capacity thresholds, compaction
-strategies. This document focuses on the *architecture* of what goes into the context window,
+strategies. This document focuses on the _architecture_ of what goes into the context window,
 not the window's general performance characteristics.
 
 **Date:** 2026-02-25
@@ -89,7 +89,7 @@ The +4% / -3% results may reflect content quality more than architectural choice
 
 Key themes from practitioners:
 
-- **"Why > what"** — domain knowledge about design *decisions* outperforms procedural instruction
+- **"Why > what"** — domain knowledge about design _decisions_ outperforms procedural instruction
   that restates what the code already shows. The most effective context captures hard-won lessons
   ("we tried X and it broke"), not code summaries.
 - **Nested/progressive disclosure** — multiple practitioners reported better outcomes with
@@ -189,7 +189,7 @@ Performance hierarchy from easiest to hardest for LLMs to follow:
 model's instruction-following capacity. Rules/constraints (categories 1-2 above) are relatively
 well-handled. Workflow procedures that impose structural or length requirements (categories 5-6)
 are harder. This suggests the cost of including a document in Tier 1 depends on its constraint
-*type*, not just its length.
+_type_, not just its length.
 
 ### 3.2 Instructional Distraction Vulnerability
 
@@ -264,8 +264,8 @@ a single monolithic context file?**
 **What this means for ARC:** The three-tier model maps naturally to instruction hierarchy:
 Tier 1 = system-level (highest priority), Tier 2 = domain-level (medium), Tier 3 = reference
 (lowest). Making this priority explicit — not just implicit through loading order — could
-strengthen the architecture. Currently ARC's tiers are defined by *when* content loads, not by
-*priority* when conflicts arise.
+strengthen the architecture. Currently ARC's tiers are defined by _when_ content loads, not by
+_priority_ when conflicts arise.
 
 ### 4.2 Progressive Disclosure
 
@@ -313,7 +313,7 @@ deliberately optimized for positional effects.
 
 ## 5. On-Demand Loading and Indexing Patterns
 
-This section addresses **RQ3: Does making an agent *aware* that documentation exists (Tier 2)
+This section addresses **RQ3: Does making an agent _aware_ that documentation exists (Tier 2)
 actually result in appropriate on-demand consultation?**
 
 ### 5.1 Agentic RAG Model
@@ -424,7 +424,7 @@ Practitioner workarounds for drift include:
 DEV-RULES.PROJECT when triggered by specific conditions) is a reasonable heuristic. The evidence
 neither strongly supports nor contradicts it. Prompt caching makes static-document refresh
 largely redundant; the protocol's value is primarily for documents whose relevance is
-*situational* (e.g., re-reading commit standards before a complex commit).
+_situational_ (e.g., re-reading commit standards before a complex commit).
 
 ---
 
@@ -482,7 +482,7 @@ Five principles emerge from the research with sufficient evidence to guide desig
 
 4. **Prefer hierarchy over flat loading.** Making priority levels explicit (not just implicit
    through load order) helps models resolve conflicts correctly. ARC's tiers currently define
-   *when* content loads, not *what takes precedence* when instructions conflict.
+   _when_ content loads, not _what takes precedence_ when instructions conflict.
 
 5. **Leverage prompt caching for Tier 1 stability.** Place static Tier 1 content at the
    beginning of the prompt prefix. Vendor caching handles persistence across turns. Reserve

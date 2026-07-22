@@ -124,10 +124,10 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
   unpushed commit (typo, lint, missing file from the same logical change); otherwise create a
   new commit. Never amend pushed commits without explicit user request.
 
-- **Rebase scope:** Never rebase or otherwise rewrite a *pushed* branch to absorb base changes —
+- **Rebase scope:** Never rebase or otherwise rewrite a _pushed_ branch to absorb base changes —
   rewriting published commits orphans the SHA-keyed git notes and forces a force-push. Merge the base
   in instead (append-only — see the [concurrent-work strategy][concurrent-work] § Append-only until
-  integration). Rewriting *unpushed* commits is fine.
+  integration). Rewriting _unpushed_ commits is fine.
 
 - **Check before reverting files:** Before `git checkout -- <file>`, review `git diff <file>` —
   other tasks may have uncommitted work in the same file.
@@ -184,17 +184,17 @@ changes by task; commit shared documentation (task list updates) last.
 
 ### Task interlock
 
-Each checkbox in the task list is one *review increment* — a bounded chunk of autonomous execution
+Each checkbox in the task list is one _review increment_ — a bounded chunk of autonomous execution
 between human review points. The [Review-Increment Invariant](#review-increment-invariant) applies at
 this default boundary: the increment closes with a structured approval gate before the agent advances or
 commits, and that gate is the task-interlock — stop after reporting completion, surface verification
 status, and await explicit user approval. Deferred review is a bounded convenience gated by user
 approval, not an autonomy mode.
 
-One leaf is the *default* increment boundary, not the only legal one: when a parent's subtasks are
+One leaf is the _default_ increment boundary, not the only legal one: when a parent's subtasks are
 tightly coupled — landing as one atomic commit, or individually incoherent mid-sequence — the agent may
 **propose** reviewing the parent as one increment (agent proposes, user approves; one gate, never
-self-invoked). That is correct *scoping* of the invariant, not an exception — the default stays per-leaf
+self-invoked). That is correct _scoping_ of the invariant, not an exception — the default stays per-leaf
 and is never silently widened. Signals and procedure: [process-task-loop][process-task-loop] § Deferred
 review.
 
@@ -214,7 +214,7 @@ upstream of the work.
 
 Settle **all settle-able design up front** — best reasonable effort, never a conscious deferral — and route any
 genuinely-emergent design question back to the spec rather than accumulating design debt in code or notes. This
-holds identically at every `Class`: a lighter `Class` means the design was *more determinate coming in*, not
+holds identically at every `Class`: a lighter `Class` means the design was _more determinate coming in_, not
 that more design may be left open. A lighter process is never license to defer design — the
 implementation-detail latitude ARC already grants is unchanged.
 
@@ -282,13 +282,13 @@ The behavioral floor for everything below — what to do with a concern the mome
 
 **Fixing it inline** (a file you're already changing, manageable scope) · `[configurable]`: assess severity
 via the [issue-triage method][arc-methods-it] and fold the fix into the work in hand — but only for a
-*same-concern* cleanup (see [Anti-rider](#anti-rider)), not merely because the file is open.
+_same-concern_ cleanup (see [Anti-rider](#anti-rider)), not merely because the file is open.
 
 **Always propose placement to the user before acting** — the agent suggests, the user decides.
 
 ### Route by urgency × isolation
 
-**Otherwise, route by urgency × isolation** — a coarse *inline / errand-now / inbox-defer* call. The finer
+**Otherwise, route by urgency × isolation** — a coarse _inline / errand-now / inbox-defer_ call. The finer
 destination (existing stub, new stub, standalone errand, flush to shared) resolves later, at drain.
 
 | The concern is…       | Can I write its home here? | Route                                                  |
@@ -317,28 +317,28 @@ rot.
 
 ### Holding ≠ execution
 
-Capture *holds*; it never *executes*. Capture is inbox-only — a deferred concern lands in `USER-INBOX` (via
-`arc-inbox`), never as a queued or seeded errand. **An errand *is* its execution:** out-of-WU work runs through
+Capture _holds_; it never _executes_. Capture is inbox-only — a deferred concern lands in `USER-INBOX` (via
+`arc-inbox`), never as a queued or seeded errand. **An errand _is_ its execution:** out-of-WU work runs through
 the `run-errand` lifecycle on its own isolated branch — entered warm with `arc-errand` or cold with
 `arc-session --errand` — never hand-rolled on your current WU branch. The isolation rule is universal — get off
-the WU branch — but its *shape* follows protection mode: a `chore/<slug>` branch + PR under full, a direct base
+the WU branch — but its _shape_ follows protection mode: a `chore/<slug>` branch + PR under full, a direct base
 commit under partial (see [strategy-work-organization][work-org] § Cheap-branch path). An errand has no meta
 file or lifecycle of its own — its state is derived from its branch and PR.
 
-Routing a multi-step note *to its stub* is not execution — the housekeep drain writes it straight in. When an
+Routing a multi-step note _to its stub_ is not execution — the housekeep drain writes it straight in. When an
 errand executes a captured item, its inbox entry is removed at **completion** — matched via its errand record's
 origin back-pointer — not at start, so an abandoned errand never orphans the intent.
 
 ### Anti-rider
 
 Whether a fix may ride the current change is decided by **concern-identity, not file-identity**. A
-*same-concern* micro-cleanup in a file you're already editing is always fine inline; a *distinct* concern that
+_same-concern_ micro-cleanup in a file you're already editing is always fine inline; a _distinct_ concern that
 merely shares the file does not ride the current PR — errand or capture it instead. Same test for PR packaging:
 distinct concerns never share a PR even on a shared file — sequence them (rebase B on A), don't merge.
 
 ### Planning artifacts aren't capture surfaces
 
-A WU's planning artifacts — draft, spec, notes, meta, a `Coordination §` — may *cross-reference* another WU's
+A WU's planning artifacts — draft, spec, notes, meta, a `Coordination §` — may _cross-reference_ another WU's
 concern but must never hold it as their **record-of-record** (completion and session notes record what was
 done; they aren't actionable-work queues). The dual of the core invariant: no foreign work-item rests in a
 planning artifact.
@@ -497,7 +497,7 @@ Otherwise, paths serve current-location metadata, commands, and links between no
 ### Write for the reader, not the author
 
 When removing or restructuring content, don't leave notes explaining what was removed or where
-it went — future readers have no context for the old state. Document what *is*, not what *was*.
+it went — future readers have no context for the old state. Document what _is_, not what _was_.
 Historical context belongs in commit messages and task list completion notes, not in the living
 document.
 

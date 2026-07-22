@@ -19,16 +19,16 @@ Optimization WU.
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[x]` **SESSION-NOTES post-WOR model cleanup**
 
-- *Disposition (2026-07-02):* Integrated as a standing scope item (see § Scope) — a coordinated
+- _Disposition (2026-07-02):_ Integrated as a standing scope item (see § Scope) — a coordinated
   template + workflows + CLI retirement sweep, unchanged in substance from the capture below.
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
-- *Concern:* WOR moved SESSION-NOTES to WU-scoped subdirs (`user/{id}/<wu>/`) but left the pre-WOR single-doc
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
+- _Concern:_ WOR moved SESSION-NOTES to WU-scoped subdirs (`user/{id}/<wu>/`) but left the pre-WOR single-doc
   model in the template + workflows:
     - Template (`templates/user/SESSION-NOTES.md`) still says "Completed Work" (the workflow wants only
       "Uncommitted Work") and "status-{name}.md" (→ `meta-{name}.md`). Pure drift.
@@ -38,27 +38,27 @@ Optimization WU.
     - Coordinated retirement, not a one-liner: the field has a live consumer — session-init multi-candidate
       disambiguation precedence #1 (`commands/active/status.ts`, now circular under WU-scoping) — plus
       `session-handoff.md` step 2 / skeleton. Touches template + both session workflows + the CLI path (+ test).
-- *Coordination:* work-routing-discipline's between-WUs `session-handoff` path defines *when* SESSION-NOTES
+- _Coordination:_ work-routing-discipline's between-WUs `session-handoff` path defines _when_ SESSION-NOTES
   is/isn't written; same file, adjacent concern — one coordinated sweep (its notes § Coordination write-back
   specifics names this WU as the owner).
 
 ### `[x]` **Give session-handoff a codified lightweight path for errand/housekeep sessions**
 
-- *Disposition (2026-07-02):* Integrated as a **CW-gated scope item** (see § Scope) — session-handoff's
+- _Disposition (2026-07-02):_ Integrated as a **CW-gated scope item** (see § Scope) — session-handoff's
   entry-mode paths (active-WU / between-WUs / errand / housekeep) become fragments under
   `draft-composable-workflows.md` D2/D3, and this WU authors the handoff instances once that design
   settles. Named there as an early consumer. Original concern preserved: the agent currently exercises
   judgment to abstain from heavier active-WU steps (meta-file commit, SESSION-NOTES write) instead of
   never seeing them.
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: handoff-optimization`), housekeep drain (2026-06-27);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: handoff-optimization`), housekeep drain (2026-06-27);
   captured 2026-06-26, between-WUs reflection.
 
 ### `[ ]` **Terminal-WU handoff mode, an explicit sync-only handoff tier, and boundary-marker output**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: handoff-optimization`), housekeep drain (2026-07-16);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: handoff-optimization`), housekeep drain (2026-07-16);
   captured during FP wave-3 terminal-state UX review after `cli-test-hardening` shipped — the base-fetch refusal
   reproduced at that session's init. Distinct from `base-drift-guidance` (prompt quality, not terminal flow).
-- *Concern:* session entry grew a dispatch architecture (arms, explicit-intent signals, a typed orientation
+- _Concern:_ session entry grew a dispatch architecture (arms, explicit-intent signals, a typed orientation
   block); session exit didn't. `cli-test-hardening`'s ship surfaced the gap live: the session ends in a stamped
   detached husk with no owned closing ceremony — `session-handoff`'s between-WUs path is close in content
   (WORKING-MEMORY review, route captures, sync, confirm, no SESSION-NOTES) but fails the shipped-WU case
@@ -66,7 +66,7 @@ Optimization WU.
   its sync runs where the session sits (a linked worktree/husk cannot freshen the primary's checked-out base —
   `git fetch origin main:main` refuses), and it neither knows a WU just shipped (the dominant `_Remove when:_`
   trigger event) nor emits a terminal marker. The closing summary the agent produced was improvised prose.
-- *Approach:* three extensions to the existing lightweight entry-mode-paths scope item: (1) a **terminal-WU
+- _Approach:_ three extensions to the existing lightweight entry-mode-paths scope item: (1) a **terminal-WU
   handoff mode** dispatched off the probe's `currentHusk` slot — typed boundary block, WORKING-MEMORY trigger
   review, base/notes sync routed to the primary (or the base-sync verb named in `draft-session-locus-model.md`
   § Boundaries), no SESSION-NOTES write, and a generic exit pointer ("fresh session at the primary; the husk
@@ -86,9 +86,9 @@ session:
    probe-1 pre-commit, probe-2 post-commit — to refresh `worktree`, `dirty`, `head`,
    and `recommendedSummaryLine` after the `chore(status): handoff` commit. The
    workflow itself acknowledges probe-2 is harmless redundancy when no commit fires:
-   *"When step 3 didn't fire a commit, probe-2's mutated slots are identical to
+   _"When step 3 didn't fire a commit, probe-2's mutated slots are identical to
    probe-1's — the second invocation is harmless redundancy. The workflow doesn't
-   branch on whether a commit fired."* When a commit does fire, the worktree / dirty /
+   branch on whether a commit fired."_ When a commit does fire, the worktree / dirty /
    head deltas are deterministic from probe-1 plus the commit just made;
    `recommendedSummaryLine` is the only slot that genuinely needs recomputation.
 
@@ -100,12 +100,12 @@ session:
       agent reads SESSION-NOTES, holds each entry's trigger in mind, and checks
       whether the trigger condition has been met. Mechanical when triggers are
       structured; load-bearing reasoning when they're freeform prose.
-    - **Status-file skip threshold** — *"Would the next session do anything different
-      at step 0 with this change?"* requires comparing each field's current vs.
+    - **Status-file skip threshold** — _"Would the next session do anything different
+      at step 0 with this change?"_ requires comparing each field's current vs.
       last-handoff value field-by-field. The agent reconstructs this comparison from
       `git log` + reading the status file each session.
-    - **SESSION-NOTES Pass 2 filter** — *"not in any durable tracked source / acted on
-      at step 0 / costly if missing."* Pass 1 is mechanized via `restateCandidates`;
+    - **SESSION-NOTES Pass 2 filter** — _"not in any durable tracked source / acted on
+      at step 0 / costly if missing."_ Pass 1 is mechanized via `restateCandidates`;
       Pass 2 is genuinely semantic and probably not mechanizable.
 
 3. **Re-derivation of unchanged context.** The session ends with the workflow asking
@@ -153,7 +153,7 @@ lowest:
    "ready to remove" entries in a slot. Existing entries need migration; future
    authoring requires the structured shape. Convention change in `session-handoff.md`
    § Persistent Context.
-   *Elevation evidence:* WORKING-MEMORY has grown to ~226 lines / ~3.5k tokens of rich prose, re-read at
+   _Elevation evidence:_ WORKING-MEMORY has grown to ~226 lines / ~3.5k tokens of rich prose, re-read at
    every session-init **and** re-judged entry-by-entry at every handoff — the largest single
    agent-judgment cost in the ceremony and a per-session read cost besides. ADR-022 already claims the
    record-schema side; this item is its evaluator. Rank it with item 1, not below it.
@@ -291,11 +291,11 @@ lowest:
     - **Removal-trigger eval cadence (captured from WF planning, 2026-05-24).** WORKING-MEMORY's
       `_Remove when:_` triggers are reviewed every handoff — arguably over-sampling, since triggers
       change at WU-velocity (days/weeks) while handoffs recur many times a day. Item 3 (structured
-      triggers, CLI-evaluated at probe time) is the *principled* fix: it converts the per-handoff cost
+      triggers, CLI-evaluated at probe time) is the _principled_ fix: it converts the per-handoff cost
       from "agent reads + judges every entry" to "CLI mechanically checks; silent unless ready-to-remove,"
       so frequency becomes cheap and a separate throttle is largely unnecessary (make-it-cheap beats
       throttle-an-expensive-check). A once-per-day timestamp throttle (per-machine state in `.internal/`)
-      is a viable *fallback* for non-mechanizable judgment triggers — but most ARC triggers ("when WU-X
+      is a viable _fallback_ for non-mechanizable judgment triggers — but most ARC triggers ("when WU-X
       integrates / ships") are mechanizable via `refExists` / PR-state, so the throttle's residual value
       is small. Principle to preserve: a removal-trigger-bearing surface needs a paired eval cadence or it
       rots.

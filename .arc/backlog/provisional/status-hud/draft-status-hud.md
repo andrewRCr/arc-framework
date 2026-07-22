@@ -2,7 +2,7 @@
 
 - **Origin:** [internal] — split out of `arc-view` at the storage-substrate grooming (2026-07-17), when the
   verb-semantics line was drawn: `arc view` renders an existing artifact as it is; this WU owns the **status/HUD
-  surfaces** — projections *about* the work rather than documents *of* the work.
+  surfaces** — projections _about_ the work rather than documents _of_ the work.
 - **Cohort:** [none]
 - **Purpose:** Zero-input, cwd-resolved status surfaces for the human operator under parallelism: the **WU context
   card** (where is this WU at, at a glance) and the **live watch panel** (follow the work as it progresses).
@@ -12,8 +12,8 @@
 ## Problem / Motivation
 
 Under worktree parallelism the operator bounces between concurrent WU contexts, and re-grounding on entry is the
-recurring cost: *"I need to evaluate this agent's latest message — but where is this WU AT? What stage
-(planning: create-spec? generate-tasks? impl? review?), what `Class`, what deps, what was the current task?"*
+recurring cost: _"I need to evaluate this agent's latest message — but where is this WU AT? What stage
+(planning: create-spec? generate-tasks? impl? review?), what `Class`, what deps, what was the current task?"_
 The pre-parallelism answer (an editor pinned to the relevant files) breaks under worktrees — state forks per
 checkout, files reopen on every swap. The need is a terminal-native card that answers the grounding question from
 nothing but cwd, plus a live panel for watching progress beside a running session.

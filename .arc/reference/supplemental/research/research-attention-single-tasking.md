@@ -19,7 +19,7 @@ verified against primary sources before citing in published ADRs.
 ### 1.1 Rogers & Monsell (1995) — Landmark Study
 
 **Citation:** Rogers, R. D., & Monsell, S. (1995). Costs of a predictable switch between simple
-cognitive tasks. *Journal of Experimental Psychology: General*, 124(2), 207-231.
+cognitive tasks. _Journal of Experimental Psychology: General_, 124(2), 207-231.
 
 **Key findings:**
 
@@ -40,8 +40,8 @@ maximum advance notice.
 ### 1.2 Rubinstein, Meyer & Evans (2001) — Quantified Costs
 
 **Citation:** Rubinstein, J. S., Meyer, D. E., & Evans, J. E. (2001). Executive control of
-cognitive processes in task switching. *Journal of Experimental Psychology: Human Perception and
-Performance*, 27(4), 763-797.
+cognitive processes in task switching. _Journal of Experimental Psychology: Human Perception and
+Performance_, 27(4), 763-797.
 
 **Study design:** Four experiments examining task-switching costs across varying task complexity
 and familiarity levels. Tasks included solving math problems, classifying geometric objects.
@@ -90,7 +90,7 @@ consistent effects across task types.
 
 ### 2.1 Broadbent's Filter Theory (1958)
 
-**Citation:** Broadbent, D. E. (1958). *Perception and Communication*. Pergamon Press.
+**Citation:** Broadbent, D. E. (1958). _Perception and Communication_. Pergamon Press.
 
 **Key findings:**
 
@@ -108,7 +108,7 @@ bottleneck, not just a resource limitation.
 ### 2.2 Welford's Psychological Refractory Period (1952)
 
 **Citation:** Welford, A. T. (1952). The 'psychological refractory period' and the timing of
-high-speed performance — A review and a theory. *British Journal of Psychology. General Section*,
+high-speed performance — A review and a theory. _British Journal of Psychology. General Section_,
 43(1), 2-19.
 
 **Key findings:**
@@ -128,7 +128,7 @@ studies.
 ### 2.3 Pashler's Central Bottleneck Model (1994)
 
 **Citation:** Pashler, H. (1994). Dual-task interference in simple tasks: Data and theory.
-*Psychological Bulletin*, 116(2), 220-244.
+_Psychological Bulletin_, 116(2), 220-244.
 
 **Key findings:**
 
@@ -147,7 +147,7 @@ selection. The bottleneck persists.
 
 ### 2.4 Kahneman's Capacity-Sharing Alternative (1973)
 
-**Citation:** Kahneman, D. (1973). *Attention and Effort*. Prentice-Hall.
+**Citation:** Kahneman, D. (1973). _Attention and Effort_. Prentice-Hall.
 
 **Key findings:**
 
@@ -185,7 +185,7 @@ over pure capacity-sharing, particularly for response selection tasks.
 ### 3.1 Ophir, Nass & Wagner: Media Multitasking and Cognitive Control (2009)
 
 **Citation:** Ophir, E., Nass, C., & Wagner, A. D. (2009). Cognitive control in media
-multitaskers. *Proceedings of the National Academy of Sciences*, 106(37), 15583-15587.
+multitaskers. _Proceedings of the National Academy of Sciences_, 106(37), 15583-15587.
 
 **Study design:** Compared heavy vs. light media multitaskers on filtering irrelevant
 information, task switching, and working memory management tasks.
@@ -206,12 +206,12 @@ they didn't find it." Experience with multitasking does not build multitasking c
 
 **Strength of evidence:** Published in PNAS; widely cited (5000+ citations). Meta-analysis of
 subsequent studies shows pooled effect is smaller than initial study but remains significant;
-no studies show multitaskers performing *better* at cognitive control.
+no studies show multitaskers performing _better_ at cognitive control.
 
 ### 3.2 Sophie Leroy: Attention Residue and Task Switching (2009)
 
 **Citation:** Leroy, S. (2009). Why is it so hard to do my work? The challenge of attention
-residue when switching between work tasks. *Organizational Behavior and Human Decision Processes*,
+residue when switching between work tasks. _Organizational Behavior and Human Decision Processes_,
 109(2), 168-181.
 
 **Key concept — Attention Residue:** "The persistence of cognitive activity about Task A even
@@ -241,7 +241,7 @@ attention lags behind physical action.
     - **Reduced filtering of irrelevant information**
 - Neuroscience evidence: continuous partial attention shows increased activation in anterior
   cingulate cortex (attention switching) and dorsolateral prefrontal cortex (cognitive control)
-- Interpretation: brain works *harder* to maintain performance, not more efficiently
+- Interpretation: brain works _harder_ to maintain performance, not more efficiently
 
 ---
 
@@ -250,7 +250,7 @@ attention lags behind physical action.
 ### 4.1 Gloria Mark: The Cost of Interrupted Work (2005-2008)
 
 **Citation:** Mark, G., Gudith, D., & Klocke, U. (2008). The cost of interrupted work: more
-speed and stress. *Proceedings of the SIGCHI Conference on Human Factors in Computing Systems*
+speed and stress. _Proceedings of the SIGCHI Conference on Human Factors in Computing Systems_
 (pp. 107-110).
 
 **Study design:** Observational study of knowledge workers tracking interruptions, recovery time,
@@ -303,8 +303,8 @@ findings replicated in follow-up studies.
 ### 5.1 Breaking the Flow: Interruptions During Software Engineering (2024)
 
 **Citation:** Lestan, K., Leventis, G., & Ivanovic, M. (2024). Breaking the flow: A study of
-interruptions during software engineering activities. *Proceedings of the IEEE/ACM 46th
-International Conference on Software Engineering*.
+interruptions during software engineering activities. _Proceedings of the IEEE/ACM 46th
+International Conference on Software Engineering_.
 
 **Study design:** Examined interruptions during three critical SE tasks: code writing, code
 comprehension, code review. Measured with physiological sensors and self-report.
@@ -365,7 +365,7 @@ controller.
 
 **Citation:** Wohleber, J. C., Matthews, G., Reinerman-Jones, L. E., & Parfitt, S. L. (2019).
 Vigilance and automation dependence in operation of multiple unmanned aerial systems (UAS):
-A simulation study. *Human Factors: The Journal of the Human Factors and Ergonomics Society*,
+A simulation study. _Human Factors: The Journal of the Human Factors and Ergonomics Society_,
 61(2), 305-326.
 
 **Key findings:**
@@ -424,7 +424,7 @@ the strongest objections rather than ignoring them.
 ### 7.1 Supertaskers: The 2.5% Exception
 
 **Citation:** Watson, J. M., & Strayer, D. L. (2010). Supertaskers: Profiles in extraordinary
-multitasking ability. *Psychonomic Bulletin & Review*, 17(4), 479-485.
+multitasking ability. _Psychonomic Bulletin & Review_, 17(4), 479-485.
 
 **Key findings:**
 
@@ -444,7 +444,7 @@ universal bottleneck. But 2.5% is too rare to design systems around.
 ### 7.2 EPIC Model: "Virtually Perfect" Time-Sharing Under Specific Conditions
 
 **Citation:** Schumacher, E. H., et al. (2001). Virtually perfect time sharing in dual-task
-performance: Uncorking the central cognitive bottleneck. *Psychological Science*, 12(2), 101-108.
+performance: Uncorking the central cognitive bottleneck. _Psychological Science_, 12(2), 101-108.
 
 **Key findings:**
 
@@ -461,13 +461,13 @@ performance: Uncorking the central cognitive bottleneck. *Psychological Science*
 visual-manual + auditory-vocal), extensive practice, and simple choice tasks. Does not generalize
 to complex, novel, or semantically related tasks.
 
-**Strength as counterargument:** Strong within its narrow scope. Shows the bottleneck *can* be
+**Strength as counterargument:** Strong within its narrow scope. Shows the bottleneck _can_ be
 overcome — but only under conditions unlike novel AI-assisted development work.
 
 ### 7.3 Threaded Cognition: Resource-Specific Bottlenecks
 
 **Citation:** Salvucci, D. D., & Taatgen, N. A. (2008). Threaded cognition: An integrated theory
-of concurrent multitasking. *Psychological Review*, 115(1), 101-130.
+of concurrent multitasking. _Psychological Review_, 115(1), 101-130.
 
 **Key claim:** Multitasking behavior operates as **cognitive threads** — independent streams
 coordinated by a serial procedural resource but executed across other available resources
@@ -508,7 +508,7 @@ that complex knowledge tasks (which all require problem-state access) still inte
   (Zheng et al., 2012)
 - Even in highly trained surgeons, multitasking impairs performance
 
-**Strength as counterargument:** Shows bottleneck can be *managed* through environmental design,
+**Strength as counterargument:** Shows bottleneck can be _managed_ through environmental design,
 training, and tools — but does not show it can be eliminated. Performance still degrades under
 high load.
 
@@ -649,78 +649,78 @@ rich work — exactly the conditions where bottleneck effects are strongest.
 ### Task-Switching Costs
 
 - Rogers, R. D., & Monsell, S. (1995). Costs of a predictable switch between simple cognitive
-  tasks. *Journal of Experimental Psychology: General*, 124(2), 207-231.
+  tasks. _Journal of Experimental Psychology: General_, 124(2), 207-231.
 - Rubinstein, J. S., Meyer, D. E., & Evans, J. E. (2001). Executive control of cognitive
-  processes in task switching. *Journal of Experimental Psychology: Human Perception and
-  Performance*, 27(4), 763-797.
+  processes in task switching. _Journal of Experimental Psychology: Human Perception and
+  Performance_, 27(4), 763-797.
 
 ### Dual-Task Interference and Bottleneck Theory
 
-- Broadbent, D. E. (1958). *Perception and Communication*. Pergamon Press.
+- Broadbent, D. E. (1958). _Perception and Communication_. Pergamon Press.
 - Welford, A. T. (1952). The 'psychological refractory period' and the timing of high-speed
-  performance. *British Journal of Psychology. General Section*, 43(1), 2-19.
-- Pashler, H. (1994). Dual-task interference in simple tasks: Data and theory. *Psychological
-  Bulletin*, 116(2), 220-244.
-- Kahneman, D. (1973). *Attention and Effort*. Prentice-Hall.
+  performance. _British Journal of Psychology. General Section_, 43(1), 2-19.
+- Pashler, H. (1994). Dual-task interference in simple tasks: Data and theory. _Psychological
+  Bulletin_, 116(2), 220-244.
+- Kahneman, D. (1973). _Attention and Effort_. Prentice-Hall.
 
 ### Multitasking and Cognitive Control
 
 - Ophir, E., Nass, C., & Wagner, A. D. (2009). Cognitive control in media multitaskers.
-  *Proceedings of the National Academy of Sciences*, 106(37), 15583-15587.
+  _Proceedings of the National Academy of Sciences_, 106(37), 15583-15587.
 - Leroy, S. (2009). Why is it so hard to do my work? The challenge of attention residue when
-  switching between work tasks. *Organizational Behavior and Human Decision Processes*, 109(2),
+  switching between work tasks. _Organizational Behavior and Human Decision Processes_, 109(2),
   168-181.
 
 ### Workplace Interruptions
 
 - Mark, G., Gudith, D., & Klocke, U. (2008). The cost of interrupted work: more speed and
-  stress. *Proceedings of the SIGCHI Conference on Human Factors in Computing Systems*,
+  stress. _Proceedings of the SIGCHI Conference on Human Factors in Computing Systems_,
   107-110.
 
 ### Software Engineering Interruptions
 
 - Lestan, K., Leventis, G., & Ivanovic, M. (2024). Breaking the flow: A study of interruptions
-  during software engineering activities. *Proceedings of the IEEE/ACM 46th International
-  Conference on Software Engineering*.
+  during software engineering activities. _Proceedings of the IEEE/ACM 46th International
+  Conference on Software Engineering_.
 
 ### Supervisory Control and Automation Monitoring
 
 - Wohleber, J. C., Matthews, G., Reinerman-Jones, L. E., & Parfitt, S. L. (2019). Vigilance
   and automation dependence in operation of multiple unmanned aerial systems (UAS): A simulation
-  study. *Human Factors*, 61(2), 305-326.
+  study. _Human Factors_, 61(2), 305-326.
 
 ### Counterevidence: Supertaskers and Individual Differences
 
 - Watson, J. M., & Strayer, D. L. (2010). Supertaskers: Profiles in extraordinary multitasking
-  ability. *Psychonomic Bulletin & Review*, 17(4), 479-485.
+  ability. _Psychonomic Bulletin & Review_, 17(4), 479-485.
 - Strayer, D. L., et al. (2014). On supertaskers and the neural basis of efficient multitasking.
-  *Psychonomic Bulletin & Review*, 21(4), 1057-1063.
+  _Psychonomic Bulletin & Review_, 21(4), 1057-1063.
 
 ### Counterevidence: Practice Effects and EPIC Model
 
 - Schumacher, E. H., et al. (2001). Virtually perfect time sharing in dual-task performance:
-  Uncorking the central cognitive bottleneck. *Psychological Science*, 12(2), 101-108.
+  Uncorking the central cognitive bottleneck. _Psychological Science_, 12(2), 101-108.
 - Hazeltine, E., Teague, D., & Ivry, R. B. (2002). How does practice reduce dual-task
-  interference: Integration, automatization, or just stage-shortening? *Psychological Research*,
+  interference: Integration, automatization, or just stage-shortening? _Psychological Research_,
   66(4), 260-272.
 
 ### Counterevidence: Threaded Cognition
 
 - Salvucci, D. D., & Taatgen, N. A. (2008). Threaded cognition: An integrated theory of
-  concurrent multitasking. *Psychological Review*, 115(1), 101-130.
+  concurrent multitasking. _Psychological Review_, 115(1), 101-130.
 - Borst, J. P., & Taatgen, N. A. (2010). The problem state: A cognitive bottleneck in
-  multitasking. *Journal of Experimental Psychology: Learning, Memory, and Cognition*, 36(2),
+  multitasking. _Journal of Experimental Psychology: Learning, Memory, and Cognition_, 36(2),
   363-382.
 
 ### Counterevidence: Replication and Methodology Critiques
 
 - Wiradhany, W., & Nieuwenstein, M. R. (2017). Cognitive control in media multitaskers: Two
-  replication studies and a meta-analysis. *Attention, Perception, & Psychophysics*, 79(8),
+  replication studies and a meta-analysis. _Attention, Perception, & Psychophysics_, 79(8),
   2524-2541.
 
 ### Counterevidence: Real-World Multitasking Domains
 
 - Goras, C., et al. (2019). Tasks, multitasking and interruptions among the surgical team in
-  an operating room. *Journal of Multidisciplinary Healthcare*, 12, 481-493.
+  an operating room. _Journal of Multidisciplinary Healthcare_, 12, 481-493.
 - Zheng, B., et al. (2012). Multitasking and time pressure in the operating room: Impact on
-  surgeons' brain function. *Archives of Surgery*, 147(3), 256-262.
+  surgeons' brain function. _Archives of Surgery_, 147(3), 256-262.

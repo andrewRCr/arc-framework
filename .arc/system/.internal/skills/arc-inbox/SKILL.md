@@ -6,7 +6,7 @@ disable-model-invocation: false
 
 # ARC Inbox
 
-The unified capture entrypoint. The routing *decision* — fix inline, run an errand now, or defer to
+The unified capture entrypoint. The routing _decision_ — fix inline, run an errand now, or defer to
 capture — is `DEV-RULES.ARC § Discovered Work Routing`; consult it first. This skill runs once that
 call is **capture for later**, and owns entry construction. Draining captured items is `arc-housekeep`'s;
 executing them is `arc-session`'s.
@@ -24,7 +24,7 @@ executing them is `arc-session`'s.
      one indivisible concern (possibly an extended sweep), no design to record and no durable cross-session plan a
      correct execution must navigate.
    - **Work Unit** — clears either floor (a design worth recording, or a durable cross-session plan) → `## Work Unit`.
-   - Pick by *fate* (the two-floor gate), not by destination — the section is the routing fate; the finer home
+   - Pick by _fate_ (the two-floor gate), not by destination — the section is the routing fate; the finer home
      (existing stub, new stub, standalone errand, shared flush) resolves later at the drain.
    - **Infra smell (advisory, never a gate):** if a `## Errand` capture obviously touches load-bearing infra
      (`.arc/system/**`, strategies, `arc-config.yml`), several files, or carries a design fork, it likely needs the
@@ -61,7 +61,7 @@ executing them is `arc-session`'s.
    When the developer asks not to forget a capture, set the managed reminder field so session-init
    nudges them after a delay:
 
-   - ``- _Remind:_ `true` `` — a *parsed* field marks itself by **backtick-delimiting its value** (the
+   - ``- _Remind:_ `true` `` — a _parsed_ field marks itself by **backtick-delimiting its value** (the
      key stays bare-italic), distinguishing it from prose descriptors. Write it only when set; its
      absence reads as `false`.
    - ``- _Created:_ `<YYYY-MM-DD>` `` — **stamp the current date** yourself as the aging anchor (value

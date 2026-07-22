@@ -172,15 +172,15 @@ repair-authority
 
 These facts predate acceptance and are inputs or parser evidence, not activated capability declarations:
 
-| Subject | Sanitized fact | Qualification significance |
-| --- | --- | --- |
-| ARC review App | App id `4268856`; bot user id `302312524` | Re-prove installation, repository selection, permissions, and every emitted source id |
-| GitHub Actions | App id `15368`; bot user id `41898282` | Re-prove CI source and the exclusive emergency-status writer |
-| Hosted Codex | App id `1144995`; bot user id `199175422` | Pin clean/findings/connected-account parsers to both identities |
-| Codex trigger | A developer-authored request produced exact-head findings and clean artifacts | Re-run the owned full-rubric path through shipped code |
-| Connected account | An App-authored response matched the parser but used an inadmissible actor | Keep parser-only/non-terminal unless an admissible actor proves terminality |
-| CodeRabbit native approval | An empty approval appeared without a qualifying owned request | Native approval alone remains non-satisfying |
-| Installation token formats | Both temporary forced formats authenticated the same App in an earlier probe | Re-run both through the exact shipped consumer and retain no token value |
+| Subject                    | Sanitized fact                                                                | Qualification significance                                                            |
+| -------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| ARC review App             | App id `4268856`; bot user id `302312524`                                     | Re-prove installation, repository selection, permissions, and every emitted source id |
+| GitHub Actions             | App id `15368`; bot user id `41898282`                                        | Re-prove CI source and the exclusive emergency-status writer                          |
+| Hosted Codex               | App id `1144995`; bot user id `199175422`                                     | Pin clean/findings/connected-account parsers to both identities                       |
+| Codex trigger              | A developer-authored request produced exact-head findings and clean artifacts | Re-run the owned full-rubric path through shipped code                                |
+| Connected account          | An App-authored response matched the parser but used an inadmissible actor    | Keep parser-only/non-terminal unless an admissible actor proves terminality           |
+| CodeRabbit native approval | An empty approval appeared without a qualifying owned request                 | Native approval alone remains non-satisfying                                          |
+| Installation token formats | Both temporary forced formats authenticated the same App in an earlier probe  | Re-run both through the exact shipped consumer and retain no token value              |
 
 The App permission target is metadata read, checks write, pull requests write, and statuses read for only this
 repository, with no contents write or merge authority. Qualification must re-query the live installation rather than

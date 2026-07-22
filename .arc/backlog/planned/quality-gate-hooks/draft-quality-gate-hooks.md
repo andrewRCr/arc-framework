@@ -2,196 +2,196 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Reconcile ownership after repository Markdown enforcement ships**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
   `markdown-formatting` task generation.
-- *Concern:* `markdown-formatting` now owns Markdown-table CI plus the exact-index, check-only pre-commit runner.
+- _Concern:_ `markdown-formatting` now owns Markdown-table CI plus the exact-index, check-only pre-commit runner.
   Older table, emphasis, emoji, and commit-time auto-fix scope here would duplicate or contradict that substrate.
-- *Fold-in:* remove superseded Markdown-specific ownership while retaining generalized gate dispatch, pre-push and
+- _Fold-in:_ remove superseded Markdown-specific ownership while retaining generalized gate dispatch, pre-push and
   tier orchestration, and future index-safe auto-fix/restage machinery. Consume the shipped exact-index runner.
 
 ### `[ ]` **Fail closed when a worktree's hooks path is unprovisioned**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured after a hand-created worktree
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured after a hand-created worktree
   silently bypassed every hook because its gitignored `.husky/_` directory was absent.
-- *Concern:* `core.hooksPath` can point at a nonexistent generated directory, and Git then commits without any
+- _Concern:_ `core.hooksPath` can point at a nonexistent generated directory, and Git then commits without any
   warning or quality gate. The hazard grows with parallel worktree use.
-- *Approach:* evaluate provisioning hooks during worktree creation and a fail-closed detection path that also
+- _Approach:_ evaluate provisioning hooks during worktree creation and a fail-closed detection path that also
   catches manually created worktrees; pin the selected composition with tests.
 
 ### `[ ]` **Distinguish raw Git rename/copy statuses from planning references**
 
-- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-20); captured during
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-20); captured during
   `classify-change-granularity` execution.
-- *Concern:* the pre-commit meta-project-reference check rejects literal `R100` and `C100` fixtures even though
+- _Concern:_ the pre-commit meta-project-reference check rejects literal `R100` and `C100` fixtures even though
   they are canonical raw Git rename/copy statuses. Production-adjacent tests must currently obscure valid domain
   tokens to pass the check.
-- *Approach:* narrow the matcher using surrounding planning-reference grammar or exempt exact raw-diff status tokens,
+- _Approach:_ narrow the matcher using surrounding planning-reference grammar or exempt exact raw-diff status tokens,
   while retaining regression coverage for genuine requirement and planning references.
 
 ### `[ ]` **Prevent unrelated large blobs from crashing pre-commit validators**
 
-- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-20); captured during a base reconcile for
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-20); captured during a base reconcile for
   `session-locus-model`.
-- *Concern:* `validate-decompose-record.ts` reads parent-side content for every staged path with a 10 MB child-process
+- _Concern:_ `validate-decompose-record.ts` reads parent-side content for every staged path with a 10 MB child-process
   buffer. A merge deleting an unrelated ~60 MB blob therefore raised `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` and killed
   the whole pre-commit chain, even though the validator had no stake in that file.
-- *Approach:* scope reads to the retirement receipt and declared operation paths; size-check required blobs before
+- _Approach:_ scope reads to the retirement receipt and declared operation paths; size-check required blobs before
   buffering; reuse the shared Git-output limit rather than a local literal; and cover a simulated merge with a large
   unrelated deletion. Generalize the guard to other pre-commit validators that buffer staged blobs.
 
 ### `[ ]` **Distinguish runtime examples from meta-project references in code**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
   `commit-message-submission` integration preflight.
-- *Concern:* the production-code meta-reference guard rejects legal runtime `Context:` footer examples because
+- _Concern:_ the production-code meta-reference guard rejects legal runtime `Context:` footer examples because
   their filenames resemble planning-artifact references. User-facing diagnostics and validation fixtures need to
   show canonical inputs without weakening the prohibition on comments or identifiers coupled to planning state.
-- *Approach:* define and test a semantic boundary that permits executable string data, diagnostics, and fixtures
+- _Approach:_ define and test a semantic boundary that permits executable string data, diagnostics, and fixtures
   while preserving the guard against durable code-to-planning coupling.
 
 ### `[ ]` **Make integrity verification accurate for mode-scoped installs**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
   `commit-message-submission` CodeRabbit review fixes.
-- *Concern:* the installed integrity verifier reports eight false failures in a fresh `pm.mode=none` project: it
+- _Concern:_ the installed integrity verifier reports eight false failures in a fresh `pm.mode=none` project: it
   requires mode-excluded strategies and still checks the retired `3_process-task-loop.md` path.
-- *Approach:* derive structural expectations from the installed manifest and active PM mode, update renamed
+- _Approach:_ derive structural expectations from the installed manifest and active PM mode, update renamed
   workflow paths, and add fresh-install fixtures whose complete integrity result is clean in every supported mode.
 
 ### `[ ]` **Guard or migrate dev-repo-only `npx tsx` hook delegations**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
   `commit-message-submission` draft grooming.
-- *Concern:* shipped pre-commit checks invoke `npx tsx packages/arc-framework/src/scripts/validate-*.ts` without
+- _Concern:_ shipped pre-commit checks invoke `npx tsx packages/arc-framework/src/scripts/validate-*.ts` without
   a self-hosting guard. A project staging matching adopter-editable paths can trip a nonexistent source script
   and dependency rather than receive a validation result.
-- *Approach:* guard genuinely dev-repo-only checks when the source path is absent; migrate project-relevant checks
+- _Approach:_ guard genuinely dev-repo-only checks when the source path is absent; migrate project-relevant checks
   to the installed-CLI delegation pattern established by `commit-message-submission`. Triage per check because
   packaging a validator as a CLI surface is a different decision from skipping a self-hosting-only assertion.
 
 ### `[ ]` **Validate commit-message ranges in CI**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
   `commit-message-submission` design review.
-- *Concern:* commit-message validation is client-side only. Once the canonical TypeScript validator ships, CI
+- _Concern:_ commit-message validation is client-side only. Once the canonical TypeScript validator ships, CI
   should consume the same module across the PR range rather than duplicate the Bash grammar.
-- *Approach:* add an installed-CLI CI gate after `commit-message-submission`; settle whether every commit or the
+- _Approach:_ add an installed-CLI CI gate after `commit-message-submission`; settle whether every commit or the
   PR title is authoritative under the repository's merge method, and preserve a defined degraded posture for CI
   checkouts.
 
 ### `[ ]` **Reassess message-only content-gate caching after preflight field data**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured at
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured at
   `commit-message-submission` create-spec scope settlement.
-- *Concern:* editor and passthrough commit paths can repay the full pre-commit gate after only the message fails.
+- _Concern:_ editor and passthrough commit paths can repay the full pre-commit gate after only the message fails.
   The residual value is unknown until wrapper preflight ships, while an incomplete cache key could let a broken
   staged tree commit.
-- *Approach:* pursue only if post-preflight evidence shows material retry cost. Any cache must fail closed and key
+- _Approach:_ pursue only if post-preflight evidence shows material retry cost. Any cache must fail closed and key
   every correctness input, including staged tree, HEAD, hook/config implementation, and consumed worktree state.
 
 ### `[ ]` **Markdown-formatting enforcement: table-align auto-fix + emphasis/emoji rules at commit-gate**
 
-- *Routed from:* the `markdown-formatting` WU (`../markdown-formatting/draft-markdown-formatting.md`),
-  2026-06-05. That WU owns the markdown *content hygiene* (adopting `markdown-table-formatter`, the
+- _Routed from:_ the `markdown-formatting` WU (`../markdown-formatting/draft-markdown-formatting.md`),
+  2026-06-05. That WU owns the markdown _content hygiene_ (adopting `markdown-table-formatter`, the
   emphasis MD049/MD050 convention, the emoji-ban rule, one-time sweeps); **this entry is the
-  *enforcement* half it routes here** — the user's explicit (b)+(c) routing.
-- *Concern:* once `markdown-formatting` lands the fix-commands + lint rules, nothing auto-enforces them.
-  Table alignment in particular is *not* gated by `lint:md` today (verified: `MD060` enforces per-file style
+  _enforcement_ half it routes here** — the user's explicit (b)+(c) routing.
+- _Concern:_ once `markdown-formatting` lands the fix-commands + lint rules, nothing auto-enforces them.
+  Table alignment in particular is _not_ gated by `lint:md` today (verified: `MD060` enforces per-file style
   consistency, not width-alignment in general), so it needs an explicit gate.
-- *Update (2026-06-10):* `decomposition-machinery` planning exposed a stricter enforcement-fidelity gap: the
+- _Update (2026-06-10):_ `decomposition-machinery` planning exposed a stricter enforcement-fidelity gap: the
   pre-commit markdown check reported pass while standalone `npx markdownlint-cli2` flagged an MD049
   emphasis-style violation in `draft-operational-state-docs.md`. This entry now includes verifying that the
   commit gate runs the same canonical `lint:md` coverage / config as CI, not a reduced or stale subset. That
   directly challenges the assumption below that emphasis rules already ride `lint:md` automatically at the
   commit gate.
-- *Proposed (maps onto this WU's existing scope):* (b) **CI gate** — add `npm run -s format:tables:check`
+- _Proposed (maps onto this WU's existing scope):_ (b) **CI gate** — add `npm run -s format:tables:check`
   as a `ci.yml` step beside `lint:md`; (c) **pre-commit auto-fix dispatch** — run `format:tables` (auto-fix)
   on staged markdown in the commit-gate Tier-1 dispatch with **auto-restage** (exactly this WU's
   "Pre-commit tier 1 dispatch" + "this repo's own adoption as dogfood" scope). The emoji-ban + emphasis
   rules ride `lint:md` automatically (markdownlint config), so they need no separate gate beyond `lint:md`
   already being in CI. Doing (b)/(c) **before** the auto-fix hook exists would just produce CI failures
-  contributors hand-fix — so this lands *after* `markdown-formatting` ships its fix-side.
-- *Scope:* S — composes this WU's commit-gate dispatch with one more auto-fix command + one CI step.
-- *Coordinates with:* `markdown-formatting` (owns the fix-commands/rules; this owns the gate wiring).
+  contributors hand-fix — so this lands _after_ `markdown-formatting` ships its fix-side.
+- _Scope:_ S — composes this WU's commit-gate dispatch with one more auto-fix command + one CI step.
+- _Coordinates with:_ `markdown-formatting` (owns the fix-commands/rules; this owns the gate wiring).
 
 ### `[ ]` **Config-gated TTY-confirm escalation for the force-push advisory hook**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), housekeep drain (2026-06-12); captured during
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: TBD`), housekeep drain (2026-06-12); captured during
   `merge-safety-mechanism` Task 2.3 while deciding the force-push hook's detection behavior.
-- *Concern:* `merge-safety-mechanism` shipped the force-push pre-push hook as advisory-only: it warns and exits 0
+- _Concern:_ `merge-safety-mechanism` shipped the force-push pre-push hook as advisory-only: it warns and exits 0
   when a pushed ref would overwrite a non-ancestor remote tip. A pre-push hook fires before data reaches the remote,
   so it could offer a real abort window, but confirm-by-default would be high-friction and risks breaking GUI or
   non-TTY clients.
-- *Proposed:* add an opt-in config axis such as `push.force_confirm: warn|confirm`, defaulting to `warn`. Under
+- _Proposed:_ add an opt-in config axis such as `push.force_confirm: warn|confirm`, defaulting to `warn`. Under
   `confirm`, prompt `[y/N]` only on a TTY before the risky push, with a robust non-interactive
   proceed-with-warning fallback so CI and agent pushes never hang. Because the hook cannot reliably know whether a
   branch is shared, tighten the trigger if possible or document that routine solo rebase-pushes can still warn.
-- *Coordination:* this is follow-up mechanism/config work after the completed `merge-safety-mechanism` advisory
+- _Coordination:_ this is follow-up mechanism/config work after the completed `merge-safety-mechanism` advisory
   default, not a change to ADR-025's default advisory stance. Touch points include the canonical and package hook
   copies, config schema/defaults/validation, tests, and docs.
 
 ### `[ ]` **Enforce the exported-surface TSDoc policy with a scoped lint rule**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-06-18);
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-06-18);
   captured during `planning-pipeline-readiness` PR #111 review — CodeRabbit docstring-coverage warning.
-- *Concern:* `DEV-RULES.PROJECT` already requires TSDoc on the exported API surface (`@param`/`@returns` on
+- _Concern:_ `DEV-RULES.PROJECT` already requires TSDoc on the exported API surface (`@param`/`@returns` on
   exports + a file-level module doc), but nothing enforces it mechanically. CodeRabbit's repo-wide "Docstring
   Coverage 59.46% < 80%" warning measures all functions (including trivial internal helpers) against its own bar
   — over-reaching vs. the policy, and noisy if chased directly.
-- *Proposed:* add a Tier-1 lint rule scoped to the exported surface (e.g. `eslint-plugin-jsdoc`'s `require-jsdoc`
+- _Proposed:_ add a Tier-1 lint rule scoped to the exported surface (e.g. `eslint-plugin-jsdoc`'s `require-jsdoc`
   with `publicOnly`) so the existing policy is enforced at the right altitude, rather than adopting CodeRabbit's
   blanket all-functions threshold. Settle the exact rule set + severity at authoring. Sibling of this WU's
   commit-gate dispatch checks.
 
 ### `[ ]` **E2E-coverage + seam-assertion guards for destructive lifecycle verbs**
 
-- *Routed from:* `testing-guidance-apparatus` planning init (2026-06-22) — the enforcement (defense-in-depth)
+- _Routed from:_ `testing-guidance-apparatus` planning init (2026-06-22) — the enforcement (defense-in-depth)
   half of the `USER-INBOX` testing-standards capture; the salience/loading half is owned by
   `testing-guidance-apparatus` itself.
-- *Concern:* the `decompose@planning` / `park@Planning` self-teardown defect shipped uncaught because the
+- _Concern:_ the `decompose@planning` / `park@Planning` self-teardown defect shipped uncaught because the
   integration tests called the verb cores (`runDecompose` / `runPark`) with hand-fed cross-worktree inputs the
   CLI never generates, and there is no E2E tier driving the destructive verbs through the real CLI. Both
   contravene the testing standard (test through public interfaces; E2E = full CLI, no git mocking) — yet nothing
   mechanically enforced it.
-- *Approach:* candidate guards — an E2E-coverage requirement for new lifecycle/destructive verbs; a lint flagging
+- _Approach:_ candidate guards — an E2E-coverage requirement for new lifecycle/destructive verbs; a lint flagging
   integration tests that assert on core call-args instead of CLI-seam outcomes (bypassing the handler's
-  run-context resolution). The bug class to make un-bypassable: *a test constructs inputs the production path
-  never generates.* Secondary (mechanical) layer — `testing-guidance-apparatus` makes the standard actually-read,
+  run-context resolution). The bug class to make un-bypassable: _a test constructs inputs the production path
+  never generates._ Secondary (mechanical) layer — `testing-guidance-apparatus` makes the standard actually-read,
   the primary fix.
-- *Captured during:* `decompose-matrix` Phase 5 teardown investigation (2026-06-21).
+- _Captured during:_ `decompose-matrix` Phase 5 teardown investigation (2026-06-21).
 
 ### `[ ]` **Add an actionlint workflow-lint gate for `.github/workflows/`**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-07-01);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-07-01);
   captured during `ci-content-aware-depth` Task 2.2.
-- *Concern:* inline `run:` shell in `.github/workflows/ci.yml` (the `classify` weight-axis block, the `merge-ok`
+- _Concern:_ inline `run:` shell in `.github/workflows/ci.yml` (the `classify` weight-axis block, the `merge-ok`
   rollup) is unlinted — `lint:sh` covers only `scripts/*.sh`, and a YAML parse checks well-formedness only. A
   `needs.*` typo currently fails open to heavy with no error.
-- *Proposed:* add a `lint:workflows` script wrapping the actionlint binary (single Go binary) — shellcheck on
+- _Proposed:_ add a `lint:workflows` script wrapping the actionlint binary (single Go binary) — shellcheck on
   every `run:` block, `${{ }}` / `needs.*` validation, deprecated-runner / matrix checks — wired into the
   pre-commit hook and/or the `quality` CI job. Prefer actionlint over yamllint (style noise, no shell/expression
   coverage). Adoption may surface pre-existing inline-shell issues to fix as part of turning the gate on.
 
 ### `[ ]` **Pre-commit hook runs no markdownlint — style rules (MD013 etc.) unenforced until CI**
 
-- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-01); captured during
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-01); captured during
   `user-save-status-divergence` handoff. Errand-leaning, but carries a design fork → routed here as the
   hook-gate home rather than executed blind.
-- *Concern:* the arc pre-commit hook runs **no markdownlint style pass** (content / structural checks only), so
+- _Concern:_ the arc pre-commit hook runs **no markdownlint style pass** (content / structural checks only), so
   MD013 line-length etc. are enforced only by the manual `npm run -s lint:md` gate + CI. Live hit: a 143-char
   meta line passed pre-commit clean, caught only by a standalone `markdownlint-cli2` run. DEV-RULES.PROJECT
   § Quality Gates frames markdown lint as the zero-tolerance pre-commit gate (#1), so hook behavior and the
   stated policy diverge.
-- *Proposed (design fork):* (a) add a scoped `markdownlint-cli2` pass over staged `.md` files to the pre-commit
+- _Proposed (design fork):_ (a) add a scoped `markdownlint-cli2` pass over staged `.md` files to the pre-commit
   hook (catches MD013 at commit time, staged-only); or (b) if CI-only style linting is the intended design
   (commit speed), reconcile the DEV-RULES.PROJECT § Quality Gates wording. Mirror any hook edit to the package
   source per two-copy sync.
-- *Files:* `.arc/system/.internal/githooks/pre-commit` (+ package mirror), `.arc/system/rules/DEV-RULES.PROJECT.md`,
+- _Files:_ `.arc/system/.internal/githooks/pre-commit` (+ package mirror), `.arc/system/rules/DEV-RULES.PROJECT.md`,
   possibly `package.json` / `.markdownlint-cli2.jsonc`.
 
 ---
@@ -199,7 +199,7 @@
 ## Problem / Motivation
 
 ARC's tiered quality gate system — Tier 1 (per-task), Tier 2 (coherent unit), Tier 3 (pre-PR) — is
-workflow-oriented: it tells developers/agents *when in their flow* to run which checks. The methodology
+workflow-oriented: it tells developers/agents _when in their flow_ to run which checks. The methodology
 is sound, but the execution model has two gaps:
 
 **1. No automatic enforcement at commit/push stages.** Pre-commit hooks at `.arc/system/.internal/githooks/pre-commit`
@@ -223,13 +223,13 @@ pre-push stage at all.
   vocabulary question is more substantive than first framed — see § Relationship to Interlock Model
   Frame and § Alternatives for the kind-vs-gate-vs-cadence distinction surfaced during cross-plan
   alignment work. Three viable paths captured under Alternatives; PRD-time decision.
-- **Structural vs. adopter-impl separation.** The line between *what ARC enforces* (commit format,
-  frontmatter schemas, task staging — framework-owned) and *what's adopter-configurable* (linters, tests,
+- **Structural vs. adopter-impl separation.** The line between _what ARC enforces_ (commit format,
+  frontmatter schemas, task staging — framework-owned) and _what's adopter-configurable_ (linters, tests,
   typecheck, build — stack-dependent) is fuzzy in current docs. ARC should define the tier abstraction +
   enforcement surfaces + connection points, but never assume a specific tech stack in its shipped
   defaults. Hook-manager integration already handles this at the manager layer (ADR-014: detect and
   integrate with husky / lefthook / pre-commit.com, fall back to `core.hooksPath`); the equivalent
-  discipline needs to apply to tier-gate *commands*.
+  discipline needs to apply to tier-gate _commands_.
 
 This matters now because:
 

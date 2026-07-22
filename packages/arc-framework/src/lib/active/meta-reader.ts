@@ -23,6 +23,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
 import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
+import { displayWidth, padToDisplayWidth } from "../markdown/display-width.js";
 
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
 const LITE_FILENAME = "status.md";
@@ -370,17 +371,21 @@ export function formatValue(value: string, valueClass: MetaValueClass): string {
  * line up in raw markdown. (`MD013 tables:false` exempts the table from the
  * line-length gate.)
  */
-function renderCoreTable(valueOf: (field: MetaFieldDescriptor) => string): string[] {
+function renderCoreTable(
+  valueOf: (field: MetaFieldDescriptor) => string,
+  valuesAreRendered = false,
+): string[] {
   const columns = META_FIELDS.filter((f) => f.render === "core-table").map((f) => {
     // Bold the header so the table's keys read as labels in raw markdown,
     // matching the `**Field:**` bullet labels (parse strips the bold on read).
     const header = `**${f.name}**`;
-    const cell = formatValue(valueOf(f), f.valueClass);
-    return { header, cell, width: Math.max(header.length, cell.length) };
+    const value = valueOf(f);
+    const cell = valuesAreRendered ? value : formatValue(value, f.valueClass);
+    return { header, cell, width: Math.max(displayWidth(header), displayWidth(cell)) };
   });
-  const headerRow = `| ${columns.map((c) => c.header.padEnd(c.width)).join(" | ")} |`;
+  const headerRow = `| ${columns.map((c) => padToDisplayWidth(c.header, c.width)).join(" | ")} |`;
   const separatorRow = `| ${columns.map((c) => "-".repeat(c.width)).join(" | ")} |`;
-  const valueRow = `| ${columns.map((c) => c.cell.padEnd(c.width)).join(" | ")} |`;
+  const valueRow = `| ${columns.map((c) => padToDisplayWidth(c.cell, c.width)).join(" | ")} |`;
   return [headerRow, separatorRow, valueRow];
 }
 
@@ -748,39 +753,28 @@ export function reconcileMetaFields(
  * @throws When the meta carries no resolvable core-block table.
  */
 function setMetaCoreFields(content: string, overrides: MetaFieldOverrides): string {
-  const lines = content.split("\n");
-  const firstFieldIdx = lines.findIndex((line) => FIELD_MARKER_RE.test(line));
-  const scanLimit = firstFieldIdx === -1 ? lines.length : firstFieldIdx;
-  const sepIdx = lines.findIndex(
-    (line, i) => i < scanLimit && TABLE_SEPARATOR_RE.test(line.trim()),
-  );
-  const headerLine = sepIdx > 0 ? lines[sepIdx - 1] : undefined;
-  const valueLine = sepIdx === -1 ? undefined : lines[sepIdx + 1];
-  if (headerLine === undefined || valueLine === undefined) {
-    throw new Error("Cannot set meta core field: no core-block table found.");
-  }
-  const headers = splitTableRow(headerLine).map(stripHeaderLabel);
-  if (!isCoreTableHeader(headers)) {
-    throw new Error("Cannot set meta core field: core-block table header not recognized.");
-  }
-
-  const separatorLine = lines[sepIdx];
-  const separators = separatorLine === undefined ? [] : splitTableRow(separatorLine);
-  const cells = splitTableRow(valueLine);
-  if (headers.length !== separators.length || headers.length !== cells.length) {
-    throw new Error(
-      `Cannot set meta core field: malformed core-block table column-count mismatch ` +
-        `(header ${headers.length}, separator ${separators.length}, value ${cells.length}).`,
-    );
-  }
-  const current = new Map<string, string | null>();
-  headers.forEach((header, i) => current.set(header, normalizeValue(cells[i] ?? "")));
-
+  const located = locateMetaCoreTable(content);
   const overrideMap = new Map<string, string>(Object.entries(overrides));
   const valueOf = (field: MetaFieldDescriptor): string =>
-    overrideMap.get(field.name) ?? current.get(field.name) ?? field.default;
-  lines.splice(sepIdx - 1, 3, ...renderCoreTable(valueOf));
-  return lines.join("\n");
+    overrideMap.get(field.name) ?? located.values.get(field.name) ?? field.default;
+  const rendered = renderCoreTable(valueOf);
+  const replacement = rendered
+    .map((line, index) => `${line}${located.lineEndings[index] ?? ""}`)
+    .join("");
+  return `${content.slice(0, located.startOffset)}${replacement}${content.slice(located.endOffset)}`;
+}
+
+/** Normalize the managed three-row core table without changing any field value or surrounding byte. */
+export function normalizeMetaCoreTable(content: string): string {
+  const located = locateMetaCoreTable(content);
+  const rendered = renderCoreTable(
+    (field) => located.renderedValues.get(field.name) ?? formatValue(field.default, field.valueClass),
+    true,
+  );
+  const replacement = rendered
+    .map((line, index) => `${line}${located.lineEndings[index] ?? ""}`)
+    .join("");
+  return `${content.slice(0, located.startOffset)}${replacement}${content.slice(located.endOffset)}`;
 }
 
 /**
@@ -855,6 +849,114 @@ function replaceBulletField(lines: string[], name: string, value: string): strin
 
 /** A core-block separator row, e.g. `| ---- | --- | ------ |`. */
 const TABLE_SEPARATOR_RE = /^\|(?:\s*:?-+:?\s*\|)+$/;
+
+interface MetaSourceLine {
+  readonly text: string;
+  readonly startOffset: number;
+  readonly endOffset: number;
+  readonly lineEnding: string;
+}
+
+/** Exact source span and decoded values for the managed three-row meta table. */
+export interface MetaCoreTableLocation {
+  readonly startOffset: number;
+  readonly endOffset: number;
+  readonly lineEndings: readonly [string, string, string];
+  readonly values: ReadonlyMap<string, string>;
+  readonly renderedValues: ReadonlyMap<string, string>;
+}
+
+function sourceLines(content: string): MetaSourceLine[] {
+  const lines: MetaSourceLine[] = [];
+  const endings = /\r\n|\n|\r/gu;
+  let startOffset = 0;
+  for (const match of content.matchAll(endings)) {
+    const endOffset = match.index;
+    const lineEnding = match[0];
+    lines.push({
+      text: content.slice(startOffset, endOffset),
+      startOffset,
+      endOffset: endOffset + lineEnding.length,
+      lineEnding,
+    });
+    startOffset = endOffset + lineEnding.length;
+  }
+  if (startOffset < content.length) {
+    lines.push({ text: content.slice(startOffset), startOffset, endOffset: content.length, lineEnding: "" });
+  }
+  return lines;
+}
+
+function isTableRow(line: MetaSourceLine | undefined): line is MetaSourceLine {
+  if (line === undefined) return false;
+  const trimmed = line.text.trim();
+  return trimmed.startsWith("|") && trimmed.endsWith("|");
+}
+
+/** Locate and validate the one managed five-column core table before meta bullets. */
+export function locateMetaCoreTable(content: string): MetaCoreTableLocation {
+  const lines = sourceLines(content);
+  const firstFieldIndex = lines.findIndex(({ text }) => FIELD_MARKER_RE.test(text));
+  const scanLimit = firstFieldIndex === -1 ? lines.length : firstFieldIndex;
+  const separatorIndexes = lines
+    .slice(0, scanLimit)
+    .flatMap(({ text }, index) => TABLE_SEPARATOR_RE.test(text.trim()) ? [index] : []);
+
+  if (separatorIndexes.length === 0) {
+    const tableLike = lines.slice(0, scanLimit).some((line) => isTableRow(line));
+    throw new Error(
+      tableLike
+        ? "Malformed meta core-block table: no valid separator row found."
+        : "Cannot locate meta core-block table: no table found before managed fields.",
+    );
+  }
+  if (separatorIndexes.length > 1) {
+    throw new Error("Cannot locate meta core-block table: duplicate tables found before managed fields.");
+  }
+
+  const separatorIndex = separatorIndexes[0] ?? -1;
+  const header = lines[separatorIndex - 1];
+  const separator = lines[separatorIndex];
+  const value = lines[separatorIndex + 1];
+  if (!isTableRow(header) || !isTableRow(separator) || !isTableRow(value)) {
+    throw new Error("Malformed meta core-block table: expected adjacent header, separator, and value rows.");
+  }
+  if (isTableRow(lines[separatorIndex - 2]) || isTableRow(lines[separatorIndex + 2])) {
+    throw new Error("Malformed meta core-block table: expected exactly three rows.");
+  }
+
+  const headers = splitTableRow(header.text).map(stripHeaderLabel);
+  if (!isCoreTableHeader(headers)) {
+    throw new Error("Cannot locate meta core-block table: five-column header not recognized.");
+  }
+  const separators = splitTableRow(separator.text);
+  const cells = splitTableRow(value.text);
+  if (headers.length !== separators.length || headers.length !== cells.length) {
+    throw new Error(
+      `Malformed meta core-block table: column-count mismatch ` +
+        `(header ${headers.length}, separator ${separators.length}, value ${cells.length}).`,
+    );
+  }
+
+  const values = new Map<string, string>();
+  const renderedValues = new Map<string, string>();
+  headers.forEach((headerName, index) => {
+    const rendered = cells[index] ?? "";
+    const normalized = normalizeValue(rendered);
+    if (normalized === null) {
+      throw new Error(`Malformed meta core-block table: \`${headerName}\` has no value.`);
+    }
+    values.set(headerName, normalized);
+    renderedValues.set(headerName, rendered);
+  });
+  return {
+    startOffset: header.startOffset,
+    endOffset: value.endOffset,
+    lineEndings: [header.lineEnding, separator.lineEnding, value.lineEnding],
+    values,
+    renderedValues,
+  };
+}
 
 /** Split a `| a | b | c |` row into trimmed cell strings. */
 function splitTableRow(line: string): string[] {

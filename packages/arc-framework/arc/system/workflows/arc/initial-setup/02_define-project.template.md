@@ -85,8 +85,8 @@ where the agent finds correct commands for linting, testing, building, and quali
 - What runtime environment is required? (containers, services, tool versions)
 - What are the quality gate commands at each tier?
 
-QUICK-REFERENCE and DEV-RULES.PROJECT (next step) are coupled — quality gate *standards*
-are defined in DEV-RULES.PROJECT, quality gate *commands* are defined here.
+QUICK-REFERENCE and DEV-RULES.PROJECT (next step) are coupled — quality gate _standards_
+are defined in DEV-RULES.PROJECT, quality gate _commands_ are defined here.
 
 ### Step 5: Define DEV-RULES.PROJECT
 
