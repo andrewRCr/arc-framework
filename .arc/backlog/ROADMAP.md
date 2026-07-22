@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `f2e3d6799`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `35f2f5c8e`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -22,6 +22,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Active`      | session-locus-model      | P1       | andrew | —          | —                      |
 | `Integrating` | cli-command-inputs       | P2       | andrew | —          | cli-substrate-adoption |
 | `Active`      | cli-validation-surfaces  | P2       | andrew | —          | cli-substrate-adoption |
+| `Planning`    | wu-rename                | P2       | andrew | —          | —                      |
 | `Active`      | markdown-formatting      | P3       | andrew | —          | —                      |
 
 ## Ready
@@ -48,7 +49,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | knowledge-architecture                | P2       | andrew | —          | —                          |
 | retirement-record-relocation          | P2       | andrew | —          | —                          |
 | workflow-eval-harness                 | P2       | andrew | —          | —                          |
-| wu-rename                             | P2       | andrew | —          | —                          |
 | handoff-optimization                  | P3       | andrew | —          | agent-context-optimization |
 | ci-cross-platform-hardening           | P3       | andrew | —          | architecture-remediation   |
 | lib-layer-type-extraction             | P3       | andrew | —          | architecture-remediation   |
