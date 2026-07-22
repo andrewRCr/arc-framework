@@ -143,27 +143,34 @@ inventing a runtime evaluation subsystem.
 
 _Purpose:_ Validate the finished implementation and planning artifacts against the spec and repository gates.
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source and test typechecks; 7,802 tests; build; and the
+  explicit method-trigger audit all passed.
+- _Success criteria:_ All 10 criteria are met. The adversarial pass's immutable sibling-evidence pin was dropped
+  against movable-artifact rules; its executable prose-coverage observation is owned by the typed contracts in
+  `draft-composable-workflows.md` and behavioral proof in `draft-workflow-eval-harness.md`, rather than brittle
+  exact-text assertions here.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The canonical method returns only `proportionate` or decision-bearing `revise` findings through the five
+- `[x]` The canonical method returns only `proportionate` or decision-bearing `revise` findings through the five
   closed kinds, six-question lens, materiality threshold, and adequacy floor.
-- `[ ]` Draft and spec authoring invoke the method while mechanisms form and at their final boundaries, with local
+- `[x]` Draft and spec authoring invoke the method while mechanisms form and at their final boundaries, with local
   correction and derivation re-entry routed to the owning stage.
-- `[ ]` Draft/spec adversarial rubrics pair proportionality with `design-audit` through the existing severity,
+- `[x]` Draft/spec adversarial rubrics pair proportionality with `design-audit` through the existing severity,
   source-verification, disposition, and convergence contracts.
-- `[ ]` Task generation evaluates the materialized skeleton before Content fill and requires an approved spec
+- `[x]` Task generation evaluates the materialized skeleton before Content fill and requires an approved spec
   correction plus a fresh scale/Class read and full rebuild for `revise`.
-- `[ ]` The standalone design-audit door loads both methods, maps optional substrate referents, remains read-only,
+- `[x]` The standalone design-audit door loads both methods, maps optional substrate referents, remains read-only,
   and is generated from the canonical registry for every selected harness.
-- `[ ]` Fresh init/update installs every direct planning dependency with Configurable method semantics, aligned
+- `[x]` Fresh init/update installs every direct planning dependency with Configurable method semantics, aligned
   package/project copies, manifest inventory, and canonical skill projection.
-- `[ ]` The four judgment case families distinguish unsupported machinery from justified complexity and catch an
+- `[x]` The four judgment case families distinguish unsupported machinery from justified complexity and catch an
   adequacy-regressing simplification without adding an evaluation runtime.
-- `[ ]` No project-status discount, appetite/decomposition rule, mandatory proof, persistent result, configuration
+- `[x]` No project-status discount, appetite/decomposition rule, mandatory proof, persistent result, configuration
   axis, transitive loader, or new CLI surface is introduced.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.

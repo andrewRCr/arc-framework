@@ -17,7 +17,7 @@
 - **Next Task:** Begin Task 1.1 — Land the canonical method, drafting guard, and method inventory atomically
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — implement the canonical method, drafting guard, and method delivery slice
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
