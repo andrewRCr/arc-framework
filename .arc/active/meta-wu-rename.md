@@ -1,8 +1,8 @@
 # Metadata: wu-rename
 
-| **State** | **Owner** | **Branch**       | **Class** | **Priority** |
-| --------- | --------- | ---------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/wu-rename` | `Heavy`   | `P2`         |
+| **State**     | **Owner** | **Branch**       | **Class** | **Priority** |
+| ------------- | --------- | ---------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/wu-rename` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks — `tasks-wu-rename.md` finalized (8 phases, 47 increments); WU activated
-- **Next Task:** Task 1.1 — Transition and authorization unions with their refusal arms (line ~17)
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** Open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
