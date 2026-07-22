@@ -51,7 +51,9 @@ stands in.
 - **Host-agnostic remote handling.** The remote leg uses raw git only — no `gh` dependency, no host API call.
 - **Self-rename as the normal case.** The verb runs from inside the worktree it moves; that path is first-class,
   not a refused edge.
-- **Self-proving first use.** Both pending retitles execute through the shipped verb.
+- **Self-proving first use.** Both pending retitles execute through the shipped verb — necessarily after
+  integration, since each subject's own commit gate must carry the rename-aware validator before it will accept
+  the commit.
 
 ## Non-Goals
 
@@ -73,15 +75,15 @@ stands in.
 ## Proposed Design
 
 Eight design elements. D1–D4 carry phase 1 (unblocks the refused commit); D5 carries phase 2 (delivers the
-motivation); D6 and D7 span both, since the guard set and the verb are single surfaces; D8 is the acceptance
-proof. The unit is not done at phase 1.
+motivation); D6 and D7 span both, since the guard set and the verb are single surfaces; D8 settles first use,
+which the gate's own structure places after integration. The unit is not done at phase 1.
 
 **Subject shapes.** Three, all in scope. D1–D4 apply to every shape; D5's identity legs and D6's identity guards
 vary by shape, and a leg that does not apply is a designed skip, never a faked success.
 
 | Shape | Definition | Identity legs |
 | ------------------ | -------------------------------------------------------------------- | ------------------------ |
-| **Spawned** | active location, `Branch:` set, own linked worktree | all four |
+| **Spawned** | active location, `Branch:` set, own linked worktree | all five |
 | **In-place** | active location, `Branch:` set, no dedicated worktree | branch, notes, remote |
 | **Stub** | backlog tier, `Branch:` is `[none]` | none |
 
@@ -189,11 +191,13 @@ directory move while a rename is the transposed case: a directory-preserving bas
   step. A preflight reuse check cannot substitute — at preflight there is no staged sweep to recompute a digest
   from, and the port exposes no reuse arm. If rollback itself fails, refuse with a diagnostic naming the record
   path and the command to discard it; that residue is operator-visible rather than silent.
-- **Conservation refusals need their own diagnostic.** The tree-anchored throw above is raised inside the port's
-  transaction and swallowed by `recordRetirementReceipt`'s outer catch, which returns `authority-unavailable` —
-  rendered as "retirement authority is unavailable", indistinguishable from a transient failure. The design's
-  headline property must not report itself as an infrastructure hiccup: surface the sweep-omission case with its
-  own reason, on the same argument D3 applies to the gate side.
+- **Conservation refusals need their own diagnostic.** The verb derives `transitionPatchDigest` from
+  `readTransitionPatch` before calling `record`, so the tree-anchored throw above is raised and caught at the
+  verb, carrying the omitted artifact's path. Inside the port that same throw would be swallowed by
+  `recordRetirementReceipt`'s outer catch and flattened to `authority-unavailable` — but a single-threaded run
+  never reaches that path, so the diagnostic belongs at the verb, not in the port's refusal vocabulary. The
+  design's headline property must not report itself as a generic preparation failure: name conservation and the
+  missing artifact, on the same argument D3 applies to the gate side.
 - **Ordering is the port's, not ours.** `readSnapshot` refuses when anything is already staged, and
   `captureSource` throws unless the process is on the source branch. The sequence is fixed: capture source (clean
   index) → read snapshot → stage the sweep → `record` the receipt → commit, with rollback on refusal. D7 follows
@@ -262,7 +266,10 @@ it is not.
   exist (`notes-*`, `research-*`) and CHECK 13 skips link-like text inside code spans, so a dangling backticked
   reference is caught by no gate. **Excluding `cohort-<old>.md`** — cohort docs are out of scope (Non-Goals), and
   a cohort leaf that merely shares the renamed slug names a different thing. Plus bare-slug occurrences in other
-  metas' `Depends On:` and `Cohort:` fields, across `active/` and the backlog tiers.
+  metas' `Depends On:` fields, across `active/` and the backlog tiers. `Cohort:` is **excluded**: its value names a
+  cohort leaf, which CHECK 18 condition (a) requires to path-match the filed directory, and the rename subject is
+  always a work unit — so rewriting it could only fire on the same coincidental collision the artifact sweep
+  refuses, and would set a value that no longer matches the path.
 - **Companion H1 titles are out of scope.** The renamed `draft-*`, `spec-*`, and `tasks-*` keep first-line titles
   carrying the old slug (`# Spec (…): <old>`). No gate reads them and no resolution depends on them — unlike the
   meta's `# Metadata: <slug>` heading, which the foreign-write check matches exactly. Recorded as a conscious
@@ -278,7 +285,7 @@ it is not.
 
 ### D5 — Identity relocation legs
 
-Per the subject-shape table: all four legs for a spawned subject, the first three for an in-place subject, none
+Per the subject-shape table: all five legs for a spawned subject, the first three for an in-place subject, none
 for a stub. Each leg names the shipped primitive it composes from.
 
 | Leg | Primitive | Status |
@@ -286,6 +293,7 @@ for a stub. Each leg names the shipped primitive it composes from.
 | Local branch | `reconcileBranch({ mutation: "rename", branch, toBranch })` | reused, guarded |
 | Remote ref | `git push -u origin <new>` + `deleteRemoteBranch(…, oid)` | composed |
 | User-notes subdir | directory move + `arc user save` | new op |
+| Ownership marker | rewrite `wuName` + `createdFor` in the worktree marker | new op |
 | Worktree directory | `reconcile-worktree` gains a `move` mutation | new mutation |
 
 - **Local branch.** The shipped `rename` mutation runs `git branch -m` and clears any inherited upstream. Its only
@@ -305,6 +313,15 @@ for a stub. Each leg names the shipped primitive it composes from.
   workspace close-then-open through the shipped `user-workspace` side-effect — close is a recursive remove that
   discards `SESSION-NOTES.md`, breaking handoff continuity across the rename (Alternatives, A5). Notes *content*
   is commit-keyed and survives the branch rename untouched; only the path-keyed subdir moves.
+- **Ownership marker** (spawned subjects only). An ARC-spawned worktree carries a gitignored marker naming the
+  work unit it was minted for — `wuName` and `createdFor`, which a shipped consistency check requires to agree, so
+  a stale pair stays structurally valid while naming the wrong unit. It feeds the stale-worktree sweep, worktree
+  cleanup, the branch-gone cascade, and teardown; left unrewritten, those surfaces name `<old>` and offer a
+  teardown command that no longer resolves. Rewrite both fields. This is a **separate leg, not a step of the move**:
+  the marker names the subject, not the path, so it is equally wrong when the worktree move is skipped or degraded.
+  Being gitignored, it sits outside the staged patch and perturbs neither the receipt nor the gate. The in-place
+  shape mints no marker, so the leg does not apply there.
+
 - **Worktree directory** (spawned subjects only). `reconcile-worktree` gains `{ mutation: "move"; from; to }`
   running `git worktree move`. The destination keeps the worktree's parent directory and rewrites its **final path
   segment**, replacing the `<old>` substring with `<new>` — under the default `../{repo}.{name}` template that
@@ -336,7 +353,9 @@ shapes it applies to; unmarked guards apply to every shape.
   The short-lived branch is the verb's to manage, not the operator's, and its four sub-decisions are settled here
   rather than left to the task list. **The verb cuts it** (`git switch -c` from the resolved base), following the
   shape ARC's own base-context relocation uses for off-WU work — but verb-driven, since `resolveWriteContext`
-  only classifies a write context and creates nothing. **Name:** `chore/rename-<old>-to-<new>`, which is
+  only classifies a write context and creates nothing. The cut is check-then-do like every other mutation —
+  an existing branch of that name is attached to, not re-cut — because a stub skips every identity leg, so this
+  is the only seam its re-run can converge through. **Name:** `chore/rename-<old>-to-<new>`, which is
   self-describing and collides with no WU branch pattern. **Integration:** it merges to the base like any
   `chore/` branch, through the ordinary review path — backlog stub artifacts are canonical on the base, so until
   it lands the rename is invisible to the ROADMAP and every other checkout, and the verb says so on completion
@@ -357,8 +376,10 @@ shapes it applies to; unmarked guards apply to every shape.
   lifecycle — resolved against `resolveComposedLifecycleIndex` with the in-flight oracle (`localOnly: false`,
   `expandLiveOnly: true`), not the checkout-local `buildLifecycleIndex` that backs the bare `hasNameCollision`
   floor. A rename mints a branch and an `active/` meta exactly as `start`'s branch-minting arms do, and every
-  sibling in-flight WU's meta lives only on its own branch — invisible to a tree-only index. Mirror `start`'s
-  handling of indeterminate live truth: refuse rather than guess. The *different*-unit scoping is load-bearing
+  sibling in-flight WU's meta lives only on its own branch — invisible to a tree-only index. Indeterminate live
+  truth refuses outright: `start` reads the same predicate but downgrades to a confirmation prompt on a TTY,
+  hard-refusing only under `--yes`, while `rename` takes no confirmation flag — so the refusal is unconditional
+  rather than a mirror of `start`'s shape. The *different*-unit scoping is load-bearing
   and pairs with the resolver above: an unscoped guard would fire on the subject's own post-commit meta and make
   the resume it enables unreachable. Without the guard at all, a rename onto a live sibling's slug passes every
   other check and surfaces only as an integration conflict.
@@ -370,8 +391,10 @@ shapes it applies to; unmarked guards apply to every shape.
   checkout for a stub subject. Required twice over: the receipt binds the exact staged patch, and `readSnapshot`
   refuses outright when anything is already staged.
 - **Subject kind and tier.** Work units only (D1), and not a `completed/` subject (Non-Goals).
-- **Occupancy** (spawned and in-place). Best-effort dirty and liveness checks now; consume `session-locus-model`'s
-  lease model when it ships.
+- **Occupancy** (spawned and in-place). Reduces to the clean-tree guard above: no shipped primitive reads session
+  liveness — the existing worktree-occupancy guard answers a different question, and the sweeps are age-based — and
+  inventing one would mean authoring a liveness model this design has no reason to own. Liveness arrives with
+  `session-locus-model`'s lease model; until then occupancy is the dirty check, not a second mechanism.
 
 ### D7 — `arc rename <slug> <new-slug>`
 
@@ -392,18 +415,30 @@ Execution order — the port fixes steps 1–5; everything durable completes bef
 6. Local branch rename, guarded by a ref-presence check (D5).
 7. User-notes subdir move and save (D5).
 8. Remote push-new (skipped when never pushed), then leased delete-old (D5).
-9. Worktree move, self-rename locus hop, relocation handoff (D5).
+9. Ownership-marker rewrite, ahead of the move so the corrected marker travels with the directory and still lands
+   when the move is skipped (D5).
+10. Worktree move, self-rename locus hop, relocation handoff (D5).
 
-Steps 6–9 are skipped for a stub subject; step 9 is additionally a designed no-op for an in-place subject. Each
-leg checks its own post-state before acting, and step 1's either-slug resolver is what lets a re-run reach those
-checks at all once the commit has landed — together they converge on the completed rename rather than
-double-applying or refusing.
+Steps 6–10 are skipped for a stub subject; steps 9 and 10 are additionally designed no-ops for an in-place
+subject, which mints no marker and cannot move a main working tree. Each leg checks its own post-state before
+acting, and step 1's either-slug resolver is what lets a re-run reach those checks at all once the commit has
+landed — together they converge on the completed rename rather than double-applying or refusing.
 
 ### D8 — First-use execution
 
 Execute both pending retitles through the shipped verb: `pr-decomposition` → `review-chunking` and
 `cohortless-decomposition` → `decomposition-machinery`. Each runs **both phases in one invocation**, which is also
 the mitigation for the teardown edge in Cross-cutting — no cross-time window opens.
+
+**First use is post-integration, and the ordering is forced rather than chosen.** Each retitle commits from its
+subject's own checkout — D6's execution-locus guard requires it, and git forbids a second checkout of that branch —
+so the gate that validates the commit is the one *that* checkout carries. Until the subject branch merges a base
+holding the rename-aware validator, its codec decodes a rename receipt as nothing, coverage never admits the
+retiring slug, and D3's own refusal fires on the commit this design exists to enable. The compatibility note
+below records the predating-decoder behavior; this is where that behavior binds, because the predating decoder
+*is* the gate. Bypassing it is not available — the hook is never skipped. First use therefore lands after this
+unit integrates and each subject merges base, and it is tracked outside this unit's task list; the verb's
+behavioral proof rests on the shape-complete end-to-end coverage in Cross-cutting § Testing, not on the retitles.
 
 Both subjects are **spawned** shape: each holds a linked worktree and a `plan/` branch with a remote head, and its
 authoritative meta lives in `active/` on that branch. The `backlog/planned/` copies visible from the base are the
@@ -463,8 +498,9 @@ naturally wants.
 
 **Testing.** Unit coverage on the receipt codec and matrix row (including the closed-schema rejections and the
 `SlugSchema` narrowing), the CHECK 20 coverage path with its target-presence and correspondence assertions and each
-of its distinct diagnostics, the cross-reference sweep's `cohort-<old>.md` exclusion, and the post-refusal
-rollback restoring both index and working tree. Integration coverage on the preflight guard set — including a
+of its distinct diagnostics, the cross-reference sweep's `cohort-<old>.md` exclusion, the ownership-marker rewrite
+landing even when the worktree move is skipped, and the post-refusal rollback restoring both index and working
+tree. Integration coverage on the preflight guard set — including a
 collision against a live sibling WU visible only through the in-flight oracle, and the either-slug resolver
 accepting a post-commit resume that the collision guard must not refuse. End-to-end coverage on the full sweep for
 all three subject shapes, including a self-rename that exercises the locus hop and a resumed run after an injected
@@ -472,6 +508,12 @@ failure at each leg boundary.
 
 **Package-project sync.** The pre-commit hook and any workflow or rules edits are Framework files: author them in
 `packages/arc-framework/arc/**` and sync to `.arc/`, never the reverse and never by copying between the copies.
+
+**Accepted gate interaction — the foreign-write advisory.** D4's cross-reference sweep writes into sibling work
+units' artifacts, which is exactly what CHECK 21 watches, and its self-exclusion is scoped to the current work
+unit so it cannot exempt a sibling's files. The check warns and always exits zero, so it refuses nothing; every
+successful rename simply emits one advisory per sibling touched. Recorded as expected output rather than a
+symptom, since D4 otherwise enumerates each gate it meets.
 
 **Compatibility and rollout.** No migration — the verb is new and the schema change is additive at
 `schemaVersion: 1`. One forward-compatibility note: the codec's closed transition union means a CLI predating this
@@ -540,9 +582,10 @@ status derivation (cosmetic mixed-name display), the session-type branch-pattern
 5. After `arc rename <old> <new>` on a spawned WU, all of the following read the new name: the meta filename, its
    `Branch:`, `Design:`, and `Task List:` fields, every companion artifact filename, every backticked reference to
    them in sibling artifacts, any cohort member section naming the subject, the local branch, the worktree
-   directory, the user-notes subdir, and the ROADMAP row.
-6. After the same rename on an **in-place** WU, every criterion in 5 holds except the worktree directory, which is
-   unchanged and reported as a designed skip rather than an error.
+   directory, the worktree ownership marker, the user-notes subdir, and the ROADMAP row.
+6. After the same rename on an **in-place** WU, every criterion in 5 holds except the worktree directory and the
+   ownership marker, which are unchanged and reported as designed skips rather than errors — the shape mints no
+   marker and cannot move a main working tree.
 7. After the same rename on a backlog **stub**, the artifact set, its containing directory, any cohort member
    section, and the ROADMAP row read the new name; no identity leg runs; the commit lands on a short-lived branch
    rather than the base; and all three CHECK 18 conditions still pass.
@@ -558,16 +601,20 @@ status derivation (cosmetic mixed-name display), the session-type branch-pattern
     accepted stale-lease terminal state is the sole exclusion.
 11. A rename onto a slug held by a different in-flight work unit is refused, while a re-run of a partially applied
     rename — where the new slug resolves to the subject itself — is not.
-12. A rename is refused, with nothing applied, when the target slug is malformed, the target slug collides with a
-    work unit visible only through the in-flight oracle, the meta carries a PR URL, the worktree is dirty, or the
-    verb is invoked from a checkout that does not hold the subject's branch.
-13. Both pending retitles are executed through the verb, and `arc status <new-slug>` resolves each afterward.
+12. A rename is refused, with nothing applied, when the target slug is malformed, equals the subject's current
+    slug, collides with a work unit visible only through the in-flight oracle, the meta carries a PR URL, the
+    worktree is dirty, or the verb is invoked from a checkout that does not hold the subject's branch.
+13. The design records why first use cannot precede integration — each subject's own commit gate must carry the
+    rename-aware validator before it will accept the rename commit — so an executing session reads the constraint
+    rather than rediscovering it at a refused commit.
 
 ## Open Questions
 
 None blocking. Two implementation-level details resolve during the work: the exact traversal used for the
-cross-reference sweep (a bounded scan of `active/` and the backlog tiers versus reusing an existing artifact
-index), and whether the worktree `move` mutation reuses `isSelfTeardown` directly or introduces a
-neutrally-named sibling for the shared containment test.
+cross-reference sweep — a purpose-built bounded scan of `active/` and the backlog tiers, versus the exported
+`listArcFiles` walker in the filesystem library (the lifecycle index is not a candidate, since it indexes metas
+rather than artifact bodies; nor is the cohort validator's walker, which is unexported, differently rooted, and
+filters away the artifact bodies the sweep reads) — and whether the worktree `move` mutation reuses
+`isSelfTeardown` directly or introduces a neutrally-named sibling for the shared containment test.
 
 ---
