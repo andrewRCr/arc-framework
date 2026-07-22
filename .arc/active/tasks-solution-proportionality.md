@@ -117,11 +117,9 @@ generated consistently for every selected harness.
             - Registered the typed canonical member and description fixture, added its recipe-derived Framework/core
               source and manifest hash, and covered focused unit plus init/update inventory visibility.
 
-        - `[ ]` **4.2.b Exercise canonical generation and update loops**
-            - Let the existing per-skill unit and integration loops cover init output directories, canonical byte
-              parity, and Codex supplements.
-            - In `__tests__/integration/skills.test.ts`, modify the generated `arc-design-audit` skill, run update,
-              and assert that its canonical content is restored so the new member is visible on the update path.
+        - `[x]` **4.2.b Exercise canonical generation and update loops**
+            - Existing per-skill loops now exercise design-audit output directories, byte parity, and Codex
+              supplements, while the update test mutates this new member specifically and proves canonical restore.
 
     - `[ ]` **4.2.c Index the standalone door in both canonical skill READMEs**
         - Add a directive, trigger-bearing entry for `arc-design-audit` to the package and self-hosted
