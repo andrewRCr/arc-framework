@@ -260,21 +260,21 @@ winner from aliases.
 
 Role creation and removal bind to the operations that establish or end a checkout's purpose:
 
-| Operation | Role action |
-| --- | --- |
-| WU spawn / materialize / in-place entry | Mint durable WU role; attach an entering lease only when the invoking session continues there. |
-| WU session-init | Adopt/backfill the WU role if needed; re-attach only a resolved live-lease re-entry. |
-| WU handoff | Release only the matching lease; retain the durable role. |
-| WU teardown | Linearize final lease validation and role pop with linked removal or in-place base restoration. |
-| Errand open / resume | Mint `errand` role in the allocated checkout; link the entering WU parent when warm. |
-| Errand leave | Full mode returns/tears down the local locus and pops its role while retaining identity. |
-| Errand complete | Full mode retires identity after merge; partial mode pops occupancy after the base commit. |
-| Errand promote | Replace the exact transient generation with a WU role/marker and make it the session home. |
-| Grooming open | Mint `groom` role and matching groom-kind identity record; link warm parent when present. |
-| Grooming close | Pop local role; retain full awaiting-merge identity or retire the completed partial claim. |
-| Housekeep entry | Full mode mints one routing-sweep role/identity; partial mode mints one sweep occupancy. |
-| Housekeep close | Pop the sweep role; retain the full-mode routing PR identity tail. |
-| Errand materialize | Write ARC ownership marker and `errand` role in the materialized worktree. |
+| Operation                               | Role action                                                                                     |
+|-----------------------------------------|-------------------------------------------------------------------------------------------------|
+| WU spawn / materialize / in-place entry | Mint durable WU role; attach an entering lease only when the invoking session continues there.  |
+| WU session-init                         | Adopt/backfill the WU role if needed; re-attach only a resolved live-lease re-entry.            |
+| WU handoff                              | Release only the matching lease; retain the durable role.                                       |
+| WU teardown                             | Linearize final lease validation and role pop with linked removal or in-place base restoration. |
+| Errand open / resume                    | Mint `errand` role in the allocated checkout; link the entering WU parent when warm.            |
+| Errand leave                            | Full mode returns/tears down the local locus and pops its role while retaining identity.        |
+| Errand complete                         | Full mode retires identity after merge; partial mode pops occupancy after the base commit.      |
+| Errand promote                          | Replace the exact transient generation with a WU role/marker and make it the session home.      |
+| Grooming open                           | Mint `groom` role and matching groom-kind identity record; link warm parent when present.       |
+| Grooming close                          | Pop local role; retain full awaiting-merge identity or retire the completed partial claim.      |
+| Housekeep entry                         | Full mode mints one routing-sweep role/identity; partial mode mints one sweep occupancy.        |
+| Housekeep close                         | Pop the sweep role; retain the full-mode routing PR identity tail.                              |
+| Errand materialize                      | Write ARC ownership marker and `errand` role in the materialized worktree.                      |
 
 A WU role follows physical checkout ownership, not branch or lifecycle presentation. Activation, deactivation,
 integration, reopening, and archival leave the same role generation untouched while the checkout remains. Spawn,

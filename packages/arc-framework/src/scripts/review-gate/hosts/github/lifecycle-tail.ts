@@ -4,14 +4,17 @@ import type { GitExec } from "../../../../lib/git/exec.js";
 import { parseMetaRecord } from "../../../../lib/active/meta-reader.js";
 import { resolveArcPath } from "../../../../lib/layout/index.js";
 import type {
+  ForwardLifecycleTailProofResolutionInput,
   LifecycleTailProofAdapter,
   LifecycleTailProofResolutionInput,
 } from "../../core/ports.js";
 import type {
+  ForwardLifecycleTailProof,
   LifecycleTailArtifactIdentity,
   LifecycleTailDiagnostic,
   LifecycleTailProof,
 } from "../../core/lifecycle-tail.js";
+import { createForwardLifecycleTailProof } from "../../core/lifecycle-tail.js";
 
 const PREDICATE_ID = "lifecycle-bookkeeping-tail/v1";
 const SHA = /^[a-f0-9]{40}$/u;
@@ -26,7 +29,12 @@ const DIAGNOSTIC_ORDER: LifecycleTailDiagnostic[] = [
   "diff-base-drift",
   "policy-version-drift",
   "rubric-version-drift",
+  "rubric-digest-drift",
   "source-identity-drift",
+  "target-scope-drift",
+  "surface-tree-drift",
+  "path-manifest-drift",
+  "semantic-digest-drift",
   "ambiguous-artifact-group",
   "invalid-artifact-group",
   "unrecognized-tail-change",
@@ -484,5 +492,74 @@ export class GitLifecycleTailProofAdapter implements LifecycleTailProofAdapter {
     } catch {
       return invalid(input, ["tail-unavailable"]);
     }
+  }
+
+  /** Classify the same Git tail against exact forward target and reviewed-surface identities. */
+  async resolveForwardLifecycleTail(
+    input: ForwardLifecycleTailProofResolutionInput,
+  ): Promise<ForwardLifecycleTailProof | null> {
+    if (input.reviewed.target.targetId === input.current.target.targetId) return null;
+    const scopeDrift: LifecycleTailDiagnostic[] = [];
+    if (input.reviewed.target.repositoryId !== input.current.target.repositoryId
+      || input.reviewed.target.baseRef !== input.current.target.baseRef
+      || input.reviewed.target.diffBaseSha !== input.current.target.diffBaseSha
+      || input.reviewed.target.diffBaseTree !== input.current.target.diffBaseTree) {
+      scopeDrift.push("target-scope-drift");
+    }
+    if (input.reviewed.policyVersion !== input.current.policyVersion) scopeDrift.push("policy-version-drift");
+    if (input.reviewed.rubricVersion !== input.current.rubricVersion) scopeDrift.push("rubric-version-drift");
+    if (input.reviewed.rubricDigest !== input.current.rubricDigest) scopeDrift.push("rubric-digest-drift");
+    if (input.reviewed.sourceIdentity !== input.current.sourceIdentity) scopeDrift.push("source-identity-drift");
+    if (input.reviewed.surface.treeId !== input.current.surface.treeId) scopeDrift.push("surface-tree-drift");
+    if (input.reviewed.surface.pathManifestDigest !== input.current.surface.pathManifestDigest) {
+      scopeDrift.push("path-manifest-drift");
+    }
+    if (input.reviewed.surface.semanticDigest !== input.current.surface.semanticDigest) {
+      scopeDrift.push("semantic-digest-drift");
+    }
+
+    let artifact = emptyArtifact();
+    let tailDiagnostics: LifecycleTailDiagnostic[] = [];
+    if (scopeDrift.length === 0) {
+      try {
+        const legacy = await classifyTail(this.exec, {
+          predicateId: PREDICATE_ID,
+          reviewedThroughSha: input.reviewed.target.headSha,
+          currentHeadSha: input.current.target.headSha,
+          reviewed: {
+            baseRef: input.reviewed.target.baseRef,
+            diffBaseSha: input.reviewed.target.diffBaseSha,
+            policyVersion: input.reviewed.policyVersion.slice("sha256:".length),
+            rubricVersion: input.reviewed.rubricVersion,
+            sourceIdentity: input.reviewed.sourceIdentity,
+          },
+          current: {
+            baseRef: input.current.target.baseRef,
+            diffBaseSha: input.current.target.diffBaseSha,
+            policyVersion: input.current.policyVersion.slice("sha256:".length),
+            rubricVersion: input.current.rubricVersion,
+            sourceIdentity: input.current.sourceIdentity,
+          },
+        });
+        if (legacy === null) return null;
+        artifact = legacy.artifact;
+        tailDiagnostics = legacy.diagnostics;
+      } catch {
+        tailDiagnostics = ["tail-unavailable"];
+      }
+    }
+    return createForwardLifecycleTailProof({
+      predicateId: input.predicateId,
+      priorTarget: input.reviewed.target,
+      currentTarget: input.current.target,
+      reviewedSurface: input.reviewed.surface,
+      currentSurface: input.current.surface,
+      policyVersion: input.current.policyVersion,
+      rubricVersion: input.current.rubricVersion,
+      rubricDigest: input.current.rubricDigest,
+      sourceIdentity: input.current.sourceIdentity,
+      artifact,
+      diagnostics: diagnostics([...scopeDrift, ...tailDiagnostics]),
+    });
   }
 }

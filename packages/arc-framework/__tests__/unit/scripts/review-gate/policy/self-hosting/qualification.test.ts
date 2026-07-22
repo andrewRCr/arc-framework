@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../../../../../../src/scripts/review-gate/policy/independent-analysis.js";
 
 import {
   createHostedProviderProbePolicy,
@@ -17,6 +18,16 @@ const capable = {
   qualifier: "independent-analysis/v1",
   sourceIdentity: "agent-1",
   rubricVersion: "independent-analysis/v1",
+  channel: "local",
+  guidance: {
+    baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+    baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+    projectAugmentationId: "self-hosting-review/v1",
+  },
+  admissionMode: "checkpoint",
+  requestMechanism: "local-attestation",
+  attestationAuthority: "local-receipt-store",
+  hostedImportAuthority: "arc-review-gate-app",
   mode: "enabled",
   exactCoverage: true,
   durableResults: true,
@@ -30,7 +41,6 @@ const capable = {
   providerBotUserId: null,
   guidanceDigest: null,
   terminalUnavailableMode: "disabled",
-  requestActor: "explicit",
 } satisfies SourceQualificationDeclaration;
 
 describe("independent-analysis source qualification", () => {
@@ -136,6 +146,8 @@ describe("independent-analysis source qualification", () => {
       { runtimeLabel: "enabled" },
       { capacity: "available" },
       { secret: "token" },
+      { approvingActor: "maintainer" },
+      { applyingActor: "author" },
     ]) {
       expect(() => parseSelfHostingPolicy({
         ...SELF_HOSTING_POLICY,

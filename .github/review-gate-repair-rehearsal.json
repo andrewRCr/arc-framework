@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "reviewContractPosture": "legacy-v1-operational",
   "kind": "shadow-add-before-remove-contract",
   "scope": "non-mutating",
   "containsLiveValues": false,

@@ -7,8 +7,8 @@ own codebase, architecture, or methodology. These are stable reference documents
 ## Purpose
 
 Analysis documents capture structured findings about your project that have lasting reference
-value beyond the work unit that produced them. They describe *what exists* and *how it connects*
-rather than *what to do*.
+value beyond the work unit that produced them. They describe _what exists_ and _how it connects_
+rather than _what to do_.
 
 **Examples of analysis documents:**
 

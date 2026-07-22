@@ -41,7 +41,7 @@ point-agnostic; what changes per point is the question the same two lenses answe
 - **draft** — before formalization: is the settled design worth formalizing?
 - **spec** — at or after finalization: does the formalized design still hold as written?
 - **post-task-gen** — after decomposition: did task generation surface anything that undermines the design?
-- **mid-impl** — the escalation point: implementation evidence suggests the *design*, not the task, is wrong.
+- **mid-impl** — the escalation point: implementation evidence suggests the _design_, not the task, is wrong.
   Task-level drift belongs to `task-audit`; reach for this rubric when a confirmed finding reopens design.
 
 **Efficacy — does the design solve the goal?**
@@ -73,7 +73,7 @@ The two methods divide labor along the artifact/design line and compose rather t
 - [`spec-review`][spec-review] verifies the **artifact** — the just-written spec is coherent, complete, and its
   concrete references are real. It deliberately disclaims re-litigating the design.
 - `design-audit` validates the **design** — the thing self-review disclaims. When a `spec-review` pass surfaces a
-  finding that *reopens design* (a masked decision, an unsettled fundamental), this rubric is that route's
+  finding that _reopens design_ (a masked decision, an unsettled fundamental), this rubric is that route's
   destination: the reopened question is re-validated here, never papered over in the artifact.
 
 Run `spec-review` to certify the record; run `design-audit` to certify the decisions it records. Neither subsumes
@@ -82,7 +82,7 @@ the other.
 ### Severity interpretation
 
 Through the `adversarial-review` mechanism, findings map into the fixed `blocker` / `major` / `minor` enum the
-[severity model][adversarial-review] owns — the rubric maps *into* the enum and never extends it. What each level
+[severity model][adversarial-review] owns — the rubric maps _into_ the enum and never extends it. What each level
 looks like for a design:
 
 - **`blocker`** — an efficacy break: the design as settled does not achieve a stated goal (a missing mechanism, a

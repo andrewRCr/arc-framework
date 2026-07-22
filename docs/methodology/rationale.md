@@ -7,7 +7,7 @@ produce work that requires extensive review. Micromanaged with constant promptin
 speed advantage that made them attractive.
 
 ARC is built on a specific premise: that focused, iterative collaboration between a human and an
-agent (what we call *co-development*) produces better work than either full delegation or ad-hoc
+agent (what we call _co-development_) produces better work than either full delegation or ad-hoc
 prompting, for the kinds of work where quality, judgment, and maintainability matter.
 
 This premise has real costs. ARC is slower than fully autonomous approaches, requires active
@@ -97,7 +97,7 @@ review size grows ([Cohen, 2013][code-review-size]). ARC's task-level granularit
 response.
 
 There's a second, more practical dimension: developer attention. Short execution cycles keep the
-developer close enough to the work to review *in flight*. ARC's task generation sizes work to a few
+developer close enough to the work to review _in flight_. ARC's task generation sizes work to a few
 files and a few minutes of agent execution, so you're watching implementation unfold, catching issues
 as they emerge, contributing context while it's fresh. Lengthen the cycle and that proximity breaks
 down. You context-switch to something else, come back to a batch of completed work, and review

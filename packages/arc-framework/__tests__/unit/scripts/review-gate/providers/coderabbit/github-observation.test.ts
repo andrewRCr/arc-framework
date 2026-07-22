@@ -158,7 +158,7 @@ describe("GitHub CodeRabbit observation API", () => {
       reviewNodeId: "PRR_1",
       botUserId: BOT_ID,
       locus: "src/a.ts:7",
-      severity: "high",
+      severity: "major",
       url: "https://github.test/pull/7#discussion_r1",
     });
   });

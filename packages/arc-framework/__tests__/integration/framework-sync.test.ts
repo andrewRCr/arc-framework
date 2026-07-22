@@ -31,8 +31,11 @@ import {
   resolveFileList,
 } from "../../src/lib/classification.js";
 import { loadRecipeFile } from "../../src/lib/template/recipe.js";
-import { resolveTemplateOutputBindings } from "../../src/lib/layout/index.js";
-import type { Manifest } from "../../src/lib/types.js";
+import {
+  resolveTemplateOutputBindings,
+  resolveTemplateOutputPath,
+} from "../../src/lib/layout/index.js";
+import type { Manifest, Recipe } from "../../src/lib/types.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT_DIR = resolve(currentDir, "../../../..");
@@ -179,5 +182,42 @@ describe("framework sync (self-hosting drift check)", () => {
             "(see strategy-package-project-sync.md for direction rules).\n"
         : undefined,
     ).toEqual([]);
+  });
+
+  it("keeps neutral review customization contracts aligned across both copies", async () => {
+    const paths = [
+      "system/methods/README.md",
+      "system/methods/self-review.md",
+      "system/methods/frontline-review.md",
+      "system/methods/independent-analysis.md",
+      "system/methods/implementation-audit.md",
+      "system/methods/review-response.md",
+      "system/methods/review-triage.md",
+      "system/extensions/README.md",
+      "system/extensions/pre-pr-open.md",
+      "system/workflows/arc/supplemental/run-errand.md",
+      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    ];
+
+    for (const path of paths) {
+      const [packaged, project] = await Promise.all([
+        readFile(join(PKG_ARC_DIR, path), "utf8"),
+        readFile(join(ARC_DIR, path), "utf8"),
+      ]);
+      expect(project, `${path} must retain the shipped neutral contract`).toBe(packaged);
+    }
+  });
+
+  it("keeps the self-hosting manifest aligned with recipe-derived membership and classification", async () => {
+    const recipeText = await readFile(join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8");
+    const recipe = JSON.parse(recipeText) as Recipe;
+    const expected = resolveFileList(recipe, conditionals);
+    const expectedOutputs = expected.map((path) => resolveTemplateOutputPath(path)).sort();
+    expect(Object.keys(manifest.files).sort()).toEqual(expectedOutputs);
+
+    for (const templatePath of expected) {
+      const outputPath = resolveTemplateOutputPath(templatePath);
+      expect(manifest.files[outputPath]?.classification, outputPath).toBe(classifyFile(templatePath));
+    }
   });
 });

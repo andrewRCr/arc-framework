@@ -11,14 +11,14 @@
 ## Problem / Motivation
 
 Forward-compatibility and cross-WU coordination surface today as manual, ad-hoc cross-checks — and the half that
-matters most (writing refinements *back out* to downstream WUs whose assumptions just changed) is the one most
+matters most (writing refinements _back out_ to downstream WUs whose assumptions just changed) is the one most
 easily dropped.
 
 Make it a built-in step during pre-impl planning (`create-spec`, `generate-tasks`, `arc-plan`) and the pre-impl
 audit (`arc-task-audit`). Bidirectional:
 
-- **Pull** downstream planned designs *into* current work where they should inform it.
-- **Push** refinements *back out* when current work changes assumptions a downstream WU rests on.
+- **Pull** downstream planned designs _into_ current work where they should inform it.
+- **Push** refinements _back out_ when current work changes assumptions a downstream WU rests on.
 
 **Motivation — recurring manual pattern.** `worktree-foundation`'s 2026-05-26 cohort/downstream forward-compat
 cross-check hand-did exactly this (reserving extension points for `cross-machine-sync-coherence`, keeping logic

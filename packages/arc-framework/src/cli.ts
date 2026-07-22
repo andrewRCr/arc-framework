@@ -117,6 +117,7 @@ import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
+import { handleReviewFrontlineResolve } from "./handlers/review.js";
 import {
   handleCheckCommitMessage,
   type HandleCheckCommitMessageOptions,
@@ -938,6 +939,23 @@ logCmd
     "Filter by standalone category (maintenance|planning|documentation|refactor|code review)",
   )
   .action(handleLogStandalone);
+
+// --- Review ---
+
+const reviewCmd = program
+  .command("review")
+  .description("Resolve and execute review workflows");
+
+const frontlineCmd = reviewCmd
+  .command("frontline")
+  .description("Frontline pre-publication review operations");
+
+frontlineCmd
+  .command("resolve")
+  .description("Resolve explicit change-set facts and one-run intent as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewFrontlineResolve(input));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

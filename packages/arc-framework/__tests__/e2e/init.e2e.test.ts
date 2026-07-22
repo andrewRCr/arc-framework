@@ -124,6 +124,25 @@ describe("init", () => {
       "drain-inbox.md",
     ))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "reference", "templates", "arc", "work-unit", "template-draft.md"))).toBe(true);
+
+    const taskTemplatePath = join(
+      tmpDir,
+      ".arc",
+      "reference",
+      "templates",
+      "arc",
+      "work-unit",
+      "template-tasks.md",
+    );
+    expect(await pathExists(taskTemplatePath)).toBe(true);
+
+    const taskTemplate = await readFile(taskTemplatePath, "utf-8");
+    const linkedTargets = [...taskTemplate.matchAll(/^\[(?:generate-tasks|task-list-formatting)\]:\s+(.+)$/gm)]
+      .map((match) => resolve(dirname(taskTemplatePath), match[1]!));
+    expect(linkedTargets).toHaveLength(2);
+    for (const target of linkedTargets) {
+      expect(await pathExists(target), target).toBe(true);
+    }
   });
 
   it("init with --pm-mode arc-in-git installs arc-in-git files", async () => {
@@ -153,15 +172,16 @@ describe("init", () => {
     expect(result.exitCode).toBe(0);
 
     const methodNames = [
-      "commit-footer", "commit-format", "diff-review",
-      "issue-triage", "quality-gate-commands", "review-triage",
-      "session-state", "test-first",
+      "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "independent-analysis",
+      "implementation-audit", "self-review",
+      "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
+      "session-state", "spec-review", "test-first",
     ];
     const extensionNames = [
       "post-context-load", "post-task-completion", "post-task-quality",
       "post-unit-quality", "post-work-unit-activate",
       "post-work-unit-archive", "pre-activation", "pre-commit-review",
-      "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review",
+      "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
     ];
 
     for (const name of methodNames) {

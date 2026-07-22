@@ -2,6 +2,11 @@
 
 import type { ReviewRequest, SourceCapacity } from "../../core/execution.js";
 import type { Evidence, FindingSeverity } from "../../core/evidence.js";
+import {
+  NormalizedReviewFindingSchema,
+  type NormalizedReviewFinding,
+} from "../../core/finding-records.js";
+import type { ReviewSeverity } from "../../core/review-primitives.js";
 import type {
   ProviderObservation,
   RequestAcknowledgement,
@@ -76,7 +81,8 @@ export type CodeRabbitSignal =
     reviewNodeId: string;
     botUserId: string;
     locus: string;
-    severity: FindingSeverity;
+    severity: ReviewSeverity;
+    nit?: true;
     url: string;
   }
   | {
@@ -112,8 +118,13 @@ export interface CodeRabbitRunResult {
   state: "queued" | "running" | "clean" | "findings" | "failed" | "unavailable";
   qualifying: boolean;
   evidence: Evidence | null;
+  findings: NormalizedReviewFinding[];
   receiptAction: "attested" | "unadmitted";
   reasons: string[];
+}
+
+function legacyDiagnosticSeverity(severity: ReviewSeverity): FindingSeverity {
+  return severity === "blocker" ? "critical" : severity === "major" ? "high" : "low";
 }
 
 /** Request failure retaining whether an effect may have happened. */
@@ -263,10 +274,10 @@ export function normalizeCodeRabbitRun(
 ): CodeRabbitRunResult {
   const receiptAction = context.trigger === "direct" ? "unadmitted" : "attested";
   if (signals.some((signal) => signal.kind === "quota-rejected")) {
-    return { state: "unavailable", qualifying: false, evidence: null, receiptAction, reasons: ["quota-rejected"] };
+    return { state: "unavailable", qualifying: false, evidence: null, findings: [], receiptAction, reasons: ["quota-rejected"] };
   }
   if (signals.some((signal) => signal.kind === "status" && signal.state === "failure")) {
-    return { state: "failed", qualifying: false, evidence: null, receiptAction, reasons: ["provider-status-failure"] };
+    return { state: "failed", qualifying: false, evidence: null, findings: [], receiptAction, reasons: ["provider-status-failure"] };
   }
 
   const reviews = signals.filter((signal): signal is Extract<CodeRabbitSignal, { kind: "review" }> =>
@@ -297,8 +308,15 @@ export function normalizeCodeRabbitRun(
       ) reasons.push(`invalid-finding:${finding.findingId}`);
     }
     if (reasons.length > 0 || findingReview === undefined) {
-      return { state: "findings", qualifying: false, evidence: null, receiptAction, reasons };
+      return { state: "findings", qualifying: false, evidence: null, findings: [], receiptAction, reasons };
     }
+    const normalizedFindings = findings.map((finding) => NormalizedReviewFindingSchema.parse({
+      findingId: finding.findingId,
+      severity: finding.severity,
+      ...(finding.nit === undefined ? {} : { nit: finding.nit }),
+      locus: finding.locus,
+      evidenceUrlOrId: finding.url,
+    }));
     const evidence = parseEvidence({
       schemaVersion: 1,
       requirementId: context.requirementId,
@@ -318,18 +336,18 @@ export function normalizeCodeRabbitRun(
       headSha: context.headSha,
       findings: findings.map((finding) => ({
         findingId: finding.findingId,
-        severity: finding.severity,
+        severity: legacyDiagnosticSeverity(finding.severity),
         locus: finding.locus,
         evidenceUrlOrId: finding.url,
       })),
       closures: [],
       observedAt: context.observedAt,
     });
-    return { state: "findings", qualifying: true, evidence, receiptAction, reasons: [] };
+    return { state: "findings", qualifying: true, evidence, findings: normalizedFindings, receiptAction, reasons: [] };
   }
 
   const statusPending = signals.some((signal) => signal.kind === "status" && signal.state === "pending");
-  if (statusPending) return { state: "running", qualifying: false, evidence: null, receiptAction, reasons: [] };
+  if (statusPending) return { state: "running", qualifying: false, evidence: null, findings: [], receiptAction, reasons: [] };
   const clean = signals.find((signal): signal is Extract<CodeRabbitSignal, { kind: "clean" }> =>
     signal.kind === "clean"
     && signal.botUserId === expectedBotUserId
@@ -341,7 +359,7 @@ export function normalizeCodeRabbitRun(
     if (!capabilities.exactCoverage || !exactFullCoverage) reasons.push("exact-coverage-unproven");
     if (!capabilities.durableCleanResults) reasons.push("durable-clean-result-unproven");
     if (reasons.length > 0) {
-      return { state: "clean", qualifying: false, evidence: null, receiptAction, reasons };
+      return { state: "clean", qualifying: false, evidence: null, findings: [], receiptAction, reasons };
     }
     const evidence = parseEvidence({
       schemaVersion: 1,
@@ -368,9 +386,10 @@ export function normalizeCodeRabbitRun(
       state: "clean",
       qualifying: true,
       evidence,
+      findings: [],
       receiptAction,
       reasons: [],
     };
   }
-  return { state: "queued", qualifying: false, evidence: null, receiptAction, reasons: ["result-unproven"] };
+  return { state: "queued", qualifying: false, evidence: null, findings: [], receiptAction, reasons: ["result-unproven"] };
 }

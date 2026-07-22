@@ -410,7 +410,7 @@ adopters reading the concept page fresh.
 
 **Suggested destination:** `docs/concepts/session-operations/` § Session Length and Quality, or
 as supporting prose on the Session Operations Strategy's public-facing docs equivalent. The
-rationale explains *why* ARC prefers shorter sessions — "weaker retrieval positions" is the
+rationale explains _why_ ARC prefers shorter sessions — "weaker retrieval positions" is the
 evidence-based framing that differentiates this from a purely stylistic preference.
 
 **Stylistic integration notes:** Trimmed source retains the operational rule ("Prefer shorter,
@@ -685,7 +685,7 @@ scenario framing for the pattern's motivation.
 multiple **independent** code tasks all edit one shared documentation file, defer shared-doc
 updates to a final `docs(...): update [doc] for Tasks X.Y-X.Z` commit after the code
 commits.") and retains the Applies / Does NOT apply bullets (operational boundary). Dropped
-scenario description establishes *why* — useful for an adopter learning the pattern, redundant
+scenario description establishes _why_ — useful for an adopter learning the pattern, redundant
 for an agent applying it.
 
 ## Entry 19 — prepare-commits.md § Complex Analysis Path — Granularity guidance expansions
@@ -746,7 +746,7 @@ marker) already establish; the second sentence duplicates the operational bounda
 stated in elements #1 (status file) and #2 (completion doc). The value of the closer is
 conceptual framing — the audit-trail-vs-abandoned-work distinction is the essential motivation
 for the supersession protocol. Worth preserving on a docs page where the appendix is absorbed
-as its own section, framing *why* the protocol matters to a reader encountering it for the
+as its own section, framing _why_ the protocol matters to a reader encountering it for the
 first time. Less useful re-loaded every WU for agents who have already internalized the
 convention.
 
@@ -811,7 +811,7 @@ error into a recognizable operational pattern.
 **Stylistic integration notes:** Trimmed workflow retains a compact recognition list (one line per error
 class) pointing back to the CLI's interactive guidance. Absorbed content carries the resolution-choice
 reasoning (force-push-when-authoritative vs merge-when-both-sides-have-content), the
-`.pre-load-backup.json` safety-net detail, and the root-cause patterns that reveal *why* these errors
+`.pre-load-backup.json` safety-net detail, and the root-cause patterns that reveal _why_ these errors
 occur. Docs audience can support the longer treatment without inflating per-session load cost. Preamble
 sentence ("The CLI surfaces sync errors interactively — follow its guidance") remains in the source, so
 docs absorption can open directly with the case-by-case content.
@@ -1254,7 +1254,7 @@ mode labels retained — the protection-mode framing is the piece worth carrying
 
 **Suggested destination:** `docs/methodology/work-state/` § Status File as Single Source of
 Truth or folded into `docs/reference/templates/template-prd/` § Pre-Activation vs Post-Activation
-Metadata — adopter-facing explanation of *why* the three PRD header fields retire at activation.
+Metadata — adopter-facing explanation of _why_ the three PRD header fields retire at activation.
 Natural pair with any docs page covering the `status-{name}.md` role in the lifecycle.
 
 **Stylistic integration notes:** Trimmed workflow keeps the imperative directive ("Remove
@@ -1622,8 +1622,8 @@ straight two-copy file.
 
 **Content:**
 
-> **Design principle:** *Deactivation means undo-activation of a work unit that didn't
-> meaningfully start.* If work has happened, the correct operation is pause (`arc-shift`,
+> **Design principle:** _Deactivation means undo-activation of a work unit that didn't
+> meaningfully start._ If work has happened, the correct operation is pause (`arc-shift`,
 > future), completion ([`integrate-work-unit.md`][integrate]), or abandonment
 > (`clean-work-unit.md` — workflow retired pre-WOR) — not deactivation.
 
@@ -1636,8 +1636,8 @@ workflow) since the Case Matrix operationalizes this principle.
 Matrix + Prerequisites make the operational boundary concrete (Case A is the only workflow-
 applicable case; Cases B/C/D route to other workflows explicitly named in the matrix and § When
 NOT to Deactivate). The callout is a conceptual lens on the same information, not a procedural
-gate. Docs absorption should preserve the italics on "*Deactivation means undo-activation of a
-work unit that didn't meaningfully start.*" — the emphasis signals this is the definitional
+gate. Docs absorption should preserve the italics on "_Deactivation means undo-activation of a
+work unit that didn't meaningfully start._" — the emphasis signals this is the definitional
 clause. The three sibling-operation references (pause / completion / abandonment) map onto the
 same three workflows the Case Matrix routes to, so docs absorption can cross-reference or
 consolidate.
@@ -1661,7 +1661,7 @@ routing to the underlying "branch = activation surface area" invariant.
 
 **Stylistic integration notes:** Trimmed workflow keeps the Case Matrix table and drops the
 rationale paragraph that follows. Agents executing deactivation apply the Case Matrix directly
-("is your WU Case A/B/C/D?"); adopters learning the model benefit from knowing *why* the
+("is your WU Case A/B/C/D?"); adopters learning the model benefit from knowing _why_ the
 matrix routes that way. The key insight worth preserving in docs is the invariant — "the
 implementation branch is the entire surface area of the activation, so deleting it undoes the
 activation by construction" — which is the structural property that makes Case A tractable and
@@ -1827,7 +1827,7 @@ consequence signal + operational recommendation.
 > consider regular merge for multi-branch work even when squash is the project default. See
 > [Configurability Architecture § Merge Strategy][config-merge].
 
-**Extracted (removed from workflow):** The mechanistic expansion of *why* squash breaks
+**Extracted (removed from workflow):** The mechanistic expansion of _why_ squash breaks
 rebases ("collapses its commits into a single commit on the base. Any downstream branches
 that still reference the original commits will face conflict-heavy rebases — Git cannot
 reconcile the squashed commit with the originals") and the alternative framing ("plan for the
@@ -1841,7 +1841,7 @@ commit identity → rebase cannot reconcile) spelled out.
 **Stylistic integration notes:** The consequence signal ("breaks downstream rebases") is the
 operationally necessary piece — it justifies the non-default recommendation (regular merge)
 strongly enough that an agent reading the trimmed workflow understands why. The mechanistic
-explanation is reference-guide content: a reader who *wants* to understand git's behavior
+explanation is reference-guide content: a reader who _wants_ to understand git's behavior
 under squash benefits from it, but an agent executing rotation only needs the consequence +
 recommendation. Partial-extract pattern — distinct from wholesale extraction (e.g., Entries
 36, 40 Common Pitfalls). Docs absorption should treat the full blockquote as a single teaching
@@ -2179,7 +2179,7 @@ concretely.
 
 **Stylistic integration notes:** Trimmed workflow keeps the "Session duration is not a factor"
 paragraph (it's a decision-gate anti-pattern, not rationale) but drops this paragraph, which
-justifies *why* the decision criteria exist. For an agent executing the workflow, the ✅/❌
+justifies _why_ the decision criteria exist. For an agent executing the workflow, the ✅/❌
 criteria are the operational gate — the justification doesn't change how the decision is
 made. Docs absorption should preserve the "wasted ceremony for focused refactors that happen
 to touch multiple files" phrasing — it names the specific failure mode the distinction
@@ -2274,7 +2274,7 @@ for adopters who may conflate "branch exists" with "formal work unit exists" —
 mental-model trap under full protection.
 
 **Stylistic integration notes:** Trimmed workflow drops the reassurance line but retains the
-full-protection exception block that establishes *when* a branch-without-a-work-unit is
+full-protection exception block that establishes _when_ a branch-without-a-work-unit is
 appropriate (atomic task under full protection, unrelated to current scope). For an agent
 executing the workflow, the exception block's operational sequence (create branch → commit →
 PR → merge → delete, no archival) is sufficient; the reassurance is adopter-psychology
@@ -2367,7 +2367,7 @@ package-source copy same line range — straight two-copy file.
 > **Skills context:** [Agent Skills](https://agentskills.io) are an open standard for giving agents
 > procedural knowledge — supported across Claude Code, Cursor, Gemini CLI, VS Code Copilot, and many other
 > tools. Skills work as standalone capabilities without ARC integration. This workflow is for when you want a
-> Skill's behavior wired *into* ARC — as a method override, an extension hook, or a referenced strategy — so
+> Skill's behavior wired _into_ ARC — as a method override, an extension hook, or a referenced strategy — so
 > it participates in ARC's session lifecycle, quality gates, or workflow chain rather than existing as a peer
 > document outside the system.
 
@@ -2458,7 +2458,7 @@ contain.
 
 **Stylistic integration notes:** Strategy doc retains the operationally-useful tradeoff framing
 (dedicated `chore(status): handoff …` commit appears in history) so adopters know what to expect
-in concrete terms. This entry expands the *why* behind that shape — the reviewer-facing argument
+in concrete terms. This entry expands the _why_ behind that shape — the reviewer-facing argument
 and the auto-commit-safety argument both motivate the timing rule but don't change agent behavior
 once configured. Docs-site output must not reference ADRs (internal-only; adopters do not have
 them). Keep the framing concrete (what reviewers see, what auto-commit needs to worry about) —
@@ -2506,10 +2506,10 @@ adopters evaluating their own commit-shape conventions.
 >   boundaries.
 >
 > **What's different about status-file fields.** Status-file pointers (`Next Task`, `Last
-> Completed`, `Next Action`) are *volatile* — value at time T is stale by T+10min as the session
+> Completed`, `Next Action`) are _volatile_ — value at time T is stale by T+10min as the session
 > advances. The next consumer of the field is session-init, which only needs the value at the
 > session boundary. Mid-session updates rewrite state that's about to change again; deferring to
-> ceremony boundaries discards no information. Task-list `[x]` flips are *terminal*: the
+> ceremony boundaries discards no information. Task-list `[x]` flips are _terminal_: the
 > completion event won't reverse, and a future reader benefits from seeing the flip at the boundary
 > that produced it.
 >

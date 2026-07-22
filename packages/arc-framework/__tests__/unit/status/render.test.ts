@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { lint } from "markdownlint/promise";
 
 import {
   renderStatusTable,
@@ -88,6 +89,20 @@ describe("renderStatusTable", () => {
     ];
 
     expect(renderStatusTable(slice, STATUS_USER_COLUMNS)).not.toContain("Priority");
+  });
+
+  it("aligns CJK, combining-mark, emoji-variation, and ZWJ cells for pinned MD060", async () => {
+    const slice: StatusViewRow[] = [
+      { workUnit: "表示", state: "é", class: "Heavy", dependsOn: ["✈️"], cohort: "team/👩‍💻" },
+      { workUnit: "plain", state: "Active", class: "Light", dependsOn: [], cohort: "team/alpha" },
+    ];
+    const table = renderStatusTable(slice, STATUS_USER_COLUMNS);
+    const results = await lint({
+      strings: { "STATUS.USER.md": table },
+      config: { default: false, MD060: { style: "aligned" } },
+    });
+
+    expect(results["STATUS.USER.md"]).toEqual([]);
   });
 });
 

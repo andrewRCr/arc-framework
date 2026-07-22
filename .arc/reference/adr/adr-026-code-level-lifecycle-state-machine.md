@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 The work-unit lifecycle is the constitutional substrate ADR-019 reformed around a single branch per WU. That
-reform settled the *conventions*; it left the *mechanics* almost entirely in markdown. Today roughly ten WU
+reform settled the _conventions_; it left the _mechanics_ almost entirely in markdown. Today roughly ten WU
 transitions exist and exactly one is code-driven (`arc start` create-new); the rest are agent-run workflow
 ceremonies whose transition rules — branch prefix, meta `State`, preconditions, relocation `git mv`s — are
 restated per workflow with no single source of truth. The cost is concrete and has bitten live: a half-built,
@@ -26,7 +26,7 @@ Three migration depths were considered for that write side:
 - **Option B0 — doc-only.** Keep the lifecycle as per-workflow markdown; at most document the transitions in one
   place. The duplication and asymmetry persist; the invariants stay an audit, never a guard.
 - **Option B2 — a generic transition engine.** A general state-machine engine parameterized over the lifecycle.
-  It over-generalizes and, worse, the natural implementation bakes `git mv` in as *the* transition mechanism —
+  It over-generalizes and, worse, the natural implementation bakes `git mv` in as _the_ transition mechanism —
   re-committing the physical-file-location coupling that ADR-022's record/projection direction exists to remove.
     - **A third-party FSM library (XState et al.) is a packaged B2** and loses on the same grounds plus three of
       its own: its runtime model is a long-lived in-memory interpreter holding current state, which fights the
@@ -39,7 +39,7 @@ Three migration depths were considered for that write side:
       state-store libraries (Zustand / Redux) are a different category entirely — in-memory app-state stores with
       no role in a per-invocation CLI — not a transition system at all.
 - **Option B1 (chosen) — a hand-rolled declarative transition table as code + a thin imperative executor**, over
-  *logical* `(phase, location)`. The table is data (states, legal edges, inverses, guard requirements,
+  _logical_ `(phase, location)`. The table is data (states, legal edges, inverses, guard requirements,
   per-transition encoding updates); the executor resolves current state via the resolver, validates guards, and
   fires a 1↔1 relocation/sweep mutator bundle.
 
@@ -53,9 +53,9 @@ This commits to four load-bearing positions:
 1. **Mechanics in the CLI, judgment in the workflows.** Deterministic mechanics — `git mv`, branch/worktree
    reconcile, scaffold, ROADMAP regen, archival dated-path computation, transition-legality validation — move
    into code. The interlocks and the value-supplying decisions (whether to activate, WU-vs-errand, the cut-map,
-   merge approval, commitment / priority / `Class`) stay in the workflows. The CLI *executes* transitions; it
-   never *decides* to take them (except where the decision is genuinely deterministic — a name collision forces
-   graduate-not-scaffold) and never *fabricates* judgment values — it requires them supplied.
+   merge approval, commitment / priority / `Class`) stay in the workflows. The CLI _executes_ transitions; it
+   never _decides_ to take them (except where the decision is genuinely deterministic — a name collision forces
+   graduate-not-scaffold) and never _fabricates_ judgment values — it requires them supplied.
 
 2. **The transition table is the single source of truth, and its invariants ship as tests.** Totality (every
    canonical state's `(verb, from)` is a legal edge or an explicitly-marked illegal cell), inverse round-trip for
@@ -110,11 +110,11 @@ clean state to key the cells on.
 
 Resolved by aligning with universal industry practice rather than inventing a same-unit reopen:
 
-- **Merge is the terminal commitment.** GitHub and GitLab both forbid reopening a *merged* PR/MR (GitHub Docs:
+- **Merge is the terminal commitment.** GitHub and GitLab both forbid reopening a _merged_ PR/MR (GitHub Docs:
   "You cannot reopen a merged pull request"; GitLab removed the reopen affordance for merged MRs). Backing out a
-  merged change is a *new* revert PR (`git revert -m`); post-merge rework is a *new* branch/PR across git-flow
+  merged change is a _new_ revert PR (`git revert -m`); post-merge rework is a _new_ branch/PR across git-flow
   (hotfix branches), GitHub Flow, and trunk-based development — never a reuse of the merged branch.
-- **The "reopen" idiom lives at the issue-tracker layer** (reopen the *concern*), which the origin-link lineage
+- **The "reopen" idiom lives at the issue-tracker layer** (reopen the _concern_), which the origin-link lineage
   already captures; the ensuing code is a fresh delivery unit regardless.
 
 So the verb set carries **no merged-corner cells**. Pre-merge rework is `reopen` (`Integrating → Active`, withdraw

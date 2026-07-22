@@ -62,7 +62,7 @@ Adoption flexibility has two independent axes:
 
 | Axis                 | What varies                   | Mechanism                     |
 |----------------------|-------------------------------|-------------------------------|
-| Method customization | ARC defaults vs. team methods | Overrides in `arc-methods.md` |
+| Method customization | ARC defaults vs. team methods | Per-file method overrides     |
 | Functionality scope  | What features are installed   | PM mode selection (`pm.mode`) |
 
 Enforcement depth — how strictly conventions are applied — is not a named axis. It is simply
@@ -70,7 +70,7 @@ Enforcement depth — how strictly conventions are applied — is not a named ax
 
 1. "I don't care about format" → `commit.format: any`, agent produces quality output
 2. "I want ARC's convention enforced" → `commit.format: conventional`, hooks enforce (default)
-3. "I want something *different* enforced" → Method overrides + custom config patterns
+3. "I want something _different_ enforced" → Method overrides + custom config patterns
 
 ## How `arc-config.yml` Works
 
@@ -135,7 +135,7 @@ Use `--dry-run` to preview changes before applying.
 - `branch.base`, `branch.protection` — Branch model
 - `merge.strategy` — Integration strategy
 - `platform.type` — Agent platform awareness
-- `review.pre_merge` — Pre-merge review toggle
+- `review.frontline_source` — Project default for the registered frontline review source
 
 ### Project-wide by design
 
@@ -202,8 +202,8 @@ Every setting in `arc-config.yml`, with its options and default.
 |--------------------------|-------------------------------------------------|----------------|-----------------------------------------------------|
 | `commit.format`          | `conventional`, `custom`, `any`                 | `conventional` | Commit message format enforced by hook              |
 | `commit.context_footer`  | `required`, `recommended`, `custom`, `disabled` | `required`     | Context footer requirement                          |
-| `commit.custom_pattern`  | Regex string                                    | *(empty)*      | Custom format regex (when `format: custom`)         |
-| `commit.context_pattern` | Regex string                                    | *(empty)*      | Custom footer regex (when `context_footer: custom`) |
+| `commit.custom_pattern`  | Regex string                                    | _(empty)_      | Custom format regex (when `format: custom`)         |
+| `commit.context_pattern` | Regex string                                    | _(empty)_      | Custom footer regex (when `context_footer: custom`) |
 
 ### Merge strategy
 
@@ -223,20 +223,23 @@ Every setting in `arc-config.yml`, with its options and default.
 | `hooks.body_max_line_length`        | Integer                   | `100`                | Maximum commit body per-line length           |
 | `hooks.skip_extensions`             | Pipe-separated patterns   | `md\|yml\|yaml\|...` | File extensions skipped during meta-ref check |
 | `hooks.test_patterns`               | Pipe-separated patterns   | `__tests__/\|...`    | Test paths excluded from meta-ref checking    |
-| `hooks.meta_ref_patterns`           | Pipe-separated patterns   | *(see below)*        | Patterns flagged as meta-project references   |
+| `hooks.meta_ref_patterns`           | Pipe-separated patterns   | _(see below)_        | Patterns flagged as meta-project references   |
 | `hooks.contributor_protected_paths` | Pipe-separated patterns   | `active/\|backlog/`  | Directories that warn when staged by contrib  |
-
-### Review
-
-| Setting            | Options               | Default   | What it controls                                        |
-|--------------------|-----------------------|-----------|---------------------------------------------------------|
-| `review.pre_merge` | `enabled`, `disabled` | `enabled` | Whether the agent reviews aggregate diff before pushing |
 
 ### Platform
 
 | Setting         | Options                                         | Default  | What it controls                                                   |
 |-----------------|-------------------------------------------------|----------|--------------------------------------------------------------------|
 | `platform.type` | `github`, `gitlab`, `bitbucket`, `azure-devops` | `github` | Git hosting platform (informational — affects command suggestions) |
+
+### Review
+
+| Setting                   | Options                        | Default   | What it controls                               |
+|---------------------------|--------------------------------|-----------|------------------------------------------------|
+| `review.frontline_source` | Lowercase registered source ID | _(empty)_ | Default advisory pre-publication review source |
+
+The value names a source registered by the project; it is never a command or reviewer identity. Developers may
+override it locally with `git config arc.frontlineSource <source-id>`.
 
 ### Project management
 

@@ -78,6 +78,16 @@ describe("classify-change.sh harness", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toContain("Usage: classify-change.sh");
   });
+
+  it("delegates canonical parsing and tree identity to the shared module", async () => {
+    const source = await readFile(CLASSIFY_SCRIPT, "utf-8");
+
+    expect(source).toContain("packages/arc-framework/src/lib/change-facts.ts");
+    expect(source).toContain('node "${CHANGE_FACTS_MODULE}" classification');
+    expect(source).toContain('node "${CHANGE_FACTS_MODULE}" tree-hash');
+    expect(source).not.toContain("_classify_raw_diff_file");
+    expect(source).not.toContain("CODE_SURFACE_GLOBS");
+  });
 });
 
 describe("classify-change.sh lane", () => {

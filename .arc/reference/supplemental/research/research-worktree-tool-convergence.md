@@ -1039,7 +1039,7 @@ design choice is field-level idiom.
 
 **8 of 9 tools** use actual `git worktree` (Zed, Worktrunk, Conductor, emdash, Maestro,
 Superset, T3code, Nora). The only exception is Warp Oz, which uses Docker containers — but
-only for *cloud* agents; Warp's local interactive agents have no documented worktree story.
+only for _cloud_ agents; Warp's local interactive agents have no documented worktree story.
 
 This is the most concrete convergence finding. The field has settled on git worktrees as the
 right abstraction for parallel agent work: no virtualization, no copy-on-write filesystems,
@@ -1092,7 +1092,7 @@ adopter's tool of choice rather than complementing it.
 (Conductor, emdash, Maestro, Superset, T3code, Nora). Conductor's Diff Viewer (`Cmd+Shift+D`)
 is the most documented; others integrate diff viewing into their workspace UI directly.
 
-The field is converging on "review the agent's work *inside the tool* before opening a PR,"
+The field is converging on "review the agent's work _inside the tool_ before opening a PR,"
 not deferring everything to GitHub/GitLab review. This is functionally adjacent to ARC's
 task-interlock discipline (mandatory stops at task completion) but operates at a different
 granularity — typically end-of-work, not per-step.
@@ -1105,7 +1105,7 @@ operationally resembles ARC's per-task interlock pattern.
 
 **All 9 tools** store worktrees on the local filesystem (sibling dirs, `.worktrees/`,
 app-controlled hidden paths, user-chosen locations). No tool uses virtualized FS, FUSE
-mounts, or copy-on-write storage. Storage *location* varies; storage *medium* is universal.
+mounts, or copy-on-write storage. Storage _location_ varies; storage _medium_ is universal.
 
 ### 3.7 Spec-doc / brief mechanism: invented bespoke per tool
 
@@ -1178,7 +1178,7 @@ points.
 
 This is a friction signal for ARC's "complement, not replace" stance: tools that own the
 worktree without hook surfaces don't easily let ARC plug in. The "external" mode of ARC's
-proposed `worktree.management` config has to work *despite* the absence of hooks — by not
+proposed `worktree.management` config has to work _despite_ the absence of hooks — by not
 requiring them.
 
 ### 4.4 Lifecycle / cleanup automation
@@ -1288,7 +1288,7 @@ WOR's existing design (Working Thesis + scope item 11 cascade + Design Decisions
 
 - `**Origin:**` accepts external references (issue URL, external tool's spec doc, "Internal,"
   verbal request)
-- `**Spec:**` always points at an ARC-owned artifact (plan-*, prd-*, tasks-*, or empty
+- `**Spec:**` always points at an ARC-owned artifact (plan-_, prd-_, tasks-*, or empty
   during planning)
 - The two fields are independent
 
@@ -1479,5 +1479,5 @@ Sources organized by tool. URLs deduplicated; redundant cluster-internal referen
 
 ---
 
-*Sources captured during research dispatched 2026-05-12. PRD-graduation triage will trim to
-load-bearing references at WF / AWL / CWC PRD time.*
+_Sources captured during research dispatched 2026-05-12. PRD-graduation triage will trim to
+load-bearing references at WF / AWL / CWC PRD time._

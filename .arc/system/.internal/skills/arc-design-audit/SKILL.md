@@ -16,9 +16,9 @@ user decides when an audit is worth its cost; never invoke this proactively.
   shipped, dependencies have shifted, and the question is whether its efficacy and fit still hold.
 - **A groomed draft before promotion.** An ad-hoc "is this design actually right?" check during grooming, ahead
   of any formalization gate.
-- **A reopened design question.** A self-review or spec pass surfaced a finding that *reopens design* — this
+- **A reopened design question.** A self-review or spec pass surfaced a finding that _reopens design_ — this
   rubric is that route's destination for re-validating the reopened decision.
-- **Mid-impl escalation (rare).** Implementation evidence suggests the *design* — not the task — is wrong.
+- **Mid-impl escalation (rare).** Implementation evidence suggests the _design_ — not the task — is wrong.
   Task-level drift and re-grounding belong to the `arc-task-audit` door; reach here only when a confirmed finding
   implicates the design itself.
 

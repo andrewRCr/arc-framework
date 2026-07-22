@@ -14,6 +14,13 @@ import {
   schemaOneAt,
   stringAt,
 } from "../../core/validation.js";
+import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../independent-analysis.js";
+
+interface SourceGuidanceIdentity {
+  baselineVersion: string;
+  baselineDigest: string;
+  projectAugmentationId: string;
+}
 
 /** Capability declaration used to qualify a review source. */
 export interface SourceQualificationDeclaration {
@@ -21,6 +28,12 @@ export interface SourceQualificationDeclaration {
   qualifier: string;
   sourceIdentity: string;
   rubricVersion: string;
+  channel: "local" | "hosted";
+  guidance: SourceGuidanceIdentity;
+  admissionMode: "automatic" | "checkpoint";
+  requestMechanism: "provider-automatic" | "pr-author-command" | "local-attestation" | "human-attestation";
+  attestationAuthority: "arc-review-gate-app" | "local-receipt-store";
+  hostedImportAuthority: "arc-review-gate-app" | null;
   mode: "enabled" | "partial" | "disabled";
   exactCoverage: boolean;
   durableResults: boolean;
@@ -34,19 +47,22 @@ export interface SourceQualificationDeclaration {
   providerBotUserId: string | null;
   guidanceDigest: string | null;
   terminalUnavailableMode: "terminal" | "parser-only" | "disabled";
-  requestActor: "controller" | "pr-author" | "explicit";
 }
 
 /** Closed self-hosting policy document. */
 export interface SelfHostingPolicy {
   schemaVersion: 1;
   semanticsVersion: string;
-  lanePredicate: {
+  reviewChannel: "local" | "hosted" | "both";
+  controllerAuthority: "inactive";
+  mergeAuthority: "manual";
+  minorGating: "blocking" | "record-only";
+  ownershipPolicy: {
     id: "artifact-owner/v1";
     artifactRoots: string[];
     artifactKinds: string[];
   };
-  riskPredicate: {
+  reviewRiskPolicy: {
     id: "sensitive-paths/v1";
     sensitivePrefixes: string[];
     sensitiveFiles: string[];
@@ -70,16 +86,20 @@ export interface SelfHostingPolicy {
   qualifications: SourceQualificationDeclaration[];
 }
 
-/** Initial reviewed-lane policy, including disabled shadow qualifications. */
+/** Initial normalized self-hosting policy, including disabled shadow qualifications. */
 export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
   schemaVersion: 1,
   semanticsVersion: "self-hosting-review/v1",
-  lanePredicate: {
+  reviewChannel: "both",
+  controllerAuthority: "inactive",
+  mergeAuthority: "manual",
+  minorGating: "record-only",
+  ownershipPolicy: {
     id: "artifact-owner/v1",
     artifactRoots: [".arc/active/", ".arc/backlog/"],
     artifactKinds: ["draft", "tasks", "meta", "notes"],
   },
-  riskPredicate: {
+  reviewRiskPolicy: {
     id: "sensitive-paths/v1",
     sensitivePrefixes: [
       ".github/",
@@ -132,6 +152,16 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
       qualifier: "independent-analysis/v1",
       sourceIdentity: "coderabbit-pr",
       rubricVersion: "independent-analysis/v1",
+      channel: "hosted",
+      guidance: {
+        baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+        baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        projectAugmentationId: "self-hosting-review/v1",
+      },
+      admissionMode: "automatic",
+      requestMechanism: "provider-automatic",
+      attestationAuthority: "arc-review-gate-app",
+      hostedImportAuthority: null,
       mode: "partial",
       exactCoverage: false,
       durableResults: false,
@@ -145,13 +175,22 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
       providerBotUserId: "136622811",
       guidanceDigest: null,
       terminalUnavailableMode: "disabled",
-      requestActor: "controller",
     },
     {
       sourceKind: "agent",
       qualifier: "independent-analysis/v1",
       sourceIdentity: "codex-pr",
       rubricVersion: "independent-analysis/v1",
+      channel: "hosted",
+      guidance: {
+        baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+        baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        projectAugmentationId: "self-hosting-review/v1",
+      },
+      admissionMode: "checkpoint",
+      requestMechanism: "pr-author-command",
+      attestationAuthority: "arc-review-gate-app",
+      hostedImportAuthority: null,
       mode: "partial",
       exactCoverage: false,
       durableResults: false,
@@ -165,13 +204,22 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
       providerBotUserId: "199175422",
       guidanceDigest: null,
       terminalUnavailableMode: "parser-only",
-      requestActor: "pr-author",
     },
     ...["codex-cli", "claude-code", "coderabbit-cli"].map((sourceIdentity) => ({
       sourceKind: "agent" as const,
       qualifier: "independent-analysis/v1",
       sourceIdentity,
       rubricVersion: "independent-analysis/v1",
+      channel: "local" as const,
+      guidance: {
+        baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+        baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        projectAugmentationId: "self-hosting-review/v1",
+      },
+      admissionMode: "checkpoint" as const,
+      requestMechanism: "local-attestation" as const,
+      attestationAuthority: "local-receipt-store" as const,
+      hostedImportAuthority: "arc-review-gate-app" as const,
       mode: "enabled" as const,
       exactCoverage: true,
       durableResults: true,
@@ -185,13 +233,22 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
       providerBotUserId: null,
       guidanceDigest: null,
       terminalUnavailableMode: "disabled" as const,
-      requestActor: "explicit" as const,
     })),
     {
       sourceKind: "human",
       qualifier: "independent-analysis/v1",
       sourceIdentity: "qualified-non-author-human",
       rubricVersion: "independent-analysis/v1",
+      channel: "local",
+      guidance: {
+        baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+        baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        projectAugmentationId: "self-hosting-review/v1",
+      },
+      admissionMode: "checkpoint",
+      requestMechanism: "human-attestation",
+      attestationAuthority: "local-receipt-store",
+      hostedImportAuthority: "arc-review-gate-app",
       mode: "enabled",
       exactCoverage: true,
       durableResults: true,
@@ -205,7 +262,6 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
       providerBotUserId: null,
       guidanceDigest: null,
       terminalUnavailableMode: "disabled",
-      requestActor: "explicit",
     },
   ],
 };
@@ -234,15 +290,36 @@ function booleanAt(value: unknown, path: string): boolean {
 function parseQualification(input: unknown, path: string): SourceQualificationDeclaration {
   const record = objectAt(input, path);
   exactKeys(record, [
-    "sourceKind", "qualifier", "sourceIdentity", "rubricVersion", "mode", "exactCoverage", "durableResults",
+    "sourceKind", "qualifier", "sourceIdentity", "rubricVersion", "channel", "guidance", "admissionMode",
+    "requestMechanism", "attestationAuthority", "hostedImportAuthority", "mode", "exactCoverage", "durableResults",
     "distinctOutcomes", "durableFindings", "closureCapability", "transport", "liveProbeRequired", "parserVersion",
-    "providerAppId", "providerBotUserId", "guidanceDigest", "terminalUnavailableMode", "requestActor",
+    "providerAppId", "providerBotUserId", "guidanceDigest", "terminalUnavailableMode",
   ], path);
+  const guidance = objectAt(record.guidance, `${path}.guidance`);
+  exactKeys(guidance, ["baselineVersion", "baselineDigest", "projectAugmentationId"], `${path}.guidance`);
   const declaration: SourceQualificationDeclaration = {
     sourceKind: enumAt(record.sourceKind, ["human", "agent", "deterministic-tool"], `${path}.sourceKind`),
     qualifier: enumAt(record.qualifier, ["independent-analysis/v1"], `${path}.qualifier`),
     sourceIdentity: stringAt(record.sourceIdentity, `${path}.sourceIdentity`),
     rubricVersion: stringAt(record.rubricVersion, `${path}.rubricVersion`),
+    channel: enumAt(record.channel, ["local", "hosted"], `${path}.channel`),
+    guidance: {
+      baselineVersion: stringAt(guidance.baselineVersion, `${path}.guidance.baselineVersion`),
+      baselineDigest: stringAt(guidance.baselineDigest, `${path}.guidance.baselineDigest`),
+      projectAugmentationId: stringAt(guidance.projectAugmentationId, `${path}.guidance.projectAugmentationId`),
+    },
+    admissionMode: enumAt(record.admissionMode, ["automatic", "checkpoint"], `${path}.admissionMode`),
+    requestMechanism: enumAt(record.requestMechanism, [
+      "provider-automatic", "pr-author-command", "local-attestation", "human-attestation",
+    ], `${path}.requestMechanism`),
+    attestationAuthority: enumAt(
+      record.attestationAuthority,
+      ["arc-review-gate-app", "local-receipt-store"],
+      `${path}.attestationAuthority`,
+    ),
+    hostedImportAuthority: record.hostedImportAuthority === null
+      ? null
+      : enumAt(record.hostedImportAuthority, ["arc-review-gate-app"], `${path}.hostedImportAuthority`),
     mode: enumAt(record.mode, ["enabled", "partial", "disabled"], `${path}.mode`),
     exactCoverage: booleanAt(record.exactCoverage, `${path}.exactCoverage`),
     durableResults: booleanAt(record.durableResults, `${path}.durableResults`),
@@ -266,8 +343,17 @@ function parseQualification(input: unknown, path: string): SourceQualificationDe
       ["terminal", "parser-only", "disabled"],
       `${path}.terminalUnavailableMode`,
     ),
-    requestActor: enumAt(record.requestActor, ["controller", "pr-author", "explicit"], `${path}.requestActor`),
   };
+  if (declaration.guidance.baselineVersion !== declaration.rubricVersion
+    || declaration.guidance.baselineVersion !== INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version
+    || declaration.guidance.baselineDigest !== INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest
+    || declaration.guidance.projectAugmentationId !== "self-hosting-review/v1") {
+    throw new Error(`${path}: invalid baseline guidance identity`);
+  }
+  const expectedAdmission = declaration.requestMechanism === "provider-automatic" ? "automatic" : "checkpoint";
+  if (declaration.admissionMode !== expectedAdmission) {
+    throw new Error(`${path}: request mechanism and admission mode disagree`);
+  }
   const capabilityOutcomes = [
     declaration.exactCoverage,
     declaration.durableResults,
@@ -282,7 +368,11 @@ function parseQualification(input: unknown, path: string): SourceQualificationDe
     if (declaration.parserVersion === null || declaration.providerBotUserId === null) {
       throw new Error(`${path}: hosted provider parser and bot identity are required`);
     }
-    if (declaration.requestActor === "explicit" || !declaration.liveProbeRequired) {
+    if (declaration.channel !== "hosted"
+      || declaration.attestationAuthority !== "arc-review-gate-app"
+      || declaration.hostedImportAuthority !== null
+      || !["provider-automatic", "pr-author-command"].includes(declaration.requestMechanism)
+      || !declaration.liveProbeRequired) {
       throw new Error(`${path}: hosted provider requires a live controller or PR-author probe`);
     }
     if (!/^[1-9][0-9]*$/u.test(declaration.providerBotUserId)) {
@@ -300,7 +390,10 @@ function parseQualification(input: unknown, path: string): SourceQualificationDe
     || declaration.providerBotUserId !== null
     || declaration.guidanceDigest !== null
     || declaration.terminalUnavailableMode !== "disabled"
-    || declaration.requestActor !== "explicit"
+    || declaration.channel !== "local"
+    || declaration.attestationAuthority !== "local-receipt-store"
+    || declaration.hostedImportAuthority !== "arc-review-gate-app"
+    || !["local-attestation", "human-attestation"].includes(declaration.requestMechanism)
     || declaration.liveProbeRequired
   ) {
     throw new Error(`${path}: attestation source cannot declare hosted-provider capabilities`);
@@ -313,18 +406,19 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const path = "selfHostingPolicy";
   const record = objectAt(input, path);
   exactKeys(record, [
-    "schemaVersion", "semanticsVersion", "lanePredicate", "riskPredicate", "lifecycleTailPredicate", "authorMap",
+    "schemaVersion", "semanticsVersion", "reviewChannel", "controllerAuthority", "mergeAuthority", "minorGating", "ownershipPolicy",
+    "reviewRiskPolicy", "lifecycleTailPredicate", "authorMap",
     "fallbackMaintainer",
     "requirementTemplates", "rubricBindings", "timeouts", "providerIdentities", "attestationEnforcement",
     "qualifications",
   ], path);
 
-  const lane = objectAt(record.lanePredicate, `${path}.lanePredicate`);
-  exactKeys(lane, ["id", "artifactRoots", "artifactKinds"], `${path}.lanePredicate`);
-  const laneId = enumAt(lane.id, ["artifact-owner/v1"], `${path}.lanePredicate.id`);
-  const risk = objectAt(record.riskPredicate, `${path}.riskPredicate`);
-  exactKeys(risk, ["id", "sensitivePrefixes", "sensitiveFiles"], `${path}.riskPredicate`);
-  const riskId = enumAt(risk.id, ["sensitive-paths/v1"], `${path}.riskPredicate.id`);
+  const ownership = objectAt(record.ownershipPolicy, `${path}.ownershipPolicy`);
+  exactKeys(ownership, ["id", "artifactRoots", "artifactKinds"], `${path}.ownershipPolicy`);
+  const ownershipId = enumAt(ownership.id, ["artifact-owner/v1"], `${path}.ownershipPolicy.id`);
+  const reviewRisk = objectAt(record.reviewRiskPolicy, `${path}.reviewRiskPolicy`);
+  exactKeys(reviewRisk, ["id", "sensitivePrefixes", "sensitiveFiles"], `${path}.reviewRiskPolicy`);
+  const reviewRiskId = enumAt(reviewRisk.id, ["sensitive-paths/v1"], `${path}.reviewRiskPolicy.id`);
   const lifecycleTail = objectAt(record.lifecycleTailPredicate, `${path}.lifecycleTailPredicate`);
   exactKeys(lifecycleTail, ["id"], `${path}.lifecycleTailPredicate`);
   const lifecycleTailId = enumAt(
@@ -432,15 +526,19 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
     semanticsVersion: templatePolicy.semanticsVersion,
-    lanePredicate: {
-      id: laneId,
-      artifactRoots: exactStringArray(lane.artifactRoots, SELF_HOSTING_POLICY.lanePredicate.artifactRoots, `${path}.lanePredicate.artifactRoots`),
-      artifactKinds: exactStringArray(lane.artifactKinds, SELF_HOSTING_POLICY.lanePredicate.artifactKinds, `${path}.lanePredicate.artifactKinds`),
+    reviewChannel: enumAt(record.reviewChannel, ["local", "hosted", "both"], `${path}.reviewChannel`),
+    controllerAuthority: enumAt(record.controllerAuthority, ["inactive"], `${path}.controllerAuthority`),
+    mergeAuthority: enumAt(record.mergeAuthority, ["manual"], `${path}.mergeAuthority`),
+    minorGating: enumAt(record.minorGating, ["blocking", "record-only"], `${path}.minorGating`),
+    ownershipPolicy: {
+      id: ownershipId,
+      artifactRoots: exactStringArray(ownership.artifactRoots, SELF_HOSTING_POLICY.ownershipPolicy.artifactRoots, `${path}.ownershipPolicy.artifactRoots`),
+      artifactKinds: exactStringArray(ownership.artifactKinds, SELF_HOSTING_POLICY.ownershipPolicy.artifactKinds, `${path}.ownershipPolicy.artifactKinds`),
     },
-    riskPredicate: {
-      id: riskId,
-      sensitivePrefixes: exactStringArray(risk.sensitivePrefixes, SELF_HOSTING_POLICY.riskPredicate.sensitivePrefixes, `${path}.riskPredicate.sensitivePrefixes`),
-      sensitiveFiles: exactStringArray(risk.sensitiveFiles, SELF_HOSTING_POLICY.riskPredicate.sensitiveFiles, `${path}.riskPredicate.sensitiveFiles`),
+    reviewRiskPolicy: {
+      id: reviewRiskId,
+      sensitivePrefixes: exactStringArray(reviewRisk.sensitivePrefixes, SELF_HOSTING_POLICY.reviewRiskPolicy.sensitivePrefixes, `${path}.reviewRiskPolicy.sensitivePrefixes`),
+      sensitiveFiles: exactStringArray(reviewRisk.sensitiveFiles, SELF_HOSTING_POLICY.reviewRiskPolicy.sensitiveFiles, `${path}.reviewRiskPolicy.sensitiveFiles`),
     },
     lifecycleTailPredicate: { id: lifecycleTailId },
     authorMap,

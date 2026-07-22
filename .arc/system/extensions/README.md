@@ -31,7 +31,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [pre-activation](pre-activation.md) — verification gate before WU activation
 - [post-work-unit-activate](post-work-unit-activate.md) — actions after work unit activation
 - [pre-commit-review](pre-commit-review.md) — agent-layer review before commit, complementary to git hooks
-- [pre-push-review](pre-push-review.md) — verification at any push routed through the push wrapper
+- [pre-push-review](pre-push-review.md) — verification before every agent-managed workflow push
 - [pre-pr-open](pre-pr-open.md) — retry-safe actions immediately before change-request creation
 - [post-pr-open](post-pr-open.md) — idempotent actions on every open change-request entry
 - [pre-merge](pre-merge.md) — final-state checks after review-response, before merge
@@ -52,10 +52,10 @@ answer the question "when should my extension fire?"; lifecycle ordering does.
 | pre-activation               | activate-work-unit               | Pre-condition gate → state-flip | Verify plan-quality before activation     |
 | post-work-unit-activate      | activate-work-unit               | After core activation           | PM layer interface after activation       |
 | pre-commit-review            | arc-commit / prepare-commits     | Staging → commit                | Agent-layer review before commit          |
-| pre-push-review              | push wrapper                     | Push wrapper invocation         | Per-push checks (reserved-for-future)     |
+| pre-push-review              | agent-managed push workflows     | Before each managed push        | Per-push checks (reserved-for-future)     |
 | pre-pr-open                  | integrate-work-unit / run-errand | pushed head → create request    | Retry-safe creation actions               |
 | post-pr-open                 | integrate-work-unit / run-errand | open request → review cycle     | Idempotent open-request actions           |
-| pre-merge                    | integrate-work-unit              | review-response → merge         | Final-state checks before merge action    |
+| pre-merge                    | integrate-work-unit / run-errand | review-response → merge         | Final-state checks before merge action    |
 | post-work-unit-archive       | archive-work-unit                | After core archival             | PM layer interface after archival         |
 
 ---

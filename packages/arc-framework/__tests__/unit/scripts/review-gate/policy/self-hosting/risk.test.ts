@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyReviewRisk } from "../../../../../../src/scripts/review-gate/policy/self-hosting/risk.js";
+import {
+  classifyReviewRisk,
+  classifyReviewRiskFromChangeSet,
+} from "../../../../../../src/scripts/review-gate/policy/self-hosting/risk.js";
 
 describe("self-hosting review risk", () => {
   it.each([
@@ -41,6 +44,19 @@ describe("self-hosting review risk", () => {
     expect(classifyReviewRisk({ paths: [], codeSurface: false })).toEqual({
       risk: "sensitive",
       reasons: ["unknown-change-set"],
+    });
+  });
+
+  it("maps canonical endpoint facts without CI history", () => {
+    expect(classifyReviewRiskFromChangeSet({
+      changeSet: "known",
+      changes: [{
+        status: "modified",
+        path: ".arc/reference/strategies/project/strategy-review.md",
+      }],
+    })).toEqual({
+      risk: "sensitive",
+      reasons: ["strategy-surface"],
     });
   });
 });

@@ -15,38 +15,38 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration
-> (`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration
+> (`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **State the cascade doctrine: always route, never re-open**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: inbound-routing-method`), housekeep drain (2026-07-18);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: inbound-routing-method`), housekeep drain (2026-07-18);
   captured at the storage-substrate grooming (2026-07-17).
-- *Concern:* planning passes that sharpen direction cascade into other WUs' state, and both failure modes are
+- _Concern:_ planning passes that sharpen direction cascade into other WUs' state, and both failure modes are
   traps: silent deferral ("it'll figure it out when next touched") loses the insight to rediscovery;
   whole-backlog auditing wastes time/tokens re-examining everything out of context. ARC already runs a two-tier
   damper that is the correct middle path but is nowhere stated as doctrine: **direction-level cascade →
-  check-docs** (update one doc; every affected WU self-checks at *its own* grooming with its own context loaded)
+  check-docs** (update one doc; every affected WU self-checks at _its own_ grooming with its own context loaded)
   and **item-level cascade → inbound buffers/inbox** (a provenance-stamped few-line capture per affected WU —
   push the notification now, defer holistic integration to that WU's next planning iteration). The residual
   judgment is the routing decision itself (knowing who is affected), mitigated by the seams/compose-notes
   discipline making affected-sets explicit before cascades happen.
-- *Fold-in:* state as doctrine at grooming — working formulation: *always route, never re-open* (re-opening
+- _Fold-in:_ state as doctrine at grooming — working formulation: _always route, never re-open_ (re-opening
   other WUs' bodies mid-pass is the audit trap; deferring without a written capture is the rediscovery trap; the
   buffer entry is the only move avoiding both). Coordinate with `cross-wu-coordination`.
 
 ### `[ ]` **Codify the direct-edit-inbound-buffer vs. `arc-inbox` threshold on an always-loaded surface**
 
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-14); captured during
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-14); captured during
   `lifecycle-state-machine` forward-compat alignment.
-- *Concern:* the routing table + express lane *are* codified on an always-loaded surface (`DEV-RULES.ARC
+- _Concern:_ the routing table + express lane _are_ codified on an always-loaded surface (`DEV-RULES.ARC
   § Discovered Work Routing`), but the express lane names only "run an errand" and "scaffold a `backlog/` stub" —
-  writing into an **existing** WU's inbound buffer is described only as a *drain* action ("the housekeep drain
+  writing into an **existing** WU's inbound buffer is described only as a _drain_ action ("the housekeep drain
   writes it straight in"). So "may I write directly into another live WU's inbound buffer, or must it go via
   `arc-inbox`?" has no explicit codified line; it is derivable (out-of-WU + not-urgent → inbox default;
   planning-artifacts-aren't-capture-surfaces) but gets re-judged each time. Hit live deciding where to route the
   method-model note (now in `composable-workflows`).
-- *Proposed:* make the threshold explicit so it isn't re-derived — a sentence on the always-loaded surface
+- _Proposed:_ make the threshold explicit so it isn't re-derived — a sentence on the always-loaded surface
   and/or folded into this method. Candidate framing: an ad-hoc cross-WU write into an existing WU's inbound
   buffer, from another session, defaults to `arc-inbox` capture; direct-to-buffer is a drain action (or an
   explicit express-lane the rule names). Confirm the design-vs-consequence test is the intended line, or
@@ -54,40 +54,40 @@
 
 ### `[ ]` **`assess-wu-target` — a codified procedure for resolving a capture's backlog home**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: inbound-routing-method`), housekeep drain (2026-06-17);
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: inbound-routing-method`), housekeep drain (2026-06-17);
   captured during `release-ceremony-commits` session-init — raised while hand-resolving the `arc-design-audit`
   capture's own `WU_Target` (live dogfood: index-scan, then 2-candidate validate) (2026-06-17).
-- *Concern:* "capture with a backlog `WU_Target`" recurs constantly, and resolving the target — which existing
+- _Concern:_ "capture with a backlog `WU_Target`" recurs constantly, and resolving the target — which existing
   stub, or a new one — requires reading backlog drafts, costly and context-polluting. No codified procedure; it
   gets re-improvised at every drain (and `WU_Target: TBD` defers it there) and ad-hoc at capture.
-- *Gap in the method family:* `inbound-routing-method` codifies how to write a concern into a **chosen** stub
-  (assumes you know which); `assess-parallel-fit` matches a candidate against the in-flight set for a *concurrency*
+- _Gap in the method family:_ `inbound-routing-method` codifies how to write a concern into a **chosen** stub
+  (assumes you know which); `assess-parallel-fit` matches a candidate against the in-flight set for a _concurrency_
   verdict. Missing: **which** stub does this belong to (homing/discovery). Family: **homing** (`assess-wu-target`)
   → **integration** (`inbound-routing`), with **concurrency** (`assess-parallel-fit`) the cousin.
-- *Proposed shape:* a **method**, not a skill. **Two tiers:** (1) **Cheap** — match against a lightweight index
+- _Proposed shape:_ a **method**, not a skill. **Two tiers:** (1) **Cheap** — match against a lightweight index
   (slug + one-line purpose; ROADMAP carries much of it), no subagents; resolves the obvious-home majority. (2)
   **Scout** — on ambiguity (2–4) or no clean match, fan out Explore subagents over candidate drafts, each
   returning `{slug, fit, body-vs-buffer, confidence, rationale}`; the caller validates + picks, never seeing draft
   bodies. Optimizes calling-agent context load.
-- *Home note:* primary `inbound-routing-method` (find-the-home + write-it-in belong together); could stand alone
+- _Home note:_ primary `inbound-routing-method` (find-the-home + write-it-in belong together); could stand alone
   as a sibling method if that WU stays narrow.
 
 ### `[ ]` **Disposition gate ahead of homing — coupling + horizon tests (anti over-routing / under-execution)**
 
-- *Routed from:* `shared-inbox-model` grooming pass (2026-07-02) — surfaced deciding the shared-inbox model.
-- *Concern:* routing a capture to a backlog WU is a **scheduling decision disguised as a filing decision** — the
+- _Routed from:_ `shared-inbox-model` grooming pass (2026-07-02) — surfaced deciding the shared-inbox model.
+- _Concern:_ routing a capture to a backlog WU is a **scheduling decision disguised as a filing decision** — the
   concern inherits the target WU's activation horizon, which is opaque at routing time. The current rubric
   (domain fit + WU-floor) produces two observed failure modes: **over-routing** — a capture lands in the only
   backlog surface touching its domain (the bucket problem) and the eventual WU inherits an accreted mess — and
   **under-execution** — a good-fit but errand-shaped, high-value concern parks behind a WU that may not activate
   for months, when it could simply be executed near-term.
-- *Proposed:* a **disposition tier ahead of homing**, completing the family (disposition → homing
-  (`assess-wu-target`) → integration): (1) **coupling test** — does the concern *shape the target WU's design*
-  (a design input that must be decided with the WU → route) or merely *share its domain* (a neighbor → don't
+- _Proposed:_ a **disposition tier ahead of homing**, completing the family (disposition → homing
+  (`assess-wu-target`) → integration): (1) **coupling test** — does the concern _shape the target WU's design_
+  (a design input that must be decided with the WU → route) or merely _share its domain_ (a neighbor → don't
   route on fit alone)? (2) **horizon test** — is the target WU's activation horizon acceptable for this
   concern's value? High-value + errand-shaped + separable → the execute lane (personal errand if
   self-committed, else the project inbox), with at most a cross-reference to the WU.
-- *Cross-refs:* `justified-deferral` (the principle backstop — anti-rider's dual, guards the same drift at
+- _Cross-refs:_ `justified-deferral` (the principle backstop — anti-rider's dual, guards the same drift at
   execution time); the shared-inbox model WU (owns the surface semantics the dispositions route onto: personal
   retain = explicit near-term self-commitment, homeless default = promote to the project inbox).
 

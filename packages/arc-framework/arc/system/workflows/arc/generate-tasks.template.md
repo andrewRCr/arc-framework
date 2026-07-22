@@ -320,7 +320,7 @@ generation time, no implementing-session context exists to absorb them later. Ro
   context fits next to the task without bulking the body
 - **`notes-{name}.md` companion file** — substantive findings (multi-bullet, design rationale, alternatives,
   edge-case enumerations, mapping tables) where inline would crowd the task list. Each affected task body
-  cross-refs via `_Notes:_ See \`notes-{name}.md\` § <section>`
+  cross-refs via `_Note:_ See \`notes-{name}.md\` § <section>`
 
 ### Final suite-coherence pass (once, after all phases)
 
@@ -366,6 +366,8 @@ pre-save checklist and bundles the commit.
 - [ ] Subtask Goals (when present) carry separable sub-intent — diagnostic test passes
 - [ ] Peer descriptors (`_Context:_`, `_Rationale:_`, `_Approach:_`, `_Shape:_`, `_Note:_`) at
       root as siblings of Goal, after Goal — only when framing is genuinely load-bearing
+- [ ] Root descriptor clusters use a blank line between every entry when any entry wraps; all-one-line clusters
+      may be tight or loose. Preserve the blank boundary before operational children and `_Outcome:_`.
 - [ ] Subtasks and description bullets indent 4 spaces under the root-level descriptor block
 - [ ] Blank lines between every subtask (always — see § Blank-Line Discipline in the strategy doc)
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)

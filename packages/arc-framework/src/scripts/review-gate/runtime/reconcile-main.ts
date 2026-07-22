@@ -9,6 +9,7 @@
  */
 
 import type { GitExec } from "../../../lib/git/exec.js";
+import type { RawGitExec } from "../../../lib/change-facts.js";
 import type { HttpFetch } from "../hosts/github/api/http.js";
 import type { SelfHostingPolicy } from "../policy/self-hosting/schema.js";
 import {
@@ -48,6 +49,7 @@ export interface ReconcileMainDependencies {
   ) => Promise<ReconcileComposition>;
   fetch: HttpFetch;
   createGitExec: (gitToken: string) => GitExec;
+  createRawGitExec?: (gitToken: string) => RawGitExec;
   policy: SelfHostingPolicy;
   now: Date;
   appendTriggerDeletion?: (input: {
@@ -100,7 +102,12 @@ export async function runReconcileMain(
     policy: deps.policy,
     mode: parseContextMode(env.REVIEW_GATE_CONTEXT_MODE),
   };
-  const io: CompositionIo = { fetch: deps.fetch, exec: deps.createGitExec(requireEnv(env, "GITHUB_TOKEN")) };
+  const gitToken = requireEnv(env, "GITHUB_TOKEN");
+  const io: CompositionIo = {
+    fetch: deps.fetch,
+    exec: deps.createGitExec(gitToken),
+    ...(deps.createRawGitExec === undefined ? {} : { rawExec: deps.createRawGitExec(gitToken) }),
+  };
   const composition = await deps.createRuntime(config, io);
   if (env.ARC_TRIGGER_DELETION !== undefined && env.ARC_TRIGGER_DELETION !== "" && env.ARC_TRIGGER_DELETION !== "null") {
     let rawDeletion: unknown;

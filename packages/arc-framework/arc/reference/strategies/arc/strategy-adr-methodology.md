@@ -30,7 +30,7 @@ ADRs serve as:
 **Architecture Decision Record (ADR)** is a lightweight document that captures a significant architectural decision
 along with its context and consequences.
 
-**Core Principle:** Capture not just *what* was decided, but *why* it was decided and *what happens* as a result.
+**Core Principle:** Capture not just _what_ was decided, but _why_ it was decided and _what happens_ as a result.
 
 **Key Characteristics:**
 
