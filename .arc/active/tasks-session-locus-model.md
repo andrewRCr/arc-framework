@@ -689,7 +689,7 @@ as their machine-local occupancy authority.
   parent frames, and between-WU tails, while one narrowly selected pre-model Errand shape remains closable during
   rollout.
 
-### `[ ]` **6.4 Release or refuse transient frames correctly at handoff** — D4, D7, D9
+### `[x]` **6.4 Release or refuse transient frames correctly at handoff** — D4, D7, D9
 
 - _Goal:_ Handoff never strands a live lease or records an incomplete transient operation as safely paused, while a
   completed local child restores and hands off the correct parent frame.
@@ -700,15 +700,14 @@ as their machine-local occupancy authority.
           record-free tails remain between WUs, and incomplete housekeep, groom, partial, mismatched, or ambiguous
           generations refuse before branch or meta heuristics.
 
-    - `[ ]` **6.4.b Release every current-frame lease exactly once**
-        - After subject close/leave, release a restored WU through `arc locus release` with exact IDs and surface a
-          mismatch rather than clearing another session. A cold transient close/pop leaves a record-free primary and
-          performs no release.
-        - Keep release scoped to the explicit handoff path. Add no speculative harness-session-end event, hook
-          script, or install-recipe asset; abrupt termination remains recoverable through dead-anchor replacement.
-        - Build `test-first` (one behavior at a time):
-            - Cover direct WU handoff, warm-child parent restoration and release, cold no-op, exact-token mismatch,
-              duplicate release replay, abrupt process exit, and dead-anchor recovery without a hook.
+    - `[x]` **6.4.b Release every current-frame lease exactly once**
+        - Locked the explicit `handoffLocus` release sequence against the stateful CLI: the selected WU token releases
+          once, mismatches refuse, and an already-cleared replay is idempotent. A naturally exited process leaves its
+          lease for dead-anchor replacement by the next attach, with no session-end hook or installed asset; warm
+          restoration reprojects the parent release while cold completion remains record-free.
+
+- _Outcome:_ Handoff now starts from one exact current-frame action and converges through subject leave plus
+  generation-checked WU release to a record-free or idle-role boundary without clearing another session's lease.
 
 ### `[ ]` **6.5 Linearize lease-aware teardown with existing retirement guards** — D3, D10
 

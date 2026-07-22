@@ -81,6 +81,17 @@ describe("arc locus mutation commands", () => {
       recordId: attachment.recordId,
       leaseId: null,
     });
+
+    const replayed = await runAnchored([
+      "locus", "release", attachment.recordId, "--lease", attachment.leaseId, "--json",
+    ], nested);
+    expect(replayed.exitCode, replayed.stdout + replayed.stderr).toBe(0);
+    expect(JSON.parse(replayed.stdout.trim())).toMatchObject({
+      outcome: "idempotent",
+      operation: "locus-release",
+      recordId: attachment.recordId,
+      leaseId: null,
+    });
   });
 
   it("adopts an exact marker-and-meta work-unit role", async () => {
@@ -132,6 +143,44 @@ describe("arc locus mutation commands", () => {
       outcome: "idempotent",
       operation: "locus-attach",
       activeLocusPath: linkedCheckout,
+    });
+
+    const first = attached.results[0] as { recordId: string; leaseId: string };
+    const recovered = await runAnchoredSequence([
+      ["locus", "attach", "--checkout", linkedCheckout, "--json"],
+      ["status", "--session-handoff", "--json"],
+    ], repository);
+    expect(recovered.exitCode, recovered.stdout + recovered.stderr).toBe(0);
+    expect(recovered.results).toHaveLength(2);
+    const replacement = recovered.results[0] as { recordId: string; leaseId: string };
+    expect(replacement).toMatchObject({
+      outcome: "applied",
+      operation: "locus-attach",
+      recordId: first.recordId,
+    });
+    expect(replacement.leaseId).not.toBe(first.leaseId);
+    expect(recovered.results[1]).toMatchObject({
+      mode: "session-handoff",
+      handoffLocus: {
+        ok: true,
+        value: {
+          kind: "release-work-unit",
+          recordId: replacement.recordId,
+          leaseId: replacement.leaseId,
+          checkoutPath: linkedCheckout,
+        },
+      },
+    });
+
+    const released = await runAnchored([
+      "locus", "release", replacement.recordId, "--lease", replacement.leaseId, "--json",
+    ], repository);
+    expect(released.exitCode, released.stdout + released.stderr).toBe(0);
+    expect(JSON.parse(released.stdout.trim())).toMatchObject({
+      outcome: "applied",
+      operation: "locus-release",
+      recordId: replacement.recordId,
+      leaseId: null,
     });
   });
 
