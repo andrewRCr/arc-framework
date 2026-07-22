@@ -45,15 +45,15 @@ and the `Integrating` state. This strategy layers concurrency conventions on tha
 ## Worktrees by default
 
 Running more than one work unit at a time means keeping more than one branch checked out at a time. ARC's default
-mechanism for that is the **git worktree**: each in-flight work unit gets its own working directory, its own
-checked-out branch, and its own `meta-{name}.md` and SESSION-NOTES. This departs from the long-standing
+mechanism for that is the **git worktree**: each concurrently in-flight work unit gets its own working directory,
+its own checked-out branch, and its own `meta-{name}.md` and SESSION-NOTES. This departs from the long-standing
 solo-developer norm of one clone and one branch with `git checkout` to switch between them — deliberately, and
 primarily for the sake of agent isolation rather than developer convenience.
 
 - **Isolation is the primary justification.** When a coding agent drives the work, a single shared working
   directory is a correctness hazard: an agent mid-task on one branch cannot safely switch to another without
   disturbing uncommitted state, build artifacts, and its own orientation. A worktree gives each work unit a
-  stable, private directory that no concurrent session mutates underneath it. The per-work-unit `meta-{name}.md`
+  stable, WU-owned directory that no concurrent session mutates underneath it. The per-work-unit `meta-{name}.md`
   and the worktree-local, gitignored SESSION-NOTES ride that isolation — each worktree carries exactly the
   context its work unit needs, and nothing from a sibling's.
 
@@ -77,10 +77,10 @@ Worktrees are cheap to create and therefore easy to accumulate. Two habits keep 
   initialization surfaces worktrees whose work units have already shipped as a between-sessions nudge; act on
   that surface rather than letting stale directories pile up.
 
-- **Know which worktree you are in.** With several worktrees live, "which worktree am I in, and which work unit
-  does it host?" becomes a genuine question. Session initialization names the occupied worktree and its work
-  unit in its orientation, and the per-work-unit `meta-{name}.md` is the authoritative answer. Confirm the
-  directory matches the work unit you intend to touch before acting in it — especially after switching context.
+- **Know which locus you are in.** With several worktrees live, "which worktree am I in, and which role owns it?"
+  becomes a genuine question. `arc locus` and session initialization render the durable checkout role; the WU meta
+  supplies its project state. Confirm both match the work unit you intend to touch before acting — especially after
+  switching context.
 
 ### Risks to manage
 
@@ -282,26 +282,25 @@ makes this routine: you advance other work while one waits. Soft conventions for
 
 ## The primary worktree rests on the base
 
-The **primary worktree** — the checkout the repository was cloned into — is not a work unit's workspace. Its
-resting state is the base branch, and it serves as the **launchpad** ([Work Organization Strategy][work-org]
-§ Main-on-Main Pattern): the stable reference every work-unit worktree spawns from, and the always-current
-surface for work that has no branch of its own — base ceremonies, backlog grooming, inbox drains, and errand
-launches.
+The **physical primary** — the checkout the repository was cloned into — is the launchpad only while it is
+record-free, clean, and resting on the configured base ([Work Organization Strategy][work-org] § Main-on-Main
+Pattern). In that free state it supplies the stable reference for spawned worktrees and the first allocation for
+base ceremonies, grooming, inbox drains, and Errands.
 
-- **Work-unit work never occupies the primary.** An in-flight work unit always gets its own worktree. Checking a
-  work-unit branch out in the primary parks the launchpad on that branch for the unit's whole life and couples
-  every out-of-work-unit need to its state; spawn instead — worktree creation provisions itself (§ Worktrees by
-  default), so the cost is one command.
-- **Out-of-work-unit work runs in the primary as a bounded excursion.** An errand or grooming pass may switch
-  the primary onto its short-lived branch, do its work, and **return the primary to the base at close** — the
-  primary is never parked on a branch between excursions.
-- **One out-of-work-unit session at a time.** The primary is a single checkout: two sessions sharing it share
-  HEAD, index, and per-checkout state. Serialize out-of-work-unit work through it — one errand, drain, or
-  grooming session occupying it at a time. When it is occupied — or you want isolation — spawn a worktree for
-  the errand instead of queueing on or sharing the checkout.
-- **So "go to the primary" means "you're on the base."** Cutting a branch, freshening the base, or running a
-  base-context ceremony starts from a clean, current base without a preliminary checkout dance — that resting
-  state is what keeps every spawn cut from the right point.
+- **Spawn WUs by default under full protection.** Each WU normally owns a dedicated worktree from start through
+  teardown. `--here` is the explicit single-checkout escape hatch: it converts the physical primary into that WU's
+  occupied locus. While the WU role exists, the checkout is not also a launchpad and cannot host transient work or
+  another WU. Only exact WU teardown restores record-free base.
+- **Transient work allocates; it never displaces.** An Errand, grooming pass, or housekeep drain uses the free
+  primary when the allocation verb proves it safe. Under full protection, occupied-primary or requested-isolation
+  cases spawn a transient worktree; under partial protection, an unavailable primary refuses. No operation switches
+  a WU-owned checkout onto a transient branch.
+- **One transient session per checkout.** Roles and leases serialize occupancy; two sessions never share HEAD,
+  index, or per-checkout state. A full-mode close returns the primary to base or tears down the spawned transient
+  locus before popping the role.
+- **"Go to the free primary" includes the state proof.** Record absence alone is insufficient: dirty, off-base,
+  malformed, duplicate, or live/unknown lock evidence makes the primary unavailable or unsafe. Re-probe and consume
+  the CLI guidance rather than inferring availability from the branch name.
 
 Under partial protection the same shape holds with less apparatus: the base is a legitimate working surface, so
 an excursion often collapses to a direct base commit. The launchpad specialization is sharpest under full
@@ -422,8 +421,9 @@ different answers:
   edited — or removed — concurrently from two checkouts**: resolution takes the most recent write, so one edit
   can silently lose, and a removal pushed from a stale copy can resurrect the entry it removed. The exposure is
   narrow and the state recoverable (personal notes keep a pre-load backup); the operative discipline prevents it
-  structurally: **pull before writing, and serialize entry-level edits through one drain locus** — the primary
-  (§ The primary worktree rests on the base) — rather than editing the same entry from parallel worktrees.
+  structurally: **pull before writing, and serialize entry-level edits through one allocated drain locus** — the
+  free primary when available, otherwise the full-mode spawned fallback (§ The primary worktree rests on the base)
+  — rather than editing the same entry from parallel worktrees.
 
 **Cohort files ride a partition.** A `cohort-{name}.md` shared by sibling work units stays conflict-free through
 **per-member partition** — each member writes its own section — backed by the behind-base check as the net.
@@ -479,7 +479,7 @@ conventions above (append-only, primary-on-base, one session per checkout).
 - **A personal-notes entry lost your edit, or a removed entry reappeared.** Concurrent same-entry edits resolve
   by recency: the newer write wins silently, and a removal pushed from a stale copy can resurrect the entry.
   Restore what was lost from the pre-load backups kept beside the user files; going forward, pull before writing
-  and serialize entry edits through one drain locus (the primary).
+  and serialize entry edits through one allocated drain locus.
 
 - **An errand-record push reports a same-slug conflict.** The same errand slug was opened on two machines; the
   per-identity record ref wedges behind the collision (later record pushes queue behind it). Keep one record and

@@ -804,15 +804,10 @@ protection modes, recovery boundaries, and package/source parity.
 - _Goal:_ Teams encounter durable checkout roles, sequential transient allocation, identity-tail behavior, and
   occupancy-aware cleanup where those rules govern action, without adding another always-loaded document.
 
-    - `[ ]` **7.2.a Update concurrent-work and work-organization guidance**
-        - Update authoritative package `strategy-concurrent-work.md` and `strategy-work-organization.md`, then sync
-          their project copies, defining free-primary launchpad behavior, explicit in-place WU conversion, and
-          WU-owned-checkout exclusivity.
-        - Replace in-place displacement, one-PR-per-lane routing, and parked-groom branch guidance with the locus,
-          one-sweep, and groom-and-ship doctrines.
-        - Define bounded multi-WU grooming as one explicit immutable backlog-member set on one grooming identity and
-          branch; overlapping live member sets refuse, while started-WU work remains one branch per WU.
-        - Clarify that full-mode paused/review identity tails are operational re-entry, not durable WU planning.
+    - `[x]` **7.2.a Update concurrent-work and work-organization guidance**
+        - Updated canonical and self-hosted concurrency/work-organization doctrine with record-free primary
+          availability, exclusive WU locus ownership, explicit in-place conversion, allocation without displacement,
+          exact-set groom-and-ship claims, one-PR routing sweeps, and operational-only pause/review identity tails.
 
     - `[ ]` **7.2.b Update concise command and agent orientation surfaces**
         - Update authoritative package `reference/QUICK-REFERENCE.template.md` and
