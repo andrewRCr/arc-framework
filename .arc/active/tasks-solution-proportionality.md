@@ -96,21 +96,14 @@ institutionalizes unsupported machinery.
 _Purpose:_ Preserve ad-hoc design re-validation while making the installed canonical door discoverable and
 generated consistently for every selected harness.
 
-### `[ ]` **4.1 Extend the standalone design-audit door across both methods and input contracts**
+### `[x]` **4.1 Extend the standalone design-audit door across both methods and input contracts**
 
 - _Goal:_ A user-invoked design audit reports general design fitness and proportionality through one read-only door
   without weakening the finished-draft floor or exposing a second mutation gate.
 
-- _Note:_ Design coverage: PD6, PD9. The package and self-hosted canonical sources land as one review increment so
-  their neutral contract is aligned before recipe registration makes the Framework copy authoritative.
-
-    - Rewrite the package and self-hosted skill frontmatter `description` as a directive, trigger-bearing discovery
-      line for ad-hoc finished draft or spec re-validation across efficacy, fit, and proportionality.
-    - Map `design` to the proportionality `candidate`, derive `problem` from `goal-referents` or the artifact's own
-      problem statement, accept optional `substrate-referents`, and load both public methods.
-    - Report combined recommendations through `design-audit`'s existing severity vocabulary while keeping the door
-      user-invoked, read-only, and floored at a finished draft.
-    - Retain package/project byte parity for the canonical definition.
+- _Outcome:_ The byte-aligned canonical door now triggers explicitly on user-requested finished-design audits,
+  maps its three caller inputs across both public methods, and reports combined read-only recommendations through
+  the existing design-audit severity vocabulary.
 
 ### `[ ]` **4.2 Register and project the canonical design-audit skill**
 

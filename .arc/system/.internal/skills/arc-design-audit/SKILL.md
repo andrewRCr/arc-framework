@@ -1,14 +1,15 @@
 ---
 name: arc-design-audit
-description: "Ad-hoc design re-validation: efficacy (does the design solve the goal) and fit (optimal + forward-compatible) on a finished draft or spec."
+description: "Re-validate a finished draft or spec for efficacy, fit, and material proportionality when the user requests an ad-hoc design audit; do not use on unfinished drafts or mutate the design."
 disable-model-invocation: false
 ---
 
 # ARC Design Audit
 
-Standalone door to the [`design-audit` method][design-audit-method] — re-validate a **design** (not the artifact
-that records it) outside the planning ceremonies that run the rubric automatically. Read-only — no edits. The
-user decides when an audit is worth its cost; never invoke this proactively.
+Standalone door to the [`design-audit`][design-audit-method] and
+[`assess-design-proportionality`][proportionality-method] methods — re-validate a **design** (not the artifact that
+records it) outside the planning ceremonies that run the rubrics automatically. Read-only — no edits. The user
+decides when an audit is worth its cost; never invoke this proactively.
 
 **When this door earns its use** — the between-ceremony moments no workflow fire-point covers:
 
@@ -25,15 +26,19 @@ user decides when an audit is worth its cost; never invoke this proactively.
 This door is **not** a pre-task ritual: pausing to re-ground a task-as-written before implementation is
 `arc-task-audit`'s role, not this one.
 
-**Two caller inputs:**
+**Caller inputs:**
 
 - **design** — the artifact carrying the design under audit: a finished draft, or a spec (plus its upstream
-  draft when one exists). The rubric is floored at a finished draft.
+  draft when one exists). Pass it as `design` to `design-audit` and `candidate` to
+  `assess-design-proportionality`. The door is floored at a finished draft.
 - **goal-referents** (optional) — where the goal lives when the artifact doesn't fully carry it. Defaults to the
-  artifact's own problem / goal statement.
+  artifact's own problem / goal statement; use it as the proportionality `problem`.
+- **substrate-referents** (optional) — key existing surfaces relevant to material composition. Otherwise let the
+  proportionality method discover them narrowly from the problem and candidate.
 
-**Dispatch.** Load and run `.arc/system/methods/design-audit.md` with the inputs above. Report findings at the
-method's three severity levels as recommendations — a standalone run has no exit gate; the user decides what
-resolves before the design is relied on.
+**Dispatch.** Load and run both public methods with the mapped inputs above. Report their combined recommendations
+through `design-audit`'s three severity levels — a standalone run has no exit gate; the user decides what resolves
+before the design is relied on.
 
 [design-audit-method]: ../../../methods/design-audit.md
+[proportionality-method]: ../../../methods/assess-design-proportionality.md
