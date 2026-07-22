@@ -191,8 +191,8 @@ arc update
 ### Lifecycle Verbs
 
 The complete work-unit lifecycle command set — the full verb index. The `work-unit-lifecycle/` workflow files
-cover only the judgment-bearing subset, so a verb with no workflow file (`demote`, `teardown`, `stub`) is by
-design, not a missing ceremony.
+cover only the judgment-bearing subset, so a verb with no workflow file (`demote`, `rename`, `teardown`, `stub`) is
+by design, not a missing ceremony.
 
 ```bash
 # Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, dep-edges

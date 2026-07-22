@@ -468,6 +468,22 @@ describe("reconcileWorktree — rename move", () => {
     })).resolves.toEqual({ status: "already-moved", worktreePath: registered });
   });
 
+  it("moves an old path when the old slug contains the new slug", async () => {
+    const registered = "/custom/workspaces/project.foo-bar";
+    const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/foo");
+    const { ctx } = buildCtx({ worktreeList: listing });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/foo",
+      oldSlug: "foo-bar",
+      newSlug: "foo",
+    })).resolves.toEqual({
+      status: "move",
+      from: registered,
+      to: "/custom/workspaces/project.foo",
+    });
+  });
+
   it("still rewrites a final old slug outside an earlier new-slug occurrence", async () => {
     const registered = "/custom/workspaces/foo-bar-tools.foo";
     const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/foo-bar");

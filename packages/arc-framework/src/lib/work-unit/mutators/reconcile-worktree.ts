@@ -229,7 +229,14 @@ export async function resolveRenameWorktreeMove(
   const targetOffset = leaf.lastIndexOf(params.newSlug);
   if (
     targetOffset !== -1
-    && (slugOffset === -1 || (slugOffset >= targetOffset && slugOffset < targetOffset + params.newSlug.length))
+    && (
+      slugOffset === -1
+      || (
+        params.newSlug.includes(params.oldSlug)
+        && slugOffset >= targetOffset
+        && slugOffset + params.oldSlug.length <= targetOffset + params.newSlug.length
+      )
+    )
   ) {
     return { status: "already-moved", worktreePath: from };
   }
