@@ -19,6 +19,7 @@ import type {
 } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ErrandRecord } from "../../../src/lib/errand/record.js";
 import type { TransientIdentityRecord } from "../../../src/lib/errand/identity-record.js";
+import { locusStateFixture } from "../../fixtures/locus-state.js";
 
 const NOW = "2026-06-01T12:00:00.000Z";
 const TODAY = "2026-06-01";
@@ -103,6 +104,33 @@ function buildExec(options: { refs?: string; merged?: readonly string[] } = {}):
 }
 
 describe("runErrandState", () => {
+  it("surfaces locus identity tails in their fixed reader-owned action order", async () => {
+    const identity = {
+      kind: "errand" as const,
+      key: "fix-typo",
+      claimId: "c".repeat(32),
+      protection: "full" as const,
+      branch: "chore/fix-typo",
+      purpose: "errand" as const,
+      origin: "inbox" as const,
+      originEntry: "Fix typo",
+      dispatchId: "dispatch-1",
+      state: "paused" as const,
+      savedHead: "a".repeat(40),
+      changeRequest: null,
+    };
+    const locusState = locusStateFixture({
+      rows: [],
+      inFlightIdentities: [{ identity, actions: ["resume", "abandon"] }],
+    });
+    const result = await runErrandState({
+      exec: buildExec(), currentBranch: "main", hasBackingMeta: false, includeDiscovery: false,
+      entries: null, records: [], baseBranch: "main", staleThresholdDays: 1, nudge: nudge(false), locusState,
+    });
+
+    expect(result.identities).toEqual([{ identity, actions: ["resume", "abandon"] }]);
+  });
+
   it("resolves a resumable current branch from its record, without running discovery", async () => {
     const exec = buildExec();
 

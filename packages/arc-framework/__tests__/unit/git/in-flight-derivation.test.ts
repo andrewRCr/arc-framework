@@ -7,6 +7,7 @@ import {
 } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
 
 const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
 
@@ -543,6 +544,63 @@ describe("deriveInFlight", () => {
         branch: "chore/merged-errand",
       }),
     ]);
+  });
+
+  it("does not reclassify an exact live grooming identity as branch residue", async () => {
+    const identity = {
+      kind: "groom" as const,
+      key: "widget",
+      claimId: "c".repeat(32),
+      purpose: null,
+      anchorStub: "widget",
+      members: ["widget"],
+      openedBaseHead: "a".repeat(40),
+      protection: "full" as const,
+      branch: "chore/groom-widget",
+      state: "open" as const,
+      savedHead: null,
+      changeRequest: null,
+    };
+    const state = locusStateFixture({
+      rows: [],
+      inFlightIdentities: [{ identity, actions: ["resume", "abandon"] }],
+    });
+    state.roster.rows.push({
+      kind: "identity-only", checkoutPath: null, primary: null, recordId: null, role: null,
+      identity, lease: null, frame: "idle", derived: null, diagnostics: [],
+    });
+
+    const result = await deriveInFlight({
+      exec: makeExec({}), branches: ["chore/groom-widget"], identity: null, teamMode: false, locusState: state,
+    });
+
+    expect(result.entries).toEqual([]);
+    expect(result.residue).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("retains a work-unit role as branch authority after its active meta is archived", async () => {
+    const result = await deriveInFlight({
+      exec: makeExec({}),
+      branches: ["feat/shipped-widget"],
+      identity: null,
+      teamMode: false,
+      locusState: locusStateFixture({ rows: [managedWorkUnitRow("shipped-widget", "/wt/widget")] }),
+    });
+
+    expect(result.residue).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("keeps branch cleanup indeterminate when the complete locus read is unavailable", async () => {
+    const result = await deriveInFlight({
+      exec: makeExec({}), branches: ["fix/legacy"], identity: null, teamMode: false, locusState: null,
+    });
+
+    expect(result.residue).toEqual([{
+      branch: "fix/legacy", slug: "legacy", reason: "classification-unavailable",
+    }]);
+    expect(result.warnings).toEqual([]);
   });
 
   it("surfaces an errand record whose branch no longer exists", async () => {

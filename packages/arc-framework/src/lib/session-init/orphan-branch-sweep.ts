@@ -34,11 +34,13 @@ import { isLandedInBase } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
 import { listGoneUpstreamBranches } from "../git/gone-upstream-branches.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
+import type { LocusStateV1 } from "../locus/schema/index.js";
 import { SlugSchema } from "../kernel/index.js";
 import {
   branchToWorkUnitSlug,
   readShippedWorkUnitsFromRef,
 } from "../work-unit/completed-index.js";
+import { locusOwnsBranch } from "./locus-classification.js";
 
 /** The ref namespace scoping the sweep to local branches. */
 const LOCAL_BRANCH_REF_PREFIX = "refs/heads/";
@@ -73,6 +75,8 @@ export interface RunOrphanBranchSweepOptions {
    * rather than offer a delete that could orphan an errand record.
    */
   errandBranches: ReadonlySet<string> | null;
+  /** Complete locus projection; null suppresses cleanup offers. */
+  locusState?: LocusStateV1 | null;
   exec: GitExec;
 }
 
@@ -93,12 +97,15 @@ export async function runOrphanBranchSweep(
   // Without the errand-record index an errand branch is indistinguishable from
   // a WU branch, and a `git branch -d` offer on one would orphan its record —
   // decline the whole advisory rather than risk it.
-  if (errandBranches === null) {
+  if (errandBranches === null || options.locusState === null) {
     return { orphans: [] };
   }
+  const locusState = options.locusState;
 
   const goneBranches = (await listGoneUpstreamBranches(exec, LOCAL_BRANCH_REF_PREFIX)).filter(
-    (branch) => branchToWorkUnitSlug(branch) !== null && !errandBranches.has(branch),
+    (branch) => branchToWorkUnitSlug(branch) !== null
+      && !errandBranches.has(branch)
+      && (locusState === undefined || !locusOwnsBranch(locusState, branch)),
   );
   if (goneBranches.length === 0) {
     return { orphans: [] };

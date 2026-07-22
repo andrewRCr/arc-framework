@@ -110,6 +110,7 @@ import {
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { runLocusStateProbe } from "./locus-state-probe.js";
+import type { LocusStateV1 } from "../lib/locus/schema/index.js";
 import {
   emitCompactionSeed,
   parseUncommittedFiles,
@@ -415,6 +416,28 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
     const extensionsP = runExtensionsSessionInitStatus({ cwd });
+    let locusStatePromise: Promise<LocusStateV1> | undefined;
+    const getLocusState = (id: string): Promise<LocusStateV1> => {
+      locusStatePromise ??= (async () => {
+        const [resolved, extensions] = await Promise.all([resolvedSettingsP, extensionsP]);
+        return runLocusStateProbe({
+          cwd,
+          identity: id,
+          baseBranch: resolved.settings["branch.base"],
+          activeExtensions: extensions.active,
+          exec: gitExec,
+        });
+      })();
+      return locusStatePromise;
+    };
+    const getOptionalLocusState = async (): Promise<LocusStateV1 | null> => {
+      if (identity === null) return null;
+      try {
+        return await getLocusState(identity);
+      } catch {
+        return null;
+      }
+    };
     const compactionSeedGitSnapshotP = opts.writeCompactionSeed
       ? readCompactionSeedGitSnapshot(cwd)
       : null;
@@ -458,10 +481,11 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         await pruneRemoteTrackingRefs(gitExec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const [recordResult, transientIndexes, parkedSlugs] = await Promise.all([
+        const [recordResult, transientIndexes, parkedSlugs, locusState] = await Promise.all([
           getErrandRecordsResult(),
           getTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
+          getOptionalLocusState(),
         ]);
         const records = recordResult.records;
         const errandSlugByBranch = new Map([
@@ -477,6 +501,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           errandSlugByBranch,
           expectedTransientByBranch: transientIndexes.expectedByBranch,
           errandRecordsComplete: recordResult.complete,
+          locusState,
           parkedSlugs,
         });
         // Unreachable: derive nothing rather than a half-resolved view over
@@ -494,16 +519,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       return oraclePromise;
     };
     const probes: SessionInitProbes = {
-      locusState: async (id) => {
-        const [resolved, extensions] = await Promise.all([resolvedSettingsP, extensionsP]);
-        return runLocusStateProbe({
-          cwd,
-          identity: id,
-          baseBranch: resolved.settings["branch.base"],
-          activeExtensions: extensions.active,
-          exec: gitExec,
-        });
-      },
+      locusState: getLocusState,
       user: async (id) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
@@ -613,7 +629,11 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
       },
       sweep: async (roster, worktreeIdentity) => {
-        const [resolved, transientIndexes] = await Promise.all([resolvedSettingsP, getTransientIndexes()]);
+        const [resolved, transientIndexes, locusState] = await Promise.all([
+          resolvedSettingsP,
+          getTransientIndexes(),
+          getOptionalLocusState(),
+        ]);
         return runStaleWorktreeSweep({
           roster,
           worktreeIdentity,
@@ -625,6 +645,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
           readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
           expectedTransientByBranch: transientIndexes.expectedByBranch,
+          locusState,
         });
       },
       orphanBranchSweep: async (worktreeIdentity) => {
@@ -633,12 +654,16 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         // (resume, close replay) own their cleanup. With no resolved identity
         // the records are unreadable, so pass `null` and the sweep declines
         // rather than offering deletes that could orphan a record.
-        const errandRecords = identity === null ? null : await getErrandRecords();
+        const [errandRecords, locusState] = await Promise.all([
+          identity === null ? Promise.resolve(null) : getErrandRecords(),
+          getOptionalLocusState(),
+        ]);
         return runOrphanBranchSweep({
           worktreeIdentity,
           baseBranch: resolved.settings["branch.base"],
           errandBranches:
             errandRecords === null ? null : new Set(errandRecords.map((record) => record.branch)),
+          locusState,
           exec: gitExec,
         });
       },
@@ -666,7 +691,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         // with the in-flight derivation); empty when no identity resolved.
         const recordResult = await getErrandRecordsResult();
         const records = recordResult.records;
-        const transientIndexes = await getTransientIndexes();
+        const [transientIndexes, locusState] = await Promise.all([
+          getTransientIndexes(),
+          getOptionalLocusState(),
+        ]);
         let entries: InFlightEntry[] | null = null;
         let residue: InFlightResidue[] = [];
         let oracleWarnings: string[] = [...recordResult.warnings];
@@ -684,6 +712,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           entries,
           residue,
           oracleWarnings,
+          locusState,
           records,
           transientRecords: transientIndexes.records,
           baseBranch: resolved.settings["branch.base"],

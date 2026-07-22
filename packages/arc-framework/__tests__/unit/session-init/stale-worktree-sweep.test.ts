@@ -9,6 +9,7 @@ import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
+import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
 
 const shipped = new Set(["work-organization-reform"]);
 const emptyBlobReader: RunStaleWorktreeSweepOptions["readBlob"] = async () => null;
@@ -191,6 +192,35 @@ function runSweep(opts: {
 }
 
 describe("runStaleWorktreeSweep", () => {
+  it("uses a retained WU role as authority during the archive-to-teardown interval", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
+      locusState: locusStateFixture({
+        rows: [managedWorkUnitRow("work-organization-reform", "/wt/wor")],
+      }),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [
+          { path: "/primary", head: "1".repeat(40), branch: "main", detached: false, primary: true },
+          {
+            path: "/wt/wor", head: "2".repeat(40), branch: "feat/work-organization-reform",
+            detached: false, primary: false,
+          },
+        ],
+      }),
+    });
+
+    expect(result.worktrees).toEqual([{
+      kind: "branched", worktreePath: "/wt/wor", branch: "feat/work-organization-reform",
+      decision: { action: "removable" },
+    }]);
+  });
+
   it("is removable for a shipped worktree that is clean, merged, and ARC-marked", async () => {
     const result = await runSweep({ clean: true, merged: true, marker: presentMarker });
 

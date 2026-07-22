@@ -738,18 +738,11 @@ as their machine-local occupancy authority.
 - _Goal:_ Session entry and cleanup display one calm, actionable interpretation of occupancy and residue without
   hiding valid routes or auto-resolving uncertain state.
 
-    - `[ ]` **6.6.a Replace branch-shape residue inference with locus classifications**
-        - Update `packages/arc-framework/src/lib/session-init/errand-state.ts`,
-          `packages/arc-framework/src/lib/git/in-flight-derivation.ts`, the session-init stale-worktree and
-          orphan-branch sweeps, and materialize surfaces to consume managed-role and identity-only rows.
-        - Stop classifying live `chore/groom-*` branches as unowned residue and surface open/paused/awaiting identities
-          with their fixed action order.
-        - Treat a retained WU role as lifecycle authority throughout the archive-to-teardown interval even after its
-          active meta is gone; keep detached or branchless aftermath distinct from the state that emitted an advisory.
-        - Build `test-first` (one behavior at a time):
-            - Cover legacy branches, sanctioned grooming, all exact v3 protected branches, incomplete identity reads,
-              archive-to-teardown WUs, detached aftermath, orphan-delete suppression, allocation gaps, and stale
-              records.
+    - `[x]` **6.6.a Replace branch-shape residue inference with locus classifications**
+        - Threaded the cached complete locus graph through in-flight derivation, Errand/materialize state, and stale-
+          worktree/orphan sweeps. Exact v3 identity branches and retained WU roles now suppress false residue or delete
+          offers; incomplete locus authority suppresses cleanup, while legacy, stale-record, and husk evidence remain
+          distinct and visible.
 
     - `[ ]` **6.6.b Render CLI-precomposed reconciliation and cleanup text**
         - Feed current frame, primary availability, recovery, reconciliation, and lease-aware cleanup results into

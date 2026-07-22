@@ -26,6 +26,7 @@ import type { InFlightEntry, InFlightErrand, InFlightResidue } from "../git/in-f
 import { isLandedInBase } from "../git/branch-containment.js";
 import type { ErrandRecord } from "../errand/record.js";
 import type { TransientIdentityRecord } from "../errand/identity-record.js";
+import type { LocusStateV1 } from "../locus/schema/index.js";
 
 import { detectErrandResume, type ErrandResumeResult } from "./errand-resume-detection.js";
 import type { NudgeMarkerState } from "./nudge-rate-limit.js";
@@ -57,6 +58,8 @@ export interface ErrandStateResult {
   nudge: ErrandNudgeState;
   /** Soft diagnostics; discovery failures should not block session-init. */
   warnings: string[];
+  /** Locus-owned transient identities in their fixed action order. */
+  identities?: LocusStateV1["inFlightIdentities"];
 }
 
 export interface RunErrandStateOptions {
@@ -75,6 +78,8 @@ export interface RunErrandStateOptions {
   residue?: readonly InFlightResidue[];
   /** Soft diagnostics already emitted by the in-flight oracle. */
   oracleWarnings?: readonly string[];
+  /** Complete locus projection used to surface identity tails. */
+  locusState?: LocusStateV1 | null;
   /**
    * Errand records (identity-scoped) — the identity oracle for resume and
    * discovery. Empty when identity is absent or the errand ref is unborn; a
@@ -104,6 +109,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
   const residue = [...(options.residue ?? [])];
   // Branch→slug index: the record-derived identity oracle the probes resolve against.
   const slugByBranch = new Map(options.records.map((record) => [record.branch, record.slug]));
+  const identities = options.locusState?.inFlightIdentities;
 
   const resume = detectErrandResume({
     currentBranch: options.currentBranch,
@@ -112,7 +118,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
   });
 
   if (!options.includeDiscovery) {
-    return emptyDiscovery(resume, options.nudge, residue, oracleWarnings);
+    return emptyDiscovery(resume, options.nudge, residue, oracleWarnings, identities);
   }
   if (options.entries === null) {
     return emptyDiscovery(
@@ -120,6 +126,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
       options.nudge,
       residue,
       [...oracleWarnings, "Errand discovery skipped because the in-flight oracle was unavailable."],
+      identities,
     );
   }
 
@@ -138,6 +145,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
       residue,
       nudge: options.nudge,
       warnings: oracleWarnings,
+      ...(identities === undefined ? {} : { identities }),
     };
   }
 
@@ -171,6 +179,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
     residue,
     nudge: options.nudge,
     warnings: [...oracleWarnings, ...timestamps.warnings],
+    ...(identities === undefined ? {} : { identities }),
   };
 }
 
@@ -193,6 +202,7 @@ function emptyDiscovery(
   nudge: ErrandNudgeState,
   residue: InFlightResidue[],
   warnings: string[],
+  identities?: LocusStateV1["inFlightIdentities"],
 ): ErrandStateResult {
   return {
     resume,
@@ -201,6 +211,7 @@ function emptyDiscovery(
     residue,
     nudge,
     warnings,
+    ...(identities === undefined ? {} : { identities }),
   };
 }
 

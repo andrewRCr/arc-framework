@@ -37,6 +37,7 @@ import {
 } from "../git/worktree-marker.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import type { ProtectionMode } from "../git/write-context.js";
+import type { LocusStateV1 } from "../locus/schema/index.js";
 import {
   resolvePrimaryWorktreePath,
   scanRegisteredWorktrees,
@@ -54,6 +55,7 @@ import {
   revalidateDecodedHuskRetirementEvidence,
   type TeardownBlobReader,
 } from "../work-unit/teardown-retirement-driver.js";
+import { locusWorkUnitAtPath } from "./locus-classification.js";
 
 export interface StaleWorktreeSweepInput {
   /** Identity-filtered in-flight worktree roster (reused from the session-init roster slot). */
@@ -158,6 +160,8 @@ export interface RunStaleWorktreeSweepOptions {
   ) => Promise<boolean>;
   /** Exact transient identity generation keyed by its branch projection. */
   expectedTransientByBranch?: ReadonlyMap<string, TransientWorktreeSubject>;
+  /** Complete locus projection; null suppresses cleanup offers. */
+  locusState?: LocusStateV1 | null;
 }
 
 /**
@@ -179,6 +183,10 @@ export async function runStaleWorktreeSweep(
   const integrationTarget = `origin/${baseBranch}`;
   const evidenceBaseRef = options.protection === "full" ? integrationTarget : baseBranch;
 
+  if (options.locusState === null) {
+    return { worktrees: [], warnings: roster.warnings };
+  }
+
   if (
     worktreeIdentity.kind === "linked"
     && options.teamMode === true
@@ -192,7 +200,19 @@ export async function runStaleWorktreeSweep(
     ? findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity })
     : { candidates: [], warnings: roster.warnings };
   const warnings = [...selected.warnings];
-  const candidates = selected.candidates;
+  const scan = await (options.scanWorktrees ?? scanRegisteredWorktrees)(exec);
+  const retainedRoleCandidates = scan.ok && options.locusState !== undefined
+    ? scan.worktrees.flatMap((entry): WorktreeRosterEntry[] => {
+        if (entry.primary || entry.branch === null) return [];
+        const owned = locusWorkUnitAtPath(options.locusState as LocusStateV1, entry.path);
+        return owned !== null && shipped.has(owned.name)
+          ? [{ worktreePath: entry.path, branch: entry.branch }]
+          : [];
+      })
+    : [];
+  const candidates = [...new Map(
+    [...selected.candidates, ...retainedRoleCandidates].map((entry) => [entry.worktreePath, entry]),
+  ).values()];
   const primaryWorktreePath = candidates.length === 0 ? null : await resolvePrimaryWorktreePath(exec);
 
   const worktrees: StaleWorktreeReport[] = await Promise.all(
@@ -216,7 +236,6 @@ export async function runStaleWorktreeSweep(
     }),
   );
 
-  const scan = await (options.scanWorktrees ?? scanRegisteredWorktrees)(exec);
   if (!scan.ok) {
     warnings.push(`Could not scan registered worktrees: ${scan.message}`);
     return { worktrees, warnings };
