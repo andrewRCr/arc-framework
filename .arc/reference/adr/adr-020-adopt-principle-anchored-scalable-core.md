@@ -22,7 +22,7 @@ design variable").
 The tension: the mode/config surface **reified what the philosophy defines as continuous
 convention-scaling into discrete, sticky, siloed shapes.** A small team using an in-git backlog is a
 natural reduction of a single coherent baseline — not a separate "mode." Lite's "no work units, one flat
-task list" is a *different core*, not a scaled-down one. The proliferation muddies the model for users and
+task list" is a _different core_, not a scaled-down one. The proliferation muddies the model for users and
 for maintainers, and resists maintenance.
 
 This was pressure-tested with five scenario traces (solo/module-off, distributed-team/multi-tracker,
@@ -63,7 +63,7 @@ We will scale ARC around a principle-anchored core. Specifically:
 4. **Scale grammar, never scale discipline.** What scales: phase-grouping (flat at quick, phased at
    standard), verification-as-explicit-phase vs. gate-check, spec weight, plan/PRD presence, and
    generation-workflow ceremony. What never scales: review increments, the interlocks, quality gates,
-   *that* intent-verification happens, and `meta-*` + spec-in-some-form.
+   _that_ intent-verification happens, and `meta-*` + spec-in-some-form.
 
 5. **Intent-verification scales with the intent→implementation gap, which is what the tier encodes.**
    Success criteria must be falsifiable against the spec; if not even one can be written, the work is
@@ -77,11 +77,11 @@ We will scale ARC around a principle-anchored core. Specifically:
     - **Tracker integration is orthogonal** (an independent axis, not a mode), expressed via the per-WU
       `Origin` field plus a project-level integration pointer. **`external` ceases to be a config value:**
       it is `module-off + tracker-configured`; `none` is `module-off + no tracker`. The combination
-      `module-on + tracker` (in-git backlog *and* `Origin`s linked to an external tracker) — inexpressible
+      `module-on + tracker` (in-git backlog _and_ `Origin`s linked to an external tracker) — inexpressible
       under the enum — becomes valid.
     - **Archive is a separate, orthogonal toggle** (`archive.preserve`): preserve completed artifacts to
       `completed/`, or delete on integration. Principle-safe because git is the durable record (P6); the
-      archival surface is convention (P10). What the toggle trades is a durable *synthesis* layer (per the
+      archival surface is convention (P10). What the toggle trades is a durable _synthesis_ layer (per the
       synthesis-vs-record distinction in `plan-documentation-surface-routing.md`), not the record itself.
       Default: preserve.
 
@@ -121,7 +121,7 @@ We will scale ARC around a principle-anchored core. Specifically:
   rather than a degenerate "one big phase" shape.
 - The previously-inexpressible `module-on + tracker` combination (in-git backlog with external linkage)
   becomes a first-class configuration.
-- The reform's *behavioral* surface is small: because the underlying machinery is already largely
+- The reform's _behavioral_ surface is small: because the underlying machinery is already largely
   mode-orthogonal, the work concentrates in the config model, the install recipe, scaffolding/validation,
   prose, and a handful of specific workflow seams.
 
@@ -150,13 +150,13 @@ We will scale ARC around a principle-anchored core. Specifically:
 This ADR is a coordinating north star for several in-flight work units; it asserts invariants and defers
 shape. Cross-references resolve through it.
 
-- **`plan-arc-modes.md`** — the planned `pm.mode → pm.layer` rename changes *shape*, not just name: a
+- **`plan-arc-modes.md`** — the planned `pm.mode → pm.layer` rename changes _shape_, not just name: a
   boolean Planning Module toggle, not a renamed enum. **Lite dissolves entirely** — it is not a distinct
   mode but a region of the scaling axes (Planning Module off/minimal + atomic/quick tier + minimum depth,
   reached by the guided-init defaults). Its "no work units, one flat task list" structural shape is
   eliminated by the invariant floor, and the name does not survive (consistent with ADR-010's
-  replace-profiles-with-strong-defaults stance). Lite therefore stops being a *deliverable* of arc-modes
-  and becomes a *consequence* of this ADR; **Local remains arc-modes' live, orthogonal deliverable**
+  replace-profiles-with-strong-defaults stance). Lite therefore stops being a _deliverable_ of arc-modes
+  and becomes a _consequence_ of this ADR; **Local remains arc-modes' live, orthogonal deliverable**
   (storage/visibility axis, unaffected). `team.mode → team.enabled` is consistent with the toggle
   direction. arc-modes owns finalizing the disposition at its PRD; this ADR steers it.
 - **`plan-agile-wu-lifecycle.md`** — ratifies the floor; absorbs two steers: (a) the spec is always a
@@ -167,14 +167,14 @@ shape. Cross-references resolve through it.
 - **`plan-coord-probe.md`** — `pm.mode: external` collapses to `module-off + tracker`; the `coord.adapter`
   surface rebases onto the toggle. Multi-tracker remains foreclosed (per-WU `Origin` is heterogeneous-
   tolerant; the project-level adapter is single).
-- **`plan-arc-backend.md`** — sharpened scope: the backend is the canonical store for *mutable shared
-  state* (inbox drains, priority/ordering), which is unsolvable in-git by git's nature. Derived state
+- **`plan-arc-backend.md`** — sharpened scope: the backend is the canonical store for _mutable shared
+  state_ (inbox drains, priority/ordering), which is unsolvable in-git by git's nature. Derived state
   (ROADMAP) is not backend-dependent.
 - **`plan-concurrent-work-conventions.md`** — the derived-vs-mutated split and the two partial in-git
   mitigations (serialization-point ROADMAP regen; `merge=union` for appends) belong here.
-- **`plan-documentation-surface-routing.md`** — owns *what* completion surfaces carry; this ADR owns
-  *whether* `completed/` persists. The synthesis-vs-record framing supplies the archive toggle's value-prop.
-- **Tracker-shape ownership is open.** Scalable-core defines the tracker *invariants* (orthogonality;
+- **`plan-documentation-surface-routing.md`** — owns _what_ completion surfaces carry; this ADR owns
+  _whether_ `completed/` persists. The synthesis-vs-record framing supplies the archive toggle's value-prop.
+- **Tracker-shape ownership is open.** Scalable-core defines the tracker _invariants_ (orthogonality;
   per-WU `Origin` + project-level pointer; multi-tracker foreclosed). If scalable-core sequences first, it
   is positioned to define the refined shape; otherwise the shape lands at whichever of arc-modes /
   coord-probe leads. Sequencing is undecided; ownership follows it.

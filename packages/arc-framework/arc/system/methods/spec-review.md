@@ -54,7 +54,7 @@ together and refers to real things.
   exhaustive and unambiguous; the cross-cutting surface present; all concrete references grounded.
 
 **Posture.** Lightweight and corrective: fix what you can inline as you go, and surface anything that needs a
-decision at the finalization stop rather than adding a gate. A finding that reopens *design* — a masked decision,
+decision at the finalization stop rather than adding a gate. A finding that reopens _design_ — a masked decision,
 an unsettled fundamental — is a derivation signal: route it back to the design (draft / spec), never paper over it
 in the spec.
 

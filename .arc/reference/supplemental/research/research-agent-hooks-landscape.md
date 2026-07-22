@@ -162,17 +162,17 @@ leverage platform-specific hooks underneath.
 
 - **Configuration**: Not explicitly documented
 - **Key events**: conversation_start, per_prompt (context hooks for dynamic injection)
-- **Status**: *Not confirmed* — context hooks exist but detailed lifecycle spec is unclear
+- **Status**: _Not confirmed_ — context hooks exist but detailed lifecycle spec is unclear
 - **Sources**: [AWS DevOps Blog — Amazon Q CLI][aws-q-cli],
   [Medium — Maximizing Amazon Q CLI][medium-q-cli]
 
 #### Continue IDE
 
-- **Status**: *Not confirmed* — no hook documentation found
+- **Status**: _Not confirmed_ — no hook documentation found
 
 #### Aider (aider.chat)
 
-- **Core CLI**: *Not confirmed* — official docs lack hook specification
+- **Core CLI**: _Not confirmed_ — official docs lack hook specification
 - **AiderDesk** (desktop variant): supports hooks (onTaskCreated, onTaskClosed,
   onPromptSubmitted, onAgentStarted, onAgentFinished, onAgentStepFinished)
 - **Source**: [Aider Options Reference][aider-docs]

@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { lint } from "markdownlint/promise";
 
 import {
   composeProjectReadinessView,
@@ -183,6 +184,23 @@ describe("composeProjectReadinessView", () => {
     expect(view).toContain("| `Active` | active-alpha | P1");
     expect(view).toContain("| ready-beta | P2");
     expect(view).toContain("| blocked-gamma | P3");
+  });
+
+  it("keeps derived readiness tables display-aligned for wide record values", async () => {
+    const view = composeProjectReadinessView({
+      renderedRef: "abc1234",
+      title: "Roadmap: Widths",
+      records: mergeProjectReadinessRecords([
+        record("表示", { location: "active", state: "Active", owner: "é", cohort: "team/👩‍💻" }),
+        record("plain", { location: "planned", dependsOn: ["✈️"] }),
+      ]),
+    });
+    const results = await lint({
+      strings: { ".arc/backlog/ROADMAP.md": view },
+      config: { default: false, MD060: { style: "aligned" } },
+    });
+
+    expect(results[".arc/backlog/ROADMAP.md"]).toEqual([]);
   });
 
   it("uses the default title without reading the existing ROADMAP", async () => {

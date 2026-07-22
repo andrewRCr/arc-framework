@@ -9,13 +9,13 @@ Accepted
 ADR-001 established 11 principles and 19 conventions, with platform-specific assumptions (GitHub Actions, `gh` CLI,
 PR-based workflows) classified as convention under P6 (traceability). ADR-003 designed two customization mechanisms:
 config toggles enforcement, extension points add behavior. ADR-004 identified a gap: neither mechanism handles teams
-that want to *replace* ARC's default convention implementations with their own.
+that want to _replace_ ARC's default convention implementations with their own.
 
 Three adopter postures exist:
 
 1. "I don't care about format" → `commit.format: any`, agent produces quality output. **Config handles this.**
 2. "I want ARC's convention enforced" → `commit.format: conventional`, hooks enforce. **Config handles this.**
-3. "I want something *different* enforced" → No mechanism exists. **This ADR addresses this.**
+3. "I want something _different_ enforced" → No mechanism exists. **This ADR addresses this.**
 
 Case 3 is common and real: Jira ticket references instead of context footers, team-specific commit formats,
 external trackers as status-of-record instead of markdown checkboxes, GitLab instead of GitHub. These are active
@@ -40,7 +40,7 @@ substitution path exists.
 relates to its own integrated guidance model.
 
 **The gap in the customization model.** ADR-003 established config (toggles) and extensions (adds). The missing
-mechanism is *replacement* — a structured way for teams to substitute ARC's default convention implementations
+mechanism is _replacement_ — a structured way for teams to substitute ARC's default convention implementations
 with their own, without editing framework-owned files. ADR-004's two-axis adoption model (enforcement depth ×
 method customization) explicitly depends on this mechanism for the second axis.
 
@@ -181,7 +181,7 @@ commit.context_pattern: "^(Closes|Fixes|Relates to) [A-Z]+-[0-9]+"
 
 This extends ADR-003's config system naturally — `arc_config_get` already reads values from the flat file. Adding
 `commit.custom_pattern` and `commit.context_pattern` settings uses the same grep/cut parsing. The `custom` value
-is the bridge between "I want enforcement" and "I want *different* enforcement."
+is the bridge between "I want enforcement" and "I want _different_ enforcement."
 
 **Config provides common pattern examples** as inline comments to reduce regex-authoring friction:
 
@@ -350,10 +350,10 @@ The four mechanisms form a complete customization model:
 
 **Boundary tests:**
 
-- If the customization changes a *value* that affects existing behavior → **config**
-- If it adds *new steps* at a workflow point → **extension**
-- If it *replaces* how ARC does something with how the team does it → **method override**
-- If it changes *which CLI tool* to use for an operation → **QUICK-REFERENCE**
+- If the customization changes a _value_ that affects existing behavior → **config**
+- If it adds _new steps_ at a workflow point → **extension**
+- If it _replaces_ how ARC does something with how the team does it → **method override**
+- If it changes _which CLI tool_ to use for an operation → **QUICK-REFERENCE**
 
 Config, extensions, and method overrides are the three mechanisms of ADR-004's customization axis. QUICK-REFERENCE
 is not a "mechanism" in the same sense — it's existing project-specific documentation that naturally absorbs

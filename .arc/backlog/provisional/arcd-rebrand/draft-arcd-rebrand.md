@@ -31,7 +31,7 @@ The work merit holds independent of marketing motivation. The intellectual-clari
 in the AI space) survives the reframe. The rebrand isn't pre-1.0 critical; it sits provisional until adoption
 posture clarifies.
 
-A separately-captured *methodology-positioning phrase* concern lives in `plan-docs-content-sweep.md` (item #9).
+A separately-captured _methodology-positioning phrase_ concern lives in `plan-docs-content-sweep.md` (item #9).
 The load-bearing identity work is public-facing copy, not naming.
 
 ---

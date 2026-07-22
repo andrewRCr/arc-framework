@@ -9,15 +9,15 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
 ### `[ ]` **Content-hash the dev-build guard's bundle inputs**
 
-- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-13); reclassified because the content-hash
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-13); reclassified because the content-hash
   sidecar and fail-safe detection policy cross the load-bearing dev-build guard's design floor.
-- *Concern:* PR #223 scoped staleness to the bundle's esbuild-metafile input graph, but the verdict remains
+- _Concern:_ PR #223 scoped staleness to the bundle's esbuild-metafile input graph, but the verdict remains
   mtime-based. Checkout or rebase can rewrite input mtimes without changing content and falsely report stale dist.
-- *Approach:* persist a build-time content hash over bundle inputs and compare it at check time, reusing the
+- _Approach:_ persist a build-time content hash over bundle inputs and compare it at check time, reusing the
   metafile input selection. A missing, malformed, or unreadable hash sidecar must retain the conservative fallback.
   Coordinate this correctness mechanism with the WU's hard-fail policy rather than creating a second guard owner.
 
@@ -30,7 +30,7 @@ state-mutating cross-machine operations — `arc sync`, `user save` / `push` / `
 and the `status --json --session-init` / `--session-handoff` probes. Read / classify commands — `housekeep
 check`, `errand check` — warn and proceed.
 
-This is internally consistent today: both classifiers are advisory, not mutators. But their output *drives* later
+This is internally consistent today: both classifiers are advisory, not mutators. But their output _drives_ later
 state — `housekeep check`'s write-context verdict routes where the drain writes; a stale `dist` could make a
 classifier mis-report and mis-route. So the open question is whether "is itself a mutator" is the right axis, or
 whether "feeds a later state-mutating decision" should pull a command into the hard-fail set.

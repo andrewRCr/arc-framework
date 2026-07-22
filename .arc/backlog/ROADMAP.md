@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `cc0e4b577`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `c7757bb50`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -39,6 +39,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | loadset-composition                   | P2       | andrew | —          | agent-context-optimization |
 | commit-increments                     | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization                | P2       | andrew | —          | architecture-remediation   |
+| method-conventions                    | P2       | andrew | —          | doc-conventions            |
 | naming-conventions                    | P2       | andrew | —          | doc-conventions            |
 | cross-wu-coordination                 | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine         | P2       | andrew | —          | —                          |
@@ -74,7 +75,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | idiomatic-alignment                   | P3       | andrew | —          | —                          |
 | inbound-routing-method                | P3       | andrew | —          | —                          |
 | knowledge-lint                        | P3       | andrew | —          | —                          |
-| markdown-formatting                   | P3       | andrew | —          | —                          |
 | planning-iteration-mechanics          | P3       | andrew | —          | —                          |
 | quality-gate-hooks                    | P3       | andrew | —          | —                          |
 | rules-restructure                     | P3       | andrew | —          | —                          |

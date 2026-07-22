@@ -60,12 +60,12 @@ No runtime behavior changes. No test logic changes (only import-path updates).
 
 ### In scope
 
-| Type | Proposed neutral home (PRD-time confirmable) |
-| ---- | -------------------------------------------- |
-| `IOContext`, `UserIOContext` | `lib/io/types.ts` |
-| `UserSessionInitStatusResult` | `lib/session-init/types.ts` |
-| `ActiveLayout`, `StatusFileCandidate` | `lib/active/types.ts` |
-| `ConfigSettings` | `lib/config/types.ts` |
+| Type                                  | Proposed neutral home (PRD-time confirmable) |
+| ------------------------------------- | -------------------------------------------- |
+| `IOContext`, `UserIOContext`          | `lib/io/types.ts`                            |
+| `UserSessionInitStatusResult`         | `lib/session-init/types.ts`                  |
+| `ActiveLayout`, `StatusFileCandidate` | `lib/active/types.ts`                        |
+| `ConfigSettings`                      | `lib/config/types.ts`                        |
 
 Per type: define in the new neutral module; update consumer imports across `lib/`,
 `commands/`, `handlers/`, and tests; remove or transitionally re-export the old

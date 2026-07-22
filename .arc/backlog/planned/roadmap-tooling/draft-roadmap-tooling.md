@@ -16,35 +16,62 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Treat branch-carried project projections as the defect, not only their merge conflicts**
 
-- *Routed from:* parallelism-GA operating review and housekeep drain (2026-07-20).
-- *Evidence:* with three to six work units plus errands running concurrently, `ROADMAP.md` conflicts now add repeated
+- _Routed from:_ parallelism-GA operating review and housekeep drain (2026-07-20).
+- _Evidence:_ with three to six work units plus errands running concurrently, `ROADMAP.md` conflicts now add repeated
   activation, verification, and integration churn. Agents often investigate regeneration mechanics for minutes before
   discovering the canonical staged-index render command; conflict recovery is only the visible tax of carrying a
   shared derived projection on every branch.
-- *Posture for grooming:* strengthen the target beyond a more discoverable resolver or merge driver. A work-unit or
+- _Posture for grooming:_ strengthen the target beyond a more discoverable resolver or merge driver. A work-unit or
   grooming branch should not carry a project-level `ROADMAP` / eventual `STATUS.PROJECT` projection diff at all.
   Prefer on-demand or explicitly materialized/base-owned views sourced from authoritative operational state, aligned
   with `operational-state-docs`, `local-mode`, `arc-backend`, and the storage-evolution north star. Keep the existing
   resolver wiring as an interim mitigation, but do not mistake faster recovery for the long-term boundary.
+- _Additional evidence (routed 2026-07-21):_ the projection header pins the render to a HEAD hash, so every commit
+  invalidates it. A verification close that touched one render field across three commits required two renders, with
+  the second failure appearing only at pre-commit after message composition. The tax scales with commit count, not
+  only concurrent merge conflicts. If branch-carried projection retirement is deferred, dropping or read-time
+  deriving the hash is the cheap interim correction.
+
+### `[ ]` **Align activation staging with ceremony commit boundaries**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
+  `cli-layout-resolver` activation.
+- _Concern:_ `arc activate` staged a nontrivial `ROADMAP` change with the activation meta while the workflow requires
+  a separate projection ceremony commit; manual unstaging and a second staged-index render were needed. The verb
+  also surfaced transient stale-branch evidence while its own rename and field rotation were incomplete.
+- _Fold-in:_ make lifecycle verb and workflow ownership agree for trivial versus nontrivial refreshes, preserve the
+  staged-index renderer as commit-check authority, and suppress transition-internal residue. Keep the longer-term
+  target that WU branches do not carry project-level projections.
+
+### `[ ]` **Expose a first-class readiness-view render verb**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured after hand-editing a dependency
+  edge staled the view emitted by `arc stub`.
+- _Concern:_ lifecycle verbs render as side effects, but no discoverable CLI verb performs the mandatory
+  staged-index refresh after a manual render-field edit; operators learn the shell redirection only from a failed
+  pre-commit diagnostic.
+- _Approach:_ expose the existing staged-index projection as a verb, or eliminate the manual path by making every
+  render-field mutator regenerate before returning. Coordinate with branch-carried projection retirement rather
+  than creating a permanent command solely for a surface this WU may dematerialize.
 
 ### `[ ]` **Materialize pollutes ROADMAP consistency; in-flight rows key on ephemeral refs**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
   during FP wave-4 cross-machine burn-in (2026-07-17).
-- *Concern:* `arc materialize <slug>` regenerates the primary's `ROADMAP.md` to add the newly-in-flight row and
+- _Concern:_ `arc materialize <slug>` regenerates the primary's `ROADMAP.md` to add the newly-in-flight row and
   **stages it uncommitted** on `main`, where full protection forbids committing it — leaving the primary dirty
   with no clean reconcile. Root cause is deeper: the project render sources In-Flight rows from **origin/remote
   refs** (verified — removing the local branch + worktree left the row; only deleting the origin branch cleared
-  it), so any remote plan branch makes *every* worktree's ROADMAP "want" that row and trips the regen pre-commit
+  it), so any remote plan branch makes _every_ worktree's ROADMAP "want" that row and trips the regen pre-commit
   hook on a sibling worktree's next commit. Hit live: an FP-branch commit was blocked by a probe-c row FP never
   authored. Distinct trigger from the merge-boundary ROADMAP conflict class in the entry below (that one is
   concurrent renders diverging; this one is ref-sourced rows contaminating unrelated worktrees).
-- *Fold-in:* two coupled fixes to weigh at grooming — (1) materialize should not stage an uncommitted ROADMAP
+- _Fold-in:_ two coupled fixes to weigh at grooming — (1) materialize should not stage an uncommitted ROADMAP
   regen on the primary (skip the regen, route it through a committed ceremony, or render on demand);
   (2) reconsider whether In-Flight rows should derive from **tree metas** (committed, per-worktree coherent)
   rather than ephemeral local/remote refs — the ref-sourced design is what makes an unrelated worktree's commit
@@ -52,145 +79,145 @@
 
 ### `[ ]` **The pinned-workspace need: project-level view surfaces under parallelism**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
   at the storage-substrate grooming (2026-07-17).
-- *Concern:* the pre-parallelism operator workspace (editor pinned to USER-INBOX + ROADMAP + active task list)
+- _Concern:_ the pre-parallelism operator workspace (editor pinned to USER-INBOX + ROADMAP + active task list)
   broke under worktrees — state forks per checkout and files reopen on every swap. Per-WU context resolves via
-  `arc-view`/`status-hud` (cwd-resolved); the *project-level* slice (roadmap/status, inbox) is this WU's render
+  `arc-view`/`status-hud` (cwd-resolved); the _project-level_ slice (roadmap/status, inbox) is this WU's render
   surface.
-- *Fold-in:* note as a demand signal + forward-compat door — keep the door open for a project-status view/watch
+- _Fold-in:_ note as a demand signal + forward-compat door — keep the door open for a project-status view/watch
   surface (e.g. `arc status --project` piped or `--watch`), driven by usage evidence, not committed v1 scope.
   Non-overlap holds (`arc view` never grows a project renderer); coordinate verb semantics with the `status-hud`
   stub (status/HUD family vs. artifact-view family, settled 2026-07-17).
 
 ### `[ ]` **Merge-driver ownership for ROADMAP conflict auto-resolve**
 
-- *Routed from:* residual of the 2026-07-15 pull-back errand `hook-roadmap-conflict-auto-remedy` (inbox capture
+- _Routed from:_ residual of the 2026-07-15 pull-back errand `hook-roadmap-conflict-auto-remedy` (inbox capture
   "Hook auto-remedy for ROADMAP-only merge conflicts (pull-back)"); original capture from housekeep drain /
   FP wave-3 base merge.
-- *Landed interim:* pre-commit hook-side regenerate-and-restage when `ROADMAP.md` is the only conflicted (or
+- _Landed interim:_ pre-commit hook-side regenerate-and-restage when `ROADMAP.md` is the only conflicted (or
   marker-bearing) path — uses the existing staged-index regenerate-wins projection (`remedy-roadmap-conflict.ts`).
   Covers the post-stage commit path; pure unmerged ROADMAP-only still needs a stage or driver to fire before
   `git commit` will invoke hooks.
-- *Residual concern:* settle whether a scoped **merge driver** with install wiring should own recovery at merge
+- _Residual concern:_ settle whether a scoped **merge driver** with install wiring should own recovery at merge
   time (before pre-commit), or whether the hook-side path is sufficient long-term. Keep any driver constrained to
   ROADMAP-only conflicts and coordinated with the same projection engine (no second renderer).
 
 ### `[ ]` **Preserve projection diagnostics as out-of-band advisories**
 
-- *Routed from:* `readiness-advisory-ordering` errand, 2026-07-14.
-- *Concern:* the projection base now keeps composer warnings out of the rendered document body while retaining
+- _Routed from:_ `readiness-advisory-ordering` errand, 2026-07-14.
+- _Concern:_ the projection base now keeps composer warnings out of the rendered document body while retaining
   them as structured results. Human `arc status --project` output routes them to stderr, JSON retains the
   structured warnings, and lifecycle/start callers surface them as summaries. The `ROADMAP → STATUS.PROJECT`
   rename and final `arc roadmap render` surface must preserve that channel split rather than reintroduce a
   warnings section into the managed artifact.
-- *Constraint:* prospective lifecycle renders suppress only own-branch residue superseded by the transition tree;
+- _Constraint:_ prospective lifecycle renders suppress only own-branch residue superseded by the transition tree;
   genuine source and dependency warnings remain out-of-band advisories. Treat this as a projection-engine
   contract to carry through the render-standard pass, not a render-standard choice to reopen.
 
 ### `[ ]` **Audit lifecycle workflows for stale ROADMAP hand-render advisories**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after `arc integrate` was found
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after `arc integrate` was found
   to regenerate and stage ROADMAP despite stale workflow prose saying to hand-render it.
-- *Approach:* verify each lifecycle verb's actual render/stage side effects before editing. Correct only workflows
+- _Approach:_ verify each lifecycle verb's actual render/stage side effects before editing. Correct only workflows
   whose command already regenerates and stages, in package and project copies; candidate surfaces are promote,
   deactivate, and planning/init.
 
 ### `[ ]` **STATUS.USER writer offline merge and document chrome**
 
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
   `class-model-foundation` ready-slice work.
-- *Concern:* the eventual `STATUS.USER` writer should reconcile cached in-flight data with a fresh local ready
+- _Concern:_ the eventual `STATUS.USER` writer should reconcile cached in-flight data with a fresh local ready
   slice on the online-but-unreachable path, instead of degrading the whole view to the cached document. The
   structured writer should own this merge; doing it in the terminal-only composer would be fragile string surgery.
-- *Document chrome:* the writer/template also owns the H1, standing header note, intro blurb, and `Updated:`
+- _Document chrome:_ the writer/template also owns the H1, standing header note, intro blurb, and `Updated:`
   footer. Re-evaluate the current local blurb wording at template time, including whether "available" should align
   to the table heading's "ready" vocabulary.
 
 ### `[ ]` **Lifecycle-aware link reanchoring for movable ARC artifacts**
 
-- *Routed from:* `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01). Folded here because the
+- _Routed from:_ `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01). Folded here because the
   reanchor belongs to the same lifecycle file-move CLI surface this WU owns (`arc graduate`, the boundary
   ceremonies that `git mv` artifacts).
-- *Concern:* in `pm.mode: arc-in-git`, lifecycle workflows move PRDs, task lists, atomic companions, plan docs,
+- _Concern:_ in `pm.mode: arc-in-git`, lifecycle workflows move PRDs, task lists, atomic companions, plan docs,
   and archives between `backlog/`, `active/`, and `completed/`. Markdown links inside moved files can go stale
   because relative paths anchor to the source file's old directory. The pre-commit link validator catches the
   failure, but recovery is manual and interrupts the activation/archive flow.
-- *Proposed:* combined helper + lifecycle CLI improvement — (1) a constrained link-reanchor helper accepting
+- _Proposed:_ combined helper + lifecycle CLI improvement — (1) a constrained link-reanchor helper accepting
   explicit move pairs (or reading staged `git mv` state), parsing Markdown links / reference definitions and
   rewriting only targets that resolve to moved ARC artifacts; (2) integrate into the lifecycle CLI commands so
   `npx arc` performs `git mv`, state/PM updates, and link reanchoring as one operation. Keep it structural (not
   broad grep/replace); support `--check`/`--write`; preserve filename-only references.
-- *Scope:* M (helper + tests); L if bundled with full activation/archive CLI commands.
+- _Scope:_ M (helper + tests); L if bundled with full activation/archive CLI commands.
 
 ### `[ ]` **Evaluate extracting a standalone STATUS render-standard doc when repurposing § ROADMAP**
 
-- *Routed from:* In-Flight Awareness Phase 3 planning (2026-06-02). That WU adds the shared render contract —
+- _Routed from:_ In-Flight Awareness Phase 3 planning (2026-06-02). That WU adds the shared render contract —
   per-table column sets + the uniform `(priority, cohort, wu-name)` sort key — to `strategy-work-organization.md
-  § ROADMAP`, since `STATUS.USER` is the in-flight-mine slice of the *same* source as the project view: one
+  § ROADMAP`, since `STATUS.USER` is the in-flight-mine slice of the _same_ source as the project view: one
   contract, two consumers.
-- *Concern:* `strategy-work-organization.md` is already ~811 lines / ~40 sections. After In-Flight Awareness lands,
+- _Concern:_ `strategy-work-organization.md` is already ~811 lines / ~40 sections. After In-Flight Awareness lands,
   § ROADMAP carries a render contract shared by `STATUS.PROJECT` and `STATUS.USER` — a decomposition candidate. But
   extracting it early, from a WU that doesn't own the project-view doc, would fragment one contract across two
   files, so it was deliberately kept in § ROADMAP for now.
-- *Proposed:* At the § ROADMAP repurposing (contract kept, mechanics → renderer spec), evaluate lifting the shared
+- _Proposed:_ At the § ROADMAP repurposing (contract kept, mechanics → renderer spec), evaluate lifting the shared
   render standard into its own doc (e.g. a `STATUS` render-standard strategy), co-decided with the
   ROADMAP → STATUS.PROJECT rename (`doc-naming-convention`) so home and naming settle together. Keep-in-place is a
   valid outcome — the point is to make the call deliberately with the right owner, not let the broad doc grow by
   default.
-- *Scope:* S — a doc-structure decision + move, folded into the § ROADMAP repurposing already in this WU's scope.
+- _Scope:_ S — a doc-structure decision + move, folded into the § ROADMAP repurposing already in this WU's scope.
 
 ### `[ ]` **Codify the empty-tier render convention in the shared render standard**
 
-- *Routed from:* `USER-INBOX § Atomic`, housekeep drain (2026-06-02); captured at in-flight-awareness archival.
-- *Concern:* `strategy-work-organization.md` § Render standard fixes per-table column sets and the uniform sort
+- _Routed from:_ `USER-INBOX § Atomic`, housekeep drain (2026-06-02); captured at in-flight-awareness archival.
+- _Concern:_ `strategy-work-organization.md` § Render standard fixes per-table column sets and the uniform sort
   key but says nothing about how a tier with **zero rows** renders. Surfaced at in-flight-awareness archival —
   shipping the only in-flight WU emptied the In Flight tier with no guidance (an italic `_No work units in
   flight._` placeholder was chosen ad hoc). `STATUS.USER` shares the standard and has the same gap (an operator
   with no in-flight-mine work).
-- *Proposed:* add an empty-tier rule to § Render standard — retain the tier heading and render a single fixed
+- _Proposed:_ add an empty-tier rule to § Render standard — retain the tier heading and render a single fixed
   italic placeholder line instead of a header-only empty table; applies to both the project readiness view and
   `STATUS.USER`. Keep the placeholder string fixed so byte-stability holds. Coordinate so this WU's automated
   renderer emits the same placeholder.
-- *Scope:* S — strategy-doc convention edit; infra-smell re-triaged to quick-tier at drain (touches a strategy).
+- _Scope:_ S — strategy-doc convention edit; infra-smell re-triaged to quick-tier at drain (touches a strategy).
 
 ### `[ ]` **Rename this WU — its name goes stale once it renames ROADMAP away**
 
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); captured during in-flight-awareness spec
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-02); captured during in-flight-awareness spec
   planning. (`naming-conventions` owns the convention.)
-- *Concern:* this WU renames `ROADMAP` → `STATUS.PROJECT` and automates the `STATUS.*` render (both `.PROJECT`
+- _Concern:_ this WU renames `ROADMAP` → `STATUS.PROJECT` and automates the `STATUS.*` render (both `.PROJECT`
   and `.USER`), so "roadmap" no longer describes what it tools.
-- *Proposed:* rename the WU + concept to a status-oriented name (e.g. `status-view-tooling` /
+- _Proposed:_ rename the WU + concept to a status-oriented name (e.g. `status-view-tooling` /
   `status-render-tooling`) and sweep cross-references in sibling drafts / metas. Coordinate with
   `naming-conventions` (owns the convention).
-- *Scope:* S — WU rename + reference cascade.
+- _Scope:_ S — WU rename + reference cascade.
 
 ### `[ ]` **STATUS.USER on-disk write + refresh is unbuilt — only the terminal render shipped**
 
-- *Routed from:* housekeep-drain discovery (2026-06-02) — surfaced when the last WU's integration regenerated
+- _Routed from:_ housekeep-drain discovery (2026-06-02) — surfaced when the last WU's integration regenerated
   ROADMAP but left `STATUS.USER.md` stale.
-- *Concern:* in-flight-awareness shipped the render core + the terminal view (`arc status --user`) but
+- _Concern:_ in-flight-awareness shipped the render core + the terminal view (`arc status --user`) but
   **explicitly deferred the canonical-file write + reconcile** (`user-view.ts`: "renders to the terminal only;
   the canonical-file write and reconcile … land later"). So `arc status --user` prints an up-to-date slice but
   **nothing writes `.arc/user/{identity}/STATUS.USER.md`** — it reads the on-disk file only as a degradation
   cache. No ceremony refreshes it either: the lifecycle workflows carry a `Regenerate ROADMAP` step but no
   parallel STATUS.USER step (integrate / archive / activate / init / handoff / session-init). The strategy's
-  "the rendered file is the cache / trustworthy when opened" language describes the *target*, not shipped reality.
-- *Proposed:* build the canonical-file write + reconcile (this WU's deferred half), then wire the refresh at the
+  "the rendered file is the cache / trustworthy when opened" language describes the _target_, not shipped reality.
+- _Proposed:_ build the canonical-file write + reconcile (this WU's deferred half), then wire the refresh at the
   trigger points the strategy names (spawn / activate / integrate / shift / handoff + session-start-no-active-WU
   for the cross-machine slice). Reconcile the strategy § STATUS.USER claims with shipped behavior as the writer
   lands.
-- *Interim:* `finalize-parallelism` added a narrow cache safety patch: explicit `arc status --user` refreshes now
+- _Interim:_ `finalize-parallelism` added a narrow cache safety patch: explicit `arc status --user` refreshes now
   write the resolver-backed cache, and linked-worktree migration discards stale generated `STATUS.USER.md` copies
   instead of treating them as divergent authored user content. Full trigger wiring, document chrome, and offline
   cache merge remain here.
-- *Scope:* M — the deferred file-write/reconcile + trigger wiring (CLI + workflows, package-synced).
+- _Scope:_ M — the deferred file-write/reconcile + trigger wiring (CLI + workflows, package-synced).
 
 ### `[ ]` **Render standard: uniform columns (replace conditional-column rules) + Priority as a regen trigger**
 
-- *Routed from:* housekeep-drain follow-on (2026-06-02), surfaced doing the Priority-backfill errand + ROADMAP
+- _Routed from:_ housekeep-drain follow-on (2026-06-02), surfaced doing the Priority-backfill errand + ROADMAP
   regen. Coordinate with the empty-tier-render note above — same § Render standard, land together.
-- *Concern:* now that `**Priority:**` ships and is populated, the render rules are internally inconsistent and
+- _Concern:_ now that `**Priority:**` ships and is populated, the render rules are internally inconsistent and
   partly contradicted by the rendered artifact:
     - **Conditional columns are arbitrary and ragged.** § Render standard says "omit any column constant across
       the table," but the Priority-specific rule renders the column "when at least one row carries a value" — the
@@ -206,18 +233,18 @@
       package mirror) names only `Depends On / Owner / Cohort` as render fields that re-render ROADMAP in the same
       commit, yet `strategy-work-organization § Regeneration fire-points` correctly includes `**Priority:**`. Add
       `Priority` to the DEV-RULES list to reconcile.
-- *Proposed:* one reconciliation pass — strategy § Render standard (uniform-columns rule) + `render.ts` (render
+- _Proposed:_ one reconciliation pass — strategy § Render standard (uniform-columns rule) + `render.ts` (render
   uniformly) + DEV-RULES.ARC regen-trigger list (add Priority) + package mirrors.
-- *Scope:* S–M — doc + small renderer change, package-synced; reviewed-lane (touches DEV-RULES + strategy).
+- _Scope:_ S–M — doc + small renderer change, package-synced; reviewed-lane (touches DEV-RULES + strategy).
 
 ---
 
 ### `[ ]` **Render decisions for nested cohorts + multi-dependency rows (surfaced by the first graduation)**
 
-- *Routed from:* agile-wu-lifecycle graduation (PR #55), 2026-06-04 — first hand-render with a nested cohort
+- _Routed from:_ agile-wu-lifecycle graduation (PR #55), 2026-06-04 — first hand-render with a nested cohort
   path and WUs carrying more than one dependency. Coordinate with the uniform-columns entry above — same
   § Render standard, land together.
-- *Concern:* two render gaps the uniform-columns entry didn't anticipate (nested cohorts + multi-dep didn't
+- _Concern:_ two render gaps the uniform-columns entry didn't anticipate (nested cohorts + multi-dep didn't
   exist yet):
     - **Nested cohort path.** `Cohort` is now path-valued (`principle-anchored-core/agile-wu-lifecycle`); the
       full path overflows the column. Interim render shows the **leaf segment only** (`agile-wu-lifecycle`),
@@ -227,70 +254,70 @@
       target. A `Blocked by:` list was tried and rejected (split the table into duplicate WU names); reverted
       to the wide table and accepted it as a big-screen artifact. Needs a real policy: accept-wide, a generated
       graph/list view, or narrow other columns.
-- *Proposed:* fold into the § Render standard pass above (same doc + `render.ts`); decide the nested-cohort
+- _Proposed:_ fold into the § Render standard pass above (same doc + `render.ts`); decide the nested-cohort
   segment rule and the multi-dep / over-width policy; consume `arc.identity.short`
   (config-storage-architecture) to shrink the Owner column.
-- *Refinement (routed from `USER-INBOX § Backlog`, housekeep drain 2026-06-14):* high fan-in kills the
+- _Refinement (routed from `USER-INBOX § Backlog`, housekeep drain 2026-06-14):_ high fan-in kills the
   "accept-wide / big-screen artifact" option outright — `finalize-parallelism`'s row now depends on so many WUs
   that the `Depends on` cell can't fit the table at all, well past the ~127-char two-dep case above. Pushes the
   over-width policy toward a generated graph/list view or the by-priority/horizon render mode, not one wide cell.
-- *Scope:* S — render-standard + renderer; lands with the uniform-columns reconciliation.
+- _Scope:_ S — render-standard + renderer; lands with the uniform-columns reconciliation.
 
 ### `[ ]` **Render-standard decisions from CWC planning (refinements to existing buffer items)**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: roadmap-tooling`), agile-wu-lifecycle cohort housekeep drain
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: roadmap-tooling`), agile-wu-lifecycle cohort housekeep drain
   (2026-06-04). A CWC planning adjacency pass settled five render-standard / STATUS questions that **refine this
   WU's existing inbound-buffer items** (decisions/refinements, not new scope) — fold each into its target item at
   integration. Captured during `concurrent-work-conventions` planning (2026-06-03).
-- *B2 — cross-doc column order* (→ the "extract a standalone STATUS render-standard doc" / shared-contract item):
+- _B2 — cross-doc column order_ (→ the "extract a standalone STATUS render-standard doc" / shared-contract item):
   adopt "Work unit always col 1; State (where present) always col 2; following columns consistent; column
   **inclusion** varies by scope (STATUS.USER omits Owner — printing one's own name every row is noise)." Effect:
   ROADMAP In Flight reorders State col 1 → col 2 to match STATUS.USER (which already conforms).
-- *B1 — uniform columns refinement* (→ the "Render standard: uniform columns" item): keep the already-decided
+- _B1 — uniform columns refinement_ (→ the "Render standard: uniform columns" item): keep the already-decided
   uniform set; **decline** equal-width-across-tables (pad to doc-max) — cosmetic only, and the tier already
   encodes State for Ready/Blocked so a State column there is empty/redundant. Keep State In-Flight-only.
-- *B3 — priority visual grouping* (→ render-standard work): do **not** separate priority groups with blank lines —
+- _B3 — priority visual grouping_ (→ render-standard work): do **not** separate priority groups with blank lines —
   a blank line terminates a GFM table, so P2/P3 blocks render broken (verified live, then reverted). Pick at
   render time: (a) per-priority sub-headings, each its own table; (b) Priority value on the first row of each
   group only (merged-cell style; risk: a blank cell reads as "no priority"); or (c) leave the readiness table
   flat and solve scanning via the horizon view (B4).
-- *B4 — by-priority / horizon view* (→ confirms § Unknowns "Direction's home"): now/next/later is a render
+- _B4 — by-priority / horizon view_ (→ confirms § Unknowns "Direction's home"): now/next/later is a render
   **mode** over the same meta source (Now = In Flight; Next = Ready, priority-then-dependency ordered; Later =
   the rest), not a separate file. CWC contributes only the concurrency-safety overlay on the "Next" slice (the
   existing CWC↔roadmap-tooling seam).
-- *A — STATUS.USER interim honesty* (→ note on the "STATUS.USER on-disk write + refresh is unbuilt" item):
+- _A — STATUS.USER interim honesty_ (→ note on the "STATUS.USER on-disk write + refresh is unbuilt" item):
   considered fixing the header's false freshness claim as a separate interim errand; **decided** to leave it
   bundled into that item — the file stays knowingly-stale until the writer lands. Recorded so it is not re-raised
   as separate work.
 
 ### `[ ]` **Honor the per-element backtick convention for `Depends On` / `Design` meta fields**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: roadmap-tooling`), housekeep drain (2026-06-08); captured
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: roadmap-tooling`), housekeep drain (2026-06-08); captured
   at `scalable-authoring-pipeline` Task 1.4.
-- *Concern:* SAP (Task 1.4) switched the meta render convention for the list-valued fields `Depends On` /
+- _Concern:_ SAP (Task 1.4) switched the meta render convention for the list-valued fields `Depends On` /
   `Design` to per-element backticks — `` `A`, `B` `` (two discrete tokens) rather than the compound whole-value
   `` `A, B` `` — via a new `identifier-list` valueClass in `meta-reader.ts`'s `formatValue`. This WU owns the
   real ROADMAP renderer + dependency-edge handling, so the convention lands as a requirement on it.
-- *Proposed:* (1) parse `Depends On` only through the shared reader path (`parseMetaRecord` →
+- _Proposed:_ (1) parse `Depends On` only through the shared reader path (`parseMetaRecord` →
   `parseIdentifierList`, relying on the **global** `stripInlineCode`) — never reintroduce a bespoke
   outer-pair-strip parser, which mis-parses the per-element form. (2) Reconcile the ROADMAP "Depends on" cell
   with the per-element convention: `lib/status/render.ts` joins deps plain (no backticks) today — decide whether
   table cells should match the meta bullets.
-- *Scope:* pairs with this WU's existing buffer items on uniform-columns + `render.ts`.
+- _Scope:_ pairs with this WU's existing buffer items on uniform-columns + `render.ts`.
 
 ### `[ ]` **§ Unknowns "Direction's home" resolved by `goal-aware-direction` + two render consequences**
 
-- *Routed from:* `goal-aware-direction` grooming (2026-07-02).
-- *Resolution:* the "Direction's home" open call is settled — direction gets a separate small **authored** doc
+- _Routed from:_ `goal-aware-direction` grooming (2026-07-02).
+- _Resolution:_ the "Direction's home" open call is settled — direction gets a separate small **authored** doc
   (`VECTOR.PROJECT`, a scope-paired target/horizon surface owned by `goal-aware-direction`); this WU's derived
-  view stays purely derived, and the earlier "now/next/later is derivable" lean is *repaired, not reopened*: the
+  view stays purely derived, and the earlier "now/next/later is derivable" lean is _repaired, not reopened_: the
   missing datum was the goal itself. The freed `roadmap` name **retires** rather than transferring (transition
-  hazard; `ROADMAP.USER` idiomatically broken). Confirms the B4 render *mode* — which post-vector should consume
+  hazard; `ROADMAP.USER` idiomatically broken). Confirms the B4 render _mode_ — which post-vector should consume
   the target (goal-aware "Next") rather than priority-order alone.
-- *Vocabulary hygiene (research-grounded 2026-07-02):* a mechanical now/next/later banding over *WUs* is a
+- _Vocabulary hygiene (research-grounded 2026-07-02):_ a mechanical now/next/later banding over _WUs_ is a
   readiness-horizon view over outputs, not an outcome NNL roadmap (Bastow's sense) — don't name it in a way that
   claims outcome semantics unless it consumes the vector. Keep readiness vocabulary for readiness renders.
-- *Multi-dep cell recommendation (with the over-width policy items above):* treat the rendered table as a
+- _Multi-dep cell recommendation (with the over-width policy items above):_ treat the rendered table as a
   **lossy scan surface** — the lossless edge set lives in the meta and `arc status <slug>`. Render deps as WU
   short names (the `Short:` field, convention owned by `naming-conventions`) with a deterministic overflow
   collapse — `SAP, DM, +4` — optionally paired with a plain list section below the table for overflowed rows.
@@ -298,15 +325,15 @@
 
 ### `[ ]` **Make the render standard's output idempotent under `markdown-table-formatter`**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`); `roadmap-renderer-slice` errand, Pass 1
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`); `roadmap-renderer-slice` errand, Pass 1
   byte-determinism verification (2026-07-05). Folded in at the 2026-07-06 decomposition.
-- *Concern:* the readiness composer (`project-view.ts`, via `renderStatusTable` in `render.ts`) emits GFM table
+- _Concern:_ the readiness composer (`project-view.ts`, via `renderStatusTable` in `render.ts`) emits GFM table
   **separator** rows padded (`| --- |`), but the repo's canonical style — `markdown-table-formatter` per
   DEV-RULES.PROJECT § Quality Gates — is tight (`|---|`). Verified: the formatter rewrites **only** the separator
   rows (data/alignment/columns already stable). `markdownlint` passes on both, so CI is green either way; the gap
   is generator-vs-formatter **non-idempotence** — a composer-written ROADMAP re-dirties on the next `format:tables`
   pass.
-- *Proposed:* criterion — **generated output must be a fixpoint of the repo's formatters.** Make
+- _Proposed:_ criterion — **generated output must be a fixpoint of the repo's formatters.** Make
   `renderStatusTable`'s separator emission match the tight style so a composed ROADMAP survives `format:tables`
   unchanged. `renderStatusTable` is **shared with `STATUS.USER`**, so the fix touches that view + its render
   tests, and diverges `render.ts` from FP — coordinate so FP adopts the same on merge. Mechanical formatting
@@ -315,63 +342,63 @@
 
 ### `[ ]` **Continue the render standard on `project-state-integrity`'s projection base**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`); `finalize-parallelism` Task 2.4.a
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`); `finalize-parallelism` Task 2.4.a
   (`arc start` substrate), 2026-07-04. Folded in at the 2026-07-06 decomposition — the render-**standard**
   continuation of the FP-renderer capture whose substrate-base half routed to `project-state-integrity`.
-- *Concern:* once `project-state-integrity` audits/adopts FP's minimal renderer substrate as the regenerate-wins
+- _Concern:_ once `project-state-integrity` audits/adopts FP's minimal renderer substrate as the regenerate-wins
   projection engine, this WU continues on that base: reconcile it with the pending `ROADMAP → STATUS.PROJECT`
   decision, template/scaffold shape, empty-tier convention, uniform-column and overflow policy, STATUS.USER writer
   parity, and the final CLI surface (`arc roadmap render`). Do not re-solve the projection engine here — depend on
   it.
-- *Scope:* lands with this WU's render-standard reconciliation; sequenced after `project-state-integrity`'s
+- _Scope:_ lands with this WU's render-standard reconciliation; sequenced after `project-state-integrity`'s
   substrate adoption.
 
 ### `[ ]` **Re-evaluate status/render performance after the surfaces settle**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-10);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-10);
   captured during `project-state-integrity` review.
-- *Concern:* several independent local/network reads are serialized, project-readiness metas load sequentially,
+- _Concern:_ several independent local/network reads are serialized, project-readiness metas load sequentially,
   tracked renders may scan the same tree twice, and one transition can rebuild the lifecycle index for multiple
   side effects.
-- *Fold-in:* after STATUS.PROJECT/STATUS.USER writer contracts settle, parallelize independent reads, batch meta
+- _Fold-in:_ after STATUS.PROJECT/STATUS.USER writer contracts settle, parallelize independent reads, batch meta
   loads, reuse already-loaded render records, and memoize lifecycle-index construction per side-effect execution
   where measurements still justify it. Route any surviving general transition-engine cache debt to
   `architecture-remediation`.
 
 ### `[ ]` **Move ROADMAP regeneration to the merge boundary**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-16); captured
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-16); captured
   during FP wave-3 external-budget contention analysis; evidence in `notes-finalize-parallelism.md` § Day-2
   evidence.
-- *Concern:* under wave-3 parallelism every shipping PR conflicts on `ROADMAP.md` — the derived-artifact conflict
+- _Concern:_ under wave-3 parallelism every shipping PR conflicts on `ROADMAP.md` — the derived-artifact conflict
   class ADR-020's derived-vs-mutated split predicts: concurrent branches each carry a render derived from their
   own base snapshot, and git line-merge cannot converge derived content. In-session friction fixes (already
   shipped) don't touch this; it is structural while branches edit the render.
-- *Proposed:* branch PRs stop editing ROADMAP; a base-side post-merge regen keeps it current. Branch-side
+- _Proposed:_ branch PRs stop editing ROADMAP; a base-side post-merge regen keeps it current. Branch-side
   staleness is already the documented model ("derived-at-merge, mid-WU stale"), so nothing is lost; every-PR
   conflicts and some doc-only CI churn disappear together. Owns-regen-triggers puts this here. Complements (does
   not replace) the day-1 auto-regen conflict-remedy errand capture — elimination vs. remedy.
 
 ### `[ ]` **Review coupling-audit finding: ROADMAP name**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
   during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
-- *Concern:* the ROADMAP rename is an abstract 44-file document/path assumption with tracked-path evidence.
-- *Approach:* at grooming, make the project-readiness view name a single owned contract before planning the
+- _Concern:_ the ROADMAP rename is an abstract 44-file document/path assumption with tracked-path evidence.
+- _Approach:_ at grooming, make the project-readiness view name a single owned contract before planning the
   rename cascade.
-- *Packet:* `packet-ff5dc5d126f20b5461b3c71c`; content digest
+- _Packet:_ `packet-ff5dc5d126f20b5461b3c71c`; content digest
   `defe2b278dd52e42d668a3f3791dc9a80a64b51db79332444e0c2564f0cde115`.
-- *Evidence:* `roadmap-name`; `scan-result.json#class-roadmap-name`.
+- _Evidence:_ `roadmap-name`; `scan-result.json#class-roadmap-name`.
 
 ### `[ ]` **Make the integration ROADMAP preflight parallel-WU aware**
 
-- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-18) — re-homed here as ROADMAP-projection design
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-18) — re-homed here as ROADMAP-projection design
   input; captured during `arc-view` integration entry, after parallel WU state changes appeared in ROADMAP
   regeneration.
-- *Concern:* `integrate-work-unit.md` requires the fresh-entry ROADMAP diff to contain only the current WU's
+- _Concern:_ `integrate-work-unit.md` requires the fresh-entry ROADMAP diff to contain only the current WU's
   state flip. That assumption is stale now that parallel WUs routinely advance lifecycle state between ROADMAP
   renders; regeneration correctly folds their already-authoritative live-ref state into the derived projection.
-- *Approach:* replace the serial "state flip only" rule with a projection-integrity check that distinguishes
+- _Approach:_ replace the serial "state flip only" rule with a projection-integrity check that distinguishes
   explainable concurrent live-ref deltas from malformed or unrelated output without forcing stale hand-edits.
   Confirm whether executable support is needed beyond the prose change (packaged + self-hosted
   `integrate-work-unit.md` copies; related workflow tests if present).
@@ -380,28 +407,28 @@
 
 ### `[ ]` **Keep the post-decomposition ROADMAP current after teardown**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-19); captured
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-19); captured
   during `cli-substrate-adoption` post-merge teardown, 2026-07-18.
-- *Concern:* the decomposition PR's generated ROADMAP correctly retained the origin while its planning branch still
+- _Concern:_ the decomposition PR's generated ROADMAP correctly retained the origin while its planning branch still
   existed. After merge, `arc teardown cli-substrate-adoption --force` deleted that branch and worktree, and the live
   `arc status --project` view dropped the origin, but the tracked ROADMAP remained unchanged with
   `cli-substrate-adoption` still listed as Planning. The required post-merge lifecycle leaves the projection stale
   until an unrelated ceremony regenerates it.
-- *Fold-in:* fold this concrete teardown case into the existing merge-boundary regeneration design. Settle whether
+- _Fold-in:_ fold this concrete teardown case into the existing merge-boundary regeneration design. Settle whether
   the merge completion path or receipt-aware teardown owns the base-side refresh, without adding another renderer or
   leaving a dirty uncommitted base checkout. Coordinate with the "Move ROADMAP regeneration to the merge boundary"
   and materialize-consistency items already in this buffer (same owner).
 
 ### `[ ]` **Discoverable ROADMAP regen — close the `arc status --project --staged > file` verb-gap**
 
-- *Routed from:* self-observed during the 2026-07-19 housekeep-drain grooming PR (live incident); a ROADMAP-only
+- _Routed from:_ self-observed during the 2026-07-19 housekeep-drain grooming PR (live incident); a ROADMAP-only
   merge conflict against a concurrently-merged sibling had to be hand-reconciled.
-- *Concern (verb-gap):* the canonical regen is `arc status --project --staged > .arc/backlog/ROADMAP.md` — a
+- _Concern (verb-gap):_ the canonical regen is `arc status --project --staged > .arc/backlog/ROADMAP.md` — a
   `status` subcommand redirected to overwrite a tracked file. It is undiscoverable (`arc view` has no roadmap kind;
   `arc status --project` renders to stdout only), so awareness depends on tripping the pre-commit hook, which prints
   the command in its error. That JIT surface works and keeps miss-cost low, but the idiom is mechanics-narration
   where a verb should exist (DEV-RULES.PROJECT § Verbs over mechanics — verb-gap signal).
-- *Approach:* when this WU builds the render tooling, expose a discoverable regen verb (e.g. `arc roadmap render`)
+- _Approach:_ when this WU builds the render tooling, expose a discoverable regen verb (e.g. `arc roadmap render`)
   that writes the file directly, retiring the redirect idiom. Pairs with the merge-driver auto-resolve item already
   in this buffer — together they close both the awareness gap and the conflict-reconcile gap this incident hit.
 
@@ -487,7 +514,7 @@ integrating` validates archive-phase section presence on the meta file).
   rather than optional.
 - **Direction's home.** The directional / "what's important" half a roadmap traditionally carries is constitutional
   (PROJECT-PRD mission + principles) or simply out of in-git scope (session/PM). Confirm no orphaned need before
-  any rename. If a real directional need surfaces, the clean resolution is a *separate* now/next/later artifact
+  any rename. If a real directional need surfaces, the clean resolution is a _separate_ now/next/later artifact
   (human-curated priority / time-horizon) that takes the `roadmap` name, freeing this derived dep-state view to
   rename (per the semantics note above) — keeping the two layers discrete rather than shoehorning priority back
   into the doc WOR 7.R just stripped it from. WOR 7.R research confirms now/next/later is the standard directional
@@ -513,13 +540,13 @@ settled several points that bear on this WU's open questions. (That awareness la
 attributions below now name it.)
 
 - **Priority field — standardized by In-Flight Awareness (updated 2026-05-24).** The per-WU `**Priority:**`
-  field (3 bounded levels, `P3` default; a *field*, never a hand-curated ordering *doc* per ADR-020) is
-  introduced by In-Flight Awareness, not here: it is an *input* field that lands where first needed, and the
+  field (3 bounded levels, `P3` default; a _field_, never a hand-curated ordering _doc_ per ADR-020) is
+  introduced by In-Flight Awareness, not here: it is an _input_ field that lands where first needed, and the
   multi-in-flight worklist is that place. In-Flight Awareness adds it to `template-meta.md` +
   `strategy-work-organization.md` and renders it in both `STATUS.*` views. **This WU's scope narrows to
-  *automating* the render** + the directional derivation (now/next/later) of an already-standardized field —
+  _automating_ the render** + the directional derivation (now/next/later) of an already-standardized field —
   it no longer introduces the field.
-- **Answers "Direction's home."** With `State × Depends-On × Priority`, now/next/later is *derivable* (Now =
+- **Answers "Direction's home."** With `State × Depends-On × Priority`, now/next/later is _derivable_ (Now =
   In Flight; Next = Ready, priority-ordered; Later = the rest) — a render mode, not a separately-curated doc.
   Narrative direction stays in PROJECT-PRD. So the open call leans **no separate directional doc**; the
   freed name goes to a derived view, not a hand-maintained timeline.
@@ -538,7 +565,7 @@ constitutional surface. Lighter if `cohort` / `graduate` split out. The heavy st
 
 ## Coordination — ADR-022
 
-`ROADMAP` / `STATUS.PROJECT` is a *derived* managed operational-state document (ADR-022): a rendered
+`ROADMAP` / `STATUS.PROJECT` is a _derived_ managed operational-state document (ADR-022): a rendered
 projection over the meta records. `project-state-integrity` owns the regenerate-wins projection **engine** (the
 first render-and-reconcile instance); this WU owns the render **standard** + CLI surface on top. Coordinate the
 engine/standard boundary with `operational-state-docs`, which later absorbs both into the general

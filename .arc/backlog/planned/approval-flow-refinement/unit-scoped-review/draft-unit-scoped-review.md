@@ -14,54 +14,54 @@ than a concession to "anything-goes" autonomy.
 - **Origin:** Surfaced 2026-06-15 in an exploratory session-init discussion (intended as an errand; routed to a
   planned stub given the design density). The premise: the bulk of the industry has moved toward more autonomous
   execution, often bypassing review entirely; ARC won't cross the no-human-gate line, but a middle ground —
-  rigorous planning + agent-side execution discipline preserved, with the *review increment* widened on request —
+  rigorous planning + agent-side execution discipline preserved, with the _review increment_ widened on request —
   is far less out-of-step with ARC's principles than it first appears, given ARC's maturity (right-sized WUs,
   decomposition discipline, spec-directedness) and improved agent capability.
 
 **Naming note.** `unit-scoped-review` is provisional. The term is coupled to `commit-increments`, which is
 already reconsidering the "review increment" vocabulary; settle the two together (this WU introduces "review
 increment = whole WU," the limit of that axis) rather than minting a canonical-but-inconsistent gap. Avoid
-"skip review" / "autonomous execution" framings — the capability is scope-*widening*, not a bypass.
+"skip review" / "autonomous execution" framings — the capability is scope-_widening_, not a bypass.
 
 ---
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Consume the delegation-relaxation socket from `adversarial-review`**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: unit-scoped-review`), housekeep drain (2026-07-03);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: unit-scoped-review`), housekeep drain (2026-07-03);
   captured during `adversarial-review` planning.
-- *Concern:* `adversarial-review` sharpens DEV-RULES § Sub-agent scope by function: derivation delegable,
+- _Concern:_ `adversarial-review` sharpens DEV-RULES § Sub-agent scope by function: derivation delegable,
   execution held by the primary unless an explicit user-approved relaxation applies, judgment never delegated.
   This WU's orchestration mode is the intended consumer of that execution-relaxation socket.
-- *Fold-in:* coordinate final wording at activation so USR plugs into the constitutional rule rather than
+- _Fold-in:_ coordinate final wording at activation so USR plugs into the constitutional rule rather than
   restating or weakening it. Keep the ADR-002 / P5 review-frequency reckoning here as USR's own deliverable.
 
 ### `[ ]` **`execution-delegation-doctrine` extracted upstream — re-scope reckoning + carve-out; grow pre-flight**
 
-- *Routed from:* `--plan` grooming session (2026-07-02) that minted `execution-delegation-doctrine`
+- _Routed from:_ `--plan` grooming session (2026-07-02) that minted `execution-delegation-doctrine`
   (standalone planned stub).
-- *Re-scope:* the doctrine WU now owns the constitutional layer this draft carried provisionally — the
+- _Re-scope:_ the doctrine WU now owns the constitutional layer this draft carried provisionally — the
   DEV-RULES.ARC § Sub-agent scope rewrite (prohibition → conditions), the ADR-002 two-axis reframe (execution
   locus × gate presence), and the four-flow delegability rubric (judgment-in / context-in / verification-out /
-  learning-out). This WU's "ADR-002 / P5 reckoning" shrinks to *applying the doctrine at WU scope*; the
+  learning-out). This WU's "ADR-002 / P5 reckoning" shrinks to _applying the doctrine at WU scope_; the
   orchestration architecture becomes an instance of the doctrine's model rather than where the model is invented;
   the eligibility predicate should be re-expressed as the WU-grain reading of the four-flow rubric. New
   dependency edge: `execution-delegation-doctrine` lands before this WU's planning iteration.
-- *Default posture confirmed:* the doctrine settles "does widening become the default?" — no. Default scope stays
+- _Default posture confirmed:_ the doctrine settles "does widening become the default?" — no. Default scope stays
   leaf; the eligibility read surfaces as an **advisory fork at activation** (offered with a recommendation, never
-  silent, never auto). The default *experience* lightens (decision-bearing stops); the default *posture* doesn't
+  silent, never auto). The default _experience_ lightens (decision-bearing stops); the default _posture_ doesn't
   move.
-- *Pre-flight gate grows into the capability envelope:* at batch entry, compute-request-verify the run's needed
+- _Pre-flight gate grows into the capability envelope:_ at batch entry, compute-request-verify the run's needed
   capability set (edit surface from the spec's file scope, quality-gate commands from DEV-RULES.PROJECT, wrapper
   commands) as **one deliberate grant moment** — batch mode front-loads judgment, so it front-loads trust
   decisions the same way. ARC reads (partially), requests, advises — never sets; the user stays the grantor.
-  Covers the orchestrator *and* its subagents (subagent tool calls flow through the same harness permission
+  Covers the orchestrator _and_ its subagents (subagent tool calls flow through the same harness permission
   system).
-- *Stall taxonomy:* a mid-run harness permission prompt is a **stall** (capability gap → grant-and-resume), not a
+- _Stall taxonomy:_ a mid-run harness permission prompt is a **stall** (capability gap → grant-and-resume), not a
   break-out trigger (premise failure) — it never collapses the batch. Add an end-of-run stall report ("N prompts
   encountered: … — add to envelope?") so runs converge toward prompt-free.
 
@@ -74,7 +74,7 @@ per-leaf co-development loop is the right default and stays the default. But two
 worth making first-class:
 
 **a) Genuine, principle-consistent use cases.** For a determinate, bounded WU — a `Light` WU, or a `Heavy` one
-whose weight is *scale* rather than *derivation* — where the design is fully settled in the spec and the task
+whose weight is _scale_ rather than _derivation_ — where the design is fully settled in the spec and the task
 list is concrete (three phases, not seven; no investigation/spike tasks), it is reasonable to say: "unless
 something unexpected comes up, implement this and let me review it in one pass." Crucially, the
 review-increment invariant (DEV-RULES.ARC § Review-Increment Invariant) is **not** violated — it is applied at a
@@ -85,18 +85,18 @@ better at keeping WUs right-sized and single-concern, so reviewing a whole WU at
 far less so now.
 
 **b) Realistic idiom.** Much of the industry has moved this way, to varying degrees of autonomy; many bypass
-human review entirely (including the PR). ARC won't do that. But offering a *governed* middle ground — the
+human review entirely (including the PR). ARC won't do that. But offering a _governed_ middle ground — the
 rigorous planning stages, the agent-side discipline, and a preserved human gate at the WU boundary — lets ARC
 stay meaningfully different from "full autonomy" while meeting practitioners where they are. ARC has enough
 load-bearing process besides the per-leaf task interlock (spec-directed planning, quality gates, the
-integration interlock) that relaxing review *frequency* is not the same as relaxing review.
+integration interlock) that relaxing review _frequency_ is not the same as relaxing review.
 
-**Why this is net-new, not "users can already do this."** Today's deferred review is user-scoped to a *named
-range* ("proceed to 3.4") and explicitly "a bounded convenience, not an autonomy mode." Widening to the whole
-WU changes the *character*: it pre-authorizes phases not yet examined and the validation phase itself, across a
-stretch with no human checkpoint. The safety machinery has to *scale up* accordingly (the break-out matrix
+**Why this is net-new, not "users can already do this."** Today's deferred review is user-scoped to a _named
+range_ ("proceed to 3.4") and explicitly "a bounded convenience, not an autonomy mode." Widening to the whole
+WU changes the _character_: it pre-authorizes phases not yet examined and the validation phase itself, across a
+stretch with no human checkpoint. The safety machinery has to _scale up_ accordingly (the break-out matrix
 below). So this is a real design — and that scaling is also the answer to "an agent would comply with a wide
-range anyway": compliance *without* the matrix is the unsafe version this WU exists to replace.
+range anyway": compliance _without_ the matrix is the unsafe version this WU exists to replace.
 
 ## Proposed Shape
 
@@ -111,7 +111,7 @@ fires once, at the widened boundary; the increment still closes with a structure
 
 ### What is preserved (the floors)
 
-- **Spec-directed discipline — and it becomes *more* load-bearing, not unchanged.** Per-leaf, a thin/wrong spec
+- **Spec-directed discipline — and it becomes _more_ load-bearing, not unchanged.** Per-leaf, a thin/wrong spec
   is caught at increment one. WU-scoped, a spec gap propagates through the whole implementation before any human
   sees it — blast radius = the whole WU. So spec completeness is now load-bearing in a way it wasn't, which is
   why eligibility keys on spec determinacy (below). The self-regulating consequence is the strongest safety
@@ -120,8 +120,8 @@ fires once, at the widened boundary; the increment still closes with a structure
 - **The integration interlock is untouched — the hard floor.** Even in full WU-scoped deferral, the agent runs
   to the validation phase and **stops at the integration boundary**; merge requires explicit human authorization
   (the always-stop integration interlock — never inferred from task approval, review completion, or passing
-  checks). "lgtm, integrate" *is* that authorization: an explicit, structured decision at exactly the gate ARC
-  wants the human. ARC guarantees the *gate*, never *diligence* — and never has, for any mode. So this weakens
+  checks). "lgtm, integrate" _is_ that authorization: an explicit, structured decision at exactly the gate ARC
+  wants the human. ARC guarantees the _gate_, never _diligence_ — and never has, for any mode. So this weakens
   nothing. (You cannot force a human to read a diff; you can guarantee an explicit gate at the WU boundary, and
   this preserves it.)
 - **Planning stages cannot be batched or routed autonomously.** Draft → spec → tasks stay human-gated; there is
@@ -131,20 +131,20 @@ fires once, at the widened boundary; the increment still closes with a structure
   the run; a gate failure is a hard break (see below). Commits still land per-leaf during the run — this is
   exactly `commit-increments`' "deferred review releases commits at leaf boundaries; the scope declaration is
   the approval signal." That keeps a clean, bisectable, atomic commit history for the reviewer at the WU
-  boundary (no entangled multi-task diff). Only the *human approval stop* relocates; commit and quality-gate
+  boundary (no entangled multi-task diff). Only the _human approval stop_ relocates; commit and quality-gate
   cadence do not.
 
 ### The break-out matrix (the safety mechanism — the crux)
 
 In per-leaf mode the human is the safety valve every increment. In WU-scoped mode the human has delegated that,
 so the **agent's pause-and-signal discipline becomes the substitute safety mechanism** — and the feature is
-principle-consistent *only* to the degree that discipline is rigorous and first-class.
+principle-consistent _only_ to the degree that discipline is rigorous and first-class.
 
 The gate point does not disappear; it becomes a **conditional stop**. At each task completion the agent runs a
 lightweight break-out check instead of a full stop-and-ask: did anything cross a hard trigger? If yes → stop,
 surface, re-raise the human. If no → log any discretionary calls (ledger, below) and continue.
 
-**Hard triggers (mandatory; the pre-authorization does not override them)** — note every one is *already* a
+**Hard triggers (mandatory; the pre-authorization does not override them)** — note every one is _already_ a
 mandatory stop in ARC, so this collects rather than invents:
 
 - An emergent design question / spec gap. Spec-directedness already forbids resolving design autonomously, so
@@ -155,12 +155,12 @@ mandatory stop in ARC, so this collects rather than invents:
 - Out-of-WU scope surfacing that would change the WU boundary (already routed — errand/capture).
 
 **Soft deviations (resolve + log, do not stop):** a minor ambiguity resolved with a defensible reading, a
-same-concern inline cleanup, a small assumption. The materiality line between "log" and "stop" *is* the existing
+same-concern inline cleanup, a small assumption. The materiality line between "log" and "stop" _is_ the existing
 design/implementation boundary ARC already draws: implementation-detail latitude → log; anything that forecloses
 a design alternative or is hard to reverse → hard break.
 
 **The decision / deviation ledger (net-new, load-bearing).** In per-leaf review the human sees every judgment
-call. In a WU batch they do not — so the agent must *accumulate* its discretionary calls and surface them at the
+call. In a WU batch they do not — so the agent must _accumulate_ its discretionary calls and surface them at the
 terminal validation gate: not just "here's the diff" but "here's every place I exercised latitude, and why."
 The ledger is the co-development substitute for the suspended per-leaf stops; without it, "review the whole WU"
 really is just "trust me."
@@ -172,17 +172,17 @@ false.
 
 ### The eligibility predicate (advisory)
 
-Advisory, not a gate (the user owns their PR). The agent *asserts a read* and the human overrides freely. Inputs,
+Advisory, not a gate (the user owns their PR). The agent _asserts a read_ and the human overrides freely. Inputs,
 sharpest first:
 
-- **Derivation axis, not scale.** Eligibility is roughly inverse to the *derivation* half of `Class`, not `Class`
+- **Derivation axis, not scale.** Eligibility is roughly inverse to the _derivation_ half of `Class`, not `Class`
   wholesale: a scale-`Heavy` WU (big but determinate) is fine to batch; an inventive small one is not. `Novel`
   → strong caution; low-derivation `Light`/`Heavy` → green.
-- **Spec determinacy — *not* spec length.** Completeness is relative to the work's actual derivation demand. A
-  `Light` WU's appropriately-thin spec is *complete* and *more* batch-eligible, not less. The predicate is "the
+- **Spec determinacy — _not_ spec length.** Completeness is relative to the work's actual derivation demand. A
+  `Light` WU's appropriately-thin spec is _complete_ and _more_ batch-eligible, not less. The predicate is "the
   spec leaves no open design question for the work it covers," never "the spec is heavy."
 - **Task-list shape — the mechanical signal.** A determinate task list has concrete, verb-bounded leaves with
-  clear success criteria; the presence of *investigate / spike / "figure out" / "design"* tasks is a near-objective
+  clear success criteria; the presence of _investigate / spike / "figure out" / "design"_ tasks is a near-objective
   batch-ineligibility flag. Cheap to check; the front-line gate.
 - **Context budget (see Phasing).** Whether the WU plausibly completes within one context window on the target
   harness — correlated with the determinacy signals above (small, determinate, few-phase WUs both batch well and
@@ -198,11 +198,11 @@ mode.
 In batch mode commits release per-leaf, so if the harness throws an interactive permission prompt at the first
 commit while the user has stepped away, the premise collapses (worse than per-leaf — they expected to be gone).
 So batch mode has a hard precondition: **the agent's path through the run must be non-blocking.** A pre-flight
-check verifies the *posture* before entering batch mode:
+check verifies the _posture_ before entering batch mode:
 
 - **Commit/push slice (ARC-owned):** the release wrappers (`arc release commit` / `arc release push`) — the
   recommended, audited, non-blocking path. **Bypass is not required.** "Normal harness config + release wrappers"
-  is fully viable and is probably the *more* common shape: a user who trusts ARC's workflow-emitted commits
+  is fully viable and is probably the _more_ common shape: a user who trusts ARC's workflow-emitted commits
   specifically (narrowly allowlist the wrapper commands) + `releaseOptedIn: true`, without granting broad
   autonomy. The probe already surfaces `commit.interlock` / `push.interlock` / `releaseRouting`; the gap is the
   harness allowlist (settings.json), which ARC sees only partially — so the gate is part config-verify, part
@@ -211,10 +211,10 @@ check verifies the *posture* before entering batch mode:
   block — under a non-bypass config that means an edit-accepting posture + the usual dev commands allowlisted,
   which for an established ARC user is typically already true.
 
-The requirement **self-selects the right audience**: anyone who'd *want* batch mode already runs fairly
+The requirement **self-selects the right audience**: anyone who'd _want_ batch mode already runs fairly
 autonomously; a user on full interactive per-commit approval doesn't want batch mode anyway. The gate guards the
-*mismatch* case (wants batch, hasn't configured), not the feature's natural users. Ownership split: the
-*precondition check* is this WU's; the *friction fixes* (no-active-WU wrapper refusals, prompt-prefix, etc.)
+_mismatch_ case (wants batch, hasn't configured), not the feature's natural users. Ownership split: the
+_precondition check_ is this WU's; the _friction fixes_ (no-active-WU wrapper refusals, prompt-prefix, etc.)
 belong to `interlock-release-refinement`.
 
 ### Orchestration architecture (the reconciliation with the bounded-session model)
@@ -222,15 +222,15 @@ belong to `interlock-release-refinement`.
 A WU-scoped run will tend to span more tasks than a bounded session comfortably holds — which collides head-on
 with ARC's session model (see § ADR-002 / P5 reckoning). The resolution is architectural: in batch mode the
 primary agent does **not** execute most tasks itself — it **delegates execution per phase to subagents**, then
-validates the returned work *against the actual diff* (Axis-1: trust git, not the subagent's prose), marks the
+validates the returned work _against the actual diff_ (Axis-1: trust git, not the subagent's prose), marks the
 task list, runs the break-out check, updates the ledger, and writes completion notes itself. The primary takes
 the human's vacated per-increment seat.
 
-Why this is the *correct* shape, not a hack:
+Why this is the _correct_ shape, not a hack:
 
 - It keeps the **judgment/safety layer lean and in the primary** (spec + matrix + ledger + phase-summaries),
   while pushing **context-heavy mechanical execution to disposable, inherently-bounded subagents** (one phase,
-  then discarded). So *every* context stays bounded — which honors the session model's actual concern ("no single
+  then discarded). So _every_ context stays bounded — which honors the session model's actual concern ("no single
   context holding too much"), rather than fighting it.
 - It maps onto the cohort north star and ARC's delegation rule: **mechanics (execution) may delegate; judgment
   (break-out detection, validation, ledger, the terminal gate) may not.**
@@ -239,8 +239,8 @@ Why this is the *correct* shape, not a hack:
 This requires a principled carve-out to DEV-RULES.ARC § Sub-agent scope, which today forbids delegating
 task-list work because doing so "bypasses the co-development loop and the mandatory review stop." That rationale
 is **already waived by the batch authorization** — the user consented to suspend per-leaf review and
-co-development — so delegating execution in batch mode bypasses nothing still in force; it is the *implementation*
-of what was opted into, *provided* the primary retains the break-out matrix and validates against the real diff.
+co-development — so delegating execution in batch mode bypasses nothing still in force; it is the _implementation_
+of what was opted into, _provided_ the primary retains the break-out matrix and validates against the real diff.
 Caveats: **per-phase grain, not per-leaf** (per-leaf delegation is overhead-heavy); the **primary owns commits**
 (so the config gate still applies, cleanly, to one orchestrator).
 
@@ -259,11 +259,11 @@ This WU pushes against ADR-002 P5 — bounded, human-controlled, transparent ses
 natural review points. The reckoning is owed directly (the `compaction-recovery` draft, the corpus's loudest
 defender of the bounded-session stance, will object — see Composition). Prior assertions (ADR-002 is early;
 `compaction-recovery` is recent but its anti-long-session framing is arguably overcautious) are evolving
-best-thinking, not scripture; this is an evolution of ARC, and the move is to *align* them, not work around them.
+best-thinking, not scripture; this is an evolution of ARC, and the move is to _align_ them, not work around them.
 
 The defensible position, made tractable by orchestration: WU-scoped review is a **scoped, opt-in relaxation of
-review *frequency*** that preserves the load-bearing properties — bounded *contexts* (via orchestration),
-human-controlled *gates* (the terminal validation gate + the untouched integration interlock), and transparency
+review _frequency_** that preserves the load-bearing properties — bounded _contexts_ (via orchestration),
+human-controlled _gates_ (the terminal validation gate + the untouched integration interlock), and transparency
 (the deviation ledger). It is not "long monolithic autonomous sessions are fine" (which P5 rightly rejects); it
 is "bounded sub-sessions under a lean human-seat orchestrator, with the human's gate relocated to the WU
 boundary." Likely warrants an ADR — an amendment to ADR-002 or a companion — appropriate weight for a `Novel` WU
@@ -276,28 +276,28 @@ follow-up.
   dependence (it fits the window and finishes fast), barely stresses P5 (a small WU fits a bounded session
   anyway). Proves the matrices + eligibility + config gate + integration-interlock preservation + the ledger.
   Minimal, honest, shippable.
-- **v2 — orchestration.** The real ceiling-raise *and* the principled reconciliation with the bounded-session
+- **v2 — orchestration.** The real ceiling-raise _and_ the principled reconciliation with the bounded-session
   model. Where the full ADR-002 treatment + the § Sub-agent scope carve-out land.
 - **`compaction-recovery` — backstop throughout, never the primary enabler.** Even orchestrated, the orchestrator
   reads each phase's diff to validate, so on a very large WU it can still compact; `session-recover` (the
-  recovery-after-discontinuity half that draft endorses — *not* the rejected routine `arc-refresh`) is the safety
+  recovery-after-discontinuity half that draft endorses — _not_ the rejected routine `arc-refresh`) is the safety
   net, exactly as for any long session. Cross-cohort dependency edge, not a blocker.
 
 ## Composition / Dependencies
 
-- **Depends On `commit-increments` (hard).** The per-leaf-commits-during-batch property *is* that member's
+- **Depends On `commit-increments` (hard).** The per-leaf-commits-during-batch property _is_ that member's
   "deferred review releases commits at leaf boundaries" fix; without it a batch accumulates an entangled diff —
   the exact problem `commit-increments` solves. Also vocabulary-coupled (review-increment term).
 - **Tight coordination with `interlock-release-refinement`.** Shares the "widen the approval unit / release the
   tail" machinery — its **errand approval-collapse** ("one increment-approval releases the full tail") is the
-  sibling shape at *errand* scope; this is the same concept at *WU* scope (but stops at validation; it does
+  sibling shape at _errand_ scope; this is the same concept at _WU_ scope (but stops at validation; it does
   **not** collapse the merge — the integration interlock holds). The pre-flight config gate consumes its
   wrapper-routing + approval-provenance work. Its first-class approval-provenance state composes: a batch
   authorization is a provenance source with WU scope.
 - **`compaction-recovery` (`agent-context-optimization`) — backstop, cross-cohort.** See Phasing; also the
   two-way alignment note below.
 - **Implies a methodology change to DEV-RULES.ARC § Sub-agent scope** if orchestration is adopted (the carve-out).
-- **Forward-compat with `composable-workflows`.** Express process-task-loop *parametrically over increment scope*
+- **Forward-compat with `composable-workflows`.** Express process-task-loop _parametrically over increment scope_
   (the leaf/phase/WU enum) — the stop-and-gate is the fixed procedure; the boundary is the parameter. Do not
   rearchitect the loop into fragments here (that is CW's job) — define the parameter, coordinate the shape.
 - **Coordinate with `out-of-wu-entry` (`agile-parallelism`) on the entry/activation signal.** Requesting batch
@@ -307,7 +307,7 @@ follow-up.
 **Two-way alignment with `compaction-recovery`.** Its current framing — "emergency bridge only," "disable
 auto-compaction default unchanged," and the `arc-refresh` rejection rationale ("drift is from sessions running
 too long / spanning too many tasks") — is in tension with a deliberately-long batch mode and is likely
-overcautious. The resolution is alignment, not workaround: orchestration reconciles the bounded-*context*
+overcautious. The resolution is alignment, not workaround: orchestration reconciles the bounded-_context_
 concern (every context stays bounded), so `compaction-recovery`'s blanket anti-long-session stance should soften
 from "no" to "a scoped, orchestrated exception exists, with `session-recover` as its backstop." Flagged into that
 draft's coordination surface for reconciliation at its next planning iteration. Neither draft is more
@@ -315,7 +315,7 @@ authoritative than the other; align them.
 
 **Resolved (2026-06-28) — `compaction-recovery` reframed.** That draft was holistically reworked: compaction is now
 **first-class re-hydration** (the ARC session decoupled from the harness session), long sessions are **viable** (the
-*correctness* argument against them is removed; scope/review discipline remains as judgment, not a compaction
+_correctness_ argument against them is removed; scope/review discipline remains as judgment, not a compaction
 workaround), and `session-recover` is named the explicit backstop for an orchestrated batch. The anti-long-session
 stance softened exactly as this item asked — the alignment closed in `unit-scoped-review`'s favor. Fold the closure
 in at this WU's next iteration; no longer open.
@@ -324,7 +324,7 @@ in at this WU's next iteration; no longer open.
 
 - **Full autonomy (auto-merge / skip the integration gate).** Rejected — crosses the no-human-gate line. The
   integration interlock is the hard floor that keeps this a middle ground, not "anything goes."
-- **Primary-executes with `compaction-recovery` as the *primary* enabler of long runs.** Rejected — it fights
+- **Primary-executes with `compaction-recovery` as the _primary_ enabler of long runs.** Rejected — it fights
   ADR-002/P5, misuses `compaction-recovery` against its own stated scope, and would require the very ADR-002
   amendment that draft is at pains to avoid. Orchestration is the right enabler; recovery stays a backstop.
 - **Per-leaf delegation in orchestration.** Rejected for overhead — per-phase is the right grain.

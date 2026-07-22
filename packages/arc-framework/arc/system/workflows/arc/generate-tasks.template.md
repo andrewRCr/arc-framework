@@ -5,6 +5,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
+    - assess-design-proportionality
     - test-first
     - task-audit
     - adversarial-review
@@ -185,6 +186,24 @@ below. It stays on disk through the remaining procedures and Finalize.
 - **Asymmetry** — single parents overcommitting (subtask-count signal flags candidates)
 - **Ordering** — phase sequence minimizes dependencies
 
+### Assess design proportionality before content fill
+
+Run [`assess-design-proportionality`][arc-methods-adp] with the spec's chartered problem and a candidate that
+combines its settled design with the provisional skeleton: phase count, parent-task titles and enumerable-unit
+anchors, and rough subtask-count signals. Include key existing substrate pointers when useful.
+
+On `proportionate`, continue the resolved path unchanged. A justified large skeleton is valid and adds no proof
+line. On `revise`, surface every finding and the proposed spec correction before changing either artifact:
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after a disproportionate provisional skeleton is identified. Surface the findings
+> and proposed spec correction; await approval before amending the spec and rebuilding the task list.
+
+On approval, amend `spec-{name}.md`, discard the superseded provisional skeleton, and restart at **Resolve depth
+& Class**. Re-read the scale axis and rebuild the task list from scratch under the newly resolved level and path;
+the Class ratchet still prevents demotion. On decline, leave both artifacts unchanged and return control without
+treating the result as `proportionate`.
+
 → **Pass boundary:** if your path places a stop after this procedure, stop and surface now (per the surfacing
 discipline above) before continuing.
 
@@ -320,7 +339,7 @@ generation time, no implementing-session context exists to absorb them later. Ro
   context fits next to the task without bulking the body
 - **`notes-{name}.md` companion file** — substantive findings (multi-bullet, design rationale, alternatives,
   edge-case enumerations, mapping tables) where inline would crowd the task list. Each affected task body
-  cross-refs via `_Notes:_ See \`notes-{name}.md\` § <section>`
+  cross-refs via `_Note:_ See \`notes-{name}.md\` § <section>`
 
 ### Final suite-coherence pass (once, after all phases)
 
@@ -366,6 +385,8 @@ pre-save checklist and bundles the commit.
 - [ ] Subtask Goals (when present) carry separable sub-intent — diagnostic test passes
 - [ ] Peer descriptors (`_Context:_`, `_Rationale:_`, `_Approach:_`, `_Shape:_`, `_Note:_`) at
       root as siblings of Goal, after Goal — only when framing is genuinely load-bearing
+- [ ] Root descriptor clusters use a blank line between every entry when any entry wraps; all-one-line clusters
+      may be tight or loose. Preserve the blank boundary before operational children and `_Outcome:_`.
 - [ ] Subtasks and description bullets indent 4 spaces under the root-level descriptor block
 - [ ] Blank lines between every subtask (always — see § Blank-Line Discipline in the strategy doc)
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
@@ -477,6 +498,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [arc-methods-rpd]: ../../methods/resolve-planning-depth.md
+[arc-methods-adp]: ../../methods/assess-design-proportionality.md
 [arc-methods-cwu]: ../../methods/classify-work-unit.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md

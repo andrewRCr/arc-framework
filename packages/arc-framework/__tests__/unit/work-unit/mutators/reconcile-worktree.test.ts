@@ -7,11 +7,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { tmpdir } from "node:os";
 
 import {
+  nodeReconcileWorktreeFs,
   reconcileWorktree,
   resolveRenameWorktreeMove,
   type ReconcileWorktreeContext,
@@ -94,6 +95,43 @@ function porcelain(primary: string, linked: string): string {
     "",
   ].join("\n");
 }
+
+describe("nodeReconcileWorktreeFs.copyDirectory", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-copy-harness-dir-"));
+  });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("preserves relative skill links inside the destination worktree", async () => {
+    const primary = join(root, "primary");
+    const destination = join(root, "linked");
+    const relativeTarget = "../../.arc/system/.internal/skills/arc-inbox";
+    const sourceSkill = join(primary, ".arc", "system", ".internal", "skills", "arc-inbox");
+    const destinationSkill = join(destination, ".arc", "system", ".internal", "skills", "arc-inbox");
+    await mkdir(sourceSkill, { recursive: true });
+    await mkdir(destinationSkill, { recursive: true });
+    await mkdir(join(primary, ".claude", "skills"), { recursive: true });
+    await writeFile(join(sourceSkill, "SKILL.md"), "primary\n");
+    await writeFile(join(destinationSkill, "SKILL.md"), "linked\n");
+    await writeFile(join(primary, ".claude", "settings.json"), "{}\n");
+    await symlink(relativeTarget, join(primary, ".claude", "skills", "arc-inbox"), "dir");
+
+    await nodeReconcileWorktreeFs.copyDirectory(
+      join(primary, ".claude"),
+      join(destination, ".claude"),
+    );
+
+    const copiedLink = join(destination, ".claude", "skills", "arc-inbox");
+    expect(await readlink(copiedLink)).toBe(relativeTarget);
+    expect(await realpath(copiedLink)).toBe(await realpath(destinationSkill));
+    expect(await readFile(join(copiedLink, "SKILL.md"), "utf8")).toBe("linked\n");
+    expect(await readFile(join(destination, ".claude", "settings.json"), "utf8")).toBe("{}\n");
+  });
+});
 
 describe("reconcileWorktree — spawn", () => {
   let root: string;

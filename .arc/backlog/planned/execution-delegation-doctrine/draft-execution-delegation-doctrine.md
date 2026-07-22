@@ -18,17 +18,17 @@ members consume.
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Ground delegation choices in verification-cost economics**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
   (2026-07-19); captured from the `commit-message-ergonomics` delegation field test.
-- *Concern:* worker token savings are structural only when checking the result is cheaper than producing it.
+- _Concern:_ worker token savings are structural only when checking the result is cheaper than producing it.
   Full re-derivation makes small, settled, verification-symmetric work a wash; delegation still earns its keep
   there for context conservation or fresh-context independence, not cost.
-- *Approach:* distinguish verification-asymmetric, beyond-one-context, and parallel wall-clock regimes; make the
+- _Approach:_ distinguish verification-asymmetric, beyond-one-context, and parallel wall-clock regimes; make the
   primary-owned-test / worker-implements-to-green split the main cost lever; graduate verification from gates +
   primary-owned tests + skim up to full hand-trace only when no cheap checkable contract exists; and separate
   cost-motivated delegation from context-conservation. Integrate beside the model-tier-routing and field-evidence
@@ -36,10 +36,10 @@ members consume.
 
 ### `[ ]` **Fold delegation-log field findings into the doctrine**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
   (2026-07-18); captured at the delegation-log evidence review (2026-07-16). Raw evidence:
   `.claude/agents/delegation-log.md` (gitignored pointer).
-- *Concern:* five logged runs (2026-07-16) validate the core split — stop-and-report worked end-to-end on the
+- _Concern:_ five logged runs (2026-07-16) validate the core split — stop-and-report worked end-to-end on the
   `harden-concurrent-init` dispatch (pre-edit stop on a structural conflict the dispatch missed, one round trip,
   clean second run, exemplary boundary behavior) — and sharpen the design six ways: (1) **bilateral
   fit-checking** — the worker-side dispatch-completeness gate caught what the primary's rubric read missed;
@@ -51,7 +51,7 @@ members consume.
   two runs were read-only consult/derivation work executed through the worker's zero-design contract at high tier;
   the shape set is edit-bearing zero-judgment worker / read-only consult / parity peer, and the open-set-of-
   profiles extension should name it. (4) **The explicit-activation invariant needs a per-harness carrier** — both
-  consult reaches were *unprompted* on Codex (profiles carry no instructions; a subprocess call has no spawn
+  consult reaches were _unprompted_ on Codex (profiles carry no instructions; a subprocess call has no spawn
   salience); prose discipline without a generated carrier does not bind, and profile-set completeness is a
   steering surface — a missing right-shaped profile produces off-label reaching, not abstinence. Interim
   WORKING-MEMORY carrier in place. (5) **Floors must not assume per-spawn harness sandboxing** — three Codex runs
@@ -60,15 +60,15 @@ members consume.
   spawn. (6) **Economics remain open pending normalization** — raw token counts are not cost; the log now records
   a cost basis. Qualitative shape: margin lives in bulk-mechanical work with precise dispatches; verification was
   real-review in all five first-instance runs, consistent with delegate-the-Nth-never-the-1st.
-- *Fold-in:* integrate at the same grooming pass as the model-tier-routing entry below; the log carries the raw
+- _Fold-in:_ integrate at the same grooming pass as the model-tier-routing entry below; the log carries the raw
   evidence.
 
 ### `[ ]` **Errand-runner delegation profile — preconditions from the FP batch-shape decision**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
   (2026-07-18); captured at FP Task 5.3 weigh-in (2026-07-17). Decision record: `notes-finalize-parallelism.md`
   § Wave-3 seam-audit decisions.
-- *Concern:* FP demoted the orchestrated errand drain (primary dispatches errand executions to subagents on
+- _Concern:_ FP demoted the orchestrated errand drain (primary dispatches errand executions to subagents on
   isolated branches) to a preconditioned escalation rather than building it: feasibility is demonstrated
   (delegated errand PR #275) but the fit is structurally poor today. Three preconditions are this WU's to own:
   (1) **eligibility** — much errand work fails arc-worker's fully-specified / zero-design bar by design (errands
@@ -77,19 +77,19 @@ members consume.
   dispatched errand increment must surface its approval gate without an interactive session; (3) **observability
   parity** — an errand's deliverable ≈ the subagent's scope, so all feedback crosses the primary as a relay hop,
   and subagent interaction affordances are harness-variant (cf. the Codex carrier gap in the sibling entry above).
-- *Fold-in:* same grooming pass as the delegation-log entry — the errand-runner profile joins the role-taxonomy
+- _Fold-in:_ same grooming pass as the delegation-log entry — the errand-runner profile joins the role-taxonomy
   shape set (edit-bearing worker / read-only consult / parity peer) as the errand-scoped contract.
 
 ### `[ ]` **Extend the delegation doctrine with model-tier routing under parallelism**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
   (2026-07-16); captured in the post-compaction model-routing discussion during FP wave 3. Companion pieces: the
   inert-profile field-experiment errand (same date) and the housekeep-orchestrator capture below.
-- *Concern:* live wave-3 parallelism sharpened the doctrine's economics from attention to **token spend**: running
+- _Concern:_ live wave-3 parallelism sharpened the doctrine's economics from attention to **token spend**: running
   primary-tier models through judgment-drained impl loops is what makes parallel WUs expensive, and the draft's v1
   capability (per-task propose, primary executes by default) doesn't capture the target operating posture — a
   high-capability primary as orchestrator/verifier/discussant while worker models run the task-loop impl.
-- *Approach — five extensions to fold into the draft:* (1) **Default inversion as per-WU metadata, not project
+- _Approach — five extensions to fold into the draft:_ (1) **Default inversion as per-WU metadata, not project
   config** — an impl-mode field on the WU meta (`Class`-like, `[TBD]` until resolved, stamped at planning
   close/activation when judgment density is knowable; FP itself is the counterexample: observational verification
   work is never worker-safe regardless of spec quality). Session-init surfaces it for free. (2) **Explicit-
@@ -100,14 +100,14 @@ members consume.
   (per-WU impl mode names the default; primary may propose per-task deviation) rather than one bucket that
   flattens real tier choices; `peer`'s model resolution is inherit-by-semantics (no mapping needed — profile
   optional, earning its keep only via fresh context, tool scoping, and role instructions), with the recorded
-  caveat that peer means parity with the *judgment tier*, which equals the primary only while the primary is the
-  judgment tier. (4) **Loadset slicing lands in the profile contract** — the worker profile's system prompt *is*
+  caveat that peer means parity with the _judgment tier_, which equals the primary only while the primary is the
+  judgment tier. (4) **Loadset slicing lands in the profile contract** — the worker profile's system prompt _is_
   the worker-facing context contract (task body, spec slices, quality-gate commands, testing standards in; session
   lifecycle, commit discipline, strategies, WORKING-MEMORY stay with the primary), and the slice must be
   **derived/inherited from canonical ARC sources through the same deterministic generation pipeline as the harness
   layer — never a hand-copied fork that drifts as ARC evolves**. Likely needs a worker-facing task-loop variant.
   (5) **Planning-stage tiering** — draft-design and spec creation at top tier; generate-tasks plausibly mid-tier,
-  with the caution that its failures are *latent* (a subtly wrong decomposition surfaces mid-impl, expensively)
+  with the caution that its failures are _latent_ (a subtly wrong decomposition surfaces mid-impl, expensively)
   and spotting unsettled design is judgment-detection work — a step-down there likely wants a top-tier or peer
   review pass. Also record a **sequencing re-cut note**: the 2026-07-02 sequencing (after
   `interlock-release-refinement`, before `unit-scoped-review` planning) was cut on attention grounds; the
@@ -115,15 +115,15 @@ members consume.
 
 ### `[ ]` **Housekeep as dispatch orchestrator: worker-delegated errand execution**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured in the
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured in the
   post-compaction model-routing discussion during FP wave 3. Routed here as a named consumer of the worker role;
   the companion errand-sweep-loop capture routed to `session-locus-model`'s inbound buffer the same drain.
-- *Concern:* the delegation doctrine's economics apply cleanly to the errand drain: the judgment-dense part of a
-  housekeep session is triage and fit decisions in the primary; a dispatched errand is *by definition* determined
+- _Concern:_ the delegation doctrine's economics apply cleanly to the errand drain: the judgment-dense part of a
+  housekeep session is triage and fit decisions in the primary; a dispatched errand is _by definition_ determined
   and well-scoped/bounded — a near-perfect four-flow rubric pass. The draft does not currently carry this angle
   (its only errand-adjacent line is the separate research-delegation pointer): high-reasoning primary runs the
   drain triage, worker subagents execute dispatched errands.
-- *Constraint:* must respect FP Task 5.3's batch-errand shape decision (the recorded sequential-first leaning
+- _Constraint:_ must respect FP Task 5.3's batch-errand shape decision (the recorded sequential-first leaning
   governs whether dispatch is serial or parallel). Field evidence for this posture accrues in the harness-local
   delegation log (`.claude/agents/delegation-log.md`, gitignored) from the 2026-07-16 field-experiment errand
   onward.
@@ -147,21 +147,21 @@ storm.
 delegating task-list work because it "bypasses the co-development loop and the mandatory review stop." Decomposed:
 
 - **(a) Review-stop integrity** — an invariant. But delegation done right doesn't touch it: if the primary
-  delegates the *production* of one mechanical task, validates the diff, and stops at the same leaf boundary for
+  delegates the _production_ of one mechanical task, validates the diff, and stops at the same leaf boundary for
   the same human review, nothing was bypassed. The rule prohibits something that violates zero invariants.
-- **(b) Human visibility / legibility** — real, but a property of *artifacts*, not of who typed. Trust the diff,
+- **(b) Human visibility / legibility** — real, but a property of _artifacts_, not of who typed. Trust the diff,
   never the subagent's prose; require legibility artifacts. Engineerable.
 - **(c) Primary-context continuity** — the quiet third concern: the primary accumulates execution understanding
-  that improves later tasks and later debugging. A real *cost* the fit-check prices in (see rubric), not a
+  that improves later tasks and later debugging. A real _cost_ the fit-check prices in (see rubric), not a
   principle that gates.
 
 **ADR-002 conflates two orthogonal axes.** Its Tier 3 "off-label" framing was defined by async-delegation tools
-where *execution locus* (primary vs. delegated) and *gate presence* (human gates vs. none) traveled together —
+where _execution locus_ (primary vs. delegated) and _gate presence_ (human gates vs. none) traveled together —
 dispatch to an opaque sandbox meant losing the gates. A synchronous, bounded, primary-supervised subagent on a
 shared filesystem is a quadrant the ADR has no name for: **delegated locus, full gates**. The compatibility
-spectrum classifies *the agent the human collaborates with* — still the Tier 1 primary; the subagent is a bounded
+spectrum classifies _the agent the human collaborates with_ — still the Tier 1 primary; the subagent is a bounded
 tool that primary wields. ADR-002 even blessed the shape in embryo ("ARC's own research sub-agent uses this
-pattern"): the doctrine was never "no delegation," it was "no *ungated* delegation" — it just never got stated
+pattern"): the doctrine was never "no delegation," it was "no _ungated_ delegation" — it just never got stated
 that way.
 
 ## Proposed Shape
@@ -196,7 +196,7 @@ A task is delegable when all four flows run favorable:
 
 - **Judgment-in** — does the task contain unsettled decisions? Mechanical signal: concrete, verb-bounded leaves
   with clear success criteria; investigate / spike / design verbs are a near-objective no.
-- **Context-in** — how much *unexternalized* session context does correct execution need? A task depending on
+- **Context-in** — how much _unexternalized_ session context does correct execution need? A task depending on
   conversation-only decisions delegates badly. Corollary: ARC's discipline of writing decisions into artifacts is
   precisely what creates delegability — delegation-readiness measures how well context has been externalized.
 - **Verification-out** — can the primary validate the result cheaply (diff + gates + criteria)? A bulk rename
@@ -209,7 +209,7 @@ A task is delegable when all four flows run favorable:
 Worked boundary cases: debugging mostly fails judgment-in (investigation is judgment formation), though bounded
 reproduction passes; test-writing fails verification-out deceptively (bad tests pass review easily; choosing what
 to assert is judgment-adjacent); "fix all lint errors" passes everything. Spike work (see `synthesis-modality`):
-spike *contract authoring* is judgment — never delegable; spike *execution against a settled contract* is
+spike _contract authoring_ is judgment — never delegable; spike _execution against a settled contract_ is
 arguably the most delegable work in ARC (bounded, hypothesis-framed, acceptance-criteria-verifiable, learning
 captured in artifacts by design).
 
@@ -230,7 +230,7 @@ worse than none (it manufactures false confidence at exactly the gate that was w
 the load-bearing cut; workflows and methods reference **roles, never model names** (model slugs rot in months —
 the indirection is staleness-proofing as much as harness-agnosticism):
 
-- **`worker`** — mechanical execution under a settled contract; capability step-down *permitted* (the work is
+- **`worker`** — mechanical execution under a settled contract; capability step-down _permitted_ (the work is
   rubric-passed by definition).
 - **`peer`** — parity-critical: adversarial review, WU verification, anything whose output substitutes for
   judgment scrutiny; inherits the primary's capability. The adversarial planning-review mechanism's fresh
@@ -254,14 +254,14 @@ later-adopted harness). Where a harness offers no model-scoped spawn primitive, 
 ### The floors
 
 - **Integration interlock untouched** — merge always requires explicit human authorization; never inferred.
-- **Planning gates human-gated** — planning is the judgment-dense zone, the *last* place to automate; out of
-  scope here. (Adversarial planning review strengthens the agent's contribution *within* human gates — the right
+- **Planning gates human-gated** — planning is the judgment-dense zone, the _last_ place to automate; out of
+  scope here. (Adversarial planning review strengthens the agent's contribution _within_ human gates — the right
   direction for that zone.)
 - **Quality gates and commit discipline unchanged** — cadence holds whether primary or subagent produced the work.
 - **Trust boundary: ARC never self-escalates.** The harness permission boundary is the user's, configured
   deliberately, ahead of time. Wrappers stay constitutionally narrow (refuse destructive flags; validate
-  interlock state; audit) — a batch/delegation mode may teach a wrapper to *recognize new provenance shapes*
-  (e.g., a batch authorization with declared scope); it never validates *less*. ARC's answer to "just disengage
+  interlock state; audit) — a batch/delegation mode may teach a wrapper to _recognize new provenance shapes_
+  (e.g., a batch authorization with declared scope); it never validates _less_. ARC's answer to "just disengage
   the permission gates" is differential trust: **make the trusted paths wide enough that broad permissiveness is
   unnecessary.**
 
@@ -270,12 +270,12 @@ later-adopted harness). Where a harness offers no model-scoped spawn primitive, 
 - **Capability envelope, front-loaded.** Batch/delegation mode front-loads judgment; it front-loads trust
   decisions the same way. At entry, compute-request-verify the run's needed capability set (edit surface from the
   spec's file scope, quality-gate commands from DEV-RULES.PROJECT, wrapper commands) as one deliberate grant
-  moment. ARC *reads* (partially), *requests*, *advises* — never *sets*; the user stays the grantor. Mechanism
+  moment. ARC _reads_ (partially), _requests_, _advises_ — never _sets_; the user stays the grantor. Mechanism
   home: `unit-scoped-review`'s pre-flight gate (buffer-carried there).
 - **Bounded command vocabulary.** Workflow-emitted operations come from a small, stable, documented command set —
-  that is what makes narrow allowlisting possible. Binding on the orchestrator *and* its subagents (subagent tool
+  that is what makes narrow allowlisting possible. Binding on the orchestrator _and_ its subagents (subagent tool
   calls flow through the same harness permission system; delegation doesn't escape prompts).
-- **Stalls ≠ break-outs.** A mid-run harness permission prompt is a *stall* (capability gap → grant-and-resume),
+- **Stalls ≠ break-outs.** A mid-run harness permission prompt is a _stall_ (capability gap → grant-and-resume),
   not a break-out trigger (premise failure); it never collapses a batch. End-of-run stall report feeds the
   allowlist so runs converge toward prompt-free.
 - **P8 degradation.** Subagent facilities vary by harness; the machinery is capability-conditional and degrades

@@ -95,7 +95,7 @@ We will expand P5 (Context Preservation) to explicitly include active context qu
 just recovery at boundaries.
 
 P5 as established in ADR-001 focuses on recoverability: "knowledge must not be lost when a session ends." The context
-degradation evidence demonstrates that quality management *during* work is equally important:
+degradation evidence demonstrates that quality management _during_ work is equally important:
 
 - Performance degrades gradually, not catastrophically — work quality erodes before an obvious failure point
 - Complex reasoning tasks (which ARC work is) degrade faster than simple retrieval
@@ -134,12 +134,12 @@ not just at commit time.
 
 **What's actually load-bearing (the principles behind all assumptions):**
 
-1. Agent has project context before working (P5) — *how* it acquires context varies
-2. Agent and human share context with mutual visibility (P11) — the *medium* varies
-3. Review happens at meaningful increment boundaries (P2) — the *interaction model* varies
-4. Agent can read and modify work artifacts (task lists, docs, code) — the *access mechanism* varies
-5. Human can intervene during work, not just at completion (P2 + P11) — the *intervention mechanism* varies
-6. Predefined workflows exist and are triggerable — the *invocation mechanism* varies
+1. Agent has project context before working (P5) — _how_ it acquires context varies
+2. Agent and human share context with mutual visibility (P11) — the _medium_ varies
+3. Review happens at meaningful increment boundaries (P2) — the _interaction model_ varies
+4. Agent can read and modify work artifacts (task lists, docs, code) — the _access mechanism_ varies
+5. Human can intervene during work, not just at completion (P2 + P11) — the _intervention mechanism_ varies
+6. Predefined workflows exist and are triggerable — the _invocation mechanism_ varies
 
 ### Part 4: Agent Compatibility Spectrum
 
@@ -238,7 +238,7 @@ longer apply. Flag for WU2 cleanup.
   points not anticipated here may surface during that validation or through early adopter feedback.
 - **Off-label boundary is fuzzy.** Some agents blur the line between Tier 2 and Tier 3. Cursor's background agents
   run autonomously on separate branches (Tier 3 behavior) while the foreground agent is conversational (Tier 2).
-  The tier applies to the *usage pattern*, not the tool — but this distinction may confuse adopters.
+  The tier applies to the _usage pattern_, not the tool — but this distinction may confuse adopters.
 - **Context quality thresholds will evolve.** The 75–80% recommendation is current best evidence, but model
   architectures improve. Convention-level classification means thresholds can update without ADR revision, but the
   guidance must be presented as current evidence rather than permanent truth.
