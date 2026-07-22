@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `dd36f12dc`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `73e6356b2`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -22,6 +22,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Active`      | session-locus-model      | P1       | andrew | —          | —                      |
 | `Integrating` | cli-command-inputs       | P2       | andrew | —          | cli-substrate-adoption |
 | `Active`      | cli-validation-surfaces  | P2       | andrew | —          | cli-substrate-adoption |
+| `Planning`    | wu-rename                | P2       | andrew | —          | —                      |
 | `Active`      | markdown-formatting      | P3       | andrew | —          | —                      |
 
 ## Ready
@@ -90,6 +91,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                         | Priority | Owner  | Depends on                                  | Cohort                     |
 | --------------------------------- | -------- | ------ | ------------------------------------------- | -------------------------- |
+| chunked-delivery                  | P1       | andrew | pr-decomposition                            | —                          |
 | review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification       | —                          |
 | unit-scoped-review                | P2       | andrew | commit-increments                           | approval-flow-refinement   |
 | cli-substrate-complete-migration  | P2       | andrew | cli-validation-surfaces, cli-command-inputs | cli-substrate-adoption     |
