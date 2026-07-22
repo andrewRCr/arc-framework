@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `ce3f03b5f`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `826427f21`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -20,6 +20,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning`    | pr-decomposition         | P1       | andrew | —          | —                      |
 | `Planning`    | review-surface-binding   | P1       | andrew | —          | —                      |
 | `Active`      | session-locus-model      | P1       | andrew | —          | —                      |
+| `Planning`    | solution-proportionality | P1       | andrew | —          | —                      |
 | `Integrating` | cli-command-inputs       | P2       | andrew | —          | cli-substrate-adoption |
 | `Active`      | cli-validation-surfaces  | P2       | andrew | —          | cli-substrate-adoption |
 | `Planning`    | wu-rename                | P2       | andrew | —          | —                      |
@@ -33,7 +34,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | recovery-hardening                    | P1       | andrew | —          | —                          |
 | review-gate-enforcement-qualification | P1       | andrew | —          | —                          |
 | roadmap-tooling                       | P1       | andrew | —          | —                          |
-| solution-proportionality              | P1       | andrew | —          | —                          |
 | stub-mint-to-launch                   | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model              | P1       | andrew | —          | —                          |
 | composable-workflows                  | P2       | andrew | —          | agent-context-optimization |
