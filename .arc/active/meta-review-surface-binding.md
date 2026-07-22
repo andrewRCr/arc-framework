@@ -13,11 +13,14 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Draft captured after proportionality revision and two adversarial passes at the Heavy cap
+- **Last Completed:** Spec authored and carried through the create-spec review gate — three adversarial passes,
+  31 findings verified against source and applied
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** Held pending `review-gate-right-sizing` — the spec's evidence model and its recovery machinery
+  depend on a program target state no single member can settle. Do not finalize or generate tasks until it lands.
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Await `review-gate-right-sizing`; then re-read `spec-review-surface-binding.md` against its
+  verdict and re-confirm the review gate before finalize
 
 - **PR URL:** [none]
 - **Completed:** [none]
