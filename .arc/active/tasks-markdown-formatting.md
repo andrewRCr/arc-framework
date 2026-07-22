@@ -208,33 +208,15 @@ fires.
 - _Outcome:_ The staged entry point now certifies one complete candidate from indexed dependencies, configuration,
   and Markdown bytes without importing CLI internals or consulting the worktree after repository-root resolution.
 
-### `[ ]` **6.2 Wire relevant-change gating into the project pre-commit chain**
+### `[x]` **6.2 Wire relevant-change gating into the project pre-commit chain**
 
 - _Goal:_ Relevant staged Markdown or checker changes trigger exact-index certification before existing
   package-sync and TypeScript checks, while unrelated commits pay no Markdown-gate cost.
 
-    - Expose the runner as `lint:md:staged`; inside it, read staged changes with NUL-safe Git plumbing and
-      centralize the trigger set: selected Markdown, every configuration name recognized by pinned
-      `markdownlint-cli2`, selector code, descriptor validation, staged-runner and configuration-loader code,
-      canonical fixtures, `package.json`,
-      `packages/arc-framework/package.json`, and `package-lock.json`.
-    - Invoke the lightweight command unconditionally from the project Husky layer before package-sync and
-      TypeScript checks; let the runner exit successfully before corpus loading when no trigger matches, and do not
-      change ARC's shipped universal pre-commit hook.
-    - Preserve check-only behavior: never rewrite, fix, or restage a partially staged file.
-    - Build `test-first` (one behavior at a time):
-        - Relevant Markdown, root/nested configuration, and checker changes fire full certification; unrelated
-          commits stop after trigger detection.
-        - A root path-selection change must accompany matching selector code, while config-only or nested
-          path-selection drift fails closed in the candidate view.
-        - A recognized unsupported configuration filename triggers a fail-closed conversion diagnostic rather than
-          silently changing worktree-only lint behavior.
-        - A dependency-only change fires the indexed alignment check, and an installed tree that does not match the
-          candidate manifests or lockfile fails with an actionable dependency-install diagnostic.
-        - Failure propagates through `set -e` before package-sync and TypeScript checks, while green runs preserve
-          the established command order.
-        - Real temporary Git repositories prove deletion, rename, partial staging, unusual tracked names, and
-          linked-worktree commit paths retain check-only index semantics.
+- _Outcome:_ `lint:md:staged` now exits after NUL-safe changed-path detection for unrelated candidates and otherwise
+  certifies the full index before package-sync and TypeScript checks. Central trigger ownership covers selected
+  Markdown, recognized configs, dependencies, fixtures, and checker code; executing checker bytes must match the
+  index, and real Git tests cover rename, deletion, partial staging, unusual names, and linked worktrees.
 
 ### `[ ]` **6.3 Reconcile formatting remedies and command discoverability**
 

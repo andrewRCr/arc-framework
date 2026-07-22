@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "lint:md": "tsx packages/arc-framework/src/scripts/lint-markdown.ts",
+    "lint:md:staged": "tsx packages/arc-framework/src/scripts/lint-markdown-staged.ts",
     "lint:md:markdownlint": "npm run -s lint:md:dependencies && tsx packages/arc-framework/src/scripts/lint-markdown-worktree.ts",
     "lint:md:descriptors": "tsx packages/arc-framework/src/scripts/lint-task-descriptors.ts",
     "lint:md:dependencies": "tsx packages/arc-framework/src/scripts/verify-markdown-dependencies.ts",
