@@ -138,7 +138,24 @@ describe("locus frame derivation", () => {
       unmanaged,
     ];
     expect(deriveLocusFrames({ rows, enteringAnchor: ANCHOR }).rows.map((item) => item.frame))
-      .toEqual(["idle", "residue", "residue", "residue", "idle", null]);
+      .toEqual(["idle", "residue", "idle", "residue", "idle", null]);
+  });
+
+  it("resolves a live transient through its leaseless WU parent", () => {
+    const parent = row({ id: "1", path: "/parent", lease: null });
+    const child = row({ id: "2", path: "/child", role: "errand", lease: "live", parent: "/parent" });
+    const result = deriveLocusFrames({ rows: [parent, child], enteringAnchor: ANCHOR });
+
+    expect(result.rows.map(({ recordId, frame }) => ({ recordId, frame }))).toEqual([
+      { recordId: parent.recordId, frame: "suspended" },
+      { recordId: child.recordId, frame: "active" },
+    ]);
+    expect(result.current).toEqual({
+      kind: "resolved",
+      sessionHomeRecordId: parent.recordId,
+      activeRecordId: child.recordId,
+      parentRecordId: parent.recordId,
+    });
   });
 
   it("returns none, cold transient, WU, and ambiguous current states without choosing siblings", () => {

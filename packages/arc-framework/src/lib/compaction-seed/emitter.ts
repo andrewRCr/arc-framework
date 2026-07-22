@@ -11,10 +11,12 @@
 
 import { join } from "node:path";
 
+import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import { atomicWriteJson } from "../fs.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
 import type { LocusStateV1 } from "../locus/schema/index.js";
+import { isIdleWorkUnitRow, selectCheckoutWorkUnit } from "../locus/state.js";
 import { deriveRecoveryLocusContext } from "../recover/locus-context.js";
 import {
   assertCompactionSeed,
@@ -32,7 +34,7 @@ type SeedProbe<T> =
 export interface CompactionSeedEnvelope {
   identity: { identity: string | null };
   locusState: SeedProbe<LocusStateV1>;
-  worktree: SeedProbe<{ branch: string | null }>;
+  worktree: SeedProbe<{ branch: string | null; identity: WorktreeIdentity }>;
   active: SeedProbe<{
     path: string | null;
     sessionType: CompactionSeedSessionType | null;
@@ -168,24 +170,38 @@ export async function emitCompactionSeed(
       : null;
   let loadSet = options.envelope.loadSet.value;
   let sessionType = options.envelope.active.ok ? options.envelope.active.value.sessionType : null;
-  if (options.envelope.locusState.ok && options.envelope.locusState.value.current.kind === "resolved") {
-    try {
-      const recovery = deriveRecoveryLocusContext({
-        state: options.envelope.locusState.value,
-        identity,
-        workingMemoryPath: loadSet.entries.find((entry) =>
-          entry.path.endsWith("/WORKING-MEMORY.md"))?.path ?? null,
-      });
-      loadSet = recovery.loadSet;
-      taskCursor = recovery.taskCursor?.status === "found" ? recovery.taskCursor.cursor : null;
-      if (recovery.frame.kind === "resolved") {
-        currentWorkflow = recovery.frame.workflow;
-        sessionType = asCompactionSeedSessionType(recovery.frame.sessionType);
+  if (options.envelope.locusState.ok) {
+    const state = options.envelope.locusState.value;
+    const checkoutPath = options.envelope.worktree.ok
+      ? options.envelope.worktree.value.identity.kind === "linked"
+        ? options.envelope.worktree.value.identity.path
+        : state.roster.primaryPath
+      : null;
+    const checkoutWorkUnit = checkoutPath === null
+      ? { kind: "none" as const }
+      : selectCheckoutWorkUnit(state, checkoutPath);
+    const recoveryContextAvailable = state.current.kind === "resolved"
+      || (checkoutWorkUnit.kind === "resolved" && isIdleWorkUnitRow(checkoutWorkUnit.row));
+    if (recoveryContextAvailable) {
+      try {
+        const recovery = deriveRecoveryLocusContext({
+          state,
+          checkoutPath: checkoutPath ?? options.cwd,
+          identity,
+          workingMemoryPath: loadSet.entries.find((entry) =>
+            entry.path.endsWith("/WORKING-MEMORY.md"))?.path ?? null,
+        });
+        loadSet = recovery.loadSet;
+        taskCursor = recovery.taskCursor?.status === "found" ? recovery.taskCursor.cursor : null;
+        if (recovery.frame.kind === "resolved") {
+          currentWorkflow = recovery.frame.workflow;
+          sessionType = asCompactionSeedSessionType(recovery.frame.sessionType);
+        }
+        metaPath = loadSet.entries.find((entry) =>
+          /(?:^|\/)\.arc\/active\/meta-[^/]+\.md$/u.test(entry.path))?.path ?? metaPath;
+      } catch (error) {
+        return { status: "failed", reason: "seed-invalid", message: errorMessage(error) };
       }
-      metaPath = loadSet.entries.find((entry) =>
-        /(?:^|\/)\.arc\/active\/meta-[^/]+\.md$/u.test(entry.path))?.path ?? metaPath;
-    } catch (error) {
-      return { status: "failed", reason: "seed-invalid", message: errorMessage(error) };
     }
   }
   const currentLocusHint = deriveCompactionSeedLocusHint(options.envelope.locusState);

@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import type { LocusRowV1, LocusStateV1 } from "./schema/index.js";
+import { isIdleWorkUnitRow, selectCheckoutWorkUnit } from "./state.js";
 
 const ready = z.strictObject({
   kind: z.literal("ready"),
@@ -26,8 +27,17 @@ type LocusProbe =
   | { ok: true; value: LocusStateV1 }
   | { ok: false; error: { kind: string; message: string } };
 
-/** Precompose stable session and cleanup narration without adding authority. */
-export function deriveLocusSessionGuidance(probe: LocusProbe): LocusSessionGuidance {
+/**
+ * Precompose stable session and cleanup narration without adding authority.
+ *
+ * @param probe - Shared locus-state probe result.
+ * @param checkoutPath - Exact physical checkout when the caller resolved it.
+ * @returns Stable session, recovery, reconciliation, and cleanup narration.
+ */
+export function deriveLocusSessionGuidance(
+  probe: LocusProbe,
+  checkoutPath?: string,
+): LocusSessionGuidance {
   if (!probe.ok) {
     return LocusSessionGuidanceSchema.parse({
       kind: "unavailable",
@@ -37,7 +47,7 @@ export function deriveLocusSessionGuidance(probe: LocusProbe): LocusSessionGuida
   const state = probe.value;
   return LocusSessionGuidanceSchema.parse({
     kind: "ready",
-    currentFrame: renderCurrent(state),
+    currentFrame: renderCurrent(state, checkoutPath),
     primaryAvailability: renderPrimary(state),
     recovery: renderRecovery(state),
     reconciliation: renderReconciliation(state),
@@ -49,9 +59,15 @@ export function deriveLocusSessionGuidance(probe: LocusProbe): LocusSessionGuida
   });
 }
 
-function renderCurrent(state: LocusStateV1): string {
+function renderCurrent(state: LocusStateV1, checkoutPath: string | undefined): string {
   const current = state.current;
-  if (current.kind === "none") return "No active local session locus is resolved.";
+  if (current.kind === "none") {
+    const selected = checkoutPath === undefined ? { kind: "none" as const } : selectCheckoutWorkUnit(state, checkoutPath);
+    if (selected.kind === "resolved" && isIdleWorkUnitRow(selected.row)) {
+      return `Current work-unit checkout is ${checkoutPath}; no transient operation is active.`;
+    }
+    return "No active local session locus is resolved.";
+  }
   if (current.kind === "ambiguous") {
     return `Active locus is ambiguous (${current.reasons.join(", ")}); reconcile before continuing.`;
   }

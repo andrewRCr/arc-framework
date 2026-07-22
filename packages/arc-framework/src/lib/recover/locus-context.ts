@@ -12,6 +12,7 @@ import {
   type LocusRowV1,
   type LocusStateV1,
 } from "../locus/schema/index.js";
+import { isIdleWorkUnitRow, selectCheckoutWorkUnit } from "../locus/state.js";
 
 const RecoveryLocusFrameResolvedSchema = z.strictObject({
   kind: z.literal("resolved"),
@@ -57,13 +58,14 @@ export class RecoveryLocusContextError extends Error {
 }
 
 /**
- * Derive recovery workflow and context from the reader-owned current verdict.
+ * Derive recovery workflow and context from the reader-owned current verdict or checkout role.
  *
  * @param options - Fresh locus state plus identity-global context pointers.
  * @returns The selected recovery frame, ordered load set, and task cursor.
  */
 export function deriveRecoveryLocusContext(options: {
   state: LocusStateV1;
+  checkoutPath: string;
   identity: string | null;
   workingMemoryPath: string | null;
 }): RecoveryLocusContext {
@@ -75,6 +77,16 @@ export function deriveRecoveryLocusContext(options: {
   }
   if (state.current.kind === "none") {
     refuseUnresolvedResidue(state);
+    const selected = selectCheckoutWorkUnit(state, options.checkoutPath);
+    if (selected.kind === "ambiguous") {
+      throw new RecoveryLocusContextError("Current checkout has an ambiguous work-unit role");
+    }
+    if (selected.kind === "resolved") {
+      if (!isIdleWorkUnitRow(selected.row)) {
+        throw new RecoveryLocusContextError("Current work-unit checkout is not an idle managed frame");
+      }
+      return workUnitContext(selected.row);
+    }
     return {
       frame: { kind: "none", workflow: null, sessionType: null },
       loadSet: baseLoadSet(options),
@@ -109,18 +121,7 @@ export function deriveRecoveryLocusContext(options: {
   assertParentEdge(active, parent, current.sessionHomeRecordId);
 
   if (active.role?.kind === "work-unit") {
-    const derived = requireWorkUnitProjection(active, "active");
-    return {
-      frame: RecoveryLocusFrameSchema.parse({
-        kind: "resolved",
-        workflow: recoveryWorkflowForWorkUnit(derived),
-        sessionType: derived.sessionType,
-        activeRecordId: current.activeRecordId,
-        parentRecordId: null,
-      }),
-      loadSet: derived.loadSet,
-      taskCursor: derived.taskCursor,
-    };
+    return workUnitContext(active);
   }
 
   assertTransientIdentity(active);
@@ -140,6 +141,24 @@ export function deriveRecoveryLocusContext(options: {
     }),
     loadSet,
     taskCursor: parentDerived?.taskCursor ?? null,
+  };
+}
+
+function workUnitContext(row: LocusRowV1): RecoveryLocusContext {
+  if (row.recordId === null) {
+    throw new RecoveryLocusContextError("Selected work-unit row has no record ID");
+  }
+  const derived = requireWorkUnitProjection(row, "active");
+  return {
+    frame: RecoveryLocusFrameSchema.parse({
+      kind: "resolved",
+      workflow: recoveryWorkflowForWorkUnit(derived),
+      sessionType: derived.sessionType,
+      activeRecordId: row.recordId,
+      parentRecordId: null,
+    }),
+    loadSet: derived.loadSet,
+    taskCursor: derived.taskCursor,
   };
 }
 
@@ -215,9 +234,8 @@ function assertParentEdge(
     || parent.kind !== "managed-role"
     || parent.role?.kind !== "work-unit"
     || parent.checkoutPath !== parentPath
-    || parent.lease?.state !== "live"
     || parent.frame !== "suspended"
-    || parent.diagnostics.length > 0
+    || !parent.diagnostics.every((item) => item.code === "lease-dead")
     || sessionHomeRecordId !== parent.recordId
   ) {
     throw new RecoveryLocusContextError("Selected parent row does not match the active transient edge");

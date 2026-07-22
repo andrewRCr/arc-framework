@@ -65,9 +65,13 @@ describe("locus methodology contracts", () => {
 
       expect(init).toContain("locusState: Probe<LocusStateV1>");
       expect(init).toContain("Dispatch only on `locusState.value.current`");
+      expect(init).toContain("exact role row registered at the entering checkout");
+      expect(init).toContain("`current.kind === \"none\"` → attach nothing");
+      expect(init).toContain("a null lease is the normal ordinary-session state");
       expect(init).toContain("select a second frame from branch shape, metas, the worktree list, or SESSION-NOTES");
       expect(handoff).toContain("dispatch only on `handoffLocus.value`");
       expect(handoff).toContain("Never select the handoff subject from a branch prefix");
+      expect(handoff).toContain("`release-work-unit` with null `leaseId` — release nothing");
       expect(recovery).toContain("required `recover.locusState` is the sole topology/frame read");
       expect(recovery).toContain("dispatching only on `report.recover.recoveryFrame.value`");
     }

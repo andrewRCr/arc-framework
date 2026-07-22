@@ -77,6 +77,7 @@ import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js";
 import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
 import type { RecoveryLocusContext } from "../../../src/lib/recover/locus-context.js";
+import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
 
 // --- Fixtures ---
 
@@ -555,6 +556,7 @@ function sessionHandoffProbes(
 ): SessionHandoffProbes {
   return {
     locusState: vi.fn(async () => locusState()),
+    worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     dirty: vi.fn(async () => dirtyState()),
     worktree: vi.fn(async () => worktreeSync()),
     user: vi.fn(async () => userSessionInit()),
@@ -1195,7 +1197,7 @@ describe("runRecoverStatus — lean recover envelope", () => {
     });
   });
 
-  it("uses the bounded legacy Errand context only when the locus has no current frame", async () => {
+  it("uses the bounded legacy Errand context only when the checkout has no WU frame", async () => {
     const probes = sessionRecoverProbes({
       legacyErrand: vi.fn(async (): Promise<RecoveryLocusContext> => ({
         frame: {
@@ -1231,6 +1233,43 @@ describe("runRecoverStatus — lean recover envelope", () => {
     expect(result.loadSet.ok && result.loadSet.value.entries.at(-1)?.path)
       .toBe(".arc/system/workflows/arc/supplemental/run-errand.md");
     expect(result.taskCursor?.ok).toBe(true);
+  });
+
+  it("does not let legacy Errand compatibility override a leaseless WU checkout", async () => {
+    const idle = recoveryWorkUnitLocus();
+    const row = idle.roster.rows[0];
+    if (row === undefined || row.recordId === null) throw new Error("missing WU fixture row");
+    row.lease = null;
+    row.frame = "idle";
+    idle.current = { kind: "none" };
+    idle.primaryAvailability = {
+      kind: "occupied",
+      checkoutPath: "/repo",
+      recordId: row.recordId,
+      leaseState: "absent",
+    };
+    idle.recovery = { kind: "none" };
+    const probes = sessionRecoverProbes({
+      locusState: vi.fn(async () => idle),
+      legacyErrand: vi.fn(async (): Promise<RecoveryLocusContext> => ({
+        frame: {
+          kind: "legacy-errand",
+          workflow: "run-errand",
+          sessionType: "execution",
+          slug: "legacy",
+          branch: "chore/legacy",
+          returnBranch: "feat/parent",
+        },
+        loadSet: { manifestVersion: 1, entries: [] },
+        taskCursor: null,
+      })),
+    });
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.recoveryFrame).toEqual({
+      ok: true,
+      value: expect.objectContaining({ kind: "resolved", workflow: "process-task-loop" }),
+    });
   });
 
   it("isolates an inconsistent locus projection across derived recovery slots", async () => {
@@ -2730,6 +2769,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
+    expect(probes.worktreeIdentity).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledTimes(1);
     expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
@@ -2800,6 +2840,45 @@ describe("runSessionHandoffStatus — orchestration", () => {
     ]);
     expect(result.mode).toBe("session-handoff");
     expect(result.handoffLocus).toEqual({ ok: true, value: { kind: "between-work-units" } });
+  });
+
+  it("selects a leaseless WU from the current checkout for handoff", async () => {
+    const idle = managedWorkUnitRow("demo", "/wt/demo");
+    const probes = sessionHandoffProbes({
+      locusState: vi.fn(async () => locusStateFixture({ rows: [idle] })),
+      worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "linked", path: "/wt/demo" })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.handoffLocus).toEqual({
+      ok: true,
+      value: {
+        kind: "release-work-unit",
+        recordId: idle.recordId,
+        leaseId: null,
+        checkoutPath: "/wt/demo",
+      },
+    });
+  });
+
+  it("fails the handoff locus slot when the physical checkout probe fails", async () => {
+    const probes = sessionHandoffProbes({
+      worktreeIdentity: vi.fn(async () => { throw new Error("worktree identity unavailable"); }),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.handoffLocus).toMatchObject({
+      ok: false,
+      error: { kind: "runtime" },
+    });
   });
 
   it("finalizes loadNeeded on the handoff user slot when disk lags behind the notes ref", async () => {

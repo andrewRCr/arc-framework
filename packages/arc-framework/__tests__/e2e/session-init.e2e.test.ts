@@ -250,7 +250,7 @@ function taskListFixture(title: string): string {
   ].join("\n");
 }
 
-async function prepareAttachedWorkUnit(repository: string): Promise<void> {
+async function prepareWorkUnit(repository: string): Promise<void> {
   const configPath = join(repository, ".arc", "system", "arc-config.yml");
   const config = await readFile(configPath, "utf8");
   await writeFile(
@@ -287,6 +287,13 @@ async function prepareAttachedWorkUnit(repository: string): Promise<void> {
   );
   await git(repository, ["add", "-A"]);
   await git(repository, ["commit", "--no-verify", "-m", "add active fixture"]);
+  const attached = await runArcAnchored(["locus", "attach", "--json"], repository);
+  if (attached.exitCode !== 0) throw new Error(attached.stderr || attached.stdout);
+  const attachment = JSON.parse(attached.stdout) as { recordId: string; leaseId: string };
+  const released = await runArcAnchored([
+    "locus", "release", attachment.recordId, "--lease", attachment.leaseId, "--json",
+  ], repository);
+  if (released.exitCode !== 0) throw new Error(released.stderr || released.stdout);
 }
 
 describe("session lifecycle locus projection", () => {
@@ -302,34 +309,46 @@ describe("session lifecycle locus projection", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("shares one exact WU projection across init, recovery, and handoff", async () => {
-    await prepareAttachedWorkUnit(tmpDir);
+  it("shares one leaseless WU role projection across init, recovery, and handoff", async () => {
+    await prepareWorkUnit(tmpDir);
     const sequence = await runArcAnchoredSequence([
-      ["locus", "attach", "--json"],
       ["status", "--session-init", "--write-compaction-seed", "--json"],
       ["recover", "audit", "--json"],
       ["status", "--session-handoff", "--json"],
     ], tmpDir);
 
     expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
-    const [attachment, session, audit, handoff] = sequence.results as Array<Record<string, unknown>>;
-    expect(attachment, JSON.stringify(attachment)).toMatchObject({
-      outcome: "applied",
-      operation: "locus-attach",
-    });
+    const [session, audit, handoff] = sequence.results as Array<Record<string, unknown>>;
     expect(session).toMatchObject({
       mode: "session-init",
-      locusState: { ok: true, value: { current: { kind: "resolved" } } },
+      locusState: {
+        ok: true,
+        value: {
+          current: { kind: "none" },
+          roster: {
+            rows: [expect.objectContaining({
+              role: expect.objectContaining({ kind: "work-unit" }),
+              lease: null,
+              frame: "idle",
+            })],
+          },
+        },
+      },
       taskCursor: { ok: true, value: { status: "found" } },
     });
     expect(audit).toMatchObject({
       mode: "recover-audit",
-      verdict: { status: "ready", ready: true, locusHint: { match: true } },
+      recover: { recoveryFrame: { ok: true, value: { kind: "resolved", workflow: "process-task-loop" } } },
+      verdict: {
+        status: "ready",
+        ready: true,
+        locusHint: { expected: null, actual: null, match: true },
+      },
     });
     expect(handoff).toMatchObject({
       mode: "session-handoff",
-      locusState: { ok: true, value: { current: { kind: "resolved" } } },
-      handoffLocus: { ok: true, value: { kind: "release-work-unit" } },
+      locusState: { ok: true, value: { current: { kind: "none" } } },
+      handoffLocus: { ok: true, value: { kind: "release-work-unit", leaseId: null } },
     });
   });
 
@@ -358,7 +377,7 @@ describe("session lifecycle locus projection", () => {
   });
 
   it("rejects every mismatched field in the optional locus hint", async () => {
-    await prepareAttachedWorkUnit(tmpDir);
+    await prepareWorkUnit(tmpDir);
     const seeded = await runArcAnchoredSequence([
       ["locus", "attach", "--json"],
       ["status", "--session-init", "--write-compaction-seed", "--json"],
@@ -399,7 +418,7 @@ describe("session lifecycle locus projection", () => {
   });
 
   it("recovers a warm transient before its parent WU context", async () => {
-    await prepareAttachedWorkUnit(tmpDir);
+    await prepareWorkUnit(tmpDir);
     const remote = await mkdtemp(join(tmpdir(), "arc-warm-recovery-remote-"));
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
     await git(tmpDir, ["remote", "add", "origin", remote]);
@@ -677,7 +696,6 @@ describe("session-init E2E — sessionType across type variants", () => {
     const audit = await runArcAnchored(["recover", "audit", "--json"], tmpDir);
     expect(audit.exitCode).toBe(0);
     const report = parseRecoverAuditReport(audit.stdout);
-
     expect(report.verdict).toMatchObject({ status: "ready", ready: true, stopReasons: [] });
     expect(report.recover?.recoveryFrame).toMatchObject({
       ok: true,

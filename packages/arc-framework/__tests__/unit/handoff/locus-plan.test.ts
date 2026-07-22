@@ -116,9 +116,28 @@ function state(rows: LocusRowV1[], activeRecordId: string, parentRecordId: strin
 }
 
 describe("deriveHandoffLocusPlan", () => {
+  it("selects the current checkout's leaseless WU and requires no release", () => {
+    const idle = { ...workUnit("active"), lease: null, frame: "idle" as const };
+    const idleState: LocusStateV1 = {
+      roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [idle], diagnostics: [] },
+      current: { kind: "none" },
+      primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+      inFlightIdentities: [],
+      recovery: { kind: "none" },
+      reconciliation: { kind: "clean" },
+    };
+
+    expect(deriveHandoffLocusPlan(idleState, "/repo.demo")).toEqual({
+      kind: "release-work-unit",
+      recordId: WU,
+      leaseId: null,
+      checkoutPath: "/repo.demo",
+    });
+  });
+
   it("directs WU-only and restored-parent handoff to the exact lease generation", () => {
-    const direct = deriveHandoffLocusPlan(state([workUnit()], WU, null));
-    const restored = deriveHandoffLocusPlan(state([workUnit()], WU, null));
+    const direct = deriveHandoffLocusPlan(state([workUnit()], WU, null), "/repo.demo");
+    const restored = deriveHandoffLocusPlan(state([workUnit()], WU, null), "/repo.demo");
 
     expect(direct).toEqual({
       kind: "release-work-unit",
@@ -134,7 +153,7 @@ describe("deriveHandoffLocusPlan", () => {
     (_label, warm) => {
     const child = transient("full", warm);
     const rows = warm ? [workUnit("suspended"), child] : [child];
-    const result = deriveHandoffLocusPlan(state(rows, CHILD, warm ? WU : null));
+    const result = deriveHandoffLocusPlan(state(rows, CHILD, warm ? WU : null), "/repo");
 
     expect(result).toMatchObject({
       kind: "leave-errand",
@@ -148,12 +167,24 @@ describe("deriveHandoffLocusPlan", () => {
     },
   );
 
+  it("leaves a warm Errand whose WU parent has no lease", () => {
+    const parent = { ...workUnit("suspended"), lease: null };
+    const result = deriveHandoffLocusPlan(state([parent, transient("full")], CHILD, WU), "/repo");
+
+    expect(result).toMatchObject({
+      kind: "leave-errand",
+      recordId: CHILD,
+      parentRecordId: WU,
+      parentCheckoutPath: "/repo.demo",
+    });
+  });
+
   it.each([
     ["partial", "partial-handoff-forbidden"],
     ["groom", "groom-incomplete"],
     ["housekeep", "housekeep-incomplete"],
   ] as const)("refuses an incomplete %s transient", (kind, reason) => {
-    expect(deriveHandoffLocusPlan(state([workUnit("suspended"), transient(kind)], CHILD, WU)))
+    expect(deriveHandoffLocusPlan(state([workUnit("suspended"), transient(kind)], CHILD, WU), "/repo"))
       .toMatchObject({ kind: "refused", reason, recordId: CHILD });
   });
 
@@ -167,7 +198,7 @@ describe("deriveHandoffLocusPlan", () => {
       reconciliation: { kind: "clean" },
     };
 
-    expect(deriveHandoffLocusPlan(empty)).toEqual({ kind: "between-work-units" });
+    expect(deriveHandoffLocusPlan(empty, "/repo")).toEqual({ kind: "between-work-units" });
   });
 
   it("refuses changed, missing, or duplicate selected generations", () => {
@@ -176,10 +207,11 @@ describe("deriveHandoffLocusPlan", () => {
       ...exact,
       recovery: { kind: "resume" as const, activeRecordId: CHILD, parentRecordId: null },
     };
-    expect(deriveHandoffLocusPlan(changed)).toMatchObject({ kind: "refused", reason: "locus-unresolved" });
-    expect(deriveHandoffLocusPlan(state([], WU, null)))
+    expect(deriveHandoffLocusPlan(changed, "/repo.demo"))
       .toMatchObject({ kind: "refused", reason: "locus-unresolved" });
-    expect(deriveHandoffLocusPlan(state([workUnit(), workUnit()], WU, null)))
+    expect(deriveHandoffLocusPlan(state([], WU, null), "/repo.demo"))
+      .toMatchObject({ kind: "refused", reason: "locus-unresolved" });
+    expect(deriveHandoffLocusPlan(state([workUnit(), workUnit()], WU, null), "/repo.demo"))
       .toMatchObject({ kind: "refused", reason: "locus-unresolved" });
   });
 });

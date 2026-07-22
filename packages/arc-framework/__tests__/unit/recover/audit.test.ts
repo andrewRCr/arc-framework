@@ -337,6 +337,37 @@ describe("auditRecoveryState", () => {
     expect(result.locusHint).toEqual({ expected: null, actual: null, match: true });
   });
 
+  it("accepts a resolved leaseless WU recovery frame without a lease hint", async () => {
+    const idleState = freshLocusState();
+    const row = idleState.roster.rows[0];
+    if (row === undefined) throw new Error("missing WU fixture row");
+    row.lease = null;
+    row.frame = "idle";
+    idleState.current = { kind: "none" };
+    idleState.primaryAvailability = {
+      kind: "occupied",
+      checkoutPath: "/repo",
+      recordId: RECORD_ID,
+      leaseState: "absent",
+    };
+    idleState.recovery = { kind: "none" };
+    const result = await runAudit({
+      seed: seed(),
+      recover: {
+        locusState: ok(idleState),
+        recoveryFrame: ok(recoveryFrame()),
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.locusHint).toEqual({ expected: null, actual: null, match: true });
+  });
+
   it("accepts one close-only legacy Errand workflow beyond the pre-model seed load set", async () => {
     const noneState = freshLocusState();
     noneState.roster.rows = [];

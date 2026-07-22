@@ -354,6 +354,7 @@ function makeResolvedReleaseModeSessionHandoffProbes(
 
   return {
     locusState: async () => locusState(),
+    worktreeIdentity: async () => ({ kind: "primary" }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     user: async (identity) => stubUserSessionInit(identity),

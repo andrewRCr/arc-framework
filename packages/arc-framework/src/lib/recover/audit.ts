@@ -25,6 +25,7 @@ import {
 } from "../load-set/audit.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { LocusStateV1 } from "../locus/schema/index.js";
+import { isIdleWorkUnitRow } from "../locus/state.js";
 import type { RecoveryLocusFrame } from "./locus-context.js";
 import type {
   TaskListCursor,
@@ -272,6 +273,25 @@ function auditLocusHint(
       return { expected, actual: null, match: false };
     }
     return { expected: null, actual: null, match: true };
+  }
+
+  if (state.current.kind === "none") {
+    const rows = state.roster.rows.filter((row) => row.recordId === frame.activeRecordId);
+    if (
+      expected === null
+      && frame.parentRecordId === null
+      && rows.length === 1
+      && rows[0] !== undefined
+      && isIdleWorkUnitRow(rows[0])
+    ) {
+      return { expected: null, actual: null, match: true };
+    }
+    stopReasons.push({
+      kind: "locus-unresolved",
+      message: "fresh recovery frame does not match the current checkout role",
+      detail: { expected, current: state.current, frame },
+    });
+    return { expected, actual: null, match: false };
   }
 
   if (

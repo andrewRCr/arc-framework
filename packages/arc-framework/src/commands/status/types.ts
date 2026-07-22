@@ -728,6 +728,7 @@ export interface SessionRecoverProbes {
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
 export interface SessionHandoffProbes extends SessionSharedProbes {
+  worktreeIdentity: () => Promise<WorktreeIdentity>;
   syncInterlock: () => Promise<HandoffSyncInterlock>;
   head: () => Promise<HeadHashResult>;
   pushability: () => Promise<PushabilityResult>;

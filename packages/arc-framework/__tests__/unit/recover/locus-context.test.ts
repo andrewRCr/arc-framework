@@ -147,9 +147,30 @@ function state(rows: LocusRowV1[], current: LocusStateV1["current"]): LocusState
 }
 
 describe("deriveRecoveryLocusContext", () => {
+  it("recovers the current checkout's leaseless WU role", () => {
+    const wu = workUnitRow({ lease: null, frame: "idle" });
+    const result = deriveRecoveryLocusContext({
+      state: state([wu], { kind: "none" }),
+      checkoutPath: "/repo-wu",
+      identity: "andrew",
+      workingMemoryPath: "/users/andrew/WORKING-MEMORY.md",
+    });
+
+    expect(result.frame).toEqual({
+      kind: "resolved",
+      workflow: "process-task-loop",
+      sessionType: "execution",
+      activeRecordId: RECORD_WU,
+      parentRecordId: null,
+    });
+    expect(result.loadSet).toEqual(wu.derived?.loadSet);
+    expect(result.taskCursor).toEqual(wu.derived?.taskCursor);
+  });
+
   it("uses the selected WU row's derived workflow, load set, and cursor", () => {
     const wu = workUnitRow();
     const result = deriveRecoveryLocusContext({
+      checkoutPath: "/repo-wu",
       state: state([wu], { kind: "resolved", sessionHomeRecordId: RECORD_WU, activeRecordId: RECORD_WU, parentRecordId: null }),
       identity: "andrew",
       workingMemoryPath: "/users/andrew/WORKING-MEMORY.md",
@@ -177,6 +198,7 @@ describe("deriveRecoveryLocusContext", () => {
       },
     });
     const result = deriveRecoveryLocusContext({
+      checkoutPath: "/repo-wu",
       state: state([wu], {
         kind: "resolved",
         sessionHomeRecordId: RECORD_WU,
@@ -191,9 +213,10 @@ describe("deriveRecoveryLocusContext", () => {
   });
 
   it("resumes a warm transient first while retaining its suspended WU context", () => {
-    const parent = workUnitRow({ frame: "suspended" });
+    const parent = workUnitRow({ lease: null, frame: "suspended" });
     const child = transientRow();
     const result = deriveRecoveryLocusContext({
+      checkoutPath: "/repo-wu",
       state: state([parent, child], {
         kind: "resolved",
         sessionHomeRecordId: RECORD_WU,
@@ -216,6 +239,7 @@ describe("deriveRecoveryLocusContext", () => {
     const suspended = workUnitRow({ frame: "suspended" });
     const child = transientRow();
     const transient = deriveRecoveryLocusContext({
+      checkoutPath: "/repo-wu",
       state: state([suspended, child], {
         kind: "resolved",
         sessionHomeRecordId: RECORD_WU,
@@ -227,6 +251,7 @@ describe("deriveRecoveryLocusContext", () => {
     });
     const restored = workUnitRow({ frame: "active" });
     const parent = deriveRecoveryLocusContext({
+      checkoutPath: "/repo-wu",
       state: state([restored], {
         kind: "resolved",
         sessionHomeRecordId: RECORD_WU,
@@ -249,6 +274,7 @@ describe("deriveRecoveryLocusContext", () => {
       lease: { ...transientRow().lease!, sessionHomePath: "/repo-child" },
     });
     const result = deriveRecoveryLocusContext({
+      checkoutPath: "/repo-wu",
       state: state([child], {
         kind: "resolved",
         sessionHomeRecordId: RECORD_CHILD,
@@ -276,6 +302,7 @@ describe("deriveRecoveryLocusContext", () => {
       lease: { ...initial.lease!, sessionHomePath: "/repo-child" },
     });
     const result = deriveRecoveryLocusContext({
+      checkoutPath: "/repo-wu",
       state: state([child], {
         kind: "resolved",
         sessionHomeRecordId: RECORD_CHILD,
@@ -302,6 +329,7 @@ describe("deriveRecoveryLocusContext", () => {
       frame: "idle",
     };
     const result = deriveRecoveryLocusContext({
+      checkoutPath: "/repo-wu",
       state: state([identityOnly], { kind: "none" }),
       identity: "andrew",
       workingMemoryPath: "/users/andrew/WORKING-MEMORY.md",
@@ -340,6 +368,7 @@ describe("deriveRecoveryLocusContext", () => {
     }],
   ])("refuses %s without selecting a fallback", (_name, invalid) => {
     expect(() => deriveRecoveryLocusContext({
+      checkoutPath: "/repo-wu",
       state: invalid,
       identity: "andrew",
       workingMemoryPath: "/users/andrew/WORKING-MEMORY.md",

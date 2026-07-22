@@ -350,6 +350,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
         return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
       },
+      worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
       user: async (id) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";

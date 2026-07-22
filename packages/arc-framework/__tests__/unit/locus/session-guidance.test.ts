@@ -4,6 +4,19 @@ import { deriveLocusSessionGuidance } from "../../../src/lib/locus/session-guida
 import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
 
 describe("deriveLocusSessionGuidance", () => {
+  it("presents a leaseless WU checkout as the normal current work surface", () => {
+    const idle = managedWorkUnitRow("demo", "/wt/demo");
+    const result = deriveLocusSessionGuidance({
+      ok: true,
+      value: locusStateFixture({ rows: [idle] }),
+    }, "/wt/demo");
+
+    expect(result).toMatchObject({
+      kind: "ready",
+      currentFrame: "Current work-unit checkout is /wt/demo; no transient operation is active.",
+    });
+  });
+
   it("renders lease-aware cleanup without treating a dead lease as deletion authority", () => {
     const live = managedWorkUnitRow("live", "/wt/live");
     live.lease = {

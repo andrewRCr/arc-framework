@@ -42,9 +42,11 @@ warning in orientation. Sessions without identity cannot perform handoff.
 **Role is `contributor`**: After Step 3 items 1–6, switch to [`session-init.contributor.md`][session-init-contributor]
 for item 7+, Step 5 skip, and Step 6 contributor orientation. Step 4 and Step 7 apply universally.
 
-**Resolve and attach the selected locus before dispatch.** Dispatch only on `locusState.value.current`,
-`recovery`, `reconciliation`, `primaryAvailability`, and the row referenced by `current.activeRecordId`; never
-select a second frame from branch shape, metas, the worktree list, or SESSION-NOTES.
+**Resolve the selected entry row before dispatch.** Dispatch only on `locusState.value.current`, `recovery`,
+`reconciliation`, `primaryAvailability`, and the exact role row registered at the entering checkout.
+Never select a second frame from branch shape, metas, the worktree list, or SESSION-NOTES. Resolve the entering
+checkout path from `worktree.value.identity` (`linked.path` for a linked checkout, otherwise
+`locusState.value.roster.primaryPath`).
 
 - Failed `locusState`, `current.kind === "ambiguous"`, `recovery.kind === "stop"`, or
   `reconciliation.kind === "stop"` → render the matching `locusGuidance` text and stop.
@@ -58,7 +60,9 @@ select a second frame from branch shape, metas, the worktree list, or SESSION-NO
   `arc locus attach --checkout <row.checkoutPath> --json`. Render the result's `recommendedPromptText` verbatim;
   refusal or error stops. Re-run the probe after success so the lease, frame, derived workflow, task cursor, and
   load set all come from the attached generation.
-- `current.kind === "none"` → attach nothing. Continue from the reader's `primaryAvailability` and identity tails.
+- `current.kind === "none"` → attach nothing. Select the exact managed WU role at the entering checkout when its
+  frame is `idle`; a null lease is the normal ordinary-session state. Multiple matching rows or a non-idle WU row
+  stop. When no WU role matches, continue from the reader's `primaryAvailability` and identity tails.
 
 **Probe failure fallback**: If the composite call fails, fall back to direct commands:
 `git config arc.identity` / `arc.role`, `grep -l "^active: true" .arc/system/extensions/*.md`, and a scan
@@ -68,7 +72,7 @@ user-sync state available) and note the degradation in orientation.
 
 ## 2. Dispatch & Conditional Sync
 
-From the attached/re-probed state, realign branch sync if needed, select the **entry mode** from the resolved locus
+From the selected/re-probed state, realign branch sync if needed, select the **entry mode** from the resolved role
 row, and run the conditional sync pulls for arms that continue into context-load.
 
 ### Branch-gone recovery (precondition)
@@ -172,7 +176,7 @@ passes over that result:
 
 ### Entry dispatch
 
-Select the entry mode from the attached row's `role` and `derived` projection. `active`, `worktree`, and task
+Select the entry mode from the selected row's `role` and `derived` projection. `active`, `worktree`, and task
 artifacts remain sync/context inputs; they never select the frame.
 
 An **entry seed** may accompany the invocation — an optional spec pointer or description provided at session
@@ -194,7 +198,7 @@ here; the arms below are the **signal-absent** path.
   inference, `sessionType`, or `process-task-loop`.
 - **Resume** — the selected row is a `work-unit`; continue to the sync channels, then load its reader-derived
   workflow and load set in Step 3.
-- **Orient** — `current.kind === "none"`. Discovery is the signal-absent intent (the positional seed stays
+- **Orient** — no entry row is selected. Discovery is the signal-absent intent (the positional seed stays
   orthogonal —
   never "any arg"), with a housekeep soft-offer overlaid when the inbox holds routable captures. An explicit
   `--errand` / `--housekeep` / `--plan` is dispatched by the signal leaf above, before this arm — including the
@@ -208,7 +212,7 @@ here; the arms below are the **signal-absent** path.
       captures, carry the housekeep intent — surfaced as a soft-offer in Step 6's orientation, never a hard
       dispatch. It overlays the discovery arm (housekeep, then discover) rather than replacing it; the developer
       drains via the [arc-housekeep skill][arc-housekeep-skill]. Soft-encourage, never hard-block.
-- **Cold-start** — `current.kind === "none"`, the active checkout is linked, and no role can be adopted: a branch
+- **Cold-start** — no entry row is selected, the active checkout is linked, and no role can be adopted: a branch
   checked out for new work
   with no work unit (typically a linked worktree, `worktree.value.identity.kind` of `linked`). Offer to
   scaffold — never auto-scaffold. Before scaffolding, run the [in-flight scope check][in-flight-scope-check] —
@@ -439,7 +443,7 @@ contract failure.
 
 **Resolve session type** — use the selected row's `derived.sessionType` and `derived.workflow`. These are reader
 projections over the exact role subject; do not infer either from branch patterns. A selected WU row without the
-expected derived context is a probe mismatch and stops. With `current.kind === "none"`, there is no session type.
+expected derived context is a probe mismatch and stops. With no selected entry row, there is no session type.
 
 SESSION-NOTES `**Session Type:**`, when present and matching `planning | execution | integration`
 (case-insensitive), supersedes the envelope value for this session. Invalid override → ignore + emit a
@@ -487,7 +491,7 @@ freshness-check commands below), not from SESSION-NOTES prose.
       references during execution resolve immediately. **Do not read these at init**
 
 10. **Lifecycle workflow** — **read in full** from the selected row's derived workflow/load-set entry. A null
-    workflow on `current.kind === "none"` skips the read; a null workflow on a selected active role is a mismatch.
+    workflow with no selected entry row skips the read; a null workflow on a selected active role is a mismatch.
 
     Load later if the session pivots to a different lifecycle phase.
 

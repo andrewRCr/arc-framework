@@ -66,6 +66,8 @@ import {
 } from "../../lib/session-init/recommended-action.js";
 import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
 import { deriveLocusSessionGuidance } from "../../lib/locus/session-guidance.js";
+import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
+import { selectCheckoutWorkUnit } from "../../lib/locus/state.js";
 import { deriveHandoffLocusPlan } from "../../lib/handoff/locus-plan.js";
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
@@ -80,6 +82,10 @@ import {
 
 function buildIdentity(identity: string | null, role: string | null): StatusIdentity {
   return { identity, role };
+}
+
+function checkoutPathForIdentity(state: LocusStateV1, identity: WorktreeIdentity): string {
+  return identity.kind === "linked" ? identity.path : state.roster.primaryPath;
 }
 
 /**
@@ -432,7 +438,12 @@ export async function runSessionInitStatus(
     mode: "session-init",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
-    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
+    locusGuidance: deriveLocusSessionGuidance(
+      toProbe(locusState),
+      locusState.isOk() && worktreeIdentitySlot.isOk()
+        ? checkoutPathForIdentity(locusState.value, worktreeIdentitySlot.value)
+        : undefined,
+    ),
     user: toProbe(enrichedUser),
     worktree: toProbe(enrichedWorktree),
     baseDistance: toProbe(enrichedBaseDistance),
@@ -518,14 +529,22 @@ export async function runRecoverStatus(
   const deriveContext = fromThrowable(
     (state: Parameters<typeof deriveRecoveryLocusContext>[0]["state"]) => deriveRecoveryLocusContext({
       state,
+      checkoutPath: checkoutPathForIdentity(state, worktreeIdentity),
       identity,
       workingMemoryPath: workingMemoryPath ?? null,
     }),
     (cause) => new SessionCompositionError("derive-recovery-locus", "recoveryFrame", cause),
   );
   let recoveryContext = locusState.andThen(deriveContext);
+  const legacyCheckoutSelection = locusState.isOk()
+    ? selectCheckoutWorkUnit(
+        locusState.value,
+        checkoutPathForIdentity(locusState.value, worktreeIdentity),
+      )
+    : null;
   const legacyLocusEligible = locusState.isOk()
     && locusState.value.current.kind === "none"
+    && legacyCheckoutSelection?.kind === "none"
     && !locusState.value.roster.rows.some((row) => row.kind === "managed-role" && row.frame === "residue");
   if (legacyLocusEligible && legacyErrand.isOk() && legacyErrand.value !== null) {
     recoveryContext = legacyErrand.map((value) => value as NonNullable<typeof value>);
@@ -542,7 +561,10 @@ export async function runRecoverStatus(
     mode: "recover",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
-    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
+    locusGuidance: deriveLocusSessionGuidance(
+      toProbe(locusState),
+      locusState.isOk() ? checkoutPathForIdentity(locusState.value, worktreeIdentity) : undefined,
+    ),
     recoveryFrame: toProbe(recoveryFrame),
     worktree: toProbe(enrichedWorktree),
     dirty: toProbe(dirty),
@@ -688,13 +710,14 @@ export async function runSessionHandoffStatus(
   const headTask = safeProbe("head", () => probes.head());
   const pushabilityTask = safeProbe("pushability", () => probes.pushability());
   const restateCandidatesTask = safeProbe("restateCandidates", () => probes.restateCandidates());
+  const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
   const inboxStateTask = identity === null
     ? null
     : safeProbe("inboxState", () => probes.inboxState(identity));
 
   const [
     locusState, user, worktree, dirty, active, releaseRouting,
-    syncInterlock, head, pushability, restateCandidates, inboxState,
+    syncInterlock, head, pushability, restateCandidates, worktreeIdentity, inboxState,
   ] = await Promise.all([
     shared.locusState,
     shared.user,
@@ -706,6 +729,7 @@ export async function runSessionHandoffStatus(
     headTask,
     pushabilityTask,
     restateCandidatesTask,
+    worktreeIdentityTask,
     inboxStateTask,
   ]);
 
@@ -731,16 +755,26 @@ export async function runSessionHandoffStatus(
     })
     : null;
   const deriveHandoff = fromThrowable(
-    deriveHandoffLocusPlan,
+    (input: { state: LocusStateV1; identity: WorktreeIdentity }) => deriveHandoffLocusPlan(
+      input.state,
+      checkoutPathForIdentity(input.state, input.identity),
+    ),
     (cause) => new SessionCompositionError("derive-handoff-locus", "handoffLocus", cause),
   );
-  const handoffLocus = locusState.andThen(deriveHandoff);
+  const handoffLocus = locusState.andThen((state) => worktreeIdentity.andThen(
+    (identityValue) => deriveHandoff({ state, identity: identityValue }),
+  ));
 
   return {
     mode: "session-handoff",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
-    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
+    locusGuidance: deriveLocusSessionGuidance(
+      toProbe(locusState),
+      locusState.isOk() && worktreeIdentity.isOk()
+        ? checkoutPathForIdentity(locusState.value, worktreeIdentity.value)
+        : undefined,
+    ),
     handoffLocus: toProbe(handoffLocus),
     branch,
     dirty: toProbe(dirty),

@@ -112,7 +112,13 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
   return {
     identity: { identity: "andrew" },
     locusState: { ok: true, value: locusState() },
-    worktree: { ok: true, value: { branch: "feat/compaction-recovery" } },
+    worktree: {
+      ok: true,
+      value: {
+        branch: "feat/compaction-recovery",
+        identity: { kind: "linked", path: "/repo" },
+      },
+    },
     active: {
       ok: true,
       value: {
@@ -145,12 +151,13 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
 }
 
 async function emit(overrides: {
+  cwd?: string;
   uncommittedFiles?: string[];
   envelope?: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]>;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
 } = {}) {
   return emitCompactionSeed({
-    cwd: "/repo",
+    cwd: overrides.cwd ?? "/repo",
     envelope: envelope(overrides.envelope),
     gitSnapshot: {
       head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
@@ -232,6 +239,71 @@ describe("parseUncommittedFiles", () => {
 });
 
 describe("emitCompactionSeed", () => {
+  it("derives recovery context from a leaseless WU at the current checkout", async () => {
+    const recordId = `sha256:${"a".repeat(64)}`;
+    const wu = { ...workUnitRow(recordId, "b".repeat(32)), lease: null, frame: "idle" as const };
+    const result = await emit({
+      cwd: "/caller/symlink",
+      envelope: {
+        active: {
+          ok: true,
+          value: {
+            path: ".arc/active/meta-compaction-recovery.md",
+            sessionType: "execution",
+            currentWorkflow: null,
+          },
+        },
+        locusState: {
+          ok: true,
+          value: locusState({
+            roster: {
+              mode: "locus", ok: true, primaryPath: "/repo", rows: [wu], diagnostics: [],
+            },
+          }),
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "written",
+      seed: {
+        currentWorkflow: "process-task-loop",
+        taskCursor: WU_CURSOR.cursor,
+        loadSet: RECOVERY_LOAD_SET,
+      },
+    });
+    if (result.status === "written") expect(result.seed).not.toHaveProperty("locus");
+  });
+
+  it("uses the resolved worktree path rather than the raw caller cwd", async () => {
+    const recordId = `sha256:${"a".repeat(64)}`;
+    const wu = { ...workUnitRow(recordId, "b".repeat(32)), lease: null, frame: "idle" as const };
+    const result = await emit({
+      envelope: {
+        locusState: {
+          ok: true,
+          value: locusState({
+            roster: {
+              mode: "locus", ok: true, primaryPath: "/primary", rows: [wu], diagnostics: [],
+            },
+          }),
+        },
+        worktree: {
+          ok: true,
+          value: {
+            branch: "feat/compaction-recovery",
+            identity: { kind: "linked", path: "/repo" },
+          },
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "written",
+      seed: { currentWorkflow: "process-task-loop", taskCursor: WU_CURSOR.cursor },
+    });
+  });
+
   it("embeds the load-set manifest supplied by the session-init envelope", async () => {
     const result = await emit();
 

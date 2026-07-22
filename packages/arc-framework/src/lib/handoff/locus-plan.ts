@@ -10,6 +10,7 @@ import {
   type LocusRowV1,
   type LocusStateV1,
 } from "../locus/schema/index.js";
+import { isIdleWorkUnitRow, selectCheckoutWorkUnit } from "../locus/state.js";
 
 const HandoffRefusalReasonSchema = z.enum([
   "locus-unresolved",
@@ -25,7 +26,7 @@ export const HandoffLocusPlanSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("release-work-unit"),
     recordId: LocusDigestSchema,
-    leaseId: LocusTokenSchema,
+    leaseId: LocusTokenSchema.nullable(),
     checkoutPath: LocusAbsolutePathSchema,
   }),
   z.strictObject({
@@ -48,12 +49,36 @@ export const HandoffLocusPlanSchema = z.discriminatedUnion("kind", [
 
 export type HandoffLocusPlan = z.infer<typeof HandoffLocusPlanSchema>;
 
-/** Derive handoff's subject action before any branch or active-meta heuristic. */
-export function deriveHandoffLocusPlan(state: LocusStateV1): HandoffLocusPlan {
+/**
+ * Derive handoff's subject action before any branch or active-meta heuristic.
+ *
+ * @param state - Reader-owned locus state for the handoff snapshot.
+ * @param checkoutPath - Exact physical checkout running the handoff.
+ * @returns The generation-bound handoff action or refusal.
+ */
+export function deriveHandoffLocusPlan(state: LocusStateV1, checkoutPath: string): HandoffLocusPlan {
   if (state.current.kind === "none") {
-    return state.recovery.kind === "none"
-      ? { kind: "between-work-units" }
-      : refusal("locus-unresolved", null, "Resolve the retained locus residue before handing off.");
+    if (state.recovery.kind !== "none") {
+      return refusal("locus-unresolved", null, "Resolve the retained locus residue before handing off.");
+    }
+    const selected = selectCheckoutWorkUnit(state, checkoutPath);
+    if (selected.kind === "ambiguous") {
+      return refusal("locus-unresolved", null, "Resolve the ambiguous checkout role before handing off.");
+    }
+    if (selected.kind === "none") return { kind: "between-work-units" };
+    if (!isIdleWorkUnitRow(selected.row)) {
+      return refusal(
+        "locus-unresolved",
+        selected.row.recordId,
+        "The current work-unit checkout is not an idle managed frame.",
+      );
+    }
+    return HandoffLocusPlanSchema.parse({
+      kind: "release-work-unit",
+      recordId: selected.row.recordId,
+      leaseId: null,
+      checkoutPath: selected.row.checkoutPath,
+    });
   }
   if (state.current.kind === "ambiguous") {
     return refusal("locus-unresolved", null, "Resolve the ambiguous current locus before handing off.");
@@ -147,9 +172,8 @@ function validateParent(state: LocusStateV1, active: LocusRowV1): LocusRowV1 | n
     && parent.role?.kind === "work-unit"
     && parent.checkoutPath === active.role?.parentCheckoutPath
     && parent.recordId === state.current.sessionHomeRecordId
-    && parent.lease?.state === "live"
     && parent.frame === "suspended"
-    && parent.diagnostics.length === 0
+    && parent.diagnostics.every((item) => item.code === "lease-dead")
     && active.lease?.sessionHomePath === parent.checkoutPath
     ? parent
     : undefined;

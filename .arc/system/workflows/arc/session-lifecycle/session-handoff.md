@@ -555,9 +555,11 @@ Strategy][session-ops] § Push Toggles for the underlying model.
 
 After state capture and sync, consume the latest `handoffLocus`:
 
-- `release-work-unit` — invoke
+- `release-work-unit` with non-null `leaseId` — invoke
   `arc locus release <recordId> --lease <leaseId> --json` exactly once and render its
   `recommendedPromptText`. A generation mismatch or refusal stops and leaves the newer lease untouched.
+- `release-work-unit` with null `leaseId` — release nothing; ordinary WU work retained its durable role without
+  attaching a lease.
 - `between-work-units` — release nothing; a cold transient's subject driver already popped its role and the
   primary remains record-free.
 - Any transient or `refused` result — stop. Its subject driver has not restored a handoff-safe frame.
@@ -591,7 +593,7 @@ skip arms):
 - `skipped (no identity). Configure \`arc.identity\` to enable notes sync.` —
   identity-absent fallback.
 
-**Locus:** [exact WU lease released | record-free between work units]
+**Locus:** [exact WU lease released | work-unit checkout retained; no lease attached | record-free between work units]
 
 **Next session:** [Task list pointer (on-task-list), freeform (off-task-list), or
 `session-init discovery / user direction` between WUs]

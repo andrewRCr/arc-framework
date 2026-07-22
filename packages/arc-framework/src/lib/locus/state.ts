@@ -21,6 +21,53 @@ export interface LocusOperationalDerivation {
   readonly recovery: LocusStateV1["recovery"];
 }
 
+export type CheckoutWorkUnitSelection =
+  | { readonly kind: "none" }
+  | { readonly kind: "ambiguous"; readonly recordIds: readonly string[] }
+  | { readonly kind: "resolved"; readonly row: LocusRowV1 };
+
+/**
+ * Select the one retained work-unit role registered at a physical checkout.
+ *
+ * @param state - Reader-owned locus state containing the complete roster.
+ * @param checkoutPath - Exact physical checkout path to select.
+ * @returns The unique work-unit row, an ambiguity verdict, or no match.
+ */
+export function selectCheckoutWorkUnit(
+  state: LocusStateV1,
+  checkoutPath: string,
+): CheckoutWorkUnitSelection {
+  const matches = state.roster.rows.filter((row) => row.checkoutPath === checkoutPath);
+  if (matches.length > 1) {
+    return {
+      kind: "ambiguous",
+      recordIds: matches.flatMap((row) => row.recordId === null ? [] : [row.recordId]).sort(compareUtf8),
+    };
+  }
+  const row = matches[0];
+  return row?.kind === "managed-role"
+    && row.recordId !== null
+    && row.role?.kind === "work-unit"
+    ? { kind: "resolved", row }
+    : { kind: "none" };
+}
+
+/**
+ * Test whether a row is the normal idle work-unit frame retained by its durable role.
+ *
+ * @param row - Public locus row to classify.
+ * @returns `true` for a leaseless or conclusively dead-lease idle work-unit row.
+ */
+export function isIdleWorkUnitRow(row: LocusRowV1): boolean {
+  return row.kind === "managed-role"
+    && row.checkoutPath !== null
+    && row.recordId !== null
+    && row.role?.kind === "work-unit"
+    && row.frame === "idle"
+    && (row.lease === null || row.lease.state === "dead")
+    && row.diagnostics.every((item) => item.code === "lease-dead");
+}
+
 /**
  * Derive allocation and recovery verdicts from one already-bounded locus snapshot.
  * @param options - Public rows plus directed primary and target-lock facts from the same read.
@@ -196,7 +243,7 @@ export function deriveLocusFrames(options: {
     const parentPath = child.role?.parentCheckoutPath;
     if (parentPath === null || parentPath === undefined) continue;
     const parents = options.rows.filter((candidate) =>
-      isLiveWorkUnit(candidate) && candidate.checkoutPath === parentPath);
+      isRetainedWorkUnit(candidate) && candidate.checkoutPath === parentPath);
     if (parents.length === 1 && parents[0] !== undefined) frames.set(parents[0], "suspended");
   }
 
@@ -214,7 +261,8 @@ export function deriveLocusFrames(options: {
 function baseFrame(row: ProvisionalLocusRow): LocusRowV1["frame"] {
   if (row.kind === "identity-only") return "idle";
   if (row.kind !== "managed-role" || row.role === null) return null;
-  if (row.lease === null) return row.role.kind === "work-unit" ? "idle" : "residue";
+  if (row.role.kind === "work-unit" && (row.lease === null || row.lease.state === "dead")) return "idle";
+  if (row.lease === null) return "residue";
   return row.lease.state === "live" ? "active" : "residue";
 }
 
@@ -231,7 +279,7 @@ function resolveCurrent(
     const parentPath = transient.role?.parentCheckoutPath ?? null;
     const parents = parentPath === null
       ? []
-      : rows.filter((row) => isLiveWorkUnit(row) && row.checkoutPath === parentPath);
+      : rows.filter((row) => isRetainedWorkUnit(row) && row.checkoutPath === parentPath);
     if (parentPath !== null && parents.length !== 1) return ambiguous([transient, ...parents]);
     const parent = parents[0] ?? null;
     return resolved(transient, parent, rows);
@@ -272,8 +320,10 @@ function isLiveTransient(row: ProvisionalLocusRow): boolean {
     && row.role.kind !== "work-unit" && row.lease?.state === "live";
 }
 
-function isLiveWorkUnit(row: ProvisionalLocusRow): boolean {
-  return row.kind === "managed-role" && row.role?.kind === "work-unit" && row.lease?.state === "live";
+function isRetainedWorkUnit(row: ProvisionalLocusRow): boolean {
+  return row.kind === "managed-role"
+    && row.role?.kind === "work-unit"
+    && row.diagnostics.every((item) => item.code === "lease-dead");
 }
 
 function anchorsEqual(left: LocusAnchor | null, right: LocusAnchor): boolean {

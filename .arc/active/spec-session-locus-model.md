@@ -339,9 +339,10 @@ transient frame whose parent is the original WU session home, or null for a betw
 Errand identity preserve pending work; `run-errand`'s next-offer replaces “return to the still-open drain frame.”
 Maximum persisted depth remains two.
 
-State-touching CLI commands refresh `heartbeatAt` only when their resolved durable process anchor matches the
-record lease. Directed commands refresh the target checkout's record, not the caller's current directory. Read
-verbs, probes without a write flag, and status rendering never refresh, reconcile, or reap records.
+State-touching transient commands refresh `heartbeatAt` only when their resolved durable process anchor matches
+the record lease; explicit `arc locus attach` timestamps the lease it creates or reuses. Directed commands refresh
+the target checkout's record, not the caller's current directory. Ordinary WU session work, read verbs, probes
+without a write flag, and status rendering never refresh, reconcile, or reap records.
 
 Lease release is a handoff operation. Abrupt process exit leaves a dead-anchor lease that session entry may replace;
 this WU adds no harness-session-end hook or release asset because correctness cannot depend on delivery after the

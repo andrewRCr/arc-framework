@@ -926,16 +926,15 @@ full guard set unchanged.
   7/8/10 revised, 16 added; this file's § Success Criteria mirrored. Sub-decisions settled: dispatch IDs removed
   in favor of the plain execute-bound flag with file-order next-offer; the routing lane derives at close.
 
-### `[ ]` **7.R.b Ratify verb-scoped leases and align spec, workflow, and narration** — D4, D6, D11
+### `[x]` **7.R.b Ratify verb-scoped leases and align spec, workflow, and narration** — D4, D6, D11
 
 - _Goal:_ A plain WU session neither attaches nor releases a lease, nothing downstream depends on mainline lease
   liveness, and an unleased live checkout is presented as normal rather than noteworthy.
 
-    - Keep session-init attach only for the resolved live-lease re-entry arm; make the handoff release arm
-      no-op cleanly when no lease exists; confirm cleanup predicates and current-frame selection never require a
-      mainline WU lease (transient verbs still attach).
-    - Align `frame` derivation narration and `locusGuidance.currentFrame` copy with idle-as-normal; scope
-      heartbeat expectations to state-touching transient operations.
+- _Outcome:_ Ordinary WU init, compaction recovery, and handoff now select the exact checkout role without
+  attaching a lease; live transient children suspend leaseless parents, null-lease handoff is a no-op, and dead WU
+  leases read idle. CLI/workflow narration treats the checkout as normal, while heartbeats remain scoped to
+  state-touching transient operations and explicit attach.
 
 ### `[ ]` **7.R.c Demote the warm-entry capability gate to advisory** — D1, D5
 
