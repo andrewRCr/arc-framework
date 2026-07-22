@@ -853,11 +853,10 @@ protection modes, recovery boundaries, and package/source parity.
 - _Goal:_ Real temporary repositories prove the complete locus model across worktree topology, protection modes,
   compaction boundaries, identity review tails, and cleanup races rather than only isolated unit seams.
 
-    - `[ ]` **7.4.a Prove one shared session/recovery/handoff projection**
-        - Exercise the required reader-owned `locusState` projection through real init, compaction-recovery, and
-          handoff envelopes in temporary repositories.
-        - Cover an absent legacy seed hint, an exact optional atomic `locus` match, every hint-field mismatch,
-          transient-first recovery, restored workflow/load-set/task-cursor derivation, and record-free cold recovery.
+    - `[x]` **7.4.a Prove one shared session/recovery/handoff projection**
+        - Added anchored real-repository lifecycle coverage for exact, absent, and field-mismatched locus hints;
+          record-free cold frames; shared init/recovery/handoff projection; and warm transient-first recovery. Seed
+          emission now derives the governing workflow, load set, cursor, and WU identity from that same locus state.
 
     - `[ ]` **7.4.b Cover warm WU→Errand→WU execution and release**
         - Exercise planning and execution WUs, primary and spawned allocation, pause/resume, requested-work

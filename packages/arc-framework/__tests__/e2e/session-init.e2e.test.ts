@@ -14,14 +14,22 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
-import { runArc, runArcAnchored, createTempRepo, cleanupTempDir, removeGitBackedDir, git } from "./helpers.js";
+import {
+  runArc,
+  runArcAnchored,
+  runArcAnchoredSequence,
+  createTempRepo,
+  cleanupTempDir,
+  removeGitBackedDir,
+  git,
+} from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -128,6 +136,13 @@ interface CompactionSeedJson {
     entries: { path: string; readMode: { kind: string } }[];
   };
   uncommittedFiles: string[];
+  locus?: {
+    sessionHomePath: string;
+    activeLocusPath: string;
+    recordId: string;
+    leaseId: string;
+    parentRecordId: string | null;
+  };
 }
 
 interface RecoverAuditReport {
@@ -152,6 +167,11 @@ interface RecoverAuditReport {
       actual: { status: string; cursor?: TaskCursorJson } | null;
       match: boolean;
     } | null;
+    locusHint?: {
+      expected: CompactionSeedJson["locus"] | null;
+      actual: CompactionSeedJson["locus"] | null;
+      match: boolean;
+    };
   };
 }
 
@@ -229,6 +249,215 @@ function taskListFixture(title: string): string {
     "",
   ].join("\n");
 }
+
+async function prepareAttachedWorkUnit(repository: string): Promise<void> {
+  const configPath = join(repository, ".arc", "system", "arc-config.yml");
+  const config = await readFile(configPath, "utf8");
+  await writeFile(
+    configPath,
+    config.replace("branch.protection: partial", "branch.protection: full"),
+  );
+  await git(repository, ["config", "arc.identity", "test-user"]);
+  await git(repository, ["add", "-A"]);
+  await git(repository, ["commit", "--no-verify", "-m", "initialize fixture"]);
+  await git(repository, ["switch", "-c", "feat/locus-session"]);
+  await mkdir(join(repository, ".arc", "active"), { recursive: true });
+  await writeFile(
+    join(repository, ".arc", "active", "meta-locus-session.md"),
+    [
+      "# Metadata: locus-session",
+      "",
+      "- **State:** Active",
+      "- **Owner:** test-user",
+      "- **Branch:** feat/locus-session",
+      "- **Class:** Light",
+      "- **Cohort:** [none]",
+      "- **Task List:** tasks-locus-session.md",
+      "- **Current Workflow:** [none]",
+      "- **Last Completed:** [none]",
+      "- **Next Task:** Task 1.1 — Exercise locus projection",
+      "- **Blockers:** [none]",
+      "- **Next Action:** Start Task 1.1",
+      "",
+    ].join("\n"),
+  );
+  await writeFile(
+    join(repository, ".arc", "active", "tasks-locus-session.md"),
+    taskListFixture("Exercise locus projection"),
+  );
+  await git(repository, ["add", "-A"]);
+  await git(repository, ["commit", "--no-verify", "-m", "add active fixture"]);
+}
+
+describe("session lifecycle locus projection", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "locus-session-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("shares one exact WU projection across init, recovery, and handoff", async () => {
+    await prepareAttachedWorkUnit(tmpDir);
+    const sequence = await runArcAnchoredSequence([
+      ["locus", "attach", "--json"],
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      ["recover", "audit", "--json"],
+      ["status", "--session-handoff", "--json"],
+    ], tmpDir);
+
+    expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
+    const [attachment, session, audit, handoff] = sequence.results as Array<Record<string, unknown>>;
+    expect(attachment, JSON.stringify(attachment)).toMatchObject({
+      outcome: "applied",
+      operation: "locus-attach",
+    });
+    expect(session).toMatchObject({
+      mode: "session-init",
+      locusState: { ok: true, value: { current: { kind: "resolved" } } },
+      taskCursor: { ok: true, value: { status: "found" } },
+    });
+    expect(audit).toMatchObject({
+      mode: "recover-audit",
+      verdict: { status: "ready", ready: true, locusHint: { match: true } },
+    });
+    expect(handoff).toMatchObject({
+      mode: "session-handoff",
+      locusState: { ok: true, value: { current: { kind: "resolved" } } },
+      handoffLocus: { ok: true, value: { kind: "release-work-unit" } },
+    });
+  });
+
+  it("accepts a hint-free cold seed and recovers a record-free frame", async () => {
+    await git(tmpDir, ["config", "arc.identity", "test-user"]);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "initialize fixture"]);
+    const sequence = await runArcAnchoredSequence([
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      ["recover", "audit", "--json"],
+    ], tmpDir);
+
+    expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
+    const [session, audit] = sequence.results as Array<Record<string, unknown>>;
+    expect(session).toMatchObject({
+      locusState: { ok: true, value: { current: { kind: "none" } } },
+    });
+    expect(audit).toMatchObject({
+      verdict: {
+        status: "ready",
+        ready: true,
+        locusHint: { expected: null, actual: null, match: true },
+      },
+      recover: { recoveryFrame: { ok: true, value: { kind: "none" } } },
+    });
+  });
+
+  it("rejects every mismatched field in the optional locus hint", async () => {
+    await prepareAttachedWorkUnit(tmpDir);
+    const seeded = await runArcAnchoredSequence([
+      ["locus", "attach", "--json"],
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+    ], tmpDir);
+    expect(seeded.exitCode, seeded.stderr || seeded.stdout).toBe(0);
+
+    const seedPath = join(tmpDir, ".arc", "user", "test-user", ".internal", "compaction-seed.json");
+    const original = JSON.parse(await readFile(seedPath, "utf8")) as CompactionSeedJson;
+    expect(original.locus).toBeDefined();
+    const replacements = {
+      sessionHomePath: "/different-session-home",
+      activeLocusPath: "/different-active-locus",
+      recordId: `sha256:${"c".repeat(64)}`,
+      leaseId: "d".repeat(32),
+      parentRecordId: `sha256:${"e".repeat(64)}`,
+    } as const;
+
+    for (const [field, replacement] of Object.entries(replacements)) {
+      await writeFile(seedPath, `${JSON.stringify({
+        ...original,
+        locus: { ...original.locus, [field]: replacement },
+      }, null, 2)}\n`);
+      const sequence = await runArcAnchoredSequence([
+        ["locus", "attach", "--json"],
+        ["recover", "audit", "--json"],
+      ], tmpDir);
+      expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
+      const report = sequence.results[1] as {
+        verdict: {
+          status: string;
+          stopReasons: Array<{ kind: string; detail?: { mismatchedFields?: string[] } }>;
+        };
+      };
+      expect(report.verdict.status).toBe("stop");
+      const mismatch = report.verdict.stopReasons.find((reason) => reason.kind === "locus-hint-mismatch");
+      expect(mismatch?.detail?.mismatchedFields, field).toContain(field);
+    }
+  });
+
+  it("recovers a warm transient before its parent WU context", async () => {
+    await prepareAttachedWorkUnit(tmpDir);
+    const remote = await mkdtemp(join(tmpdir(), "arc-warm-recovery-remote-"));
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await git(tmpDir, ["remote", "add", "origin", remote]);
+    await git(tmpDir, ["push", "origin", "main"]);
+    await git(tmpDir, ["push", "-u", "origin", "feat/locus-session"]);
+    const harnessDir = await mkdtemp(join(tmpdir(), "arc-codex-anchor-"));
+    const codexHarness = join(harnessDir, "codex");
+    await copyFile("/bin/bash", codexHarness);
+    await chmod(codexHarness, 0o755);
+    try {
+      const sequence = await runArcAnchoredSequence([
+        ["locus", "attach", "--json"],
+        ["errand", "open", "warm-recovery", "--intent", "Exercise transient recovery", "--json"],
+        {
+          args: ["status", "--session-init", "--write-compaction-seed", "--json"],
+          cwdFromPreviousJson: "activeLocusPath",
+        },
+        { args: ["recover", "audit", "--json"], reuseResolvedCwd: true },
+      ], tmpDir, { timeout: 60_000, anchorShellPath: codexHarness });
+
+      expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
+      const [attached, opened, session, audit] = sequence.results as [
+        Record<string, unknown>,
+        Record<string, unknown>,
+        Record<string, unknown>,
+        Record<string, unknown>,
+      ];
+      expect(attached).toMatchObject({ outcome: "applied", operation: "locus-attach" });
+      expect(opened, JSON.stringify(opened)).toMatchObject({
+        outcome: "applied",
+        operation: "errand-open",
+        activeLocusPath: expect.any(String),
+      });
+      expect(session, JSON.stringify(session.locusState)).toMatchObject({
+        locusState: {
+          ok: true,
+          value: {
+            current: { kind: "resolved", parentRecordId: expect.any(String) },
+          },
+        },
+      });
+      expect(audit, JSON.stringify(audit.verdict)).toMatchObject({
+        verdict: { status: "ready", ready: true, locusHint: { match: true } },
+        recover: {
+          recoveryFrame: {
+            ok: true,
+            value: { kind: "resolved", workflow: "run-errand", parentRecordId: expect.any(String) },
+          },
+          loadSet: { ok: true },
+          taskCursor: { ok: true, value: { status: "found" } },
+        },
+      });
+    } finally {
+      await removeGitBackedDir(remote);
+      await removeGitBackedDir(harnessDir);
+    }
+  });
+});
 
 describe("session-init E2E — sessionType across type variants", () => {
   let tmpDir: string;

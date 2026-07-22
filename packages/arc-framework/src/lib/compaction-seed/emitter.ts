@@ -15,6 +15,7 @@ import { atomicWriteJson } from "../fs.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
 import type { LocusStateV1 } from "../locus/schema/index.js";
+import { deriveRecoveryLocusContext } from "../recover/locus-context.js";
 import {
   assertCompactionSeed,
   COMPACTION_SEED_SCHEMA_VERSION,
@@ -153,18 +154,40 @@ export async function emitCompactionSeed(
     return { status: "failed", reason: "identity-invalid", message: errorMessage(err) };
   }
 
-  const metaPath = options.envelope.active.ok ? options.envelope.active.value.path : null;
-  const currentWorkflow = options.envelope.active.ok
+  let metaPath = options.envelope.active.ok ? options.envelope.active.value.path : null;
+  let currentWorkflow = options.envelope.active.ok
     ? options.envelope.active.value.currentWorkflow
     : null;
   const uncommittedFiles = canonicalizeUncommittedFiles(options.gitSnapshot.uncommittedFiles);
-  const taskCursor =
+  let taskCursor =
     options.envelope.active.ok
       && options.envelope.active.value.sessionType !== "planning"
       && options.envelope.taskCursor?.ok
       && options.envelope.taskCursor.value.status === "found"
       ? options.envelope.taskCursor.value.cursor
       : null;
+  let loadSet = options.envelope.loadSet.value;
+  let sessionType = options.envelope.active.ok ? options.envelope.active.value.sessionType : null;
+  if (options.envelope.locusState.ok && options.envelope.locusState.value.current.kind === "resolved") {
+    try {
+      const recovery = deriveRecoveryLocusContext({
+        state: options.envelope.locusState.value,
+        identity,
+        workingMemoryPath: loadSet.entries.find((entry) =>
+          entry.path.endsWith("/WORKING-MEMORY.md"))?.path ?? null,
+      });
+      loadSet = recovery.loadSet;
+      taskCursor = recovery.taskCursor?.status === "found" ? recovery.taskCursor.cursor : null;
+      if (recovery.frame.kind === "resolved") {
+        currentWorkflow = recovery.frame.workflow;
+        sessionType = asCompactionSeedSessionType(recovery.frame.sessionType);
+      }
+      metaPath = loadSet.entries.find((entry) =>
+        /(?:^|\/)\.arc\/active\/meta-[^/]+\.md$/u.test(entry.path))?.path ?? metaPath;
+    } catch (error) {
+      return { status: "failed", reason: "seed-invalid", message: errorMessage(error) };
+    }
+  }
   const currentLocusHint = deriveCompactionSeedLocusHint(options.envelope.locusState);
 
   const seed: CompactionSeed = {
@@ -178,10 +201,10 @@ export async function emitCompactionSeed(
     dirty: uncommittedFiles.length > 0,
     activeWorkUnit: activeWorkUnitName(metaPath),
     metaPath,
-    sessionType: options.envelope.active.ok ? options.envelope.active.value.sessionType : null,
+    sessionType,
     currentWorkflow,
     taskCursor,
-    loadSet: options.envelope.loadSet.value,
+    loadSet,
     uncommittedFiles,
     ...(currentLocusHint === null ? {} : { locus: currentLocusHint }),
   };
@@ -198,6 +221,10 @@ export async function emitCompactionSeed(
     return { status: "failed", reason: "write-failed", message: errorMessage(err) };
   }
   return { status: "written", path, seed };
+}
+
+function asCompactionSeedSessionType(value: string | null): CompactionSeedSessionType | null {
+  return value === "planning" || value === "execution" || value === "integration" ? value : null;
 }
 
 async function writeCompactionSeedFile(path: string, seed: CompactionSeed): Promise<void> {
