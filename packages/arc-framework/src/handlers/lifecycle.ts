@@ -73,8 +73,10 @@ import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
   createInRepoParkPlanningRetirementContext,
+  createInRepoRenameRetirementContext,
   type InRepoDirectRetirementDeps,
 } from "../lib/work-unit/direct-retirement-driver.js";
+import { runRenameCommand } from "../commands/rename.js";
 import {
   createInRepoParkPlanningLandingContext,
   landParkPlanningTransition,
@@ -424,6 +426,39 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
     );
   }
   p.note(lines.join("\n"), "Decomposed");
+  p.outro("Done.");
+}
+
+/** `arc rename <slug> <new-slug>` — atomically rename a work unit and its applicable identities. */
+export async function handleRename(sourceSlug: string, targetSlug: string): Promise<void> {
+  p.intro("arc rename");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+  const { settings } = await readConfigSettings(base.cwd);
+  const result = await runRenameCommand({
+    cwd: base.cwd,
+    identity: base.identity,
+    baseBranch: settings["branch.base"],
+    io: base.io,
+    retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
+  }, { sourceSlug, targetSlug });
+  if (result.status !== "renamed") {
+    refuse(result.reason);
+    return;
+  }
+  const lines = [
+    `Work unit: ${sourceSlug} → ${targetSlug}`,
+    `Shape:     ${result.shape}`,
+  ];
+  if (result.pendingIntegration) {
+    lines.push("Visibility: pending integration of the rename branch");
+  }
+  if (result.remote?.status === "unpublished") lines.push("Remote:    unpublished; no ref created");
+  if (result.worktree !== undefined && "followUpNotice" in result.worktree) {
+    const notice = result.worktree.followUpNotice;
+    if (notice !== undefined) lines.push(`Follow-up:  ${notice}`);
+  }
+  p.note(lines.join("\n"), "Renamed");
   p.outro("Done.");
 }
 

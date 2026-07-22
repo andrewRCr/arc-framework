@@ -354,15 +354,13 @@ exists to enable unreachable.
 - _Outcome:_ One command-layer adapter now composes the evidence transaction and every applicable identity leg;
   focused orchestration tests and real-repository probes close staged-byte parity, rollback, shape, and resume.
 
-### `[ ]` **6.6 CLI registration and handler**
+### `[x]` **6.6 CLI registration and handler**
 
 - _Goal:_ `arc rename <slug> <new-slug>` is reachable from the command line, takes both slugs explicitly, and
   defaults neither.
 
-    - Register a subcommand alongside the shipped lifecycle verbs, dispatching through the existing three-layer
-      flow with the handler owning presentation and the lib owning the transition.
-    - Thin wiring by design: argument parsing, handler dispatch, and result rendering. The behavioral surface is
-      covered by the task below rather than here.
+    - Registered the explicit two-argument command beside the lifecycle verbs; the handler resolves production
+      dependencies and owns refusal/success presentation while the command adapter and lib own execution.
 
 ### `[ ]` **6.7 End-to-end coverage across the subject shapes**
 
