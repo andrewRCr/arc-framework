@@ -12,11 +12,11 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.R.a — Settle the right-sizing deltas in the spec
-- **Next Task:** Task 7.R.b — Ratify verb-scoped leases and align spec, workflow, and narration (line ~929)
-- **Blockers:** [none]
+- **Last Completed:** Task 7.R.i — Reconcile contracts, docs, and criteria after the trims
+- **Next Task:** Task 8.1 — Complete verification (line ~1008)
+- **Blockers:** `pr-decomposition` (soon `review-chunking`) must ship before Phase 8 verification and integration
 
-- **Next Action:** Start Task 7.R.b — align handoff/init dispatch and narration with verb-scoped leases
+- **Next Action:** Resume Task 8.1 after `pr-decomposition` (soon `review-chunking`) ships
 
 - **PR URL:** [none]
 - **Completed:** [none]
