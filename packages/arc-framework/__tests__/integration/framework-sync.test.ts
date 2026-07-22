@@ -145,6 +145,7 @@ describe("framework sync (self-hosting drift check)", () => {
     const paths = [
       "system/methods/README.md",
       "system/methods/assess-design-proportionality.md",
+      "system/methods/design-audit.md",
       "system/methods/self-review.md",
       "system/methods/frontline-review.md",
       "system/methods/independent-analysis.md",

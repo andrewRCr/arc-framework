@@ -25,13 +25,10 @@ and relate it to ARC's broader design-fit rubric before the remaining planning s
 
 - _Note:_ Design coverage: PD5, PD8.
 
-    - `[ ]` **1.2.a Reframe the Fit lens around the canonical proportionality method**
-        - Update package and self-hosted `design-audit.md` copies so material complexity mismatch delegates to
-          `assess-design-proportionality` while broader efficacy, coherence, forward compatibility, and minor fit
-          residue stay owned by `design-audit`.
-        - Preserve the finished-draft floor, standalone read-only posture, and existing severity contract.
-        - Add `design-audit.md` to the focused neutral Configurable-contract parity assertion beside the canonical
-          proportionality method so both changed defaults remain byte-aligned across package and self-hosted copies.
+    - `[x]` **1.2.a Reframe the Fit lens around the canonical proportionality method**
+        - Delegated material complexity mismatch to `assess-design-proportionality` while preserving
+          `design-audit`'s broader efficacy, coherence, forward-compatibility, finished-draft, read-only, and
+          severity contracts; focused neutral parity now covers both methods.
 
     - `[ ]` **1.2.b Register the method relationship in both indexes**
         - Update the package and self-hosted `system/methods/README.md` tables to relate

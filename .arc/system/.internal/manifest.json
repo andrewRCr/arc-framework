@@ -374,7 +374,7 @@
     "system/methods/design-audit.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "243ecc2aefa885caab0ea7da3a2c865805e0cf69147b0eb74e4af42b06b38dd2"
+      "pristine_hash": "38b3972558222d4ec14a0efad2420eab11b413bb0d2b252cc7c7c41c1a0ce3b8"
     },
     "system/methods/frontline-review.md": {
       "classification": "Configurable",
