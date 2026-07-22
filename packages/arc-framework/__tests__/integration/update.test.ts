@@ -154,10 +154,11 @@ describe("update integration — baseline (real recipe)", () => {
     // through added/removed/updated/conflicts.
     const perFilePaths = [
       ...[
+        "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
         "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "independent-analysis",
-        "implementation-audit", "self-review",
+        "implementation-audit", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
-        "session-state", "spec-review", "test-first",
+        "session-state", "spec-review", "task-audit", "test-first",
       ].map((n) => `system/methods/${n}.md`),
       ...[
         "post-context-load", "post-task-completion", "post-task-quality",

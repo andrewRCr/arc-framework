@@ -336,6 +336,26 @@
       "layer": "core",
       "pristine_hash": "87a20b42619a2a5cc00487ebb4e285b71c3aa5d82a6c3a82277758ab4bb4c3d2"
     },
+    "system/methods/assess-cohort-fit.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "7be009c805ecfc25603e75d94120bb12ce12b19dcf95e3644c8dbfb8e867de62"
+    },
+    "system/methods/assess-design-proportionality.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "6e728dc3c7ff805679281d4120c4340d6a9e1765f69e27374e49b7a7737a347b"
+    },
+    "system/methods/assess-draft-readiness.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "cf86001f2628d0517ccd01e257a45c1b09048168f4437cc97eec1a87ead95b20"
+    },
+    "system/methods/adversarial-review.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "175b774cdf7d8036466b06007133e5e2b77a59b60cf2b9b77c2c01cafc545f8e"
+    },
     "system/methods/classify-work-unit.md": {
       "classification": "Configurable",
       "layer": "core",
@@ -350,6 +370,11 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "b1931399fe596d93c28d99518ac56bdeefc8a1912284cf17c606acf247420bae"
+    },
+    "system/methods/design-audit.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "243ecc2aefa885caab0ea7da3a2c865805e0cf69147b0eb74e4af42b06b38dd2"
     },
     "system/methods/frontline-review.md": {
       "classification": "Configurable",
@@ -405,6 +430,11 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "43101b711f14cfd623164bdeb9b8485d682c09c0eaaa4778876791e44baea57e"
+    },
+    "system/methods/task-audit.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "e819943265112a5d368ccbc544682ef6183852240a94a96dba863f9f45012a45"
     },
     "system/methods/test-first.md": {
       "classification": "Configurable",
@@ -504,7 +534,7 @@
     "system/workflows/arc/draft-design.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "a0fb41543d852f91532842d86df7af34d9e009b5151cefe0472c55a42c8f2e57"
+      "pristine_hash": "4c40a2e736dacbf36f6d41ed9304bf9b64be480651864966d3cc5f4e8d5dd878"
     },
     "system/workflows/arc/initial-setup/01_verify-and-configure.md": {
       "classification": "Framework",

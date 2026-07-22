@@ -9,40 +9,14 @@
 _Purpose:_ Establish the decision contract, land its first authoring consumer with every installed dependency,
 and relate it to ARC's broader design-fit rubric before the remaining planning surfaces consume it.
 
-### `[ ]` **1.1 Land the canonical method, drafting guard, and method inventory atomically**
+### `[x]` **1.1 Land the canonical method, drafting guard, and method inventory atomically**
 
 - _Goal:_ Drafting receives one trigger-clean, overridable judgment that rejects materially unjustified machinery
   without simplifying below the chartered adequacy floor, and fresh installations include every dependency it uses.
 
-- _Note:_ Design coverage: PD1-PD4, PD8, PD9. This parent is one review increment because method declaration,
-  Framework workflow projection, and installed dependency closure must remain coherent at every committed state.
-
-    - Add package and self-hosted `assess-design-proportionality.md` copies with the declared `problem`, `candidate`,
-      and optional `substrate-referents` inputs and the `proportionate | revise` result.
-    - Define the five closed finding kinds, source-grounded finding shape, materiality threshold, and explicit
-      adequacy rail without adding a note tier, persistence, configuration, or runtime state.
-    - Cover goal-to-mechanism trace, the minimal credible alternative, existing-substrate composition, marginal
-      justification, consequence-scaled rigor, and essential complexity as one judgment.
-    - Keep project and team status out of the criterion while allowing concrete security, compatibility, authority,
-      data-loss, and operational consequences to justify substantial machinery.
-    - Declare and invoke the method in the package and self-hosted `draft-design.md` workflows whenever a candidate
-      direction adds a material mechanism and again at loop exit; keep `revise` in the drafting loop and the clean
-      path silent.
-    - Build `test-first` (one behavior at a time):
-        - Extend `__tests__/unit/init.test.ts` so `classifyFile()` requires `Configurable` for
-          `assess-design-proportionality`, `assess-cohort-fit`, `assess-draft-readiness`, `adversarial-review`,
-          `design-audit`, and `task-audit`; then add the six paths to `CONFIGURABLE_FILES` in
-          `src/lib/classification.ts`.
-        - Extend the integration init and update inventories with all six methods, their installed `Configurable`
-          classifications, and a count-independent method-presence test title.
-        - Add the six method files to `packages/arc-framework/init-recipe.json` and add the recipe-derived entries,
-          classifications, and pristine hashes to `.arc/system/.internal/manifest.json` in the same increment.
-        - Extend the packaged init E2E inventory with all six methods and replace stale numeric method/extension
-          comments in the unit, init E2E, and reconfigure E2E coverage with count-independent statements.
-        - Add `assess-design-proportionality.md` to the focused neutral Configurable-contract parity assertion in
-          `__tests__/integration/framework-sync.test.ts`, leaving the Framework-only loop classification-bounded.
-    - Run the focused classification, init, update, framework-sync, init E2E, and reconfigure E2E coverage for the
-      complete first-consumer delivery slice.
+- _Outcome:_ The canonical method, drafting-time guard, and six-method install closure now ship coherently across
+  package and self-hosted copies. Recipe-derived manifest membership, Configurable classification, neutral parity,
+  and focused init/update/E2E inventories cover the complete delivery slice without numeric count coupling.
 
 ### `[ ]` **1.2 Compose proportionality with design-audit and the method index**
 

@@ -10,6 +10,7 @@ arc:
     - assess-cohort-fit
     - assess-draft-readiness
     - adversarial-review
+    - assess-design-proportionality
     - design-audit
 ---
 
@@ -71,6 +72,17 @@ than a monolith); re-confirm cheaply as the draft matures across passes.
 
 The resolved level selects this stage's path below — the stage default, re-selectable, never below the
 derivation floor.
+
+## Assess design proportionality
+
+Run [`assess-design-proportionality`][assess-design-proportionality] whenever a candidate direction introduces a
+material mechanism, before elaborating it. Pass the current problem framing and candidate direction, plus key
+existing substrate pointers when useful. On `revise`, correct the candidate within this drafting loop; on
+`proportionate`, continue silently.
+
+Re-run the method over the settled candidate at loop exit before the readiness and interlock boundary. A `revise`
+result remains in the drafting loop. Record non-obvious justification in the draft's existing decision structure,
+not as a proof-of-check marker.
 
 ## Draft in the resolved level
 
@@ -239,6 +251,7 @@ planning-depth level is never recorded.
 ---
 
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
+[assess-design-proportionality]: ../../methods/assess-design-proportionality.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
 [assess-cohort-fit]: ../../methods/assess-cohort-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md

@@ -144,6 +144,7 @@ describe("framework sync (self-hosting drift check)", () => {
   it("keeps neutral review customization contracts aligned across both copies", async () => {
     const paths = [
       "system/methods/README.md",
+      "system/methods/assess-design-proportionality.md",
       "system/methods/self-review.md",
       "system/methods/frontline-review.md",
       "system/methods/independent-analysis.md",

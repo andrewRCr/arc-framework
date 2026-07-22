@@ -277,10 +277,15 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- Per-File Methods and Extensions ---
 
-  it("installs all 15 per-file methods plus README in system/methods/", async () => {
+  it("installs every registered per-file method plus README in system/methods/", async () => {
     const methodFiles = [
+      "assess-cohort-fit.md",
+      "assess-design-proportionality.md",
+      "assess-draft-readiness.md",
+      "adversarial-review.md",
       "classify-work-unit.md", "commit-footer.md",
       "commit-format.md",
+      "design-audit.md",
       "frontline-review.md",
       "independent-analysis.md",
       "implementation-audit.md",
@@ -292,6 +297,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "review-triage.md",
       "session-state.md",
       "spec-review.md",
+      "task-audit.md",
       "test-first.md",
       "README.md",
     ];
@@ -330,10 +336,11 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const manifest = await readManifestFile(tempDir);
 
       const methodNames = [
+        "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
         "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "independent-analysis",
-        "implementation-audit", "self-review",
+        "implementation-audit", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
-        "session-state", "spec-review", "test-first",
+        "session-state", "spec-review", "task-audit", "test-first",
       ];
       const extensionNames = [
         "post-context-load", "post-task-completion", "post-task-quality",
