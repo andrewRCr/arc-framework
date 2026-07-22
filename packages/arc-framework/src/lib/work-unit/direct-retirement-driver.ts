@@ -30,7 +30,11 @@ import {
 import { readRetirementAuthoritySnapshot } from "./retirement-authority-snapshot.js";
 import { recordRetirementReceipt } from "./retirement-record.js";
 import { resolveRetirementRecordPath } from "./retirement-record-store.js";
-import { artifactMatcher } from "./mutators/relocate-artifacts.js";
+import {
+  artifactMatcher,
+  renameArtifactBasename,
+  type ArtifactSlugMap,
+} from "./mutators/relocate-artifacts.js";
 import type { AbandonRetirementContext } from "./verbs/abandon.js";
 import type { ParkPlanningRetirementContext } from "./verbs/park-resume.js";
 
@@ -52,7 +56,7 @@ export interface InRepoDirectRetirementDeps {
   removeRecord(receiptId: RetirementReceipt["receiptId"]): Promise<void>;
 }
 
-interface DirectTransitionSourceEvidence {
+export interface DirectTransitionSourceEvidence {
   scope: RetirementAuthorityScope;
   artifactDigest: RetirementReceipt["source"]["artifactDigest"];
   sourceArtifactPaths: readonly ManagedPath[];
@@ -61,6 +65,7 @@ interface DirectTransitionSourceEvidence {
 
 interface CapturedDirectSource extends DirectTransitionSourceEvidence {
   inventory: readonly ArtifactSetEntry[];
+  slugMap: ArtifactSlugMap | null;
 }
 
 interface SnapshotBinding {
@@ -70,9 +75,9 @@ interface SnapshotBinding {
 }
 
 interface DirectTransitionConfig {
-  transition: "abandon" | "park-planning";
+  transition: "abandon" | "park-planning" | "rename";
   expectedLifecycle: "nonexistent" | "planned";
-  label: "abandon" | "park";
+  label: "abandon" | "park" | "rename";
 }
 
 interface DirectTransitionRetirementContext {
@@ -82,6 +87,7 @@ interface DirectTransitionRetirementContext {
     sourceDir: string;
     resultDir: string | null;
     expectedBranch: string | null;
+    slugMap?: ArtifactSlugMap;
   }): Promise<DirectTransitionSourceEvidence>;
   stageTransition(source: DirectTransitionSourceEvidence): Promise<void>;
   rollbackTransition(source: DirectTransitionSourceEvidence): Promise<void>;
@@ -103,6 +109,7 @@ function createInRepoDirectRetirementContext(
     sourceDir,
     resultDir,
     expectedBranch,
+    slugMap = null,
   }) => {
     const branch = await getCurrentBranch(deps.exec);
     if (branch === null) {
@@ -129,7 +136,11 @@ function createInRepoDirectRetirementContext(
       sourceArtifactPaths: paths,
       resultArtifactPaths: resultDir === null
         ? []
-        : paths.map((path) => validateManagedPath(posix.join(resultDir, posix.basename(path)))),
+        : paths.map((path) => validateManagedPath(posix.join(
+            resultDir,
+            renameArtifactBasename(posix.basename(path), slugMap),
+          ))),
+      slugMap,
       inventory,
     };
     captured = evidence;
@@ -298,6 +309,57 @@ export function createInRepoParkPlanningRetirementContext(
   };
 }
 
+/** In-repository retirement binding used by the work-unit rename verb. */
+export interface RenameRetirementContext {
+  authority: DirectTransitionRetirementContext["authority"];
+  captureSource(params: {
+    name: string;
+    targetSlug: string;
+    sourceDir: string;
+    resultDir: string;
+    expectedBranch: string | null;
+  }): Promise<RenameTransitionSourceEvidence>;
+  stageTransition(source: RenameTransitionSourceEvidence): Promise<void>;
+  rollbackTransition(source: RenameTransitionSourceEvidence): Promise<void>;
+  readTransitionPatch(source: RenameTransitionSourceEvidence): Promise<readonly PatchOperation[]>;
+  readResultArtifactDigest(
+    source: RenameTransitionSourceEvidence,
+  ): Promise<RetirementReceipt["source"]["artifactDigest"]>;
+}
+
+/** Captured rename evidence, including the slug map that derived its result paths. */
+export interface RenameTransitionSourceEvidence extends DirectTransitionSourceEvidence {
+  slugMap: ArtifactSlugMap;
+}
+
+/** Build the direct-transition binding used by a work-unit rename. */
+export function createInRepoRenameRetirementContext(
+  deps: InRepoDirectRetirementDeps,
+): RenameRetirementContext {
+  const direct = createInRepoDirectRetirementContext(deps, {
+    transition: "rename",
+    expectedLifecycle: "nonexistent",
+    label: "rename",
+  });
+  return {
+    authority: direct.authority,
+    captureSource: async ({ name, targetSlug, sourceDir, resultDir, expectedBranch }) => {
+      const source = await direct.captureSource({
+        name,
+        sourceDir,
+        resultDir,
+        expectedBranch,
+        slugMap: { sourceSlug: name, targetSlug },
+      });
+      return { ...source, slugMap: { sourceSlug: name, targetSlug } };
+    },
+    stageTransition: (source) => direct.stageTransition(source),
+    rollbackTransition: (source) => direct.rollbackTransition(source),
+    readTransitionPatch: (source) => direct.readTransitionPatch(source),
+    readResultArtifactDigest: (source) => direct.readResultArtifactDigest(source),
+  };
+}
+
 function requireCaptured(
   captured: CapturedDirectSource | null,
   source: Pick<DirectTransitionSourceEvidence, "scope">,
@@ -320,8 +382,13 @@ async function receiptMatchesBinding(
 ): Promise<boolean> {
   const resultMatches = config.transition === "abandon"
     ? receipt.result.kind === "discard"
-    : receipt.result.kind === "relocate"
-      && receipt.result.plannedArtifactDigest === await readResultArtifactDigest(binding.source);
+    : config.transition === "park-planning"
+      ? receipt.result.kind === "relocate"
+        && receipt.result.plannedArtifactDigest === await readResultArtifactDigest(binding.source)
+      : receipt.result.kind === "rename"
+        && binding.source.slugMap !== null
+        && receipt.result.targetSlug === binding.source.slugMap.targetSlug
+        && receipt.result.artifactDigest === await readResultArtifactDigest(binding.source);
   return receipt.transition === config.transition
     && receipt.receiptId === receiptId({
       schemaVersion: receipt.schemaVersion,

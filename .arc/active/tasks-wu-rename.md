@@ -47,55 +47,23 @@ _Design decisions:_ Reuse the shipped `RetirementAuthorityPort` rather than a be
 compare-and-set version, record lock, and post-stage rollback are exactly what convergent resume rests on. Only
 the derivation of the _basename_ moves; source derivation stays `listArtifactPaths` at `head`.
 
-### `[ ]` **2.1 Slug-mapped result derivation**
+### `[x]` **2.1 Slug-mapped result derivation**
 
 - _Goal:_ Every artifact the work unit carries at `HEAD` yields exactly one delete and one write at its renamed
   path, derived by the port rather than supplied by the caller.
-- _Note:_ Source derivation is untouched. That asymmetry is the whole point — an artifact the sweep forgot cannot
-  pass, because the port enumerated it independently from the committed tree.
+    - `[x]` **2.1.a Transition config, label, and rename context factory**
+        - Added the rename-specific direct-transition factory and carried its source/result directories and slug
+          map in captured evidence, including result-digest access for receipt construction.
 
-    - `[ ]` **2.1.a Transition config, label, and rename context factory**
-        - `DirectTransitionConfig.transition` widens to include `"rename"`, with `expectedLifecycle` of
-          `"nonexistent"` and its own label for the error prose the binding already emits.
-        - Export a rename context factory beside the shipped abandon and park-planning ones. It must expose
-          `readResultArtifactDigest` — park's context surfaces it, abandon's does not, and the rename receipt's
-          result digest needs it.
-        - State the capture operands the factory passes: `sourceDir` is the subject's current artifact directory;
-          `resultDir` is where the renamed set lands — **the same directory for a spawned or in-place subject,
-          the new backlog leaf for a stub**; and the slug map, which the basename derivation below and the
-          receipt's target-slug binding both read. Pinning `resultDir` to `sourceDir` would derive a stub's
-          result paths in the old leaf while the sweep writes to the new one, and every artifact would then trip
-          the omitted-result throw.
-        - The captured evidence must carry the slug map forward, since the binding check compares a receipt
-          against the captured source and has no other route to the target slug.
+    - `[x]` **2.1.b Slug map on the result basename**
+        - Added the shared basename mapper; committed-tree source enumeration now derives renamed result paths in
+          either the same directory or a distinct stub leaf while shipped transitions remain basename-preserving.
 
-    - `[ ]` **2.1.b Slug map on the result basename**
-        - Generalize the one derivation step that computes each result path from `join(resultDir,
-          basename(path))` so it applies a slug map (`<prefix>-<old>.md` → `<prefix>-<new>.md`) to the basename.
-        - Export the mapping as a shared helper: the sweep performs the physical move against the same rule, and
-          any divergence between the two surfaces as an omitted-result-artifact throw far from its cause.
-        - Shipped transitions pass no map, so the step is the identity on them and their derived paths are
-          byte-identical to today's.
-        - Build `test-first` (one behavior at a time):
-            - Every source artifact maps to exactly one result path under the new slug.
-            - A source artifact left in the index raises the existing source-in-index error unchanged.
-            - A result artifact missing from the index raises the existing omitted-result error unchanged.
-            - The shipped basename-preserving transitions derive identical paths to before the change.
-            - A stub subject, whose result directory differs from its source, derives result paths in the new
-              leaf rather than the old one.
+    - `[x]` **2.1.c `receiptMatchesBinding` rename arm**
+        - Rename binding now requires the designed result kind, target slug, and digest of the staged renamed set.
 
-    - `[ ]` **2.1.c `receiptMatchesBinding` rename arm**
-        - Key the arm to `result.kind === "rename"` and verify `result.artifactDigest` against
-          `readResultArtifactDigest(binding.source)` — the parity `park-planning`'s arm already has. Without the
-          arm a rename receipt is refused as `authority-conflict`; without the digest clause the field is an
-          assertion the record makes about itself.
-        - Bind `result.targetSlug` to the slug map the binding derived its result paths from, on the same
-          argument: unbound, it is one more assertion the record makes about itself, and the mismatch would
-          surface only downstream at the commit gate.
-        - Build `test-first` (one behavior at a time):
-            - A rename receipt whose result digest matches the staged renamed set is accepted by the binding.
-            - A rename receipt whose result digest does not match is refused.
-            - A rename receipt whose `targetSlug` disagrees with the derived slug map is refused.
+- _Outcome:_ The authority binding independently derives one renamed result for every committed source artifact,
+  preserving the existing source-left-behind and result-omitted refusals across active and backlog subject shapes.
 
 ### `[ ]` **2.2 Additive patch path list**
 

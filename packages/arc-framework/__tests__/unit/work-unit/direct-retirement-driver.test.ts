@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../../src/lib/git/exec.js";
-import { createInRepoAbandonRetirementContext } from "../../../src/lib/work-unit/direct-retirement-driver.js";
+import {
+  createInRepoAbandonRetirementContext,
+  createInRepoRenameRetirementContext,
+} from "../../../src/lib/work-unit/direct-retirement-driver.js";
+import { renameArtifactBasename } from "../../../src/lib/work-unit/mutators/relocate-artifacts.js";
 
 const HEAD = "a".repeat(40);
 const META_PATH = ".arc/active/meta-sample.md";
@@ -94,5 +98,114 @@ describe("direct retirement branch resolution", () => {
     const operations = await readRoadmapPatch(bytes("same"), bytes("same"));
 
     expect(operations).not.toContainEqual(expect.objectContaining({ path: ROADMAP_PATH }));
+  });
+});
+
+describe("rename result derivation", () => {
+  it("maps every source artifact basename to the target slug", async () => {
+    const sourcePaths = [".arc/active/meta-sample.md", ".arc/active/spec-sample.md"];
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "feat/sample\n" };
+      if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
+      if (args[0] === "ls-tree") return { stdout: `${sourcePaths.join("\0")}\0` };
+      throw new Error(`unexpected Git command: ${args.join(" ")}`);
+    };
+    const context = createInRepoRenameRetirementContext({
+      cwd: "/repo",
+      exec,
+      readBlob: async () => bytes("artifact"),
+      readFile: async () => "",
+      createRecord: async () => undefined,
+      removeRecord: async () => undefined,
+    });
+
+    const source = await context.captureSource({
+      name: "sample",
+      targetSlug: "renamed-sample",
+      sourceDir: ".arc/active",
+      resultDir: ".arc/active",
+      expectedBranch: "feat/sample",
+    });
+
+    expect(source.resultArtifactPaths).toEqual([
+      ".arc/active/meta-renamed-sample.md",
+      ".arc/active/spec-renamed-sample.md",
+    ]);
+    expect(source.slugMap).toEqual({ sourceSlug: "sample", targetSlug: "renamed-sample" });
+  });
+
+  it("derives a backlog stub result in the new leaf", async () => {
+    const sourcePath = ".arc/backlog/planned/sample/meta-sample.md";
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "chore/rename-sample\n" };
+      if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
+      if (args[0] === "ls-tree") return { stdout: `${sourcePath}\0` };
+      throw new Error(`unexpected Git command: ${args.join(" ")}`);
+    };
+    const context = createInRepoRenameRetirementContext({
+      cwd: "/repo",
+      exec,
+      readBlob: async () => bytes("artifact"),
+      readFile: async () => "",
+      createRecord: async () => undefined,
+      removeRecord: async () => undefined,
+    });
+
+    const source = await context.captureSource({
+      name: "sample",
+      targetSlug: "renamed-sample",
+      sourceDir: ".arc/backlog/planned/sample",
+      resultDir: ".arc/backlog/planned/renamed-sample",
+      expectedBranch: "[none]",
+    });
+
+    expect(source.resultArtifactPaths).toEqual([
+      ".arc/backlog/planned/renamed-sample/meta-renamed-sample.md",
+    ]);
+  });
+
+  it("preserves shipped basenames and rejects missing rename results", async () => {
+    expect(renameArtifactBasename("meta-sample.md", null)).toBe("meta-sample.md");
+    expect(renameArtifactBasename("notes-sample.md", {
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+    })).toBe("notes-renamed-sample.md");
+  });
+
+  it.each([
+    ["source remains", true, true, "rename transition left source artifact in the index"],
+    ["result omitted", false, false, "rename transition omitted result artifact"],
+  ] as const)("retains the shipped patch refusal when the %s", async (_label, sourcePresent, resultPresent, message) => {
+    const sourcePath = ".arc/active/meta-sample.md";
+    const resultPath = ".arc/active/meta-renamed-sample.md";
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "feat/sample\n" };
+      if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
+      if (args[0] === "ls-tree") return { stdout: `${sourcePath}\0` };
+      throw new Error(`unexpected Git command: ${args.join(" ")}`);
+    };
+    const context = createInRepoRenameRetirementContext({
+      cwd: "/repo",
+      exec,
+      readBlob: async (ref, path) => {
+        if (ref === HEAD && path === sourcePath) return bytes("source");
+        if (ref === null && path === sourcePath) return sourcePresent ? bytes("source") : null;
+        if (ref === null && path === resultPath) return resultPresent ? bytes("result") : null;
+        if (path === ROADMAP_PATH) return null;
+        throw new Error(`unexpected blob read: ${String(ref)}:${path}`);
+      },
+      readFile: async () => "",
+      createRecord: async () => undefined,
+      removeRecord: async () => undefined,
+    });
+    const source = await context.captureSource({
+      name: "sample",
+      targetSlug: "renamed-sample",
+      sourceDir: ".arc/active",
+      resultDir: ".arc/active",
+      expectedBranch: "feat/sample",
+    });
+
+    await expect(context.readTransitionPatch(source)).rejects.toThrow(message);
   });
 });
