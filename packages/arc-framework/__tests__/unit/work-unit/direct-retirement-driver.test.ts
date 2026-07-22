@@ -208,4 +208,80 @@ describe("rename result derivation", () => {
 
     await expect(context.readTransitionPatch(source)).rejects.toThrow(message);
   });
+
+  it("adds caller-declared sibling paths without duplicating derived pairs or ROADMAP", async () => {
+    const sourcePath = ".arc/active/meta-sample.md";
+    const resultPath = ".arc/active/meta-renamed-sample.md";
+    const siblingPath = ".arc/active/spec-sibling.md";
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "feat/sample\n" };
+      if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
+      if (args[0] === "ls-tree") return { stdout: `${sourcePath}\0` };
+      throw new Error(`unexpected Git command: ${args.join(" ")}`);
+    };
+    const context = createInRepoRenameRetirementContext({
+      cwd: "/repo",
+      exec,
+      readBlob: async (ref, path) => {
+        if (ref === HEAD && path === sourcePath) return bytes("source");
+        if (ref === null && path === sourcePath) return null;
+        if (ref === null && path === resultPath) return bytes("result");
+        if (ref === HEAD && path === siblingPath) return bytes("old sibling");
+        if (ref === null && path === siblingPath) return bytes("new sibling");
+        if (ref === HEAD && path === ROADMAP_PATH) return bytes("old roadmap");
+        if (ref === null && path === ROADMAP_PATH) return bytes("new roadmap");
+        throw new Error(`unexpected blob read: ${String(ref)}:${path}`);
+      },
+      readFile: async () => "",
+      createRecord: async () => undefined,
+      removeRecord: async () => undefined,
+    });
+    const source = await context.captureSource({
+      name: "sample",
+      targetSlug: "renamed-sample",
+      sourceDir: ".arc/active",
+      resultDir: ".arc/active",
+      expectedBranch: "feat/sample",
+      additionalPaths: [siblingPath],
+    });
+
+    const operations = await context.readTransitionPatch(source);
+
+    expect(operations.map(({ operation, path }) => [operation, path])).toEqual([
+      ["delete", sourcePath],
+      ["write", resultPath],
+      ["write", siblingPath],
+      ["write", ROADMAP_PATH],
+    ]);
+  });
+
+  it.each([
+    ["source pair", ".arc/active/meta-sample.md"],
+    ["result pair", ".arc/active/meta-renamed-sample.md"],
+    ["ROADMAP", ROADMAP_PATH],
+  ])("refuses an additional path that shadows the derived %s", async (_label, additionalPath) => {
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "feat/sample\n" };
+      if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
+      if (args[0] === "ls-tree") return { stdout: `${META_PATH}\0` };
+      throw new Error(`unexpected Git command: ${args.join(" ")}`);
+    };
+    const context = createInRepoRenameRetirementContext({
+      cwd: "/repo",
+      exec,
+      readBlob: async () => bytes("artifact"),
+      readFile: async () => "",
+      createRecord: async () => undefined,
+      removeRecord: async () => undefined,
+    });
+
+    await expect(context.captureSource({
+      name: "sample",
+      targetSlug: "renamed-sample",
+      sourceDir: ".arc/active",
+      resultDir: ".arc/active",
+      expectedBranch: "feat/sample",
+      additionalPaths: [additionalPath],
+    })).rejects.toThrow("additional transition path overlaps a derived path");
+  });
 });

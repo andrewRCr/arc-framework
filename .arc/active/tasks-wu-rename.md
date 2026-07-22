@@ -65,34 +65,19 @@ the derivation of the _basename_ moves; source derivation stays `listArtifactPat
 - _Outcome:_ The authority binding independently derives one renamed result for every committed source artifact,
   preserving the existing source-left-behind and result-omitted refusals across active and backlog subject shapes.
 
-### `[ ]` **2.2 Additive patch path list**
+### `[x]` **2.2 Additive patch path list**
 
 - _Goal:_ Paths the sweep stages beyond the derived pairs reach the transition patch, so the rename commits as
   one atomic change set instead of being refused for staging something the patch does not describe.
-- _Shape:_ The caller supplies an **additional** list the port appends — never a replacement for the derived set.
-  Membership rule: every path the sweep stages that is neither one of the derived source/result pairs nor ROADMAP.
+    - `[x]` **2.2.a Thread the additional path list through the binding**
+        - Capture now owns a validated additive path set that participates in patch construction, staging, and
+          rollback without replacing or shadowing committed-tree-derived source/result pairs.
 
-    - `[ ]` **2.2.a Thread the additional path list through the binding**
-        - The list reaches patch construction, staging, and rollback alike. Cross-reference rewrites inside
-          sibling artifacts and the cohort member-section edit both qualify under the membership rule; omitting
-          them means `recordRetirementReceipt` refuses with `evidence-mismatch` for a staged path outside the
-          patch set.
-        - Name where the list enters the binding — a capture operand or an explicit setter on the captured
-          evidence. Attaching it to the evidence object handed to the staging call does **not** work: the
-          captured-source check compares scopes and then returns the module-level captured object, discarding
-          whatever the caller passed, so the patch the receipt is validated against would never see the list.
-        - Build `test-first` (one behavior at a time):
-            - A staged path in the additional list appears in the patch and does not trigger a refusal.
-            - A staged path absent from both the derived pairs and the additional list is refused.
-            - The additional list cannot displace or shadow a derived source/result pair.
-            - A moved artifact surfaces as a delete at its old path and a write at its new one, matching the
-              derived pair — the rename-free staged-path read is what the pairing depends on.
+    - `[x]` **2.2.b ROADMAP exclusion**
+        - ROADMAP remains port-derived and is rejected from the additive set, producing exactly one patch entry.
 
-    - `[ ]` **2.2.b ROADMAP exclusion**
-        - ROADMAP stays out of the additional list: the port already diffs it against the source head and appends
-          its own operation, and `patchDigest` throws `duplicate patch path` on a repeat.
-        - Build `test-first` (one behavior at a time):
-            - A rename staging a regenerated ROADMAP produces exactly one ROADMAP operation in the patch.
+- _Outcome:_ Sibling-artifact and cohort rewrites can join the rename's atomic patch through an additive,
+  collision-checked list while undeclared staged paths remain subject to the port's existing refusal.
 
 ### `[ ]` **2.3 Conservation refusal diagnostic**
 

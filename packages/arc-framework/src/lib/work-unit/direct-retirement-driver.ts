@@ -66,6 +66,7 @@ export interface DirectTransitionSourceEvidence {
 interface CapturedDirectSource extends DirectTransitionSourceEvidence {
   inventory: readonly ArtifactSetEntry[];
   slugMap: ArtifactSlugMap | null;
+  additionalPaths: readonly ManagedPath[];
 }
 
 interface SnapshotBinding {
@@ -88,6 +89,7 @@ interface DirectTransitionRetirementContext {
     resultDir: string | null;
     expectedBranch: string | null;
     slugMap?: ArtifactSlugMap;
+    additionalPaths?: readonly string[];
   }): Promise<DirectTransitionSourceEvidence>;
   stageTransition(source: DirectTransitionSourceEvidence): Promise<void>;
   rollbackTransition(source: DirectTransitionSourceEvidence): Promise<void>;
@@ -110,6 +112,7 @@ function createInRepoDirectRetirementContext(
     resultDir,
     expectedBranch,
     slugMap = null,
+    additionalPaths = [],
   }) => {
     const branch = await getCurrentBranch(deps.exec);
     if (branch === null) {
@@ -125,6 +128,14 @@ function createInRepoDirectRetirementContext(
       if (bytes === null) throw new Error(`source artifact disappeared from ${head}: ${path}`);
       return { path, state: "present", contentDigest: contentDigest(bytes) };
     }));
+    const resultArtifactPaths = resultDir === null
+      ? []
+      : paths.map((path) => validateManagedPath(posix.join(
+          resultDir,
+          renameArtifactBasename(posix.basename(path), slugMap),
+        )));
+    const managedAdditionalPaths = additionalPaths.map(validateManagedPath);
+    assertAdditionalPaths(managedAdditionalPaths, paths, resultArtifactPaths);
     const evidence: CapturedDirectSource = {
       scope: {
         subject: { kind: "work-unit", name },
@@ -134,13 +145,9 @@ function createInRepoDirectRetirementContext(
       },
       artifactDigest: artifactGroupDigest(inventory),
       sourceArtifactPaths: paths,
-      resultArtifactPaths: resultDir === null
-        ? []
-        : paths.map((path) => validateManagedPath(posix.join(
-            resultDir,
-            renameArtifactBasename(posix.basename(path), slugMap),
-          ))),
+      resultArtifactPaths,
       slugMap,
+      additionalPaths: managedAdditionalPaths,
       inventory,
     };
     captured = evidence;
@@ -162,6 +169,15 @@ function createInRepoDirectRetirementContext(
       const bytes = await deps.readBlob(null, path);
       if (bytes === null) throw new Error(`${config.label} transition omitted result artifact: ${path}`);
       operations.push(writeOperation(path, bytes));
+    }
+    for (const path of bound.additionalPaths) {
+      const [before, after] = await Promise.all([
+        deps.readBlob(bound.scope.source.head, path),
+        deps.readBlob(null, path),
+      ]);
+      if (bytesEqual(before, after)) continue;
+      if (after === null) operations.push(deleteOperation(path));
+      else operations.push(writeOperation(path, after));
     }
 
     const [beforeRoadmap, afterRoadmap] = await Promise.all([
@@ -260,7 +276,7 @@ function createInRepoDirectRetirementContext(
       await stageUnstagedPaths(
         deps.exec,
         deps.cwd,
-        [...bound.sourceArtifactPaths, ...bound.resultArtifactPaths, ROADMAP_PATH],
+        [...bound.sourceArtifactPaths, ...bound.resultArtifactPaths, ...bound.additionalPaths, ROADMAP_PATH],
       );
     },
     rollbackTransition: async (source) => {
@@ -318,6 +334,7 @@ export interface RenameRetirementContext {
     sourceDir: string;
     resultDir: string;
     expectedBranch: string | null;
+    additionalPaths?: readonly string[];
   }): Promise<RenameTransitionSourceEvidence>;
   stageTransition(source: RenameTransitionSourceEvidence): Promise<void>;
   rollbackTransition(source: RenameTransitionSourceEvidence): Promise<void>;
@@ -343,13 +360,14 @@ export function createInRepoRenameRetirementContext(
   });
   return {
     authority: direct.authority,
-    captureSource: async ({ name, targetSlug, sourceDir, resultDir, expectedBranch }) => {
+    captureSource: async ({ name, targetSlug, sourceDir, resultDir, expectedBranch, additionalPaths }) => {
       const source = await direct.captureSource({
         name,
         sourceDir,
         resultDir,
         expectedBranch,
         slugMap: { sourceSlug: name, targetSlug },
+        additionalPaths,
       });
       return { ...source, slugMap: { sourceSlug: name, targetSlug } };
     },
@@ -468,6 +486,7 @@ async function restoreTransition(
   const paths = [
     ...source.sourceArtifactPaths,
     ...source.resultArtifactPaths,
+    ...source.additionalPaths,
     ROADMAP_PATH,
   ];
   await exec(
@@ -475,6 +494,20 @@ async function restoreTransition(
     ["restore", `--source=${source.scope.source.head}`, "--staged", "--worktree", "--", ...paths],
     { cwd },
   );
+}
+
+function assertAdditionalPaths(
+  additionalPaths: readonly ManagedPath[],
+  sourcePaths: readonly ManagedPath[],
+  resultPaths: readonly ManagedPath[],
+): void {
+  const reserved = new Set<string>([...sourcePaths, ...resultPaths, ROADMAP_PATH]);
+  const seen = new Set<string>();
+  for (const path of additionalPaths) {
+    if (reserved.has(path)) throw new Error(`additional transition path overlaps a derived path: ${path}`);
+    if (seen.has(path)) throw new Error(`duplicate additional transition path: ${path}`);
+    seen.add(path);
+  }
 }
 
 async function withRetirementTransaction<T>(
