@@ -99,6 +99,38 @@ describe("locus methodology contracts", () => {
     }
   });
 
+  it("documents the trimmed housekeep and session-guidance contracts", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const probe = await readFile(
+        resolve(base, "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md"),
+        "utf8",
+      );
+      const housekeepSkill = await readFile(
+        resolve(base, "system/.internal/skills/arc-housekeep/SKILL.md"),
+        "utf8",
+      );
+      const workOrganization = await readFile(
+        resolve(base, "reference/strategies/arc/strategy-work-organization.md"),
+        "utf8",
+      );
+      const suffix = base === packageArc ? ".template.md" : ".md";
+      const sessionInit = await readFile(
+        resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
+        "utf8",
+      );
+
+      expect(probe).toContain("`currentFrame?`, `primaryAvailability?`, `recovery?`, and `reconciliation?`");
+      expect(probe).toContain("`pendingExecuteBound[]`");
+      expect(housekeepSkill).toContain("arc housekeep open <sweep-slug> --json");
+      expect(housekeepSkill).toContain("Abandonment preserves execute-bound markings");
+      expect(housekeepSkill).not.toMatch(/arc housekeep plan|strictest lane|plan digest/iu);
+      expect(workOrganization).toMatch(/The lane is derived at close from the routes\s+actually landed/u);
+      expect(workOrganization).not.toMatch(/exact routing plan|strictest lane/iu);
+      expect(sessionInit).toContain("`inboxState.value.pendingExecuteBound` non-empty");
+      expect(sessionInit).not.toContain("inbox dispatch groups");
+    }
+  });
+
   it("keeps package and project references aligned at locus decision sites", async () => {
     for (const path of [
       "reference/briefs/AGENT-BRIEF.ARC.md",

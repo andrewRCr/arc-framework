@@ -1,6 +1,6 @@
 /**
- * Inbox-state probe — a session-init signal that counts the routable entries in
- * a developer's `USER-INBOX` and derives whether housekeeping is due.
+ * Inbox-state probe — session-init routing demand plus the durable execute-bound
+ * queue visible in a developer's `USER-INBOX`.
  *
  * The pure core counts well-formed (`parse.ok`) entries across the inbox's
  * `## Errand` and `## Work Unit` sections, so session-init can offer housekeep
@@ -9,7 +9,9 @@
  * (mirroring the staleness sweep skipping entries it cannot age), and so are
  * entries deliberately retained at a drain (`_Hold:_ \`true\``) — a held entry
  * is triaged, not pending, so it must not re-trigger the housekeep offer (the
- * reminder sweep surfaces it instead; see `inbox-reminders`).
+ * reminder sweep surfaces it instead; see `inbox-reminders`). Execute-bound
+ * entries are likewise excluded from routing and returned in file order for
+ * sequential continuation; malformed queue state remains visible as diagnostics.
  *
  * The caller (the session-init probe) owns identity-gating and the file read;
  * this module carries no file or identity coupling of its own.
@@ -45,10 +47,10 @@ export interface RunInboxStateOptions {
 }
 
 /**
- * Count routable `USER-INBOX` entries and derive the housekeep-needed flag.
+ * Derive routing demand and the visible execute-bound queue from `USER-INBOX`.
  *
  * @param options - The inbox file content.
- * @returns The routable-entry count and the housekeep-needed flag.
+ * @returns Routing demand, file-ordered execute-bound titles, and queue diagnostics.
  */
 export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
   const entries = parseCrossWuEntries(options.content, "user-inbox");

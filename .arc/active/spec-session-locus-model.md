@@ -1212,7 +1212,7 @@ Workflow changes use precomputed CLI verdicts and operation verbs:
   co-design set of branchless backlog WUs without weakening started-WU isolation;
 - materialize arms invoke ARC verbs rather than narrating raw worktree mechanics;
 - recovery consumes the locus graph and validated seed references;
-- cleanup surfaces render CLI-precomposed lease/residue text;
+- cleanup surfaces render only actionable CLI-precomposed unknown-occupancy and residue text;
 - user-facing narration names the model only where a diagnostic or recovery surface requires it, and then always
   as "session locus", never bare "locus"; routine happy-path output speaks in concrete terms (checkout, worktree,
   branch) or stays silent. Non-actionable roster facts — unmanaged sibling worktrees, an unleased durable role,
@@ -1444,11 +1444,11 @@ motivating failure.
 10. Full-mode housekeeping globally serializes the complete confirmed pure-routing sweep under one identity,
     branch, and PR, safely reuses repeated sweep names only after exact tail and branch-generation retirement, and
     has the workflow classify the routing PR's lane at close from the writes the sweep landed (reviewed wins over
-    auto-merge). It
-    closes its sole routing locus before execute-now work, then opens each concern on its own sibling Errand PR
-    whose completion/leave offers the next visible execute-bound capture in file order without creating a third
-    frame. An interrupted sweep's already-marked entries stay visible in the inbox and re-confirm at the next
-    drain. Partial protection promises only machine-local primary serialization.
+    auto-merge). It closes its sole routing locus before execute-now work, then opens each concern on its own sibling
+    Errand PR whose completion/leave offers the next visible execute-bound capture in file order without creating a
+    third frame. An interrupted or abandoned sweep leaves already-marked entries visible as the next session's resume
+    trail; abandoning a sibling Errand clears only its own mark. Partial protection promises only machine-local
+    primary serialization.
 11. A full-mode Errand may leave its local locus in remote-preserved `paused` or exact `awaiting-merge` identity
     state, resume in a newly allocated locus, and finalize later without turning operational re-entry into a durable
     plan or classifying any unleased transient role as normal waiting.

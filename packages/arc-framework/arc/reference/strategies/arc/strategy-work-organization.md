@@ -1196,14 +1196,15 @@ A between-WUs `arc-housekeep` drain flushes captured work to its homes — routi
 scaffolding provisional stubs, flushing homeless items to the shared inbox. Under full protection each such
 write ships as a PR, so the drain follows a packaging discipline.
 
-The drain is **gated and phased** — it classifies with no writes, **stops at a confirmation interlock** for the
-full routing plan, then routes — so the packaging below is decided against a confirmed plan, never mid-write. It
-closes on **no un-triaged entries**: every entry routed, dismissed, flushed, dispatched as an errand, or
-explicitly _retained_ (a per-entry escape-hatch, never the default). The phased steps live in `drain-inbox.md`.
+The drain is **gated and phased** — it classifies with no writes, **stops at a confirmation interlock** for every
+disposition, then opens one routing occupancy and routes. The confirmed decisions stay session-held; no canonical
+plan or digest persists. It closes on **no un-triaged entries**: every entry is routed, dismissed, flushed, dispatched
+as an Errand, or explicitly _retained_ (a per-entry escape-hatch, never the default). The phased steps live in
+`drain-inbox.md`.
 
-**One PR per confirmed routing sweep.** The confirmation gate fixes one exact routing plan. Under full protection,
-every pure-routing write in that plan shares one housekeep identity, branch, and PR, classified by the strictest
-lane touched: any reviewed-lane or foreign-owner write makes the complete PR reviewed. A large sweep may use
+**One PR per confirmed routing sweep.** The confirmation gate fixes the sweep's dispositions. Under full protection,
+every pure-routing write shares one housekeep identity, branch, and PR. The lane is derived at close from the routes
+actually landed: any reviewed-lane or foreign-owner write makes the complete PR reviewed. A large sweep may use
 multiple ordered in-session review increments and commits, but it never splits by lane, destination, or chunk.
 Under partial protection, the same sweep occupies the primary across its direct-base commits.
 

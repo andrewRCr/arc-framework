@@ -326,11 +326,11 @@ export interface SessionInitProbeResult {
    */
   workUnitState?: Probe<WorkUnitStateResult>;
   /**
-   * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
-   * and a `housekeepNeeded` flag, so the Orient arm offers housekeep from a
-   * machine-resolved signal rather than an agent re-scan. Present whenever
-   * identity resolved (the source is identity-scoped); omitted only when
-   * identity is absent.
+   * Pre-computed inbox-state probe — routable-entry demand plus file-ordered
+   * execute-bound titles and queue diagnostics from `USER-INBOX`. The Orient
+   * arm can offer housekeep or sequential execution from machine-resolved
+   * signals rather than an agent re-scan. Present whenever identity resolves;
+   * omitted only when identity is absent.
    */
   inboxState?: Probe<InboxStateResult>;
   /**
@@ -511,10 +511,11 @@ export interface SessionHandoffResult {
   /** Resolved release-wrapper routing decisions for workflow fire-site classes. */
   releaseRouting: Probe<ReleaseRoutingValue>;
   /**
-   * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
-   * and a `housekeepNeeded` flag, so the between-WUs handoff branch can offer
-   * housekeep from a machine-resolved signal rather than an agent re-scan.
-   * Present whenever identity resolved; omitted only when identity is absent.
+   * Pre-computed inbox-state probe — routable-entry demand plus file-ordered
+   * execute-bound titles and queue diagnostics from `USER-INBOX`. The
+   * between-WUs handoff branch can offer housekeep or sequential execution from
+   * machine-resolved signals rather than an agent re-scan. Present whenever
+   * identity resolves; omitted only when identity is absent.
    */
   inboxState?: Probe<InboxStateResult>;
   /**

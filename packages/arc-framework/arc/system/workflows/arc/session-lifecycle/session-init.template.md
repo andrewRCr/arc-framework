@@ -211,7 +211,8 @@ here; the arms below are the **signal-absent** path.
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
       next-work discovery orients and awaits direction. A positional seed naming a backlog WU **pre-focuses**
       that WU with an init offer (Step 5) — confirm-only, never auto-init. If `locusState.inFlightIdentities`,
-      inbox dispatch groups, or `materializableWorkUnits` carry available routes, surface them in Step 6.
+      `inboxState.value.pendingExecuteBound`, or `materializableWorkUnits` carry available routes, surface them in
+      Step 6.
     - **Housekeep** (`inboxState.value.housekeepNeeded`, primary worktree): when `USER-INBOX` holds routable
       captures, carry the housekeep intent — surfaced as a soft-offer in Step 6's orientation, never a hard
       dispatch. It overlays the discovery arm (housekeep, then discover) rather than replacing it; the developer
@@ -858,6 +859,18 @@ tracked source documents the work.
   ```text
   **Materializable work units:** {N} remote WU(s) available:
   - `{name}` (`{branch}`) — materialize and resume?
+  ```
+
+- `inboxState.value.executeBoundDiagnostics` non-empty (Resume / Orient arms): surface each queue diagnostic and do
+  not infer or skip the malformed entry.
+
+- `inboxState.value.pendingExecuteBound` non-empty (Resume / Orient arms): an interrupted or abandoned routing
+  sweep left committed execution to resume. Offer only the first file-ordered title. On acceptance, treat that title
+  as the exact `--errand` seed and follow the signal-leaf spine, binding it with `--from-inbox`; later titles remain
+  queued until the current Errand completes or is abandoned.
+
+  ```text
+  **Queued Errand:** `{pendingExecuteBound[0]}` is next ({N} queued) — run now?
   ```
 
 - `inboxState.value.housekeepNeeded` (Orient arm — no active WU): `USER-INBOX` holds routable captures. Soft-offer

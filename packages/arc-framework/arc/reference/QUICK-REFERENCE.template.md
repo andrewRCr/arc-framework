@@ -257,7 +257,8 @@ arc errand close <slug> [--json]
 arc errand abandon <slug> [--json]
 arc errand promote <slug>
 
-# One confirmed housekeep routing sweep — one occupancy and a file-ordered execute queue
+# One confirmed housekeep routing sweep — one occupancy
+# Execute-bound markings form a file-ordered queue and survive interruption or abandonment
 arc housekeep check
 arc housekeep open <slug> [--json]
 arc housekeep mark-execute <titles...> [--json]

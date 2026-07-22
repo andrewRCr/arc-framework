@@ -993,14 +993,15 @@ full guard set unchanged.
   cleanup, and unmanaged-sibling rows; session-init omits the section when no actionable text remains. No reminder
   marker is needed because the recurring unmanaged-sibling advisory is suppressed at composition.
 
-### `[ ]` **7.R.i Reconcile contracts, docs, and criteria after the trims** — D11
+### `[x]` **7.R.i Reconcile contracts, docs, and criteria after the trims** — D11
 
 - _Goal:_ Packaged and self-hosted copies, the locus-methodology structural contracts, orientation surfaces, and
   the spec and task Success Criteria all agree with the trimmed behavior.
 
-    - Re-run parity and contract suites; update `probe-envelope.md` and quick-reference/orientation surfaces;
-      confirm no stale mentions of removed machinery (plan digests, capability table) survive in strategies or
-      skills.
+- _Outcome:_ Package and self-hosted probe, quick-reference, orientation, housekeep skill, and work-organization
+  surfaces now describe optional actionable guidance and the digest-free execute queue. Session-init offers the
+  first queued Errand after interruption or abandonment, criteria preserve that resume trail, and structural
+  contracts reject the removed plan protocol while enforcing package/project parity.
 
 ## **Phase 8:** Verification
 
@@ -1031,7 +1032,9 @@ full guard set unchanged.
 - `[ ]` One full-mode housekeeping sweep uses one identity, branch, PR, and review tail with its lane classified at
   close from the writes it landed; excludes a concurrent sweep under every other slug, safely reuses repeated
   branch names only after exact generation cleanup, then opens execute-now work as sibling Errands offered from
-  visible execute-bound inbox markings in file order. Partial mode is explicitly machine-local primary occupancy.
+  visible execute-bound inbox markings in file order. Interrupted or abandoned routing preserves those markings as
+  the next session's resume trail; an abandoned sibling clears only its own mark. Partial mode is explicitly
+  machine-local primary occupancy.
 - `[ ]` Exact v3 promotion converts one Errand locus into the sole active WU session home and preserves its inbox
   capture until the WU meta commit, with no standalone v3 retirement command.
 - `[ ]` Full-mode Errands can pause or await merge without leaving an unleased transient role as normal waiting state.
