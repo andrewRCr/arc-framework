@@ -12,13 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** draft-design pass 1 — target state settled and re-cut drafted; draft consolidated (`maturing`)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** resume draft-design at loop exit — proportionality re-run, readiness check, adversarial offer
-  (`Heavy`, up to 2 passes), then the capture ceremony
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
