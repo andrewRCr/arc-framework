@@ -40,23 +40,14 @@ and relate it to ARC's broader design-fit rubric before the remaining planning s
 _Purpose:_ Apply the canonical judgment while the spec crystallizes and at the two adversarial boundaries that
 certify the design for downstream planning.
 
-### `[ ]` **2.1 Guard spec crystallization with correction and re-entry routing**
+### `[x]` **2.1 Guard spec crystallization with correction and re-entry routing**
 
 - _Goal:_ Every emitted spec form is proportionate before final review, with wrong settled mechanisms corrected in
   place and genuinely missing design routed back to its owning stage.
 
-- _Note:_ Design coverage: PD4.
-
-- **Additional Context:** `strategy-procedure-evolution.md` § Forward-Compat Principles and
-  `strategy-knowledge-evolution.md` § Forward-Compat Principles.
-
-    - Add `assess-design-proportionality` to `arc.methods` in both package and self-hosted `create-spec.md` copies.
-    - Apply the guard while every spec form crystallizes the settled design and re-run it over the saved spec before
-      finalization self-review in both workflows.
-    - Route a wrong named mechanism through in-place spec correction; route an unshaped or under-derived direction
-      through `resolve-planning-depth` back to `draft-design`.
-    - Land declaration, discovery guard, final readiness re-check, and correction/re-entry routing across both
-      Framework copies as one review increment so framework-sync remains green.
+- _Outcome:_ Every spec form now invokes the canonical guard during crystallization and again over the saved spec
+  before self-review. Settled mechanism errors correct in place, while findings that reopen derivation use the
+  existing planning-depth valve to return to `draft-design`.
 
 ### `[ ]` **2.2 Pair proportionality with design-audit at adversarial design boundaries**
 
