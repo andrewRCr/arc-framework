@@ -8,6 +8,7 @@ import {
   DirectTransitionConservationError,
 } from "../../../src/lib/work-unit/direct-retirement-driver.js";
 import { renameArtifactBasename } from "../../../src/lib/work-unit/mutators/relocate-artifacts.js";
+import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/retirement-record-store.js";
 
 const HEAD = "a".repeat(40);
 const META_PATH = ".arc/active/meta-sample.md";
@@ -372,6 +373,7 @@ describe("rename result derivation", () => {
       if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
       if (args[0] === "ls-tree") return { stdout: `${META_PATH}\0` };
       if (args[0] === "restore") return { stdout: "" };
+      if (args[0] === "rm") return { stdout: "" };
       throw new Error(`unexpected Git command: ${args.join(" ")}`);
     };
     const context = createInRepoRenameRetirementContext({
@@ -405,6 +407,14 @@ describe("rename result derivation", () => {
       siblingPath,
       ROADMAP_PATH,
     ]);
+    expect(calls).toContainEqual([
+      "rm",
+      "-f",
+      "--cached",
+      "--ignore-unmatch",
+      "--",
+      resolveRetirementRecordRelativePath(id),
+    ]);
   });
 
   it("names the residual record and discard command when rollback is incomplete", async () => {
@@ -413,6 +423,7 @@ describe("rename result derivation", () => {
       if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
       if (args[0] === "ls-tree") return { stdout: `${META_PATH}\0` };
       if (args[0] === "restore") throw new Error("injected restore refusal");
+      if (args[0] === "rm") return { stdout: "" };
       throw new Error(`unexpected Git command: ${args.join(" ")}`);
     };
     const context = createInRepoRenameRetirementContext({

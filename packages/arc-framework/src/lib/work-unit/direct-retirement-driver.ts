@@ -404,10 +404,16 @@ export function createInRepoRenameRetirementContext(
     rollbackTransition: (source) => direct.rollbackTransition(source),
     rollbackRefusedCommit: async (source, receiptId) => {
       const failures: string[] = [];
+      const recordPath = resolveRetirementRecordRelativePath(receiptId);
       try {
         await direct.rollbackTransition(source);
       } catch (error) {
         failures.push(`tree restore failed: ${errorMessage(error)}`);
+      }
+      try {
+        await deps.exec("git", ["rm", "-f", "--cached", "--ignore-unmatch", "--", recordPath], { cwd: deps.cwd });
+      } catch (error) {
+        failures.push(`record index cleanup failed: ${errorMessage(error)}`);
       }
       try {
         await deps.removeRecord(receiptId);
@@ -416,7 +422,6 @@ export function createInRepoRenameRetirementContext(
       }
       if (failures.length === 0) return { status: "rolled-back" };
 
-      const recordPath = resolveRetirementRecordRelativePath(receiptId);
       return {
         status: "refused",
         reason: "authority-unavailable",
