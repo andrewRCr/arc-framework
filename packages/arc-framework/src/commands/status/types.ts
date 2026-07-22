@@ -65,6 +65,7 @@ import type { RecommendedAction } from "../../lib/session-init/recommended-actio
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
 import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
+import type { RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
 
 export type { RecommendedAction, WorktreeIdentity };
 
@@ -404,6 +405,8 @@ export interface SessionRecoverProbeResult {
   identity: StatusIdentity;
   /** Shared network-free interpretation of machine-local session occupancy. */
   locusState: Probe<LocusStateV1>;
+  /** Reader-owned active frame and governing workflow selected from `locusState`. */
+  recoveryFrame: Probe<RecoveryLocusFrame>;
   worktree: Probe<SessionRecoverWorktreeValue>;
   dirty: Probe<DirtyStateResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
@@ -705,8 +708,6 @@ export interface SessionRecoverProbes {
     role: string | null,
   ) => Promise<ActiveSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
-  cohortDoc: (activeMetaPath: string) => Promise<string | null>;
-  taskCursor: (taskListPath: string) => Promise<TaskListCursorFileResult>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */

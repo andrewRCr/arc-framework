@@ -23,6 +23,7 @@ import { RetiredSubdirDetectionResultSchema } from "../../lib/session-init/retir
 import { ClassCompositionSchema } from "../../lib/status/class-composition.js";
 import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.js";
 import { LocusStateV1Schema } from "../../lib/locus/schema/index.js";
+import { RecoveryLocusFrameSchema } from "../../lib/recover/locus-context.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
 
 const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "value must not be empty");
@@ -479,6 +480,7 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("recover"),
   identity: StatusIdentitySchema,
   locusState: probe(LocusStateV1Schema),
+  recoveryFrame: probe(RecoveryLocusFrameSchema),
   worktree: probe(SessionRecoverWorktreeValueViewSchema),
   dirty: probe(DirtyStateValueViewSchema),
   extensions: probe(ExtensionsSessionInitValueViewSchema),
@@ -506,16 +508,15 @@ const SessionRecoverProbeResultRuntimeSchema = SessionRecoverEnvelopeObjectSchem
       });
     }
 
-    const taskListPath = value.active.ok ? value.active.value.taskListPath : null;
-    const taskCursorRequired = typeof taskListPath === "string"
-      && LoadSetPathSchema.safeParse(taskListPath).success;
+    const taskCursorRequired = value.loadSet.ok
+      && value.loadSet.value.entries.some((entry) => entry.readMode.kind === "partial-strategic");
     if (Object.hasOwn(value, "taskCursor") !== taskCursorRequired) {
       context.addIssue({
         code: "custom",
         path: ["taskCursor"],
         message: taskCursorRequired
-          ? "required by the safe active task-list path"
-          : "forbidden without a safe active task-list path",
+          ? "required by the locus-derived strategic task-list entry"
+          : "forbidden without a locus-derived strategic task-list entry",
       });
     }
   },

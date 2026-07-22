@@ -667,17 +667,11 @@ as their machine-local occupancy authority.
           the reader-resolved current row with a live lease and omits every unresolved, ambiguous, failed, or
           incomplete projection.
 
-    - `[ ]` **6.3.b Derive recovery state from the fresh locus graph**
-        - Update `packages/arc-framework/src/handlers/recover-probes.ts` and recover orchestration to consume the
-          required `locusState.current` verdict and referenced rows instead of resolving the session home, transient
-          child, parent edge, or identity join a second time.
-        - Derive workflow, load set, and task cursor from the reader-validated row projections. A selected transient
-          with a null parent gives cold and between-WU sessions the same recovery path as a warm child.
-        - Stop on ambiguous current state, missing/mismatched tokens, malformed rows, or dead/unknown liveness; do
-          not add a recovery-side tiebreaker.
-        - Build `test-first` (one behavior at a time):
-            - Cover WU-only, warm child, null-parent transient, identity-only tail, ambiguous current, changed token,
-              malformed projection, dead/unknown residue, and proof that frame selection is reader-owned.
+    - `[x]` **6.3.b Derive recovery state from the fresh locus graph**
+        - Added a schema-backed recovery-frame projection over the reader-owned `current` verdict and exact referenced
+          rows. Recovery now derives WU, warm-child, and null-parent transient workflows, load sets, and cursors from
+          that snapshot, while ambiguity, token drift, incomplete projections, and dead/unknown residue fail closed;
+          the old recover-only cohort and task-cursor probes no longer create a second selection authority.
 
     - `[ ]` **6.3.c Reconcile seed snapshots against locus-derived authority**
         - Extend recovery audit/report schemas to accept a missing legacy hint and compare every field of a present

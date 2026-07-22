@@ -68,6 +68,7 @@ import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summa
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import { assertLoadSetPath, resolveLoadSetManifest } from "../../lib/load-set/projection.js";
+import { deriveRecoveryLocusContext } from "../../lib/recover/locus-context.js";
 import {
   fromThrowable,
   err,
@@ -507,38 +508,32 @@ export async function runRecoverStatus(
         identity: worktreeIdentity,
       } satisfies SessionRecoverWorktreeValue));
 
-  const cohortDoc = await resolveCohortDoc(active, probes.cohortDoc);
-  const cohortDocPath = cohortDoc.isOk() ? cohortDoc.value : null;
-  const activeWuName = active.isOk() ? metaWorkUnitNameFromActive(active.value.path) : null;
-  const loadSet = active.andThen((activeValue) => loadSetFromState({
+  const deriveContext = fromThrowable(
+    (state: Parameters<typeof deriveRecoveryLocusContext>[0]["state"]) => deriveRecoveryLocusContext({
+      state,
       identity,
-      activeWorkUnit: activeWuName,
-      metaPath: activeValue.path,
-      sessionType: activeValue.sessionType,
-      planningStage: activeValue.planningStage,
-      taskListPath: activeValue.taskListPath ?? null,
-      activeExtensions: extensions.isOk() ? extensions.value.active : [],
-      cohortDocPath,
-      cohortDoc,
       workingMemoryPath: workingMemoryPath ?? null,
-    }));
-  const taskListPath = active.isOk() ? (active.value.taskListPath ?? null) : null;
-  const taskCursor =
-    active.isOk() && taskListPath !== null && taskListPathIsLoadSetSafe(taskListPath)
-      ? await safeProbe("taskCursor", () => probes.taskCursor(taskListPath))
-      : undefined;
+    }),
+    (cause) => new SessionCompositionError("derive-recovery-locus", "recoveryFrame", cause),
+  );
+  const recoveryContext = locusState.andThen(deriveContext);
+  const recoveryFrame = recoveryContext.map((value) => value.frame);
+  const loadSet = recoveryContext.map((value) => value.loadSet);
+  const taskCursor = recoveryContext.isOk() && recoveryContext.value.taskCursor !== null
+    ? recoveryContext.map((value) => value.taskCursor as NonNullable<typeof value.taskCursor>)
+    : undefined;
 
   return {
     mode: "recover",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
+    recoveryFrame: toProbe(recoveryFrame),
     worktree: toProbe(enrichedWorktree),
     dirty: toProbe(dirty),
     extensions: toProbe(extensions),
     config: toProbe(config),
     active: toProbe(active),
     releaseRouting: toProbe(releaseRouting),
-    ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     loadSet: toProbe(loadSet),
     ...(taskCursor !== undefined ? { taskCursor: toProbe(taskCursor) } : {}),
   };

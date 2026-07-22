@@ -27,6 +27,8 @@ const execFileAsync = promisify(execFile);
 
 interface SessionInitEnvelope {
   mode: string;
+  locusState?: { ok: boolean };
+  recoveryFrame?: { ok: boolean };
   user?: unknown;
   baseDistance?: {
     ok: boolean;
@@ -321,18 +323,10 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.recommendedCombinedPrompt).toBeUndefined();
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("single");
-    expect(envelope.loadSet?.value?.manifestVersion).toBe(LOAD_SET_MANIFEST_VERSION);
-    expect(envelope.loadSet?.value?.entries).toContainEqual({
-      path: ".arc/active/tasks-foo.md",
-      readMode: { kind: "partial-strategic" },
-    });
-    expect(envelope.taskCursor?.value).toMatchObject({
-      status: "found",
-      cursor: {
-        section: { id: "1.1", title: "Do recover", lineHint: 5 },
-        leaf: { id: "1.1", title: "Do recover", lineHint: 5 },
-      },
-    });
+    expect(envelope.locusState?.ok).toBe(false);
+    expect(envelope.recoveryFrame?.ok).toBe(false);
+    expect(envelope.loadSet?.ok).toBe(false);
+    expect(envelope.taskCursor).toBeUndefined();
   });
 
   it("audits the compaction seed against fresh recovery state", async () => {
@@ -375,23 +369,13 @@ describe("session-init E2E — sessionType across type variants", () => {
       join(".arc", "user", "test-user", ".internal", "compaction-seed.json"),
     );
     expect(report.verdict).toMatchObject({
-      status: "ready",
-      ready: true,
-      stopReasons: [],
-      taskCursor: {
-        match: true,
-        expected: {
-          section: { id: "1.1", title: "Do audit", lineHint: 5 },
-          leaf: { id: "1.1", title: "Do audit", lineHint: 5 },
-        },
-        actual: {
-          status: "found",
-          cursor: {
-            section: { id: "1.1", title: "Do audit", lineHint: 5 },
-            leaf: { id: "1.1", title: "Do audit", lineHint: 5 },
-          },
-        },
-      },
+      status: "stop",
+      ready: false,
+      stopReasons: expect.arrayContaining([
+        expect.objectContaining({ kind: "load-set-unresolved" }),
+        expect.objectContaining({ kind: "task-cursor-unresolved" }),
+      ]),
+      taskCursor: { match: false, actual: null },
     });
   });
 
