@@ -66,6 +66,7 @@ import type { RecommendedAction } from "../../lib/session-init/recommended-actio
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
 import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
+import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 import type { RecoveryLocusContext, RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
 
 export type { RecommendedAction, WorktreeIdentity };
@@ -211,6 +212,8 @@ export interface SessionInitProbeResult {
   identity: StatusIdentity;
   /** Shared network-free interpretation of machine-local session occupancy. */
   locusState: Probe<LocusStateV1>;
+  /** CLI-precomposed narration derived from the same locus probe. */
+  locusGuidance: LocusSessionGuidance;
   user: Probe<SessionInitUserValue>;
   worktree: Probe<SessionInitWorktreeValue>;
   /**
@@ -406,6 +409,8 @@ export interface SessionRecoverProbeResult {
   identity: StatusIdentity;
   /** Shared network-free interpretation of machine-local session occupancy. */
   locusState: Probe<LocusStateV1>;
+  /** CLI-precomposed narration derived from the same locus probe. */
+  locusGuidance: LocusSessionGuidance;
   /** Reader-owned active frame and governing workflow selected from `locusState`. */
   recoveryFrame: Probe<RecoveryLocusFrame>;
   worktree: Probe<SessionRecoverWorktreeValue>;
@@ -471,6 +476,8 @@ export interface SessionHandoffResult {
   identity: StatusIdentity;
   /** Shared network-free interpretation of machine-local session occupancy. */
   locusState: Probe<LocusStateV1>;
+  /** CLI-precomposed narration derived from the same locus probe. */
+  locusGuidance: LocusSessionGuidance;
   /** Exact subject action derived from the same reader-owned locus snapshot. */
   handoffLocus: Probe<HandoffLocusPlan>;
   /**

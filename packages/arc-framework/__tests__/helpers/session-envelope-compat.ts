@@ -318,6 +318,10 @@ export function normalizeSessionEnvelope(
       if (next.startsWith("Unrecognized process boundary:")) {
         return "Unrecognized process boundary: <PROCESS_BOUNDARY>";
       }
+      next = next.replace(
+        /Unrecognized process boundary: .*$/u,
+        "Unrecognized process boundary: <PROCESS_BOUNDARY>",
+      );
       return normalizeDegradedCommandWarning(next);
     }
     if (Array.isArray(value)) {

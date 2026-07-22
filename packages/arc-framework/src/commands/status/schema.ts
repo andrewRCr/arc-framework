@@ -23,6 +23,7 @@ import { RetiredSubdirDetectionResultSchema } from "../../lib/session-init/retir
 import { ClassCompositionSchema } from "../../lib/status/class-composition.js";
 import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.js";
 import { LocusStateV1Schema } from "../../lib/locus/schema/index.js";
+import { LocusSessionGuidanceSchema } from "../../lib/locus/session-guidance.js";
 import { RecoveryLocusFrameSchema } from "../../lib/recover/locus-context.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
 
@@ -326,6 +327,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("session-init"),
   identity: StatusIdentitySchema,
   locusState: probe(LocusStateV1Schema),
+  locusGuidance: LocusSessionGuidanceSchema.optional(),
   user: probe(SessionInitUserValueViewSchema),
   worktree: probe(SessionInitWorktreeValueViewSchema),
   baseDistance: probe(SessionInitBaseDistanceValueViewSchema),
@@ -480,6 +482,7 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("recover"),
   identity: StatusIdentitySchema,
   locusState: probe(LocusStateV1Schema),
+  locusGuidance: LocusSessionGuidanceSchema.optional(),
   recoveryFrame: probe(RecoveryLocusFrameSchema),
   worktree: probe(SessionRecoverWorktreeValueViewSchema),
   dirty: probe(DirtyStateValueViewSchema),

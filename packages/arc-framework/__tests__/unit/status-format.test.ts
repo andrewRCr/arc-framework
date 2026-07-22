@@ -141,6 +141,16 @@ function makeSessionInitResult(
         reconciliation: { kind: "clean" },
       },
     },
+    locusGuidance: {
+      kind: "ready",
+      currentFrame: "No active local session locus is resolved.",
+      primaryAvailability: "Primary checkout /repo is free.",
+      recovery: "No locus recovery action is pending.",
+      reconciliation: "Locus reconciliation is clean.",
+      identities: [],
+      cleanup: [],
+      diagnostics: [],
+    },
     user: {
       ok: true,
       value: {

@@ -59,6 +59,14 @@ function expectContractFailure(value: Record<string, unknown>, expectedPath: str
 }
 
 describe("session-init envelope schema", () => {
+  it("validates additive precomposed locus guidance when present", () => {
+    const value = fixture("orient");
+    value.locusGuidance = { kind: "unavailable", message: "Locus state is unavailable." };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+    value.locusGuidance = { kind: "ready", currentFrame: 42 };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(false);
+  });
+
   it("asserts full and thin producer defects with the registered contract identity", () => {
     const fullDefect = fixture("orient");
     (fullDefect.identity as { role: string }).role = "";

@@ -509,7 +509,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.active.value?.sessionType).toBeNull();
   });
 
-  it("surfaces a record-less remote branch as session-init cleanup residue", async () => {
+  it("keeps record-less remote residue manual when locus classification is unavailable", async () => {
     const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-residue-origin-"));
     try {
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
@@ -537,7 +537,7 @@ describe("session-init E2E — sessionType across type variants", () => {
             {
               branch: "chore/merged-residue",
               slug: "merged-residue",
-              reason: "no-record-or-meta",
+              reason: "classification-unavailable",
             },
           ],
         },

@@ -65,6 +65,7 @@ import {
   type WorktreePullPolicy,
 } from "../../lib/session-init/recommended-action.js";
 import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
+import { deriveLocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 import { deriveHandoffLocusPlan } from "../../lib/handoff/locus-plan.js";
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
@@ -431,6 +432,7 @@ export async function runSessionInitStatus(
     mode: "session-init",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
+    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
     user: toProbe(enrichedUser),
     worktree: toProbe(enrichedWorktree),
     baseDistance: toProbe(enrichedBaseDistance),
@@ -540,6 +542,7 @@ export async function runRecoverStatus(
     mode: "recover",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
+    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
     recoveryFrame: toProbe(recoveryFrame),
     worktree: toProbe(enrichedWorktree),
     dirty: toProbe(dirty),
@@ -737,6 +740,7 @@ export async function runSessionHandoffStatus(
     mode: "session-handoff",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
+    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
     handoffLocus: toProbe(handoffLocus),
     branch,
     dirty: toProbe(dirty),

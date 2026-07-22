@@ -733,7 +733,7 @@ as their machine-local occupancy authority.
 - _Outcome:_ Teardown occupancy is now a veto layered over every existing retirement predicate, with attach and
   removal serialized at the target record lock and no path for a dead lease to authorize deletion by itself.
 
-### `[ ]` **6.6 Project locus reconciliation and cleanup guidance into session surfaces** — D6, D10, D11
+### `[x]` **6.6 Project locus reconciliation and cleanup guidance into session surfaces** — D6, D10, D11
 
 - _Goal:_ Session entry and cleanup display one calm, actionable interpretation of occupancy and residue without
   hiding valid routes or auto-resolving uncertain state.
@@ -744,13 +744,14 @@ as their machine-local occupancy authority.
           offers; incomplete locus authority suppresses cleanup, while legacy, stale-record, and husk evidence remain
           distinct and visible.
 
-    - `[ ]` **6.6.b Render CLI-precomposed reconciliation and cleanup text**
-        - Feed current frame, primary availability, recovery, reconciliation, and lease-aware cleanup results into
-          status/session envelopes without rebuilding their conditions in Markdown.
-        - Preserve all existing sync/base/notes surfaces and add no age-based cleanup recommendation.
-        - Build `test-first` (one behavior at a time):
-            - Cover stable action order, precomposed text parity across init/recover/handoff, unchanged legacy
-              surfaces, root errors, diagnostics, and absence of age-only cleanup advice.
+    - `[x]` **6.6.b Render CLI-precomposed reconciliation and cleanup text**
+        - Added one additive `locusGuidance` projection shared byte-for-byte across init, recovery, and handoff. It
+          precomposes current-frame, primary, recovery, reconciliation, fixed-order identity, diagnostic, and lease-
+          aware cleanup narration while preserving every legacy slot and never recommending cleanup from age or a
+          dead lease alone.
+
+- _Outcome:_ Session surfaces now use the single cached locus graph both to classify residue and to render actionable
+  narration, eliminating branch-shape cleanup guesses without hiding legacy or indeterminate state.
 
 ## **Phase 7:** Packaged Procedure and Cross-Flow Validation
 

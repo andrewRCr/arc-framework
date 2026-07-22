@@ -726,6 +726,8 @@ describe("session operation locus-state orchestration", () => {
     expect(initResult.locusState).toEqual({ ok: true, value: state });
     expect(recoverResult.locusState).toEqual({ ok: true, value: state });
     expect(handoffResult.locusState).toEqual({ ok: true, value: state });
+    expect(initResult.locusGuidance).toEqual(recoverResult.locusGuidance);
+    expect(recoverResult.locusGuidance).toEqual(handoffResult.locusGuidance);
     for (const probes of [init, recover, handoff]) {
       expect(probes.locusState).toHaveBeenCalledOnce();
       expect(probes.locusState).toHaveBeenCalledWith("andrew");
@@ -745,6 +747,7 @@ describe("session operation locus-state orchestration", () => {
 
     for (const [result, probes] of results.map((result, index) => [result, [init, recover, handoff][index]] as const)) {
       expect(result.locusState).toMatchObject({ ok: false, error: { kind: "identity-missing" } });
+      expect(result.locusGuidance).toMatchObject({ kind: "unavailable", message: expect.stringContaining("identity-missing") });
       expect(probes?.locusState).not.toHaveBeenCalled();
     }
   });
@@ -757,6 +760,10 @@ describe("session operation locus-state orchestration", () => {
     expect(result.locusState).toEqual({
       ok: false,
       error: { kind: "runtime", message: "topology unavailable" },
+    });
+    expect(result.locusGuidance).toEqual({
+      kind: "unavailable",
+      message: "Locus state is unavailable (runtime): topology unavailable",
     });
   });
 
@@ -1085,6 +1092,7 @@ describe("runRecoverStatus — lean recover envelope", () => {
       "extensions",
       "identity",
       "loadSet",
+      "locusGuidance",
       "locusState",
       "mode",
       "recoveryFrame",
@@ -1879,6 +1887,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "identity",
       "inboxState",
       "loadSet",
+      "locusGuidance",
       "locusState",
       "mode",
       "orphanBranchSweep",
@@ -2778,6 +2787,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "head",
       "identity",
       "inboxState",
+      "locusGuidance",
       "locusState",
       "mode",
       "pushability",

@@ -71,6 +71,14 @@ function withoutKey(value: Record<string, unknown>, key: string): Record<string,
 }
 
 describe("lean recovery envelope schema", () => {
+  it("validates additive precomposed locus guidance when present", () => {
+    const value = recovery();
+    value.locusGuidance = { kind: "unavailable", message: "Locus state is unavailable." };
+    expect(SessionRecoverProbeResultSchema.safeParse(value).success).toBe(true);
+    value.locusGuidance = { kind: "ready", currentFrame: 42 };
+    expect(SessionRecoverProbeResultSchema.safeParse(value).success).toBe(false);
+  });
+
   it("asserts mapped producer defects with the registered contract identity", () => {
     const value = recovery();
     (value.active as { value: { resolution: string } }).value.resolution = "ambiguous";
