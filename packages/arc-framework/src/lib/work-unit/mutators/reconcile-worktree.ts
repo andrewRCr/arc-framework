@@ -92,7 +92,7 @@ export const nodeReconcileWorktreeFs: ReconcileWorktreeFs = {
     }
   },
   copyDirectory: async (source, destination) => {
-    await cp(source, destination, { recursive: true, force: true });
+    await cp(source, destination, { recursive: true, force: true, verbatimSymlinks: true });
   },
   readFile: (path) => readFile(path, "utf8"),
   writeFile,

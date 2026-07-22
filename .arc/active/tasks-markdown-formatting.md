@@ -228,17 +228,15 @@ fires.
   from the central diagnostic contract; remaining third-party formatter mentions are rejected alternatives, historical
   audit evidence, analytical examples, or sibling planning content governed by the routed ownership transfers.
 
-### `[ ]` **6.4 Keep copied harness projections inside their worktree**
+### `[x]` **6.4 Keep copied harness projections inside their worktree**
 
 - _Goal:_ A linked worktree's registered harness directories cannot redirect normalization or other writes into the
   primary checkout through copied symlinks.
 
-    - Preserve relative symbolic-link targets when copying registered harness directories from the primary checkout,
-      so canonical skill links resolve through the destination worktree's own `.arc/` tree.
-    - Build `test-first` with a real filesystem copy proving a source-relative skill link remains relative and resolves
-      inside the destination worktree; retain existing behavior for ordinary directories and files.
-    - Audit Markdown normalization and projection entry points for primary-worktree or escaping-realpath resolution,
-      and repair this worktree's affected local harness links without committing generated harness state.
+- _Outcome:_ Registered harness-directory copies now preserve relative symbolic-link text, proven against a real
+  filesystem copy whose skill resolves to the destination worktree while ordinary files still copy normally. Markdown
+  writes remain rooted in the current Git top level with symlink and physical-containment guards; this worktree's
+  generated skill links were repaired locally and remain excluded from version control.
 
 ## **Phase 7:** Verification
 
