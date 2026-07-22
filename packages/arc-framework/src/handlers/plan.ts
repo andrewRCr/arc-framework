@@ -41,7 +41,6 @@ import { resolveBacklogStub, resolveGroomStubSet } from "../lib/work-unit/backlo
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 import { mintClaimId, projectLocusIdentity, TransientIdentityRecordV3Schema } from "../lib/errand/identity-record.js";
 import {
-  groomClaimConflictResolver,
   groomClaimTransform,
   groomResumeTransform,
   pinGroomOpenedBaseHead,
@@ -195,7 +194,7 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
   }
   const claimed = await transactTransientIdentities({ exec: io.exec, execInput: io.execInput, identity }, {
     remote: "origin", message: `arc: open groom ${resolved.anchor.slug}`,
-    transform: groomClaimTransform(parsed.data), resolveConflict: groomClaimConflictResolver(parsed.data),
+    transform: groomClaimTransform(parsed.data),
   });
   if (claimed.kind !== "applied" && claimed.kind !== "idempotent") {
     const message = claimed.kind === "error" ? claimed.message : claimed.reason;

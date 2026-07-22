@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
   TransientIdentityRecordV3Schema,
   TransientIdentityRecordSchema,
-  groomClaimConflictResolver,
   groomClaimTransform,
   groomAwaitMergeTransform,
   groomResumeTransform,
@@ -75,14 +74,14 @@ describe("groom identity claims", () => {
     });
   });
 
-  it("adopts an exact-set winner without replacing its generation or pinned base", () => {
-    const winner = groom();
-    const loser = groom({ claimId: "2".repeat(32), openedBaseHead: "b".repeat(40) });
-    const decision = groomClaimTransform(loser)(new Map([[winner.slug, winner]]));
+  it("resumes an exact same-anchor set without replacing its generation or pinned base", () => {
+    const existing = groom();
+    const candidate = groom({ claimId: "2".repeat(32), openedBaseHead: "b".repeat(40) });
+    const decision = groomClaimTransform(candidate)(new Map([[existing.slug, existing]]));
 
     expect(decision).toMatchObject({
       kind: "idempotent",
-      value: { kind: "resume", record: { claimId: winner.claimId, openedBaseHead: baseHead } },
+      value: { kind: "resume", record: { claimId: existing.claimId, openedBaseHead: baseHead } },
     });
   });
 
@@ -129,7 +128,7 @@ describe("groom identity claims", () => {
       .toMatchObject({ kind: "refused" });
   });
 
-  it("refuses incompatible occupancy and unsanctioned same-key divergence", () => {
+  it("refuses incompatible occupancy", () => {
     const candidate = groom();
     const legacy = TransientIdentityRecordSchema.parse({
       version: 2,
@@ -141,12 +140,6 @@ describe("groom identity claims", () => {
     });
     expect(groomClaimTransform(candidate)(new Map([[candidate.slug, legacy]])))
       .toMatchObject({ kind: "refused", reason: expect.stringContaining("occupied") });
-    expect(groomClaimConflictResolver(candidate)({
-      key: candidate.slug,
-      base: undefined,
-      local: candidate,
-      remote: legacy,
-    })).toMatchObject({ kind: "refused" });
   });
 
   it("moves an exact open generation to awaiting-merge without changing its pinned base", () => {

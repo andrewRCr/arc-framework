@@ -965,14 +965,15 @@ full guard set unchanged.
   dispatch/lane wire fields; ordinary Errands use their origin titles to clear and advance the queue. Identity-only
   interrupted opens rematerialize occupancy, while awaiting-merge generations refuse pathless open success.
 
-### `[ ]` **7.R.f Simplify groom claims to same-key conflict semantics** — D8
+### `[x]` **7.R.f Simplify groom claims to same-key conflict semantics** — D8
 
 - _Goal:_ Groom open claims a member set with plain conflict semantics — occupied key or overlapping member
   resolves to resume, wait, or refuse — without cross-machine winner arbitration or exact-set retry adoption.
 
-    - Remove the CAS-winner adopt-on-retry machinery from the groom open arm; keep the member-set record, the
-      disjointness scan, same-anchor resume, and `openedBaseHead` close validation.
-    - Update the grooming arm of `draft-design`, tests, and conflict narration.
+- _Outcome:_ Removed the groom conflict resolver and its transaction-level selection hook. Exact same-basis sets
+  still resume or wait, while raced same-key publications and overlaps refuse with named conflict evidence; disjoint
+  per-key reconciliation and immutable opened-base validation remain intact. `draft-design` now makes refusal the
+  explicit concurrent-publication path.
 
 ### `[ ]` **7.R.g Rename user-facing narration to "session locus"** — D6, D11
 

@@ -55,9 +55,6 @@ export {
   type IdentityObjectReconcile,
   type IdentityTransformDecision,
   type IdentityTransform,
-  type IdentityConflictInput,
-  type IdentityConflictDecision,
-  type IdentityConflictResolver,
   type IdentityTransactionParams,
   type IdentityTransactionOutcome,
 } from "./identity-transaction.js";
@@ -76,7 +73,6 @@ export {
 
 export {
   groomClaimTransform,
-  groomClaimConflictResolver,
   groomAwaitMergeTransform,
   groomResumeTransform,
   rollbackGroomResumeTransform,

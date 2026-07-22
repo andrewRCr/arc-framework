@@ -7,7 +7,6 @@ import {
   type TransientIdentityRecordV3,
 } from "./identity-record.js";
 import type {
-  IdentityConflictResolver,
   IdentityTransformDecision,
   IdentityTransactionOutcome,
 } from "./identity-transaction.js";
@@ -185,31 +184,14 @@ export function groomClaimTransform(candidate: GroomIdentityRecord) {
       }
     }
     if (conflicts.size > 0) {
-      return { kind: "refused", reason: `Groom member conflict: ${[...conflicts].sort().join(", ")}` };
+      return {
+        kind: "refused",
+        reason: `Grooming set conflicts with live member(s): ${[...conflicts].sort().join(", ")}`,
+      };
     }
     const records = new Map(basis);
     records.set(candidate.slug, candidate);
     return { kind: "applied", records, value: { kind: "claimed", record: candidate } };
-  };
-}
-
-/**
- * Resolve only an exact-set grooming race by adopting the remote first writer.
- *
- * @param candidate - This claimant's fresh generation.
- * @returns A resolver suitable for the complete-basis transaction.
- */
-export function groomClaimConflictResolver(candidate: GroomIdentityRecord): IdentityConflictResolver {
-  return ({ key, local, remote }) => {
-    if (key === candidate.slug
-      && local !== undefined && remote !== undefined
-      && isGroom(local) && isGroom(remote)
-      && sameRecord(local, candidate)
-      && sameMembers(local.members, candidate.members)
-      && sameMembers(remote.members, candidate.members)) {
-      return { kind: "select-remote" };
-    }
-    return { kind: "refused", reason: `Divergent identity key cannot be adopted: ${key}` };
   };
 }
 

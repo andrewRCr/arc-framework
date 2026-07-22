@@ -35,6 +35,9 @@ When the rendered text asks for directed-command confirmation, confirm the curre
 recommend a cold session at that checkout and stop before editing.
 An awaiting-merge grooming identity may resume when its recorded change request remains open. Follow any head-drift
 warning; if host truth is unreachable, confirm the change request is still open before editing.
+An existing same-anchor exact member set resumes or waits. An occupied key or overlapping non-identical set refuses;
+render the named key or members and stop. Treat a concurrent same-key publication as the same refusal — never select
+another generation as a winner.
 On `refused` / `error`, render the supplied text and stop. Skip the remaining planning-entry check and continue to
 **Resolve depth & Class**. Never infer the set, protection mode, branch, or placement from Git state.
 

@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   TransientIdentityRecordV3Schema,
-  groomClaimConflictResolver,
   groomClaimTransform,
   housekeepClaimTransform,
   pinGroomOpenedBaseHead,
@@ -110,7 +109,7 @@ describe("identity claim races", () => {
     expect(stdout).toBe("");
   });
 
-  it("adopts the published exact-set groom winner and its pinned base", async () => {
+  it("refuses a concurrently published exact-set groom claim", async () => {
     const loser = groom("1".repeat(32), "a".repeat(40));
     const winner = groom("2".repeat(32), "b".repeat(40));
     await transactTransientIdentities(ioFor(dir), {
@@ -127,14 +126,19 @@ describe("identity claim races", () => {
 
     const outcome = await transactTransientIdentities(ioFor(dir), {
       remote: "origin",
-      message: "adopt groom winner",
+      message: "refuse concurrent groom claim",
       transform: groomClaimTransform(loser),
-      resolveConflict: groomClaimConflictResolver(loser),
     });
     if (outcome.kind === "error") throw new Error(`${outcome.stage}: ${outcome.message}`);
     expect(outcome).toMatchObject({
-      kind: "idempotent",
-      value: { kind: "resume", record: { claimId: winner.claimId, openedBaseHead: winner.openedBaseHead } },
+      kind: "refused",
+      reason: expect.stringContaining(loser.slug),
+    });
+    const snapshot = await readTransientIdentitySnapshot(ioFor(dir));
+    if (snapshot.kind !== "complete") throw new Error("expected complete identity snapshot");
+    expect(snapshot.records.get(loser.slug)).toMatchObject({
+      claimId: loser.claimId,
+      openedBaseHead: loser.openedBaseHead,
     });
   });
 
@@ -162,7 +166,6 @@ describe("identity claim races", () => {
       remote: "origin",
       message: "reconcile disjoint groom claims",
       transform: groomClaimTransform(local),
-      resolveConflict: groomClaimConflictResolver(local),
     })).resolves.toMatchObject({ kind: "idempotent" });
     const snapshot = await readTransientIdentitySnapshot(ioFor(dir));
     if (snapshot.kind !== "complete") throw new Error("expected complete identity snapshot");
