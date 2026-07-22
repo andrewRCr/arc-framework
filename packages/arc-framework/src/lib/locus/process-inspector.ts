@@ -153,9 +153,10 @@ function isArcWrapper(snapshot: AncestorProcessSnapshot): boolean {
   if ((executable === "npm" || executable === "npm.cmd" || snapshot.commandIdentity.toLowerCase() === "npm exec")
     && /\b(?:exec|run)\b.*\barc\b/u.test(commandLine)) return true;
   if ((executable === "npx" || executable === "npx.cmd") && /\barc\b/u.test(commandLine)) return true;
-  return (executable === "bash" || executable === "zsh" || executable === "sh"
+  return (executable === "bash" || executable === "zsh" || executable === "sh" || executable === "dash"
     || executable === "pwsh" || executable === "powershell.exe")
-    && /\s-(?:l)?c\s+(?:npx\s+arc\b|arc\b|node\s+\S*(?:dist[\\/]cli\.js|arc(?:\.js)?))/u.test(commandLine);
+    && /\s-(?:l)?c\s+(?:npx\s+arc\b|arc\b|["']arc["'](?=\s|$)|node\s+\S*(?:dist[\\/]cli\.js|arc(?:\.js)?))/u
+      .test(commandLine);
 }
 
 function basename(identity: string): string {
