@@ -249,44 +249,29 @@ in the mutators' own no-op arms.
   refuses split state. `runUserRenameWorkspace` performs the move and verified non-interactive save under one
   identity notes lock, re-saving an already-moved directory to close the interruption window.
 
-### `[ ]` **5.4 `reconcile-worktree` `move` mutation**
+### `[x]` **5.4 `reconcile-worktree` `move` mutation**
 
 - _Goal:_ The worktree directory's final path segment reads the new slug, or the leg is skipped with a reason the
   operator can act on.
-- _Shape:_ A new `{ mutation: "move"; from; to }` arm running `git worktree move`. The destination keeps the
-  parent directory and rewrites only the final segment, replacing the old slug substring with the new one.
-- _Note:_ The source path is the live location from the worktree registry, never a re-expansion of the location
-  template — that template is documented as a creation-time artifact, so re-expanding it would drag a worktree the
-  operator placed off-template to the template path. The same registry lookup is the shape discriminator: no
-  registered worktree for the branch means an in-place subject.
+- _Outcome:_ Live branch registration distinguishes linked and in-place subjects; linked paths derive their
+  destination by rewriting only the registered leaf, preserving off-template parents and surfacing unmatched
+  leaves. The new move mutation is proven against both the injected seam and a real temporary Git worktree.
 
-    - Build `test-first` (one behavior at a time):
-        - A worktree whose leaf contains the old slug moves to the leaf with the new slug, preserving the parent
-          directory and any prefix within the segment.
-        - A leaf containing no occurrence of the old slug is skipped and surfaced, since there is no principled
-          destination to invent.
-        - A worktree placed off-template moves relative to where it actually is, not to the template path.
-        - An in-place subject with no registered linked worktree is a designed skip, detected by the absent
-          registration rather than by catching a git failure.
-
-### `[ ]` **5.5 Self-move locus hop and relocation handoff**
+### `[x]` **5.5 Self-move locus hop and relocation handoff**
 
 - _Goal:_ A rename run from inside the worktree it moves completes, leaves the process in the moved directory,
   and reports the new path — the normal case, not a refused edge.
 
-    - `[ ]` **5.5.a Detect the self-move and hop the locus**
-        - Reuse the shipped path-containment test; hop the process locus through the injected seam after the move
-          and close with a relocation handoff naming the new path.
-        - Build `test-first` (one behavior at a time):
-            - A self-move hops the locus and reports the new path.
-            - A move of some other worktree does not hop the locus.
+    - `[x]` **5.5.a Detect the self-move and hop the locus**
+        - The shared containment predicate detects self-moves; successful relocation hops to and reports the new
+          root, while moving another registered worktree leaves the process locus unchanged.
 
-    - `[ ]` **5.5.b Degrade gracefully where the platform refuses**
-        - Where the platform refuses to move a directory the process occupies, every durable leg has already
-          completed, so surface the move as a follow-up to run from outside the worktree rather than failing the
-          rename.
-        - Build `test-first` (one behavior at a time):
-            - A refused move reports a follow-up notice and a successful rename, not a failure.
+    - `[x]` **5.5.b Degrade gracefully where the platform refuses**
+        - Occupied-directory failures on a self-move return an actionable outside-worktree command as a successful
+          follow-up; unrelated Git failures continue to propagate.
+
+- _Outcome:_ The physically disruptive leg now closes with either a relocated process and exact new path or a
+  bounded follow-up, without converting platform occupancy into failure after durable rename work has landed.
 
 ### `[ ]` **5.6 Worktree ownership marker rewrite**
 
