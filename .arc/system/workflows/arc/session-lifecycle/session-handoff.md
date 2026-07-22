@@ -20,17 +20,17 @@ duration of this workflow.
 
 Open with the composite probe — single call, slot-wise envelope, per-slot error handling matching
 the session-init pattern. This is **probe-1**; refresh after every subject driver or tracked-state mutation so the
-next operation consumes the latest exact locus generation.
+next operation consumes the latest exact session locus generation.
 
 ```bash
 arc status --session-handoff --json
 ```
 
 | Field                    | Contents                                                                                                             |
-|--------------------------|----------------------------------------------------------------------------------------------------------------------|
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
 | `identity`               | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot                    |
-| `locusState`             | Required single reader-owned locus projection; sole session-frame and subject authority                              |
-| `locusGuidance`          | CLI-precomposed current/recovery/reconciliation/cleanup narration from the same locus read                           |
+| `locusState`             | Required single reader-owned session locus projection; sole session-frame and subject authority                      |
+| `locusGuidance`          | CLI-precomposed current/recovery/reconciliation/cleanup narration from the same session locus read                   |
 | `handoffLocus`           | Exact typed handoff action: `between-work-units`, `release-work-unit`, `leave-errand`, or `refused`                  |
 | `branch`                 | Current branch name; `null` on detached HEAD. Resolved at handler boundary; canonical for the Confirm Handoff header |
 | `dirty`                  | `{state: clean / dirty, fileCount}`. Refresh for the SESSION-NOTES "Uncommitted Work" section                        |
@@ -48,7 +48,7 @@ On the clean arm, `user.value.loadNeeded` may signal a safe local notes load, an
 drift for Confirm Handoff — calm parallel-session steady state vs inspect-before-rely.
 
 **Slot freshness contract.** Probe-1 captures pre-path state. Subject leave, active-WU meta-file commit, and
-between-WUs context routing may mutate locus, worktree, dirty, and head state; refresh `locusState`,
+between-WUs context routing may mutate session locus, worktree, dirty, and head state; refresh `locusState`,
 `locusGuidance`, `handoffLocus`, `worktree`, `dirty`, and `head` after each such operation. Use the latest refresh
 for exact release and confirmation; other slots remain stable from probe-1.
 
@@ -137,7 +137,7 @@ Use this path only for `handoffLocus.kind === "leave-errand"`.
 
 3. **Preserve and leave the exact Errand** — push the checkpoint through the normal Errand path, then invoke
    `arc errand leave <slug> --state paused --json`. Render `recommendedPromptText` verbatim. The driver validates
-   the exact claim/head, stores the resumable identity tail, returns or tears down the active locus, pops its exact
+   the exact claim/head, stores the resumable identity tail, returns or tears down the active checkout, pops its exact
    role/lease generation, and reports `restoredParent`. Refusal or error stops; never hand-build the sequence.
 
     - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
@@ -551,7 +551,7 @@ Strategy][session-ops] § Push Toggles for the underlying model.
 `syncInterlock.value` — `arc sync` requires identity for the notes leg. The latest probe's
 `recommendedSummaryLine` still composes from worktree state.
 
-## Finalize The Handoff Locus
+## Finalize Handoff State
 
 After state capture and sync, consume the latest `handoffLocus`:
 
@@ -593,7 +593,8 @@ skip arms):
 - `skipped (no identity). Configure \`arc.identity\` to enable notes sync.` —
   identity-absent fallback.
 
-**Locus:** [exact WU lease released | work-unit checkout retained; no lease attached | record-free between work units]
+**Checkout:** [exact WU lease released | work-unit checkout retained; no lease attached | record-free between work
+units]
 
 **Next session:** [Task list pointer (on-task-list), freeform (off-task-list), or
 `session-init discovery / user direction` between WUs]
@@ -627,7 +628,7 @@ or `**Errand:**`):
 - **Next session**: one line on-task-list (meta file pointer); unbounded only when off-task-list
   — same bounding as session-init orientation Next Action.
 - A paused Errand may be mentioned as the preserved subject, but confirmation is framed on the restored WU or
-  record-free between-WUs locus.
+  record-free between-WUs checkout.
 
 ## Same-session finalize pass
 

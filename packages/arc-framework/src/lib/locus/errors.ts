@@ -30,7 +30,7 @@ interface LocusErrorFallback {
 /** Project an operational failure into the mutation error arm. */
 export function toLocusErrorPayload(
   value: unknown,
-  fallback: LocusErrorFallback = { code: "locus.mutation.failed", message: "Locus mutation failed" },
+  fallback: LocusErrorFallback = { code: "locus.mutation.failed", message: "Session locus mutation failed" },
 ): { code: LocusErrorCode; message: string } {
   const error = value instanceof LocusError
     ? value

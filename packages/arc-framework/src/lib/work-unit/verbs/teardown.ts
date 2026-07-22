@@ -386,7 +386,7 @@ async function teardownBranchProjection(
     } catch (error) {
       return {
         status: "rejected",
-        reason: `Could not read teardown locus occupancy (${error instanceof Error ? error.message : String(error)}).`,
+        reason: `Could not read teardown session locus occupancy (${error instanceof Error ? error.message : String(error)}).`,
       };
     }
     if (decision.kind !== "clear") return { status: "rejected", reason: decision.message };
@@ -399,7 +399,7 @@ async function teardownBranchProjection(
       || expected.lockGeneration !== decision.lockGeneration
       || expected.markerGeneration !== decision.markerGeneration
     )) {
-      return { status: "rejected", reason: "The teardown target locus generation changed during revalidation." };
+      return { status: "rejected", reason: "The teardown target session locus generation changed during revalidation." };
     }
     occupancyGenerations.set(checkoutPath, decision);
     return null;

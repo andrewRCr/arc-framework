@@ -159,7 +159,7 @@ async function handleLocusMutation(
         code: `locus.${action}.failed`,
         message: error instanceof Error ? error.message : String(error),
       },
-      recommendedPromptText: "Inspect the exact locus record before retrying.",
+      recommendedPromptText: "Inspect the exact session locus record before retrying.",
     });
   }
   emitMutation(result, options.json === true);

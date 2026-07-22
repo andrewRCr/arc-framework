@@ -107,7 +107,7 @@ export async function settlePartialErrandAtRuntime(
     return refusal(
       operation,
       acquired.reason === "live" ? "lease-live" : "lease-unknown",
-      "Partial Errand locus lock is unavailable.",
+      "Partial Errand session locus lock is unavailable.",
     );
   }
   try {

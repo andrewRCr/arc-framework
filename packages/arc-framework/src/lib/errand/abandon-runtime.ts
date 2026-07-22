@@ -116,10 +116,10 @@ async function cleanupResidue(
   }
   const row = target.row;
   if (row.lease?.state === "live") {
-    return { kind: "refused", reason: "lease-live", message: "The Errand locus still has a live lease." };
+    return { kind: "refused", reason: "lease-live", message: "The Errand session locus still has a live lease." };
   }
   if (row.lease?.state === "unknown") {
-    return { kind: "refused", reason: "lease-unknown", message: "The Errand locus lease cannot be verified dead." };
+    return { kind: "refused", reason: "lease-unknown", message: "The Errand session locus lease cannot be verified dead." };
   }
   if (row.checkoutPath === null || row.recordId === null) {
     return { kind: "refused", reason: "record-malformed", message: "Errand residue is incomplete." };
@@ -141,7 +141,7 @@ async function cleanupResidue(
     return {
       kind: "refused",
       reason: acquired.reason === "live" ? "lease-live" : "lease-unknown",
-      message: "The Errand locus lock is not available.",
+      message: "The Errand session locus lock is not available.",
     };
   }
   try {

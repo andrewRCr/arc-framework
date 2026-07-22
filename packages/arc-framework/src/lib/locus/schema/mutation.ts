@@ -48,7 +48,7 @@ export const LocusMutationResultV1Schema = z.discriminatedUnion("outcome", [
   if ((value.outcome === "applied" || value.outcome === "idempotent")
     && LOCUS_OPEN_OPERATIONS.has(value.operation)) {
     if (value.activeLocusPath === null) {
-      context.addIssue({ code: "custom", path: ["activeLocusPath"], message: "Open success requires active locus" });
+      context.addIssue({ code: "custom", path: ["activeLocusPath"], message: "Open success requires an active session locus" });
     }
     if (value.sessionHomePath === null) {
       context.addIssue({ code: "custom", path: ["sessionHomePath"], message: "Open success requires session home" });

@@ -515,7 +515,7 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
       outcome: "error",
       operation: "errand-open",
       error: { code: "locus.errand-open.handler", message: err instanceof Error ? err.message : String(err) },
-      recommendedPromptText: "Inspect the retained identity or locus evidence before retrying.",
+      recommendedPromptText: "Inspect the retained identity or session locus evidence before retrying.",
     });
   }
   emitErrandOpenResult(result, opts.json === true);
@@ -780,7 +780,7 @@ export async function handleErrandLeave(slug: string, opts: ErrandLeaveOptions):
         code: "locus.errand-leave.handler",
         message: error instanceof Error ? error.message : String(error),
       },
-      recommendedPromptText: "Inspect the preserved identity tail and local locus residue before retrying.",
+      recommendedPromptText: "Inspect the preserved identity tail and local session locus residue before retrying.",
     });
   }
   emitErrandLeaveResult(result, opts.json === true);

@@ -250,7 +250,7 @@ export async function reconcileWorkUnitWorktree(
     const worktreePath = stdout.trim();
     if (ctx.locus !== undefined) {
       if (op.wuName === undefined || op.attachSession === undefined) {
-        throw new Error("work-unit locus composition requires a work-unit name and attach disposition");
+        throw new Error("work-unit session locus composition requires a work-unit name and attach disposition");
       }
       await ctx.locus.reconcile({
         checkoutPath: worktreePath,

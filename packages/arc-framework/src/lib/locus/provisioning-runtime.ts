@@ -110,7 +110,7 @@ export function createNodeProvisioningDependencies(
     releaseRecordLock: async (handle) => {
       const held = requireHeldLock(heldLocks, handle);
       const released = await releaseLocusLock(held.lock);
-      if (released.kind !== "released") throw new Error(`Could not release locus lock: ${released.kind}`);
+      if (released.kind !== "released") throw new Error(`Could not release session locus lock: ${released.kind}`);
       heldLocks.delete(handle.token);
     },
     revalidateTarget: async ({ proposal, checkoutPath, handle }) => {
@@ -275,6 +275,6 @@ async function rollbackSpawned(
 
 function digestFromRecordId(recordId: string): string {
   const match = /^sha256:([0-9a-f]{64})$/u.exec(recordId);
-  if (match?.[1] === undefined) throw new Error("Invalid locus record ID");
+  if (match?.[1] === undefined) throw new Error("Invalid session locus record ID");
   return match[1];
 }

@@ -169,7 +169,7 @@ async function replaceLocalFrame(
   const handles = acquired.handles;
   try {
     const targetHandle = handles.get(row.checkoutPath);
-    if (targetHandle === undefined) return { kind: "error", message: "Target locus lock was not acquired." };
+    if (targetHandle === undefined) return { kind: "error", message: "Target session locus lock was not acquired." };
     const lockedTarget = await runtime.readRecord(targetHandle.recordPath, targetHandle);
     if (lockedTarget.kind !== "valid" || lockedTarget.record.recordId !== row.recordId) {
       return refused("record-malformed", "Promotion target record changed under lock.");
@@ -189,7 +189,7 @@ async function replaceLocalFrame(
     let parentReleased = false;
     if (lockedParent !== null && lockedParent.record.lease !== null) {
       const parentHandle = handles.get(lockedParent.record.checkoutPath);
-      if (parentHandle === undefined) return { kind: "error", message: "Parent locus lock was not acquired." };
+      if (parentHandle === undefined) return { kind: "error", message: "Parent session locus lock was not acquired." };
       const released = await releaseLocusLease({
         recordId: lockedParent.record.recordId,
         leaseId: lockedParent.record.lease.leaseId,
@@ -303,10 +303,10 @@ async function recoverPromotedFrame(
   const matches = state.roster.rows.filter((row) => row.role?.kind === "work-unit"
     && row.role.subject.kind === "work-unit" && row.role.subject.key === options.name);
   if (matches.length === 0) return null;
-  if (matches.length !== 1) return refused("duplicate-locus", "Promoted work-unit locus is ambiguous.");
+  if (matches.length !== 1) return refused("duplicate-locus", "Promoted work-unit session locus is ambiguous.");
   const row = matches[0];
   if (row === undefined || row.checkoutPath === null || row.recordId === null || row.lease === null) {
-    return refused("record-malformed", "Promoted work-unit locus is incomplete.");
+    return refused("record-malformed", "Promoted work-unit session locus is incomplete.");
   }
   if (row.lease.state !== "live") {
     return refused(
@@ -369,7 +369,7 @@ function exactTarget(
   if (matches.length !== 1 || matches[0] === undefined) {
     return {
       kind: "refused",
-      result: refused(matches.length === 0 ? "checkout-missing" : "duplicate-locus", "Exact live Errand locus is unavailable."),
+      result: refused(matches.length === 0 ? "checkout-missing" : "duplicate-locus", "Exact live Errand session locus is unavailable."),
     };
   }
   return { kind: "ready", row: matches[0] };
@@ -398,7 +398,7 @@ async function acquireOrderedLocks(
       await releaseLocks(runtime, handles);
       return {
         kind: "refused",
-        result: refused(acquired.reason === "live" ? "lease-live" : "lease-unknown", "Promotion locus lock is unavailable."),
+        result: refused(acquired.reason === "live" ? "lease-live" : "lease-unknown", "Promotion session locus lock is unavailable."),
       };
     }
     handles.set(path, acquired.handle);

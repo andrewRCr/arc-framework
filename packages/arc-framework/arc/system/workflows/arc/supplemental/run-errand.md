@@ -28,7 +28,7 @@ errand-vs-work-unit boundary, see [§ Errand Work Class][errand-class].
 **Typically one review increment, often one commit** — but neither bounds the character: a determinate sweep may
 land in several commits, and a large one may be reviewed in a bounded few **in-session** passes (an _extended
 errand_), each its own gate. No task list, no `process-task-loop`. The phases — Launch → Execute → Integrate — are
-re-enterable through the Errand's exact identity and locus. A full-mode pause or review tail retains portable
+re-enterable through the Errand's exact identity and checkout. A full-mode pause or review tail retains portable
 identity without a meta, task list, or SESSION-NOTES; partial mode must complete, promote, or explicitly abandon in
 the current session.
 
@@ -43,7 +43,7 @@ checkout and stop before execution.
 
 ## Launch
 
-Confirm the work is an Errand, check for in-flight overlap, then open or resume its allocated locus.
+Confirm the work is an Errand, check for in-flight overlap, then open or resume its allocated checkout.
 
 1. **Classify — errand vs. work unit.** Confirm the work is a single **self-evident** concern that fits one
    session. The work-unit tell is **spec-worthiness**: design worth recording, or a determinate concern large
@@ -65,7 +65,7 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
    never a gate:** surface any overlap, coordinate or sequence after the other unit integrates, then proceed. If
    the remote is unreachable the check degrades to local refs and says so.
 
-3. **Open or resume the Errand locus.** Invoke `arc errand open <slug> --intent <text> --json`. For an originating
+3. **Open or resume the Errand checkout.** Invoke `arc errand open <slug> --intent <text> --json`. For an originating
    `USER-INBOX § Errand` capture, add `--from-inbox <entry-title>` or `--inbox-title-file <path>` (`-` reads stdin).
    The verb owns both protection modes: full protection allocates the free primary or a provisioned transient and
    mints/resumes the exact v3 identity; partial protection occupies only a safe free primary and creates no branch
@@ -102,7 +102,7 @@ work-unit signal; needing a _durable plan_ is.
 `arc errand promote <slug> --floor derivation|scale --json`. The verb requires the exact committed full-mode
 generation and performs the generation-checked branch/meta/marker/role replacement; for a warm promotion it also
 releases the former parent WU lease and makes the promoted checkout the sole session home. Render its result and
-continue only from the returned WU locus. Commit the minted meta through the work-unit ceremony before removing an
+continue only from the returned WU checkout. Commit the minted meta through the work-unit ceremony before removing an
 originating inbox capture; then run `arc user inbox-remove` with the returned `originEntry`. If the meta commit or
 capture removal fails, preserve the evidence and stop. Partial mode cannot use this full-mode verb and must first
 take the WU initialization route chosen by the owning lifecycle.
@@ -111,7 +111,7 @@ take the WU initialization route chosen by the owning lifecycle.
 `arc errand abandon <slug> --json`. Open/paused full identities and closed-unmerged review tails abandon only when
 the verb proves provenance, cleanliness, exact refs, and host disposition. A partial Errand abandons only while its
 clean primary is at the freshly pushed base. Both modes retain the originating capture and clear its execute-bound
-marking; never simulate abandonment by deleting a branch, record, or locus file.
+marking; never simulate abandonment by deleting a branch or session locus record.
 
 Run each review increment (one for a typical errand; a few for an extended one):
 
@@ -279,9 +279,9 @@ the lane action.
    **Reviewed-lane** — leave the PR open for owner review on `{approved-head-sha}`. A head change restarts Step 4;
    native owner approval satisfies its own requirement but never replaces the integration-interlock.
 
-7. **Leave the local locus when review continues asynchronously.** After the exact PR head is pushed and the
+7. **Leave the local checkout when review continues asynchronously.** After the exact PR head is pushed and the
    change request is open, invoke `arc errand leave <slug> --state awaiting-merge --json`. The driver persists the
-   exact change request/head, returns or tears down the local locus, pops its role/lease, and restores the optional
+   exact change request/head, returns or tears down the local checkout, pops its role/lease, and restores the optional
    parent WU. If work is deliberately interrupted before PR creation, commit and push WIP first, then use
    `--state paused`. Partial mode and unpushed/unproven heads refuse. Requested work later resumes through the
    identity's `resume` action and owning open/materialize driver; never leave an unleased local role as waiting
@@ -298,7 +298,7 @@ exact partial role and remove any originating capture before the session can lea
 On merge (full) or final commit (partial), invoke `arc errand close <slug> --json` and consume its typed result.
 
 - **Full protection** — the verb proves merge/preservation, finalizes the exact v3 identity tail, reaps refs and
-  any retained locus safely, and drops only its origin capture. The bounded v1/v2 compatibility arm may close an
+  any retained checkout safely, and drops only its origin capture. The bounded v1/v2 compatibility arm may close an
   already-open legacy record once; `--force` is legacy-only and never bypasses v3 preservation/host checks.
 - **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
   removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.

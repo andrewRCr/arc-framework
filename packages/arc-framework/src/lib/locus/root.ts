@@ -68,5 +68,5 @@ export function locusLockPath(root: LocusRoot, digest: string): string {
 }
 
 function assertPathDigest(digest: string): void {
-  if (!/^[0-9a-f]{64}$/u.test(digest)) throw new Error("Invalid locus path digest");
+  if (!/^[0-9a-f]{64}$/u.test(digest)) throw new Error("Invalid session locus path digest");
 }

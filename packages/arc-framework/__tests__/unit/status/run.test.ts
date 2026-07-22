@@ -763,7 +763,7 @@ describe("session operation locus-state orchestration", () => {
     });
     expect(result.locusGuidance).toEqual({
       kind: "unavailable",
-      message: "Locus state is unavailable (runtime): topology unavailable",
+      message: "Session locus state is unavailable (runtime): topology unavailable",
     });
   });
 
@@ -1289,7 +1289,7 @@ describe("runRecoverStatus — lean recover envelope", () => {
     expect(result.recoveryFrame.ok).toBe(false);
     expect(result.loadSet.ok).toBe(false);
     if (!result.loadSet.ok) {
-      expect(result.loadSet.error.message).toBe("Current and recovery locus tokens do not match");
+      expect(result.loadSet.error.message).toBe("Current and recovery session locus tokens do not match");
     }
     expect(result.taskCursor).toBeUndefined();
   });

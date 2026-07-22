@@ -19,7 +19,7 @@ export async function resolveLocusGeneration(options: {
   readonly dependencies: LocusResolveDriverDependencies;
 }): Promise<LocusMutationResultV1> {
   const row = options.row;
-  if (row.kind === "duplicate-locus") return refusal("duplicate-locus", "Duplicate locus authority cannot be resolved automatically.");
+  if (row.kind === "duplicate-locus") return refusal("duplicate-locus", "Duplicate session locus authority cannot be resolved automatically.");
   if (row.checkoutPath === null) return refusal("checkout-missing", "The selected transient checkout is missing.");
   if (row.role === null || row.recordId === null) return refusal("record-malformed", "The selected transient role is incomplete.");
   if (row.lease === null) return refusal("record-malformed", "The selected transient role has no dead lease generation.");

@@ -138,7 +138,7 @@ async function handleHousekeepLifecycle(slug: string, action: "close" | "abandon
     result = createLocusMutationResult({
       outcome: "error", operation: action === "close" ? "housekeep-close" : "housekeep-abandon",
       error: { code: `locus.housekeep-${action}.handler`, message: error instanceof Error ? error.message : String(error) },
-      recommendedPromptText: "Inspect the retained housekeeping identity and locus before retrying.",
+      recommendedPromptText: "Inspect the retained housekeeping identity and session locus before retrying.",
     });
   }
   emitHousekeepResult(result, json);

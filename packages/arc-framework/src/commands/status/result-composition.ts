@@ -27,7 +27,7 @@ export class SessionIdentityMissingError extends ArcError {
   readonly slot: string;
 
   constructor(slot: string) {
-    const label = slot === "user" ? "User" : "Locus-state";
+    const label = slot === "user" ? "User" : "Session locus state";
     super(`${label} probe skipped: \`arc.identity\` is not configured in git config.`, "session.identity-missing");
     this.name = "SessionIdentityMissingError";
     this.slot = slot;

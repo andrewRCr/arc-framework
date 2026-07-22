@@ -70,13 +70,13 @@ async function retireNodeWorkUnitLocus(
 ): Promise<RetireWorkUnitLocusReceipt> {
   const checkoutPath = resolve(options.checkoutPath);
   const topology = await scanRegisteredWorktrees(runtime.exec);
-  if (!topology.ok) throw new Error(`cannot retire work-unit locus: ${topology.message}`);
+  if (!topology.ok) throw new Error(`cannot retire work-unit session locus: ${topology.message}`);
   const matches = topology.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
-  if (matches.length !== 1) throw new Error("cannot retire work-unit locus: target is not an exact live roster entry");
+  if (matches.length !== 1) throw new Error("cannot retire work-unit session locus: target is not an exact live roster entry");
   const inspector = createPlatformProcessInspector();
   const anchor = runtime.mutationAnchor ?? await selectMutationAnchor(false, inspector);
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
-  if (!root.ok) throw new Error(`cannot retire work-unit locus: ${root.message}`);
+  if (!root.ok) throw new Error(`cannot retire work-unit session locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
   const identity = deriveLocusRecordId(checkoutPath, pathFlavor);
   const recordPath = locusRecordPath(root, identity.digest);
@@ -85,13 +85,13 @@ async function retireNodeWorkUnitLocus(
     anchor,
     inspector,
   });
-  if (acquired.kind !== "acquired") throw new Error(`cannot retire work-unit locus: record lock is ${acquired.reason}`);
+  if (acquired.kind !== "acquired") throw new Error(`cannot retire work-unit session locus: record lock is ${acquired.reason}`);
 
   const applyUnderLock = async (): Promise<RetireWorkUnitLocusReceipt> => {
     const freshTopology = await scanRegisteredWorktrees(runtime.exec);
     if (!freshTopology.ok
       || freshTopology.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath).length !== 1) {
-      throw new Error("cannot retire work-unit locus: target roster generation changed under lock");
+      throw new Error("cannot retire work-unit session locus: target roster generation changed under lock");
     }
     const current = await readLocusRecord({ path: recordPath, expectedDigest: identity.digest, pathFlavor });
     if (current.kind === "absent") {
@@ -105,7 +105,7 @@ async function retireNodeWorkUnitLocus(
       || current.record.role.subject.kind !== "work-unit"
       || current.record.role.subject.key !== options.wuName
       || current.record.role.subject.claimId !== null) {
-      throw new Error("cannot retire work-unit locus: role generation does not match the target work unit");
+      throw new Error("cannot retire work-unit session locus: role generation does not match the target work unit");
     }
     const lease = current.record.lease;
     if (lease !== null) {
@@ -117,13 +117,13 @@ async function retireNodeWorkUnitLocus(
         const liveness = lease.anchor.kind === "process"
           ? await verifyProcessAnchor(lease.anchor, inspector)
           : "unknown";
-        if (liveness !== "dead") throw new Error(`cannot retire work-unit locus: lease is ${liveness}`);
+        if (liveness !== "dead") throw new Error(`cannot retire work-unit session locus: lease is ${liveness}`);
       }
     }
     await options.removeCheckout();
     const removed = await removeLocusRecord({ path: recordPath, expectedBytes: current.bytes });
     if (removed.kind !== "removed") {
-      throw new Error("cannot retire work-unit locus: role generation changed before pop");
+      throw new Error("cannot retire work-unit session locus: role generation changed before pop");
     }
     return { recordId: identity.recordId, roleRemoved: true };
   };
@@ -135,7 +135,7 @@ async function retireNodeWorkUnitLocus(
     throw error;
   }
   const released = await releaseLocusLock(acquired.handle);
-  if (released.kind !== "released") throw new Error(`cannot release work-unit locus lock: ${released.kind}`);
+  if (released.kind !== "released") throw new Error(`cannot release work-unit session locus lock: ${released.kind}`);
   return result;
 }
 
@@ -145,17 +145,17 @@ async function reconcileNodeWorkUnitLocus(
 ): Promise<WorkUnitLocusReceipt> {
   const checkoutPath = resolve(options.checkoutPath);
   const topology = await scanRegisteredWorktrees(runtime.exec);
-  if (!topology.ok) throw new Error(`cannot establish work-unit locus: ${topology.message}`);
+  if (!topology.ok) throw new Error(`cannot establish work-unit session locus: ${topology.message}`);
   const matches = topology.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
   const target = matches.length === 1 ? matches[0] : undefined;
   if (target === undefined || target.detached || target.branch !== options.branch) {
-    throw new Error("cannot establish work-unit locus: target is not an exact live worktree roster entry");
+    throw new Error("cannot establish work-unit session locus: target is not an exact live worktree roster entry");
   }
 
   const inspector = createPlatformProcessInspector();
   const anchor = runtime.mutationAnchor ?? await selectMutationAnchor(options.attachSession, inspector);
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
-  if (!root.ok) throw new Error(`cannot establish work-unit locus: ${root.message}`);
+  if (!root.ok) throw new Error(`cannot establish work-unit session locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
   const identity = deriveLocusRecordId(checkoutPath, pathFlavor);
   const recordPath = locusRecordPath(root, identity.digest);
@@ -165,16 +165,16 @@ async function reconcileNodeWorkUnitLocus(
     inspector,
   });
   if (acquired.kind !== "acquired") {
-    throw new Error(`cannot establish work-unit locus: record lock is ${acquired.reason}`);
+    throw new Error(`cannot establish work-unit session locus: record lock is ${acquired.reason}`);
   }
 
   const applyUnderLock = async (): Promise<WorkUnitLocusReceipt> => {
     const freshTopology = await scanRegisteredWorktrees(runtime.exec);
-    if (!freshTopology.ok) throw new Error(`cannot establish work-unit locus: ${freshTopology.message}`);
+    if (!freshTopology.ok) throw new Error(`cannot establish work-unit session locus: ${freshTopology.message}`);
     const freshMatches = freshTopology.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
     const freshTarget = freshMatches.length === 1 ? freshMatches[0] : undefined;
     if (freshTarget === undefined || freshTarget.detached || freshTarget.branch !== options.branch) {
-      throw new Error("cannot establish work-unit locus: target roster generation changed under lock");
+      throw new Error("cannot establish work-unit session locus: target roster generation changed under lock");
     }
     const io = {
       read: () => readLocusRecord({
@@ -198,7 +198,7 @@ async function reconcileNodeWorkUnitLocus(
       && before.record.role.subject.claimId === null
       && before.record.role.parentCheckoutPath === null;
     if (before.kind !== "absent" && !existingRole) {
-      throw new Error("cannot establish work-unit locus: an incompatible role generation already exists");
+      throw new Error("cannot establish work-unit session locus: an incompatible role generation already exists");
     }
 
     let roleCreated = false;
@@ -212,19 +212,19 @@ async function reconcileNodeWorkUnitLocus(
         io,
       });
       if (minted.kind === "refused") {
-        throw new Error(`cannot establish work-unit locus: ${minted.reason}`);
+        throw new Error(`cannot establish work-unit session locus: ${minted.reason}`);
       }
       roleCreated = minted.kind === "applied";
     }
 
     if (!options.attachSession) {
       const current = await io.read();
-      if (current.kind !== "valid") throw new Error("cannot establish work-unit locus: minted record is unavailable");
+      if (current.kind !== "valid") throw new Error("cannot establish work-unit session locus: minted record is unavailable");
       return { recordId: identity.recordId, leaseId: current.record.lease?.leaseId ?? null, roleCreated };
     }
 
     const current = await io.read();
-    if (current.kind !== "valid") throw new Error("cannot attach work-unit locus: record is unavailable");
+    if (current.kind !== "valid") throw new Error("cannot attach work-unit session locus: record is unavailable");
     const sameAnchor = current.record.lease?.anchor.kind === "process"
       && current.record.lease.anchor.pid === anchor.pid
       && current.record.lease.anchor.startToken === anchor.startToken
@@ -251,7 +251,7 @@ async function reconcileNodeWorkUnitLocus(
           await removeLocusRecord({ path: recordPath, expectedBytes: created.bytes });
         }
       }
-      throw new Error(`cannot attach work-unit locus: ${attached.reason}`);
+      throw new Error(`cannot attach work-unit session locus: ${attached.reason}`);
     }
     return {
       recordId: identity.recordId,
@@ -267,7 +267,7 @@ async function reconcileNodeWorkUnitLocus(
     throw error;
   }
   const released = await releaseLocusLock(acquired.handle);
-  if (released.kind !== "released") throw new Error(`cannot release work-unit locus lock: ${released.kind}`);
+  if (released.kind !== "released") throw new Error(`cannot release work-unit session locus lock: ${released.kind}`);
   return result;
 }
 
@@ -277,9 +277,9 @@ async function selectMutationAnchor(
 ) {
   const selected = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
   if (selected.kind === "process") return selected;
-  if (requireSession) throw new Error(`cannot establish work-unit locus: ${selected.reason}`);
+  if (requireSession) throw new Error(`cannot establish work-unit session locus: ${selected.reason}`);
   const command = await inspector.inspect(process.pid);
-  if (command.kind !== "present") throw new Error(`cannot establish work-unit locus: ${selected.reason}`);
+  if (command.kind !== "present") throw new Error(`cannot establish work-unit session locus: ${selected.reason}`);
   return {
     kind: "process" as const,
     pid: command.pid,

@@ -191,7 +191,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
   const reconcileBoundWorkUnitWorktree: NonNullable<
     ExecuteTransitionContext["reconcileWorkUnitWorktree"]
   > = (op) => {
-    if (identity === null) throw new Error("work-unit locus composition requires a resolved identity");
+    if (identity === null) throw new Error("work-unit session locus composition requires a resolved identity");
     return reconcileWorkUnitWorktree({
       exec,
       chdir: (dir) => {

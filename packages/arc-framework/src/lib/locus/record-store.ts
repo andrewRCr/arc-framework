@@ -127,7 +127,7 @@ function serializeRecord(path: string, value: LocusRecordV1): Buffer {
     throw new Error("Record target and recordId do not match");
   }
   const bytes = Buffer.from(`${JSON.stringify(record, null, 2)}\n`, "utf8");
-  if (bytes.length > MAX_LOCUS_JSON_BYTES) throw new Error("Locus record exceeds maximum size");
+  if (bytes.length > MAX_LOCUS_JSON_BYTES) throw new Error("Session locus record exceeds maximum size");
   return bytes;
 }
 

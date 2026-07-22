@@ -178,7 +178,7 @@ routing write.
   count toward `inboxState.housekeepNeeded`, and the reminder sweep keeps it from rotting.
 - **Execute-now atomic** — held aside here; executed in § 7, not written by the drain.
 
-Perform every routing write from the returned active locus. The confirmed sweep is one routing generation;
+Perform every routing write from the returned active checkout. The confirmed sweep is one routing generation;
 chunking changes only commit/review increments. Full mode ships the pure-routing diff in one PR. At close, classify
 its lane from the routes actually landed (`reviewed` if any write needs owner review, otherwise `auto`). Partial mode
 pushes the direct-base commits. Never open an Errand branch for routing or split foreign-owner writes into a second
@@ -196,7 +196,7 @@ or full review tail, then closes only this routing occupancy. Render its text an
 `restoredParent`, `sessionHomePath`, and `nextOffer`. A full awaiting-merge identity may be finalized later by
 replaying the same close after merge; sibling execution does not wait for that tail. On explicit abandonment, use
 `arc housekeep abandon <sweep-slug> --json`. Abandonment preserves execute-bound markings as the next session's
-recovery trail; never clear markings or locus records by hand.
+recovery trail; never clear markings or session locus records by hand.
 
 ### 7. Execution transition — exact next-offers → `run-errand`
 

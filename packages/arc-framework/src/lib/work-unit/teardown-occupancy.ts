@@ -87,7 +87,7 @@ export function classifyTeardownOccupancy(options: {
   readonly subject: WorktreeSubject;
 }): TeardownOccupancyDecision {
   if (options.evidence.kind === "error") {
-    return manual("state-unavailable", `Locus occupancy is unavailable: ${options.evidence.message}.`);
+    return manual("state-unavailable", `Session locus occupancy is unavailable: ${options.evidence.message}.`);
   }
   const checkouts = options.evidence.checkouts.filter(
     (entry) => entry.canonical.kind === "resolved" && entry.canonical.path === options.canonicalPath,
@@ -104,7 +104,7 @@ export function classifyTeardownOccupancy(options: {
       && entry.canonical?.kind === "resolved"
       && entry.canonical.path === options.canonicalPath);
   if (directRecords.length > 1 || aliasRecords.length > 0) {
-    return manual("duplicate-locus", "More than one locus record projects onto the teardown target.");
+    return manual("duplicate-locus", "More than one session locus record projects onto the teardown target.");
   }
 
   const locks = options.evidence.locks.filter((entry) => entry.digest === targetDigest);
@@ -135,16 +135,16 @@ export function classifyTeardownOccupancy(options: {
     };
   }
   if (direct.result.kind === "unsupported") {
-    return manual("legacy-record", "The teardown target has an unsupported locus record version.");
+    return manual("legacy-record", "The teardown target has an unsupported session locus record version.");
   }
   if (direct.result.kind !== "valid") {
-    return manual("record-malformed", "The teardown target locus record is not valid current authority.");
+    return manual("record-malformed", "The teardown target session locus record is not valid current authority.");
   }
   if (direct.canonical?.kind !== "resolved" || direct.canonical.path !== options.canonicalPath) {
-    return manual("record-malformed", "The teardown target locus record path cannot be verified.");
+    return manual("record-malformed", "The teardown target session locus record path cannot be verified.");
   }
   if (!recordMatchesSubject(direct.result.record.role, options.subject)) {
-    return manual("subject-mismatch", "The teardown target locus role belongs to a different subject.");
+    return manual("subject-mismatch", "The teardown target session locus role belongs to a different subject.");
   }
   const markerDecision = validateMarker(checkout.marker, checkout.worktree.primary, options.identity, options.subject);
   if (markerDecision !== null) return markerDecision;

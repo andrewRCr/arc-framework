@@ -308,7 +308,7 @@ export async function resolveLocusAtRuntime(options: ResolveLocusRuntimeOptions)
   const state = await readHousekeepState(options, anchor, inspector);
   const matches = state.roster.rows.filter((row) => row.recordId === options.recordId);
   const row = matches.length === 1 ? matches[0] : undefined;
-  if (row === undefined) return refusal("locus-resolve", matches.length > 1 ? "duplicate-locus" : "checkout-missing", "Select one exact locus record generation.");
+  if (row === undefined) return refusal("locus-resolve", matches.length > 1 ? "duplicate-locus" : "checkout-missing", "Select one exact session locus record generation.");
   const checkoutClean = row.checkoutPath !== null
     && (await options.io.exec("git", ["status", "--porcelain"], { cwd: row.checkoutPath })).stdout === "";
   const generationProven = row.diagnostics.length === 0 && row.frame === "residue";
@@ -435,7 +435,7 @@ function lockRefusal(
   operation: "locus-attach" | "locus-release" | "locus-resolve",
   reason: "live" | "unknown" | "timeout",
 ): LocusMutationResultV1 {
-  return refusal(operation, reason === "live" ? "lease-live" : "lease-unknown", "The locus record lock is unavailable.");
+  return refusal(operation, reason === "live" ? "lease-live" : "lease-unknown", "The session locus record lock is unavailable.");
 }
 
 function refusal(
@@ -450,6 +450,6 @@ function failure(operation: "locus-attach" | "locus-release" | "locus-resolve", 
   return createLocusMutationResult({
     outcome: "error", operation,
     error: { code: `locus.${operation}.failed`, message: error instanceof Error ? error.message : String(error) },
-    recommendedPromptText: "Inspect the exact locus record and retry.",
+    recommendedPromptText: "Inspect the exact session locus record and retry.",
   });
 }

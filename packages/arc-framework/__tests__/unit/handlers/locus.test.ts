@@ -70,7 +70,7 @@ describe("runLocusCli", () => {
         "Role: work-unit (work-unit:reader)",
         "Lease: live",
         "Session home: /repo/work",
-        "Active locus: active",
+        "Active session locus: active",
         "Workflow/stage: process-task-loop / -",
         "",
       ].join("\n"),

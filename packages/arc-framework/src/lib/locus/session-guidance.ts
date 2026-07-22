@@ -41,7 +41,7 @@ export function deriveLocusSessionGuidance(
   if (!probe.ok) {
     return LocusSessionGuidanceSchema.parse({
       kind: "unavailable",
-      message: `Locus state is unavailable (${probe.error.kind}): ${probe.error.message}`,
+      message: `Session locus state is unavailable (${probe.error.kind}): ${probe.error.message}`,
     });
   }
   const state = probe.value;
@@ -69,7 +69,7 @@ function renderCurrent(state: LocusStateV1, checkoutPath: string | undefined): s
     return "No active local session locus is resolved.";
   }
   if (current.kind === "ambiguous") {
-    return `Active locus is ambiguous (${current.reasons.join(", ")}); reconcile before continuing.`;
+    return `Active session locus is ambiguous (${current.reasons.join(", ")}); reconcile before continuing.`;
   }
   const active = state.roster.rows.find((row) => row.recordId === current.activeRecordId);
   const frame = active?.frame ?? "unresolved";
@@ -88,25 +88,25 @@ function renderPrimary(state: LocusStateV1): string {
 
 function renderRecovery(state: LocusStateV1): string {
   const recovery = state.recovery;
-  if (recovery.kind === "none") return "No locus recovery action is pending.";
-  if (recovery.kind === "resume") return `Resume locus record ${recovery.activeRecordId}.`;
+  if (recovery.kind === "none") return "No session locus recovery action is pending.";
+  if (recovery.kind === "resume") return `Resume session locus record ${recovery.activeRecordId}.`;
   if (recovery.kind === "residue") {
-    return `Locus residue ${recovery.recordId} offers: ${recovery.actions.join(" → ")}.`;
+    return `Session locus residue ${recovery.recordId} offers: ${recovery.actions.join(" → ")}.`;
   }
-  return `Locus recovery is stopped (${recovery.reasons.join(", ")}).`;
+  return `Session locus recovery is stopped (${recovery.reasons.join(", ")}).`;
 }
 
 function renderReconciliation(state: LocusStateV1): string {
   const reconciliation = state.reconciliation;
-  if (reconciliation.kind === "clean") return "Locus reconciliation is clean.";
+  if (reconciliation.kind === "clean") return "Session locus reconciliation is clean.";
   if (reconciliation.kind === "stop") {
-    return `Locus reconciliation is stopped (${reconciliation.reasons.join(", ")}).`;
+    return `Session locus reconciliation is stopped (${reconciliation.reasons.join(", ")}).`;
   }
   const actions = reconciliation.actions.map((action) => {
     const target = action.checkoutPath ?? action.recordId ?? "unresolved target";
     return `${action.kind} ${target}`;
   });
-  return `Locus reconciliation offers: ${actions.join(" → ")}.`;
+  return `Session locus reconciliation offers: ${actions.join(" → ")}.`;
 }
 
 function renderCleanup(row: LocusRowV1): string[] {
@@ -118,10 +118,10 @@ function renderCleanup(row: LocusRowV1): string[] {
     }
     return [];
   }
-  if (row.lease?.state === "live") return [`Keep ${target}: a live session lease occupies this locus.`];
+  if (row.lease?.state === "live") return [`Keep ${target}: a live session lease occupies this session locus.`];
   if (row.lease?.state === "unknown") return [`Cleanup for ${target} is manual because lease liveness is unknown.`];
   return [
     `Cleanup for ${target} remains guarded by provenance, cleanliness, terminal-head, ref, user-surface, `
-      + "and current-locus checks; lease state alone never authorizes removal.",
+      + "and current-session-locus checks; lease state alone never authorizes removal.",
   ];
 }

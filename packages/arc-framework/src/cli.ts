@@ -389,7 +389,7 @@ errand
   .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its bold title): inbox-origin record, dropped at close")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
 
 errand
@@ -398,33 +398,33 @@ errand
   .option("--from-inbox <entry-title>", "USER-INBOX capture bold title to associate with the errand")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts));
 
 errand
   .command("materialize <slug>")
   .description("Materialize an exact remote-only Errand generation in an ARC-owned checkout")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((slug: string, opts: ErrandMaterializeOptions) => handleErrandMaterialize(slug, opts));
 
 errand
   .command("leave <slug>")
   .description("Preserve an Errand tail and close its local occupancy")
   .requiredOption("--state <state>", "Tail state: paused | awaiting-merge")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((slug: string, opts: ErrandLeaveOptions) => handleErrandLeave(slug, opts));
 
 errand
   .command("close <slug>")
   .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
   .option("--force", "Legacy-only override for an intentionally discarded close-only generation")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts));
 
 errand
   .command("abandon <slug>")
   .description("Abandon a safely preserved Errand and retain its inbox capture")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((slug: string, opts: ErrandAbandonOptions) => handleErrandAbandon(slug, opts));
 
 errand
@@ -435,7 +435,7 @@ errand
   .option("--floor <floor>", "Which floor the errand crossed: derivation | scale (required)")
   .option("--priority <priority>", "WU priority for the minted meta")
   .option("--class <class>", "WU Class for the minted meta")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts));
 
 const housekeep = program
@@ -460,19 +460,19 @@ housekeep
 housekeep
   .command("open <slug>")
   .description("Open or exactly resume one confirmed housekeeping routing sweep")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((slug: string, opts: HousekeepOpenOptions) => handleHousekeepOpen(slug, opts));
 
 housekeep
   .command("close <slug>")
   .description("Close one preserved routing sweep or finalize its exact merged tail")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((slug: string, opts: HousekeepCloseOptions) => handleHousekeepClose(slug, opts));
 
 housekeep
   .command("abandon <slug>")
   .description("Abandon one exact open or closed-unmerged routing generation")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((slug: string, opts: HousekeepAbandonOptions) => handleHousekeepAbandon(slug, opts));
 
 const baseCmd = program
@@ -502,19 +502,19 @@ plan
   .command("open <anchor-stub>")
   .description("Claim and open an immutable single- or multi-stub grooming set")
   .option("--include <stubs...>", "Additional related backlog stubs")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((anchorStub: string, opts: PlanOpenOptions) => handlePlanOpen(anchorStub, opts));
 
 plan
   .command("abandon <anchor-stub>")
   .description("Abandon an exact open or closed-unmerged grooming generation")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((anchorStub: string, opts: PlanAbandonOptions) => handlePlanAbandon(anchorStub, opts));
 
 plan
   .command("close <anchor-stub>")
   .description("Preserve an exact grooming tail and close its local occupancy")
-  .option("--json", "Emit the producer-validated locus mutation result")
+  .option("--json", "Emit the producer-validated mutation result")
   .action((anchorStub: string, opts: PlanCloseOptions) => handlePlanClose(anchorStub, opts));
 
 plan
@@ -749,14 +749,14 @@ program
 const locusCmd = program
   .command("locus")
   .description("Inspect the local checkout and session locus roster")
-  .option("--json", "Emit one typed locus envelope as JSON")
+  .option("--json", "Emit one typed session locus envelope as JSON")
   .action(handleLocus);
 
 locusCmd
   .command("attach")
-  .description("Attach the entering process to one trusted managed locus")
+  .description("Attach the entering process to one trusted managed session locus")
   .option("--checkout <path>", "Select one roster-backed checkout")
-  .option("--json", "Emit one typed locus mutation result")
+  .option("--json", "Emit one typed session locus mutation result")
   .action((opts: LocusAttachOptions, command: Command) => handleLocusAttach({
     ...opts,
     json: command.optsWithGlobals().json === true,
@@ -766,7 +766,7 @@ locusCmd
   .command("release <recordId>")
   .description("Release one exact caller-named lease generation")
   .requiredOption("--lease <id>", "Exact lease generation to release")
-  .option("--json", "Emit one typed locus mutation result")
+  .option("--json", "Emit one typed session locus mutation result")
   .action((recordId: string, opts: LocusReleaseOptions, command: Command) => handleLocusRelease(recordId, {
     ...opts,
     json: command.optsWithGlobals().json === true,
@@ -776,7 +776,7 @@ locusCmd
   .command("resolve <recordId>")
   .description("Resume or abandon one exact conclusively dead transient generation")
   .requiredOption("--action <action>", "Resolution action: resume | abandon")
-  .option("--json", "Emit one typed locus mutation result")
+  .option("--json", "Emit one typed session locus mutation result")
   .action((recordId: string, opts: LocusResolveOptions, command: Command) => handleLocusResolve(recordId, {
     ...opts,
     json: command.optsWithGlobals().json === true,

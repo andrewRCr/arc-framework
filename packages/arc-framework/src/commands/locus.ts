@@ -35,7 +35,7 @@ function formatRow(row: LocusRowV1): string[] {
     `Role: ${role}`,
     `Lease: ${row.lease?.state ?? "absent"}`,
     `Session home: ${row.lease?.sessionHomePath ?? "-"}`,
-    `Active locus: ${row.frame ?? "-"}`,
+    `Active session locus: ${row.frame ?? "-"}`,
     `Workflow/stage: ${row.derived?.workflow ?? "-"} / ${row.derived?.stage ?? "-"}`,
   ];
 }

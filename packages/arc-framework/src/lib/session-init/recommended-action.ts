@@ -319,7 +319,7 @@ function composeBaseBranchSyncCheckedOutText(
   if (checkout.kind === "unknown") {
     return (
       `${behind}\n` +
-      `Base checkout locus unknown — do not fetch-into-ref; run \`arc base sync\` when ready.`
+      `Base checkout location is unknown — do not fetch-into-ref; run \`arc base sync\` when ready.`
     );
   }
   const primaryNote = checkout.primary ? " (primary worktree)" : "";

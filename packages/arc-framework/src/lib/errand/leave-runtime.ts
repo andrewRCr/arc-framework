@@ -203,7 +203,7 @@ async function cleanupOccupancy(
     return {
       kind: "refused",
       reason: acquired.reason === "live" ? "lease-live" : "lease-unknown",
-      message: "The Errand locus lock is not available.",
+      message: "The Errand session locus lock is not available.",
     };
   }
   try {

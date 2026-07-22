@@ -59,7 +59,7 @@ export type HandoffLocusPlan = z.infer<typeof HandoffLocusPlanSchema>;
 export function deriveHandoffLocusPlan(state: LocusStateV1, checkoutPath: string): HandoffLocusPlan {
   if (state.current.kind === "none") {
     if (state.recovery.kind !== "none") {
-      return refusal("locus-unresolved", null, "Resolve the retained locus residue before handing off.");
+      return refusal("locus-unresolved", null, "Resolve the retained session locus residue before handing off.");
     }
     const selected = selectCheckoutWorkUnit(state, checkoutPath);
     if (selected.kind === "ambiguous") {
@@ -81,12 +81,12 @@ export function deriveHandoffLocusPlan(state: LocusStateV1, checkoutPath: string
     });
   }
   if (state.current.kind === "ambiguous") {
-    return refusal("locus-unresolved", null, "Resolve the ambiguous current locus before handing off.");
+    return refusal("locus-unresolved", null, "Resolve the ambiguous current session locus before handing off.");
   }
   if (state.recovery.kind !== "resume"
     || state.recovery.activeRecordId !== state.current.activeRecordId
     || state.recovery.parentRecordId !== state.current.parentRecordId) {
-    return refusal("locus-unresolved", state.current.activeRecordId, "Refresh the changed locus generation before handing off.");
+    return refusal("locus-unresolved", state.current.activeRecordId, "Refresh the changed session locus generation before handing off.");
   }
 
   const active = exactRow(state.roster.rows, state.current.activeRecordId);
@@ -98,7 +98,7 @@ export function deriveHandoffLocusPlan(state: LocusStateV1, checkoutPath: string
     || active.lease.state !== "live"
     || active.frame !== "active"
     || active.diagnostics.length > 0) {
-    return refusal("locus-unresolved", state.current.activeRecordId, "The current locus generation is incomplete or changed.");
+    return refusal("locus-unresolved", state.current.activeRecordId, "The current session locus generation is incomplete or changed.");
   }
 
   if (active.role.kind === "work-unit") {

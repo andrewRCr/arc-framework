@@ -118,7 +118,7 @@ when no signal-leaf signal is present.
 
 Place it after the branch-gone precondition and ahead of arm resolution. On the signal path the spine replaces
 Step 3's full context-load with a universal-only load and skips the resume/orient worktree pull. The notes pull
-still applies because USER-INBOX and WORKING-MEMORY must be fresh before the operation opens its allocated locus.
+still applies because USER-INBOX and WORKING-MEMORY must be fresh before the operation opens its allocated checkout.
 
 **Spine** (uniform across all signals):
 
@@ -131,12 +131,12 @@ still applies because USER-INBOX and WORKING-MEMORY must be fresh before the ope
 3. **Open through the owning verb** — `arc errand open`, `arc housekeep open`, or `arc plan open` performs
    protection-aware allocation. Render its `recommendedPromptText`, direct subsequent work to
    `activeLocusPath`, and retain `sessionHomePath`; never switch or repurpose the originating checkout.
-4. **Run the locus**; Step 5 / Step 6 then run in signal-leaf mode (orient on the locus, not the WU).
+4. **Run the subject workflow**; Step 5 / Step 6 then run in signal-leaf mode (orient on the subject, not the WU).
 
-**Per-signal locus:**
+**Per-signal workflow:**
 
-| Signal          | Locus workflow                      | Edits                                |
-|-----------------|-------------------------------------|--------------------------------------|
+| Signal          | Subject workflow                    | Edits                                |
+| --------------- | ----------------------------------- | ------------------------------------ |
 | `--errand`      | [`run-errand`][run-errand] Launch   | the errand's target paths            |
 | `--housekeep`   | [`drain-inbox`][drain-inbox]        | the user inbox → authoritative homes |
 | `--plan <stub>` | [`draft-design`][draft-design] loop | the backlog stub's `draft-*`         |
@@ -338,7 +338,7 @@ carries `value.checkout` as an object `{ kind, path?, primary? }` where `kind` i
   (same not-checked-out precondition).
 - `surface` — carry the state into Step 6's stale-base section. Includes: a behind base under `manual`; a
   base checked out **elsewhere** (primary-aware text naming the holding worktree and offering
-  `arc base sync`); checkout locus unknown; or a diverged base. No pull.
+  `arc base sync`); checkout location unknown; or a diverged base. No pull.
 - `skip` — the base is current or only ahead, **or** this worktree holds the base (`checkout.kind ===
   "current"` — the worktree channel owns pull/dirty for HEAD).
 
@@ -415,7 +415,7 @@ contract failure.
 
 7. **Active meta file** — for a selected WU role, read the full meta path emitted by its load set. No selected WU
    means no active meta read; Step 5 handles next-work discovery. Multiple metas or branch candidates never trigger
-   workflow-side disambiguation: the locus reader's exact role subject either resolves one WU or stops.
+   workflow-side disambiguation: the session locus reader's exact role subject either resolves one WU or stops.
     - **Task reference format**: `**Next Task:**` uses triple-anchor format —
       `Task 5.5 — Implement validation (line ~1903)`. Use it for task-list anchoring only when all three
       anchors are usable; incomplete values fall back to `taskCursor` in item 9 when available.
@@ -516,7 +516,7 @@ If `post-context-load` appears in the active-extensions list (from Step 1), load
 
 **Signal-leaf / errand mode** (an explicit-intent signal routed via
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or Transient-resume via `locusState`): skip
-this entire step — there is no work-unit handoff baseline to freshness-check, and the locus run replaces
+this entire step — there is no work-unit handoff baseline to freshness-check, and the subject workflow replaces
 next-work discovery. See [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) /
 [Errand cold-entry](#errand-cold-entry-orient-arm).
 
@@ -599,7 +599,7 @@ claims copied from SESSION-NOTES prose.
 
 **Signal-leaf / errand mode** (an explicit-intent signal routed via
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or Transient-resume via `locusState`): frame
-the summary on the **locus** — the errand / drain / grooming target, its goal, branch, and any coordination
+the summary on the **transient subject** — the errand / drain / grooming target, its goal, branch, and any coordination
 caveat — instead of work-unit state; the active-work-state shape below does not apply. See
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) / [Errand cold-entry](#errand-cold-entry-orient-arm).
 
@@ -706,7 +706,7 @@ tracked source documents the work.
   ```
 
 - `baseBranchSync.value.recommendedAction == "surface"`: the local base ref is stale — behind under `manual`
-  policy, checked out elsewhere (primary-aware), locus unknown, or diverged from `origin/<base>`. Render the
+  policy, checked out elsewhere (primary-aware), checkout location unknown, or diverged from `origin/<base>`. Render the
   precomposed `baseBranchSync.value.recommendedPromptText` verbatim. Advisory, never gates — the `pull` /
   `prompt` actions fire in Step 2's base-branch-sync channel, not here.
 
@@ -779,7 +779,7 @@ tracked source documents the work.
   **New branch:** `{branch}` has no upstream — will be set on first push.
   ```
 
-- `worktree.value.branch == null` and the locus guidance does not identify a managed husk:
+- `worktree.value.branch == null` and `locusGuidance` does not identify a managed husk:
 
   ```text
   **Detached HEAD:** check out a branch before push/sync.

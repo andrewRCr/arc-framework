@@ -86,7 +86,7 @@ export function projectProvisionalRoster(options: {
     if (entry === undefined) {
       const kind = checkout.worktree.primary ? "free-primary" : "unmanaged-checkout";
       const unmanagedDiagnostic = kind === "unmanaged-checkout"
-        ? [diagnostic("worktree-without-role", "checkout", checkout.worktree.path, "Checkout has no locus role")]
+        ? [diagnostic("worktree-without-role", "checkout", checkout.worktree.path, "Checkout has no session locus role")]
         : [];
       rows.push(emptyCheckoutRow(kind, checkout, [...checkoutDiagnostics, ...unmanagedDiagnostic]));
       continue;
@@ -113,7 +113,7 @@ export function projectProvisionalRoster(options: {
   for (const entry of options.evidence.recordEntries) {
     if (consumedRecords.has(entry)) continue;
     if (entry.kind === "unexpected") {
-      const rowDiagnostic = diagnostic("record-malformed", "record", entry.name, "Unexpected locus record entry");
+      const rowDiagnostic = diagnostic("record-malformed", "record", entry.name, "Unexpected session locus record entry");
       rows.push(bareRow("malformed-record", null, null, [rowDiagnostic]));
       continue;
     }
@@ -143,11 +143,11 @@ export function projectProvisionalRoster(options: {
   }
   for (const lock of options.evidence.lockEntries) {
     if (lock.kind === "unexpected") {
-      diagnostics.push(diagnostic("lock-unknown", "lock", lock.name, "Unexpected locus lock entry"));
+      diagnostics.push(diagnostic("lock-unknown", "lock", lock.name, "Unexpected session locus lock entry"));
       continue;
     }
     if (!options.evidence.records.some((record) => record.digest === lock.digest)) {
-      diagnostics.push(diagnostic("lock-without-record", "lock", lock.name, "Lock has no matching locus record"));
+      diagnostics.push(diagnostic("lock-without-record", "lock", lock.name, "Lock has no matching session locus record"));
     }
     if (lock.liveness === "dead") diagnostics.push(diagnostic("lock-dead", "lock", lock.name, "Lock holder is dead"));
     else if (lock.liveness === "unknown" || lock.result.kind !== "valid") {

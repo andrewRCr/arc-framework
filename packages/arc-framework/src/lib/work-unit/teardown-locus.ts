@@ -44,15 +44,15 @@ async function retireNodeCheckoutLocus(
 ): Promise<{ readonly roleRemoved: boolean }> {
   const checkoutPath = resolve(options.checkoutPath);
   const topology = await scanRegisteredWorktrees(runtime.exec);
-  if (!topology.ok) throw new Error(`cannot retire checkout locus: ${topology.message}`);
+  if (!topology.ok) throw new Error(`cannot retire checkout session locus: ${topology.message}`);
   const initial = exactTarget(topology.worktrees, checkoutPath);
   if (initial === null || initial.head !== options.expectedHead) {
-    throw new Error("cannot retire checkout locus: target is not the expected live roster generation");
+    throw new Error("cannot retire checkout session locus: target is not the expected live roster generation");
   }
   const inspector = createPlatformProcessInspector();
   const anchor = await selectMutationAnchor(inspector);
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
-  if (!root.ok) throw new Error(`cannot retire checkout locus: ${root.message}`);
+  if (!root.ok) throw new Error(`cannot retire checkout session locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
   const identity = deriveLocusRecordId(checkoutPath, pathFlavor);
   const recordPath = locusRecordPath(root, identity.digest);
@@ -61,14 +61,14 @@ async function retireNodeCheckoutLocus(
     anchor,
     inspector,
   });
-  if (acquired.kind !== "acquired") throw new Error(`cannot retire checkout locus: record lock is ${acquired.reason}`);
+  if (acquired.kind !== "acquired") throw new Error(`cannot retire checkout session locus: record lock is ${acquired.reason}`);
 
   const applyUnderLock = async (): Promise<{ readonly roleRemoved: boolean }> => {
     const freshTopology = await scanRegisteredWorktrees(runtime.exec);
-    if (!freshTopology.ok) throw new Error("cannot retire checkout locus: target roster is unavailable under lock");
+    if (!freshTopology.ok) throw new Error("cannot retire checkout session locus: target roster is unavailable under lock");
     const fresh = exactTarget(freshTopology.worktrees, checkoutPath);
     if (fresh === null || fresh.head !== options.expectedHead) {
-      throw new Error("cannot retire checkout locus: target roster generation changed under lock");
+      throw new Error("cannot retire checkout session locus: target roster generation changed under lock");
     }
     const current = await readLocusRecord({ path: recordPath, expectedDigest: identity.digest, pathFlavor });
     await validateRecordGeneration(current, identity.recordId, checkoutPath, options, inspector);
@@ -77,7 +77,7 @@ async function retireNodeCheckoutLocus(
     if (current.kind === "valid") {
       const removed = await removeLocusRecord({ path: recordPath, expectedBytes: current.bytes });
       if (removed.kind !== "removed") {
-        throw new Error("cannot retire checkout locus: role generation changed before pop");
+        throw new Error("cannot retire checkout session locus: role generation changed before pop");
       }
     }
     return { roleRemoved: current.kind === "valid" };
@@ -91,7 +91,7 @@ async function retireNodeCheckoutLocus(
     outcome = { kind: "failure", error };
   }
   const released = await releaseLocusLock(acquired.handle);
-  if (released.kind !== "released") throw new Error(`cannot release checkout locus lock: ${released.kind}`);
+  if (released.kind !== "released") throw new Error(`cannot release checkout session locus lock: ${released.kind}`);
   if (outcome.kind === "failure") throw outcome.error;
   return outcome.value;
 }
@@ -106,7 +106,7 @@ async function validateRecordGeneration(
   const expected = options.expectedOccupancy;
   if (current.kind === "absent") {
     if (expected.recordId !== null || expected.recordGeneration !== null) {
-      throw new Error("cannot retire checkout locus: expected record generation is absent");
+      throw new Error("cannot retire checkout session locus: expected record generation is absent");
     }
     return;
   }
@@ -116,16 +116,16 @@ async function validateRecordGeneration(
     || expected.recordId !== current.record.recordId
     || expected.recordGeneration !== digestBytes(current.bytes)
     || expected.leaseId !== (current.record.lease?.leaseId ?? null)) {
-    throw new Error("cannot retire checkout locus: role or lease generation changed under lock");
+    throw new Error("cannot retire checkout session locus: role or lease generation changed under lock");
   }
   if (!recordMatchesSubject(current.record.role, options.subject)) {
-    throw new Error("cannot retire checkout locus: role does not match the teardown subject");
+    throw new Error("cannot retire checkout session locus: role does not match the teardown subject");
   }
   if (current.record.lease !== null) {
     const liveness = current.record.lease.anchor.kind === "process"
       ? await verifyProcessAnchor(current.record.lease.anchor, inspector)
       : "unknown";
-    if (liveness !== "dead") throw new Error(`cannot retire checkout locus: lease is ${liveness}`);
+    if (liveness !== "dead") throw new Error(`cannot retire checkout session locus: lease is ${liveness}`);
   }
 }
 
@@ -152,7 +152,7 @@ async function selectMutationAnchor(inspector: ReturnType<typeof createPlatformP
   const selected = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
   if (selected.kind === "process") return selected;
   const command = await inspector.inspect(process.pid);
-  if (command.kind !== "present") throw new Error(`cannot retire checkout locus: ${selected.reason}`);
+  if (command.kind !== "present") throw new Error(`cannot retire checkout session locus: ${selected.reason}`);
   return {
     kind: "process" as const,
     pid: command.pid,

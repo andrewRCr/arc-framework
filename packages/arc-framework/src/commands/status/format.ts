@@ -124,7 +124,7 @@ function buildLocusGuidanceSummary(value: LocusSessionGuidance): string {
 export function buildSessionInitStatusSummary(result: SessionInitProbeResult): string {
   const sections: string[] = [
     renderIdentity(result.identity),
-    `Locus:\n${buildLocusGuidanceSummary(result.locusGuidance).split("\n").map((line) => `  ${line}`).join("\n")}`,
+    `Session locus:\n${buildLocusGuidanceSummary(result.locusGuidance).split("\n").map((line) => `  ${line}`).join("\n")}`,
     renderSlot("User", result.user, buildUserSessionInitStatusSummary),
     renderSlot("Worktree", result.worktree, buildWorktreeSessionInitSummary),
     renderSlot("Extensions", result.extensions, buildExtensionsSessionInitSummary),

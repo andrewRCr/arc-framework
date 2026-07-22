@@ -288,7 +288,7 @@ export async function openOrdinaryErrand(
     restoredParent: null,
     nextOffer: null,
     recommendedPromptText: `Errand opened at ${provisioned.receipt.checkoutPath}; session home remains `
-      + `${sessionHomePath}. Run subsequent commands in the active locus.`
+      + `${sessionHomePath}. Run subsequent commands in the active checkout.`
       + (resumeAdvisory === null ? "" : ` ${resumeAdvisory}`),
   }));
 }
@@ -393,7 +393,7 @@ function openError(code: string, message: string): LocusMutationResultV1 {
     outcome: "error",
     operation: "errand-open",
     error: { code, message: message || "Errand open failed" },
-    recommendedPromptText: "Inspect the retained identity or locus evidence before retrying.",
+    recommendedPromptText: "Inspect the retained identity or session locus evidence before retrying.",
   });
 }
 

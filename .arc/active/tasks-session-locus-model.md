@@ -975,13 +975,14 @@ full guard set unchanged.
   per-key reconciliation and immutable opened-base validation remain intact. `draft-design` now makes refusal the
   explicit concurrent-publication path.
 
-### `[ ]` **7.R.g Rename user-facing narration to "session locus"** — D6, D11
+### `[x]` **7.R.g Rename user-facing narration to "session locus"** — D6, D11
 
 - _Goal:_ Routine narration never names the model; where diagnostics and recovery surfaces must, they say
   "session locus", while the `arc locus` command name and internal identifiers stay unchanged.
 
-    - Sweep CLI-composed strings (`session-guidance.ts`, `recommendedPromptText` composition sites, locus error
-      text) and workflow/skill prose in both package and project copies.
+- _Outcome:_ Routine CLI and workflow narration now uses checkout, worktree, and subject terms; diagnostic,
+  recovery, and roster surfaces consistently say "session locus". Package/project workflows and skills remain
+  synchronized, with `arc locus`, schema fields, error codes, and internal identifiers unchanged.
 
 ### `[ ]` **7.R.h Silence non-actionable locus surfaces at session entry** — D6, D11
 

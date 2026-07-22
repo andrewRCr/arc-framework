@@ -37,7 +37,7 @@ describe("deriveLocusSessionGuidance", () => {
     expect(result).toMatchObject({
       kind: "ready",
       cleanup: [
-        "Keep /wt/live: a live session lease occupies this locus.",
+        "Keep /wt/live: a live session lease occupies this session locus.",
         expect.stringContaining("lease state alone never authorizes removal"),
       ],
     });
@@ -76,7 +76,7 @@ describe("deriveLocusSessionGuidance", () => {
       error: { kind: "runtime", message: "identity tree unavailable" },
     })).toEqual({
       kind: "unavailable",
-      message: "Locus state is unavailable (runtime): identity tree unavailable",
+      message: "Session locus state is unavailable (runtime): identity tree unavailable",
     });
   });
 });

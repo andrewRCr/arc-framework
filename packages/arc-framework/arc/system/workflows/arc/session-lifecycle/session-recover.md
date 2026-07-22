@@ -48,7 +48,7 @@ If `verdict.status === "stop"`, inspect `verdict.stopReasons`:
 - For any reason other than `planning-workflow-uncertain`, stop and surface the structured reason
   details. The CLI has already checked seed presence/schema, identity, fresh recovery state,
   load-set drift, dirty path-set drift, and non-planning task-cursor drift when a cursor exists.
-- For locus, lease, parent, path, or optional seed-hint failures, render the matching structured detail and
+- For session locus, lease, parent, path, or optional seed-hint failures, render the matching structured detail and
   `report.recover.locusGuidance` text verbatim. Do not choose another row or repair the graph in workflow prose.
 - If `planning-workflow-uncertain` is the only reason, continue only when the harness compaction
   summary names a planning workflow/stage that can be verified against the recovered load set and
@@ -58,7 +58,8 @@ If `verdict.status === "stop"`, inspect `verdict.stopReasons`:
 If `verdict.status === "ready"`, continue without prompting.
 
 Require `verdict.locusHint.match === true`. A pre-model seed with no `locus` hint remains valid when the fresh frame
-itself resolves; when the hint is present, the audit has already compared its session-home path, active-locus path,
+itself resolves; when the hint is present, the audit has already compared its session-home path, active session locus
+path,
 record, lease, and parent tokens against the fresh reader. Any mismatch is a stop, never an invitation to fall back
 to branch or harness-summary inference.
 
@@ -85,7 +86,7 @@ Load `report.recover.loadSet.value.entries`; the manifest order is the context o
 serial-read requirement. Issue independent reads in a single tool message when the platform
 supports parallel reads. Never wait on one document before issuing the next unless locating a
 slice genuinely depends on the earlier read. Never load from the seed's paths. The harness
-summary is authoritative for the volatile work-in-progress locus, but not for ARC operating
+summary is authoritative for the volatile work in progress, but not for ARC operating
 context; verify it against the recovered files when it names a task.
 
 The recovery load set is ARC-owned context only. Repository-root harness instruction files
@@ -131,7 +132,7 @@ after the recovery load set has been read. Otherwise skip.
 
 Before resuming work, apply this precedence rule internally: the recovered ARC operating context
 is authoritative for ARC procedure and state; the harness summary is authoritative only for the
-volatile in-progress locus. Do not paste recovered files or print precedence language to the
+volatile in-progress work. Do not paste recovered files or print precedence language to the
 developer, and keep any recovery note brief. Do not emit a formal "recovery complete" status line:
 on the Codex pending-marker path the clear command below prints a `COMPLETE` banner, and on Claude
 Code the opening boundary marker plus a brief conversational note suffice.

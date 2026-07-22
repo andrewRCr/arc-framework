@@ -155,7 +155,7 @@ function leaveError(code: string, message: string): LocusMutationResultV1 {
     outcome: "error",
     operation: "errand-leave",
     error: { code, message: message || "Errand leave failed" },
-    recommendedPromptText: "Inspect the preserved identity tail and local locus residue before retrying.",
+    recommendedPromptText: "Inspect the preserved identity tail and local session locus residue before retrying.",
   });
 }
 

@@ -517,8 +517,8 @@ const SessionRecoverProbeResultRuntimeSchema = SessionRecoverEnvelopeObjectSchem
         code: "custom",
         path: ["taskCursor"],
         message: taskCursorRequired
-          ? "required by the locus-derived strategic task-list entry"
-          : "forbidden without a locus-derived strategic task-list entry",
+          ? "required by the session-locus-derived strategic task-list entry"
+          : "forbidden without a session-locus-derived strategic task-list entry",
       });
     }
   },

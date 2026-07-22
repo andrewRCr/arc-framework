@@ -72,7 +72,7 @@ export function deriveRecoveryLocusContext(options: {
   const { state } = options;
   if (state.current.kind === "ambiguous") {
     throw new RecoveryLocusContextError(
-      `Current locus is ambiguous: ${state.current.recordIds.join(", ")}`,
+      `Current session locus is ambiguous: ${state.current.recordIds.join(", ")}`,
     );
   }
   if (state.current.kind === "none") {
@@ -100,7 +100,7 @@ export function deriveRecoveryLocusContext(options: {
     || state.recovery.activeRecordId !== current.activeRecordId
     || state.recovery.parentRecordId !== current.parentRecordId
   ) {
-    throw new RecoveryLocusContextError("Current and recovery locus tokens do not match");
+    throw new RecoveryLocusContextError("Current and recovery session locus tokens do not match");
   }
 
   const active = exactRow(state.roster.rows, current.activeRecordId, "active");
@@ -180,8 +180,8 @@ function refuseUnresolvedResidue(state: LocusStateV1): void {
   if (state.recovery.kind !== "none" || residue !== undefined) {
     throw new RecoveryLocusContextError(
       residue?.lease?.state === "unknown"
-        ? "Current locus has unknown lease residue"
-        : "Current locus has dead or unresolved residue",
+        ? "Current session locus has unknown lease residue"
+        : "Current session locus has dead or unresolved residue",
     );
   }
 }
@@ -210,7 +210,7 @@ function assertActiveRow(row: LocusRowV1): void {
     || row.frame !== "active"
     || row.diagnostics.length > 0
   ) {
-    throw new RecoveryLocusContextError("Selected active locus row is not a live managed projection");
+    throw new RecoveryLocusContextError("Selected active session locus row is not a live managed projection");
   }
 }
 

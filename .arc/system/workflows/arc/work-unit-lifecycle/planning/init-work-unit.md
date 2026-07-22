@@ -45,10 +45,10 @@ The new-work-unit path runs in one of two placement modes. Placement is never ke
 under full protection, callers inherit spawned placement by omitting a flag, while `--here` is the explicit
 in-place escape hatch.
 
-- **Spawned** — `arc start` creates a dedicated, WU-owned worktree and establishes its locus. Before spawning, run
+- **Spawned** — `arc start` creates a dedicated worktree and claims that checkout for the WU. Before spawning, run
   the [in-flight scope check][in-flight-scope-check] — an advisory pass over in-flight work units that surfaces
   scope overlap and never gates.
-- **In-place** — `arc start --here` converts the current checkout into the WU-owned locus. When that checkout is the
+- **In-place** — `arc start --here` converts the current checkout into the WU-owned checkout. When that checkout is the
   physical primary, the primary is occupied for the WU's lifetime: it is not also the launchpad or available to an
   Errand, grooming pass, housekeep drain, or another WU. Only exact WU teardown restores record-free base and makes
   it the free primary again.
@@ -120,7 +120,8 @@ arc start {name} --new          # spawned placement (full-protection default)
 arc start {name} --new --here   # explicit in-place placement
 ```
 
-The verb creates the planning branch, scaffolds the WU, opens its user workspace, and establishes the WU locus.
+The verb creates the planning branch, scaffolds the WU, opens its user workspace, and establishes the checkout as
+WU-owned.
 On a spawned start it also ships the start ceremony and emits the exact next-session recipe; consume that recipe
 and skip Steps 4–6. On `--here`, continue with Steps 4–6 in the now WU-owned checkout. If that checkout is the
 physical primary, do not allocate transient work there until the WU exits through guarded teardown.
@@ -148,13 +149,14 @@ arc start {name} --here   # in-place: cut the branch in the current checkout, no
 ```
 
 The placement mode follows [§ Execution Modes](#execution-modes) — spawned by default, `--here` only when the
-caller explicitly chooses in-place work. The locus occupancy guard refuses an in-place initialization into an
+caller explicitly chooses in-place work. The session locus occupancy guard refuses an in-place initialization into
+an
 occupied checkout; it never displaces the current role. Spawned `arc start` paths stage the
 relocation / scaffold, refresh the project readiness view, commit the start ceremony, push `plan/{name}`, and
 seed SESSION-NOTES with the committed handoff anchor.
 
 On a spawned start, consume the emitted `Next session` recipe before continuing. The common invariant is the
-spawned WU locus: post-create provisioning and registered harness-dir copy have already run there, so the next
+spawned WU worktree: post-create provisioning and registered harness-dir copy have already run there, so the next
 session's effective config and scripts resolve from that root. Do not continue planning from the invoking checkout
 after a spawned start succeeds.
 

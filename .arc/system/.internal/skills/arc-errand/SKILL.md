@@ -29,7 +29,7 @@ context is already established — it does **not** run session-init.
    Run `.arc/system/workflows/arc/supplemental/run-errand.md`. Its Launch confirms errand-vs-Work-Unit
    (a concern crossing either floor — a design worth recording, or a durable cross-session plan a correct
    execution must navigate — is a Work Unit; route it through `init-work-unit` instead), runs the advisory
-   `arc errand check`, then consumes `arc errand open`'s exact primary/spawned locus result. It never switches or
+   `arc errand check`, then consumes `arc errand open`'s exact primary/spawned checkout result. It never switches or
    repurposes a WU-owned checkout; partial protection uses only the free primary or refuses. Execute and Integrate
    carry the concern through leave/close/abandon as appropriate. When the Errand adopts a flagged `USER-INBOX §
    Errand` capture, `open --from-inbox` binds its origin so exact close drops the capture and abandonment retains it.

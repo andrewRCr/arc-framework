@@ -125,7 +125,7 @@ export async function handlePlanClose(anchorSlug: string, opts: PlanCloseOptions
     result = createLocusMutationResult({
       outcome: "error", operation: "plan-close",
       error: { code: "locus.plan-close.handler", message: error instanceof Error ? error.message : String(error) },
-      recommendedPromptText: "Inspect the retained grooming identity and locus before retrying.",
+      recommendedPromptText: "Inspect the retained grooming identity and session locus before retrying.",
     });
   }
   emitPlanResult(result, opts.json === true);
@@ -154,7 +154,7 @@ export async function handlePlanAbandon(anchorSlug: string, opts: PlanAbandonOpt
     result = createLocusMutationResult({
       outcome: "error", operation: "plan-abandon",
       error: { code: "locus.plan-abandon.handler", message: error instanceof Error ? error.message : String(error) },
-      recommendedPromptText: "Inspect the retained grooming identity and locus before retrying.",
+      recommendedPromptText: "Inspect the retained grooming identity and session locus before retrying.",
     });
   }
   emitPlanResult(result, opts.json === true);

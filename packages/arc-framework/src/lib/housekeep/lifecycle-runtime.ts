@@ -278,7 +278,7 @@ async function cleanupOccupancy(
   });
   const acquired = await runtime.acquireRecordLock(checkoutPath);
   if (acquired.kind !== "acquired") {
-    return refusal(acquired.reason === "live" ? "lease-live" : "lease-unknown", "Housekeeping locus lock unavailable.", operation);
+    return refusal(acquired.reason === "live" ? "lease-live" : "lease-unknown", "Housekeeping session locus lock unavailable.", operation);
   }
   try {
     if (row.primary === true) {
@@ -434,6 +434,6 @@ function failure(
 ): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome: "error", operation, error: { code: `locus.${operation}.${suffix}`, message },
-    recommendedPromptText: "Inspect the retained housekeeping identity and locus before retrying.",
+    recommendedPromptText: "Inspect the retained housekeeping identity and session locus before retrying.",
   });
 }

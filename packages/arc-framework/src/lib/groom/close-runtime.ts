@@ -145,7 +145,7 @@ export async function cleanupGroomOccupancy(
     branch: record.branch, postCreateScript: options.postCreateScript, registeredHarnessDirs: options.registeredHarnessDirs,
   });
   const acquired = await runtime.acquireRecordLock(checkoutPath);
-  if (acquired.kind !== "acquired") return refusal(acquired.reason === "live" ? "lease-live" : "lease-unknown", "Grooming locus lock unavailable.");
+  if (acquired.kind !== "acquired") return refusal(acquired.reason === "live" ? "lease-live" : "lease-unknown", "Grooming session locus lock unavailable.");
   try {
     if (row.primary === true) {
       if (record.branch !== null) await options.exec("git", ["checkout", options.base], { cwd: checkoutPath });
@@ -225,6 +225,6 @@ function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV
 function failure(suffix: string, message: string): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome: "error", operation: "plan-close", error: { code: `locus.plan-close.${suffix}`, message },
-    recommendedPromptText: "Inspect the retained grooming identity and locus before retrying.",
+    recommendedPromptText: "Inspect the retained grooming identity and session locus before retrying.",
   });
 }

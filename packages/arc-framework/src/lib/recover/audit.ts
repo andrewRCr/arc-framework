@@ -256,7 +256,7 @@ function auditLocusHint(
     }
     stopReasons.push({
       kind: "locus-unresolved",
-      message: "legacy Errand recovery requires no current locus generation or seed hint",
+      message: "legacy Errand recovery requires no current session locus generation or seed hint",
       detail: { expected, current: state.current, frame },
     });
     return { expected, actual: null, match: false };
@@ -266,8 +266,8 @@ function auditLocusHint(
       stopReasons.push({
         kind: "locus-unresolved",
         message: expected === null
-          ? "fresh recovery frame does not match the current locus verdict"
-          : "seed locus hint has no fresh current locus",
+          ? "fresh recovery frame does not match the current session locus verdict"
+          : "seed session locus hint has no fresh current session locus",
         detail: { expected, current: state.current, frame },
       });
       return { expected, actual: null, match: false };
@@ -301,7 +301,7 @@ function auditLocusHint(
   ) {
     stopReasons.push({
       kind: "locus-unresolved",
-      message: "fresh recovery frame does not match the current locus verdict",
+      message: "fresh recovery frame does not match the current session locus verdict",
       detail: { current: state.current, frame },
     });
     return { expected, actual: null, match: false };
@@ -311,7 +311,7 @@ function auditLocusHint(
   if (actual === null) {
     stopReasons.push({
       kind: "locus-unresolved",
-      message: "fresh current locus does not resolve one live record and lease generation",
+      message: "fresh current session locus does not resolve one live record and lease generation",
       detail: { current: state.current },
     });
     return { expected, actual: null, match: false };
@@ -322,7 +322,7 @@ function auditLocusHint(
   if (mismatchedFields.length > 0) {
     stopReasons.push({
       kind: "locus-hint-mismatch",
-      message: "fresh locus generation differs from the compaction seed hint",
+      message: "fresh session locus generation differs from the compaction seed hint",
       detail: { expected, actual, mismatchedFields },
     });
     return { expected, actual, match: false };
