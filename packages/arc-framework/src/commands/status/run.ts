@@ -438,12 +438,7 @@ export async function runSessionInitStatus(
     mode: "session-init",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
-    locusGuidance: deriveLocusSessionGuidance(
-      toProbe(locusState),
-      locusState.isOk() && worktreeIdentitySlot.isOk()
-        ? checkoutPathForIdentity(locusState.value, worktreeIdentitySlot.value)
-        : undefined,
-    ),
+    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
     user: toProbe(enrichedUser),
     worktree: toProbe(enrichedWorktree),
     baseDistance: toProbe(enrichedBaseDistance),
@@ -561,10 +556,7 @@ export async function runRecoverStatus(
     mode: "recover",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
-    locusGuidance: deriveLocusSessionGuidance(
-      toProbe(locusState),
-      locusState.isOk() ? checkoutPathForIdentity(locusState.value, worktreeIdentity) : undefined,
-    ),
+    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
     recoveryFrame: toProbe(recoveryFrame),
     worktree: toProbe(enrichedWorktree),
     dirty: toProbe(dirty),
@@ -769,12 +761,7 @@ export async function runSessionHandoffStatus(
     mode: "session-handoff",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
-    locusGuidance: deriveLocusSessionGuidance(
-      toProbe(locusState),
-      locusState.isOk() && worktreeIdentity.isOk()
-        ? checkoutPathForIdentity(locusState.value, worktreeIdentity.value)
-        : undefined,
-    ),
+    locusGuidance: deriveLocusSessionGuidance(toProbe(locusState)),
     handoffLocus: toProbe(handoffLocus),
     branch,
     dirty: toProbe(dirty),

@@ -143,10 +143,6 @@ function makeSessionInitResult(
     },
     locusGuidance: {
       kind: "ready",
-      currentFrame: "No active local session locus is resolved.",
-      primaryAvailability: "Primary checkout /repo is free.",
-      recovery: "No session locus recovery action is pending.",
-      reconciliation: "Session locus reconciliation is clean.",
       identities: [],
       cleanup: [],
       diagnostics: [],
@@ -352,6 +348,25 @@ describe("buildStatusSummary — full mode", () => {
 });
 
 describe("buildSessionInitStatusSummary — scoped mode", () => {
+  it("omits the session locus section when no line is actionable", () => {
+    const summary = buildSessionInitStatusSummary(makeSessionInitResult());
+    expect(summary).not.toContain("Session locus:");
+  });
+
+  it("renders the session locus section when guidance carries an action", () => {
+    const summary = buildSessionInitStatusSummary(makeSessionInitResult({
+      locusGuidance: {
+        kind: "ready",
+        recovery: `Resume session locus record sha256:${"a".repeat(64)}.`,
+        identities: [],
+        cleanup: [],
+        diagnostics: [],
+      },
+    }));
+    expect(summary).toContain("Session locus:");
+    expect(summary).toContain("Resume session locus record");
+  });
+
   it("includes identity block plus all probe sections (user, worktree, extensions, config, active)", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     expect(summary).toContain("Identity:");

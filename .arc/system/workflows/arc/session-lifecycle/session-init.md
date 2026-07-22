@@ -658,10 +658,10 @@ tracked source documents the work.
 
 - `locusGuidance.kind === "unavailable"` — render `locusGuidance.message` and stop before any role-sensitive
   action.
-- `locusGuidance.kind === "ready"` — render only actionable non-clean lines: ambiguous/stopped current frame,
-  unsafe/occupied primary when an allocation is requested, pending recovery, non-clean reconciliation, in-flight
-  identity actions, cleanup offers, and diagnostics. Use the strings verbatim; do not reconstruct their evidence
-  or deletion conditions.
+- `locusGuidance.kind === "ready"` — collect only present optional strings and non-empty arrays; omit the section
+  when no lines remain. The composer suppresses unmanaged-sibling diagnostics and every expected/no-action frame,
+  availability, recovery, reconciliation, and cleanup fact. Render remaining strings verbatim; do not reconstruct
+  their evidence or deletion conditions.
 - `locusState.value.recovery.kind === "residue"` — pair `locusGuidance.recovery` with the exact
   `arc locus resolve <record-id> --action resume|abandon` choices. Never infer an action from branch shape.
 

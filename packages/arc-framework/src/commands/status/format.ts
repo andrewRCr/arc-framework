@@ -107,9 +107,9 @@ function buildReleaseRoutingSummary(value: ReleaseRoutingValue): string {
   ].join("\n");
 }
 
-function buildLocusGuidanceSummary(value: LocusSessionGuidance): string {
+function buildLocusGuidanceSummary(value: LocusSessionGuidance): string | null {
   if (value.kind === "unavailable") return value.message;
-  return [
+  const lines = [
     value.currentFrame,
     value.primaryAvailability,
     value.recovery,
@@ -117,14 +117,18 @@ function buildLocusGuidanceSummary(value: LocusSessionGuidance): string {
     ...value.identities,
     ...value.cleanup,
     ...value.diagnostics,
-  ].join("\n");
+  ].filter((line): line is string => line !== undefined);
+  return lines.length === 0 ? null : lines.join("\n");
 }
 
 /** Build the Clack summary for `arc status --session-init`. */
 export function buildSessionInitStatusSummary(result: SessionInitProbeResult): string {
+  const locusGuidance = buildLocusGuidanceSummary(result.locusGuidance);
   const sections: string[] = [
     renderIdentity(result.identity),
-    `Session locus:\n${buildLocusGuidanceSummary(result.locusGuidance).split("\n").map((line) => `  ${line}`).join("\n")}`,
+    ...(locusGuidance === null
+      ? []
+      : [`Session locus:\n${locusGuidance.split("\n").map((line) => `  ${line}`).join("\n")}`]),
     renderSlot("User", result.user, buildUserSessionInitStatusSummary),
     renderSlot("Worktree", result.worktree, buildWorktreeSessionInitSummary),
     renderSlot("Extensions", result.extensions, buildExtensionsSessionInitSummary),

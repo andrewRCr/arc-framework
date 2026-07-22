@@ -984,16 +984,14 @@ full guard set unchanged.
   recovery, and roster surfaces consistently say "session locus". Package/project workflows and skills remain
   synchronized, with `arc locus`, schema fields, error codes, and internal identifiers unchanged.
 
-### `[ ]` **7.R.h Silence non-actionable locus surfaces at session entry** — D6, D11
+### `[x]` **7.R.h Silence non-actionable locus surfaces at session entry** — D6, D11
 
 - _Goal:_ A clean session-init renders zero locus lines: unmanaged sibling worktrees and unleased frames are
   expected state, and cleanup/diagnostic narration surfaces only actionable rows.
 
-    - Filter `locusGuidance` emission — suppress `worktree-without-role` diagnostics for unmanaged siblings and
-      the per-row no-deletion-authority cleanup litany; render `currentFrame` only when it carries action.
-    - Align session-init Step 6's locus conditional list; consider the once-per-day nudge-marker pattern for any
-      recurring advisory that survives. Scope-limit to locus-owned surfaces — the general session-init register
-      discipline routes to a `USER-INBOX` capture, not this branch.
+- _Outcome:_ Ready guidance now omits expected/no-action frame, primary, recovery, reconciliation, live/dead lease
+  cleanup, and unmanaged-sibling rows; session-init omits the section when no actionable text remains. No reminder
+  marker is needed because the recurring unmanaged-sibling advisory is suppressed at composition.
 
 ### `[ ]` **7.R.i Reconcile contracts, docs, and criteria after the trims** — D11
 
