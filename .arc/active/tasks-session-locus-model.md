@@ -780,13 +780,11 @@ protection modes, recovery boundaries, and package/source parity.
           and leave through their subject driver, unsafe transient states render typed refusals, and finalization
           releases only the freshly restored WU lease while record-free cold closes release nothing.
 
-    - `[ ]` **7.1.d Rework the Errand workflow for allocation, leave, resume, and next-offer**
-        - Update authoritative package `packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md`,
-          then sync its project copy.
-        - Cover full/partial open, directed active-locus execution, paused/review tails, exact late inbox linking,
-          explicit abandon, locus-aware promotion, post-meta-commit capture removal, and dispatch-qualified sibling
-          continuation through typed verbs and precomposed results.
-        - Preserve the single-concern/single-session planning boundary and keep the inbox as the durable queue.
+    - `[x]` **7.1.d Rework the Errand workflow for allocation, leave, resume, and next-offer**
+        - Reworked the canonical and self-hosted procedure around typed open/materialize/link/leave/promote/abandon/
+          close results, directed locus paths, exact identity tails, and dispatch-qualified next offers. Added the
+          missing partial-mode close/abandon runtime so direct-base completion and clean abandonment pop the exact
+          role without inventing a portable identity.
 
     - `[ ]` **7.1.e Rework grooming and one-sweep housekeeping procedures**
         - Update authoritative package `packages/arc-framework/arc/system/workflows/arc/draft-design.md` grooming

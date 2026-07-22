@@ -54,6 +54,7 @@ import { openOrdinaryErrandAtRuntime } from "../lib/errand/open-runtime.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
 import { closeOrdinaryErrandAtRuntime } from "../lib/errand/close-runtime.js";
+import { settlePartialErrandAtRuntime } from "../lib/errand/partial-settle-runtime.js";
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
 import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
 import { normalizeGitRejection } from "../lib/git/process-error.js";
@@ -828,17 +829,12 @@ export interface ErrandCloseOptions {
 }
 
 /**
- * Close an errand: reap its branch (containment-safe), delete its remote head
- * when the work provably landed in base, remove the identity record and push
- * the removal, then drop the originating inbox capture.
+ * Complete an Errand after its exact full-mode merge or partial direct-base
+ * result is proven, then retire its durable state and originating capture.
  *
- * A full-protection verb, like `open`. The reap refuses (record kept) when the
- * branch's commits are not provably preserved, so an abandoned errand stays
- * recoverable; `--force` is the explicit override for the deliberate shipped /
- * abandon case. A remote head that may be the only preservation (pushed but not
- * provably merged) is kept and surfaced, never deleted. The inbox drop targets
- * the record's originating entry — present only for inbox-promoted errands —
- * and is an idempotent no-op otherwise.
+ * Full protection finalizes the exact merged identity tail and refs. Partial
+ * protection proves the direct-base push and pops its identity-free primary
+ * role. Both modes remove only the recorded originating inbox capture.
  */
 export async function handleErrandClose(slug: string, opts: ErrandCloseOptions): Promise<void> {
   if (opts.json !== true) p.intro("arc errand close");
@@ -847,13 +843,13 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
   if (!cwd) return;
 
   const { settings } = await readConfigSettings(cwd);
-  if (settings["branch.protection"] !== "full") {
-    emitErrandCloseResult(createLocusMutationResult({
-      outcome: "refused",
-      operation: "errand-close",
-      reason: "full-protection-required",
-      recommendedPromptText: "Errand close requires full branch protection.",
-    }), opts.json === true);
+  const protection = settings["branch.protection"];
+  if (protection !== "full" && protection !== "partial") {
+    emitErrandCloseFailure(
+      "locus.errand-close.config",
+      `Unsupported branch.protection value '${protection}'.`,
+      opts.json === true,
+    );
     return;
   }
 
@@ -877,12 +873,56 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
 
   let result: LocusMutationResultV1;
   try {
-    const snapshot = await readTransientIdentitySnapshot({ exec: io.exec, identity });
-    const localRecord = snapshot.kind === "complete" ? snapshot.records.get(slug) : undefined;
-    const parentCheckoutPath = await resolveCurrentWorkUnitPath(cwd, identity, base, io);
-    result = localRecord?.version === 1 || localRecord?.version === 2
-      ? await closeLegacyErrandResult(cwd, io, identity, slug, base, opts)
-      : await closeOrdinaryErrandAtRuntime({
+    if (protection === "partial") {
+      if (opts.force === true) {
+        result = createLocusMutationResult({
+          outcome: "refused",
+          operation: "errand-close",
+          reason: "identity-conflict",
+          recommendedPromptText: "Partial Errand close does not permit --force.",
+        });
+      } else {
+        const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
+        const identityGlobalUserDir = (await resolveUserSurfaceResolver({
+          cwd,
+          identity: SlugSchema.parse(identity),
+          exec: io.exec,
+        })).identityGlobalRoot;
+        result = await settlePartialErrandAtRuntime({
+          slug,
+          action: "close",
+          base,
+          cwd,
+          identity,
+          identityGlobalUserDir,
+          activeExtensions: activeExtensions.active,
+          postCreateScript: settings["worktree.post_create"],
+          registeredHarnessDirs: settings["worktree.harness_dirs"],
+          exec: io.exec,
+          settleInbox: async (binding) => {
+            if (binding.originEntry === null) return { kind: "idempotent", nextOffer: null };
+            const removed = await removeCurrentInboxEntry({ cwd, io, identity, title: binding.originEntry });
+            if (binding.dispatchId === null || removed.postImage.state !== "present") {
+              return { kind: removed.removed ? "applied" : "idempotent", nextOffer: null };
+            }
+            const offer = resolveDispatchNextOffer({
+              content: removed.postImage.content,
+              dispatchId: binding.dispatchId,
+              completedTitle: binding.originEntry,
+              parentCheckoutPath: binding.parentCheckoutPath,
+            });
+            if (offer.kind === "refused") return offer;
+            return { kind: removed.removed ? "applied" : "idempotent", nextOffer: offer.nextOffer };
+          },
+        });
+      }
+    } else {
+      const snapshot = await readTransientIdentitySnapshot({ exec: io.exec, identity });
+      const localRecord = snapshot.kind === "complete" ? snapshot.records.get(slug) : undefined;
+      const parentCheckoutPath = await resolveCurrentWorkUnitPath(cwd, identity, base, io);
+      result = localRecord?.version === 1 || localRecord?.version === 2
+        ? await closeLegacyErrandResult(cwd, io, identity, slug, base, opts)
+        : await closeOrdinaryErrandAtRuntime({
         slug,
         base,
         protection: "full",
@@ -909,6 +949,7 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
           };
         },
       });
+    }
   } catch (err) {
     result = createLocusMutationResult({
       outcome: "error",
@@ -979,13 +1020,13 @@ export async function handleErrandAbandon(slug: string, opts: ErrandAbandonOptio
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const { settings } = await readConfigSettings(cwd);
-  if (settings["branch.protection"] !== "full") {
-    emitErrandAbandonResult(createLocusMutationResult({
-      outcome: "refused",
-      operation: "errand-abandon",
-      reason: "full-protection-required",
-      recommendedPromptText: "Errand abandonment requires full branch protection.",
-    }), opts.json === true);
+  const protection = settings["branch.protection"];
+  if (protection !== "full" && protection !== "partial") {
+    emitErrandAbandonFailure(
+      "locus.errand-abandon.config",
+      `Unsupported branch.protection value '${protection}'.`,
+      opts.json === true,
+    );
     return;
   }
   const identity = await resolveIdentityWithPrompt(false);
@@ -1010,29 +1051,55 @@ export async function handleErrandAbandon(slug: string, opts: ErrandAbandonOptio
   })).identityGlobalRoot;
   let result: LocusMutationResultV1;
   try {
-    result = await abandonOrdinaryErrandAtRuntime({
-      slug,
-      protection: "full",
-      base: settings["branch.base"],
-      identity,
-      identityGlobalUserDir,
-      activeExtensions: activeExtensions.active,
-      postCreateScript: settings["worktree.post_create"],
-      registeredHarnessDirs: settings["worktree.harness_dirs"],
-      exec: io.exec,
-      execInput: io.execInput,
-      clearDispatch: async (record) => {
-        if (record.originEntry === null || record.dispatchId === null) return { kind: "idempotent" };
-        const cleared = await unmarkCurrentInboxEntry({
-          cwd,
-          io,
-          identity,
-          title: record.originEntry,
-          dispatchId: record.dispatchId,
-        });
-        return { kind: cleared.changed ? "applied" : "idempotent" };
-      },
-    });
+    result = protection === "partial"
+      ? await settlePartialErrandAtRuntime({
+        slug,
+        action: "abandon",
+        base: settings["branch.base"],
+        cwd,
+        identity,
+        identityGlobalUserDir,
+        activeExtensions: activeExtensions.active,
+        postCreateScript: settings["worktree.post_create"],
+        registeredHarnessDirs: settings["worktree.harness_dirs"],
+        exec: io.exec,
+        settleInbox: async (binding) => {
+          if (binding.originEntry === null || binding.dispatchId === null) {
+            return { kind: "idempotent", nextOffer: null };
+          }
+          const cleared = await unmarkCurrentInboxEntry({
+            cwd,
+            io,
+            identity,
+            title: binding.originEntry,
+            dispatchId: binding.dispatchId,
+          });
+          return { kind: cleared.changed ? "applied" : "idempotent", nextOffer: null };
+        },
+      })
+      : await abandonOrdinaryErrandAtRuntime({
+        slug,
+        protection: "full",
+        base: settings["branch.base"],
+        identity,
+        identityGlobalUserDir,
+        activeExtensions: activeExtensions.active,
+        postCreateScript: settings["worktree.post_create"],
+        registeredHarnessDirs: settings["worktree.harness_dirs"],
+        exec: io.exec,
+        execInput: io.execInput,
+        clearDispatch: async (record) => {
+          if (record.originEntry === null || record.dispatchId === null) return { kind: "idempotent" };
+          const cleared = await unmarkCurrentInboxEntry({
+            cwd,
+            io,
+            identity,
+            title: record.originEntry,
+            dispatchId: record.dispatchId,
+          });
+          return { kind: cleared.changed ? "applied" : "idempotent" };
+        },
+      });
   } catch (error) {
     result = createLocusMutationResult({
       outcome: "error",

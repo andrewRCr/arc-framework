@@ -13,6 +13,7 @@ import { promisify } from "node:util";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
+import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -139,6 +140,14 @@ async function setFullProtection(cwd: string): Promise<void> {
   if (updated === yaml) {
     throw new Error("setFullProtection: expected `branch.protection: partial` in arc-config.yml");
   }
+  await writeFile(path, updated, "utf-8");
+}
+
+async function setPartialProtection(cwd: string): Promise<void> {
+  const path = join(cwd, ".arc", "system", "arc-config.yml");
+  const yaml = await readFile(path, "utf-8");
+  const updated = yaml.replace("branch.protection: full", "branch.protection: partial");
+  if (updated === yaml) throw new Error("setPartialProtection: expected full protection");
   await writeFile(path, updated, "utf-8");
 }
 
@@ -269,10 +278,31 @@ describe("arc errand close", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("refuses under partial protection", async () => {
-    const result = await runArc(["errand", "close", "anything"], tmpDir);
+  it("closes a pushed partial Errand and releases its primary occupancy", async () => {
+    const remoteDir = `${tmpDir}-remote.git`;
+    await execFileAsync("git", ["init", "--bare", remoteDir]);
+    try {
+      await git(tmpDir, ["add", "-A"]);
+      await git(tmpDir, ["commit", "--no-verify", "-m", "track initialized project"]);
+      await git(tmpDir, ["remote", "add", "origin", remoteDir]);
+      await git(tmpDir, ["push", "-u", "origin", "main"]);
+      const result = await runAnchoredSequence([
+        [process.execPath, CLI_PATH, "errand", "open", "direct-fix", "--json"],
+        ["git", "commit", "--allow-empty", "--no-verify", "-m", "fix direct"],
+        ["git", "push", "origin", "main"],
+        [process.execPath, CLI_PATH, "errand", "close", "direct-fix", "--json"],
+      ], tmpDir);
 
-    expect(result.exitCode).toBe(1);
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.results.at(-1)).toMatchObject({
+        outcome: "applied",
+        operation: "errand-close",
+        identity: null,
+        activeLocusPath: null,
+      });
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
   });
 
   it("reaps the branch, removes the record, and hops back to base", async () => {
@@ -515,6 +545,46 @@ describe("arc errand close", () => {
   });
 });
 
+async function runAnchoredSequence(commands: readonly string[][], cwd: string): Promise<{
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  results: unknown[];
+}> {
+  const command = commands.map((args) => args.map(shellQuote).join(" ")).join("; ");
+  const interactiveCommand = `${command}; command_status=$?; exit $command_status`;
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      "script",
+      ["-qec", `bash --noprofile --norc -ic ${shellQuote(interactiveCommand)}`, "/dev/null"],
+      { cwd, env: { ...process.env, NO_COLOR: "1", PS1: "" } },
+    );
+    const normalized = normalizeAnchoredOutput(stdout);
+    return { stdout: normalized, stderr, exitCode: 0, results: parseJsonLines(normalized) };
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
+    const normalized = normalizeAnchoredOutput(failure.stdout ?? "");
+    return {
+      stdout: normalized,
+      stderr: failure.stderr ?? "",
+      exitCode: typeof failure.code === "number" ? failure.code : 1,
+      results: parseJsonLines(normalized),
+    };
+  }
+}
+
+function parseJsonLines(output: string): unknown[] {
+  return output.split("\n").filter((line) => line.startsWith("{")).map((line) => JSON.parse(line));
+}
+
+function normalizeAnchoredOutput(value: string): string {
+  return value.replaceAll("\r", "").split("\n").filter((line) => line !== "exit").join("\n");
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
 describe("arc errand abandon", () => {
   let tmpDir: string;
 
@@ -544,6 +614,33 @@ describe("arc errand abandon", () => {
     expect(await git(tmpDir, ["branch", "--list", "chore/discard"])).toContain("chore/discard");
     await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:discard"]))
       .rejects.toThrow();
+  });
+
+  it("abandons a clean partial Errand and releases its primary occupancy", async () => {
+    const remoteDir = `${tmpDir}-remote.git`;
+    await execFileAsync("git", ["init", "--bare", remoteDir]);
+    try {
+      await setPartialProtection(tmpDir);
+      await git(tmpDir, ["add", "-A"]);
+      await git(tmpDir, ["commit", "--no-verify", "-m", "track initialized project"]);
+      await git(tmpDir, ["remote", "add", "origin", remoteDir]);
+      await git(tmpDir, ["push", "-u", "origin", "main"]);
+
+      const result = await runAnchoredSequence([
+        [process.execPath, CLI_PATH, "errand", "open", "discard-direct", "--json"],
+        [process.execPath, CLI_PATH, "errand", "abandon", "discard-direct", "--json"],
+      ], tmpDir);
+
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.results.at(-1)).toMatchObject({
+        outcome: "applied",
+        operation: "errand-abandon",
+        identity: null,
+        activeLocusPath: null,
+      });
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
   });
 });
 

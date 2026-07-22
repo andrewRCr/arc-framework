@@ -413,14 +413,14 @@ errand
 
 errand
   .command("close <slug>")
-  .description("Close an errand: reap the branch (containment-safe), remove the record, drop the inbox capture")
-  .option("--force", "Bypass the containment check — reap even when the commits can't be proven preserved")
+  .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
+  .option("--force", "Legacy-only override for an intentionally discarded close-only generation")
   .option("--json", "Emit the producer-validated locus mutation result")
   .action((slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts));
 
 errand
   .command("abandon <slug>")
-  .description("Abandon a safely preserved ordinary Errand and retain its inbox capture")
+  .description("Abandon a safely preserved Errand and retain its inbox capture")
   .option("--json", "Emit the producer-validated locus mutation result")
   .action((slug: string, opts: ErrandAbandonOptions) => handleErrandAbandon(slug, opts));
 
