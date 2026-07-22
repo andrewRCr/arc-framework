@@ -206,6 +206,7 @@ async function replaceLocalFrame(
         expectedRole: lockedTarget.record.role,
         authority: { kind: "work-unit", key: options.name },
         parentCheckoutPath: null,
+        sessionHomePath: row.checkoutPath,
         establishedAt: record.updatedAt,
         io: recordIO(runtime, targetHandle),
       });
@@ -450,13 +451,14 @@ function classifyTargetRole(
   name: string,
   anchor: Extract<Awaited<ReturnType<typeof acquireSessionAnchor>>, { kind: "process" }>,
 ): "errand" | "work-unit" | "conflict" {
-  if (record.lease === null || !isDeepStrictEqual(record.lease.anchor, anchor)
-    || record.lease.sessionHomePath !== record.checkoutPath) return "conflict";
+  if (record.lease === null || !isDeepStrictEqual(record.lease.anchor, anchor)) return "conflict";
   const subject = record.role.subject;
   if (record.role.kind === "errand" && subject.kind === "errand"
-    && subject.key === identity.slug && subject.claimId === identity.claimId) return "errand";
+    && subject.key === identity.slug && subject.claimId === identity.claimId
+    && record.lease.sessionHomePath === (record.role.parentCheckoutPath ?? record.checkoutPath)) return "errand";
   if (record.role.kind === "work-unit" && subject.kind === "work-unit"
-    && subject.key === name && subject.claimId === null && record.role.parentCheckoutPath === null) return "work-unit";
+    && subject.key === name && subject.claimId === null && record.role.parentCheckoutPath === null
+    && record.lease.sessionHomePath === record.checkoutPath) return "work-unit";
   return "conflict";
 }
 

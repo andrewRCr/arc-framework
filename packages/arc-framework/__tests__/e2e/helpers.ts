@@ -27,6 +27,16 @@ export interface AnchoredSequenceResult extends RunResult {
   results: unknown[];
 }
 
+type AnchoredSequenceLocation =
+  | { cwd: string }
+  | { cwdFromPreviousJson: string }
+  | { reuseResolvedCwd: true };
+
+type AnchoredSequenceEntry =
+  | readonly string[]
+  | ({ args: readonly string[] } & AnchoredSequenceLocation)
+  | ({ command: readonly string[] } & AnchoredSequenceLocation);
+
 /**
  * Run Git in an E2E fixture repository with project hooks disabled.
  *
@@ -123,12 +133,7 @@ export async function runArcAnchored(
 
 /** Invoke several ARC commands beneath one persistent interactive-shell anchor. */
 export async function runArcAnchoredSequence(
-  argsList: readonly (
-    | readonly string[]
-    | { args: readonly string[]; cwd: string }
-    | { args: readonly string[]; cwdFromPreviousJson: string }
-    | { args: readonly string[]; reuseResolvedCwd: true }
-  )[],
+  argsList: readonly AnchoredSequenceEntry[],
   cwd: string,
   options?: { timeout?: number; env?: Record<string, string>; anchorShellPath?: string },
 ): Promise<AnchoredSequenceResult> {
@@ -137,8 +142,10 @@ export async function runArcAnchoredSequence(
   const env = { ...process.env, NO_COLOR: "1", PS1: "", ...options?.env };
   const anchorShell = options?.anchorShellPath ?? "bash";
   const commands = argsList.map((entry) => {
-    const args = "args" in entry ? entry.args : entry;
-    const command = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
+    const commandArgs = "command" in entry
+      ? entry.command
+      : [process.execPath, CLI_PATH, ...("args" in entry ? entry.args : entry)];
+    const command = commandArgs.map(shellEscape).join(" ");
     let prefix = "";
     let located = command;
     if ("cwd" in entry) {

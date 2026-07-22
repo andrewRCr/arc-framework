@@ -858,11 +858,10 @@ protection modes, recovery boundaries, and package/source parity.
           record-free cold frames; shared init/recovery/handoff projection; and warm transient-first recovery. Seed
           emission now derives the governing workflow, load set, cursor, and WU identity from that same locus state.
 
-    - `[ ]` **7.4.b Cover warm WU→Errand→WU execution and release**
-        - Exercise planning and execution WUs, primary and spawned allocation, pause/resume, requested-work
-          awaiting-merge resume, completion, and cold/warm locus-aware promotion.
-        - Prove warm child completion restores and releases only the exact WU lease, while cold transient completion
-          performs no release and leaves a free recordless primary.
+    - `[x]` **7.4.b Cover warm WU→Errand→WU execution and release**
+        - Added real CLI round trips for planning/execution parents, spawned pause/resume, exact requested-work
+          resumption, partial primary completion, and cold/warm promotion. Warm promotion now atomically rebases the
+          promoted lease home while releasing its parent; partial completion returns the primary to a record-free row.
 
     - `[ ]` **7.4.c Cover grooming and one-sweep housekeeping concurrency**
         - Exercise single/multi-member groom claims, disjoint concurrency, exact-set retry adoption, partial/full

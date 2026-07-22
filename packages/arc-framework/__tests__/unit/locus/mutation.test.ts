@@ -594,6 +594,46 @@ describe("durable locus role minting", () => {
     })).toEqual({ kind: "refused", reason: "role-conflict" });
   });
 
+  it("rebases a live lease session home atomically with a directed role transition", async () => {
+    const store = memoryIO();
+    const identity = errandIdentity("errand");
+    await mintDurableLocusRole({
+      ...BASE,
+      parentCheckoutPath: "/parent-wu",
+      authority: { kind: "identity", identity },
+      io: store.io,
+    });
+    await attachLocusLease({
+      recordId: BASE.recordId,
+      sessionHomePath: "/parent-wu",
+      anchor: { kind: "process", pid: 101, startToken: "start", inspector: "test", selector: "codex" },
+      leaseId: "a".repeat(32),
+      attachedAt: BASE.establishedAt,
+      heartbeatAt: BASE.establishedAt,
+      observedLiveness: null,
+      io: store.io,
+    });
+    const current = store.current();
+    if (current.kind !== "valid") throw new Error("expected seeded record");
+
+    expect(await updateLocusRole({
+      recordId: BASE.recordId,
+      checkoutPath: BASE.checkoutPath,
+      expectedRole: current.record.role,
+      authority: { kind: "work-unit", key: "promoted" },
+      parentCheckoutPath: null,
+      sessionHomePath: BASE.checkoutPath,
+      establishedAt: BASE.establishedAt,
+      io: store.io,
+    })).toMatchObject({
+      kind: "applied",
+      record: {
+        role: { kind: "work-unit", parentCheckoutPath: null },
+        lease: { leaseId: "a".repeat(32), sessionHomePath: BASE.checkoutPath },
+      },
+    });
+  });
+
   it("pops the exact unleased role generation and replays an already-absent pop", async () => {
     const store = memoryIO();
     await mintDurableLocusRole({

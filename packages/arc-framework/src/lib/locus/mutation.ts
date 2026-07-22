@@ -265,6 +265,8 @@ export async function updateLocusRole(options: {
   expectedRole: LocusRole;
   authority: LocusRoleAuthority;
   parentCheckoutPath: string | null;
+  /** Optional session-home rebase applied atomically with the role transition. */
+  sessionHomePath?: string;
   establishedAt: string;
   io: LocusLeaseMutationIO;
 }): Promise<LocusLeaseMutationResult> {
@@ -276,13 +278,17 @@ export async function updateLocusRole(options: {
   }
   const desired = deriveRole(options.authority, options.parentCheckoutPath, options.establishedAt);
   if (desired === null) return { kind: "refused", reason: "role-conflict" };
-  if (isDeepStrictEqual(existing.record.role, desired)) {
+  const desiredLease = options.sessionHomePath === undefined || existing.record.lease === null
+    ? existing.record.lease
+    : { ...existing.record.lease, sessionHomePath: options.sessionHomePath };
+  if (isDeepStrictEqual(existing.record.role, desired)
+    && isDeepStrictEqual(existing.record.lease, desiredLease)) {
     return { kind: "idempotent", record: existing.record, bytes: existing.bytes };
   }
   if (!isDeepStrictEqual(existing.record.role, options.expectedRole)) {
     return { kind: "refused", reason: "role-conflict" };
   }
-  const next = { ...existing.record, role: desired };
+  const next = { ...existing.record, role: desired, lease: desiredLease };
   const replaced = await options.io.replace(existing.bytes, next);
   return replaced.kind === "replaced"
     ? { kind: "applied", record: next, bytes: replaced.bytes }

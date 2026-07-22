@@ -394,7 +394,7 @@ export async function observeOpenChangeRequest(
   | { kind: "unverifiable"; message: string }
 > {
   try {
-    const remoteUrl = (await exec("git", ["remote", "get-url", "origin"])).stdout.trim();
+    const remoteUrl = (await exec("git", ["config", "--get", "remote.origin.url"])).stdout.trim();
     const repository = parseRepositoryUrl(remoteUrl);
     if (repository === null) return { kind: "unverifiable", message: "Origin repository coordinates are unsupported." };
     const cliRepository = repository.hostRef === "github.com"

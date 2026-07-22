@@ -194,10 +194,10 @@ async function requireRoot(exec: ReturnType<typeof makeGitExec>): Promise<LocusR
   return root;
 }
 
-function lease(checkoutPath: string, anchor: LocusProcessAnchor) {
+function lease(sessionHomePath: string, anchor: LocusProcessAnchor) {
   return {
     leaseId: "e".repeat(32),
-    sessionHomePath: checkoutPath,
+    sessionHomePath,
     anchor,
     attachedAt: UPDATED_AT,
     heartbeatAt: UPDATED_AT,
@@ -224,7 +224,7 @@ function errandLocusRecord(
       originEntry: null,
       routingPlanDigest: null,
     },
-    lease: lease(checkoutPath, anchor),
+    lease: lease(parentCheckoutPath ?? checkoutPath, anchor),
   };
 }
 

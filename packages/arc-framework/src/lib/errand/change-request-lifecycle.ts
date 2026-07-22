@@ -52,7 +52,7 @@ export async function resolveChangeRequestLifecycleConfiguration(
 ): Promise<ChangeRequestLifecycleConfiguration | null> {
   let url: string;
   try {
-    url = (await exec("git", ["remote", "get-url", "origin"])).stdout.trim();
+    url = (await exec("git", ["config", "--get", "remote.origin.url"])).stdout.trim();
   } catch {
     return null;
   }
