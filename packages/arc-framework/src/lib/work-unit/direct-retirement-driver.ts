@@ -29,7 +29,10 @@ import {
 } from "./retirement-authority.js";
 import { readRetirementAuthoritySnapshot } from "./retirement-authority-snapshot.js";
 import { recordRetirementReceipt } from "./retirement-record.js";
-import { resolveRetirementRecordPath } from "./retirement-record-store.js";
+import {
+  resolveRetirementRecordPath,
+  resolveRetirementRecordRelativePath,
+} from "./retirement-record-store.js";
 import {
   artifactMatcher,
   renameArtifactBasename,
@@ -349,11 +352,20 @@ export interface RenameRetirementContext {
   }): Promise<RenameTransitionSourceEvidence>;
   stageTransition(source: RenameTransitionSourceEvidence): Promise<void>;
   rollbackTransition(source: RenameTransitionSourceEvidence): Promise<void>;
+  rollbackRefusedCommit(
+    source: RenameTransitionSourceEvidence,
+    receiptId: RetirementReceipt["receiptId"],
+  ): Promise<RenameRollbackResult>;
   readTransitionPatch(source: RenameTransitionSourceEvidence): Promise<readonly PatchOperation[]>;
   readResultArtifactDigest(
     source: RenameTransitionSourceEvidence,
   ): Promise<RetirementReceipt["source"]["artifactDigest"]>;
 }
+
+/** Outcome of restoring a refused rename commit to its captured source. */
+export type RenameRollbackResult =
+  | { status: "rolled-back" }
+  | { status: "refused"; reason: "authority-unavailable"; diagnostic: string };
 
 /** Captured rename evidence, including the slug map that derived its result paths. */
 export interface RenameTransitionSourceEvidence extends DirectTransitionSourceEvidence {
@@ -384,6 +396,29 @@ export function createInRepoRenameRetirementContext(
     },
     stageTransition: (source) => direct.stageTransition(source),
     rollbackTransition: (source) => direct.rollbackTransition(source),
+    rollbackRefusedCommit: async (source, receiptId) => {
+      const failures: string[] = [];
+      try {
+        await direct.rollbackTransition(source);
+      } catch (error) {
+        failures.push(`tree restore failed: ${errorMessage(error)}`);
+      }
+      try {
+        await deps.removeRecord(receiptId);
+      } catch (error) {
+        failures.push(`record removal failed: ${errorMessage(error)}`);
+      }
+      if (failures.length === 0) return { status: "rolled-back" };
+
+      const recordPath = resolveRetirementRecordRelativePath(receiptId);
+      return {
+        status: "refused",
+        reason: "authority-unavailable",
+        diagnostic: `Rename rollback was incomplete for record ${recordPath}: ${failures.join("; ")}. `
+          + `Discard residual evidence with \`git rm -f --cached --ignore-unmatch -- ${recordPath}\` and remove `
+          + `the file before retrying.`,
+      };
+    },
     readTransitionPatch: (source) => direct.readTransitionPatch(source),
     readResultArtifactDigest: (source) => direct.readResultArtifactDigest(source),
   };
@@ -536,6 +571,10 @@ async function withRetirementTransaction<T>(
   } finally {
     await releaseAdvisoryLock(handle);
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function bytesEqual(left: Uint8Array | null, right: Uint8Array | null): boolean {

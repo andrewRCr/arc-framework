@@ -86,36 +86,20 @@ the derivation of the _basename_ moves; source derivation stays `listArtifactPat
 - _Outcome:_ Patch and result-digest reads now raise `DirectTransitionConservationError` with the omitted
   committed artifact's expected result path, leaving genuinely unavailable authority on its existing refusal.
 
-### `[ ]` **2.4 Post-refusal rollback**
+### `[x]` **2.4 Post-refusal rollback**
 
 - _Goal:_ The binding can restore a clean index, a clean working tree, and no written record — the exact
   precondition a re-run needs.
-- _Shape:_ Binding-side capability only. Calling it on a refused commit is the orchestration's, and its
-  end-to-end assertion lives there; this task makes the capability correct and covers it against an injected
-  refusal.
-- _Rationale:_ `receiptId` hashes only the subject tuple, not the patch, so a re-run at the same `HEAD` derives
-  the same ID and `createRecord` refuses on `EEXIST`. Unstaging alone is insufficient: the sweep's moves and field
-  rewrites are working-tree changes, so an index-only reset leaves a dirty tree the clean-tree guard then refuses.
-- _Note:_ These behaviors exercise an injected refusal rather than a real commit path.
+    - `[x]` **2.4.a Restore index and working tree**
+        - The refused-commit rollback restores derived pairs, additive paths, and ROADMAP in both index and tree
+          from the captured source head.
 
-    - `[ ]` **2.4.a Restore index and working tree**
-        - Roll back through the port's shipped `rollbackTransition`, covering the additional paths as well as the
-          derived pairs — the shipped restore is scoped to the patch path set.
-        - Build `test-first` (one behavior at a time):
-            - After a refused commit, no rename artifact remains staged.
-            - After a refused commit, the working tree matches the source head across the full patch path set.
+    - `[x]` **2.4.b Remove the record and diagnose an incomplete rollback**
+        - The same operation removes the deterministic receipt record; incomplete cleanup returns a typed refusal
+          naming the record path, underlying failures, and an explicit discard command.
 
-    - `[ ]` **2.4.b Remove the record and diagnose an incomplete rollback**
-        - Remove the written record in the same step. Neither shipped record-removal seam is reachable from a
-          caller — one is a construction-time dependency of the binding and is not re-exported on the transition
-          context, the other is internal to the record write's own cleanup. Unlink through the shipped record-path
-          resolver, keeping the store behind the resolver the Non-Goals reserve to it, rather than widening the
-          context surface.
-        - When rollback itself fails, refuse with a diagnostic naming the record path and the command to discard
-          it, so the residue is operator-visible rather than silent.
-        - Build `test-first` (one behavior at a time):
-            - A rolled-back run leaves no record behind, so a re-run at the same head is not refused for conflict.
-            - A failed rollback surfaces the record path in its diagnostic.
+- _Outcome:_ A refused rename commit can return to the clean captured source state without leaving same-ID
+  evidence behind, while cleanup failures remain operator-visible and actionable.
 
 ## **Phase 3:** CHECK 20 acceptance
 

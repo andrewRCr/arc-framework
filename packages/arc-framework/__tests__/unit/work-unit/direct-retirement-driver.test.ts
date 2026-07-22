@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
   createInRepoAbandonRetirementContext,
@@ -323,5 +324,83 @@ describe("rename result derivation", () => {
       expectedBranch: "feat/sample",
       additionalPaths: [additionalPath],
     })).rejects.toThrow("additional transition path overlaps a derived path");
+  });
+
+  it("restores every rename path and removes the record after a refused commit", async () => {
+    const calls: string[][] = [];
+    const removed: string[] = [];
+    const siblingPath = ".arc/active/spec-sibling.md";
+    const exec: GitExec = async (_cmd, args) => {
+      calls.push(args);
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "feat/sample\n" };
+      if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
+      if (args[0] === "ls-tree") return { stdout: `${META_PATH}\0` };
+      if (args[0] === "restore") return { stdout: "" };
+      throw new Error(`unexpected Git command: ${args.join(" ")}`);
+    };
+    const context = createInRepoRenameRetirementContext({
+      cwd: "/repo",
+      exec,
+      readBlob: async () => bytes("artifact"),
+      readFile: async () => "",
+      createRecord: async () => undefined,
+      removeRecord: async (id) => { removed.push(id); },
+    });
+    const source = await context.captureSource({
+      name: "sample",
+      targetSlug: "renamed-sample",
+      sourceDir: ".arc/active",
+      resultDir: ".arc/active",
+      expectedBranch: "feat/sample",
+      additionalPaths: [siblingPath],
+    });
+    const id = canonicalDigest("rename-receipt");
+
+    await expect(context.rollbackRefusedCommit(source, id)).resolves.toEqual({ status: "rolled-back" });
+    expect(removed).toEqual([id]);
+    expect(calls).toContainEqual([
+      "restore",
+      `--source=${HEAD}`,
+      "--staged",
+      "--worktree",
+      "--",
+      META_PATH,
+      ".arc/active/meta-renamed-sample.md",
+      siblingPath,
+      ROADMAP_PATH,
+    ]);
+  });
+
+  it("names the residual record and discard command when rollback is incomplete", async () => {
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "feat/sample\n" };
+      if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
+      if (args[0] === "ls-tree") return { stdout: `${META_PATH}\0` };
+      if (args[0] === "restore") throw new Error("injected restore refusal");
+      throw new Error(`unexpected Git command: ${args.join(" ")}`);
+    };
+    const context = createInRepoRenameRetirementContext({
+      cwd: "/repo",
+      exec,
+      readBlob: async () => bytes("artifact"),
+      readFile: async () => "",
+      createRecord: async () => undefined,
+      removeRecord: async () => { throw new Error("injected unlink refusal"); },
+    });
+    const source = await context.captureSource({
+      name: "sample",
+      targetSlug: "renamed-sample",
+      sourceDir: ".arc/active",
+      resultDir: ".arc/active",
+      expectedBranch: "feat/sample",
+    });
+    const id = canonicalDigest("rename-receipt");
+
+    const result = await context.rollbackRefusedCommit(source, id);
+
+    expect(result).toMatchObject({ status: "refused", reason: "authority-unavailable" });
+    if (result.status !== "refused") throw new Error("expected refusal");
+    expect(result.diagnostic).toContain(`sha256-${id.slice("sha256:".length)}.json`);
+    expect(result.diagnostic).toContain("git rm -f --cached --ignore-unmatch");
   });
 });
