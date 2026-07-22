@@ -828,11 +828,10 @@ protection modes, recovery boundaries, and package/source parity.
 - _Goal:_ Adopters and this self-hosted checkout execute the same locus procedures without overwriting
   project-specific configurable sections or leaking internal planning context.
 
-    - `[ ]` **7.3.a Reconcile canonical package changes into the project instance**
-        - Treat `packages/arc-framework/arc/**` as authoritative for Framework content and apply the corresponding
-          rendered changes to `.arc/**`; preserve template conditionals and never blind-copy Configurable files.
-        - Preserve adopter-facing language boundaries and keep WU names, rollout notes, and internal seams out of
-          shipped methodology.
+    - `[x]` **7.3.a Reconcile canonical package changes into the project instance**
+        - Audited all 18 package methodology files changed by this WU: every directly mirrored Framework/skill file
+          matches its project copy, rendered-template parity passes, the configurable quick reference retains its
+          project sections, and shipped surfaces contain no WU identifiers or internal rollout seams.
 
     - `[ ]` **7.3.b Close install-recipe and self-hosted parity blind spots**
         - Add `system/workflows/arc/supplemental/drain-inbox.md` and
