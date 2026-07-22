@@ -56,13 +56,10 @@ certify the design for downstream planning.
 
 - _Note:_ Design coverage: PD5.
 
-    - `[ ]` **2.2.a Bind proportionality findings to existing severity semantics**
-        - Add the severity interpretation to the package and self-hosted `assess-design-proportionality.md`
-          methods before either adversarial call site consumes the rubric.
-        - Map goal-breaking `adequacy-regression` to `blocker`, other adequacy regressions and the remaining four
-          finding kinds to `major`, and leave `minor` fit residue to `design-audit`.
-        - Preserve the read-only reviewer, source verification, approved disposition, pass-cap, and convergence
-          contracts without creating a second gate.
+    - `[x]` **2.2.a Bind proportionality findings to existing severity semantics**
+        - Bound goal-breaking adequacy regression to `blocker` and every other decision-bearing proportionality
+          finding to `major`, leaving `minor` fit residue to `design-audit` and disposition authority with the
+          primary.
 
     - `[ ]` **2.2.b Expand the draft-readiness adversarial rubric**
         - Name `assess-design-proportionality` beside `design-audit` in the package `draft-design.md` rubric and

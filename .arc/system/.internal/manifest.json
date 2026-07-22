@@ -344,7 +344,7 @@
     "system/methods/assess-design-proportionality.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "6e728dc3c7ff805679281d4120c4340d6a9e1765f69e27374e49b7a7737a347b"
+      "pristine_hash": "61fd23ac5bf24c54367f437e08708ee68fc0774d886926d323333886f2c562c9"
     },
     "system/methods/assess-draft-readiness.md": {
       "classification": "Configurable",

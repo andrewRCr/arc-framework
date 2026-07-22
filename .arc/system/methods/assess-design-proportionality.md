@@ -69,6 +69,12 @@ Apply these questions as one judgment:
 6. **Essential-complexity check:** Would removing the mechanism expose complexity intrinsic to the problem, or
    remove states and coordination created by the solution itself?
 
+**Severity interpretation.** When a caller composes findings through `adversarial-review`, map an
+`adequacy-regression` that breaks a stated goal to `blocker`. Map every other `adequacy-regression` and all
+`unsupported-machinery`, `missed-composition`, `disproportionate-rigor`, and `speculative-capability` findings to
+`major`. This method emits no `minor`; broader fit residue remains `design-audit`'s concern. Severity remains the
+reviewer's materiality claim, while verification and disposition stay with the primary.
+
 **Adequacy rail.** The minimal credible alternative is a counterfactual baseline, not an automatic winner. Reject
 any simplification that drops behavior required for correctness, safety, trust, compatibility, or a stated goal.
 Assess the full lifecycle cost of each material mechanism: concepts, states, schemas, persistence, recovery,
