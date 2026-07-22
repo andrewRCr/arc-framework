@@ -366,9 +366,9 @@ exists to enable unreachable.
 
 - _Goal:_ The verb is exercised as an operator invokes it — real repository fixtures, real git state — across
   every shape and every interruption point the convergence claim rests on.
-- _Outcome:_ Built-CLI tests exercise real repositories for stub, in-place, and spawned subjects; spawned coverage
-  self-moves the active checkout and verifies marker/remote identity, while an injected stale lease proves a
-  post-commit rerun skips durable work and completes the remaining marker and worktree legs.
+- _Outcome:_ Built-CLI tests exercise the full tracked sweep and applicable identity surfaces for stub, in-place,
+  and spawned subjects. A one-shot commit refusal proves clean rollback and rerun through CHECK 20; a stale remote
+  lease proves post-commit resume, while deterministic orchestrator tests inject every identity-leg boundary.
 
 ## **Phase 7:** Ship surface and integration readiness
 
@@ -394,52 +394,61 @@ inside this unit reaches past that, so first use is a post-integration act, trac
 - _Goal:_ The assumptions this work unit records about the session-locus model still hold against that unit's
   settled design at the moment of integration, rather than against the design as it stood at spec time.
 - _Outcome:_ The settled sibling design intentionally leaves ordinary WUs leaseless and only reaps stale records
-  with dead leases, so neither anticipated seam currently composes with rename. Routed a proof-grounded capture to
-  `session-locus-model` for an exact idle-record path rekey/reconciliation and the liveness disposition.
+  with dead leases, so neither anticipated seam currently composes with rename. Recorded the exact path-rekey and
+  liveness disposition as a cross-WU integration-order obligation: `wu-rename` lands first, and the
+  `session-locus-model` integration candidate must carry the separately reviewed compatibility increment.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source and test typechecks; 602 passing test files with
+  7,727 passing tests; and the production build all passed (one file and one test intentionally skipped).
+- _Success criteria:_ All 15 criteria met; criterion 10 records the approved tier-allocation deviation for
+  exhaustive interruption injection.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A commit renaming a work unit's artifact set passes the pre-commit gate, carrying exactly one finalized
+- `[x]` A commit renaming a work unit's artifact set passes the pre-commit gate, carrying exactly one finalized
   rename receipt whose patch digest binds the staged sweep
-- `[ ]` The gate refuses, each with its own specific reason, a rename receipt whose target slug is absent from the
+- `[x]` The gate refuses, each with its own specific reason, a rename receipt whose target slug is absent from the
   staged additions, one whose additions drop an artifact the deletions carried, one that is amended or
   pre-existing, and one whose patch digest does not match
-- `[ ]` The producer refuses a sweep that omits any artifact the work unit carries at `HEAD`, proven against the
+- `[x]` The producer refuses a sweep that omits any artifact the work unit carries at `HEAD`, proven against the
   committed tree — verified by deleting one companion from the sweep's output and asserting the run fails
-- `[ ]` Shipped transitions are unchanged: `abandon`, `decompose`, and `park-planning` commits and the merge
+- `[x]` Shipped transitions are unchanged: `abandon`, `decompose`, and `park-planning` commits and the merge
   exemption pass their existing tests, and a rename receipt cannot reach an authorized teardown decision
-- `[ ]` After renaming a spawned work unit, the meta filename and its branch and pointer fields, every companion
+- `[x]` After renaming a spawned work unit, the meta filename and its branch and pointer fields, every companion
   filename, every backticked reference in sibling artifacts, any cohort member section, the local branch, the
   worktree directory, the worktree ownership marker, the user-notes subdir, and the readiness row all read the
   new name
-- `[ ]` After renaming an in-place work unit, every surface above reads the new name except the worktree
+- `[x]` After renaming an in-place work unit, every surface above reads the new name except the worktree
   directory and the ownership marker, which are unchanged and reported as designed skips
-- `[ ]` After renaming a backlog stub, its artifact set, containing directory, cohort member section, and
+- `[x]` After renaming a backlog stub, its artifact set, containing directory, cohort member section, and
   readiness row read the new name; no identity leg runs; the commit lands on a short-lived branch; and the cohort
   structural conditions still pass
-- `[ ]` The old remote head is gone and the new one exists with upstream tracking, and a branch that was never
+- `[x]` The old remote head is gone and the new one exists with upstream tracking, and a branch that was never
   pushed is left unpublished with the leg completing cleanly
-- `[ ]` A rename invoked from inside the work unit's own worktree completes, hops the process locus, and reports
+- `[x]` A rename invoked from inside the work unit's own worktree completes, hops the process locus, and reports
   the new path; where the platform refuses to move an occupied directory, every other leg completes and the
   residual move is surfaced as a follow-up
-- `[ ]` A rename interrupted at any leg boundary converges when re-run, with no duplicated or skipped leg —
+- `[x]` A rename interrupted at any leg boundary converges when re-run, with no duplicated or skipped leg —
   tested both for a commit refused with the record already written and for a later identity leg failing after the
   commit landed; the accepted stale-lease terminal state is the sole exclusion
-- `[ ]` A rename onto a slug held by a different in-flight work unit is refused, while a re-run of a partially
+    - **Deviation:** Built-CLI coverage proves clean commit-refusal rollback/rerun and post-commit stale-lease
+      resume; deterministic orchestrator tests inject every identity-leg boundary instead of brittle OS-level
+      failure injection at each boundary.
+- `[x]` A rename onto a slug held by a different in-flight work unit is refused, while a re-run of a partially
   applied rename is not
-- `[ ]` A rename is refused with nothing applied when the target slug is malformed, equals the current slug,
+- `[x]` A rename is refused with nothing applied when the target slug is malformed, equals the current slug,
   collides with a work unit visible only through the in-flight oracle, the meta carries a PR URL, the worktree is
   dirty, or the verb runs from a checkout that does not hold the subject's branch
-- `[ ]` The design records why first use cannot precede integration — each subject's own commit gate must carry
+- `[x]` The design records why first use cannot precede integration — each subject's own commit gate must carry
   the rename-aware validator before it will accept the rename commit — so the constraint is read rather than
   rediscovered at a refused commit; the verb's behavioral proof rests on the end-to-end coverage
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 ---

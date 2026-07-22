@@ -17,7 +17,7 @@
 - **Next Task:** Task 1.1 — Transition and authorization unions with their refusal arms (line ~17)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
