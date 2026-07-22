@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** Cohort-fit cut — extracted `chunked-delivery`; draft narrowed to the retrofit half
+- **Last Completed:** Reconciled with `main`; retitled `pr-decomposition` → `review-chunking` (`wu-rename` first use)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
