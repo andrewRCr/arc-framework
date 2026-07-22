@@ -12,12 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Draft design formalization-ready after adversarial and coherence review
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Review and capture the formalization-ready draft at the `draft-design` workflow interlock
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
