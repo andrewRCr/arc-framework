@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `35f2f5c8e`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `7e6f1d8fc`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -20,10 +20,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning`    | pr-decomposition         | P1       | andrew | —          | —                      |
 | `Planning`    | review-surface-binding   | P1       | andrew | —          | —                      |
 | `Active`      | session-locus-model      | P1       | andrew | —          | —                      |
+| `Active`      | solution-proportionality | P1       | andrew | —          | —                      |
 | `Integrating` | cli-command-inputs       | P2       | andrew | —          | cli-substrate-adoption |
 | `Active`      | cli-validation-surfaces  | P2       | andrew | —          | cli-substrate-adoption |
-| `Planning`    | wu-rename                | P2       | andrew | —          | —                      |
-| `Active`      | markdown-formatting      | P3       | andrew | —          | —                      |
+| `Active`      | wu-rename                | P2       | andrew | —          | —                      |
 
 ## Ready
 
@@ -75,6 +75,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | idiomatic-alignment                   | P3       | andrew | —          | —                          |
 | inbound-routing-method                | P3       | andrew | —          | —                          |
 | knowledge-lint                        | P3       | andrew | —          | —                          |
+| markdown-formatting                   | P3       | andrew | —          | —                          |
 | planning-iteration-mechanics          | P3       | andrew | —          | —                          |
 | quality-gate-hooks                    | P3       | andrew | —          | —                          |
 | rules-restructure                     | P3       | andrew | —          | —                          |
