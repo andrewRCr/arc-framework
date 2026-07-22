@@ -2774,6 +2774,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "active",
       "branch",
       "dirty",
+      "handoffLocus",
       "head",
       "identity",
       "inboxState",
@@ -2788,6 +2789,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "worktree",
     ]);
     expect(result.mode).toBe("session-handoff");
+    expect(result.handoffLocus).toEqual({ ok: true, value: { kind: "between-work-units" } });
   });
 
   it("finalizes loadNeeded on the handoff user slot when disk lags behind the notes ref", async () => {

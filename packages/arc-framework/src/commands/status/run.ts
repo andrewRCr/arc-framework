@@ -65,6 +65,7 @@ import {
   type WorktreePullPolicy,
 } from "../../lib/session-init/recommended-action.js";
 import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
+import { deriveHandoffLocusPlan } from "../../lib/handoff/locus-plan.js";
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import { assertLoadSetPath, resolveLoadSetManifest } from "../../lib/load-set/projection.js";
@@ -726,11 +727,17 @@ export async function runSessionHandoffStatus(
       unpushedN: worktree.value.ahead,
     })
     : null;
+  const deriveHandoff = fromThrowable(
+    deriveHandoffLocusPlan,
+    (cause) => new SessionCompositionError("derive-handoff-locus", "handoffLocus", cause),
+  );
+  const handoffLocus = locusState.andThen(deriveHandoff);
 
   return {
     mode: "session-handoff",
     identity: buildIdentity(identity, role),
     locusState: toProbe(locusState),
+    handoffLocus: toProbe(handoffLocus),
     branch,
     dirty: toProbe(dirty),
     worktree: toProbe(worktree),

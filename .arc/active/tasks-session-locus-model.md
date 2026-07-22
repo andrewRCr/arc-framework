@@ -694,13 +694,11 @@ as their machine-local occupancy authority.
 - _Goal:_ Handoff never strands a live lease or records an incomplete transient operation as safely paused, while a
   completed local child restores and hands off the correct parent frame.
 
-    - `[ ]` **6.4.a Resolve handoff from the active locus before branch/meta heuristics**
-        - Consume the required handoff `locusState.current` verdict and its referenced current record, subject
-          identity, parent, and exact lease generations before branch/meta heuristics.
-        - Leave an eligible full-mode ordinary Errand through its subject driver; refuse incomplete housekeep,
-          groom, partial Errand, or unpreserved full-mode work until completion, promotion, or abandonment.
-        - Build `test-first` (one behavior at a time):
-            - Cover WU-only, warm child, cold transient, restored parent, and generation races.
+    - `[x]` **6.4.a Resolve handoff from the active locus before branch/meta heuristics**
+        - Added a schema-backed `handoffLocus` action to the handoff envelope, derived from its existing reader-owned
+          snapshot. Exact WU generations route to release, ordinary full-mode Errands route to their leave driver,
+          record-free tails remain between WUs, and incomplete housekeep, groom, partial, mismatched, or ambiguous
+          generations refuse before branch or meta heuristics.
 
     - `[ ]` **6.4.b Release every current-frame lease exactly once**
         - After subject close/leave, release a restored WU through `arc locus release` with exact IDs and surface a

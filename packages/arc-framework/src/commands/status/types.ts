@@ -60,6 +60,7 @@ import type { WorkUnitStateResult } from "../../lib/session-init/work-unit-state
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
 import type { ClassComposition } from "../../lib/status/class-composition.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
+import type { HandoffLocusPlan } from "../../lib/handoff/locus-plan.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
@@ -470,6 +471,8 @@ export interface SessionHandoffResult {
   identity: StatusIdentity;
   /** Shared network-free interpretation of machine-local session occupancy. */
   locusState: Probe<LocusStateV1>;
+  /** Exact subject action derived from the same reader-owned locus snapshot. */
+  handoffLocus: Probe<HandoffLocusPlan>;
   /**
    * Current branch name from the worktree probe; `null` on detached HEAD or
    * when the worktree probe failed.
