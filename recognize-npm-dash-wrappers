@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "recognize-npm-dash-wrappers",
-  "origin": "description",
-  "intent": "Recognize npm dash wrappers in locus process ancestry",
-  "branch": "fix/recognize-npm-dash-wrappers",
-  "createdAt": "2026-07-22T00:34:55.121Z",
-  "returnBranch": "main"
-}
