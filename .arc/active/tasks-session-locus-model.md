@@ -765,13 +765,10 @@ protection modes, recovery boundaries, and package/source parity.
 - **Additional Context:** `strategy-procedure-evolution.md` § Self-Check and Forward-Compat Principles;
   `notes-session-locus-model.md` § Codebase pointers.
 
-    - `[ ]` **7.1.a Rework session initialization and its probe reference**
-        - Under authoritative package `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`, update
-          `session-init.template.md` and `session-init/probe-envelope.md`, then render/sync the project instance.
-        - Consume the one required `locusState: Probe<LocusStateV1>` reader projection, attach the selected role,
-          dispatch on CLI-composed actions/narration, and preserve all existing sync, notes, and base surfaces.
-        - Replace raw Errand `git worktree add` materialization with `arc errand materialize`; consume lease-aware
-          cleanup and `arc locus resolve` results instead of rebuilding branch-shape or removal conditions in prose.
+    - `[x]` **7.1.a Rework session initialization and its probe reference**
+        - Reworked the canonical template, rendered instance, and probe reference around the required reader-owned
+          `locusState`: exact role attachment and load-set dispatch now use locus verbs and CLI narration, Errand
+          materialization uses `arc errand materialize`, and cleanup/recovery no longer rebuild branch heuristics.
 
     - `[ ]` **7.1.b Rework deterministic compaction recovery**
         - Under authoritative package `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`, update
