@@ -235,7 +235,7 @@ fresh context, distinct from both the self-review above and any team extension:
 
 ```yaml
 adversarial-review:
-  rubric:          # design-audit (efficacy + fit) + spec-review (coherence + grounding, at the resolved form)
+  rubric:          # assess-design-proportionality + design-audit + spec-review at the resolved form
   artifacts:       # spec-{name}.md + draft-{name}.md (when one fed it) + non-exhaustive key-file pointers
   orientation:
     - AGENT-BRIEF.ARC

@@ -519,7 +519,7 @@
     "system/workflows/arc/create-spec.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "3785a5e079a4bbb4cc1334e9ab22296c14049623f7dea9d577c59d0ac338355d"
+      "pristine_hash": "75b2040bff83cb75c511bcfe567f1efa1de95f1c1c76d06e336f453c0d1054e8"
     },
     "system/workflows/arc/generate-tasks.md": {
       "classification": "Framework",

@@ -49,12 +49,10 @@ certify the design for downstream planning.
   before self-review. Settled mechanism errors correct in place, while findings that reopen derivation use the
   existing planning-depth valve to return to `draft-design`.
 
-### `[ ]` **2.2 Pair proportionality with design-audit at adversarial design boundaries**
+### `[x]` **2.2 Pair proportionality with design-audit at adversarial design boundaries**
 
 - _Goal:_ Fresh-context draft and spec attacks test both general design fitness and material proportionality while
   retaining one severity model and primary-held disposition authority.
-
-- _Note:_ Design coverage: PD5.
 
     - `[x]` **2.2.a Bind proportionality findings to existing severity semantics**
         - Bound goal-breaking adequacy regression to `blocker` and every other decision-bearing proportionality
@@ -64,9 +62,11 @@ certify the design for downstream planning.
     - `[x]` **2.2.b Expand the draft-readiness adversarial rubric**
         - Named `assess-design-proportionality` beside `design-audit` in both draft-readiness adversarial rubrics.
 
-    - `[ ]` **2.2.c Expand the spec-finalization adversarial rubric**
-        - Name `assess-design-proportionality` beside `design-audit` in the package `create-spec.md` rubric and
-          mirror the same call-site contract into the self-hosted workflow.
+    - `[x]` **2.2.c Expand the spec-finalization adversarial rubric**
+        - Named `assess-design-proportionality` beside `design-audit` in both spec-finalization adversarial rubrics.
+
+- _Outcome:_ Draft and spec adversarial boundaries now combine material proportionality with broader design
+  fitness under one severity, verification, disposition, pass-cap, and convergence contract.
 
 ## **Phase 3:** Task-generation backstop
 
