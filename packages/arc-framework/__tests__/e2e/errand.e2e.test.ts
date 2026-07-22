@@ -7,14 +7,15 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { CLI_PATH } from "../helpers/cli-spawn.js";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, runArcAnchoredSequence, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -322,20 +323,41 @@ describe("arc errand close", () => {
 
   it("restores the pre-open branch when main is held by the primary worktree", async () => {
     const linkedDir = `${tmpDir}-linked`;
+    const remoteDir = `${tmpDir}-legacy-remote.git`;
+    const harnessDir = await mkdtemp(join(tmpdir(), "arc-legacy-codex-"));
+    const harness = join(harnessDir, "codex");
+    await copyFile("/bin/bash", harness);
+    await chmod(harness, 0o755);
     await setFullProtection(tmpDir);
     await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    await execFileAsync("git", ["init", "--bare", remoteDir]);
+    await git(tmpDir, ["remote", "add", "origin", remoteDir]);
+    await git(tmpDir, ["push", "-u", "origin", "main"]);
     await git(tmpDir, ["branch", "feat/active-wu"]);
     await git(tmpDir, ["worktree", "add", linkedDir, "feat/active-wu"]);
 
     try {
       await seedLegacyErrand(linkedDir, { slug: "linked-fix", type: "fix" });
+      await git(linkedDir, ["push", "origin", "refs/arc/user/test-user/errands:refs/arc/user/test-user/errands"]);
       expect((await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("fix/linked-fix");
       const record = await git(
         linkedDir,
         ["cat-file", "-p", "refs/arc/user/test-user/errands:linked-fix"],
       );
       expect(record).toContain('"returnBranch": "feat/active-wu"');
+
+      await mkdir(join(linkedDir, ".arc", "system", "extensions"), { recursive: true });
+      const displaced = await runArcAnchoredSequence([
+        ["errand", "open", "linked-fix", "--json"],
+      ], linkedDir, { anchorShellPath: harness });
+      expect(displaced.exitCode).toBe(1);
+      expect(displaced.results[0], JSON.stringify(displaced.results[0])).toMatchObject({
+        outcome: "refused",
+        operation: "errand-open",
+        reason: "identity-conflict",
+      });
+      expect((await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("fix/linked-fix");
 
       const close = await runArc(["errand", "close", "linked-fix"], linkedDir);
 
@@ -345,6 +367,8 @@ describe("arc errand close", () => {
       expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("main");
     } finally {
       await git(tmpDir, ["worktree", "remove", "--force", linkedDir]);
+      await cleanupTempDir(harnessDir);
+      await cleanupTempDir(remoteDir);
     }
   });
 

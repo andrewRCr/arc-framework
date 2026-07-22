@@ -848,7 +848,7 @@ protection modes, recovery boundaries, and package/source parity.
   fresh installs receive every locus-era decision surface referenced by the updated workflows, and structural
   contracts protect the command/projection boundaries that byte parity alone cannot express.
 
-### `[ ]` **7.4 Cover cross-flow locus scenarios end to end** — D4-D10
+### `[x]` **7.4 Cover cross-flow locus scenarios end to end** — D4-D10
 
 - _Goal:_ Real temporary repositories prove the complete locus model across worktree topology, protection modes,
   compaction boundaries, identity review tails, and cleanup races rather than only isolated unit seams.
@@ -875,9 +875,10 @@ protection modes, recovery boundaries, and package/source parity.
           adoption, failed-claim recovery, malformed/duplicate evidence, unknown liveness, and partial-mode
           primary-only refusal.
 
-    - `[ ]` **7.4.e Cover cleanup and rollout compatibility**
-        - Race attach against physical removal, prove live/unknown vetoes, retain every existing teardown guard, and
-          close one pre-model v2 `returnBranch` Errand without allowing a new displaced open.
+    - `[x]` **7.4.e Cover cleanup and rollout compatibility**
+        - Added a real work-unit retirement race proving a concurrent attach cannot cross physical removal, plus an
+          end-to-end v2 `returnBranch` generation that refuses a new displaced open before closing back to its recorded
+          parent. The cleanup matrix retains live/unknown vetoes and all existing teardown guards.
 
 ### `[ ]` **7.5 Exercise process-inspector contracts on every supported operating system** — D5
 

@@ -412,6 +412,12 @@ describe("arc start dispatch — against real worktrees", () => {
       checkoutPath: wt,
       wuName: "retired-role",
       removeCheckout: async () => {
+        await expect(driver.reconcile({
+          checkoutPath: wt,
+          branch: "plan/retired-role",
+          wuName: "retired-role",
+          attachSession: false,
+        })).rejects.toThrow(/record lock is live/u);
         await h.io.exec("git", ["worktree", "remove", wt]);
       },
     })).resolves.toMatchObject({ recordId: locusIdentity.recordId, roleRemoved: true });
