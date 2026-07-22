@@ -885,12 +885,10 @@ protection modes, recovery boundaries, and package/source parity.
 - _Goal:_ Native CI confirms that each production inspector observes the same PID-plus-start-token contract and
   degrades unavailable evidence to unknown on Linux, macOS, and Windows.
 
-    - `[ ]` **7.5.a Add native contract probes and fixtures**
-        - Extend the platform-neutral acquisition and liveness contracts with OS-specific live-process,
-          missing-process, PID-token, permission, and malformed-output cases not already required by Task 5.1.a,
-          using injected snapshots where native failure states cannot be forced safely.
-        - Keep production invocations argument-array based and bounded; tests must not rely on localized display
-          formatting.
+    - `[x]` **7.5.a Add native contract probes and fixtures**
+        - Added a supported-platform native probe for stable live-process generations, missing PIDs, exact-token
+          liveness, and injected permission/malformed evidence, plus an elapsed-time bound alongside the existing
+          argument-array and output-size bounds for production native calls.
 
     - `[ ]` **7.5.b Wire the supported-OS CI matrix**
         - Add the inspector contract to `test:portability`, extend `scripts/classify-change.sh` so inspector source

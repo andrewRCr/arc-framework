@@ -3,6 +3,7 @@
 import { execa } from "execa";
 
 export const MAX_PROCESS_OUTPUT_BYTES = 64 * 1024;
+export const PROCESS_INSPECTION_TIMEOUT_MS = 5_000;
 
 export interface ProcessExecOptions {
   readonly cwd?: string;
@@ -38,8 +39,9 @@ export type NativeProcessRunner = (
 export function createProcessExec(runner: NativeProcessRunner = runNativeProcess): ProcessExec {
   return async (command, args, options = {}) => {
     const maxOutputBytes = options.maxOutputBytes ?? MAX_PROCESS_OUTPUT_BYTES;
+    const signal = options.signal ?? AbortSignal.timeout(PROCESS_INSPECTION_TIMEOUT_MS);
     try {
-      const result = await runner(command, args, { ...options, maxOutputBytes });
+      const result = await runner(command, args, { ...options, signal, maxOutputBytes });
       const capturedBytes = Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr);
       if (capturedBytes > maxOutputBytes) {
         return { kind: "output-limit", message: "Native process output exceeded the capture limit" };
