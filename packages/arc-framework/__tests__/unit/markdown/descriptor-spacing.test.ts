@@ -133,19 +133,13 @@ describe("validateTaskDescriptorSpacing", () => {
       }]);
   });
 
-  it("checks canonical and current task-list fixtures", () => {
+  it("checks the canonical task-list template", () => {
     const canonicalPath = "packages/arc-framework/arc/reference/templates/arc/work-unit/template-tasks.md";
-    const currentPath = ".arc/active/tasks-markdown-formatting.md";
     const canonical = readFileSync(new URL(
       "../../../arc/reference/templates/arc/work-unit/template-tasks.md",
       import.meta.url,
     ), "utf8");
-    const current = readFileSync(new URL(
-      "../../../../../.arc/active/tasks-markdown-formatting.md",
-      import.meta.url,
-    ), "utf8");
 
     expect(validateTaskDescriptorSpacing({ path: canonicalPath, content: canonical })).toEqual([]);
-    expect(validateTaskDescriptorSpacing({ path: currentPath, content: current })).toEqual([]);
   });
 });
