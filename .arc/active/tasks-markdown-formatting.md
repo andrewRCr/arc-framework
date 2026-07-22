@@ -156,13 +156,9 @@ repository-only. Singular `_Note:_` is the sole peer descriptor spelling.
 - _Goal:_ A pure repository rule detects only malformed documented root descriptor clusters and leaves unrelated
   Markdown grammar outside its authority.
 
-    - `[ ]` **5.2.a Share a fence-aware task-list structural scanner**
-        - Factor the existing canonical parent/subtask grammar from the task-list cursor into a shared scanner
-          that emits stable structural events for cursor navigation and descriptor validation.
-        - Build `test-first` (one behavior at a time):
-            - Preserve current cursor behavior and canonical parent, subtask, and completion-shape recognition.
-            - Ignore canonical-looking task markers inside backtick and tilde fenced code blocks, including
-              example markers in the canonical task template.
+    - `[x]` **5.2.a Share a fence-aware task-list structural scanner**
+        - Extracted canonical task grammar into stable phase, parent, subtask, section, fence, and content events;
+          cursor analysis and region extraction now ignore backtick- and tilde-fenced task examples.
 
     - `[ ]` **5.2.b Validate documented root descriptor clusters**
         - Implement the pure `{ path, content }` rule over scanner events for parent boundaries, documented

@@ -8,8 +8,11 @@
  * @module
  */
 import { z } from "zod";
-
-type TaskMarker = " " | "x" | "~";
+import {
+  scanTaskListStructure,
+  type TaskListStructureEvent,
+  type TaskMarker,
+} from "./scanner.js";
 
 interface ParsedTask {
   item: TaskCursorItem;
@@ -120,18 +123,6 @@ export type CurrentTaskRegionResult =
   | { status: "no-open-task" }
   | { status: "malformed"; error: TaskListCursorMalformed };
 
-const PARENT_TASK_RE = /^###\s+`\[(?<marker>[ x~])\]`\s+\*\*(?<body>.+?)\*\*(?:\s+.+)?\s*$/u;
-const SUBTASK_RE =
-  /^\s{4,}-\s+`\[(?<marker>[ x~])\]`\s+(?:(?:\*\*(?<boldBody>.+?)\*\*(?:\s+.+)?)|(?<plainBody>.+?))\s*$/u;
-const TASK_HEADING_PREFIX_RE = /^#{1,6}\s+`?\[[ x~]\]/u;
-const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s*(?<body>.*?)\s*$/u;
-const SECTION_HEADING_RE = /^##\s+/u;
-const PHASE_HEADING_RE = /^##\s+\*\*Phase\s+[^:]+:\*\*/u;
-const TASK_SECTION_BOUNDARY_RE = /^#{2,3}\s+/u;
-const TASK_BODY_RE = /^(?<id>\d+(?:\.[0-9A-Za-z]+)+)\s+(?<title>.+?)\s*$/u;
-const TASK_ID_PREFIX_RE = /^\d+(?:\.[0-9A-Za-z]+)+(?:\s+|$)/u;
-const NUMERIC_THIRD_SEGMENT_RE = /^\d+\.\d+\.\d+(?:\.|$)/u;
-
 /**
  * Resolve the current execution cursor from a task list.
  *
@@ -147,57 +138,48 @@ export function resolveTaskListCursor(content: string): TaskListCursorResult {
 
 /** Parse task-list structure once and derive the cursor plus its display tallies. */
 export function analyzeTaskList(content: string): TaskListAnalysisResult {
+  const scan = scanTaskListStructure(content);
+  if (scan.status === "malformed") return scan;
+  return analyzeTaskListEvents(scan.events);
+}
+
+function analyzeTaskListEvents(events: readonly TaskListStructureEvent[]): TaskListAnalysisResult {
   const tasks: ParsedTask[] = [];
   let currentTask: ParsedTask | null = null;
   let phaseCount = 0;
   let currentPhaseIndex: number | null = null;
   let currentPhaseHeadingLine: number | null = null;
 
-  const lines = content.split(/\r?\n/u);
-  for (const [index, line] of lines.entries()) {
-    const lineNumber = index + 1;
-
-    if (PHASE_HEADING_RE.test(line)) {
+  for (const event of events) {
+    if (event.type === "phase") {
       phaseCount += 1;
       currentPhaseIndex = phaseCount;
-      currentPhaseHeadingLine = lineNumber;
+      currentPhaseHeadingLine = event.line;
       currentTask = null;
       continue;
     }
 
-    if (TASK_HEADING_PREFIX_RE.test(line)) {
-      const parsed = parseParentTask(line, lineNumber, currentPhaseIndex, currentPhaseHeadingLine);
-      if (parsed.status === "malformed") return parsed;
-      currentTask = parsed.task;
+    if (event.type === "parent") {
+      currentTask = {
+        item: event.item,
+        marker: event.marker,
+        subtasks: [],
+        phaseIndex: currentPhaseIndex,
+        phaseHeadingLine: currentPhaseHeadingLine,
+      };
       tasks.push(currentTask);
       continue;
     }
 
-    const checkboxBullet = MARKED_CHECKBOX_BULLET_RE.exec(line);
-    if (checkboxBullet !== null && checkboxBullet.groups !== undefined) {
-      const indent = checkboxBullet.groups.indent ?? "";
-      const body = checkboxBullet.groups.body ?? "";
-      if (body.trim() === "") {
-        return malformed(lineNumber, "task marker must include a valid id and title");
-      }
-      if (indent.length < 4) {
-        if (hasTaskIdLikePrefix(body)) {
-          return malformed(lineNumber, indent.length === 0
-            ? "task checkbox marker appeared at root level"
-            : "subtask marker does not match task-list bullet grammar");
-        }
-        continue;
-      }
+    if (event.type === "subtask") {
       if (currentTask === null) {
-        return malformed(lineNumber, "subtask marker appeared before any parent task");
+        return malformed(event.line, "subtask marker appeared before any parent task");
       }
-      const parsed = parseSubtask(line, lineNumber);
-      if (parsed.status === "malformed") return parsed;
-      currentTask.subtasks.push(parsed.subtask);
+      currentTask.subtasks.push({ item: event.item, marker: event.marker });
       continue;
     }
 
-    if (SECTION_HEADING_RE.test(line)) {
+    if (event.type === "section") {
       currentTask = null;
     }
   }
@@ -260,18 +242,17 @@ export function analyzeTaskList(content: string): TaskListAnalysisResult {
 
 /** Extract the current parent-task block using the analyzed section line hint. */
 export function extractCurrentTaskRegion(content: string): CurrentTaskRegionResult {
-  const analysis = analyzeTaskList(content);
+  const scan = scanTaskListStructure(content);
+  if (scan.status === "malformed") return scan;
+  const analysis = analyzeTaskListEvents(scan.events);
   if (analysis.status === "malformed") return analysis;
   if (analysis.status === "no-open-task") return { status: "no-open-task" };
   const lines = content.split(/\r?\n/u);
   const start = analysis.cursor.section.lineHint - 1;
-  let end = lines.length;
-  for (let index = start + 1; index < lines.length; index += 1) {
-    if (TASK_SECTION_BOUNDARY_RE.test(lines[index] ?? "")) {
-      end = index;
-      break;
-    }
-  }
+  const boundary = scan.events.find((event) =>
+    event.line > analysis.cursor.section.lineHint
+    && (event.type === "phase" || event.type === "parent" || event.type === "section"));
+  const end = boundary === undefined ? lines.length : boundary.line - 1;
   return { status: "found", content: lines.slice(start, end).join("\n") };
 }
 
@@ -290,91 +271,6 @@ function firstOpenCursor(
     };
   }
   return null;
-}
-
-function hasTaskIdLikePrefix(body: string): boolean {
-  const trimmed = body.trim();
-  const bold = /^\*\*(?<body>.+?)\*\*(?:\s+.+)?\s*$/u.exec(trimmed);
-  return TASK_ID_PREFIX_RE.test(bold?.groups?.body ?? trimmed);
-}
-
-function parseParentTask(
-  line: string,
-  lineNumber: number,
-  phaseIndex: number | null,
-  phaseHeadingLine: number | null,
-): { status: "parsed"; task: ParsedTask } | { status: "malformed"; error: TaskListCursorMalformed } {
-  const match = PARENT_TASK_RE.exec(line);
-  if (match === null || match.groups === undefined) {
-    return malformed(lineNumber, "parent task marker does not match task-list heading grammar");
-  }
-
-  const item = parseTaskBody(match.groups.body ?? "", lineNumber);
-  if (item.status === "malformed") return item;
-
-  return {
-    status: "parsed",
-    task: {
-      item: item.item,
-      marker: markerFromMatch(match.groups.marker),
-      subtasks: [],
-      phaseIndex,
-      phaseHeadingLine,
-    },
-  };
-}
-
-function parseSubtask(
-  line: string,
-  lineNumber: number,
-): { status: "parsed"; subtask: ParsedSubtask } | { status: "malformed"; error: TaskListCursorMalformed } {
-  const match = SUBTASK_RE.exec(line);
-  if (match === null || match.groups === undefined) {
-    return malformed(lineNumber, "subtask marker does not match task-list bullet grammar");
-  }
-
-  const item = parseTaskBody(
-    match.groups.boldBody ?? match.groups.plainBody ?? "",
-    lineNumber,
-  );
-  if (item.status === "malformed") return item;
-
-  return {
-    status: "parsed",
-    subtask: {
-      item: item.item,
-      marker: markerFromMatch(match.groups.marker),
-    },
-  };
-}
-
-function parseTaskBody(
-  body: string,
-  lineNumber: number,
-): { status: "parsed"; item: TaskCursorItem } | { status: "malformed"; error: TaskListCursorMalformed } {
-  const match = TASK_BODY_RE.exec(body.trim());
-  const id = match?.groups?.id;
-  const title = match?.groups?.title;
-  if (
-    id === undefined
-    || title === undefined
-    || NUMERIC_THIRD_SEGMENT_RE.test(id)
-  ) {
-    return malformed(lineNumber, "task marker must include a valid id and title");
-  }
-
-  return {
-    status: "parsed",
-    item: {
-      id,
-      title,
-      lineHint: lineNumber,
-    },
-  };
-}
-
-function markerFromMatch(value: string | undefined): TaskMarker {
-  return value === "x" || value === "~" ? value : " ";
 }
 
 function malformed(
