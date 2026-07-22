@@ -188,14 +188,11 @@ fires.
 - _Goal:_ One staged command certifies selected indexed Markdown with the indexed configuration cascade through
   standard markdownlint and the shared descriptor rule.
 
-    - `[ ]` **6.1.a Load one complete indexed Markdown snapshot**
-        - Build `test-first` (one behavior at a time):
-            - The complete selected tracked scope enumerates through NUL-safe Git plumbing and each candidate loads
-              exactly once through the existing `readGitBlobBytes(cwd, null, path)` primitive.
-            - Markdown bytes decode as fatal UTF-8; missing or invalid selected blobs fail without a worktree
-              fallback or second `git show` reader.
-            - Deletion, rename, spaces, unusual tracked names, and linked-worktree invocation remain safe.
-            - Snapshot construction retains repository-relative paths and reads every selected blob once.
+    - `[x]` **6.1.a Load one complete indexed Markdown snapshot**
+        - Added a deterministic repository-relative content map that NUL-safely enumerates the selected index,
+          reads each blob once through the injected exact-index primitive, decodes fatal UTF-8, and refuses missing
+          blobs. Real repositories cover divergent worktree bytes, deletion, rename, unusual names, and linked
+          worktree indexes.
 
     - `[ ]` **6.1.b Resolve the indexed Markdown configuration cascade**
         - Enumerate the indexed `.markdownlint-cli2.{jsonc,yaml,cjs,mjs}` and
