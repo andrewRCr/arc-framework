@@ -12,11 +12,11 @@
 - **Task List:** `tasks-markdown-formatting.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.1 — Build the table migration proof audit
-- **Next Task:** Task 3.2 — Enable aligned `MD060` with source-first normalization and regeneration
-- **Blockers:** Task 3.2 waits for `review-architecture` integration; three migration table hunks overlap.
+- **Last Completed:** Task 6.4 — Keep copied harness projections inside their worktree
+- **Next Task:** Task 7.1 — Complete verification (line ~243 in `tasks-markdown-formatting.md`)
+- **Blockers:** [none]
 
-- **Next Action:** After `review-architecture` integrates, merge the updated base and start Task 3.2.
+- **Next Action:** Start Task 7.1 — load and follow `verify-work-unit.md`.
 
 - **PR URL:** [none]
 - **Completed:** [none]
