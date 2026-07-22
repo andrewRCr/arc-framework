@@ -61,7 +61,7 @@ type OpenRecoveryResult =
   | { kind: "refused"; reason: string }
   | { kind: "error"; message: string };
 export type ResumeAuthorizationResult =
-  | { kind: "authorized"; authorization: ResumeAuthorization }
+  | { kind: "authorized"; authorization: ResumeAuthorization; advisory?: string }
   | { kind: "refused"; reason: string }
   | { kind: "error"; message: string };
 
@@ -136,6 +136,7 @@ export async function openOrdinaryErrand(
   let record: OrdinaryErrandRecord | null = null;
   let previousRecord: OrdinaryErrandRecord | null = null;
   let expectedBranchHead: string | null = null;
+  let resumeAdvisory: string | null = null;
   let claimKind: "applied" | "idempotent" | null = null;
   if (options.protection === "full") {
     let read: IdentityReadResult;
@@ -193,6 +194,7 @@ export async function openOrdinaryErrand(
         if (resumed.kind === "refused") return openRefusal("identity-conflict", resumed.reason);
         if (resumed.kind === "error") return openError("locus.errand-open.identity", resumed.message);
         previousRecord = existing;
+        resumeAdvisory = authorized.advisory ?? null;
         expectedBranchHead = resumeHead(existing);
         record = resumed.record;
         claimKind = resumed.kind;
@@ -297,7 +299,8 @@ export async function openOrdinaryErrand(
     restoredParent: null,
     nextOffer: null,
     recommendedPromptText: `Errand opened at ${provisioned.receipt.checkoutPath}; session home remains `
-      + `${sessionHomePath}. Run subsequent commands in the active locus.`,
+      + `${sessionHomePath}. Run subsequent commands in the active locus.`
+      + (resumeAdvisory === null ? "" : ` ${resumeAdvisory}`),
   }));
 }
 

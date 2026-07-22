@@ -945,14 +945,14 @@ full guard set unchanged.
   liveness, while checkout-directed success narration asks the operator to confirm command routing and recommends
   a cold session when needed. Selector identity is metadata only; destructive verbs retain unknown-lease safety.
 
-### `[ ]` **7.R.d Relax awaiting-merge re-entry to open-change-request** — D7, D8
+### `[x]` **7.R.d Relax awaiting-merge re-entry to open-change-request** — D7, D8
 
 - _Goal:_ Resuming or materializing an awaiting-merge Errand or groom requires only an open change request at the
   recorded head; head drift warns instead of refusing, and host truth is required only where identity retires.
 
-    - Relax the `requested-work`-only predicates in the resume/materialize drivers; keep merged-proof for
-      retirement and closed-unmerged for abandonment unchanged.
-    - Degrade an unreachable host to warn-and-proceed on paths that retire nothing; update tests and narration.
+- _Outcome:_ Awaiting-merge Errand and grooming generations now resume from any exact open change request;
+  preserved head drift and unreachable host truth proceed with explicit warnings while provisioning reuses the
+  recorded head. Exact merged retirement and closed-unmerged abandonment remain unchanged.
 
 ### `[ ]` **7.R.e Remove the housekeep plan-commitment protocol** — D8
 

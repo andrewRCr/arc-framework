@@ -8,6 +8,9 @@ import {
   groomClaimConflictResolver,
   groomClaimTransform,
   groomAwaitMergeTransform,
+  groomResumeTransform,
+  rollbackGroomResumeTransform,
+  type ChangeRequestLifecycleEvidence,
   type GroomIdentityRecord,
   housekeepClaimTransform,
   housekeepClaimConflictResolver,
@@ -176,6 +179,48 @@ describe("groom identity claims", () => {
       groom({ claimId: "8".repeat(32) }),
     ]])))
       .toMatchObject({ kind: "refused" });
+  });
+
+  it("resumes an awaiting-merge generation from open or advisory host truth", () => {
+    const previous = groom({ state: "awaiting-merge", changeRequest });
+    for (const kind of ["open", "requested-work", "changed-head", "unreachable"] as const) {
+      const lifecycle = { kind, changeRequest } as ChangeRequestLifecycleEvidence;
+      expect(groomResumeTransform({
+        previous,
+        lifecycle,
+        updatedAt: "2026-07-20T00:02:00.000Z",
+      })(new Map([[previous.slug, previous]]))).toMatchObject({
+        kind: "applied",
+        value: { state: "open", changeRequest: null, claimId: previous.claimId },
+      });
+    }
+    expect(groomResumeTransform({
+      previous,
+      lifecycle: { kind: "merged", changeRequest } as ChangeRequestLifecycleEvidence,
+      updatedAt: "2026-07-20T00:02:00.000Z",
+    })(new Map([[previous.slug, previous]]))).toMatchObject({ kind: "refused" });
+  });
+
+  it("restores only the exact grooming generation advanced by a failed resume", () => {
+    const previous = groom({ state: "awaiting-merge", changeRequest });
+    const lifecycle = { kind: "open", changeRequest } as ChangeRequestLifecycleEvidence;
+    const resumed = groomResumeTransform({
+      previous,
+      lifecycle,
+      updatedAt: "2026-07-20T00:02:00.000Z",
+    })(new Map([[previous.slug, previous]]));
+    if (resumed.kind !== "applied") throw new Error("expected applied grooming resume");
+
+    const rollback = rollbackGroomResumeTransform(previous, resumed.value);
+    expect(rollback(resumed.records)).toMatchObject({
+      kind: "applied",
+      value: { state: "awaiting-merge", changeRequest },
+    });
+    expect(rollback(new Map([[previous.slug, previous]]))).toMatchObject({ kind: "idempotent" });
+    expect(rollback(new Map([[
+      previous.slug,
+      groom({ updatedAt: "2026-07-20T00:03:00.000Z" }),
+    ]]))).toMatchObject({ kind: "refused" });
   });
 });
 

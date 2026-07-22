@@ -10,7 +10,10 @@ import { uniqueRefToken } from "../git/ref-tree.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import type { GitExec } from "../git/exec.js";
 import type { IdentityTransformDecision } from "./identity-transaction.js";
-import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
+import {
+  evaluateChangeRequestReentry,
+  type ChangeRequestLifecycleEvidence,
+} from "./change-request-lifecycle.js";
 import type { LocusChangeRequestV1 } from "../locus/schema/index.js";
 
 const pauseHeadEvidenceBrand: unique symbol = Symbol("PauseHeadEvidence");
@@ -330,8 +333,8 @@ function desiredRecord(request: Exclude<OrdinaryErrandTransition, { kind: "creat
         }
       } else if (request.previous.state === "awaiting-merge") {
         if (!("kind" in request.authorization)
-          || !lifecycleAuthorizes(request.authorization, request.previous.changeRequest, "requested-work")) {
-          return { kind: "refused", reason: "Awaiting resume requires exact requested-work host truth" };
+          || evaluateChangeRequestReentry(request.authorization, request.previous.changeRequest).kind !== "authorized") {
+          return { kind: "refused", reason: "Awaiting resume requires open or operator-confirmed host truth" };
         }
       } else {
         return { kind: "refused", reason: "Only a paused or awaiting-merge Errand can resume" };

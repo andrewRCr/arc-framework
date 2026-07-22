@@ -8,6 +8,7 @@ import {
 } from "../../../src/lib/errand/open.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import type { PauseHeadEvidence } from "../../../src/lib/errand/identity-transitions.js";
+import type { ChangeRequestLifecycleEvidence } from "../../../src/lib/errand/change-request-lifecycle.js";
 import type { LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
 
 const RECORD_ID = `sha256:${"a".repeat(64)}`;
@@ -45,7 +46,29 @@ function pausedIdentity() {
     savedHead: "b".repeat(40),
     changeRequest: null,
   });
-  if (record.kind !== "errand" || record.purpose !== "errand") throw new Error("expected ordinary Errand");
+  if (record.kind !== "errand" || record.purpose !== "errand" || record.state !== "paused") {
+    throw new Error("expected paused ordinary Errand");
+  }
+  return record;
+}
+
+function awaitingIdentity() {
+  const previous = pausedIdentity();
+  const record = TransientIdentityRecordV3Schema.parse({
+    ...previous,
+    state: "awaiting-merge",
+    savedHead: null,
+    changeRequest: {
+      repositoryRef: "owner/repo",
+      hostRef: "github.com",
+      baseRef: "main",
+      headRef: previous.branch,
+      headSha: previous.savedHead,
+    },
+  });
+  if (record.kind !== "errand" || record.purpose !== "errand" || record.state !== "awaiting-merge") {
+    throw new Error("expected awaiting ordinary Errand");
+  }
   return record;
 }
 
@@ -266,6 +289,60 @@ describe("openOrdinaryErrand", () => {
       originEntry: "Paused capture",
       dispatchId: "dispatch-1",
     });
+  });
+
+  it("carries an unreachable-host confirmation into the successful resume prompt", async () => {
+    const previous = awaitingIdentity();
+    const advisory = "Confirm the recorded change request is still open before continuing.";
+    const resumed = {
+      ...previous,
+      state: "open" as const,
+      savedHead: null,
+      changeRequest: null,
+      updatedAt: "2026-07-21T12:00:00.000Z",
+    };
+    const result = await openOrdinaryErrand({
+      slug: previous.slug,
+      protection: "full",
+      base: "main",
+      createdAt: resumed.updatedAt,
+      identityName: "andrew",
+      locationTemplate: "/work/{repo}.{name}",
+      repo: "repo",
+      leaseId: LEASE_ID,
+      dependencies: {
+        acquireAnchor: async () => ANCHOR,
+        readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+        readIdentity: async () => ({ kind: "ready", record: previous }),
+        authorizeResume: async () => ({
+          kind: "authorized",
+          authorization: {
+            kind: "unreachable",
+            changeRequest: previous.changeRequest,
+          } as ChangeRequestLifecycleEvidence,
+          advisory,
+        }),
+        claim: vi.fn(),
+        resume: async () => ({ kind: "applied", record: resumed }),
+        rollbackClaim: vi.fn(),
+        rollbackResume: vi.fn(),
+        provision: async () => ({
+          kind: "provisioned",
+          receipt: {
+            allocation: "primary",
+            checkoutPath: "/repo",
+            branch: { name: previous.branch, created: false, head: previous.changeRequest.headSha, base: null },
+            worktree: { path: "/repo", created: false, head: previous.changeRequest.headSha },
+            marker: null,
+            record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
+            leaseToken: LEASE_ID,
+          },
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "applied" });
+    expect(result.recommendedPromptText).toContain(advisory);
   });
 
   it("claims a v3 identity before provisioning the free primary and returns the shared result", async () => {

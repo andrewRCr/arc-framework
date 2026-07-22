@@ -19,7 +19,7 @@ export type ChangeRequestLifecycleConfiguration = Pick<
   "repositoryRef" | "hostRef" | "baseRef"
 >;
 
-/** Closed host-truth vocabulary consumed by identity retirement and requested-work resume. */
+/** Closed host-truth vocabulary consumed by identity retirement and operational re-entry. */
 export type ChangeRequestLifecycleTruth =
   | "merged"
   | "requested-work"
@@ -43,6 +43,43 @@ export interface ChangeRequestLifecyclePort {
     configured: ChangeRequestLifecycleConfiguration,
     changeRequest: LocusChangeRequestV1,
   ): Promise<ChangeRequestLifecycleEvidence>;
+}
+
+/** Operational re-entry verdict for a retained change-request generation. */
+export type ChangeRequestReentryVerdict =
+  | { readonly kind: "authorized"; readonly advisory?: string }
+  | { readonly kind: "refused"; readonly reason: string };
+
+/**
+ * Authorize a non-retiring re-entry from exact or explicitly advisory host truth.
+ *
+ * @param lifecycle - Host observation bound to the stored change-request coordinates.
+ * @param expected - Exact retained change-request generation.
+ * @returns Authorization with optional operator guidance, or a refusal that preserves the tail.
+ */
+export function evaluateChangeRequestReentry(
+  lifecycle: ChangeRequestLifecycleEvidence,
+  expected: LocusChangeRequestV1,
+): ChangeRequestReentryVerdict {
+  if (!sameChangeRequest(lifecycle.changeRequest, expected)) {
+    return { kind: "refused", reason: "Host truth does not match the retained change request." };
+  }
+  if (lifecycle.kind === "open" || lifecycle.kind === "requested-work") return { kind: "authorized" };
+  if (lifecycle.kind === "changed-head") {
+    return {
+      kind: "authorized",
+      advisory: "The change request is still open, but its head moved. Resume uses the recorded head; "
+        + "inspect the host change before continuing.",
+    };
+  }
+  if (lifecycle.kind === "unreachable") {
+    return {
+      kind: "authorized",
+      advisory: "The change-request host is unreachable. Confirm the recorded change request is still open "
+        + "before continuing.",
+    };
+  }
+  return { kind: "refused", reason: `Host truth is ${lifecycle.kind}, not an open change request.` };
 }
 
 /** Resolve the configured origin repository and base for an exact host read. */
@@ -139,7 +176,7 @@ export function createGhChangeRequestLifecyclePort(
         const moved = movedPulls.filter((pull) => pull.baseRefName === changeRequest.baseRef
           && pull.headRefOid === changeRequest.headSha);
         if (moved.length === 0) return evidence("missing", changeRequest);
-        return evidence(moved.length === 1 ? "changed-head" : "ambiguous", changeRequest);
+        return evidence(moved.length === 1 && moved[0]?.state === "OPEN" ? "changed-head" : "ambiguous", changeRequest);
       } finally {
         clearTimeout(timer);
       }
@@ -173,7 +210,10 @@ function classifyExactCoordinates(
   changeRequest: LocusChangeRequestV1,
 ): ChangeRequestLifecycleEvidence {
   const exact = coordinates.filter((pull) => pull.headRefOid === changeRequest.headSha);
-  if (exact.length === 0) return evidence("changed-head", changeRequest);
+  if (exact.length === 0) {
+    const open = coordinates.filter((pull) => pull.state === "OPEN");
+    return evidence(open.length === 1 ? "changed-head" : "ambiguous", changeRequest);
+  }
   if (exact.length !== 1) return evidence("ambiguous", changeRequest);
   const [current] = exact;
   if (current === undefined) return evidence("ambiguous", changeRequest);

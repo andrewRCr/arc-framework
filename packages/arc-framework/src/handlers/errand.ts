@@ -57,8 +57,7 @@ import { closeOrdinaryErrandAtRuntime } from "../lib/errand/close-runtime.js";
 import { settlePartialErrandAtRuntime } from "../lib/errand/partial-settle-runtime.js";
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
 import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
-import { normalizeGitRejection } from "../lib/git/process-error.js";
-import { uniqueRefToken } from "../lib/git/ref-tree.js";
+import { prepareMaterializedBranch } from "../lib/errand/materialize-branch.js";
 import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
@@ -303,28 +302,27 @@ export async function handleErrandMaterialize(
     return;
   }
   const expectedHead = record.state === "paused" ? record.savedHead : record.changeRequest.headSha;
-  const localRef = `refs/heads/${record.branch}`;
-  try {
-    await io.exec("git", ["show-ref", "--verify", "--quiet", localRef]);
-    emitMaterializeRefusal("identity-conflict", `Local branch '${record.branch}' already exists.`, opts.json === true);
+  const prepared = await prepareMaterializedBranch({
+    exec: io.exec,
+    remote: "origin",
+    branch: record.branch,
+    expectedHead,
+  });
+  if (prepared.kind === "refused") {
+    emitMaterializeRefusal(
+      prepared.reason.includes("already exists") ? "identity-conflict" : "preservation-unproven",
+      prepared.reason,
+      opts.json === true,
+    );
     return;
-  } catch (error) {
-    const normalized = normalizeGitRejection(error, { command: "git", args: ["show-ref", "--verify", "--quiet", localRef] });
-    if (normalized.exitCode !== 1) {
-      emitMaterializeError("local-branch", normalized.message, opts.json === true);
-      return;
-    }
   }
-  const snapshotRef = `refs/arc/tmp/errand-materialize/${uniqueRefToken()}`;
+  if (prepared.kind === "error") {
+    emitMaterializeError(prepared.stage, prepared.message, opts.json === true);
+    return;
+  }
+  const localRef = prepared.localRef;
   let branchCreated = false;
   try {
-    await io.exec("git", ["fetch", "--", "origin", `+refs/heads/${record.branch}:${snapshotRef}`]);
-    const fetchedHead = (await io.exec("git", ["rev-parse", "--verify", `${snapshotRef}^{commit}`])).stdout.trim();
-    if (fetchedHead !== expectedHead) {
-      emitMaterializeRefusal("preservation-unproven", "The remote Errand head changed after candidate projection.", opts.json === true);
-      return;
-    }
-    await io.exec("git", ["update-ref", localRef, expectedHead, "0".repeat(40)]);
     branchCreated = true;
     const primaryPath = await resolvePrimaryWorktreePath(io.exec);
     if (primaryPath === null) throw new Error("Primary checkout is unavailable");
@@ -355,7 +353,8 @@ export async function handleErrandMaterialize(
       ...result,
       operation: "errand-materialize",
       recommendedPromptText: result.outcome === "applied" || result.outcome === "idempotent"
-        ? `Errand materialized at ${result.activeLocusPath}; open a fresh session there to resume.`
+        ? `Errand materialized at ${result.activeLocusPath}; open a fresh session there to resume. `
+          + `${prepared.advisory === undefined ? "" : `${prepared.advisory} `}${result.recommendedPromptText}`
         : result.recommendedPromptText,
     });
     if (materialized.outcome !== "applied" && materialized.outcome !== "idempotent") {
@@ -366,8 +365,6 @@ export async function handleErrandMaterialize(
   } catch (error) {
     if (branchCreated) await deleteExactLocalBranch(io.exec, localRef, expectedHead);
     emitMaterializeError("handler", error instanceof Error ? error.message : String(error), opts.json === true);
-  } finally {
-    await io.exec("git", ["update-ref", "-d", snapshotRef]).catch(() => undefined);
   }
 }
 

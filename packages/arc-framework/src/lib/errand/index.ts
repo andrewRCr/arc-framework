@@ -78,6 +78,8 @@ export {
   groomClaimTransform,
   groomClaimConflictResolver,
   groomAwaitMergeTransform,
+  groomResumeTransform,
+  rollbackGroomResumeTransform,
   housekeepAwaitMergeTransform,
   housekeepClaimTransform,
   housekeepClaimConflictResolver,
@@ -88,6 +90,7 @@ export {
   type GroomIdentityRecord,
   type GroomClaimVerdict,
   type GroomAwaitMergeRequest,
+  type GroomResumeRequest,
   type HousekeepAwaitMergeRequest,
   type HousekeepIdentityRecord,
   type HousekeepClaimVerdict,
@@ -99,11 +102,13 @@ export {
 
 export {
   createGhChangeRequestLifecyclePort,
+  evaluateChangeRequestReentry,
   transientTailRetirementTransform,
   type ChangeRequestLifecycleConfiguration,
   type ChangeRequestLifecycleTruth,
   type ChangeRequestLifecycleEvidence,
   type ChangeRequestLifecyclePort,
+  type ChangeRequestReentryVerdict,
   type TransientIdentityTailRecord,
   type TransientTailRetirementRequest,
 } from "./change-request-lifecycle.js";

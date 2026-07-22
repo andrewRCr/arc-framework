@@ -85,6 +85,9 @@ describe("GitHub change-request lifecycle port", () => {
     )).resolves.toMatchObject({ kind: "ambiguous" });
     await expect(createGhChangeRequestLifecyclePort(ghResult([{ state: "OPEN" }]))
       .read(configured, changeRequest)).resolves.toMatchObject({ kind: "ambiguous" });
+    await expect(createGhChangeRequestLifecyclePort(ghResult([
+      pull({ state: "MERGED", headRefOid: "b".repeat(40) }),
+    ])).read(configured, changeRequest)).resolves.toMatchObject({ kind: "ambiguous" });
     const failed: GitExec = async () => { throw new Error("authentication required"); };
     await expect(createGhChangeRequestLifecyclePort(failed).read(configured, changeRequest))
       .resolves.toMatchObject({ kind: "unreachable" });

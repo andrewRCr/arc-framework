@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { chmod, copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -162,6 +163,65 @@ describe("grooming and housekeeping locus round trips", () => {
       identity: { anchorStub: "gamma", members: ["gamma"] },
     });
     expect(disjointAbandoned).toMatchObject({ outcome: "applied", operation: "plan-abandon" });
+  });
+
+  it("resumes an awaiting-merge grooming set from an ordinary open change request", async () => {
+    const stub = await runArc(["stub", "alpha", "--commitment", "provisional", "--priority", "P2"], repository);
+    expect(stub.exitCode, stub.stderr || stub.stdout).toBe(0);
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "--no-verify", "-m", "add grooming stub"]);
+    await git(repository, ["push", "origin", "main"]);
+
+    const hostHarness = await mkdtemp(join(tmpdir(), "arc-locus-routing-gh-"));
+    const fakeGh = join(hostHarness, "gh");
+    const branch = "chore/groom-alpha";
+    await writeFile(fakeGh, [
+      "#!/bin/sh",
+      "head=$(git rev-parse \"$ARC_TEST_BRANCH\") || exit 1",
+      "printf '[{\"number\":1,\"state\":\"OPEN\",\"baseRefName\":\"main\",'",
+      "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$ARC_TEST_BRANCH\" \"$head\"",
+      "printf '\"reviewDecision\":\"\"}]\\n'",
+    ].join("\n"));
+    await chmod(fakeGh, 0o755);
+    const hostUrl = "https://github.com/owner/repo.git";
+    await git(repository, ["remote", "set-url", "origin", hostUrl]);
+    await git(repository, ["config", `url.${pathToFileURL(remote).href}.insteadOf`, hostUrl]);
+
+    try {
+      const sequence = await runArcAnchoredSequence([
+        ["plan", "open", "alpha", "--json"],
+        {
+          command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "groom alpha"],
+          cwdFromPreviousJson: "activeLocusPath",
+        },
+        { command: ["git", "push", "-u", "origin", branch], reuseResolvedCwd: true },
+        { args: ["plan", "close", "alpha", "--json"], reuseResolvedCwd: true },
+        { args: ["plan", "open", "alpha", "--json"], cwd: repository },
+      ], repository, {
+        timeout: 120_000,
+        anchorShellPath: harness.executable,
+        env: {
+          PATH: `${hostHarness}:${process.env.PATH ?? ""}`,
+          ARC_TEST_BRANCH: branch,
+        },
+      });
+
+      expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
+      const [opened, closed, resumed] = sequence.results as Record<string, unknown>[];
+      expect(opened).toMatchObject({ outcome: "applied", operation: "plan-open" });
+      expect(closed).toMatchObject({
+        outcome: "applied",
+        operation: "plan-close",
+        identity: { state: "awaiting-merge" },
+      });
+      expect(resumed).toMatchObject({
+        outcome: "applied",
+        operation: "plan-open",
+        identity: { state: "open", changeRequest: null },
+      });
+    } finally {
+      await removeGitBackedDir(hostHarness);
+    }
   });
 
   it("replays one routing generation across lane escalation, recovery, and branch reuse", async () => {

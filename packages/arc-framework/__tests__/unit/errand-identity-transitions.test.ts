@@ -202,24 +202,28 @@ describe("ordinary Errand identity transitions", () => {
     expect(apply(resumed.records, request)).toMatchObject({ kind: "idempotent" });
   });
 
-  it("resumes an awaiting generation only with exact requested-work host truth", () => {
+  it("resumes an awaiting generation from exact open or advisory host truth", () => {
     const previous = open({ state: "awaiting-merge", changeRequest, updatedAt });
     const resumedAt = "2026-07-18T00:02:00.000Z";
-    const request = {
-      kind: "resume" as const,
-      previous,
-      authorization: lifecycleEvidence("requested-work"),
-      updatedAt: resumedAt,
-    };
-
-    expect(apply(new Map([[previous.slug, previous]]), request)).toMatchObject({
-      kind: "applied",
-      value: { state: "open", changeRequest: null, claimId },
-    });
-    expect(apply(new Map([[previous.slug, previous]]), {
-      ...request,
-      authorization: lifecycleEvidence("open"),
-    })).toMatchObject({ kind: "refused" });
+    for (const kind of ["requested-work", "open", "changed-head", "unreachable"] as const) {
+      expect(apply(new Map([[previous.slug, previous]]), {
+        kind: "resume",
+        previous,
+        authorization: lifecycleEvidence(kind),
+        updatedAt: resumedAt,
+      })).toMatchObject({
+        kind: "applied",
+        value: { state: "open", changeRequest: null, claimId },
+      });
+    }
+    for (const kind of ["merged", "closed-unmerged", "missing", "ambiguous"] as const) {
+      expect(apply(new Map([[previous.slug, previous]]), {
+        kind: "resume",
+        previous,
+        authorization: lifecycleEvidence(kind),
+        updatedAt: resumedAt,
+      })).toMatchObject({ kind: "refused" });
+    }
   });
 
   it("retires only along state-authorized promotion, close, and abandonment edges", () => {

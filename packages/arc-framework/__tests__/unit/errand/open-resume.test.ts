@@ -53,26 +53,41 @@ function hostExec(overrides: Record<string, unknown> = {}): GitExec {
 }
 
 describe("ordinary Errand resume authorization", () => {
-  it("authorizes only exact requested-work truth for an awaiting tail", async () => {
-    await expect(authorizeOrdinaryErrandResume(hostExec(), "main", awaiting()))
-      .resolves.toMatchObject({ kind: "authorized", authorization: { kind: "requested-work" } });
-  });
-
   it.each([
-    ["open", { reviewDecision: "" }, "open"],
-    ["merged", { state: "MERGED", reviewDecision: "" }, "merged"],
-    ["changed head", { headRefOid: "b".repeat(40) }, "changed-head"],
-  ] as const)("refuses %s host truth", async (_label, overrides, expected) => {
+    ["requested work", {}, "requested-work"],
+    ["ordinary open review", { reviewDecision: "" }, "open"],
+  ] as const)("authorizes an exact %s change request", async (_label, overrides, expected) => {
     await expect(authorizeOrdinaryErrandResume(hostExec(overrides), "main", awaiting()))
-      .resolves.toMatchObject({ kind: "refused", reason: expect.stringContaining(expected) });
+      .resolves.toMatchObject({ kind: "authorized", authorization: { kind: expected } });
   });
 
-  it("refuses an unreachable host", async () => {
+  it("warns and proceeds when an open change request head moved", async () => {
+    await expect(authorizeOrdinaryErrandResume(hostExec({ headRefOid: "b".repeat(40) }), "main", awaiting()))
+      .resolves.toMatchObject({
+        kind: "authorized",
+        authorization: { kind: "changed-head" },
+        advisory: expect.stringMatching(/head moved/iu),
+      });
+  });
+
+  it("warns and proceeds when the host is unreachable", async () => {
     const exec: GitExec = async (command) => {
       if (command === "git") return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
       throw new Error("host unavailable");
     };
     await expect(authorizeOrdinaryErrandResume(exec, "main", awaiting()))
-      .resolves.toMatchObject({ kind: "refused", reason: expect.stringContaining("unreachable") });
+      .resolves.toMatchObject({
+        kind: "authorized",
+        authorization: { kind: "unreachable" },
+        advisory: expect.stringMatching(/confirm.*still open/iu),
+      });
+  });
+
+  it.each([
+    ["merged", { state: "MERGED", reviewDecision: "" }, "merged"],
+    ["closed without merge", { state: "CLOSED", reviewDecision: "" }, "closed-unmerged"],
+  ] as const)("refuses %s host truth", async (_label, overrides, expected) => {
+    await expect(authorizeOrdinaryErrandResume(hostExec(overrides), "main", awaiting()))
+      .resolves.toMatchObject({ kind: "refused", reason: expect.stringContaining(expected) });
   });
 });

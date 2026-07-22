@@ -19,6 +19,10 @@ import { uniqueRefToken } from "../git/ref-tree.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import type { GitExec } from "../git/exec.js";
 import type { LocusChangeRequestV1 } from "../locus/schema/index.js";
+import {
+  evaluateChangeRequestReentry,
+  type ChangeRequestLifecycleEvidence,
+} from "./change-request-lifecycle.js";
 
 /** Valid grooming identity generation. */
 export type GroomIdentityRecord = Extract<TransientIdentityRecordV3, { kind: "groom" }>;
@@ -43,6 +47,13 @@ export type HousekeepClaimVerdict =
 export interface GroomAwaitMergeRequest {
   readonly previous: GroomIdentityRecord;
   readonly changeRequest: LocusChangeRequestV1;
+  readonly updatedAt: string;
+}
+
+/** Exact awaiting-generation request to resume grooming without retiring identity. */
+export interface GroomResumeRequest {
+  readonly previous: GroomIdentityRecord;
+  readonly lifecycle: ChangeRequestLifecycleEvidence;
   readonly updatedAt: string;
 }
 
@@ -245,6 +256,58 @@ export function groomAwaitMergeTransform(request: GroomAwaitMergeRequest) {
     const records = new Map(basis);
     records.set(desired.slug, desired);
     return { kind: "applied", records, value: desired };
+  };
+}
+
+/** Build an exact-generation awaiting-merge-to-open grooming transition. */
+export function groomResumeTransform(request: GroomResumeRequest) {
+  return (
+    basis: ReadonlyMap<string, TransientIdentityRecord>,
+  ): IdentityTransformDecision<GroomIdentityRecord> => {
+    if (request.previous.state !== "awaiting-merge"
+      || evaluateChangeRequestReentry(request.lifecycle, request.previous.changeRequest).kind !== "authorized") {
+      return { kind: "refused", reason: "Grooming resume requires open or operator-confirmed host truth" };
+    }
+    if (Date.parse(request.updatedAt) <= Date.parse(request.previous.updatedAt)) {
+      return { kind: "refused", reason: "updatedAt must advance monotonically" };
+    }
+    const parsed = TransientIdentityRecordV3Schema.safeParse({
+      ...request.previous,
+      state: "open",
+      changeRequest: null,
+      updatedAt: request.updatedAt,
+    });
+    if (!parsed.success || !isGroom(parsed.data)) {
+      return { kind: "refused", reason: "Resume does not form a valid grooming identity" };
+    }
+    const desired = parsed.data;
+    const actual = basis.get(request.previous.slug);
+    if (actual !== undefined && sameRecord(actual, desired)) return { kind: "idempotent", value: desired };
+    if (actual === undefined || !sameRecord(actual, request.previous)) {
+      return { kind: "refused", reason: `Identity '${request.previous.slug}' changed before resume` };
+    }
+    const records = new Map(basis);
+    records.set(desired.slug, desired);
+    return { kind: "applied", records, value: desired };
+  };
+}
+
+/** Restore an exact grooming tail after local resume allocation fails. */
+export function rollbackGroomResumeTransform(
+  previous: GroomIdentityRecord,
+  resumed: GroomIdentityRecord,
+) {
+  return (
+    basis: ReadonlyMap<string, TransientIdentityRecord>,
+  ): IdentityTransformDecision<GroomIdentityRecord> => {
+    const actual = basis.get(previous.slug);
+    if (actual !== undefined && sameRecord(actual, previous)) return { kind: "idempotent", value: previous };
+    if (actual === undefined || !sameRecord(actual, resumed)) {
+      return { kind: "refused", reason: `Identity '${previous.slug}' changed before resume rollback` };
+    }
+    const records = new Map(basis);
+    records.set(previous.slug, previous);
+    return { kind: "applied", records, value: previous };
   };
 }
 

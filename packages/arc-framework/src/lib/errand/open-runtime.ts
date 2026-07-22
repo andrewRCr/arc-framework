@@ -30,6 +30,7 @@ import {
 } from "./open.js";
 import {
   createGhChangeRequestLifecyclePort,
+  evaluateChangeRequestReentry,
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
 
@@ -264,9 +265,10 @@ export async function authorizeOrdinaryErrandResume(
       return { kind: "refused", reason: "Configured origin coordinates are unavailable." };
     }
     const lifecycle = await createGhChangeRequestLifecyclePort(exec).read(configured, record.changeRequest);
-    return lifecycle.kind === "requested-work"
-      ? { kind: "authorized", authorization: lifecycle }
-      : { kind: "refused", reason: `Host truth is ${lifecycle.kind}, not requested-work.` };
+    const reentry = evaluateChangeRequestReentry(lifecycle, record.changeRequest);
+    return reentry.kind === "authorized"
+      ? { kind: "authorized", authorization: lifecycle, ...(reentry.advisory === undefined ? {} : { advisory: reentry.advisory }) }
+      : reentry;
   }
   return { kind: "refused", reason: "Open identity already has no resume transition." };
 }

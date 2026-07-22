@@ -284,7 +284,7 @@ describe("work-unit and Errand locus round trips", () => {
     },
   );
 
-  it("resumes an awaiting-merge tail only from exact requested-work host truth", async () => {
+  it("resumes an awaiting-merge tail from an ordinary open change request", async () => {
     const branch = await prepareWorkUnit(repository, "execution");
     const remote = await createBareRemote(repository);
     const harness = await createCodexHarness();
@@ -299,7 +299,7 @@ describe("work-unit and Errand locus round trips", () => {
         "head=$(git rev-parse \"$ARC_TEST_BRANCH\") || exit 1",
         "printf '[{\"number\":1,\"state\":\"OPEN\",\"baseRefName\":\"main\",'",
         "printf '\"headRefName\":\"%s\",\"headRefOid\":\"%s\",' \"$ARC_TEST_BRANCH\" \"$head\"",
-        "printf '\"reviewDecision\":\"CHANGES_REQUESTED\"}]\\n'",
+        "printf '\"reviewDecision\":\"\"}]\\n'",
       ].join("\n"),
     );
     await chmod(fakeGh, 0o755);

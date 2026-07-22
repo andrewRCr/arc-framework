@@ -236,7 +236,8 @@ here; the arms below are the **signal-absent** path.
   `arc materialize <name> --here` when explicitly materializing in the current checkout), then `arc user pull` to
   load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an Errand, run
   `arc errand materialize <slug>` and render its `recommendedPromptText`; on success re-run the probe and proceed
-  as **Transient-resume**. The verb validates the exact portable identity/head and writes both ownership
+  as **Transient-resume**. The verb validates the portable identity and recorded head, warns on preserved remote
+  head drift, asks for confirmation when change-request host truth is unreachable, and writes both ownership
   provenance and the local role.
 
 **Cold-start** and **Materialize** are the only arms peeled off before context-load — each mints or fetches

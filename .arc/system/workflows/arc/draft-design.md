@@ -33,6 +33,8 @@ fixed for this generation. On `applied` / `idempotent`, render `recommendedPromp
 and record/lease IDs, and perform every grooming edit from `activeLocusPath`; `sessionHomePath` is the return frame.
 When the rendered text asks for directed-command confirmation, confirm the current session can run there; otherwise
 recommend a cold session at that checkout and stop before editing.
+An awaiting-merge grooming identity may resume when its recorded change request remains open. Follow any head-drift
+warning; if host truth is unreachable, confirm the change request is still open before editing.
 On `refused` / `error`, render the supplied text and stop. Skip the remaining planning-entry check and continue to
 **Resolve depth & Class**. Never infer the set, protection mode, branch, or placement from Git state.
 

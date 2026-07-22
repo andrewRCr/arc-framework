@@ -72,10 +72,12 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
    or portable identity. A warm entry never moves the session home or repurposes its WU checkout. Execute every
    subsequent command from returned `activeLocusPath` while retaining `sessionHomePath` for restoration.
 
-   **Resume/materialize.** A local paused or requested-work identity resumes through the same `arc errand open`
-   driver. A remote-only eligible generation first runs `arc errand materialize <slug> --json`; accept only its
-   exact returned generation/path. Open identities, legacy branch-only candidates, changed remote heads, and
-   partial Errands are not materializable.
+   **Resume/materialize.** A local paused identity or awaiting-merge identity with an open change request resumes
+   through the same `arc errand open` driver. A remote-only eligible generation first runs
+   `arc errand materialize <slug> --json`; accept only its exact returned generation/path. Head drift resumes the
+   recorded head with a warning; when host truth is unreachable, confirm the change request remains open before
+   execution. Open identities, legacy branch-only candidates, closed or missing change requests, rewritten-away
+   recorded heads, and partial Errands are not materializable.
 
 4. **Late inbox adoption, when needed.** If an in-flight ordinary full-mode Errand acquires a matching capture
    after open, run `arc errand link <slug> --from-inbox <entry-title> --json` (or `--inbox-title-file`). It may add

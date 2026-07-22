@@ -43,10 +43,19 @@ import { mintClaimId, projectLocusIdentity, TransientIdentityRecordV3Schema } fr
 import {
   groomClaimConflictResolver,
   groomClaimTransform,
+  groomResumeTransform,
   pinGroomOpenedBaseHead,
   rollbackIdentityClaim,
+  rollbackGroomResumeTransform,
+  type GroomIdentityRecord,
 } from "../lib/errand/identity-claims.js";
 import { transactTransientIdentities } from "../lib/errand/identity-transaction.js";
+import {
+  createGhChangeRequestLifecyclePort,
+  evaluateChangeRequestReentry,
+  resolveChangeRequestLifecycleConfiguration,
+} from "../lib/errand/change-request-lifecycle.js";
+import { prepareMaterializedBranch } from "../lib/errand/materialize-branch.js";
 import { acquireSessionAnchor } from "../lib/locus/process-inspector.js";
 import { appendDirectedCommandAdvisory } from "../lib/locus/entry-boundary.js";
 import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "../lib/locus/platform-inspectors.js";
@@ -192,12 +201,93 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
     const message = claimed.kind === "error" ? claimed.message : claimed.reason;
     emitPlanFailure("identity-conflict", message, opts.json === true); return;
   }
-  const record = claimed.value.record;
+  let record = claimed.value.record;
+  let mutationKind = claimed.kind;
+  let resumedTail: {
+    previous: GroomIdentityRecord;
+    resumed: GroomIdentityRecord;
+    expectedHead: string;
+    applied: boolean;
+  } | null = null;
+  let preparedBranch: { localRef: string; expectedHead: string; created: boolean } | null = null;
+  let resumeAdvisory: string | null = null;
+  const rollbackOpen = async (): Promise<void> => {
+    if (preparedBranch?.created === true) {
+      await io.exec("git", ["update-ref", "-d", preparedBranch.localRef, preparedBranch.expectedHead])
+        .catch(() => undefined);
+    }
+    if (resumedTail !== null) {
+      if (resumedTail.applied) {
+        await rollbackGroomResume(io.exec, execInput, identity, resumedTail.previous, resumedTail.resumed);
+      }
+    } else if (claimed.kind === "applied") {
+      await rollbackGroomClaim(io.exec, execInput, identity, resolved.anchor.slug, record);
+    }
+  };
+
+  if (claimed.value.kind === "wait") {
+    if (record.state !== "awaiting-merge") {
+      emitPlanFailure("identity-conflict", "Grooming resume has no awaiting-merge tail.", opts.json === true);
+      return;
+    }
+    const configured = await resolveChangeRequestLifecycleConfiguration(io.exec, base);
+    if (configured === null) {
+      emitPlanFailure("change-request-unverifiable", "Configured change-request coordinates are unavailable.", opts.json === true);
+      return;
+    }
+    const lifecycle = await createGhChangeRequestLifecyclePort(io.exec).read(configured, record.changeRequest);
+    const reentry = evaluateChangeRequestReentry(lifecycle, record.changeRequest);
+    if (reentry.kind === "refused") {
+      emitPlanFailure("change-request-unverifiable", reentry.reason, opts.json === true);
+      return;
+    }
+    const previous = record;
+    const resumed = await transactTransientIdentities({ exec: io.exec, execInput, identity }, {
+      remote: "origin",
+      message: `arc: resume groom ${resolved.anchor.slug}`,
+      transform: groomResumeTransform({ previous, lifecycle, updatedAt: now }),
+    });
+    if (resumed.kind !== "applied" && resumed.kind !== "idempotent") {
+      const message = resumed.kind === "error" ? resumed.message : resumed.reason;
+      emitPlanFailure("identity-conflict", message, opts.json === true);
+      return;
+    }
+    record = resumed.value;
+    mutationKind = resumed.kind;
+    resumedTail = {
+      previous,
+      resumed: record,
+      expectedHead: previous.changeRequest.headSha,
+      applied: resumed.kind === "applied",
+    };
+    resumeAdvisory = reentry.advisory ?? null;
+    const prepared = await prepareMaterializedBranch({
+      exec: io.exec,
+      remote: "origin",
+      branch: previous.branch,
+      expectedHead: previous.changeRequest.headSha,
+      existingLocal: "accept-exact",
+    });
+    if (prepared.kind !== "prepared") {
+      await rollbackOpen();
+      const message = prepared.kind === "error" ? prepared.message : prepared.reason;
+      emitPlanFailure("preservation-unproven", message, opts.json === true);
+      return;
+    }
+    preparedBranch = {
+      localRef: prepared.localRef,
+      expectedHead: prepared.expectedHead,
+      created: prepared.created,
+    };
+    if (prepared.advisory !== undefined) {
+      resumeAdvisory = [resumeAdvisory, prepared.advisory].filter((value) => value !== null).join(" ");
+    }
+  }
   const inspector = createPlatformProcessInspector();
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
   const primaryPath = await resolvePrimaryWorktreePath(io.exec);
   if (primaryPath === null) {
-    if (claimed.kind === "applied") await rollbackGroomClaim(io.exec, execInput, identity, resolved.anchor.slug, record);
+    await rollbackOpen();
     emitPlanError("topology", "Primary checkout unavailable.", opts.json === true); return;
   }
   const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
@@ -217,11 +307,13 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
   const existingRows = state.roster.rows.filter((row) => row.role?.subject.kind === "groom"
     && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId);
   if (existingRows.length > 1) {
+    await rollbackOpen();
     emitPlanFailure("duplicate-locus", "Exact grooming occupancy is ambiguous.", opts.json === true); return;
   }
   const existing = existingRows[0];
   if (existing !== undefined) {
     if (existing.checkoutPath === null || existing.recordId === null || existing.lease === null) {
+      await rollbackOpen();
       emitPlanFailure("record-malformed", "Exact grooming occupancy is incomplete.", opts.json === true); return;
     }
     emitPlanResult(appendDirectedCommandAdvisory(createLocusMutationResult({
@@ -231,7 +323,8 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
       activeLocusPath: existing.checkoutPath, sessionHomePath: existing.lease.sessionHomePath,
       identity: projectLocusIdentity(record), originEntry: null, dispatchId: null, routingPlanDigest: null,
       restoredParent: null, nextOffer: null,
-      recommendedPromptText: `Grooming set is already open at ${existing.checkoutPath}.`,
+      recommendedPromptText: `Grooming set is already open at ${existing.checkoutPath}.`
+        + (resumeAdvisory === null ? "" : ` ${resumeAdvisory}`),
     })), opts.json === true);
     return;
   }
@@ -245,13 +338,15 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
     : state.roster.rows.find((row) => row.recordId === activeRecordId)?.checkoutPath ?? null;
   const sessionHomePath = parentCheckoutPath ?? primaryPath;
   if (proposal.kind === "refused") {
-    if (claimed.kind === "applied") await rollbackGroomClaim(io.exec, execInput, identity, resolved.anchor.slug, record);
+    await rollbackOpen();
     emitPlanFailure(proposal.reason, `Groom allocation refused: ${proposal.reason}.`, opts.json === true); return;
   }
+  const expectedBranchHead = resumedTail?.expectedHead
+    ?? (protection === "partial" ? pinned.head : null);
   const provisioned = await provisionTransientLocus({
     proposal, protection, identity: projectLocusIdentity(record), branch: record.branch,
-    expectedBranchHead: protection === "partial" ? pinned.head : null,
-    base: pinned.head, locationTemplate: settings["worktree.location_template"],
+    expectedBranchHead,
+    base: expectedBranchHead ?? pinned.head, locationTemplate: settings["worktree.location_template"],
     repo: primaryPath.split(/[\\/]/u).at(-1) ?? "repo", spawningIdentity: identity,
     parentCheckoutPath, sessionHomePath, establishedAt: now, anchor,
     leaseId: randomBytes(16).toString("hex"),
@@ -263,18 +358,19 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
     }),
   });
   if (provisioned.kind !== "provisioned") {
-    if (claimed.kind === "applied") await rollbackGroomClaim(io.exec, execInput, identity, resolved.anchor.slug, record);
+    await rollbackOpen();
     const message = provisioned.kind === "error" ? provisioned.error.message : provisioned.reason;
     emitPlanError("provision", message, opts.json === true); return;
   }
   emitPlanResult(appendDirectedCommandAdvisory(createLocusMutationResult({
-    outcome: claimed.kind === "idempotent" ? "idempotent" : "applied", operation: "plan-open",
+    outcome: mutationKind === "idempotent" ? "idempotent" : "applied", operation: "plan-open",
     allocation: { kind: provisioned.receipt.allocation, checkoutPath: provisioned.receipt.checkoutPath },
     recordId: provisioned.receipt.record.recordId, leaseId: provisioned.receipt.leaseToken,
     activeLocusPath: provisioned.receipt.checkoutPath, sessionHomePath,
     identity: projectLocusIdentity(record), originEntry: null, dispatchId: null, routingPlanDigest: null,
     restoredParent: null, nextOffer: null,
-    recommendedPromptText: `Grooming set opened at ${provisioned.receipt.checkoutPath}.`,
+    recommendedPromptText: `Grooming set opened at ${provisioned.receipt.checkoutPath}.`
+      + (resumeAdvisory === null ? "" : ` ${resumeAdvisory}`),
   })), opts.json === true);
 }
 
@@ -287,6 +383,20 @@ async function rollbackGroomClaim(
 ): Promise<void> {
   await rollbackIdentityClaim({ exec, execInput, identity }, {
     remote: "origin", message: `arc: roll back groom ${anchorSlug}`, expected: record,
+  });
+}
+
+async function rollbackGroomResume(
+  exec: ReturnType<typeof createUserIOContext>["exec"],
+  execInput: NonNullable<ReturnType<typeof createUserIOContext>["execInput"]>,
+  identity: string,
+  previous: GroomIdentityRecord,
+  resumed: GroomIdentityRecord,
+): Promise<void> {
+  await transactTransientIdentities({ exec, execInput, identity }, {
+    remote: "origin",
+    message: `arc: roll back groom resume ${previous.anchorStub}`,
+    transform: rollbackGroomResumeTransform(previous, resumed),
   });
 }
 
