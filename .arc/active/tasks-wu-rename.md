@@ -79,21 +79,12 @@ the derivation of the _basename_ moves; source derivation stays `listArtifactPat
 - _Outcome:_ Sibling-artifact and cohort rewrites can join the rename's atomic patch through an additive,
   collision-checked list while undeclared staged paths remain subject to the port's existing refusal.
 
-### `[ ]` **2.3 Conservation refusal diagnostic**
+### `[x]` **2.3 Conservation refusal diagnostic**
 
 - _Goal:_ A sweep that omits an artifact the work unit carries at `HEAD` fails with a distinguishable
   conservation error naming the missing artifact, rather than as a generic preparation failure.
-- _Context:_ The throw is raised by the binding's patch read. A caller computes the patch digest before
-  recording, so the throw surfaces there rather than inside the port, where it would be flattened to
-  `authority-unavailable` — a path a single-threaded run never reaches.
-- _Note:_ This task owns the binding-side error: the type and message the patch read raises. Presenting it to
-  the operator is the verb's, and lands with the orchestration.
-
-    - Raise a distinguishable conservation error from the patch read, carrying the omitted artifact's path,
-      rather than a bare error the caller can only re-wrap as "receipt could not be prepared".
-    - Build `test-first` (one behavior at a time):
-        - A sweep missing one companion raises the conservation error naming the missing artifact.
-        - A genuinely unavailable authority still surfaces as `authority-unavailable`.
+- _Outcome:_ Patch and result-digest reads now raise `DirectTransitionConservationError` with the omitted
+  committed artifact's expected result path, leaving genuinely unavailable authority on its existing refusal.
 
 ### `[ ]` **2.4 Post-refusal rollback**
 

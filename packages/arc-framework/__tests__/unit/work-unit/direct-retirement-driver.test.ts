@@ -4,6 +4,7 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
   createInRepoAbandonRetirementContext,
   createInRepoRenameRetirementContext,
+  DirectTransitionConservationError,
 } from "../../../src/lib/work-unit/direct-retirement-driver.js";
 import { renameArtifactBasename } from "../../../src/lib/work-unit/mutators/relocate-artifacts.js";
 
@@ -207,6 +208,45 @@ describe("rename result derivation", () => {
     });
 
     await expect(context.readTransitionPatch(source)).rejects.toThrow(message);
+  });
+
+  it("names an omitted companion through the typed conservation refusal", async () => {
+    const sourcePaths = [".arc/active/meta-sample.md", ".arc/active/spec-sample.md"];
+    const omittedResult = ".arc/active/spec-renamed-sample.md";
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "feat/sample\n" };
+      if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
+      if (args[0] === "ls-tree") return { stdout: `${sourcePaths.join("\0")}\0` };
+      throw new Error(`unexpected Git command: ${args.join(" ")}`);
+    };
+    const context = createInRepoRenameRetirementContext({
+      cwd: "/repo",
+      exec,
+      readBlob: async (ref, path) => {
+        if (ref === HEAD && sourcePaths.includes(path)) return bytes("source");
+        if (ref === null && sourcePaths.includes(path)) return null;
+        if (ref === null && path === ".arc/active/meta-renamed-sample.md") return bytes("meta result");
+        if (ref === null && path === omittedResult) return null;
+        if (path === ROADMAP_PATH) return null;
+        throw new Error(`unexpected blob read: ${String(ref)}:${path}`);
+      },
+      readFile: async () => "",
+      createRecord: async () => undefined,
+      removeRecord: async () => undefined,
+    });
+    const source = await context.captureSource({
+      name: "sample",
+      targetSlug: "renamed-sample",
+      sourceDir: ".arc/active",
+      resultDir: ".arc/active",
+      expectedBranch: "feat/sample",
+    });
+
+    const failure = await context.readTransitionPatch(source).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(DirectTransitionConservationError);
+    expect(failure).toMatchObject({ path: omittedResult });
+    expect((failure as Error).message).toContain(omittedResult);
   });
 
   it("adds caller-declared sibling paths without duplicating derived pairs or ROADMAP", async () => {

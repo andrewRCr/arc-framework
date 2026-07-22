@@ -40,6 +40,17 @@ import type { ParkPlanningRetirementContext } from "./verbs/park-resume.js";
 
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
+/** Typed signal that a committed source artifact has no staged transition result. */
+export class DirectTransitionConservationError extends Error {
+  readonly path: ManagedPath;
+
+  constructor(label: DirectTransitionConfig["label"], path: ManagedPath) {
+    super(`${label} transition omitted result artifact required for conservation: ${path}`);
+    this.name = "DirectTransitionConservationError";
+    this.path = path;
+  }
+}
+
 /** Exact Git blob reader; a null ref addresses the current index. */
 export type RetirementBlobReader = (
   ref: string | null,
@@ -167,7 +178,7 @@ function createInRepoDirectRetirementContext(
     }
     for (const path of bound.resultArtifactPaths) {
       const bytes = await deps.readBlob(null, path);
-      if (bytes === null) throw new Error(`${config.label} transition omitted result artifact: ${path}`);
+      if (bytes === null) throw new DirectTransitionConservationError(config.label, path);
       operations.push(writeOperation(path, bytes));
     }
     for (const path of bound.additionalPaths) {
@@ -197,7 +208,7 @@ function createInRepoDirectRetirementContext(
     const bound = requireCaptured(captured, source);
     const inventory = await Promise.all(bound.resultArtifactPaths.map(async (path): Promise<ArtifactSetEntry> => {
       const bytes = await deps.readBlob(null, path);
-      if (bytes === null) throw new Error(`${config.label} transition omitted result artifact: ${path}`);
+      if (bytes === null) throw new DirectTransitionConservationError(config.label, path);
       return { path, state: "present", contentDigest: contentDigest(bytes) };
     }));
     return artifactGroupDigest(inventory);
