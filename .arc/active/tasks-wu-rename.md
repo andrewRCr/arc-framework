@@ -147,122 +147,52 @@ _Design decisions:_ The mutator is the transpose of the shipped `relocate-artifa
 matcher. The `cohort-<old>.md` exclusion is dead in the mutator (directory-scoped) and load-bearing in the
 cross-reference sweep, which would otherwise rewrite a cohort reference into a filename that does not exist.
 
-### `[ ]` **4.1 `rename-artifacts` mutator**
+### `[x]` **4.1 `rename-artifacts` mutator**
 
 - _Goal:_ A work unit's artifact set reads the new slug within its own directory, with foreign files and cohort
   docs left untouched.
-- _Shape:_ `relocate-artifacts` moves a fixed slug between directories; this moves a slug within a directory it
-  is also given. It takes both axes — a destination directory and the slug map — so the stub case below is a call
-  shape rather than a second mechanism. Same matcher, `git mv` per file.
+- _Outcome:_ The new mutator moves only the exact old-slug artifact set through the authority binding's shared
+  basename map, leaving foreign files, hyphenated-prefix lookalikes, and cohort docs untouched.
 
-    - Reuse the shipped `<prefix>-<slug>.md` matcher, whose hyphen-free prefix anchors the slug so a foreign work
-      unit whose name merely ends with the slug cannot match.
-    - Apply the shared basename mapping the port derives its result paths from, never a second implementation of
-      the same rule.
-    - Build `test-first` (one behavior at a time):
-        - Every artifact matching the old slug moves to the new one.
-        - A missing optional artifact is a no-op rather than an error.
-        - A foreign work unit's meta sharing the directory is not moved.
-        - A file whose name ends with the old slug but carries a hyphenated prefix is not moved.
-        - The moved paths equal the result paths the port derives for the same subject.
-
-### `[ ]` **4.2 Renamed-meta field rewrites**
+### `[x]` **4.2 Renamed-meta field rewrites**
 
 - _Goal:_ The renamed meta describes itself correctly — its title, its branch, and both slug-bearing pointer
   fields resolve to files and refs that exist.
-- _Shape:_ The field rewrites go through the typed meta writers, never hand-rolled regex — `Branch` and the
-  bullet-rendered `Design` and `Task List` all have setters over the shared field model. The `# Metadata: <slug>`
-  H1 is the exception: it has no setter, and it is exactly what the foreign-write check compares, so it needs a
-  new setter beside the others or a deliberate line edit. Choose one and say which.
+- _Outcome:_ A named metadata-title setter plus existing typed field writers now update title, branch, layered
+  design pointers, and task-list pointer while leaving sentinels and unrelated fields byte-stable.
 
-    - Rewrite the `# Metadata: <slug>` title.
-    - Rewrite `Branch:` from `<type>/<old>` to `<type>/<new>`.
-    - Rewrite the slug-bearing pointer fields `Design:` and `Task List:`, which otherwise keep naming
-      `draft-<old>.md` / `tasks-<old>.md` and break design resolution for the renamed unit.
-    - Build `test-first` (one behavior at a time):
-        - Title, `Branch:`, `Design:`, and `Task List:` all read the new slug after the rewrite.
-        - A `Design:` or `Task List:` field set to a sentinel rather than a filename is left unchanged.
-        - Fields that do not carry the slug are untouched.
-
-### `[ ]` **4.3 Backlog containing-directory rename**
+### `[x]` **4.3 Backlog containing-directory rename**
 
 - _Goal:_ A stub's artifacts and the directory holding them both read the new slug, with any cohort segment of
   the path preserved.
-- _Shape:_ Not a second move. The new leaf is passed as the mutator's destination directory, so each artifact
-  lands directly at its final path in one `git mv`, and the emptied old leaf is dropped with the shipped backlog
-  prune — which walks up only while it stays strictly below a tier root, so the tier itself is never removed.
-  Moving the directory first and renaming inside it would split the move across two passes and leave the prune
-  with nothing to do.
+- _Outcome:_ Supplying the new backlog leaf as the artifact destination lands each file at its final path in one
+  move and reuses the bounded prune, preserving cohort parents that still contain siblings.
 
-    - For a stub subject the artifacts live under a per-work-unit leaf directory in a backlog tier, optionally
-      nested under a cohort segment; only the member leaf changes.
-    - Build `test-first` (one behavior at a time):
-        - A flat backlog stub's leaf directory reads the new slug and the old leaf is gone.
-        - A cohort-nested stub renames only its leaf, leaving the cohort segment intact.
-        - A cohort parent still holding a sibling member is not pruned.
-
-### `[ ]` **4.4 Cohort member-section heading rewrite**
+### `[x]` **4.4 Cohort member-section heading rewrite**
 
 - _Goal:_ A cohort doc naming the renamed member keeps all three of its structural conditions passing, with no
   orphan member section left to fail a later commit.
-- _Rationale:_ The member's own cohort field survives a leaf rename untouched; the cohort doc's per-member
-  section heading does not, and the check fires on the next commit that stages that doc rather than at rename time.
+- _Outcome:_ The bounded cohort rewrite changes only the exact old-slug H3 inside `## Members`; sibling sections,
+  coordination headings, filename, purpose, and grouping identity remain unchanged.
 
-    - Rewrite the one member-section heading, leaving the cohort doc's filename, purpose, and grouping identity
-      untouched — a bounded slug-anchored edit, not a cohort rename.
-    - Build `test-first` (one behavior at a time):
-        - A cohort doc with a member section for the old slug reads the new slug afterward.
-        - A cohort doc with no section for the subject is not modified.
-        - Sections for sibling members are untouched.
-
-### `[ ]` **4.5 Tier-wide cross-reference sweep**
+### `[x]` **4.5 Tier-wide cross-reference sweep**
 
 - _Goal:_ No reference to the old slug survives anywhere in the lifecycle tiers — neither backticked artifact
   filenames nor bare slugs in dependency and cohort fields.
-- _Context:_ Backticked references are invisible to the dangling-link check, which skips link-like text inside
-  code spans, so a stale reference is caught by no gate.
+    - `[x]` **4.5.a Settle and implement the traversal**
+        - Reused the exported async ARC file walker, then bounded its results to active and both backlog tiers so
+          artifact bodies and metas share one traversal without reaching completed history or user state.
 
-    - `[ ]` **4.5.a Settle and implement the traversal**
-        - Resolve the open question, then implement the chosen traversal once for both rewrite classes below.
-        - Two candidates are out. The lifecycle index indexes metas, not artifact bodies, so it cannot serve a
-          content sweep. The cohort validator's recursive walker is unexported, synchronous, lives under
-          `src/scripts/`, roots differently (it includes `completed/`), and filters to `meta-*` / `cohort-*` —
-          discarding exactly the artifact bodies this sweep reads; reusing it would also invert the established
-          scripts-depend-on-lib direction.
-        - The real choice is a purpose-built bounded scan of the active and backlog tiers versus the exported
-          async `listArcFiles` in the filesystem library, which already returns every file under a root and
-          already skips the internal and per-identity user trees.
+    - `[x]` **4.5.b Backticked artifact references**
+        - Exact slug-anchored artifact code spans now follow the rename, excluding `cohort-*`; bare prose remains
+          untouched.
 
-    - `[ ]` **4.5.b Backticked artifact references**
-        - Match the same slug-anchored pattern the mutator moves — not an enumerated subset, since real
-          companions exist beyond `draft` / `spec` / `tasks`.
-        - Exclude `cohort-<old>.md`: cohort docs are out of scope, and a cohort leaf that merely shares the
-          renamed slug names a different thing.
-        - Build `test-first` (one behavior at a time):
-            - A backticked reference to any renamed artifact reads the new slug.
-            - A backticked `cohort-<old>.md` reference is left unchanged.
-            - Prose containing the bare old slug outside a field or backticked filename is left unchanged.
+    - `[x]` **4.5.c Bare-slug dependency edges**
+        - Exact list members in sibling `Depends On` fields rewrite through the typed field model; substring
+          neighbors, sentinels, and `Cohort` remain unchanged.
 
-    - `[ ]` **4.5.c Bare-slug dependency edges**
-        - Rewrite bare-slug occurrences in other metas' `Depends On:` fields across the active and backlog tiers.
-          It is a bullet-rendered field with a typed setter, so the rewrite goes through the shared field model
-          rather than regex over rendered markdown, and it is a list — rewrite the matching element and leave its
-          siblings untouched.
-        - `Cohort:` is **excluded**. Its value names a cohort leaf, never a work-unit slug — the consistency
-          check requires it to path-match the directory the meta is filed under — and the rename subject is
-          always a work unit. It could match the old slug only where a cohort leaf coincidentally shares it,
-          which is the same collision the artifact sweep refuses to touch. Rewriting it there would set a value
-          that no longer matches the filed path and fail the cohort gate.
-        - The sweep writes into sibling work units' artifacts, which trips the foreign-write advisory on every
-          rename. That check warns and always exits zero, so it refuses nothing — but the notices are expected
-          output, not a symptom, and the end-to-end fixtures will surface them.
-        - Build `test-first` (one behavior at a time):
-            - A sibling's `Depends On:` edge naming the old slug reads the new one.
-            - A `Depends On:` entry naming a different work unit whose name contains the old slug as a substring
-              is left unchanged.
-            - A sentinel-valued field is left unchanged.
-            - A `Cohort:` field whose value equals the old slug is left unchanged, and the cohort gate still
-              passes.
+- _Outcome:_ The bounded sweep returns every changed sibling/cohort path for inclusion in the authority binding's
+  additive patch while preserving semantically distinct cohort names and historical tiers.
 
 ### `[ ]` **4.6 ROADMAP regeneration**
 
