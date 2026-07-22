@@ -15,7 +15,7 @@ Test-first for core logic, test-after for glue code and CLI wiring.
 - **Test behavior through public interfaces** — tests verify what a module does, not how it does it internally.
   A test that breaks when you refactor without changing behavior was testing implementation, not behavior.
 - **Vertical slices, not horizontal** — one test, make it pass, repeat, rather than all tests then all code.
-  Tests written in bulk test *imagined* behavior; tests written one at a time test *actual* behavior, because you
+  Tests written in bulk test _imagined_ behavior; tests written one at a time test _actual_ behavior, because you
   just wrote the code and know what matters. Horizontal slicing produces tests coupled to API shape rather than
   observable outcomes. The execution mechanics are codified in [`testing-standards`][testing-standards] and driven
   by the loop in [`process-task-loop`][process-task-loop].

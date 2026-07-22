@@ -23,7 +23,7 @@ judgment, the run-context, the out-of-band park@Planning teardown, and the ship 
   resume). Resolves to `planned`.
 
 **When to use:** A started unit must step aside without being abandoned — a deliberate, resumable pause. Choosing
-`park` over [`abandon`][deactivate] *is* the resume commitment. Never pause by leaving a unit idle in `active/`:
+`park` over [`abandon`][deactivate] _is_ the resume commitment. Never pause by leaving a unit idle in `active/`:
 `active/` holds one unit per worktree, and a stale second unit breaks the release wrapper and session-init.
 
 > [!NOTE]

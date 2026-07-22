@@ -18,80 +18,80 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Decide and cascade `override-mode: extend` → `augment`**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-19);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-19);
   captured during `review-architecture` draft reconciliation.
-- *Concern:* additive method composition already ships as `override-mode: extend`, but `extend` collides with
+- _Concern:_ additive method composition already ships as `override-mode: extend`, but `extend` collides with
   ARC's separate Extensions mechanism.
-- *Approach:* decide the final term and run the behavior-preserving rename through the frontmatter parser and
+- _Approach:_ decide the final term and run the behavior-preserving rename through the frontmatter parser and
   types, tests, method guidance, `testing-standards`, and strategies. Keep replace-vs-additive semantics and
   activation owned by `customization-arch-realign`; `composable-workflows` consumes the final enum without
   reopening the vocabulary or semantics.
 
 ### `[ ]` **Conform the enforced conventional-commit policy to its named standard**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
   `commit-message-submission` design review.
-- *Concern:* ARC's enforced `conventional` grammar makes scope mandatory, rejects the standard `!` breaking-change
+- _Concern:_ ARC's enforced `conventional` grammar makes scope mandatory, rejects the standard `!` breaking-change
   marker, and omits common `build` / `ci` / `style` types. Projects using commitlint, semantic-release, or
   conventional-changelog therefore face policy conflicts, and ARC cannot emit a standard semver signal.
-- *Approach:* decide each divergence deliberately—accept `!`, settle optional versus intentionally strict scope,
+- _Approach:_ decide each divergence deliberately—accept `!`, settle optional versus intentionally strict scope,
   extend or configure the type set, and consider a scope vocabulary axis. This WU owns commit-message policy and
   the commit-msg convention surface; `commit-message-submission` owns the canonical parser/transport mechanism,
   so policy decisions become fixture and configuration deltas rather than a parser rewrite.
 
 ### `[ ]` **Run a vocabulary-budget pass over adopter-facing coined terms**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); release-gates portfolio review.
-- *Concern:* consistency rules do not bound coined-term quantity. Evaluate a small justified adopter-core glossary,
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); release-gates portfolio review.
+- _Concern:_ consistency rules do not bound coined-term quantity. Evaluate a small justified adopter-core glossary,
   rename-to-standard as the default disposition, and a possible glossary-membership check in `knowledge-lint`.
   Keep internal authoring vocabulary separate from the adopter-facing budget and coordinate placement with
   `knowledge-architecture`.
 
 ### `[ ]` **Include `arc start` ceremony commits in the init/activate footer split**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-07);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-07);
   captured during `finalize-parallelism` Task 2.4.a (`arc start` substrate), 2026-07-04.
-- *Concern:* This WU already carries the `(activation)` init/activate split: `init-work-unit` creates a
+- _Concern:_ This WU already carries the `(activation)` init/activate split: `init-work-unit` creates a
   Planning-state WU, while `activate-work-unit` advances Planning → Active. FP Task 2.4.a adds a formulaic shell
   `arc start` ceremony commit path that currently stamps `Context: meta-<slug>.md (activation)` for the init/start
   ceremony, so the split is no longer only workflow prose and hook documentation; it is becoming encoded in CLI
   helper output and its tests.
-- *Approach:* when reconciling the footer meta-category set, update the `arc start` ceremony message builders /
+- _Approach:_ when reconciling the footer meta-category set, update the `arc start` ceremony message builders /
   tests in parity with the chosen decision: distinct init context, renamed `activation`, or clarified activation
   scope. Treat create-new start and graduation/start paths together so the CLI, method docs, commit-msg hook,
   workflow guidance, and tests stay aligned.
 
 ### `[ ]` **Name extensions by fire-point, not intended action**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-03);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-03);
   captured during `adversarial-review` planning.
-- *Concern:* extensions are hook points whose `.actions` payload is project-configured, so names should describe
+- _Concern:_ extensions are hook points whose `.actions` payload is project-configured, so names should describe
   the fire point rather than an intended action. `pre-spec-finalization-review` and the broader `*-review`
   family bake "review" into the seam; point-named extensions such as `post-context-load` and `pre-activation`
   are the better precedent.
-- *Fold-in:* codify "extensions are named by hook point" as a naming standard before any rename cascade. Treat
+- _Fold-in:_ codify "extensions are named by hook point" as a naming standard before any rename cascade. Treat
   renames as breaking migrations because names appear in workflow fire-point markers, point-scanner validation,
   and project-configured extension files.
 
 ### `[ ]` **Codify the semantic-hygiene verb standard**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-03);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-03);
   captured during `adversarial-review` task generation.
-- *Concern:* `adversarial-review` forced a latent verb taxonomy open: `audit` = grounded validation against an
+- _Concern:_ `adversarial-review` forced a latent verb taxonomy open: `audit` = grounded validation against an
   external referent; `review` = internal artifact/diff quality; `assess` = readiness or fit; `verify` = confirm
   against an expected result; `check` = cheap precondition guard.
-- *Fold-in:* codify the standard here. Renames that fail it should route as judged follow-through, not a mass
+- _Fold-in:_ codify the standard here. Renames that fail it should route as judged follow-through, not a mass
   sweep in the originating WU.
 
 ### `[ ]` **Broaden scope to prose/vocabulary conventions (general naming-conventions WU)**
 
-- *Routed from:* decided at the work-routing-discipline housekeep drain (2026-06-01).
-- *Concern:* this WU's current scope is file/section *renames* (the `TYPE.QUALIFIER` cascade). The two
+- _Routed from:_ decided at the work-routing-discipline housekeep drain (2026-06-01).
+- _Concern:_ this WU's current scope is file/section _renames_ (the `TYPE.QUALIFIER` cascade). The two
   vocabulary captures below — prose word-choice conventions, not file names — broaden it into a general
   **naming-conventions** WU. The stub-identity rename `doc-naming-convention` → `naming-conventions` (dir +
   `meta-*`/`draft-*` filenames) was pulled forward at the retirement pass, to avoid colliding with the
@@ -101,15 +101,15 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 
 ### `[ ]` **Spell out "work unit" on user-facing surfaces**
 
-- *Routed from:* `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01).
-- *Concern:* add a DEV-RULES.PROJECT § Documentation Standards rule — write "work unit" in full on user- /
+- _Routed from:_ `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01).
+- _Concern:_ add a DEV-RULES.PROJECT § Documentation Standards rule — write "work unit" in full on user- /
   adopter-facing surfaces; reserve `WU` for internal-dev shorthand and dense internal notes. Cheaper than
   renaming the class; resolves the `WU`-on-user-surfaces aesthetic. (Touches a rules doc — quick-tier.)
 
 ### `[ ]` **Evaluate a `housekeep` → `housekeeping` prose-form sweep**
 
-- *Routed from:* `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01).
-- *Concern:* `arc-housekeep` is the command/skill name (imperative, like `arc-commit`), but as a bare prose
+- _Routed from:_ `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01).
+- _Concern:_ `arc-housekeep` is the command/skill name (imperative, like `arc-commit`), but as a bare prose
   modifier the doctrine uniformly uses "housekeep drain / flow" (DEV-RULES.ARC § Discovered Work Routing + the
   strategies, ~8 usages). "Housekeeping" reads more naturally as an English adjective; the question is whether to
   standardize the prose form to "housekeeping" (keeping the command `arc-housekeep`) in a deliberate cross-surface
@@ -118,8 +118,8 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 
 ### `[ ]` **Italic conventions: narrative-preamble blockquotes + underscore-over-asterisk emphasis**
 
-- *Routed from:* `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01).
-- *Concern:* two italic-style conventions that fit the broadened naming-conventions scope. (1)
+- _Routed from:_ `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01).
+- _Concern:_ two italic-style conventions that fit the broadened naming-conventions scope. (1)
   **Narrative-preamble blockquotes** — italicize only the file-top narrative preamble (first blockquote before any
   `##`, plain prose, no list items / GFM directive / bold-field markers); the other three blockquote shapes (GFM
   callouts, structured field blocks, requirement notes) stay non-italic. Doubles the "meta-commentary, not
@@ -134,54 +134,54 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 
 ### `[ ]` **Commit-message discipline (self-hosting): `(arc)` scope overuse + `docs` type misuse — adherence gap**
 
-- *Routed from:* follow-up housekeep drain (2026-06-01), dogfooded across this session's own PRs.
-- *Concern:* `commit-format` § Type selection + § Subject scope already codify both rules clearly — `docs` is
+- _Routed from:_ follow-up housekeep drain (2026-06-01), dogfooded across this session's own PRs.
+- _Concern:_ `commit-format` § Type selection + § Subject scope already codify both rules clearly — `docs` is
   "external-facing prose only (`README.md`, docs-site, onboarding)"; `(arc)` is reserved for cross-cutting
   concerns, "not a default-when-uncertain catch-all" — yet both are widely under-adhered in the self-hosting
   repo (five PRs in one session all used `docs`/`chore(arc)` for bounded methodology-artifact edits that should
   have been `fix(brief)` / `fix(hook)` / `fix(strategy)` / `chore(backlog)`). The rules are excellent; the gap
   is **adherence, not authoring.**
-- *Shape:* enforcement + salience, not new guidance. (1) A `commit-msg` hook check — `docs` misuse is
+- _Shape:_ enforcement + salience, not new guidance. (1) A `commit-msg` hook check — `docs` misuse is
   mechanically catchable (flag `type: docs` when no staged path is under an external-facing surface like
   `README.md` / docs-site); `(arc)` scope can warn-to-confirm (a hook can't fully judge "cross-cutting"). (2)
   Reinforcement/salience via `arc-reinforce`. Cross-ref `commit-format` § Type selection + § Subject scope.
 
 ### `[ ]` **Clarify `arc sync` directionality in naming/expectation terms (publish-only vs. bidirectional)**
 
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); captured during in-flight-awareness spec
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-02); captured during in-flight-awareness spec
   planning. (Split capture — the capability angle routed to `cross-machine-sync-coherence`.)
-- *Concern:* `arc sync` is a smart *publish* orchestrator, not bidirectional — the worktree leg is push-only
+- _Concern:_ `arc sync` is a smart _publish_ orchestrator, not bidirectional — the worktree leg is push-only
   (detects-and-blocks on `remote-ahead` / `diverged` rather than pulling), so it can't replace `git pull` on
   machine arrival. The name oversells it as bidirectional.
-- *Proposed (naming/expectation angle):* if it stays publish-only, rename or document the directionality so the
+- _Proposed (naming/expectation angle):_ if it stays publish-only, rename or document the directionality so the
   name doesn't imply bidirectional reconcile.
-- *Scope:* S — naming/doc decision (the capability question is the sibling note in `cross-machine-sync-coherence`).
+- _Scope:_ S — naming/doc decision (the capability question is the sibling note in `cross-machine-sync-coherence`).
 
 ### `[ ]` **H1 styling for the inbox / working-memory / notes file family**
 
-- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02). Informs the Renames table — decide the H1
-  *form* the renamed surfaces adopt.
-- *Concern:* the user-scoped capture surfaces (`SESSION-NOTES`, `WORKING-MEMORY`, `USER-INBOX`, `ATOMIC-INBOX`)
+- _Routed from:_ `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02). Informs the Renames table — decide the H1
+  _form_ the renamed surfaces adopt.
+- _Concern:_ the user-scoped capture surfaces (`SESSION-NOTES`, `WORKING-MEMORY`, `USER-INBOX`, `ATOMIC-INBOX`)
   use Title-Case H1s (`# Session Notes`, etc.). Alternative: filename-style ALL-CAPS-HYPHENATED H1s
   (`# INBOX.USER`), which add visual weight and make file identity instant in raw-markdown views (the primary
   consumption mode), at the cost of diverging from standard H1 convention and reading shouty when rendered.
   Half-measure: space-separated all-caps (`# WORKING MEMORY`).
-- *Why here:* the rename cascade rewrites these H1s anyway (`SESSION-NOTES → NOTES.SESSION`, etc.), so the
-  styling choice is a natural rider on that work — neighbors the *italic conventions* buffer entry above (same
+- _Why here:_ the rename cascade rewrites these H1s anyway (`SESSION-NOTES → NOTES.SESSION`, etc.), so the
+  styling choice is a natural rider on that work — neighbors the _italic conventions_ buffer entry above (same
   file-family styling axis).
-- *Scope:* small ripple — the renamed templates + instances + any cross-doc references quoting H1s. Defer to
+- _Scope:_ small ripple — the renamed templates + instances + any cross-doc references quoting H1s. Defer to
   the cascade.
 
 ### `[ ]` **Rename `reference/briefs/` → `reference/agent-briefs/` (disambiguate from the `brief` spec form)**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: naming-conventions`), agile-wu-lifecycle cohort housekeep
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: naming-conventions`), agile-wu-lifecycle cohort housekeep
   drain (2026-06-04). Captured during `agile-wu-lifecycle` planning (2026-06-04) — the `sketch` → `brief` naming
   decision.
-- *Concern:* AWL adopts `brief` as the floor spec-form name (replacing `sketch`). The existing
+- _Concern:_ AWL adopts `brief` as the floor spec-form name (replacing `sketch`). The existing
   `reference/briefs/` dir (holding `AGENT-BRIEF.{ARC,PROJECT,CONTRIBUTOR}.md`) now shares a stem with the spec
   form. The dir name is also independently imprecise — "briefs" implies human-facing summaries, but these are
   agent-orientation docs (filenames already say `AGENT-BRIEF`).
-- *Proposed:* rename the dir to `agent-briefs/` (matching the `AGENT-BRIEF` filename prefix) and cascade the
+- _Proposed:_ rename the dir to `agent-briefs/` (matching the `AGENT-BRIEF` filename prefix) and cascade the
   references — ~39 files reference `reference/briefs`, ~109 touch `briefs/` or `AGENT-BRIEF`; includes the
   `packages/arc-framework/arc/**` package-source mirror, which must stay in sync. Decoupled from AWL's naming
   decision (adopting `brief` does not require the rename — filenames don't collide and prose disambiguates by
@@ -190,99 +190,99 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 
 ### `[ ]` **Adopt "specification" full-word in titles/prose; keep "spec" as identifier + short form**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: doc-naming-convention` → corrected to this stub at drain),
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: doc-naming-convention` → corrected to this stub at drain),
   housekeep drain (2026-06-08); captured at `scalable-authoring-pipeline` Phase 4.
-- *Concern:* "spec" is an unambiguous standard abbreviation, but forcing the short form into every H1 title /
+- _Concern:_ "spec" is an unambiguous standard abbreviation, but forcing the short form into every H1 title /
   prose position reads awkward (e.g. `# Workflow: Create Spec`). Spelling out "specification" where it reads more
   naturally — keeping `spec` as filename/identifier and short form — may feel more polished.
-- *Proposed:* Do **not** use a soft "where it feels natural" rule — it drifts and yields a worse half-and-half
+- _Proposed:_ Do **not** use a soft "where it feels natural" rule — it drifts and yields a worse half-and-half
   state than uniform "spec," especially beside the fixed identifiers (`spec-*`, `create-spec`, `spec-review`).
   If pursued, do it as a crisp, complete, ruled pass — e.g. spell out "Specification" only in H1
   workflow/template titles + the first defining sentence per doc; "spec" everywhere else and always as
   identifier/filename. Lean: marginal / optional — but if done, ruled and complete.
-- *Scope:* ARC-wide naming convention — templates, `create-spec`, `spec-review`, docs-site, all three authoring
+- _Scope:_ ARC-wide naming convention — templates, `create-spec`, `spec-review`, docs-site, all three authoring
   workflow H1s. Pairs with the `ROADMAP → STATUS.PROJECT` rename this WU's family owns. Explicitly **not** the
   SAP 5.R workflow-coherence pass (too narrow for an ARC-wide convention).
 
 ### `[ ]` **Reconcile the commit-footer meta-category set across method, hook, and test**
 
-- *Routed from:* `USER-INBOX § Atomic` (reclassified larger-than-atomic at drain), housekeep drain (2026-06-11);
+- _Routed from:_ `USER-INBOX § Atomic` (reclassified larger-than-atomic at drain), housekeep drain (2026-06-11);
   captured decomposing `concurrent-work-conventions` (the `decompose-work-unit` ceremony commit).
-- *Concern:* the allowed `(category)` tokens for `Context: meta-*.md (...)` footers are out of sync across their
+- _Concern:_ the allowed `(category)` tokens for `Context: meta-*.md (...)` footers are out of sync across their
   three homes. `decompose-work-unit.md` prescribes `(decomposition)`, but that token is in neither the
   `commit-footer.md` method's enumerated meta categories nor the commit-msg hook regex — verified live: the hook
   set is `(handoff|activation|integration|archival|deactivation|maintenance|incidental during …)`, so every
   decomposition ceremony commit fails validation (worked around with `(maintenance)`). The method also lists
   `(graduation)` (provisional→planned promotion), which the hook omits too.
-- *Approach:* add `decomposition` and reconcile `graduation` into the allowed set in **all three homes** — the
+- _Approach:_ add `decomposition` and reconcile `graduation` into the allowed set in **all three homes** — the
   `commit-footer.md` method doc, the commit-msg hook regex + its example/error text, and
   `commit-msg-footer.test.ts` — across **both** the package source and the `.arc/` instance copies. Design fork: is
   `decomposition` its own category (lean: yes — `decompose-work-unit` frames it as a genuine lifecycle transition)
   or does it fold into an existing token?
-- *Overlap:* subsumes the narrower "Add `(graduation)` as a commit-footer context category" capture drained
+- _Overlap:_ subsumes the narrower "Add `(graduation)` as a commit-footer context category" capture drained
   2026-06-11 — reconcile both tokens in one pass; don't double-build.
-- *Home note:* routed here as the commit-msg-hook / convention owner (pairs with this WU's commit-msg scope/type
+- _Home note:_ routed here as the commit-msg-hook / convention owner (pairs with this WU's commit-msg scope/type
   adherence hook); `quality-gate-hooks` is the alternative generic-hook home if the method/test split lands better
   there.
 
 ### `[ ]` **Coordinate the frontmatter-`type` / prefix-scheme question with `idiomatic-alignment`**
 
-- *Routed from:* OKF / LLM-wiki idiomatic-alignment exploration (2026-06-13).
-- *Concern:* the new `idiomatic-alignment` WU evaluates adding a uniform, orthogonal frontmatter `type` (OKF's
-  path-is-ID / type-is-frontmatter split) to resolve ARC's filename-prefix *double-duty* (the prefix carries a
-  type hint *and* rides the shared slug) and the prefix-less workflows / methods / extensions gap. That overlaps
+- _Routed from:_ OKF / LLM-wiki idiomatic-alignment exploration (2026-06-13).
+- _Concern:_ the new `idiomatic-alignment` WU evaluates adding a uniform, orthogonal frontmatter `type` (OKF's
+  path-is-ID / type-is-frontmatter split) to resolve ARC's filename-prefix _double-duty_ (the prefix carries a
+  type hint _and_ rides the shared slug) and the prefix-less workflows / methods / extensions gap. That overlaps
   this WU's naming-convention surface and the `strategy-file-classification.md` codification it owns, but its
   driver (align with external knowledge-format norms for legitimacy / interop / projection) is distinct from this
   WU's (internal consistency of the hub families).
-- *Proposed:* let `idiomatic-alignment` own and **pull** the frontmatter-`type` / prefix-scheme question for
+- _Proposed:_ let `idiomatic-alignment` own and **pull** the frontmatter-`type` / prefix-scheme question for
   cleaner boundaries; this WU keeps the `TYPE.QUALIFIER` hub renames + the file-classification codification.
   Decide the exact split at this WU's next planning iteration (it may stay here if it lands cleaner).
 
 ### `[ ]` **Rename the `test-first` method → question-named `test-sequencing` (+ reference cascade)**
 
-- *Routed from:* `testing-guidance-apparatus` draft-design (2026-06-22).
-- *Concern:* `test-first` names the method after one *answer* (tests-first), but its contract is to *decide* test
+- _Routed from:_ `testing-guidance-apparatus` draft-design (2026-06-22).
+- _Concern:_ `test-first` names the method after one _answer_ (tests-first), but its contract is to _decide_ test
   sequencing per task — so it reads incoherently when it selects test-after, the exact friction a configurable,
   override-aware testing apparatus exposes. The name-by-question principle wants `test-sequencing` (or
   `test-timing`). Deferred out of `testing-guidance-apparatus` to keep that WU Light, and because the rename is
-  cleanest *after* it ships.
-- *Scope:* rename the method file (both copies) + frontmatter `name:`; cascade every method reference — the
+  cleanest _after_ it ships.
+- _Scope:_ rename the method file (both copies) + frontmatter `name:`; cascade every method reference — the
   `generate-tasks` frontmatter declaration, reference-link definitions (`[arc-methods-tf]`), and prose mentions
   across DEV-RULES.ARC, `strategy-task-list-formatting`, `strategy-testing-methodology`, the methods README, and
   templates.
-- *Critical constraint:* `testing-guidance-apparatus` deliberately splits `test-first` into two senses — the
+- _Critical constraint:_ `testing-guidance-apparatus` deliberately splits `test-first` into two senses — the
   **method name** (renames here) and the **task-list marker's approach keyword** (`test-first`, stays). Rename
   **method-name occurrences only**; do **not** rewrite the approach-keyword markers. A blind `test-first` →
   `test-sequencing` find-replace would corrupt the markers.
-- *Sequencing:* after `testing-guidance-apparatus` ships. Coordinate with `composable-workflows` if it lands the
+- _Sequencing:_ after `testing-guidance-apparatus` ships. Coordinate with `composable-workflows` if it lands the
   machine-resolvable method resolution by then.
 
 ### `[ ]` **Lifecycle-ceremony footer markers + `(activation)` init/activate split**
 
-- *Routed from:* USER-INBOX housekeep drain (2026-06-24); captured at `lifecycle-closeout` Task 2.2 (2026-06-23).
+- _Routed from:_ USER-INBOX housekeep drain (2026-06-24); captured at `lifecycle-closeout` Task 2.2 (2026-06-23).
   Enriches the existing "Reconcile the commit-footer meta-category set across method, hook, and test" concern
   (this WU owns the commit-msg hook + conventions; already subsumes the `(graduation)` capture). Two threads:
-- *Marker legibility (promote / park / resume):* the footer parenthetical must read without ARC knowledge
+- _Marker legibility (promote / park / resume):_ the footer parenthetical must read without ARC knowledge
   (DEV-RULES.ARC § Commit and PR surface language). activation / integration / archival / promotion / demotion are
   legible action-nouns; `(park)` / `(resume)` don't nominalize (`parking` / `resumption` read wrong) and the verbs
   may yet rename (park → pause — owner unresolved; the cohort doc / closeout spec mis-attribute it to
   `idiomatic-alignment`, which excludes internal-vocab renaming). So a uniform own-marker-per-ceremony isn't right:
   `(promotion)` stands alone, but park / resume likely fold to `(maintenance)`. Pairs with the existing
   `decomposition`-category fork.
-- *`(activation)` init/activate split (carried from rules-restructure's buffer):* `init-work-unit` creates at
+- _`(activation)` init/activate split (carried from rules-restructure's buffer):_ `init-work-unit` creates at
   State Planning yet shares the single `(activation)` footer with the Planning→Active `activate` transition — same
   meta-category-reconciliation domain; carries a fork (add a distinct init context, rename `activation`, or
   clarify its scope — touches `commit-footer.md` both copies, the commit-msg validator's allowed-contexts list,
   and `init-work-unit.md` commit guidance).
-- *lifecycle-closeout's stance:* it did the bounded **consistency fix** only — folded promote / park / resume
+- _lifecycle-closeout's stance:_ it did the bounded **consistency fix** only — folded promote / park / resume
   ceremony footers to `(maintenance)` (legible, already hook-accepted) and dropped the orphaned `(graduation)`
   bullet from `commit-footer.md`. This WU owns the **enhancement**: whether promote earns `(promotion)`, the
   `decomposition` / `(activation)` forks, and the method + hook + test sync.
 
 ### `[ ]` **Evaluate the meta `Owner` field → `DRI` rename**
 
-- *Routed from:* `single-owner-wu-model` create-spec, via USER-INBOX drain (2026-06-24).
-- *Concern:* "DRI" (Directly Responsible Individual) is the precise industry term for the single-owner-WU concept —
+- _Routed from:_ `single-owner-wu-model` create-spec, via USER-INBOX drain (2026-06-24).
+- _Concern:_ "DRI" (Directly Responsible Individual) is the precise industry term for the single-owner-WU concept —
   worth weighing as the actual meta field name versus keeping `**Owner:**` with "DRI" as the defining gloss.
   `single-owner-wu-model` deliberately kept `Owner` (accessible, git-idiomatic, zero migration) and used "single
   owner" / "one DRI" as the conceptual gloss; this revisits the field name itself as a deliberate call. A rename is
@@ -292,33 +292,33 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 
 ### `[ ]` **Add a `cohort-[name].md` form to the commit `Context:` footer vocabulary**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-06-25); hit
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-06-25); hit
   live committing `cohort-cross-machine-coherence.md`.
-- *Concern:* the `commit-footer` method and the `commit-msg` validator hook enumerate artifact forms for
+- _Concern:_ the `commit-footer` method and the `commit-msg` validator hook enumerate artifact forms for
   `tasks-` / `draft-` / `spec-` / `meta-` (plus `standalone` / `integration` anchors) but carry **no
   `cohort-[name].md` form** — though a cohort doc is a movable spec-shaped artifact that relocates with the WU
   group. Committing cohort-doc grooming has no specific footer and falls back to `standalone (planning)`, losing
   the artifact pointer.
-- *Proposed:* add `Context: cohort-[name].md (planning)` (plus any other parentheticals cohort grooming warrants
+- _Proposed:_ add `Context: cohort-[name].md (planning)` (plus any other parentheticals cohort grooming warrants
   — `(maintenance)`, `(code review)`) to `commit-footer.md` and the `commit-msg` hook validator; mirror to
   package source (two-copy). Small form-set design call: which parentheticals cohort supports.
-- *Coordination:* composes with the commit-msg adherence hook this WU already builds. Sibling of the
+- _Coordination:_ composes with the commit-msg adherence hook this WU already builds. Sibling of the
   cohort-scoped-grooming-entry capture (`WU_Target: planning-iteration-mechanics`) — same work surfaced both,
   different domain (footer grammar vs. grooming entry).
 
 ### `[ ]` **`VECTOR.{PROJECT,USER}` joins the family + explorer-sort as a naming criterion + WU short-name field**
 
-- *Routed from:* `goal-aware-direction` grooming (2026-07-02). Three related concerns:
-- *New TYPE:* `goal-aware-direction` mints a scope-paired direction surface — `VECTOR.PROJECT` (`backlog/`) /
+- _Routed from:_ `goal-aware-direction` grooming (2026-07-02). Three related concerns:
+- _New TYPE:_ `goal-aware-direction` mints a scope-paired direction surface — `VECTOR.PROJECT` (`backlog/`) /
   `VECTOR.USER` (`user/{id}/`) — named per this convention from the start (the `STATUS.USER` forward-compat
   pattern). A deliberate idiom departure (no mainstream tool uses a navigation metaphor as a surface name;
   rationale recorded in `draft-goal-aware-direction.md`); the entry noun stays plain ("target").
-- *Explorer-sort as a codified criterion:* managed-doc names are chosen with explorer sort order as a design
+- _Explorer-sort as a codified criterion:_ managed-doc names are chosen with explorer sort order as a design
   input — the intended reading order is `INBOX` → (`MEMORY`) → `STATUS` → `VECTOR`, inbox always first,
   status/vector adjacent, in both scopes. `VECTOR` was selected partly to satisfy this (candidates sorting
   before `INBOX`, e.g. `HORIZON`, were rejected on it). Codify the criterion in
   `strategy-file-classification.md` alongside the convention so future TYPE names get checked against it.
-- *WU short-name field:* a standardized per-WU short name (e.g. `OSD`, `FP`) for width-constrained rendered
+- _WU short-name field:_ a standardized per-WU short name (e.g. `OSD`, `FP`) for width-constrained rendered
   surfaces — a `Short:` (or similar) meta field, minted at `arc stub` with a collision guard, resolvable via
   `arc status <short>`; full name authoritative in prose, short form legal only in constrained render cells.
   Convention + field + collision guard are this WU's; render consumption (overflow collapse `SAP, DM, +4`) is
@@ -327,15 +327,15 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 
 ### `[ ]` **Review coupling-audit finding: state document renames**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-18);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-18);
   captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
-- *Concern:* five planned document/root renames have materially different fan-out, including two abstract
+- _Concern:_ five planned document/root renames have materially different fan-out, including two abstract
   state-document names.
-- *Approach:* use the ranked classes at grooming to decide which names need resolver-backed indirection and which
+- _Approach:_ use the ranked classes at grooming to decide which names need resolver-backed indirection and which
   can change atomically with the mover.
-- *Packet:* `packet-9ba27bc90a49239e2b82b1ef`; content digest
+- _Packet:_ `packet-9ba27bc90a49239e2b82b1ef`; content digest
   `fbf43e1af8df3fd782b11e52e815f70894d6dab37a03c4c12daca52f6b9cc2cb`.
-- *Evidence:* `agent-briefs-root`, `atomic-inbox-name`, `session-notes-name`, `user-inbox-name`, and
+- _Evidence:_ `agent-briefs-root`, `atomic-inbox-name`, `session-notes-name`, `user-inbox-name`, and
   `working-memory-name`; corresponding `scan-result.json#class-*` anchors.
 
 ---
@@ -356,7 +356,7 @@ isolation would entrench the inconsistency; naming the whole system makes every 
 > then this WU/session.
 
 The TYPE names the kind of document; the qualifier names its scope. Each conforming pair shares both a
-TYPE *and an update model* — that shared update model is *why* the members share a TYPE (see § Why
+TYPE _and an update model_ — that shared update model is _why_ the members share a TYPE (see § Why
 `MEMORY` ≠ `NOTES`). Codification home: `strategy-file-classification.md` (which already governs naming
 conventions).
 
@@ -371,7 +371,7 @@ sibling tells you the axis. Not worth solving.
 | `USER-INBOX.md`                         | `INBOX.USER.md`               | user             | `user/{id}/`       |
 | `ATOMIC-INBOX.md`                       | `INBOX.PROJECT.md` (rename)   | project (shared) | `backlog/`         |
 | `ROADMAP.md`                            | `STATUS.PROJECT.md`           | project          | `backlog/`         |
-| *(new — WF builds)*                     | `STATUS.USER.md`              | user             | `user/{id}/`       |
+| _(new — WF builds)_                     | `STATUS.USER.md`              | user             | `user/{id}/`       |
 | `WORKING-MEMORY.md`                     | `MEMORY.USER.md`              | user             | `user/{id}/`       |
 | `SESSION-NOTES.md`                      | `NOTES.SESSION.md`            | session/per-WU   | `user/{id}/<wu>/`  |
 
@@ -380,22 +380,22 @@ axis ARC already routes on ("inboxes route by character, not wrapper presence"),
 section name (it collides with the `backlog/` directory). This two-section shape now applies to the personal
 `INBOX.USER` only: `work-routing-discipline` retired the shared multi-step surface (homeless multi-step
 captures graduate to a provisional stub), so the shared `INBOX.PROJECT` carries `## Atomic` alone. Errand is
-*routing language* inside `## Atomic` (an atomic capture becomes an Errand or folds into current work), not a
+_routing language_ inside `## Atomic` (an atomic capture becomes an Errand or folds into current work), not a
 section name — name by character, not vehicle.
 
 ## Design decisions
 
 **Rename the surviving shared inbox — there's nothing to collapse.** `work-routing-discipline` retired
 `BACKLOG-INBOX` (no shared multi-step surface; homeless multi-step graduates to a provisional stub), so the
-shared inbox is atomic-only and `ATOMIC-INBOX → INBOX.PROJECT` is a simple rename. This *strengthens* the
-qualifier as a *pure scope axis* (`USER` / `PROJECT`): the shared surface carries one character section
+shared inbox is atomic-only and `ATOMIC-INBOX → INBOX.PROJECT` is a simple rename. This _strengthens_ the
+qualifier as a _pure scope axis_ (`USER` / `PROJECT`): the shared surface carries one character section
 (`## Atomic`), the personal `INBOX.USER` carries two, and neither mixes scope with character the way a
 three-file `INBOX.{USER,ATOMIC,BACKLOG}` would have. The growth concern (a shared surface accumulating) is a
-*drain-discipline signal*, not a structural defect — `## Atomic` is designed to empty (atomics done/folded).
+_drain-discipline signal_, not a structural defect — `## Atomic` is designed to empty (atomics done/folded).
 Append-contention shrinks to atomic appends alone — pre-existing mutated-state territory per ADR-020,
 mitigated by `merge=union` and low in solo/small-team use.
 
-**Why `MEMORY` ≠ `NOTES` (don't unify to `MEMORY.SESSION`).** They have different *update models*, and the
+**Why `MEMORY` ≠ `NOTES` (don't unify to `MEMORY.SESSION`).** They have different _update models_, and the
 TYPE encodes it: `MEMORY` is an accumulating store of discrete entries, each individually conditioned
 (`_Remove when:_`), surviving across many sessions/WUs — you add and prune. `NOTES.SESSION` is a single
 snapshot, wholesale-rewritten each handoff — you replace. Every other conforming pair (`DEV-RULES.*`,
@@ -423,12 +423,12 @@ component.
 - **`roadmap-tooling`** owns the `ROADMAP → STATUS.PROJECT` rename (it parked the ROADMAP rename and builds
   the renderer). This WU and roadmap-tooling must agree on `STATUS.PROJECT` and sequence the rename once
   (avoid a double cascade). WF's planning routed the `STATUS` lean there.
-- **`handoff-optimization`** carries SESSION-NOTES *content/template* cleanup (a USER-INBOX § Backlog
-  entry). That is distinct from this WU's `SESSION-NOTES → NOTES.SESSION` *filename* rename, but they touch
+- **`handoff-optimization`** carries SESSION-NOTES _content/template_ cleanup (a USER-INBOX § Backlog
+  entry). That is distinct from this WU's `SESSION-NOTES → NOTES.SESSION` _filename_ rename, but they touch
   the same surfaces — coordinate so one sweep does both.
 - **Worktree Foundation** builds `STATUS.USER` and should name it per this convention from the start
   (forward-compat), even though the rest of the renames land here.
-- The item-6 sync dispatch keys on *path/directory class* (per-WU subdir vs. user root), not filenames, so
+- The item-6 sync dispatch keys on _path/directory class_ (per-WU subdir vs. user root), not filenames, so
   the file renames do not break `arc user save/load` — de-risks the cascade.
 
 ## Cascade scope (the real cost)
@@ -439,7 +439,7 @@ messages, and ROADMAP regen tooling. Mechanical but broad — comparable to the 
 `roadmap-tooling` already flags. Infra-touching → a planned WU, not atomic.
 
 **Briefs + a stale token to catch.** Include `AGENT-BRIEF.{ARC,CONTRIBUTOR}` in the sweep — they reference the
-inboxes in *content*, not just the filename-convention conformance noted above. Specifically,
+inboxes in _content_, not just the filename-convention conformance noted above. Specifically,
 `AGENT-BRIEF.CONTRIBUTOR` still names the **pre-WOR per-user `ATOMIC-INBOX.md`** (WOR renamed it to `USER-INBOX`);
 a `USER-INBOX` → `INBOX.USER` rename grep won't catch the stale `ATOMIC-INBOX` token, so sweep it explicitly to
 the renamed surface. Surfaced during Worktree Foundation's atomic-companion retirement, which left this brief ref
@@ -450,7 +450,7 @@ untouched as off-axis (inbox rename, not companion-type).
 - Final sequencing with `roadmap-tooling` (STATUS.PROJECT) and `handoff-optimization` (SESSION-NOTES
   content) — one combined sweep or staged?
 - `STATUS` vs `DASHBOARD` was settled to `STATUS`; confirm no live collision with the `arc status`
-  command (different namespace — command vs. file — but the *render command* should not be named
+  command (different namespace — command vs. file — but the _render command_ should not be named
   `status`).
 
 ## Scope Estimate
@@ -460,7 +460,7 @@ Size is dominated by reference breadth and cross-WU coordination, not logic.
 
 ## Coordination — ADR-022
 
-ADR-022 classifies the managed operational-state documents *by role* and is rename-agnostic; this WU owns the
+ADR-022 classifies the managed operational-state documents _by role_ and is rename-agnostic; this WU owns the
 file renames (`WORKING-MEMORY → MEMORY.USER`, `SESSION-NOTES → NOTES.SESSION`, `ROADMAP → STATUS.PROJECT`,
 etc.). The managed-doc class concept is a motivation for the rename, but timing stays this WU's call. See
 `adr-022-managed-operational-state-documents.md` § Coordination.

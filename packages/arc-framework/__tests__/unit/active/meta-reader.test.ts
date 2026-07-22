@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { lint } from "markdownlint/promise";
 import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -16,6 +17,7 @@ import {
   parseIdentifierList,
   parseMetaFile,
   parseMetaRecord,
+  normalizeMetaCoreTable,
   parseReviewRubric,
   readActiveMetaCandidates,
   renderMetaFile,
@@ -26,6 +28,7 @@ import {
   setMetaDesign,
   setMetaFinalizeFields,
   setMetaState,
+  setMetaTitle,
   reconcileMetaFields,
   validateMetaFieldBlockShape,
   META_FIELDS,
@@ -1371,6 +1374,106 @@ describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
     expect(() => setMetaBulletFields(noNextTask, { "Next Task": "[none]" })).toThrow(
       /Next Task.*not found/i,
     );
+  });
+});
+
+describe("setMetaTitle — managed heading rewrite", () => {
+  it("rewrites a CRLF heading without changing the document's line endings", () => {
+    const content = "# Metadata: old-name\r\n\r\n- **State:** Active\r\n";
+
+    expect(setMetaTitle(content, "new-name")).toBe(
+      "# Metadata: new-name\r\n\r\n- **State:** Active\r\n",
+    );
+  });
+});
+
+describe("normalizeMetaCoreTable — exact-span normalization", () => {
+  it("preserves authored inline-code markers around bracket sentinels", () => {
+    const before = [
+      "# Metadata: sentinel",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "|---|---|---|---|---|",
+      "| `Planning` | `andrew` | [none] | `[TBD]` | `P2` |",
+      "",
+      "- **Cohort:** [none]",
+    ].join("\n");
+
+    const after = normalizeMetaCoreTable(before);
+
+    expect(after).toMatch(/\|\s+`\[TBD\]`\s+\|/u);
+    expect(parseMetaRecord(after)).toEqual(parseMetaRecord(before));
+  });
+
+  it("re-renders only the managed table rows while preserving fields and CRLF framing", () => {
+    const prefix = "# Metadata: 表示\r\n\r\n";
+    const table = [
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "|---|---|---|---|---|",
+      "| `Active` | `開発者` | `feat/表示` | `Heavy` | `P1` |",
+    ].join("\r\n");
+    const suffix = "\r\n\r\n- **Cohort:** `team`\r\n- **Depends On:** `alpha`,\r\n  `beta`\r\n\r\n" +
+      "## Narrative\r\n\r\nProse ordering without a final newline.";
+    const before = `${prefix}${table}${suffix}`;
+    const after = normalizeMetaCoreTable(before);
+
+    expect(parseMetaRecord(after)).toEqual(parseMetaRecord(before));
+    expect(after.startsWith(prefix)).toBe(true);
+    expect(after.endsWith(suffix)).toBe(true);
+    expect(after).not.toBe(before);
+    expect(normalizeMetaCoreTable(after)).toBe(after);
+  });
+
+  it.each([
+    ["missing", "# Metadata: demo\n\n- **Cohort:** [none]\n", /no table found/i],
+    [
+      "malformed",
+      "# Metadata: demo\n\n| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
+        "| --- | --- | --- | --- | --- |\n\n- **Cohort:** [none]\n",
+      /expected adjacent/i,
+    ],
+    [
+      "unrecognized",
+      "# Metadata: demo\n\n| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 |\n",
+      /header not recognized/i,
+    ],
+    [
+      "duplicated",
+      "# Metadata: demo\n\n" +
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
+        "| --- | --- | --- | --- | --- |\n| `Active` | `a` | `b` | `Heavy` | `P1` |\n\n" +
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
+        "| --- | --- | --- | --- | --- |\n| `Active` | `a` | `b` | `Heavy` | `P1` |\n",
+      /duplicate/i,
+    ],
+  ])("fails loudly for a %s managed table", (_label, content, pattern) => {
+    expect(() => normalizeMetaCoreTable(content)).toThrow(pattern);
+  });
+
+  it("aligns wide values in every core value class for pinned MD060", async () => {
+    const before = [
+      "# Metadata: widths",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --- | --- | --- | --- | --- |",
+      "| `活動` | `é` | `feat/👩‍💻` | `✈️` | `1⃣` |",
+      "",
+      "- **Cohort:** [none]",
+    ].join("\n");
+    const after = normalizeMetaCoreTable(before);
+    const results = await lint({
+      strings: { "meta-widths.md": after },
+      config: { default: false, MD060: { style: "aligned" } },
+    });
+
+    expect(results["meta-widths.md"]).toEqual([]);
+    expect(parseMetaRecord(after)).toMatchObject({
+      State: "活動",
+      Owner: "é",
+      Branch: "feat/👩‍💻",
+      Class: "✈️",
+      Priority: "1⃣",
+    });
   });
 });
 

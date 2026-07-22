@@ -137,7 +137,7 @@ is synchronous/IDE-native. Community-built bridges can connect them.
 
 ### Claude Code (Anthropic CLI Agent)
 
-**Platform:** Terminal-based CLI agent. *This is the environment we're running in.*
+**Platform:** Terminal-based CLI agent. _This is the environment we're running in._
 
 **Session & Context:**
 
@@ -288,7 +288,7 @@ of measurement.
 
 ### OpenAI Codex (Cloud Agent)
 
-**Platform:** Cloud-based agent with sandboxed task execution. *Not* the deprecated
+**Platform:** Cloud-based agent with sandboxed task execution. _Not_ the deprecated
 Codex model — this is the 2025+ autonomous coding product.
 
 **Session & Context:**
@@ -655,7 +655,7 @@ heterogeneous agents across different platforms.
 
 3. **Do NOT assume a specific approval model.** Per-action (Claude Code), plan-based
    (Copilot), and review-based (Jules) all exist. ARC should define approval
-   *points* without prescribing *mechanism*.
+   _points_ without prescribing _mechanism_.
 
 4. **Do NOT assume auto-commit behavior.** Only Aider auto-commits. Most tools either
    use PR abstraction or require explicit commit instructions. ARC's commit control

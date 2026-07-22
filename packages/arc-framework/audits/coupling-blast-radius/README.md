@@ -26,7 +26,7 @@ evidence value is unchanged — the corpus is digest-pinned and remains permanen
   ```
 
 - **Regenerate:** check out the same commit and run `npm run audit:coupling`; canonical JSON serialization
-  reproduces the corpus (verify against the digest). A run at any later commit produces a *new* corpus for the
+  reproduces the corpus (verify against the digest). A run at any later commit produces a _new_ corpus for the
   then-current tree, not this one.
 
 Evidence anchors of the form `scan-result.json#class-<id>` (used by the routing ledger's packets and by

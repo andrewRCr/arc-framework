@@ -104,6 +104,10 @@ describe("update integration — baseline (real recipe)", () => {
 
     const manifest = await readManifestFile(tempDir);
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
+    expect(manifest.files["system/.internal/skills/arc-design-audit/SKILL.md"]).toMatchObject({
+      classification: "Framework",
+      layer: "core",
+    });
   });
 
   it("restores executable permissions on installed hooks", async () => {
@@ -154,10 +158,11 @@ describe("update integration — baseline (real recipe)", () => {
     // through added/removed/updated/conflicts.
     const perFilePaths = [
       ...[
+        "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
         "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "independent-analysis",
-        "implementation-audit", "self-review",
+        "implementation-audit", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
-        "session-state", "spec-review", "test-first",
+        "session-state", "spec-review", "task-audit", "test-first",
       ].map((n) => `system/methods/${n}.md`),
       ...[
         "post-context-load", "post-task-completion", "post-task-quality",

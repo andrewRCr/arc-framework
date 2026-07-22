@@ -23,7 +23,7 @@ Grok session is a silent context-integrity hole.
 
 - The project PreCompact hook in `.claude/settings.json` uses the `"command": "bash"` + `"args": ["-lc", ...]`
   two-field shape; the SessionStart(compact) inject hook uses the same shape. (A user-level PreToolUse safety
-  gate that *does* fire under Grok reportedly uses a single-string `command` — a plausible discriminator.)
+  gate that _does_ fire under Grok reportedly uses a single-string `command` — a plausible discriminator.)
 - `pre-compact-seed.mjs` harness fork: `ARC_HOOK_HARNESS` is authoritative; any value other than `claude-code`
   — or an unset value without `CLAUDE_PROJECT_DIR` — takes the **Codex marker path** (`isCodexHarness()`), so a
   Grok-tagged invocation today would mint Codex pending markers nothing under Grok consumes. There is no `grok`
@@ -44,7 +44,7 @@ Grok session is a silent context-integrity hole.
   but **no** fresh `.arc/user/{identity}/.internal/compaction-seed.json`; `arc recover audit` returned
   stop / seed-missing (ENOENT); no ARC recovery inject reached the post-compact session.
 
-Net: Grok's native compact works and Grok executes *some* Claude-shaped hooks, but the ARC PreCompact seed (and
+Net: Grok's native compact works and Grok executes _some_ Claude-shaped hooks, but the ARC PreCompact seed (and
 therefore everything downstream of it) never runs. Registered ≠ effective.
 
 ## Unknowns and Assumptions
@@ -64,7 +64,7 @@ Failure-cause hypotheses — more than one may hold; the WU's first phase is a p
 
 Assumptions to hold or falsify:
 
-- Grok exposes *some* hook event around compaction that a project-level config can reach (if not, the WU's shape
+- Grok exposes _some_ hook event around compaction that a project-level config can reach (if not, the WU's shape
   changes materially — e.g. polling/marker fallback à la Codex — and the draft should be re-groomed).
 - Grok should get the **Claude-shaped model** (PreCompact-time seed + post-compact inject), not the Codex
   fallback (pending marker + PostToolUse / UserPromptSubmit) — Codex's shape exists because Codex lacks the
@@ -89,7 +89,7 @@ composed shape, not from scratch.
    under investigation — never accept Grok self-report as the evidence of record). `grok inspect --json` needs
    no live session — run it from the WU session directly. One probe cell checks whether Grok has a
    headless/scripted mode, which would make the acceptance smoke repeatable. The single cell where the Grok
-   session *is* the legitimate witness: whether the recovery inject actually reached the post-compact agent's
+   session _is_ the legitimate witness: whether the recovery inject actually reached the post-compact agent's
    context.
 2. **Explicit `grok` harness branch** in `pre-compact-seed.mjs` (and the inject script as needed):
    `ARC_HOOK_HARNESS=grok` → seed write **without** Codex pending markers; inject via the verified Grok channel.

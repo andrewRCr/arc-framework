@@ -112,10 +112,10 @@ unproven, and `chunked-delivery` may recurse at its own grooming.
 
 **Cut-map:**
 
-| Entry | Kind | Scope | Deliverable boundary |
-| --- | --- | --- | --- |
-| `pr-decomposition` | surviving-origin (`keep-active`) | chunk-boundary doctrine; Mode B review-only retrofit | a chunked review of an already-built change set; no topology change |
-| `chunked-delivery` | new member | Mode A up-front chunk planning; Axis 2 merge topology; assurance core | `1 WU = 1 branch, emitting ≥ 1 PR`, with chunks landing through an integration branch |
+| Entry              | Kind                             | Scope                                                                 | Deliverable boundary                                                                  |
+| ------------------ | -------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `pr-decomposition` | surviving-origin (`keep-active`) | chunk-boundary doctrine; Mode B review-only retrofit                  | a chunked review of an already-built change set; no topology change                   |
+| `chunked-delivery` | new member                       | Mode A up-front chunk planning; Axis 2 merge topology; assurance core | `1 WU = 1 branch, emitting ≥ 1 PR`, with chunks landing through an integration branch |
 
 **Edge:** `chunked-delivery` → `Depends On: pr-decomposition` (boundary doctrine and review-unit vocabulary are
 authored here, consumed there).

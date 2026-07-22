@@ -10,7 +10,7 @@ reliable or unreliable, regardless of mechanism format?
 **Companion research:** [Context Loading Architecture][context-loading] covers what content
 goes into the context window and how tiers are structured. [Context Degradation][context-degradation]
 covers general window degradation — positioning effects, effective capacity, compaction.
-This document focuses on the *reliability* of different delivery mechanisms and the
+This document focuses on the _reliability_ of different delivery mechanisms and the
 architectural ceiling on instruction compliance.
 
 **Date:** 2026-02-26
@@ -37,8 +37,8 @@ they compete for the same finite compliance capacity.
 - The 85% → 99% compliance gap appears to be an **architectural ceiling** of current LLM
   architectures, not a mechanism-choice problem
 
-**Key finding for ARC:** The primary lever is not *which documents to load* but *how many
-distinct instructions they collectively impose*. Reducing instruction count matters more
+**Key finding for ARC:** The primary lever is not _which documents to load_ but _how many
+distinct instructions they collectively impose_. Reducing instruction count matters more
 than reducing token count or document count. For Tier 2 content, explicit triggers
 embedded in Tier 1 significantly outperform implicit index-based awareness.
 
@@ -187,7 +187,7 @@ Several techniques close the gap partially:
 
 - **Chain-of-thought reasoning:** +15-20% improvement (GPT-4o: 15% → 31% on 10
   instructions; Claude Sonnet 3.5: 44% → 58%)
-- **Constrained decoding:** Guarantees 100% compliance for *formatting/structural*
+- **Constrained decoding:** Guarantees 100% compliance for _formatting/structural_
   constraints, but cannot enforce semantic or behavioral compliance
 - **Instruction decomposition** (RECAST approach): break multi-constraint instructions
   into separate verifiable sub-goals. Improvements observed but no 99%+ reported

@@ -1,7 +1,7 @@
 # Draft: Standalone Binary Distribution (non-npm install channels)
 
 - **Origin:** [internal] — routed from `BACKLOG-INBOX` at the work-routing-discipline retirement pass
-  (2026-06-01). Distinct from `release-lifecycle` (which is release *aggregation* and explicitly excludes
+  (2026-06-01). Distinct from `release-lifecycle` (which is release _aggregation_ and explicitly excludes
   publish/distribution mechanics), so it lands as its own WU within the release-readiness cohort.
 - **Purpose:** Broaden ARC CLI reach beyond npm/Node by shipping standalone binaries through the install
   channels polyglot dev tools converge on.

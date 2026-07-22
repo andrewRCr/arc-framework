@@ -229,7 +229,7 @@ introduces a second axis without conflicting with the first:
 | Functionality scope | What features are installed           | File presence (layer selection) | ADR-008 |
 
 These axes are orthogonal. An Essentials-profile user can be Core-only or Core + Solo PM. A Recommended-profile user can
-be Core-only or Core + Team PM. The adoption profile controls enforcement *within* whatever layers are installed.
+be Core-only or Core + Team PM. The adoption profile controls enforcement _within_ whatever layers are installed.
 
 ADR-004's cross-reference concern — "removing files creates broken references" — does not manifest here. The audit
 confirmed that Core files never reference PM files. The dependency is one-directional: PM depends on Core, never the

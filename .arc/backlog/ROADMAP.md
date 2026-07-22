@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `9eae3e575`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `a6b2f39c7`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -18,11 +18,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning`    | cohortless-decomposition | P1       | andrew | —          | —                      |
 | `Planning`    | decomposition-doctrine   | P1       | andrew | —          | —                      |
 | `Planning`    | pr-decomposition         | P1       | andrew | —          | —                      |
+| `Planning`    | review-gate-right-sizing | P1       | andrew | —          | —                      |
 | `Planning`    | review-surface-binding   | P1       | andrew | —          | —                      |
 | `Active`      | session-locus-model      | P1       | andrew | —          | —                      |
 | `Integrating` | cli-command-inputs       | P2       | andrew | —          | cli-substrate-adoption |
 | `Active`      | cli-validation-surfaces  | P2       | andrew | —          | cli-substrate-adoption |
-| `Active`      | markdown-formatting      | P3       | andrew | —          | —                      |
 
 ## Ready
 
@@ -39,6 +39,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | loadset-composition                   | P2       | andrew | —          | agent-context-optimization |
 | commit-increments                     | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization                | P2       | andrew | —          | architecture-remediation   |
+| method-conventions                    | P2       | andrew | —          | doc-conventions            |
 | naming-conventions                    | P2       | andrew | —          | doc-conventions            |
 | cross-wu-coordination                 | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine         | P2       | andrew | —          | —                          |

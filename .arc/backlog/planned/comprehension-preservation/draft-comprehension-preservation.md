@@ -1,6 +1,6 @@
 # Draft: Comprehension Preservation (the ride-along posture)
 
-**Purpose:** Make the human operator's mental model of the codebase a first-class, *user-declared* concern under
+**Purpose:** Make the human operator's mental model of the codebase a first-class, _user-declared_ concern under
 delegated and batched execution — a `ride-along` involvement posture where work proceeds at full delegation
 eligibility but the artifacts are written to **teach**, not just to audit. Comprehension erosion — the DRI losing
 the understanding that makes them a real DRI months later — is arguably the biggest standing risk in agentic
@@ -16,7 +16,7 @@ concession.
 
 ## Problem / Motivation
 
-Per-leaf involvement kept the human's model of the codebase fresh as a *side effect* — watching implementation
+Per-leaf involvement kept the human's model of the codebase fresh as a _side effect_ — watching implementation
 land, increment by increment, taught cumulative code familiarity even when each stop carried no decision. As
 delegation and widened review increments remove that incidental teaching, design-level involvement (planning
 stages, terminal gates, PR review) preserves design understanding but not code familiarity. The erosion runs on a
@@ -24,7 +24,7 @@ long time constant and is invisible until it matters — debugging under pressur
 later, onboarding someone else.
 
 The insight: **audit artifacts and orientation artifacts are different genres.** The deviation ledger answers
-"what was decided, where was latitude exercised" — the *gate* needs that. The human's model needs "how does this
+"what was decided, where was latitude exercised" — the _gate_ needs that. The human's model needs "how does this
 work now, what pattern should I carry forward" — a guided tour, not an audit trail. Conflating them serves
 neither.
 
@@ -34,7 +34,7 @@ neither.
   additionally produces an **orientation layer**: phase summaries structured as guided tours (what changed, why,
   which patterns to know), and an optional interactive walkthrough at the terminal gate — the agent presents the
   design of what landed; the human drills in where they choose. Costs nothing when off.
-- **Non-paternalism as a hard floor.** The posture is *declared, never inferred*. ARC cannot know the human's
+- **Non-paternalism as a hard floor.** The posture is _declared, never inferred_. ARC cannot know the human's
   internal familiarity and must never model it — no "suggest you stay close to this one for your own benefit."
   The lever exists in the docs; the human invokes it. Opt-in by construction. (A user-initiated standing request
   — "nudge me when I haven't touched X in a while" — would be opt-in and thus legitimate, but is deferred, not
@@ -43,7 +43,7 @@ neither.
   pole from `unit-scoped-review`'s project-level governance knob. First user-level involvement preference in ARC;
   the config surface consumes whatever the `configuration` cohort lands for user-scoped settings.
 - **Teaching-aware artifact guidance.** Even outside the posture, ledger entries and phase summaries written as
-  *teaching artifacts, not just audit trails* is cheap when stated as a goal — candidate guidance for the
+  _teaching artifacts, not just audit trails_ is cheap when stated as a goal — candidate guidance for the
   batch-mode artifact conventions this WU coordinates with `unit-scoped-review`.
 
 ## Composition / Dependencies

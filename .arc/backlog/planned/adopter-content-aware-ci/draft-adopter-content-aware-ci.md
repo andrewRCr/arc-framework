@@ -19,7 +19,7 @@ CI) generalizes to adopters.
 Open between a shipped/templated feature and adopter-facing guidance only. **Load-bearing framing caveat:** per
 `strategy-storage-evolution` (the arc-backend direction), in-repo tracked markdown won't always be the dominant
 case — design state may materialize from a separate git backing store — but in-repo tracked artifacts will
-always remain an *option*. So any feature/guidance must be **optional / conditional** on the repo actually
+always remain an _option_. So any feature/guidance must be **optional / conditional** on the repo actually
 carrying significant tracked-markdown CI cost, never assumed.
 
 ## Approach

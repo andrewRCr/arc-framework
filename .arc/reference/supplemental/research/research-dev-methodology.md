@@ -1021,7 +1021,7 @@ Based on research and successful patterns:
 
 **Notable frameworks with lighter coverage:**
 
-- **Spotify Model** (Squads/Tribes/Chapters/Guilds) — widely *discussed* in agile-at-scale
+- **Spotify Model** (Squads/Tribes/Chapters/Guilds) — widely _discussed_ in agile-at-scale
   conversations, but more organizational structure than development methodology. Spotify
   themselves have moved away from it. Some teams still reference it as aspiration. Covered
   implicitly under hybrid approaches and scaling variants, but worth noting by name given
@@ -1097,7 +1097,7 @@ Based on research and successful patterns:
 ## 7. CRITICAL FINDINGS FOR ARC INTEGRATION
 
 > **Note:** This section synthesizes research observations into preliminary integration
-> analysis. These are *research inputs* for downstream ADR discussions, not validated
+> analysis. These are _research inputs_ for downstream ADR discussions, not validated
 > design decisions. Actual framework positioning, integration strategy, and adoption
 > prioritization will be decided through the ADR process in Phase 2.
 

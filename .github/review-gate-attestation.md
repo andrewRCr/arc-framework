@@ -8,12 +8,12 @@ Forward attestations emit `review-gate/v2` records. Exact v1 parsing remains dia
 receipt cannot satisfy current policy. This checklist does not activate the dormant controller or grant merge
 authority.
 
-| Mechanism | Rubric delivery | Identity statement |
-| --- | --- | --- |
-| Codex CLI | This instruction file | Maintainer-attested runtime and fresh run |
-| Claude Code | This instruction file | Maintainer-attested runtime and fresh run |
-| CodeRabbit CLI | This instruction file | Maintainer-attested runtime and fresh run |
-| qualified human | This instruction file | GitHub-authenticated non-author reviewer |
+| Mechanism       | Rubric delivery       | Identity statement                        |
+| --------------- | --------------------- | ----------------------------------------- |
+| Codex CLI       | This instruction file | Maintainer-attested runtime and fresh run |
+| Claude Code     | This instruction file | Maintainer-attested runtime and fresh run |
+| CodeRabbit CLI  | This instruction file | Maintainer-attested runtime and fresh run |
+| qualified human | This instruction file | GitHub-authenticated non-author reviewer  |
 
 ## Inputs
 
