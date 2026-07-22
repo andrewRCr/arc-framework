@@ -1,8 +1,8 @@
 # Metadata: Markdown Formatting Hygiene
 
-| **State** | **Owner** | **Branch**                 | **Class** | **Priority** |
-| --------- | --------- | -------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/markdown-formatting` | `Heavy`   | `P3`         |
+| **State**     | **Owner** | **Branch**                 | **Class** | **Priority** |
+| ------------- | --------- | -------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/markdown-formatting` | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-markdown-formatting.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 6.4 — Keep copied harness projections inside their worktree
-- **Next Task:** Task 7.1 — Complete verification (line ~243 in `tasks-markdown-formatting.md`)
+- **Last Completed:** Task 7.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
