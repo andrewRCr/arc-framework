@@ -87,7 +87,120 @@ function validate(changes: StagedPathChange[], record = canonicalize(receipt), h
   });
 }
 
+interface RenameFixtureOptions {
+  sourcePaths?: string[];
+  targetPaths?: string[];
+  targetMetaStatus?: "A" | "M";
+  recordStatus?: "A" | "M";
+  headRecord?: boolean;
+  patchMismatch?: boolean;
+  extraChanges?: StagedPathChange[];
+}
+
+function validateRename(options: RenameFixtureOptions = {}): string[] {
+  const sourceSlug = "origin";
+  const targetSlug = "renamed-origin";
+  const sourcePaths = options.sourcePaths ?? [
+    `.arc/active/meta-${sourceSlug}.md`,
+    `.arc/active/spec-${sourceSlug}.md`,
+  ];
+  const targetPaths = options.targetPaths ?? [
+    `.arc/active/meta-${targetSlug}.md`,
+    `.arc/active/spec-${targetSlug}.md`,
+  ];
+  const changes: StagedPathChange[] = [
+    ...sourcePaths.map((path): StagedPathChange => ({ status: "D", path })),
+    ...targetPaths.map((path): StagedPathChange => ({
+      status: path.endsWith(`/meta-${targetSlug}.md`) ? options.targetMetaStatus ?? "A" : "A",
+      path,
+    })),
+    ...(options.extraChanges ?? []),
+  ];
+  const operationBytes = new Map<string, Uint8Array>();
+  for (const change of changes) {
+    if (change.status !== "D") operationBytes.set(change.path, bytes(`staged:${change.path}`));
+  }
+  const operations = changes.map((change) => change.status === "D"
+    ? { operation: "delete" as const, path: validateManagedPath(change.path) }
+    : {
+        operation: "write" as const,
+        path: validateManagedPath(change.path),
+        contentDigest: contentDigest(operationBytes.get(change.path) ?? bytes("missing")),
+      });
+  const subject = { kind: "work-unit" as const, name: sourceSlug };
+  const source = { branch: `feat/${sourceSlug}`, head: "e".repeat(40) };
+  const renameReceiptId = deriveReceiptId({
+    schemaVersion: 1,
+    subject,
+    transition: "rename",
+    sourceBranch: source.branch,
+    sourceHead: source.head,
+  });
+  const renameReceipt = {
+    schemaVersion: 1 as const,
+    receiptId: renameReceiptId,
+    subject,
+    transition: "rename" as const,
+    source: { ...source, artifactDigest: canonicalDigest("rename-source") },
+    transitionPatchDigest: options.patchMismatch ? canonicalDigest("wrong-patch") : patchDigest(operations),
+    retiringProjection: { kind: "direct-transition" as const },
+    authorization: "identity-renamed" as const,
+    result: {
+      kind: "rename" as const,
+      targetSlug,
+      artifactDigest: canonicalDigest("rename-result"),
+    },
+  };
+  const renameRecordPath = resolveRetirementRecordRelativePath(renameReceiptId);
+  changes.unshift({ status: options.recordStatus ?? "A", path: renameRecordPath });
+  const recordBytes = bytes(canonicalize(renameReceipt));
+  return validateDecomposeCommitGate({
+    changes,
+    readIndexBytes: (path) => path === renameRecordPath ? recordBytes : operationBytes.get(path) ?? null,
+    readHeadBytes: (path) => path === renameRecordPath && options.headRecord === true ? recordBytes : null,
+  });
+}
+
 describe("validateDecomposeCommitGate", () => {
+  it("covers a rename only when its target lifecycle metadata is a staged addition", () => {
+    expect(validateRename()).toEqual([]);
+    expect(validateRename({ targetPaths: [".arc/active/spec-renamed-origin.md"] }))
+      .toContainEqual(expect.stringMatching(/target lifecycle metadata.*renamed-origin/iu));
+    expect(validateRename({ targetMetaStatus: "M" }))
+      .toContainEqual(expect.stringMatching(/target lifecycle metadata.*addition/iu));
+  });
+
+  it("requires old-to-new artifact prefix multisets to correspond", () => {
+    expect(validateRename({ targetPaths: [".arc/active/meta-renamed-origin.md"] }))
+      .toContainEqual(expect.stringMatching(/artifact correspondence/iu));
+    expect(validateRename({
+      targetPaths: [
+        ".arc/active/meta-renamed-origin.md",
+        ".arc/active/spec-renamed-origin.md",
+        ".arc/active/tasks-renamed-origin.md",
+      ],
+    })).toContainEqual(expect.stringMatching(/artifact correspondence/iu));
+    expect(validateRename({
+      sourcePaths: [
+        ".arc/active/meta-origin.md",
+        ".arc/backlog/planned/group/meta-origin.md",
+      ],
+      targetPaths: [".arc/active/meta-renamed-origin.md"],
+    })).toContainEqual(expect.stringMatching(/artifact correspondence/iu));
+  });
+
+  it("ignores foreign staged files in rename correspondence", () => {
+    expect(validateRename({
+      extraChanges: [{ status: "A", path: ".arc/reference/unrelated.md" }],
+    })).toEqual([]);
+  });
+
+  it("reports amended and patch-mismatched rename evidence specifically", () => {
+    expect(validateRename({ recordStatus: "M", headRecord: true }))
+      .toContainEqual(expect.stringMatching(/already exists|amended/iu));
+    expect(validateRename({ patchMismatch: true }))
+      .toContainEqual(expect.stringMatching(/patch digest mismatch/iu));
+  });
   it("accepts a newly finalized record whose staged patch matches", () => {
     expect(validate([{ status: "A", path: recordPath }, { status: "A", path: targetPath }])).toEqual([]);
   });

@@ -110,78 +110,33 @@ _Design decisions:_ The gate proves **correspondence** (old slug left, new slug 
 both sides), not conservation — it cannot see the committed tree. Phase 2 holds the completeness anchor; stating
 the division keeps the correspondence check from reading as a proof it is not.
 
-### `[ ]` **3.1 Coverage allowlist, target presence, and per-record reasons**
+### `[x]` **3.1 Coverage allowlist, target presence, and per-record reasons**
 
 - _Goal:_ A rename receipt covers its retiring slug only when the slug it names actually arrives in the same
   staged change set — and when it doesn't, the gate can say which assertion failed.
-- _Shape:_ `receiptCoveredRetirements` grows a second return channel carrying per-record failure reasons. It is
-  the only place that decodes a staged record and can name which assertion failed; a parallel validation pass
-  would re-decode the same records and could drift from this one. The channel lands here, with the first
-  assertions, so every later assertion arrives with its diagnostic rather than being retrofitted one.
-- _Note:_ The loop currently skips a non-fresh record with a `continue` **before** decoding it, so an amended or
-  pre-existing record is never recognized as a rename receipt at all. Reporting that case specifically — which a
-  later task in this phase requires — means decoding first and classifying freshness after. Plan the restructure
-  here rather than discovering it there.
-- _Note:_ Coverage already keys on `receipt.subject.name`, the retiring slug, so the covered-set semantics need
-  no change beyond admitting the transition.
+- _Outcome:_ Coverage now decodes rename evidence before freshness classification, requires the target meta as a
+  staged addition, and returns rename-specific failure reasons without changing shipped covered-set semantics.
 
-    - Admit `"rename"` alongside `"abandon"` and `"decompose"`.
-    - Require `result.targetSlug` to appear as an added lifecycle-meta slug in the same change set; without it a
-      rename-labelled receipt could cover an abandon-shaped deletion that adds nothing.
-    - Build `test-first` (one behavior at a time):
-        - A rename whose target meta is staged as an addition is covered.
-        - A rename whose target meta is absent from the additions is not covered, and the gate names the absent
-          target rather than emitting the generic missing-record message.
-        - A rename whose target meta appears only as a modification, not an addition, is not covered.
-        - Shipped transitions resolve their covered set exactly as before.
-
-### `[ ]` **3.2 Old-to-new correspondence assertion**
+### `[x]` **3.2 Old-to-new correspondence assertion**
 
 - _Goal:_ The artifacts leaving under the old slug and arriving under the new one line up, so a hand-built or
   corrupted patch that renames the meta while dropping a companion is refused.
-- _Shape:_ Both sides select artifacts with the shipped `artifactMatcher` — documented as the one definition of a
-  work unit's artifact set, and the same matcher the rename mutator moves — so the gate's notion and the mutator's
-  cannot drift apart. Import it in place; the gate already imports from the library and has `basename` in scope.
+- _Outcome:_ The gate uses the shared artifact matcher to compare old/new filename-prefix multisets, refusing
+  missing, surplus, or duplicate-path counterparts while ignoring foreign files in the staged change set.
 
-    - Compute the staged deleted set for the old slug and the staged added set for the target slug, both selected
-      with that matcher, and require their filename prefixes to match as **multisets**. The matcher runs over
-      basenames while the gate reasons over paths spanning several tiers, so a prefix identifies a filename, not
-      a file — set equality would admit a patch staging the same filename from two directories, and this gate
-      fails closed on anything it cannot prove.
-    - This does not catch an artifact absent from the patch entirely — that is the producer's anchor, not the
-      gate's; the gate cannot see the committed tree.
-    - Build `test-first` (one behavior at a time):
-        - Matching prefix multisets on both sides pass.
-        - A companion present among the deletions but absent from the additions fails, naming correspondence.
-        - A companion present among the additions but absent from the deletions fails, naming correspondence.
-        - The same artifact filename staged from two directories does not cancel against a single counterpart.
-        - A foreign file sharing the change set participates in neither side.
-
-### `[ ]` **3.3 Reasons for the pre-existing failure modes**
+### `[x]` **3.3 Reasons for the pre-existing failure modes**
 
 - _Goal:_ A rename receipt that is amended, pre-existing, or bound to a patch digest that does not match the
   staged set reports that specific fact instead of the generic missing-record message.
-- _Context:_ Neither is a new assertion — the fresh-add guard already excludes amended and pre-existing records,
-  and the digest equality already binds the staged patch. Both are invisible from outside the builder loop, where
-  an amended record and no record at all look identical, which is why they report through the channel above.
+- _Outcome:_ Amended/pre-existing rename records and patch-digest mismatches now retain their specific diagnostics;
+  a well-formed rename remains clean.
 
-    - Build `test-first` (one behavior at a time):
-        - An amended or pre-existing rename record reports that fact rather than a missing record.
-        - A rename record whose patch digest does not match the staged set reports the digest mismatch.
-        - A well-formed rename emits no error.
-
-### `[ ]` **3.4 Shipped-transition non-interference**
+### `[x]` **3.4 Shipped-transition non-interference**
 
 - _Goal:_ Adding the rename path perturbs no shipped behavior — `abandon`, `decompose`, and `park-planning`
   commits and the merge exemption resolve exactly as they did before.
-
-    - The single-record validation block is `decompose`-scoped and early-returns for other transitions, so a
-      rename receipt is bound by the coverage path's patch-digest equality plus the assertions above.
-    - The merge exemption continues to exempt result states inherited exactly from a parent — the mechanism the
-      base-side-stub deferral relies on.
-    - Cover the interaction rather than re-running the existing suite: a rename record coexisting with each
-      shipped-transition scenario, and a merge commit carrying a rename record, which the shipped merge guard
-      already refuses.
+- _Outcome:_ Rename validation remains in the coverage path; decompose-only single-record checks, shipped receipt
+  coverage, inherited-parent merge exemptions, and the merge record-introduction refusal remain unchanged.
 
 ## **Phase 4:** Artifact and reference sweep
 
