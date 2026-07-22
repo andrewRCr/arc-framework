@@ -326,31 +326,21 @@ exists to enable unreachable.
 - _Outcome:_ Collision decisions consume live-composed lifecycle truth and its shipped indeterminacy predicate,
   allowing only an unused target or the resumed subject's own new identity.
 
-### `[ ]` **6.4 Short-lived branch for stub subjects**
+### `[x]` **6.4 Short-lived branch for stub subjects**
 
 - _Goal:_ A stub rename commits on its own branch and reports itself invisible to the readiness view until that
   branch lands, rather than reporting an unqualified success.
-- _Rationale:_ A stub has no work-unit branch, and committing on the base is refused under full protection — which
-  would make a stub rename fail the very gate this unit exists to satisfy.
+    - `[x]` **6.4.a Cut and rest**
+        - The deterministic `chore/rename-<old>-to-<new>` wrapper cuts from base or attaches an existing branch,
+          executes the rename there, and restores the primary checkout to base through `finally` on success or
+          refusal.
 
-    - `[ ]` **6.4.a Cut and rest**
-        - The verb cuts `chore/rename-<old>-to-<new>` from the resolved base, and the primary checkout returns to
-          the base afterward. The shipped write-context resolver only classifies a write context and creates
-          nothing, so the cut is the verb's own act rather than a call into it.
-        - Check-then-do, like every other mutation: when the branch already exists, attach to it rather than
-          cutting again. This is the stub shape's only resume seam — its identity legs are all skipped, so the
-          leg-level post-state checks never run, and a stub re-run after a refused commit reaches this cut first.
-          The subject also still resolves by its **old** slug on a re-run, since the rename is invisible to the
-          base until the short-lived branch merges.
-        - Build `test-first` (one behavior at a time):
-            - A stub rename runs on the short-lived branch, never the base.
-            - The checkout rests on the base after the run, including when the commit was refused.
-            - A re-run with the short-lived branch already present attaches to it and completes, rather than
-              failing to cut a branch that exists.
+    - `[x]` **6.4.b Report the pending-integration state**
+        - The wrapper's typed result names the short-lived branch and carries `pendingIntegration: true` so the
+          handler cannot report an unqualified globally visible rename.
 
-    - `[ ]` **6.4.b Report the pending-integration state**
-        - The branch merges through the ordinary review path; until it lands the rename is invisible to the
-          readiness view and every other checkout, and the completion report says so.
+- _Outcome:_ Stub renames now have a resumable protected-branch locus and an explicit pending-integration result,
+  while the primary checkout's base resting state survives both successful and refused commits.
 
 ### `[ ]` **6.5 `arc rename` orchestration**
 

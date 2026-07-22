@@ -5,6 +5,7 @@ import {
   readRemoteBranchOid,
   reconcileRenameLocalBranch,
   reconcileRenameRemoteBranch,
+  withRenameStubBranch,
 } from "../../../src/lib/work-unit/rename-identity.js";
 
 const OLD_BRANCH = "feat/old-name";
@@ -151,5 +152,75 @@ describe("rename remote branch leg", () => {
       newBranch: NEW_BRANCH,
       oldRemoteOid: OLD_OID,
     })).resolves.toEqual({ status: "stale", expectedOid: OLD_OID, actualOid: MOVED_OID });
+  });
+});
+
+describe("withRenameStubBranch", () => {
+  it("cuts a short-lived branch from base, runs there, and rests on base", async () => {
+    const calls: string[][] = [];
+    const exec: GitExec = async (command, args) => {
+      calls.push([command, ...args]);
+      return { stdout: "" };
+    };
+
+    await expect(withRenameStubBranch({ exec }, {
+      baseBranch: "main",
+      oldSlug: "old-name",
+      newSlug: "new-name",
+    }, async (branch) => {
+      calls.push(["operation", branch]);
+      return "done";
+    })).resolves.toEqual({
+      branch: "chore/rename-old-name-to-new-name",
+      created: true,
+      pendingIntegration: true,
+      value: "done",
+    });
+    expect(calls).toEqual([
+      [
+        "git",
+        "for-each-ref",
+        "--format=%(refname)",
+        "refs/heads/chore/rename-old-name-to-new-name",
+      ],
+      ["git", "switch", "-c", "chore/rename-old-name-to-new-name", "main"],
+      ["operation", "chore/rename-old-name-to-new-name"],
+      ["git", "switch", "main"],
+    ]);
+  });
+
+  it("attaches an existing short-lived branch instead of cutting it again", async () => {
+    const calls: string[][] = [];
+    const branch = "chore/rename-old-name-to-new-name";
+    const exec: GitExec = async (command, args) => {
+      calls.push([command, ...args]);
+      if (args[0] === "for-each-ref") return { stdout: `refs/heads/${branch}\n` };
+      return { stdout: "" };
+    };
+
+    await expect(withRenameStubBranch({ exec }, {
+      baseBranch: "main",
+      oldSlug: "old-name",
+      newSlug: "new-name",
+    }, async () => undefined)).resolves.toMatchObject({ created: false, pendingIntegration: true });
+    expect(calls).toContainEqual(["git", "switch", branch]);
+    expect(calls).not.toContainEqual(["git", "switch", "-c", branch, "main"]);
+  });
+
+  it("returns to base when the rename commit is refused", async () => {
+    const calls: string[][] = [];
+    const exec: GitExec = async (command, args) => {
+      calls.push([command, ...args]);
+      return { stdout: "" };
+    };
+
+    await expect(withRenameStubBranch({ exec }, {
+      baseBranch: "main",
+      oldSlug: "old-name",
+      newSlug: "new-name",
+    }, async () => {
+      throw new Error("commit refused");
+    })).rejects.toThrow(/commit refused/iu);
+    expect(calls.at(-1)).toEqual(["git", "switch", "main"]);
   });
 });

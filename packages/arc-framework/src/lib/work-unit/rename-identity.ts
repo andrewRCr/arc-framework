@@ -131,3 +131,52 @@ export async function reconcileRenameRemoteBranch(
     actualOid: await readRemoteBranchOid(ctx.exec, params.remote, params.oldBranch),
   };
 }
+
+/** Parameters for the branch that carries a backlog-stub rename. */
+export interface RenameStubBranchParams {
+  baseBranch: string;
+  oldSlug: string;
+  newSlug: string;
+}
+
+/** Result of running a stub rename on its short-lived branch. */
+export interface RenameStubBranchResult<T> {
+  branch: string;
+  created: boolean;
+  pendingIntegration: true;
+  value: T;
+}
+
+/**
+ * Run a backlog-stub rename on its deterministic short-lived branch and return
+ * the primary checkout to base even when the operation refuses. Existing
+ * branches are attached for resumability rather than re-cut.
+ *
+ * @param ctx - Git seam
+ * @param params - Base and rename identities
+ * @param operation - Rename operation to execute while the short-lived branch is checked out
+ * @returns Operation value plus pending-integration branch state
+ */
+export async function withRenameStubBranch<T>(
+  ctx: { exec: GitExec },
+  params: RenameStubBranchParams,
+  operation: (branch: string) => Promise<T>,
+): Promise<RenameStubBranchResult<T>> {
+  const branch = `chore/rename-${params.oldSlug}-to-${params.newSlug}`;
+  const ref = `refs/heads/${branch}`;
+  const { stdout } = await ctx.exec("git", ["for-each-ref", "--format=%(refname)", ref]);
+  const exists = stdout.split(/\r?\n/u).some((line) => line.trim() === ref);
+  await ctx.exec("git", exists
+    ? ["switch", branch]
+    : ["switch", "-c", branch, params.baseBranch]);
+  try {
+    return {
+      branch,
+      created: !exists,
+      pendingIntegration: true,
+      value: await operation(branch),
+    };
+  } finally {
+    await ctx.exec("git", ["switch", params.baseBranch]);
+  }
+}
