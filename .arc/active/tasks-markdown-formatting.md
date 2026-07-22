@@ -125,22 +125,15 @@ authority-selected corpus without mixing the pass with table churn.
   and restricts raw changes to parser-identified underscore-italic and asterisk-strong delimiter bytes. Integration
   coverage reproduces the evidence from Git and proves the pinned fixer is idempotent.
 
-### `[ ]` **4.2 Enable `MD049` and `MD050` with source-first emphasis normalization**
+### `[x]` **4.2 Enable `MD049` and `MD050` with source-first emphasis normalization**
 
 - _Goal:_ Every selected current file satisfies pinned underscore-style `MD049` and asterisk-style `MD050`, including
   the linter-required asterisk exception for intraword emphasis, with syntax and non-emphasis bytes proven unchanged.
 
-- _Note:_ Treat rule enablement, normalization, and selected Framework projection as one review increment.
-
-    - Recompute the selected emphasis inventory before mutation and keep table normalization out of this pass.
-    - Invoke the pinned markdownlint fixer only over explicit selector-emitted batches: authoritative package source
-      first, then update recipe-mapped installed Framework instances through the selected projection, then migrate
-      Configurable, Scaffolded, and project-owned copies independently; sources outside the current install remain
-      source-only, and the fixer never runs root-wide across rendered Framework instances.
-    - Set `MD049` to `underscore` and `MD050` to `asterisk` in the same increment as the corpus changes.
-    - Run the emphasis audit across migrated Markdown paths, inspect the raw diff, prove fixer idempotence, review
-      dependency, configuration, and implementation changes separately, and leave the full Markdown lint baseline
-      green.
+- _Outcome:_ The pinned fixer migrated 4,324 delimiters across 180 files through source-first Framework projection
+  and independent authority copies; `MD049` and `MD050` now enforce the result. The exact-commit audit proved full
+  GFM equivalence and delimiter-only bytes, including an explicitly authorized four-delimiter backlog-meta exception,
+  while local harness copies were refreshed from the same canonical style.
 
 ## **Phase 5:** Task descriptor contract and validation
 

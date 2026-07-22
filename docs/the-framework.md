@@ -77,7 +77,7 @@ With context loaded, you and the agent work through tasks together. The
 guidelines the agent interprets, but a structured loop with checkpoints, escalation paths, and
 mandatory stops.
 
-Each task is a *review increment* — a bounded chunk of autonomous execution between human review
+Each task is a _review increment_ — a bounded chunk of autonomous execution between human review
 points. ARC's planning workflows generate tasks at this granularity: typically a few files modified,
 a few minutes of agent execution. If you're coming from approaches where the agent works for
 20 minutes or longer between review points, this is a significant difference. You stay with the
@@ -141,7 +141,7 @@ When a boundary arrives, invoke `arc-handoff`. This captures:
 - **SESSION-NOTES.md** — what you were thinking (personal, gitignored)
 
 The split is deliberate. WORK-STATUS tells any developer (or agent) where the project stands.
-SESSION-NOTES tells *you* what you were thinking: decisions made, things tried, known risks.
+SESSION-NOTES tells _you_ what you were thinking: decisions made, things tried, known risks.
 
 Here's what each looks like after a handoff:
 

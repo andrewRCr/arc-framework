@@ -118,7 +118,7 @@ Apply standard software engineering principles:
 
 ### Workflow prose economy
 
-When authoring or editing a workflow, write for the agent *executing* it, not a reader evaluating the
+When authoring or editing a workflow, write for the agent _executing_ it, not a reader evaluating the
 design. Judge each line by one test: **does a session executing this need it to act correctly?** Keep
 procedure and load-bearing constraints — the rule, the format, when to skip; cut author-facing justification
 — "what this is / isn't" framing, why-a-rule-exists rationale, and restatements an adjacent inline hint

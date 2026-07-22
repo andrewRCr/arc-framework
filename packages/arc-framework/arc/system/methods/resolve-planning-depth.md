@@ -83,12 +83,12 @@ On accept, re-fire the keyed-axis read and route by the axis the signal belongs 
 to the stage that owns the signal's axis, re-entered one level higher.** Scale is owned by `generate-tasks`;
 derivation by the design stages (`draft-design` / `create-spec`).
 
-- **Already in the owning stage (or the headwater)** → re-enter *this* stage higher, **nowhere-up from `high`**. A
+- **Already in the owning stage (or the headwater)** → re-enter _this_ stage higher, **nowhere-up from `high`**. A
   scale signal at `generate-tasks` re-resolves `generate-tasks`; `draft-design` is the derivation headwater, so it
   only re-enters itself.
 - **Owning stage is upstream** → route there. A derivation signal at `generate-tasks` routes to the **spec** (a
   masked design decision belongs in the design, not a deeper task pass); a derivation signal at `create-spec`
-  whose *direction* is unshaped routes to `draft-design`, while a merely-underestimated *form* re-resolves
+  whose _direction_ is unshaped routes to `draft-design`, while a merely-underestimated _form_ re-resolves
   `create-spec` higher.
 
 The re-entry read is a `classify-work-unit` confirm-or-ratchet exactly as the entry read is: a floor-raising
@@ -98,11 +98,11 @@ but persistence-deferred**: it drives the (re-)entered stage's depth immediately
 defers to that stage's planning-ceremony commit, never a mid-stage meta edit — honoring meta-timing's
 no-mid-session-churn rule.
 
-**Re-entry vs. in-place correction.** Re-entry is for an *unshaped or under-derived* design direction — the
-owning stage must be re-entered to author it at the right depth. A *local* correction — a named mechanism, shape,
+**Re-entry vs. in-place correction.** Re-entry is for an _unshaped or under-derived_ design direction — the
+owning stage must be re-entered to author it at the right depth. A _local_ correction — a named mechanism, shape,
 or interface that is merely wrong — is propagated to the spec in place without re-entering the stage (the
 in-place sibling is `generate-tasks`'s grounding-audit spec-propagation). The cut is whether new design must be
-*authored* (re-enter) or an existing decision *corrected* (propagate).
+_authored_ (re-enter) or an existing decision _corrected_ (propagate).
 
 ---
 

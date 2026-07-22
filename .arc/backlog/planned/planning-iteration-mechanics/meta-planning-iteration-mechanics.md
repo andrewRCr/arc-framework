@@ -20,6 +20,6 @@
 - **Next Action:** Activate via `init-work-unit` Path A, then iterate via `arc-plan` → `draft-design`. First
   move: confirm the three concerns cohere as one WU (or split the `arc-task-audit` concern back out if the
   spec→tasks seam pulls it), and settle the buffer-drain contract with PPR's `assess-draft-readiness` method —
-  PPR owns the readiness *criterion* ("buffer drained"), this WU owns the drain *ceremony*.
+  PPR owns the readiness _criterion_ ("buffer drained"), this WU owns the drain _ceremony_.
 
 ---

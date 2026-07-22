@@ -160,12 +160,12 @@ arc:
      opt-in syntax.
 
      **Agent-proposed batch (atomicity-keyed).** A deferred-review scope may also originate from an agent
-     *proposal*, not only a user request — without breaking "the agent never self-invokes": the agent
+     _proposal_, not only a user request — without breaking "the agent never self-invokes": the agent
      proposes the scope, the user approves, and that approval is the invocation. At a parent task's entry,
      weigh whether its subtasks form one increment:
 
      - **Propose batching** when the subtasks will land as **one atomic commit** — one concern decomposed
-       for *planning*, not *delivery*; the review boundary should track the commit boundary. Secondary
+       for _planning_, not _delivery_; the review boundary should track the commit boundary. Secondary
        signals: shared-artifact rework whose intermediate states are individually incoherent;
        cross-subtask interdependence.
      - **Keep per-leaf** when a subtask carries a design decision needing course-correction before the

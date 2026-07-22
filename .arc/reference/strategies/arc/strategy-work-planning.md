@@ -104,8 +104,8 @@ because depth is never recorded, every stage re-derives regardless.
 
 Only the spec stage's depth produces a durable artifact — the **spec form**. The derivation depth create-spec
 resolves selects it: `low` → `brief`, `medium` → `outline`, `high` → `detailed`. The `detailed` form splits
-once more, by the *kind* of derivation that dominates — a **PRD** when the open question is product (*what
-should this do*), an **RFC** when it is technical design (*what is the right design, and its tradeoffs*).
+once more, by the _kind_ of derivation that dominates — a **PRD** when the open question is product (_what
+should this do_), an **RFC** when it is technical design (_what is the right design, and its tradeoffs_).
 `brief` and `outline` are single, category-agnostic forms; only `detailed` splits. The form ↔ `Class`
 constraints (`brief` ⇒ `light`; `detailed` ⇒ `heavy` / `novel`; `outline` straddles) are canonical in
 [Work Organization][work-org] § Planning depth and spec forms.
@@ -210,7 +210,7 @@ These follow the same ephemeral convention: delete or archive after the work act
 ## Spec Conventions
 
 Specs (`spec-*.md`) are the structured, semi-permanent requirements documents that bridge exploration
-and execution. They define *what* and *why*; task lists define *how*. The filename is uniform
+and execution. They define _what_ and _why_; task lists define _how_. The filename is uniform
 (`spec-*`); the spec's **form** varies and is signalled by the H1 — `Spec ({form}): {name}` with the form
 backticked, e.g. Spec (`outline`): Payment Retry. There is no single default form; create-spec resolves
 it from the work's derivation depth (see [Planning Depth](#planning-depth)).
@@ -294,7 +294,7 @@ without proportional value.
 that change constantly or miss the actual need. Invest in exploration first.
 
 **Kitchen-sink specs.** Specs that try to be both requirements and implementation detail. Requirements
-define *what* and *why*; implementation details belong in task planning.
+define _what_ and _why_; implementation details belong in task planning.
 
 **Zombie drafts.** Draft documents that persist past planning-branch integration. The absorbed path
 disposes them via `git rm` once the spec is the authoritative artifact; leaving them around will only

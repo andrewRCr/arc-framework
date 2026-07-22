@@ -20,12 +20,12 @@ execution mistake:
 
 1. **The doctrine licenses unbounded single-WU size.** `assess-cohort-fit` and `strategy-work-organization`
    § WU sizing standard say one coherent concern "stays one WU, however large," justified by the per-task
-   review grain — which covers *execution* review only. The integration-time review surface has no owner in the
+   review grain — which covers _execution_ review only. The integration-time review surface has no owner in the
    sizing standard, and the stance is only safe once `pr-decomposition` ships; today it presumes a mechanism
    that does not exist yet.
 2. **Coupling was never tested against the stack shape.** The recorded keep-whole rationale ("one
-   forward-contract cutover; splitting would create an unusable intermediate contract") describes *sequential
-   dependency* — which the sizing standard itself delivers as a stack of dependency-ordered WUs. Sequential
+   forward-contract cutover; splitting would create an unusable intermediate contract") describes _sequential
+   dependency_ — which the sizing standard itself delivers as a stack of dependency-ordered WUs. Sequential
    coupling read as design-coupling, and the alternative was never weighed on the record. Verification proved
    the seams were real: the local channel, the rubric overlay, and enforcement scope were all carved off to
    other owners after the fact.
@@ -38,7 +38,7 @@ execution mistake:
    all. `Class`, by contrast, is a recorded, ratcheted field.
 
 The case is not isolated: `session-locus-model` sits at 187 files / ~26.4k insertions mid-implementation, and
-the two completed `cli-substrate-adoption` members each integrate at ~7.5k. Where decomposition *was* applied
+the two completed `cli-substrate-adoption` members each integrate at ~7.5k. Where decomposition _was_ applied
 (that cohort), it worked — two reviewable members instead of one ~40k monolith.
 
 ## Proposed direction
@@ -55,14 +55,14 @@ Four deliverables, all edits to existing surfaces — no new machinery, no new a
    invoke it (`draft-design`, `create-spec`): "stays one WU because X" or the cut-map, landing in the draft /
    spec alongside `Class`. Auditable, challengeable, and proof the method ran.
 3. **Generate-tasks tripwire** — thresholds over materialized plan evidence (phase count, leaf count, estimated
-   file surface) that force a cohort-fit re-run *with a recorded outcome* when crossed. Wires into the existing
+   file surface) that force a cohort-fit re-run _with a recorded outcome_ when crossed. Wires into the existing
    sizing review at generate-tasks so it can trigger decomposition, not only edge-trimming; the re-entry valve
-   stops relying on spontaneous noticing. The same materialized evidence admits a second, *prior* reading —
+   stops relying on spontaneous noticing. The same materialized evidence admits a second, _prior_ reading —
    proportionality ("should this shrink?") before decomposition ("should this split?"): decomposing an
    overdesigned plan institutionalizes the excess across N members. The shrink reading is owned by the
    solution-proportionality concern (see § Coordination); this WU owns the split reading and honors the
    ordering.
-4. **Stack-vs-coupling test** — codify that a sequential forward-contract chain is a *stack signal*, not a
+4. **Stack-vs-coupling test** — codify that a sequential forward-contract chain is a _stack signal_, not a
    keep-whole signal: an "unusable intermediate contract" claim must be tested against dependency-ordered
    delivery (each member shipping a usable contract to the next) before it justifies one WU. Lands beside the
    stack-vs-cohort bullet the standard already carries.

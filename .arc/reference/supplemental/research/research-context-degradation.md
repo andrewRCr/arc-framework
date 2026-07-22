@@ -37,8 +37,8 @@ recommendations.
 ### 1.1 "Lost in the Middle" Phenomenon — The Foundational Study
 
 **Source:** [Lost in the Middle: How Language Models Use Long Contexts][lost-middle] — Liu, N.F.,
-Lin, K., Hewitt, J., et al., *Transactions of the Association for Computational Linguistics
-(TACL)*, 2024
+Lin, K., Hewitt, J., et al., _Transactions of the Association for Computational Linguistics
+(TACL)_, 2024
 
 **Key Findings:**
 
@@ -58,7 +58,7 @@ middle content.
 ### 1.2 Context Length Alone Hurts Performance — Amazon/University Research
 
 **Source:** [Context Length Alone Hurts LLM Performance Despite Perfect Retrieval][ctx-length-hurts]
-— Amazon Science & University collaborators, *EMNLP 2025 Findings*
+— Amazon Science & University collaborators, _EMNLP 2025 Findings_
 
 **Key Findings:**
 
@@ -82,7 +82,7 @@ restructuring).
 ### 1.3 RULER Benchmark — Systematic Long-Context Evaluation
 
 **Source:** [RULER: What's the Real Context Size of Your Long-Context Language Models?][ruler] —
-NVIDIA & collaborators, *COLM 2024*
+NVIDIA & collaborators, _COLM 2024_
 
 **Key Findings:**
 
@@ -153,7 +153,7 @@ Degradation Under Varying Context Lengths][ctx-discipline] — Academic study, 2
 | GPT-4o         | Consistent >99.7% at longer contexts but suffers hallucination when needles not in haystack      |
 | GPT-5.2        | 98% on 4-needle, 70% on 8-needle at 256K; 85% mean match at 128K                                 |
 
-**Critical Note:** These are *simple retrieval* tasks. Complex reasoning tasks show dramatically
+**Critical Note:** These are _simple retrieval_ tasks. Complex reasoning tasks show dramatically
 worse performance (as revealed by RULER).
 
 **Classification:** Practitioner benchmark (widely used industry standard)

@@ -6,9 +6,9 @@
 > materialized-git-backing-store target. The target itself is `draft-arc-backend.md` (north star); this doc is the
 > interim discipline that points at it.
 >
-> **Status:** In-development reference — architectural *direction*, not a description of what ARC is today. Direction
+> **Status:** In-development reference — architectural _direction_, not a description of what ARC is today. Direction
 > sharpened 2026-06-10 to the **git-backing-store-materialized-locally** model (see `draft-arc-backend.md`
-> § The Storage Model). *Rename pending:* this file should be renamed to advertise its purpose (e.g.
+> § The Storage Model). _Rename pending:_ this file should be renamed to advertise its purpose (e.g.
 > `strategy-storage-forward-compat.md`); deferred as its own reference-cascade follow-up.
 
 **Purpose:** Forward-compat discipline for ARC's storage architecture. Defines the storage tiers ARC supports today
@@ -16,8 +16,8 @@ and is evolving toward, and the principles that keep interim work composable wit
 near-term WUs don't accrete tracked-`.arc/` assumptions a later migration must undo.
 
 **Scope:** Storage tiering, the tracked-vs-materialized line, forward-compat principles, integration boundaries with
-external tools, self-check triggers for plan / PRD authoring. First of three sibling check-docs: this doc owns *where
-state lives*, [`strategy-knowledge-evolution.md`](strategy-knowledge-evolution.md) owns where non-procedural guidance
+external tools, self-check triggers for plan / PRD authoring. First of three sibling check-docs: this doc owns _where
+state lives_, [`strategy-knowledge-evolution.md`](strategy-knowledge-evolution.md) owns where non-procedural guidance
 lives, and [`strategy-procedure-evolution.md`](strategy-procedure-evolution.md) owns how procedure executes.
 
 **Why project-internal:** Adopter-facing strategies in `strategies/arc/` describe what ARC IS. This describes
@@ -38,8 +38,8 @@ Consult this doc when authoring or iterating any plan / PRD / WU that touches:
 - **New configuration axes** — new `pm.mode` values, structural settings, mode flags. Check against Principle 6
   (axis explosion).
 
-**The question for each:** *does this design compose with the materialized-git-backing-store target as a future
-canonical storage option, or does it lock in choices that would force migration?* If the latter, surface the tension
+**The question for each:** _does this design compose with the materialized-git-backing-store target as a future
+canonical storage option, or does it lock in choices that would force migration?_ If the latter, surface the tension
 explicitly during authoring rather than deferring it.
 
 ---
@@ -49,7 +49,7 @@ explicitly during authoring rather than deferring it.
 ### Three tiers — one substrate at three scales
 
 The tiers are **not three designs**. They are the same **git-backing-store** substrate at increasing multiplicity:
-the canonical store is a git repo (just not the project's *code* repo), materialized into a gitignored `.arc/` so
+the canonical store is a git repo (just not the project's _code_ repo), materialized into a gitignored `.arc/` so
 agents and humans see ordinary local files (the chezmoi/dotfile-manager shape).
 
 | Tier            | Canonical store                                      | Scale / fit                        | State                  |
@@ -59,7 +59,7 @@ agents and humans see ordinary local files (the chezmoi/dotfile-manager shape).
 | **Shared**      | that repo, on a **shared private remote** (git-only) | small team, multi-writer           | Planned (north star)   |
 | **Coordinated** | a **service fronting the same store**                | high-parallelism / org authz       | Provisional — deferred |
 
-**Local *is* tier-2 of the materialized substrate; the Shared tier is that store on a shared remote with
+**Local _is_ tier-2 of the materialized substrate; the Shared tier is that store on a shared remote with
 multi-writer discipline (version-checked writes, entry-granular records, optimistic push-retry); team is the
 multi-writer config, not a separate design.** This unifies what were previously framed as separate Local-mode and
 backend designs — co-design them as one abstraction (see § Holistic Design). The substrate is not "the team tier"
@@ -79,7 +79,7 @@ demand or contributor capacity exists. Tiers 1–3 require nothing hosted beyond
 
 The boundary is **PM state-and-design (materialized) vs. PM machinery (tracked)**, drawn at the directory level so a
 single artifact group doesn't split arbitrarily. The two non-storage payoffs of materializing state: **(c)** privacy
-(planning artifacts not public on a public repo — *requires* a separate repo; out-of-branch-history tricks like git
+(planning artifacts not public on a public repo — _requires_ a separate repo; out-of-branch-history tricks like git
 notes do **not** deliver privacy) and **(d)** clean git history / PR view (planning churn leaves the code repo).
 
 ### The one knob
@@ -229,7 +229,7 @@ This list is not exhaustive — other touchpoints surface during co-design.
 - **`adr-022-managed-operational-state-documents.md`** — records-canonical / markdown-projection; the interim
   notes-sync assignment is the tier-2 bridge; records lift to the backend without reshaping (Principle 2).
 - **`draft-idiomatic-alignment.md`** — OKF (Open Knowledge Format) as an optional projection/interchange target off
-  the record→markdown layer (Principle 2 / Architecture B). A *producer/projection*, not a native reshape; emit the
+  the record→markdown layer (Principle 2 / Architecture B). A _producer/projection_, not a native reshape; emit the
   `reference/` + project-knowledge layer, not operational churn. Forward-compat: keep the option open, don't
   foreclose it. Detail in `draft-arc-backend.md` § External Interchange — OKF Projection.
 - **[`strategy-configurability-architecture.md`][config-arch]** — customization mechanisms; storage tiering interacts

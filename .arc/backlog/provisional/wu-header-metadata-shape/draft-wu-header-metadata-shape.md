@@ -4,7 +4,7 @@
   (2026-06-01); originally surfaced during a meta-file field audit + cross-file header-convention codification.
   Joins the `doc-conventions` cohort on promotion to `planned/` (kept standalone while provisional — cohorts are
   state-uniform); sibling in the artifact-convention family to naming-conventions / task-list-conventions.
-  Distinct from `meta-file-tracking-model` (which is about *whether* meta files are tracked, not their header
+  Distinct from `meta-file-tracking-model` (which is about _whether_ meta files are tracked, not their header
   shape).
 - **Purpose:** Deliberately survey WU artifact-header shape against industry idiom before any change — a
   research question with a constitutional-impact answer, not a ready plan.

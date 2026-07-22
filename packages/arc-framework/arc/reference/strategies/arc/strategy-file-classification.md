@@ -66,13 +66,13 @@ their own artifacts and recognize what a file is from its name alone.
 
 ### ALL-CAPS vs. lowercase
 
-**ALL-CAPS** files are organizational hubs — files you navigate *to* for project-wide context.
+**ALL-CAPS** files are organizational hubs — files you navigate _to_ for project-wide context.
 They're dashboards, indexes, and governance documents that serve as stable reference points.
 
 Examples: `AGENT-BRIEF.PROJECT.md`, `QUICK-REFERENCE.md`, `DEV-RULES.ARC.md`,
 `STRATEGY-INDEX.md`, `README.md`, `PROJECT-PRD.md`, `ROADMAP.md`
 
-**Lowercase with prefix** files are instances of a pattern — files you create *from* a convention.
+**Lowercase with prefix** files are instances of a pattern — files you create _from_ a convention.
 They're work artifacts that follow a naming template.
 
 Examples: `spec-authentication.md`, `tasks-api-modernization.md`, `strategy-work-organization.md`
@@ -121,7 +121,7 @@ place (e.g., `DEV-RULES.PROJECT.md`, `STRATEGY-INDEX.md`, `system/methods/commit
 because no rendering transformation occurs — they're copied as-is during init and edited directly
 by teams.
 
-The `template-` *prefix* (in `reference/templates/arc/`) is different — those are copy-ready document
+The `template-` _prefix_ (in `reference/templates/arc/`) is different — those are copy-ready document
 templates used during work (e.g., a `template-spec-*.md` form is copied when creating a new spec). They keep
 the prefix in use, not just at init time.
 
@@ -210,17 +210,17 @@ When creating project-specific artifacts:
 
 ## Directory placement — `system/` vs. `reference/`, and intra-`system/` tiering
 
-Where a file *lives* is a separate axis from how it's *classified* (§ Taxonomy — merge strategy) and how
-it's *named* (§ Naming Conventions — name format). Tier and directory are independent: a Configurable file
+Where a file _lives_ is a separate axis from how it's _classified_ (§ Taxonomy — merge strategy) and how
+it's _named_ (§ Naming Conventions — name format). Tier and directory are independent: a Configurable file
 can sit under `system/` (`arc-config.yml`) or under `reference/` (`AGENT-BRIEF.PROJECT.md`). This section
 governs which top-level directory a file belongs in.
 
 ### `system/` vs. `reference/`
 
-- **`system/` holds prescriptive / operational machinery** — content the methodology *runs*: workflows,
+- **`system/` holds prescriptive / operational machinery** — content the methodology _runs_: workflows,
   methods, extensions, githooks, development rules (`system/rules/`), and configuration (`arc-config.yml`).
   This content governs behavior or is consumed by the process to do work.
-- **`reference/` holds consultative look-up material** — content you *consult* to orient or decide: agent
+- **`reference/` holds consultative look-up material** — content you _consult_ to orient or decide: agent
   briefs (`reference/briefs/`), strategies, ADRs, PROJECT-PRD, TECHNICAL-OVERVIEW, QUICK-REFERENCE, and
   templates. This content describes what is true, not what to do.
 
@@ -231,7 +231,7 @@ read them to get situated — so they belong under `reference/`.
 
 **Load cadence is not the axis.** QUICK-REFERENCE loads at the top of every session yet is reference-shaped:
 a look-up surface, not behavior-governing machinery. Frequency of access does not determine placement;
-*shape* does.
+_shape_ does.
 
 ### Intra-`system/` tiering: user-facing vs. `.internal/`
 
@@ -247,7 +247,7 @@ A developer opening `system/` to override a method should meet the editable surf
 filtering past plumbing they never touch. `.internal/` stays singular — an adjective category label
 (cf. `.config/`, `.local/`), not a count of its contents.
 
-See § Directory naming for how a directory is *named* once its placement is settled.
+See § Directory naming for how a directory is _named_ once its placement is settled.
 
 ---
 

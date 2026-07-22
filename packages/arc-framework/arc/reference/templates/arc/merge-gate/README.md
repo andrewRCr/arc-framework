@@ -13,7 +13,7 @@ their own primitives; only this recipe is GitHub-specific.
 - **`CODEOWNERS`** — a drop-in file. The reviewed-lane ownership skeleton: owned paths require review; the
   trailing unowned block clears the auto-merge-lane paths so they need none. Place it at `.github/CODEOWNERS`
   (or repo root / `docs/`) and replace `@your-org/reviewers` with your reviewers.
-- **The `merge-ok` gate** — a *snippet*, below, NOT a drop-in file. It must be **merged into the workflow that
+- **The `merge-ok` gate** — a _snippet_, below, NOT a drop-in file. It must be **merged into the workflow that
   runs your required CI jobs**, because GitHub `needs:` only reaches jobs in the same workflow. Dropping it in
   as a second standalone workflow would roll up nothing and leave your real CI ungated — see § Why a snippet.
 
@@ -76,7 +76,7 @@ Branch protection requires **only** `merge-ok`. The heavy jobs are lane-skipped 
 runs unconditionally and treats a skipped job as success, so a planning PR gets a green required check without
 the heavy jobs running — while a code/constitutional PR waits on them. This is why the recipe uses a
 roll-up gate and **not** a path-ignored CI workflow (a path-filtered required check never reports and stalls
-the merge at *Pending*).
+the merge at _Pending_).
 
 ## CI layouts
 
@@ -91,7 +91,7 @@ the merge at *Pending*).
 
 `needs:` is intra-workflow only, so the gate must live alongside the jobs it rolls up. A standalone
 `merge-ok.yml` dropped in next to an untouched CI workflow would roll up only its own (empty) jobs — leaving
-real CI ungated, or, if real CI is also marked required, stalling planning-only PRs at *Pending*. Shipping the
+real CI ungated, or, if real CI is also marked required, stalling planning-only PRs at _Pending_. Shipping the
 gate as a snippet to merge in — rather than a droppable file — keeps that failure mode off the table.
 
 ## Apply

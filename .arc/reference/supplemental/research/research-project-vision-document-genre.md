@@ -34,7 +34,7 @@ assembly.
 **Weaknesses**:
 
 - Optimization for initial authorization, not ongoing alignment
-- Limited emphasis on *values* or *principles*
+- Limited emphasis on _values_ or _principles_
 - Typically written top-down, not collaboratively
 - No explicit evolution/update discipline—assumes stable scope
 - "Anti-goals" are implicit in scope boundary, not articulated
@@ -156,7 +156,7 @@ Governance.md) link from it. Vision is implicit in project description.
 - Values stated as contrasts: "A over B, but not neglecting B"
 - Principles often numbered; sometimes named (Agile: values + numbered principles; Zen: numbered with
 pithy names; Unix: named principles, multiple variants)
-- Emphasis on *how we think*, not *what we build*
+- Emphasis on _how we think_, not _what we build_
 - Stable over time (Agile Manifesto unchanged since 2001; Zen of Python frozen with intentional gap)
 
 **Strengths**:
@@ -168,7 +168,7 @@ pithy names; Unix: named principles, multiple variants)
 
 **Weaknesses**:
 
-- Optimized for *methodology* or *code philosophy*, not *project scope*
+- Optimized for _methodology_ or _code philosophy_, not _project scope_
 - Anti-goal: avoid designing a "manifesto culture" for every project
 - No built-in ceremony integration
 - No explicit scope or authorization layer
@@ -185,10 +185,10 @@ pithy names; Unix: named principles, multiple variants)
 "Customer Obsession," "Think Big"). No numbers, no codes.
 
 **Citation Pattern**: Employees and interviewers cite by name: "That's a great example of
-*Customer Obsession*" or "Let's check this against *Ownership*." Behavioral interview system is built
+_Customer Obsession_" or "Let's check this against _Ownership_." Behavioral interview system is built
 around the principles.
 
-**Evolution**: Principles are *not* frozen. Amazon CEO Andy Jassy stated: "People change, competitive
+**Evolution**: Principles are _not_ frozen. Amazon CEO Andy Jassy stated: "People change, competitive
 dynamics change, products change, technology changes. The leadership principles are something you have
 to constantly work at." Expansion from 14 to 16 was announced and absorbed into hiring/decision culture
 with minimal friction.
@@ -297,7 +297,7 @@ Governance implicit in kernel development process docs.
 
 **Weaknesses**:
 
-- RFC is for *change proposals*, not *project vision*
+- RFC is for _change proposals_, not _project vision_
 - Governance layer is separate from vision/mission
 - No single "north-star" document; vision is implicit in project charter + governance
 - Constitutional approach is heavyweight for small projects
@@ -356,7 +356,7 @@ check against Speed") or shorthand ("#2") in contexts where numbers are embedded
 **Cognitive Load Research**: Working memory can sustain 5-9 items without external aids. Beyond 9, grouping
 (categories, thematic buckets) is required.
 
-**Industry Practice**: 5-7 principles is a *soft* sweet spot for projects/teams needing to internalize
+**Industry Practice**: 5-7 principles is a _soft_ sweet spot for projects/teams needing to internalize
 and cite them conversationally. 10-12 works if the list is stable, well-named, and supported by
 reference materials. 16+ requires strong organizational infrastructure (hiring system, internal wiki,
 leadership coaching).
@@ -497,7 +497,7 @@ retrospectives and process disputes. Used as a reference to resolve methodology 
 
 **PRD to Execution**: Research shows projects with clearly articulated vision have 2.5x higher success
 rates (PMI Pulse of the Profession). However, 28% of projects fail due to inadequate vision,
-suggesting that *articulation alone* is insufficient; vision must be actively referenced.
+suggesting that _articulation alone_ is insufficient; vision must be actively referenced.
 
 ### 5.2 Ceremony Integration Patterns
 
@@ -558,9 +558,9 @@ changes)
 
 **Pro-Anti-Goals-Section**:
 
-- Explicit boundary-setting is psychologically powerful (teams remember what they're *not* doing)
+- Explicit boundary-setting is psychologically powerful (teams remember what they're _not_ doing)
 - Prevents scope creep by forcing articulation of exclusions upfront
-- Useful in stakeholder alignment: "We will *not* do X, so please stop asking"
+- Useful in stakeholder alignment: "We will _not_ do X, so please stop asking"
 
 **Anti-Anti-Goals-Section**:
 
@@ -629,10 +629,10 @@ feature teams from 4 weeks to 1 week to enable rapid experimentation."
 - "User feedback drives design—we ship, observe, iterate"
 - "Maintainability is non-negotiable—no technical debt trades"
 
-**Design Tradeoffs**: *Optional*. Useful for projects that have already made significant architectural
+**Design Tradeoffs**: _Optional_. Useful for projects that have already made significant architectural
 decisions. Format: "We chose [choice] over [alternative] because [reason], accepting [tradeoff]."
 
-**Update Discipline**: *Required*, not optional. Explicit policy prevents document rot.
+**Update Discipline**: _Required_, not optional. Explicit policy prevents document rot.
 
 ### 7.3 Minimum Viable Version (for tiny projects)
 
@@ -677,7 +677,7 @@ in the primary source document. This avoids renumbering pain if principles are a
 - **User Feedback**: Customer data and usage patterns drive prioritization.
 ```
 
-Citation in PRD or code review: "This aligns with *Speed*" or "we need to check *Maintenance*."
+Citation in PRD or code review: "This aligns with _Speed_" or "we need to check _Maintenance_."
 
 ### 8.2 Count Recommendation
 
@@ -726,9 +726,9 @@ only, or periodic check-in? (Recommendation: pure event-driven; avoid "annual re
 narrative? (Recommendation: flexible; let projects choose; show both patterns in guidance.)
 
 5. **Integration with ARC other layers**: How does this vision document relate to ARC constitution doc
-and strategy docs? Clear separation or intentional overlap? (Recommendation: vision is *project-specific
-direction*; constitution is *how ARC development works across all projects*; strategy is *longer-term
-codified guidance*. Vision is the only one that changes per-project.)
+and strategy docs? Clear separation or intentional overlap? (Recommendation: vision is _project-specific
+direction_; constitution is _how ARC development works across all projects_; strategy is _longer-term
+codified guidance_. Vision is the only one that changes per-project.)
 
 ---
 

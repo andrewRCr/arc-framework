@@ -6,7 +6,7 @@ Proposed.
 
 Concurrent work is governed by **advisory conventions plus one hard append-only invariant** — decided here. The
 doctrine itself ships with this work unit (`strategy-concurrent-work` and the `assess-parallel-fit` method); the
-*enforcement* of the conventions it states ships with the sibling cohort members — the behind-base detector and
+_enforcement_ of the conventions it states ships with the sibling cohort members — the behind-base detector and
 the foreign-write backstop (`merge-safety-mechanism`), the single-owner-per-WU model (`single-owner-wu-model`),
 and the awaiting-review lifecycle seam (`async-merge-lifecycle`). Promote to Accepted when this work unit
 integrates.
@@ -16,8 +16,8 @@ integrates.
 The worktree substrate for parallel work has shipped — per-WU worktrees, session-init worktree-awareness,
 branch-gone recovery, the advisory in-flight activation check, and the `Class` plate-balance signal ([ADR-019],
 [ADR-023]). Mechanism without conventions, though, invites exactly the undisciplined parallelism the project's
-principles warn against (P3 focused execution; P2 co-development bandwidth). The open question was *patterns of
-use*: when concurrent work units help versus fragment attention, what keeps concurrent branches integrable and
+principles warn against (P3 focused execution; P2 co-development bandwidth). The open question was _patterns of
+use_: when concurrent work units help versus fragment attention, what keeps concurrent branches integrable and
 cross-machine-safe, and how shipped-but-awaiting-review work composes with active work.
 
 Two temptations pulled toward **encoding** that discipline as mechanism rather than convention:
@@ -34,11 +34,11 @@ External research ran in two independent directions and undercut both:
   as a **Status enum + Assignee**, never a focus-role field.
 - A **worktree-tool convergence pass** over eleven agent-workspace tools (`research-worktree-tool-convergence`;
   Conductor, emdash, Maestro, Warp, Worktrunk, Zed, Super, Superset, T3code, Soloterm, Nora) found none modeling
-  focus role either — and found every one optimizing for *many simultaneous sessions, fast spawn, minimal per-WU
-  review*, the **opposite posture** to ARC's fewer-deeper-reviewed default. The same pass confirmed the two
+  focus role either — and found every one optimizing for _many simultaneous sessions, fast spawn, minimal per-WU
+  review_, the **opposite posture** to ARC's fewer-deeper-reviewed default. The same pass confirmed the two
   ecosystems compose by sitting on the shared git-worktree substrate, with no extension-point integration.
 
-The underlying *concepts* — single-thread attention, WIP limits, attention-residue, awaiting-review as a distinct
+The underlying _concepts_ — single-thread attention, WIP limits, attention-residue, awaiting-review as a distinct
 state — are well-grounded (`research-focus-wip-attention-discipline`, aligned across Kanban, Deep Work, and GTD).
 What the research rejected was **expressing them as net-new tracked vocabulary a tool enforces**, rather than as
 conventions an operator applies by judgment. The branch/merge mechanics and parallelize-vs-serialize heuristics
@@ -48,16 +48,16 @@ the doctrine codifies are likewise research-grounded (`research-concurrent-work-
 A live incident sharpened the one place where convention is not enough. On **2026-06-10**, a laptop-scaffolded
 branch was rebased and force-pushed from the primary worktree, orphaning the laptop's pre-rebase tip; it was
 recovered losslessly via `git reset --hard origin/<branch>`. The lesson is narrow and hard: a pushed branch
-serving as a live multi-machine sync target must never be rewritten. Worktrees are *enabling hygiene* here, not a
-guarantee — a per-WU worktree removes the *occasion* for a mid-flight rebase but cannot *prevent* a rebase +
+serving as a live multi-machine sync target must never be rewritten. Worktrees are _enabling hygiene_ here, not a
+guarantee — a per-WU worktree removes the _occasion_ for a mid-flight rebase but cannot _prevent_ a rebase +
 force-push.
 
 ### Alternatives considered
 
 - **A `Focus Role` meta field** (with blessed pairings and `**Focus Since:**` tenure tracking). Rejected. Each
-  proposed value maps to an existing signal: *primary* → which worktree the agent is in (implicit, no field);
-  *awaiting-external* → `**State:** Integrating` ([ADR-019]'s state machine); *companion* → conflated runtime
-  focus with backlog grouping, already covered by the cohort model ([ADR-024]); *parked* → soft Someday/Maybe
+  proposed value maps to an existing signal: _primary_ → which worktree the agent is in (implicit, no field);
+  _awaiting-external_ → `**State:** Integrating` ([ADR-019]'s state machine); _companion_ → conflated runtime
+  focus with backlog grouping, already covered by the cohort model ([ADR-024]); _parked_ → soft Someday/Maybe
   guidance, not a field. The field would invent vocabulary adopters don't recognize and demand validation rules,
   migration of in-flight work units, and adopter education — to encode what agent judgment plus existing state
   already carry.
@@ -67,8 +67,8 @@ force-push.
   (WIP limits, swimlane/value-stream partitioning, module ownership) over a computed "safe-to-parallelize," and
   the real safety net is the behind-base check at integration, not a prediction.
 - **Inheriting team-mode conventions.** Concurrent usage could in principle reuse the `(@name)` markers and
-  team-sync settings. Rejected: those are *cross-identity* (team) conventions, while concurrency is a
-  *multi-work-unit* concern in which each work unit is single-owner regardless of team size. The two are
+  team-sync settings. Rejected: those are _cross-identity_ (team) conventions, while concurrency is a
+  _multi-work-unit_ concern in which each work unit is single-owner regardless of team size. The two are
   structurally distinct — sibling, not subset.
 
 ## Decision
@@ -84,7 +84,7 @@ review-increment boundaries — not as field validations a tool enforces.
 
 **One hard invariant: append-only until integration.** A pushed work-unit branch is append-only from activation to
 integration — add commits and fast-forward-push only; never rewrite already-pushed history. If the base is
-genuinely needed mid-flight, *merge* it in (ancestry-preserving), never rebase onto it; integration is the single
+genuinely needed mid-flight, _merge_ it in (ancestry-preserving), never rebase onto it; integration is the single
 sanctioned rewrite point. This is the one place the doctrine is a rule rather than advice, because the failure
 mode — orphaning a machine's commits — is silent and lossy. It is framed as **git-branch-safety for shared
 history**, never as "your branch is your permanent multi-machine state store" (see Forward-compatibility below).
@@ -96,19 +96,19 @@ foreign-overlap you coordinate. This asymmetry is the whole "all-owner" addition
 extends from file-level foreign-artifact writes down to entry-level re-homing of foreign-owned atomics.
 
 **Sibling to team mode.** Concurrent-work conventions and team mode are orthogonal axes: team mode coordinates
-*people* (cross-identity); concurrent-work coordinates *work units* (per-WU, single-owner). They compose, and
+_people_ (cross-identity); concurrent-work coordinates _work units_ (per-WU, single-owner). They compose, and
 neither requires the other. This prevents the "do I enable team mode to run multiple work units?" confusion.
 
 **Where the model lives.** The adopter-facing doctrine is `strategy-concurrent-work`; the advisory read is the
 `assess-parallel-fit` method. The derived-vs-mutated shared-state split is [ADR-020]'s, the errand `chore/` branch
 is [ADR-021]'s, managed-doc merge correctness is [ADR-022]'s, and the cohort model is [ADR-024]'s — this ADR
-records only the durable concurrency *posture* and its rejections. The internal rationale the doctrine omits
+records only the durable concurrency _posture_ and its rejections. The internal rationale the doctrine omits
 (research citations, the focus-role ledger, the incident, the forward-compat reasoning below) is this ADR's sole
 home.
 
 **Forward-compatibility (storage).** Framing the pushed branch as the cross-machine sync substrate is **tier-1
 (in-repo) truth, not permanent.** Under the materialized-git-backing-store direction, operational work-unit state
-syncs via the backing store while the code branch carries code; the append-only *discipline* composes forward at
+syncs via the backing store while the code branch carries code; the append-only _discipline_ composes forward at
 every tier (you never rewrite shared code history). This is precisely why the doctrine frames append-only as
 git-branch-safety rather than branch-as-state-store — checked against `strategy-storage-evolution` Principles 2
 (records storage-agnostic) and 5 (work-unit identity decoupled from branch identity). This reasoning stays

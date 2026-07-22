@@ -31,16 +31,16 @@ the substrate, which raises the stakes on getting them right here.
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Make non-git substitutability an acceptance criterion of the storage abstraction**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: local-mode`), housekeep drain (2026-07-18); captured during
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: local-mode`), housekeep drain (2026-07-18); captured during
   the architecture-direction discussion (2026-07-16).
-- *Concern:* the git-notes lesson generalized: git may be the storage/replication *engine*, never the *schema*. The
+- _Concern:_ the git-notes lesson generalized: git may be the storage/replication _engine_, never the _schema_. The
   notes failure was a git mechanism (SHA-keyed attachment, ancestor-walk) becoming the semantic model.
-- *Fold-in:* when Local's PRD scopes the shared storage abstraction (`strategy-storage-evolution.md` § Holistic
+- _Fold-in:_ when Local's PRD scopes the shared storage abstraction (`strategy-storage-evolution.md` § Holistic
   Design), record non-git substitutability as an explicit acceptance criterion — could the contract be implemented
   on a non-git backend (e.g. Postgres) without touching anything above it? A design oracle, not a planned feature.
   The entry-granular slug-keyed record requirement (arc-backend 2026-07-02 amendment) already points this way; this
@@ -48,19 +48,19 @@ the substrate, which raises the stakes on getting them right here.
 
 ### `[ ]` **Review coupling-audit finding: team mode key**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: local-mode`), housekeep drain (2026-07-18); captured
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: local-mode`), housekeep drain (2026-07-18); captured
   during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
-- *Concern:* the pending team-mode key change is an abstract configuration assumption spanning 37 files.
-- *Approach:* at grooming, settle the access and compatibility seam before scheduling the key rename.
-- *Packet:* `packet-dbd2103ffa3c4df953f89138`; content digest
+- _Concern:_ the pending team-mode key change is an abstract configuration assumption spanning 37 files.
+- _Approach:_ at grooming, settle the access and compatibility seam before scheduling the key rename.
+- _Packet:_ `packet-dbd2103ffa3c4df953f89138`; content digest
   `19fc5ffc96617197821f46c35951b913f47505460d875747925d9896bbc2d042`.
-- *Evidence:* `team-mode-key`; `scan-result.json#class-team-mode-key`.
+- _Evidence:_ `team-mode-key`; `scan-result.json#class-team-mode-key`.
 
 ---
 
 ## Notes retirement — an explicit deliverable of this WU
 
-*(Integrated from the inbound buffer at the 2026-07-17 storage-substrate grooming.)* User-notes state becomes an
+_(Integrated from the inbound buffer at the 2026-07-17 storage-substrate grooming.)_ User-notes state becomes an
 ordinary artifact class of the backing store, and the notes machinery retires explicitly: `refs/notes/arc/user/*`,
 sync-state refs, and partial-push markers are deleted; a one-time import moves existing content; the `arc user`
 family repoints at the store (same verbs, store transport — § Command family). The sync state machine,
@@ -107,8 +107,8 @@ and the target share the same parts but **invert authority**:
 Consequences for the carried design, worked through the sections below:
 
 - **Snapshot-at-handoff dies as the write model.** Batch whole-tree snapshots over a session-stale read are
-  exactly the anti-pattern `draft-arc-backend.md` Gotcha 6 names once the store is shared. The *firing points*
-  survive (handoff remains the canonical moment state must be durable); the *mechanism* becomes record writes
+  exactly the anti-pattern `draft-arc-backend.md` Gotcha 6 names once the store is shared. The _firing points_
+  survive (handoff remains the canonical moment state must be durable); the _mechanism_ becomes record writes
   through the materialization layer.
 - **The non-bare-store rationale must be re-derived.** Non-bare was chosen because `git add -A` needs a working
   directory to scan. Under render/projection the sync is not a working-directory commit, so the store shape
@@ -158,7 +158,7 @@ re-clone detection is reused for backend provisioning") and no other document ca
 
 The pin/no-pin asymmetry is deliberate: the UUID case pins automatically; the first-commit case does **not**
 write the pin, because its absence is what lets auto-detection fire when the repo later acquires a remote. On
-every resolution, the resolver also checks whether a store exists at any key a *prior* repo state would have
+every resolution, the resolver also checks whether a store exists at any key a _prior_ repo state would have
 resolved to; on a hit it offers a three-way prompt before proceeding — **[M]igrate** (copy content to the new
 key; old becomes a named orphan), **[S]tay** (write the old key to the pin file — a one-time user-confirmed
 stickiness conversion), **[L]ater** (use the old key this session, ask again next).
@@ -175,10 +175,10 @@ exclusion → rematerialize `.arc/` from the store → re-install hooks → repo
 re-run of the original command, not a separate verb — and the same flow is earmarked as the backend's
 provisioning / new-machine path.
 
-- **[revalidate]** Bootstrap circularity under the projection model: the pin lives *inside* the `.arc/` that
+- **[revalidate]** Bootstrap circularity under the projection model: the pin lives _inside_ the `.arc/` that
   materialization keys off the pin. Needs an ordering story (e.g., the pin is the one file that is genuinely
   local-first, or keying moves outside `.arc/`).
-- **[revalidate]** Remote-URL and first-commit keys are per-clone-stable, not per-*project*-stable across
+- **[revalidate]** Remote-URL and first-commit keys are per-clone-stable, not per-_project_-stable across
   users; tier-3 needs cross-user ID stability the chain never had to guarantee.
 
 ### Backing store
@@ -192,8 +192,8 @@ provisioning / new-machine path.
   Configurable files — persists before the command returns, closing the home-dir-loss window on the user's
   merge decisions); worktree/context transitions as they exist post-worktree-foundation. All firing points obey
   one constraint: **fast, seamless, invisible**.
-- **Failure handling: handoff proceeds on sync failure.** The guarantee is *best-effort durability, visible
-  when degraded* — never an atomic two-phase commit that blocks closing a session. Three failure classes:
+- **Failure handling: handoff proceeds on sync failure.** The guarantee is _best-effort durability, visible
+  when degraded_ — never an atomic two-phase commit that blocks closing a session. Three failure classes:
     - **Class A — failed before the store accepted the write** (disk full, permissions, lock contention).
       Store stays clean; the next write rolls forward. Automatic recovery.
     - **Class B — store write landed, push to remote failed** (transient network, auth). Store is ahead of its
@@ -218,7 +218,7 @@ provisioning / new-machine path.
   for single-machine users.
 - **[revalidate] Store contents under the tracked/materialized line.** The original design snapshotted all of
   `.arc/` ("backup is comprehensive; restoration is exact"). The substrate's line says machinery (`system/**`)
-  is *tracked-with-the-code* — but in Local mode nothing ARC is in the code repo. Decide whether the store
+  is _tracked-with-the-code_ — but in Local mode nothing ARC is in the code repo. Decide whether the store
   carries machinery (store-complete restoration) or only state + authored design, with machinery
   re-materialized from a pinned CLI/package version. Interacts with re-clone recovery and `arc update`.
 
@@ -310,7 +310,7 @@ downstream keys. Carried mechanics, to rebase onto whatever config schema `scala
   role-branching workflows default to the non-contributor path. **[revalidate]** at tier-3, where contributors
   on a shared store re-enter.
 - **Team toggle forced off in Local — [revalidate].** "Local is solo by definition" was the original stance;
-  the substrate reframe makes team the *multi-writer configuration of the same store* (tier-3), so solo is a
+  the substrate reframe makes team the _multi-writer configuration of the same store_ (tier-3), so solo is a
   tier property, not a forbidden combination. Note the `team.mode → team.enabled` rename remains this WU's
   owned disposition per ADR-020 — resolve its landing (here, or re-route to scalable-core's config reform)
   during grooming.
@@ -329,7 +329,7 @@ Three surfaces behave differently under a gitignored `.arc/`:
 - **Agent file machinery (Read/Grep/Glob) is unaffected** — explicit paths bypass editor indexing; core ARC
   operations work unchanged. Session-init scaffolding gives the agent full path discoverability (index docs,
   filename conventions), so natural-language references resolve without any editor picker. This
-  agent-scaffolding argument is load-bearing for ergonomics at *every* materialized tier, not just Local.
+  agent-scaffolding argument is load-bearing for ergonomics at _every_ materialized tier, not just Local.
 - **Explorer views show untracked files** in every mainstream editor — `.arc/` stays visible in the sidebar.
 - **The residual cost is quick-open / `@`-mention pickers** in gitignore-respecting editors (notably VS Code).
   The 2026-04-13 survey (Cursor, SpecStory, Aider, Continue, Zed, VS Code, JetBrains AI Assistant, Dendron,
@@ -337,7 +337,7 @@ Three surfaces behave differently under a gitignored `.arc/`:
   Code issues [#103570][vscode-103570] and [#43505][vscode-43505] closed unresolved; Zed's
   `file_scan_inclusions` is the sole clean path-scoped mitigation.
 - **[revalidate] Merge with the backend's freshness findings into one per-editor matrix.** The backend draft
-  identified the *separate* stale-open-buffer problem (watchers prune gitignored paths; Zed's same setting
+  identified the _separate_ stale-open-buffer problem (watchers prune gitignored paths; Zed's same setting
   restores live reload; Helix has no auto-reload; `.git/info/exclude` is honored by no editor's watcher) and
   decided ARC **scaffolds the per-editor settings at init** (`.zed/settings.json`, `.vscode/settings.json`).
   The two analyses assign different jobs to the same settings — harmonize picker-visibility + buffer-reload
@@ -361,7 +361,7 @@ prompt rejected (mutates beyond stated intent); hard-refuse rejected (hostile on
 The original Local → tracked upgrade (remove exclusion, `git add .arc/`, switch footer policy, commit) is
 **mechanically dead under the projection model**: working-tree files are projections, so `git add .arc/` would
 track renders while canonical history stays in the store. What survives is the **requirement**: cheap,
-content-continuous, no-rewrite transitions along the storage axis — in *both* directions (in-repo → Local is
+content-continuous, no-rewrite transitions along the storage axis — in _both_ directions (in-repo → Local is
 the more important direction in the new world: an existing tracked project adopting privacy/multi-machine) —
 plus a third transition surface the substrate adds (`storage.track_design_docs` moves design docs between
 repos; backend Gotcha 2). No document currently designs tier transitions; this WU owns the tier-1↔2 pair and

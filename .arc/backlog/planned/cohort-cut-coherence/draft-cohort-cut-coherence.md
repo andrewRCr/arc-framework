@@ -23,9 +23,9 @@ model documented one way and built another.
 
 The limit on what a cohort cut must absorb is the **additive-vs-consistency test**:
 
-- **Absorb** what would be *inconsistent* if deferred (the model says X, the substrate doesn't do X).
-- **Leave out** what is merely *un-enhanced* (does X correctly, lacks an additive nicety) or belongs to a
-  *different foundational domain*.
+- **Absorb** what would be _inconsistent_ if deferred (the model says X, the substrate doesn't do X).
+- **Leave out** what is merely _un-enhanced_ (does X correctly, lacks an additive nicety) or belongs to a
+  _different foundational domain_.
 
 Pairs with two implementation patterns:
 
@@ -46,7 +46,7 @@ Settle which surface (or both) at spec time.
 A **distinct concern** from `lifecycle-state-machine` (a general decomposition heuristic, not the lifecycle
 deliverable) — deliberately NOT folded into that cohort even though its cascade members touch the same surfaces
 (`assess-cohort-fit`, `strategy-work-organization`); concern-identity, not file-identity. The heuristic is
-*recorded* as that cohort's scope rationale (its draft § Ship shape); this stub is the separable codification.
+_recorded_ as that cohort's scope rationale (its draft § Ship shape); this stub is the separable codification.
 
 ## Scope Estimate
 

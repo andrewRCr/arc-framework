@@ -36,7 +36,7 @@ and a quick sanity check on that framing revealed it was materially wrong.
 **Rediscovery:** `ADR-014` § Contributor planning (Accepted, implemented in commit `d81a62a` on
 2026-03-25) already committed ARC to supporting contributors running the **full planning pipeline
 — sessions, task lists, WORK-STATUS, shift, handoffs — scoped entirely to `.arc/user/{identity}/`**.
-The boundary is ownership of *tracked* state, not the presence of WU concepts. The implementation
+The boundary is ownership of _tracked_ state, not the presence of WU concepts. The implementation
 commit shipped the lightweight contributor path (hooks, session-init branching, reduced briefing,
 optional WORK-STATUS read); the full-lifecycle workflows were scoped as latent capability per
 `ADR-014` § Risks (the lightweight path was named the expected common case).
@@ -50,7 +50,7 @@ compose cleanly with contributor state that already lives in `user/{identity}/` 
 **External validation:** A research pass (conducted during this session) confirmed the
 read-upstream, write-personal-gitignored-subtree pattern is architecturally unsurprising in the
 wider tooling ecosystem — Husky, Claude Code, and Cursor instantiate the same split with no
-idiomatic friction. The OSS pollution line is about *tracked upstream config*, not gitignored
+idiomatic friction. The OSS pollution line is about _tracked upstream config_, not gitignored
 personal state. `ADR-014`'s model is on the safe side of that line.
 
 ## Scope
@@ -75,10 +75,10 @@ personal state. `ADR-014`'s model is on the safe side of that line.
 
 ## Corrected Framing (Clarification #5 Revised)
 
-The solo-dev audit's clarification #5 originally stated: *"Contributors do not interact with WU
+The solo-dev audit's clarification #5 originally stated: _"Contributors do not interact with WU
 state. The role boundary is firm: contributors are external — they fix issues, submit PRs, use
 the Context: contribution footer. They do not manage WUs, do not see WORK-STATUS.md in their
-session-init, do not need to know what's paused."*
+session-init, do not need to know what's paused."_
 
 **Revised form (2026-04-09):** The boundary is **ownership of tracked state**, not the presence
 of WU concepts. Per `ADR-014` § Contributor planning:
@@ -89,8 +89,8 @@ of WU concepts. Per `ADR-014` § Contributor planning:
 - Contributors **can** run ARC's full planning pipeline — sessions, task lists, shift, handoffs —
   scoped entirely to `.arc/user/{identity}/`.
 - Session-init in contributor mode already checks for `user/{identity}/WORK-STATUS.md` and loads
-  it if present. The infrastructure to *read* contributor planning state exists; the workflows
-  to *write* a full lifecycle into that tree are partially unimplemented.
+  it if present. The infrastructure to _read_ contributor planning state exists; the workflows
+  to _write_ a full lifecycle into that tree are partially unimplemented.
 
 The original clarification's conclusion — "contributors do not interact with WU state at all" —
 was load-bearing for several audit framings (notably the "M3 dissolves" finding). Those framings
@@ -402,8 +402,8 @@ users decide adoption depth.
 
 `.arc/user/{identity}/` is a personal workspace with a defined framework read contract. The
 framework reads from specific paths; everything else under the user directory is the developer's
-to organize freely. ARC *recommends* mirroring the framework's structure (`active/`, `reference/`,
-etc.) for consistency with the user's mental model but does not *enforce* — the framework cannot
+to organize freely. ARC _recommends_ mirroring the framework's structure (`active/`, `reference/`,
+etc.) for consistency with the user's mental model but does not _enforce_ — the framework cannot
 validate a gitignored personal directory anyway, and making this honest is more useful than
 pretending otherwise.
 

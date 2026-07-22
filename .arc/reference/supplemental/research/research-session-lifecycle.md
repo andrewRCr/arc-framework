@@ -30,7 +30,7 @@ transfer), and team awareness (shared project visibility).
 ## Pattern 1: Template + Instance (Schema Separation)
 
 **Core idea:** Shareable schema/structure is tracked in VCS; machine-specific values are local
-and gitignored. Everyone knows the *shape*; no one shares their *instance*.
+and gitignored. Everyone knows the _shape_; no one shares their _instance_.
 
 ### Environment Variables (.env Pattern)
 
@@ -207,7 +207,7 @@ Sources: [Atlassian: git stash][atlassian-stash]
   status, progress tracking)
 - **Implementation:** Palaver tool stores state as JSON blobs in notes
 - **Key finding:** Avoids rewriting history, namespace-safe, but requires explicit push to
-  share. Interesting mechanism for session metadata that *can* be shared but isn't by default
+  share. Interesting mechanism for session metadata that _can_ be shared but isn't by default
 
 Sources: [git-notes docs][git-notes], [Tyler Cipriani: Git Notes][cipriani-notes],
 [DEV: Git Notes Unraveled][dev-notes]
@@ -224,7 +224,7 @@ Sources: [Mercurial bookmarks wiki][hg-bookmarks]
 
 **Relevance to ARC:** Git notes are the most interesting find here. They offer a mechanism for
 metadata that is: (a) attached to commits, (b) namespace-organized, (c) local by default but
-shareable on demand. This maps well to session context that a developer *might* want to share
+shareable on demand. This maps well to session context that a developer _might_ want to share
 during handoff but doesn't need to share routinely.
 
 ---
@@ -273,7 +273,7 @@ transfer. Most tools do awareness well; few do handoff.
 - **Individual context:** Debugging notes end up in comments or external docs; not structurally
   captured
 - **Handoff:** Manual — create a summary, @mention new owner, communicate via Slack/email
-- **Key finding:** These tools show *what* is being worked on but don't systematize *how* to
+- **Key finding:** These tools show _what_ is being worked on but don't systematize _how_ to
   transfer session context. Awareness is strong; handoff ceremony is absent
 
 Sources: [findpmsoftware: Linear vs Notion][linear-notion]
@@ -296,7 +296,7 @@ Sources: [Geekbot status update docs][geekbot]
 - **Granularity:** Swarmia — real-time, individual + team level. Jellyfish — 24-hour refresh,
   executive level. LinearB — workflow-level with PR automation
 - **Push/pull:** Swarmia pushes via Slack notifications; others primarily pull (dashboard)
-- **Key limitation:** Show *movement* (someone is working on a PR) but not *why* someone is
+- **Key limitation:** Show _movement_ (someone is working on a PR) but not _why_ someone is
   blocked, what they've tried, or what context the next person needs to take over
 
 Sources: [Swarmia platform][swarmia], [Jellyfish vs Swarmia comparison][jellyfish-swarmia]
@@ -317,7 +317,7 @@ Sources: [Shape Up: Show Progress][shapeup-hill], [Basecamp hill charts][basecam
 
 **Relevance to ARC:** The distinction between awareness (team sees status) and handoff (context
 transfers to next person) is a critical design axis. No collaboration tool provides structured
-handoff. Hill charts are notable for capturing *qualitative* progress (uncertainty vs. execution)
+handoff. Hill charts are notable for capturing _qualitative_ progress (uncertainty vs. execution)
 rather than just task counts — this maps to ARC's "additional context" section in
 CURRENT-SESSION.md.
 
@@ -565,7 +565,7 @@ declarations. Both provide richer awareness than checkbox completion.
 
 **Implication:** ARC's "Additional Context" section in CURRENT-SESSION.md already captures
 qualitative state (blockers, insights, approach notes). The shareable portion of session state
-may be more about *what kind of uncertainty remains* than *which tasks are done*.
+may be more about _what kind of uncertainty remains_ than _which tasks are done_.
 
 ---
 

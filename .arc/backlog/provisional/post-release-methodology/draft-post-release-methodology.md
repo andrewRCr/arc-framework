@@ -55,5 +55,5 @@ planning workflow to invoke, it dispatches based on current state.
 
 ---
 
-*Add new items above this line. Each item should include: origin (where the idea came from),
-concept (what it does), and enough design context to evaluate scope later.*
+_Add new items above this line. Each item should include: origin (where the idea came from),
+concept (what it does), and enough design context to evaluate scope later._
