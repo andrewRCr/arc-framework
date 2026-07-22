@@ -18,21 +18,22 @@ and relate it to ARC's broader design-fit rubric before the remaining planning s
   package and self-hosted copies. Recipe-derived manifest membership, Configurable classification, neutral parity,
   and focused init/update/E2E inventories cover the complete delivery slice without numeric count coupling.
 
-### `[ ]` **1.2 Compose proportionality with design-audit and the method index**
+### `[x]` **1.2 Compose proportionality with design-audit and the method index**
 
 - _Goal:_ `design-audit` retains its broader efficacy and fit role while material complexity mismatch has one
   canonical criterion and every caller can discover the relationship without duplicated checklists.
-
-- _Note:_ Design coverage: PD5, PD8.
 
     - `[x]` **1.2.a Reframe the Fit lens around the canonical proportionality method**
         - Delegated material complexity mismatch to `assess-design-proportionality` while preserving
           `design-audit`'s broader efficacy, coherence, forward-compatibility, finished-draft, read-only, and
           severity contracts; focused neutral parity now covers both methods.
 
-    - `[ ]` **1.2.b Register the method relationship in both indexes**
-        - Update the package and self-hosted `system/methods/README.md` tables to relate
-          `assess-design-proportionality` and `design-audit` without introducing transitive-loading machinery.
+    - `[x]` **1.2.b Register the method relationship in both indexes**
+        - Registered the reciprocal method relationship in both projected indexes without adding loading
+          machinery.
+
+- _Outcome:_ Material proportionality now has one canonical criterion while `design-audit` retains broader design
+  fitness, and the reciprocal index relationship makes their composition discoverable to override authors.
 
 ## **Phase 2:** Spec and design-boundary guards
 

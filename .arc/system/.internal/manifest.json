@@ -444,7 +444,7 @@
     "system/methods/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "6ca69f7edccf36b909938f358cd0895acde2b1c91acbe262ba0874a5ac1a42e4"
+      "pristine_hash": "baff6d55eb3c92688863414a732764d5f9ad0cea874477f175be49d171c510d9"
     },
     "system/.internal/scripts/arc-lib.sh": {
       "classification": "Framework",
