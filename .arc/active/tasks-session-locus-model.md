@@ -775,13 +775,10 @@ protection modes, recovery boundaries, and package/source parity.
           recovery frame/load set, and the audited optional seed hint. Typed frames now resume transients before
           rederiving the parent or record-free frame, with no branch-prefix or second-graph selection.
 
-    - `[ ]` **7.1.c Rework handoff around subject leave and exact WU release**
-        - Under authoritative package `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`, update
-          `session-handoff.template.md`, then render/sync the project instance.
-        - Resolve the active locus before WU branch/meta heuristics, run the matching subject leave/close driver,
-          and surface CLI refusal text for incomplete housekeep, groom, partial Errand, or unpreserved work.
-        - Release only the exact restored WU lease after the subject driver completes; a cold transient close/pop
-          ends on a record-free primary and performs no fabricated release.
+    - `[x]` **7.1.c Rework handoff around subject leave and exact WU release**
+        - Reworked canonical and self-hosted handoff around the reader-derived `handoffLocus`: exact Errands preserve
+          and leave through their subject driver, unsafe transient states render typed refusals, and finalization
+          releases only the freshly restored WU lease while record-free cold closes release nothing.
 
     - `[ ]` **7.1.d Rework the Errand workflow for allocation, leave, resume, and next-offer**
         - Update authoritative package `packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md`,
