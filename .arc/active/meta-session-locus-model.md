@@ -12,11 +12,11 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 5.6.c — Cover stateful command boundaries end to end
-- **Next Task:** Task 6.1.a — Mint WU roles beside spawn and materialize markers (line ~623)
+- **Last Completed:** Task 6.6.b — Render CLI-precomposed reconciliation and cleanup text
+- **Next Task:** Task 7.1.a — Rework session initialization and its probe reference (line ~768)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.1.a — mint WU roles beside spawn and materialize markers
+- **Next Action:** Start Task 7.1.a — rework session initialization and its probe reference
 
 - **PR URL:** [none]
 - **Completed:** [none]
