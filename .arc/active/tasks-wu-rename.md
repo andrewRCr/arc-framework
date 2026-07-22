@@ -381,33 +381,21 @@ gate is the one that checkout carries. Until a subject branch merges a base hold
 its gate decodes a rename receipt as nothing and refuses the commit as an uncovered retirement. No sequencing
 inside this unit reaches past that, so first use is a post-integration act, tracked outside this task list.
 
-### `[ ]` **7.1 Command-surface documentation**
+### `[x]` **7.1 Command-surface documentation**
 
 - _Goal:_ Someone reading the lifecycle-verb reference finds the rename verb, its arguments, and what it does to
   branch, worktree, and remote.
-- _Shape:_ The command reference is a **Configurable** file with a template counterpart, not a Framework file —
-  there is no same-named copy in the package source to author into and sync down. Make the equivalent
-  framework-section edit in the template and in the project instance, never by copying between them. The
-  blind-copy guard cannot enforce that here — it compares against a same-named package file and skips when none
-  exists — so for this file the discipline is convention, not a gate that will catch a slip.
+    - Added the explicit old/new command and its branch, notes, remote, marker, and worktree effects to the
+      lifecycle-verb register in both the Configurable project instance and its shipped template counterpart.
+    - Kept workflows and lifecycle-state rules unchanged because rename preserves lifecycle position.
 
-    - Add the verb to the § Lifecycle Verbs surface in the shipped-content register, in both copies.
-    - No workflow or rules edit is required — a rename is not a lifecycle-state transition, so nothing in the
-      state model or its ceremonies changes. Recorded so the absence reads as a decision.
-    - Run the markdown gate over both copies.
-
-### `[ ]` **7.2 Pre-integration seam reconciliation**
+### `[x]` **7.2 Pre-integration seam reconciliation**
 
 - _Goal:_ The assumptions this work unit records about the session-locus model still hold against that unit's
   settled design at the moment of integration, rather than against the design as it stood at spec time.
-- _Context:_ That unit is in flight and being right-sized: its leases are now verb-scoped, and its record types
-  are narrowing. Both surfaces this design touches — the deferral of liveness to that unit's lease model, and the
-  worktree move's effect on path-keyed locus records — read against a design that is still moving.
-
-    - Re-read the sibling unit's settled design and confirm the deferred liveness signal still arrives with it,
-      and that a worktree move staling a path-keyed record is still absorbed by its reconciliation.
-    - Where the sibling has landed first, confirm the composed behavior rather than the recorded assumption.
-    - A divergence that the sibling should absorb is cross-unit routing, not work here — capture it and carry on.
+- _Outcome:_ The settled sibling design intentionally leaves ordinary WUs leaseless and only reaps stale records
+  with dead leases, so neither anticipated seam currently composes with rename. Routed a proof-grounded capture to
+  `session-locus-model` for an exact idle-record path rekey/reconciliation and the liveness disposition.
 
 ## **Phase 8:** Verification
 

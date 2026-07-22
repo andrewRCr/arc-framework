@@ -205,6 +205,9 @@ arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <re
 # Spawns a worktree; --here uses the current checkout (init-work-unit.md).
 arc start [name] [--new] [--here] [--from <pointer-or-blurb>]
 
+# Rename a WU and its applicable branch, notes, remote, marker, and worktree identities — no ceremony
+arc rename <slug> <new-slug>
+
 # Promote a provisional stub to planned, requires a resolved Class (promote-work-unit.md)
 arc promote <slug>
 # Demote a planned stub back to provisional — no ceremony (see promote-work-unit.md § Inverse)
