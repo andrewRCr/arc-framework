@@ -3,7 +3,10 @@
 import { z } from "zod";
 
 import { SessionRecoverProbeResultSchema } from "../../commands/status/schema.js";
-import { COMPACTION_SEED_SCHEMA_VERSION } from "../compaction-seed/schema.js";
+import {
+  COMPACTION_SEED_SCHEMA_VERSION,
+  CompactionSeedLocusHintSchema,
+} from "../compaction-seed/schema.js";
 import { RecoveryAuditVerdictSchema } from "./audit.js";
 import { assertSessionEnvelopeContract } from "../session-envelope/validation.js";
 
@@ -16,6 +19,7 @@ export const RecoverAuditSeedSummarySchema = z.strictObject({
   head: NON_EMPTY_TEXT,
   branch: NON_EMPTY_TEXT,
   sessionType: z.enum(["planning", "execution", "integration"]).nullable(),
+  locus: CompactionSeedLocusHintSchema.optional(),
 });
 
 const RecoverAuditReportObjectSchema = z.strictObject({

@@ -188,6 +188,37 @@ describe("deriveRecoveryLocusContext", () => {
     expect(result.taskCursor).toEqual(parent.derived?.taskCursor);
   });
 
+  it("rederives the restored WU after the transient row is popped", () => {
+    const suspended = workUnitRow({ frame: "suspended" });
+    const child = transientRow();
+    const transient = deriveRecoveryLocusContext({
+      state: state([suspended, child], {
+        kind: "resolved",
+        sessionHomeRecordId: RECORD_WU,
+        activeRecordId: RECORD_CHILD,
+        parentRecordId: RECORD_WU,
+      }),
+      identity: "andrew",
+      workingMemoryPath: "/users/andrew/WORKING-MEMORY.md",
+    });
+    const restored = workUnitRow({ frame: "active" });
+    const parent = deriveRecoveryLocusContext({
+      state: state([restored], {
+        kind: "resolved",
+        sessionHomeRecordId: RECORD_WU,
+        activeRecordId: RECORD_WU,
+        parentRecordId: null,
+      }),
+      identity: "andrew",
+      workingMemoryPath: "/users/andrew/WORKING-MEMORY.md",
+    });
+
+    expect(transient.frame).toMatchObject({ workflow: "run-errand", parentRecordId: RECORD_WU });
+    expect(parent.frame).toMatchObject({ workflow: "process-task-loop", parentRecordId: null });
+    expect(parent.loadSet).toEqual(restored.derived?.loadSet);
+    expect(parent.taskCursor).toEqual(restored.derived?.taskCursor);
+  });
+
   it("derives a cold transient from its null-parent row without active-meta probes", () => {
     const child = transientRow("errand", {
       role: { ...transientRow().role!, parentCheckoutPath: null },

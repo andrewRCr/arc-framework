@@ -24,6 +24,7 @@ import {
   LocusAbsolutePathSchema,
   LocusDigestSchema,
   LocusTokenSchema,
+  type LocusStateV1,
 } from "../locus/schema/index.js";
 
 /** Current compaction-seed envelope version. */
@@ -88,6 +89,29 @@ export type CompactionSeed = z.infer<typeof CompactionSeedSchema>;
 
 /** Optional complete locus correlation hint retained by schema-v1 seeds. */
 export type CompactionSeedLocusHint = z.infer<typeof CompactionSeedLocusHintSchema>;
+
+type LocusStateProbe =
+  | { ok: true; value: LocusStateV1 }
+  | { ok: false; error: unknown };
+
+/** Derive one complete live-locus hint from a shared locus-state probe. */
+export function deriveCompactionSeedLocusHint(
+  probe: LocusStateProbe,
+): CompactionSeedLocusHint | null {
+  if (!probe.ok || probe.value.current.kind !== "resolved") return null;
+  const current = probe.value.current;
+  const matches = probe.value.roster.rows.filter((candidate) => candidate.recordId === current.activeRecordId);
+  const row = matches.length === 1 ? matches[0] : undefined;
+  if (row?.checkoutPath === null || row?.checkoutPath === undefined
+    || row.lease === null || row.lease.state !== "live") return null;
+  return {
+    sessionHomePath: row.lease.sessionHomePath,
+    activeLocusPath: row.checkoutPath,
+    recordId: current.activeRecordId,
+    leaseId: row.lease.leaseId,
+    parentRecordId: current.parentRecordId,
+  };
+}
 
 /** Parse/validation failure for a compaction-seed JSON boundary. */
 export interface CompactionSeedSchemaError {

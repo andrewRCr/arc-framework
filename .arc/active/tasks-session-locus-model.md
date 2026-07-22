@@ -673,17 +673,11 @@ as their machine-local occupancy authority.
           that snapshot, while ambiguity, token drift, incomplete projections, and dead/unknown residue fail closed;
           the old recover-only cohort and task-cursor probes no longer create a second selection authority.
 
-    - `[ ]` **6.3.c Reconcile seed snapshots against locus-derived authority**
-        - Extend recovery audit/report schemas to accept a missing legacy hint and compare every field of a present
-          atomic `locus` object against the fresh current row and lease. Any record, lease, parent, or normalized-path
-          mismatch is a structured stop.
-        - Keep fresh row/meta derivation authoritative for workflow and cursor state; seed fields remain audit
-          baselines and never overwrite the reader projection.
-        - Resume `run-errand`, grooming, or housekeeping first; after close/pop, rederive and restore the WU or
-          between-WUs frame.
-        - Build `test-first` (one behavior at a time):
-            - Cover absent legacy hints, exact matches, each field mismatch, unresolved fresh state, transient-first
-              dispatch, restored WU rederivation, and record-free cold completion.
+    - `[x]` **6.3.c Reconcile seed snapshots against locus-derived authority**
+        - Recovery reports now preserve an optional atomic seed hint and compare every path, record, lease, and parent
+          field with the fresh reader-selected generation. Missing legacy hints remain valid; mismatches and unresolved
+          fresh state are structured stops. Workflow and cursor requirements use the fresh recovery frame, including
+          transient-first dispatch, restored-WU rederivation, planning recovery, and record-free cold completion.
 
     - `[ ]` **6.3.d Preserve bounded rollout recovery**
         - Allow an already-open v2 `returnBranch` Errand with no child record to use the shipped restore path once.

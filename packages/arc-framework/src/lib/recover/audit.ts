@@ -11,7 +11,12 @@ import { z } from "zod";
 
 import type { ActiveSessionInitResult } from "../../commands/active/types.js";
 import type { Probe } from "../../commands/status/types.js";
-import type { CompactionSeed } from "../compaction-seed/schema.js";
+import {
+  CompactionSeedLocusHintSchema,
+  deriveCompactionSeedLocusHint,
+  type CompactionSeed,
+  type CompactionSeedLocusHint,
+} from "../compaction-seed/schema.js";
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import {
   LoadSetAuditVerdictSchema,
@@ -19,6 +24,8 @@ import {
   type LoadSetAuditVerdict,
 } from "../load-set/audit.js";
 import type { LoadSetManifest } from "../load-set/types.js";
+import type { LocusStateV1 } from "../locus/schema/index.js";
+import type { RecoveryLocusFrame } from "./locus-context.js";
 import type {
   TaskListCursor,
 } from "../task-list/cursor.js";
@@ -45,6 +52,8 @@ export const RecoveryAuditStopKindSchema = z.enum([
   "identity-missing",
   "load-set-unresolved",
   "load-set-drift",
+  "locus-unresolved",
+  "locus-hint-mismatch",
   "seed-invalid",
   "seed-missing",
   "seed-unreadable",
@@ -115,6 +124,14 @@ export const RecoveryAuditLocusSchema = z.strictObject({
 });
 export type RecoveryAuditLocus = z.infer<typeof RecoveryAuditLocusSchema>;
 
+/** Optional seed-locus hint compared with fresh reader authority. */
+export const RecoveryAuditLocusHintSchema = z.strictObject({
+  expected: CompactionSeedLocusHintSchema.nullable(),
+  actual: CompactionSeedLocusHintSchema.nullable(),
+  match: z.boolean(),
+});
+export type RecoveryAuditLocusHint = z.infer<typeof RecoveryAuditLocusHintSchema>;
+
 /** Task-cursor comparison carried by the audit result. */
 export const RecoveryAuditTaskCursorSchema = z.strictObject({
   expected: TaskListCursorSchema.nullable(),
@@ -131,6 +148,7 @@ export const RecoveryAuditVerdictSchema = z.strictObject({
   explainedDrift: z.array(RecoveryAuditExplainedDriftSchema),
   loadSetAudit: LoadSetAuditVerdictSchema.nullable(),
   locus: RecoveryAuditLocusSchema.nullable(),
+  locusHint: RecoveryAuditLocusHintSchema.nullable(),
   dirtyFiles: RecoveryAuditDirtyFilesSchema,
   taskCursor: RecoveryAuditTaskCursorSchema.nullable(),
 }).superRefine((value, context) => {
@@ -150,6 +168,8 @@ export type RecoveryAuditVerdict = z.infer<typeof RecoveryAuditVerdictSchema>;
 
 /** Fresh recovery probe state consumed by the audit. */
 export interface RecoveryAuditProbeState {
+  locusState: Probe<LocusStateV1>;
+  recoveryFrame: Probe<RecoveryLocusFrame>;
   active: Probe<ActiveSessionInitResult>;
   dirty: Probe<DirtyStateResult>;
   loadSet: Probe<LoadSetManifest>;
@@ -187,10 +207,10 @@ export async function auditRecoveryState(
   const stopReasons: RecoveryAuditStopReason[] = [];
   const explainedDrift: RecoveryAuditExplainedDrift[] = [];
   const locus = auditLocus(options, stopReasons, explainedDrift, committedProgress);
+  const locusHint = auditLocusHint(options, stopReasons);
   const loadSetAudit = auditLoadSet(options, stopReasons);
   const dirtyFiles = auditDirtyFiles(options, stopReasons, explainedDrift, committedProgress);
   const taskCursor = auditTaskCursor(options, stopReasons);
-  auditPlanningWorkflow(options, stopReasons);
 
   return {
     status: stopReasons.length === 0 ? "ready" : "stop",
@@ -199,9 +219,88 @@ export async function auditRecoveryState(
     explainedDrift,
     loadSetAudit,
     locus,
+    locusHint,
     dirtyFiles,
     taskCursor,
   };
+}
+
+function auditLocusHint(
+  options: AuditRecoveryStateOptions,
+  stopReasons: RecoveryAuditStopReason[],
+): RecoveryAuditLocusHint {
+  const expected = options.seed.locus ?? null;
+  if (!options.recover.locusState.ok) {
+    stopReasons.push({
+      kind: "locus-unresolved",
+      message: options.recover.locusState.error.message,
+      detail: options.recover.locusState.error,
+    });
+    return { expected, actual: null, match: false };
+  }
+  if (!options.recover.recoveryFrame.ok) {
+    stopReasons.push({
+      kind: "locus-unresolved",
+      message: options.recover.recoveryFrame.error.message,
+      detail: options.recover.recoveryFrame.error,
+    });
+    return { expected, actual: null, match: false };
+  }
+
+  const state = options.recover.locusState.value;
+  const frame = options.recover.recoveryFrame.value;
+  if (frame.kind === "none") {
+    if (state.current.kind !== "none" || expected !== null) {
+      stopReasons.push({
+        kind: "locus-unresolved",
+        message: expected === null
+          ? "fresh recovery frame does not match the current locus verdict"
+          : "seed locus hint has no fresh current locus",
+        detail: { expected, current: state.current, frame },
+      });
+      return { expected, actual: null, match: false };
+    }
+    return { expected: null, actual: null, match: true };
+  }
+
+  if (
+    state.current.kind !== "resolved"
+    || frame.activeRecordId !== state.current.activeRecordId
+    || frame.parentRecordId !== state.current.parentRecordId
+  ) {
+    stopReasons.push({
+      kind: "locus-unresolved",
+      message: "fresh recovery frame does not match the current locus verdict",
+      detail: { current: state.current, frame },
+    });
+    return { expected, actual: null, match: false };
+  }
+
+  const actual = deriveCompactionSeedLocusHint({ ok: true, value: state });
+  if (actual === null) {
+    stopReasons.push({
+      kind: "locus-unresolved",
+      message: "fresh current locus does not resolve one live record and lease generation",
+      detail: { current: state.current },
+    });
+    return { expected, actual: null, match: false };
+  }
+  if (expected === null) return { expected: null, actual, match: true };
+
+  const mismatchedFields = locusHintFields().filter((field) => expected[field] !== actual[field]);
+  if (mismatchedFields.length > 0) {
+    stopReasons.push({
+      kind: "locus-hint-mismatch",
+      message: "fresh locus generation differs from the compaction seed hint",
+      detail: { expected, actual, mismatchedFields },
+    });
+    return { expected, actual, match: false };
+  }
+  return { expected, actual, match: true };
+}
+
+function locusHintFields(): readonly (keyof CompactionSeedLocusHint)[] {
+  return ["sessionHomePath", "activeLocusPath", "recordId", "leaseId", "parentRecordId"];
 }
 
 function auditLocus(
@@ -434,31 +533,10 @@ function auditTaskCursor(
   return { expected, actual, match };
 }
 
-function auditPlanningWorkflow(
-  options: AuditRecoveryStateOptions,
-  stopReasons: RecoveryAuditStopReason[],
-): void {
-  if (!options.recover.active.ok) {
-    stopReasons.push({
-      kind: "active-unresolved",
-      message: options.recover.active.error.message,
-      detail: options.recover.active.error,
-    });
-    return;
-  }
-
-  const sessionType = options.recover.active.value.sessionType ?? options.seed.sessionType;
-  if (sessionType === "planning") {
-    stopReasons.push({
-      kind: "planning-workflow-uncertain",
-      message: "planning-stage recovery needs the harness summary or user direction; Current Workflow is soft after compaction",
-    });
-  }
-}
-
 function requiresTaskCursor(options: AuditRecoveryStateOptions): boolean {
-  const freshSessionType = options.recover.active.ok
-    ? options.recover.active.value.sessionType
+  const freshSessionType = options.recover.recoveryFrame.ok
+    && options.recover.recoveryFrame.value.kind === "resolved"
+    ? options.recover.recoveryFrame.value.sessionType
     : null;
   if (
     options.seed.sessionType === "execution"

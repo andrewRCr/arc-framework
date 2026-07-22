@@ -32,6 +32,7 @@ function readyReport(): Record<string, unknown> {
         pathDrifts: [],
       },
     },
+    locusHint: null,
   };
   return value;
 }
@@ -49,6 +50,7 @@ function earlyStop(): Record<string, unknown> {
       explainedDrift: [],
       loadSetAudit: null,
       locus: null,
+      locusHint: null,
       dirtyFiles: {
         expected: [],
         actual: [],
@@ -102,6 +104,19 @@ describe("recovery-audit report schema", () => {
 
   it("accepts a complete ready report", () => {
     const value = readyReport();
+    expect(RecoverAuditReportSchema.parse(value)).toEqual(value);
+  });
+
+  it("accepts an atomic locus hint in the seed summary", () => {
+    const value = readyReport();
+    const seed = value.seed as Record<string, unknown>;
+    seed.locus = {
+      sessionHomePath: "/repo",
+      activeLocusPath: "/repo-child",
+      recordId: `sha256:${"a".repeat(64)}`,
+      leaseId: "b".repeat(32),
+      parentRecordId: `sha256:${"c".repeat(64)}`,
+    };
     expect(RecoverAuditReportSchema.parse(value)).toEqual(value);
   });
 

@@ -186,6 +186,7 @@ function stopVerdict(reason: RecoveryAuditStopReason): RecoveryAuditVerdict {
     explainedDrift: [],
     loadSetAudit: null,
     locus: null,
+    locusHint: null,
     dirtyFiles: {
       expected: [],
       actual: [],
@@ -223,6 +224,7 @@ function seedSummary(
     head: seed.head,
     branch: seed.branch,
     sessionType: seed.sessionType,
+    ...(seed.locus === undefined ? {} : { locus: seed.locus }),
   };
 }
 

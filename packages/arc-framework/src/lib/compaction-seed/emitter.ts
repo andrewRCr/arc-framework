@@ -18,6 +18,7 @@ import type { LocusStateV1 } from "../locus/schema/index.js";
 import {
   assertCompactionSeed,
   COMPACTION_SEED_SCHEMA_VERSION,
+  deriveCompactionSeedLocusHint,
   type CompactionSeed,
   type CompactionSeedSessionType,
 } from "./schema.js";
@@ -164,6 +165,7 @@ export async function emitCompactionSeed(
       && options.envelope.taskCursor.value.status === "found"
       ? options.envelope.taskCursor.value.cursor
       : null;
+  const currentLocusHint = deriveCompactionSeedLocusHint(options.envelope.locusState);
 
   const seed: CompactionSeed = {
     schemaVersion: COMPACTION_SEED_SCHEMA_VERSION,
@@ -181,7 +183,7 @@ export async function emitCompactionSeed(
     taskCursor,
     loadSet: options.envelope.loadSet.value,
     uncommittedFiles,
-    ...locusHint(options.envelope.locusState),
+    ...(currentLocusHint === null ? {} : { locus: currentLocusHint }),
   };
 
   try {
@@ -196,25 +198,6 @@ export async function emitCompactionSeed(
     return { status: "failed", reason: "write-failed", message: errorMessage(err) };
   }
   return { status: "written", path, seed };
-}
-
-function locusHint(
-  probe: SeedProbe<LocusStateV1>,
-): Pick<CompactionSeed, "locus"> | Record<never, never> {
-  if (!probe.ok || probe.value.current.kind !== "resolved") return {};
-  const current = probe.value.current;
-  const row = probe.value.roster.rows.find((candidate) => candidate.recordId === current.activeRecordId);
-  if (row?.checkoutPath === null || row?.checkoutPath === undefined
-    || row.lease === null || row.lease.state !== "live") return {};
-  return {
-    locus: {
-      sessionHomePath: row.lease.sessionHomePath,
-      activeLocusPath: row.checkoutPath,
-      recordId: current.activeRecordId,
-      leaseId: row.lease.leaseId,
-      parentRecordId: current.parentRecordId,
-    },
-  };
 }
 
 async function writeCompactionSeedFile(path: string, seed: CompactionSeed): Promise<void> {
