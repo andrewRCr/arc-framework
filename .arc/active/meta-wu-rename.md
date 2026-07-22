@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** [none]
+- **Last Completed:** draft-design — draft captured (formalization-ready)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
