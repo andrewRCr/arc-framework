@@ -73,27 +73,14 @@ certify the design for downstream planning.
 _Purpose:_ Reassess the design once decomposition makes its implementation weight concrete, before content fill
 institutionalizes unsupported machinery.
 
-### `[ ]` **3.1 Add the proportionality backstop and approved rebuild loop to task generation**
+### `[x]` **3.1 Add the proportionality backstop and approved rebuild loop to task generation**
 
 - _Goal:_ A provisional task skeleton can expose disproportionate design weight, stop for a deliberate correction,
   and restart cleanly before task detail is authored against an invalid referent.
 
-- _Note:_ Design coverage: PD7-PD9.
-
-- **Additional Context:** `strategy-procedure-evolution.md` § Forward-Compat Principles and
-  `draft-composable-workflows.md` § D1 - The workflow contract shape.
-
-    - In the package `generate-tasks.template.md`, declare `assess-design-proportionality` and invoke it after
-      Structural decomposition saves phases, parent titles, design anchors, and rough subtask signals but before
-      Content fill or later decomposition; pass that materialized evidence with the spec as the candidate.
-    - Continue the resolved `low`, `medium`, or `high` path unchanged on `proportionate`; a justified large skeleton
-      remains valid and creates no persistent proof line.
-    - On `revise`, surface each finding and the proposed spec correction at a `workflow-interlock` before mutating
-      either artifact; a decline returns control without laundering the result into a clean verdict.
-    - On approval, amend the spec, discard the superseded skeleton, and restart at Resolve depth & Class so the
-      scale read, Class ratchet, level, and complete task artifact are rebuilt from the corrected design.
-    - Render the complete template change into the self-hosted `generate-tasks.md` so declaration, invocation, both
-      result arms, and restart semantics land as one review increment across the source and projected workflow.
+- _Outcome:_ Structural decomposition now re-evaluates the settled design with materialized skeleton evidence
+  before content fill. A clean result preserves the resolved path silently; an approved revision amends the spec,
+  discards the superseded skeleton, and rebuilds from the scale/Class read without weakening the Class ratchet.
 
 ### `[ ]` **3.2 Lock direct planning-workflow declarations to the package source**
 

@@ -5,6 +5,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
+    - assess-design-proportionality
     - test-first
     - task-audit
     - adversarial-review
@@ -184,6 +185,24 @@ below. It stays on disk through the remaining procedures and Finalize.
   enumerable substrate; implementation is validated separately against Success Criteria)
 - **Asymmetry** — single parents overcommitting (subtask-count signal flags candidates)
 - **Ordering** — phase sequence minimizes dependencies
+
+### Assess design proportionality before content fill
+
+Run [`assess-design-proportionality`][arc-methods-adp] with the spec's chartered problem and a candidate that
+combines its settled design with the provisional skeleton: phase count, parent-task titles and enumerable-unit
+anchors, and rough subtask-count signals. Include key existing substrate pointers when useful.
+
+On `proportionate`, continue the resolved path unchanged. A justified large skeleton is valid and adds no proof
+line. On `revise`, surface every finding and the proposed spec correction before changing either artifact:
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after a disproportionate provisional skeleton is identified. Surface the findings
+> and proposed spec correction; await approval before amending the spec and rebuilding the task list.
+
+On approval, amend `spec-{name}.md`, discard the superseded provisional skeleton, and restart at **Resolve depth
+& Class**. Re-read the scale axis and rebuild the task list from scratch under the newly resolved level and path;
+the Class ratchet still prevents demotion. On decline, leave both artifacts unchanged and return control without
+treating the result as `proportionate`.
 
 → **Pass boundary:** if your path places a stop after this procedure, stop and surface now (per the surfacing
 discipline above) before continuing.
@@ -479,6 +498,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [arc-methods-rpd]: ../../methods/resolve-planning-depth.md
+[arc-methods-adp]: ../../methods/assess-design-proportionality.md
 [arc-methods-cwu]: ../../methods/classify-work-unit.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md

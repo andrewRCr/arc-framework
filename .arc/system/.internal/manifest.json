@@ -524,7 +524,7 @@
     "system/workflows/arc/generate-tasks.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "efef1bc25e02755f6b2ed47a760a6f62f89a24333a45c95b138775191c3dfa36"
+      "pristine_hash": "c125b825b9f70f9340ba8b48da0d42f50e0707a56d748fdce7ef8d8d3d2b0013"
     },
     "system/workflows/arc/process-task-loop.md": {
       "classification": "Framework",
