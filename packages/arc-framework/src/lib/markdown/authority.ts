@@ -89,7 +89,7 @@ export function isMarkdownPathExcluded(path: ManagedPath): boolean {
   return segments.some((segment) => segment === "node_modules" || segment === "venv" || segment.startsWith(".venv"))
     || path.startsWith(".arc/completed/")
     || /^\.arc\/user\/[^/]+\/(?:WORKING-MEMORY|USER-INBOX)\.md$/u.test(path)
-    || /(?:^|\/)temp-[^/]*\.md$/u.test(path)
+    || /^\.arc\/(?:.*\/)?temp-[^/]*\.md$/u.test(path)
     || path.startsWith("arc/");
 }
 

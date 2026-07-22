@@ -169,6 +169,8 @@ describe("Markdown authority", () => {
       "packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md",
       ".arc/system/rules/DEV-RULES.ARC.md",
       "docs/unusual\nname.md",
+      "docs/temp-guide.md",
+      ".arc/active/temp-draft.md",
       ".arc/completed/2026-q3/old.md",
       "fixtures/node_modules/ignored.md",
       ".venv-tools/ignored.md",
@@ -181,6 +183,7 @@ describe("Markdown authority", () => {
       "packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md",
       ".arc/system/rules/DEV-RULES.ARC.md",
       "docs/unusual\nname.md",
+      "docs/temp-guide.md",
     ];
     await expect(enumerateTrackedMarkdownPaths({ root: "/repo", exec, source: "worktree" }))
       .resolves.toEqual(expected);

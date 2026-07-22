@@ -50,14 +50,20 @@ export interface RunStagedMarkdownGateOptions {
   readonly root: string;
   readonly exec: GitExec;
   readonly certify: () => Promise<void>;
+  readonly runtimePaths?: ReadonlySet<string>;
+}
+
+/** Whether one changed repository-relative path requires full staged Markdown certification. */
+function isMarkdownGateTriggerPathWithRuntime(rawPath: string, runtimePaths: ReadonlySet<string>): boolean {
+  const path = validateManagedPath(rawPath);
+  if (runtimePaths.has(path) || MARKDOWN_GATE_INPUT_SET.has(path) || isMarkdownConfigurationPath(path)) return true;
+  if (!path.endsWith(".md")) return false;
+  return !isMarkdownPathExcluded(validateMarkdownPath(path));
 }
 
 /** Whether one changed repository-relative path requires full staged Markdown certification. */
 export function isMarkdownGateTriggerPath(rawPath: string): boolean {
-  const path = validateManagedPath(rawPath);
-  if (MARKDOWN_GATE_INPUT_SET.has(path) || isMarkdownConfigurationPath(path)) return true;
-  if (!path.endsWith(".md")) return false;
-  return !isMarkdownPathExcluded(validateMarkdownPath(path));
+  return isMarkdownGateTriggerPathWithRuntime(rawPath, MARKDOWN_GATE_INPUT_SET);
 }
 
 /** Enumerate staged paths without rename compression so both sides of a rename remain visible. */
@@ -73,7 +79,8 @@ export async function enumerateStagedMarkdownGatePaths(root: string, exec: GitEx
 /** Exit after lightweight detection for unrelated candidates; otherwise run full certification once. */
 export async function runStagedMarkdownGate(options: RunStagedMarkdownGateOptions): Promise<StagedMarkdownGateResult> {
   const changedPaths = await enumerateStagedMarkdownGatePaths(options.root, options.exec);
-  const triggered = changedPaths.some(isMarkdownGateTriggerPath);
+  const runtimePaths = options.runtimePaths ?? MARKDOWN_GATE_INPUT_SET;
+  const triggered = changedPaths.some((path) => isMarkdownGateTriggerPathWithRuntime(path, runtimePaths));
   if (triggered) await options.certify();
   return { triggered, changedPaths };
 }

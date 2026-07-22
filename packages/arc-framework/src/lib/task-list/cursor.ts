@@ -251,7 +251,12 @@ export function extractCurrentTaskRegion(content: string): CurrentTaskRegionResu
   const start = analysis.cursor.section.lineHint - 1;
   const boundary = scan.events.find((event) =>
     event.line > analysis.cursor.section.lineHint
-    && (event.type === "phase" || event.type === "parent" || event.type === "section"));
+    && (
+      event.type === "phase"
+      || event.type === "parent"
+      || event.type === "section"
+      || (event.type === "content" && /^###\s+/u.test(event.text))
+    ));
   const end = boundary === undefined ? lines.length : boundary.line - 1;
   return { status: "found", content: lines.slice(start, end).join("\n") };
 }

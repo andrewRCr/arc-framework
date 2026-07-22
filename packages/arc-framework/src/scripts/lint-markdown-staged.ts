@@ -8,6 +8,7 @@ import { gitExec, readGitBlobBytes } from "../lib/io-context.js";
 import { ArcError } from "../lib/kernel/index.js";
 import {
   assertIndexedMarkdownCheckerAlignment,
+  resolveIndexedMarkdownCheckerPaths,
   resolveMarkdownRepositoryRoot,
   runIndexedMarkdownCertification,
   runStagedMarkdownGate,
@@ -17,13 +18,15 @@ import {
 export async function main(cwd: string = process.cwd()): Promise<number> {
   try {
     const root = await resolveMarkdownRepositoryRoot({ cwd, exec: gitExec, realpath });
+    const readBlob = (repoRoot: string, path: string): Promise<Uint8Array | null> =>
+      readGitBlobBytes(repoRoot, null, path);
+    const runtimePaths = await resolveIndexedMarkdownCheckerPaths({ root, readBlob });
     await runStagedMarkdownGate({
       root,
       exec: gitExec,
+      runtimePaths: new Set(runtimePaths),
       certify: async () => {
-        const readBlob = (repoRoot: string, path: string): Promise<Uint8Array | null> =>
-          readGitBlobBytes(repoRoot, null, path);
-        await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readFile });
+        await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readFile, runtimePaths });
         const [{ lint }, { markdownRuntimeVersions }] = await Promise.all([
           import("markdownlint/promise"),
           import("./verify-markdown-dependencies.js"),

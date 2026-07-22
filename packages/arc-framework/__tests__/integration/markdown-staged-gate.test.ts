@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -11,6 +11,7 @@ import {
   enumerateStagedMarkdownGatePaths,
   isMarkdownGateTriggerPath,
 } from "../../src/lib/markdown/staged-gate.js";
+import { resolveIndexedMarkdownCheckerPaths } from "../../src/lib/markdown/checker-alignment.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -49,6 +50,18 @@ afterEach(async () => {
 });
 
 describe("staged Markdown path detection", () => {
+  it("covers transitive dependencies in the repository checker graph", async () => {
+    const repositoryRoot = join(import.meta.dirname, "../../../..");
+    const paths = await resolveIndexedMarkdownCheckerPaths({
+      root: repositoryRoot,
+      readBlob: async (_repoRoot, path) => readFile(join(repositoryRoot, ...path.split("/"))).catch(() => null),
+    });
+
+    expect(paths).toContain("packages/arc-framework/src/lib/kernel/index.ts");
+    expect(paths).toContain("packages/arc-framework/src/lib/kernel/canonical/managed-path.ts");
+    expect(paths).toContain("packages/arc-framework/src/lib/kernel/canonical/unicode.ts");
+  });
+
   it("retains both sides of deletion and rename changes with unusual names", async () => {
     await execFileAsync("git", ["rm", "delete me.md"], { cwd: root });
     await execFileAsync("git", ["mv", "rename me.md", "renamed\nfile.md"], { cwd: root });
