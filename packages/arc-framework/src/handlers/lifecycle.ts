@@ -454,9 +454,30 @@ export async function handleRename(sourceSlug: string, targetSlug: string): Prom
     lines.push("Visibility: pending integration of the rename branch");
   }
   if (result.remote?.status === "unpublished") lines.push("Remote:    unpublished; no ref created");
-  if (result.worktree !== undefined && "followUpNotice" in result.worktree) {
-    const notice = result.worktree.followUpNotice;
-    if (notice !== undefined) lines.push(`Follow-up:  ${notice}`);
+  if (result.shape === "in-place") {
+    lines.push("Marker:    skipped; in-place work units carry no ownership marker");
+    lines.push("Worktree:  unchanged; the primary worktree cannot be moved");
+  }
+  if (result.worktree !== undefined) {
+    if ("mutation" in result.worktree) {
+      if (result.worktree.mutation !== "move") {
+        lines.push("Worktree:  unchanged; rename returned an unexpected worktree result");
+      } else {
+        const notice = result.worktree.followUpNotice;
+        if (notice !== undefined) {
+          lines.push(`Follow-up:  ${notice}`);
+        } else {
+          lines.push(
+            `Worktree:  ${result.worktree.to}`
+            + (result.worktree.locusHopped ? " (process relocated)" : ""),
+          );
+        }
+      }
+    } else if (result.worktree.status === "unmatched") {
+      lines.push(`Worktree:  unchanged; registered path does not contain the old slug: ${result.worktree.worktreePath}`);
+    } else {
+      lines.push("Worktree:  unchanged; no linked worktree is registered for the renamed branch");
+    }
   }
   p.note(lines.join("\n"), "Renamed");
   p.outro("Done.");
