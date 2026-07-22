@@ -440,6 +440,22 @@ describe("reconcileWorktree — rename move", () => {
     });
   });
 
+  it("rewrites the final old-slug occurrence when the registered leaf contains it more than once", async () => {
+    const registered = "/custom/workspaces/old-name-tools.old-name";
+    const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/new-name");
+    const { ctx } = buildCtx({ worktreeList: listing });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/new-name",
+      oldSlug: "old-name",
+      newSlug: "new-name",
+    })).resolves.toEqual({
+      status: "move",
+      from: registered,
+      to: "/custom/workspaces/old-name-tools.new-name",
+    });
+  });
+
   it("surfaces a registered leaf that contains no old-slug occurrence", async () => {
     const registered = "/custom/workspaces/manual-location";
     const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/new-name");

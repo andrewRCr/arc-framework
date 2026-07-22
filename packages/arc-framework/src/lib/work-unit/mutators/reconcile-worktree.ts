@@ -224,11 +224,13 @@ export async function resolveRenameWorktreeMove(
   if (from === undefined) return { status: "in-place" };
 
   const leaf = basename(from);
-  if (!leaf.includes(params.oldSlug)) return { status: "unmatched", worktreePath: from };
+  const slugOffset = leaf.lastIndexOf(params.oldSlug);
+  if (slugOffset === -1) return { status: "unmatched", worktreePath: from };
+  const renamedLeaf = `${leaf.slice(0, slugOffset)}${params.newSlug}${leaf.slice(slugOffset + params.oldSlug.length)}`;
   return {
     status: "move",
     from,
-    to: join(dirname(from), leaf.replace(params.oldSlug, params.newSlug)),
+    to: join(dirname(from), renamedLeaf),
   };
 }
 
