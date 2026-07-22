@@ -178,7 +178,7 @@ fire-point — the gate's own rubrics run from fresh context:
 
 ```yaml
 adversarial-review:
-  rubric:          # assess-draft-readiness divergence test + design-audit (efficacy + fit)
+  rubric:          # assess-draft-readiness divergence + assess-design-proportionality + design-audit
   artifacts:       # draft-{name}.md + non-exhaustive key-file pointers (the implementation loci the design names)
   orientation:
     - AGENT-BRIEF.ARC

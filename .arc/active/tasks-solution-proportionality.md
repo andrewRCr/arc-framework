@@ -61,9 +61,8 @@ certify the design for downstream planning.
           finding to `major`, leaving `minor` fit residue to `design-audit` and disposition authority with the
           primary.
 
-    - `[ ]` **2.2.b Expand the draft-readiness adversarial rubric**
-        - Name `assess-design-proportionality` beside `design-audit` in the package `draft-design.md` rubric and
-          mirror the same call-site contract into the self-hosted workflow.
+    - `[x]` **2.2.b Expand the draft-readiness adversarial rubric**
+        - Named `assess-design-proportionality` beside `design-audit` in both draft-readiness adversarial rubrics.
 
     - `[ ]` **2.2.c Expand the spec-finalization adversarial rubric**
         - Name `assess-design-proportionality` beside `design-audit` in the package `create-spec.md` rubric and

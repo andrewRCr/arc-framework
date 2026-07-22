@@ -534,7 +534,7 @@
     "system/workflows/arc/draft-design.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "4c40a2e736dacbf36f6d41ed9304bf9b64be480651864966d3cc5f4e8d5dd878"
+      "pristine_hash": "eb2dd9365f5c820e614102358fa694808827535677ace6a5b17f6331b7552c2c"
     },
     "system/workflows/arc/initial-setup/01_verify-and-configure.md": {
       "classification": "Framework",
