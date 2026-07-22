@@ -41,32 +41,29 @@ branch to `<type>/<name>`, creates the backing meta file, retires the errand rec
 
 ## Execution Modes
 
-The new-work-unit path runs in one of two modes. The mode is **resolved mechanically** from branch-protection
-mode × worktree-spawn availability — never a caller flag, and never keyed on `Class` or planning depth (the
-same read [run-errand][run-errand] Launch performs for the errand locus). Callers inherit the default by not
-forcing in-place; the `--here` cold-start path is the one explicit in-place override.
+The new-work-unit path runs in one of two placement modes. Placement is never keyed on `Class` or planning depth:
+under full protection, callers inherit spawned placement by omitting a flag, while `--here` is the explicit
+in-place escape hatch.
 
-- **In-place** — the planning branch is created in the current worktree (Step 2, `git checkout -b`) and the
-  meta file is scaffolded inline (Step 4, Path B); the current worktree becomes the work unit's worktree.
-  This is the single-worktree path: one work unit at a time in one checkout.
-- **Worktree-creating** — spawning the work unit into a dedicated worktree creates the planning branch, the
-  fresh meta file, the seeded SESSION-NOTES, and the worktree ownership marker in a single operation. The
-  `arc start {name} --new` entry point performs this; the inline Step 2 and Step 4 (Path B) are its in-place
-  counterpart. Before creating the worktree, run the [in-flight scope check][in-flight-scope-check] — an advisory
-  pass over in-flight work units that surfaces scope overlap and never gates.
+- **Spawned** — `arc start` creates a dedicated, WU-owned worktree and establishes its locus. Before spawning, run
+  the [in-flight scope check][in-flight-scope-check] — an advisory pass over in-flight work units that surfaces
+  scope overlap and never gates.
+- **In-place** — `arc start --here` converts the current checkout into the WU-owned locus. When that checkout is the
+  physical primary, the primary is occupied for the WU's lifetime: it is not also the launchpad or available to an
+  Errand, grooming pass, housekeep drain, or another WU. Only exact WU teardown restores record-free base and makes
+  it the free primary again.
 
 **Default mode selection.** Resolve the mode per protection mode ([§ Branch Protection Modes][work-org-protection]):
 
-- **Full protection** — default to **worktree-creating** wherever worktree spawning is available, so concurrent
-  work units stay isolated by default; fall back to **in-place** (cut `plan/<name>` in the primary worktree's
-  base checkout) when spawning is unavailable.
+- **Full protection** — default to **spawned** placement. If spawning is unavailable or deliberate
+  single-checkout work is required, rerun explicitly with `--here`; never silently fall back to occupying the
+  primary.
 - **Partial protection** — no planning branch: new work proceeds directly from the base checkout (the documented
   no-ceremony default), so these numbered steps don't run.
 
-Both modes share the rest of the workflow. Initializing a backlog stub (Step 3) dispatches through
-`arc start`, which honors the same placement-mode selection (spawn by default, `--here` in-place);
-reconciling the relocated meta (Step 4, Path A) and the idempotent-resume case reconcile files that
-already exist, whereas fresh scaffolding mints new ones.
+Both modes dispatch through `arc start`, which establishes the exact WU role as part of placement. Initializing a
+backlog stub (Step 3) uses the same default/escape-hatch contract; reconciling the relocated meta (Step 4, Path A)
+and the idempotent-resume case reconcile files that already exist, whereas fresh scaffolding mints new ones.
 
 Promoting an errand is a separate entry path: it starts from an existing errand branch and uses
 [Promote Errand to Work Unit Path](#promote-errand-to-work-unit-path), not the numbered new-WU steps below.
@@ -114,26 +111,19 @@ zero pending captures. If the user pauses to drain, run housekeep from this base
 re-check clean/parity before proceeding to Step 2. If identity is absent, `inboxState` is omitted, or the slot
 failed, surface the degraded state only when useful and continue.
 
-### 2) Create Planning Branch — fresh WU
+### 2) Start a fresh WU
 
-_This step scaffolds a **fresh** work unit's branch. Initializing an existing backlog stub instead brings up
-the branch (and opens the workspace) via `arc start` in Step 3 — skip this step on that path. Worktree-creating
-mode delegates this step and Step 4 (Path B) to the spawn entry point — see [§ Execution Modes](#execution-modes);
-the commands below are the in-place path._
+_Initializing an existing backlog stub uses Step 3 instead._
 
 ```bash
-git checkout -b plan/{name}
+arc start {name} --new          # spawned placement (full-protection default)
+arc start {name} --new --here   # explicit in-place placement
 ```
 
-Use the planning life-phase prefix per [`branch-format`][branch-format] method.
-
-Open the per-WU user workspace subdir (creates `user/{identity}/{name}/` and seeds
-SESSION-NOTES.md from template; defensive prompt fires if a stale subdir from a prior WU
-exists):
-
-```bash
-arc user open {name}
-```
+The verb creates the planning branch, scaffolds the WU, opens its user workspace, and establishes the WU locus.
+On a spawned start it also ships the start ceremony and emits the exact next-session recipe; consume that recipe
+and skip Steps 4–6. On `--here`, continue with Steps 4–6 in the now WU-owned checkout. If that checkout is the
+physical primary, do not allocate transient work there until the WU exits through guarded teardown.
 
 ### 3) Initialize Backlog Subdir to Active · `arc-in-git` only
 
@@ -157,16 +147,16 @@ arc start {name}          # spawn a dedicated worktree (default under full prote
 arc start {name} --here   # in-place: cut the branch in the current checkout, no spawn
 ```
 
-The placement mode follows [§ Execution Modes](#execution-modes) — worktree-creating by default, `--here` when
-spawning is unavailable or single-checkout development is wanted. The `worktree-occupancy` guard refuses an
-in-place initialization into a checkout already holding an active WU. Spawned `arc start` paths stage the
+The placement mode follows [§ Execution Modes](#execution-modes) — spawned by default, `--here` only when the
+caller explicitly chooses in-place work. The locus occupancy guard refuses an in-place initialization into an
+occupied checkout; it never displaces the current role. Spawned `arc start` paths stage the
 relocation / scaffold, refresh the project readiness view, commit the start ceremony, push `plan/{name}`, and
 seed SESSION-NOTES with the committed handoff anchor.
 
 On a spawned start, consume the emitted `Next session` recipe before continuing. The common invariant is the
-spawned worktree root: post-create provisioning and registered harness-dir copy have already run there, so the
-next session's effective config and scripts resolve from that root. Do not continue planning from the invoking
-checkout after a spawned start succeeds.
+spawned WU locus: post-create provisioning and registered harness-dir copy have already run there, so the next
+session's effective config and scripts resolve from that root. Do not continue planning from the invoking checkout
+after a spawned start succeeds.
 
 - **Claude Code** — if `EnterWorktree` is available, call it with the emitted worktree path, then re-run
   `/arc-session` in the relocated session.

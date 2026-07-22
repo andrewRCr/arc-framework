@@ -14,8 +14,8 @@ removal, side-effects); this workflow supplies the run-context and the ship legs
 
 `resume` operates only on a **`parked`** unit — a park@Active shelf, whose authoritative artifacts ride the
 preserved branch while the tracked branch carries a pointer-record. Re-attaching restores the branch (a fresh
-worktree by default, or `--here` in the current checkout) and removes the pointer; the artifacts come back on the
-branch. Resolves to `active`.
+WU-owned worktree by default, or the explicit `--here` locus) and removes the pointer; the artifacts come back on
+the branch. Resolves to `active`.
 
 A park@**Planning** unit resolved to `planned` (its full artifacts relocated to `backlog/planned/`, no preserved
 branch) — it re-enters via `arc start {name}` (initialize, [`init-work-unit`][init-work-unit] Path A), **not**
@@ -42,10 +42,11 @@ branch to re-attach. Any other state is not resumable.
 
 ### 2) Choose placement
 
-- **Spawn** (default) — re-attach the preserved branch in a fresh worktree (isolation-by-default).
-- **`--here`** — re-attach in the current checkout, no spawn. Honors the worktree-occupancy guard: refused if the
-  current checkout already holds an active unit. The physical checkout is **deferred to after the ship commit**
-  (Step 4) — see the run note below.
+- **Spawn** (full-protection default) — re-attach the preserved branch in a fresh WU-owned worktree.
+- **`--here`** — explicitly convert the current checkout into the WU-owned locus. The locus occupancy guard refuses
+  an occupied checkout rather than displacing its role. When this is the physical primary, it is unavailable to
+  transient work and other WUs until exact WU teardown restores record-free base. Physical branch checkout is
+  deferred until after the ship commit; follow the continuation emitted by the verb in Step 4.
 
 ### 3) Run `arc resume` from a base checkout
 
@@ -60,13 +61,14 @@ arc resume {name} --here   # in-place: re-attach in the current checkout
 `{name}` defaults to the current worktree's unit when omitted. `arc resume` **stages but does not commit** — it
 removes the tracked-branch pointer-record, prunes the emptied parked dir, regenerates `STATUS.USER`, and opens the
 user workspace. The pointer removal is the only change left on the tracked branch; the authoritative artifacts ride
-the re-attached branch. The re-attach itself differs by placement:
+the re-attached branch. The verb establishes the exact WU locus in both placement modes; re-attachment differs only
+in when the physical checkout becomes visible:
 
-- **Spawn** re-attaches immediately in a fresh worktree (bare `git worktree add <path> <branch>`, no `-b`); cwd
-  stays on the tracked branch, so the removal commits there cleanly in Step 4.
+- **Spawn** re-attaches immediately in a fresh worktree; cwd stays on the tracked branch, so the removal commits
+  there cleanly in Step 4.
 - **`--here` defers the physical checkout.** Switching off the tracked branch before the removal is committed would
-  discard it — leaving the pointer orphaned on the branch. So the verb removes the pointer and reports the branch;
-  the in-place `git checkout {branch}` runs in Step 4, **after** the ship commit.
+  discard it and orphan the pointer. The primary is already reserved as the WU locus while this continuation is
+  pending; do not use it as a transient launchpad.
 
 ### 4) Ship per protection mode
 
@@ -115,22 +117,18 @@ gh pr create --base {base-branch} --head chore/resume-{name}
 gh pr merge {pr-number} --squash   # or per merge.strategy
 ```
 
-**`--here` re-attach (after the removal lands on the base).** Only once the pointer removal is committed on the
-tracked branch, check out the preserved branch in place — the deferred step from Step 3:
-
-```bash
-git checkout {branch}   # re-attach in the current checkout; artifacts come back on the branch
-```
-
-Spawn needs no such step — its worktree re-attached in Step 3.
+**`--here` re-attach (after the removal lands on the base).** Once the pointer removal is committed on the tracked
+branch, execute the exact in-place continuation emitted by `arc resume`. The artifacts return on the preserved
+branch, and the physical primary remains the WU-owned occupied locus. Spawn needs no continuation — its worktree
+re-attached in Step 3.
 
 ---
 
 ## Next step
 
 The unit is active again, its artifacts back on the re-attached branch. Continue the
-[task loop][process-task-loop] — on the spawn path, from the freshly re-attached worktree; on `--here`, in the
-current checkout.
+[task loop][process-task-loop] from that WU-owned locus. On `--here`, do not treat the physical primary as free
+until the unit's exact teardown restores record-free base.
 
 ## Related workflows
 

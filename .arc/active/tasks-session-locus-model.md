@@ -758,12 +758,10 @@ as their machine-local occupancy authority.
 _Purpose:_ Ship the locus doctrine through canonical procedures and prove the complete model across platforms,
 protection modes, recovery boundaries, and package/source parity.
 
-### `[ ]` **7.1 Rewrite session, transient, and WU placement workflows around locus verbs** — D1, D7, D9, D11
+### `[x]` **7.1 Rewrite session, transient, and WU placement workflows around locus verbs** — D1, D7, D9, D11
 
 - _Goal:_ Shipped procedures invoke typed lifecycle verbs and frame user judgment around their results, leaving
   deterministic allocation, recovery, sequencing, and safety logic in the CLI.
-- **Additional Context:** `strategy-procedure-evolution.md` § Self-Check and Forward-Compat Principles;
-  `notes-session-locus-model.md` § Codebase pointers.
 
     - `[x]` **7.1.a Rework session initialization and its probe reference**
         - Reworked the canonical template, rendered instance, and probe reference around the required reader-owned
@@ -792,12 +790,14 @@ protection modes, recovery boundaries, and package/source parity.
           close-before-sibling continuation, and typed restoration. Added `arc housekeep plan` so the CLI compiles
           confirmed dispositions against current inbox generations and emits the canonical plan/digest.
 
-    - `[ ]` **7.1.f Align work-unit placement procedures with primary launchpad occupancy**
-        - Under authoritative package `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/`, update
-          `planning/init-work-unit.md` and `resume-work-unit.md`, then sync their project copies.
-        - Keep spawned placement the full-protection default and `--here` the explicit escape hatch. State that
-          in-place entry converts the physical primary into a WU-owned occupied locus until exact teardown restores
-          record-free base; never describe that checkout as simultaneously available for transient work.
+    - `[x]` **7.1.f Align work-unit placement procedures with primary launchpad occupancy**
+        - Reworked canonical and self-hosted WU initialization/resume around `arc start` and `arc resume`: spawned
+          placement remains the full-protection default, `--here` explicitly establishes an occupied WU locus, and
+          only exact teardown restores the physical primary to record-free launchpad availability.
+
+- _Outcome:_ Session, transient, planning, and WU-placement procedures now dispatch through lifecycle verbs and
+  consume reader-owned results. Allocation, fixed-set sequencing, recovery, frame restoration, identity tails, and
+  primary occupancy no longer depend on branch-shape inference or prose-encoded state transitions.
 
 ### `[ ]` **7.2 Update locus doctrine at operation fire sites** — D1, D4, D8, D11
 
