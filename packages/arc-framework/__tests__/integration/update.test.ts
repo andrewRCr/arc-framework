@@ -104,6 +104,10 @@ describe("update integration — baseline (real recipe)", () => {
 
     const manifest = await readManifestFile(tempDir);
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
+    expect(manifest.files["system/.internal/skills/arc-design-audit/SKILL.md"]).toMatchObject({
+      classification: "Framework",
+      layer: "core",
+    });
   });
 
   it("restores executable permissions on installed hooks", async () => {

@@ -113,15 +113,9 @@ generated consistently for every selected harness.
 - _Note:_ Design coverage: PD6, PD8.
 
     - Build `test-first` (one behavior at a time):
-        - `[ ]` **4.2.a Register and install the canonical skill source**
-            - Add a focused expectation for `arc-design-audit`, then extend `CANONICAL_SKILLS` in
-              `src/lib/skills/resolution.ts` and the exhaustive `Record<CanonicalSkillName, string>` description
-              fixture in `__tests__/unit/skills/skills.test.ts`.
-            - Extend the integration init and update expectations with the canonical skill source's Framework
-              presence under the core layer.
-            - Add `system/.internal/skills/arc-design-audit/SKILL.md` to
-              `packages/arc-framework/init-recipe.json` and add its recipe-derived Framework entry and pristine hash
-              to `.arc/system/.internal/manifest.json` in the same increment.
+        - `[x]` **4.2.a Register and install the canonical skill source**
+            - Registered the typed canonical member and description fixture, added its recipe-derived Framework/core
+              source and manifest hash, and covered focused unit plus init/update inventory visibility.
 
         - `[ ]` **4.2.b Exercise canonical generation and update loops**
             - Let the existing per-skill unit and integration loops cover init output directories, canonical byte

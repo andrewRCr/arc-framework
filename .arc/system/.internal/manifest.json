@@ -476,6 +476,11 @@
       "layer": "core",
       "pristine_hash": "f53475e40e3fcebaf2ecd7ffec331302c74749642f1987fd8ff7c418cf64bea2"
     },
+    "system/.internal/skills/arc-design-audit/SKILL.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "8c0edd79cb7458933bb46296a11950ab21a6189e78249aa003e23a2d1c38c3de"
+    },
     "system/.internal/skills/arc-handoff/SKILL.md": {
       "classification": "Framework",
       "layer": "core",

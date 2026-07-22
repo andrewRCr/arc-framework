@@ -93,6 +93,7 @@
     "system/.internal/scripts/README.md",
     "system/.internal/skills/arc-setup/SKILL.md",
     "system/.internal/skills/arc-commit/SKILL.md",
+    "system/.internal/skills/arc-design-audit/SKILL.md",
     "system/.internal/skills/arc-handoff/SKILL.md",
     "system/.internal/skills/arc-plan/SKILL.md",
     "system/.internal/skills/arc-recover/SKILL.md",

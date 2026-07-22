@@ -275,6 +275,15 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(projectBriefing.isFile()).toBe(true);
   });
 
+  it("installs the canonical design-audit skill source as core Framework", async () => {
+    const skillPath = "system/.internal/skills/arc-design-audit/SKILL.md";
+    expect((await stat(join(arcDir, skillPath))).isFile()).toBe(true);
+
+    const manifest = await readManifestFile(tempDir);
+    expect(manifest.files[skillPath]?.classification).toBe("Framework");
+    expect(manifest.files[skillPath]?.layer).toBe("core");
+  });
+
   // --- Per-File Methods and Extensions ---
 
   it("installs every registered per-file method plus README in system/methods/", async () => {
