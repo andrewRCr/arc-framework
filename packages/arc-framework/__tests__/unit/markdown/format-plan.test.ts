@@ -4,6 +4,7 @@ import {
   createMarkdownAuthority,
   planFrameworkProjection,
   prepareExplicitMarkdownFormat,
+  prepareFrameworkProjection,
   planExplicitMarkdownFormat,
   validateMarkdownPath,
 } from "../../../src/lib/markdown/index.js";
@@ -217,6 +218,86 @@ describe("explicit Markdown format planning", () => {
       code: "markdown.derived-readiness",
       whatToDo: "Run `npx arc status --project --staged > .arc/backlog/ROADMAP.md`.",
     });
+    expect(readBytes).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["table formatting", prepareExplicitMarkdownFormat],
+    ["Framework rendering", prepareFrameworkProjection],
+  ])("rejects an implicit Framework output with a symlinked ancestor during %s", async (_name, prepare) => {
+    const frameworkRecipe: Recipe = {
+      prompts: [],
+      include_files: ["reference/demo.md"],
+      conditions: {},
+    };
+    const regularFile = {
+      isFile: () => true,
+      isDirectory: () => false,
+      isSymbolicLink: () => false,
+    };
+    const directory = {
+      isFile: () => false,
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+    };
+    const symbolicLink = {
+      isFile: () => false,
+      isDirectory: () => false,
+      isSymbolicLink: () => true,
+    };
+    const readBytes = vi.fn();
+
+    await expect(prepare({
+      root: "/repo",
+      paths: ["packages/arc-framework/arc/reference/demo.md"],
+      exec: vi.fn().mockResolvedValue({ stdout: "tracked" }),
+      lstat: vi.fn(async (path: string) => {
+        if (path === "/repo/.arc/reference") return symbolicLink;
+        return path.endsWith(".md") ? regularFile : directory;
+      }),
+      realpath: vi.fn(async (path: string) => path),
+      readText: vi.fn(async (path: string) => path.endsWith("manifest.json")
+        ? JSON.stringify(manifest)
+        : JSON.stringify(frameworkRecipe)),
+      readBytes,
+    })).rejects.toMatchObject({ code: "markdown.symlink" });
+    expect(readBytes).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["table formatting", prepareExplicitMarkdownFormat],
+    ["Framework rendering", prepareFrameworkProjection],
+  ])("rejects an implicit Framework output outside the repository during %s", async (_name, prepare) => {
+    const frameworkRecipe: Recipe = {
+      prompts: [],
+      include_files: ["reference/demo.md"],
+      conditions: {},
+    };
+    const regularFile = {
+      isFile: () => true,
+      isDirectory: () => false,
+      isSymbolicLink: () => false,
+    };
+    const directory = {
+      isFile: () => false,
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+    };
+    const readBytes = vi.fn();
+
+    await expect(prepare({
+      root: "/repo",
+      paths: ["packages/arc-framework/arc/reference/demo.md"],
+      exec: vi.fn().mockResolvedValue({ stdout: "tracked" }),
+      lstat: vi.fn(async (path: string) => path.endsWith(".md") ? regularFile : directory),
+      realpath: vi.fn(async (path: string) => path === "/repo/.arc/reference/demo.md"
+        ? "/outside/demo.md"
+        : path),
+      readText: vi.fn(async (path: string) => path.endsWith("manifest.json")
+        ? JSON.stringify(manifest)
+        : JSON.stringify(frameworkRecipe)),
+      readBytes,
+    })).rejects.toMatchObject({ code: "markdown.outside-repository" });
     expect(readBytes).not.toHaveBeenCalled();
   });
 });

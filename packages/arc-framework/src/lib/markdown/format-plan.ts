@@ -99,6 +99,49 @@ function routeOrThrow(authority: MarkdownAuthority, path: ManagedPath): {
   throw adaptMarkdownOperationError({ operation: "format-explicit", path, error, diagnostic });
 }
 
+function explicitFormatWritePaths(
+  authority: MarkdownAuthority,
+  paths: readonly ManagedPath[],
+): readonly ManagedPath[] {
+  return paths.flatMap((path) => {
+    const { route } = routeOrThrow(authority, path);
+    switch (route.action) {
+      case "format-source":
+      case "format-direct":
+        return route.writes;
+      case "normalize-meta":
+        return [route.path];
+      case "regenerate":
+      case "refuse":
+        throw new ArcError(`Markdown path cannot be formatted directly: ${path}`, "markdown.authority-refusal");
+    }
+  });
+}
+
+function frameworkProjectionIdentities(
+  authority: MarkdownAuthority,
+  paths: readonly ManagedPath[],
+): readonly MarkdownPathIdentity[] {
+  const identities = paths.map((path) => authority.classify(path));
+  for (const identity of identities) {
+    if (identity.kind !== "package-framework" || identity.counterpart === undefined) {
+      throw new ArcError(
+        `Framework projection requires an explicitly installed Framework source: ${identity.path}`,
+        "markdown.projection-refused",
+      );
+    }
+  }
+  return identities;
+}
+
+function frameworkProjectionWritePaths(
+  identities: readonly MarkdownPathIdentity[],
+): readonly ManagedPath[] {
+  return identities.flatMap((identity) => identity.counterpart === undefined
+    ? [identity.path]
+    : [identity.path, identity.counterpart]);
+}
+
 async function renderFrameworkProjection(
   root: string,
   identity: MarkdownPathIdentity,
@@ -223,6 +266,14 @@ export async function prepareExplicitMarkdownFormat(
     readFile: options.readText,
     lstat: options.lstat,
   });
+  await validateExplicitMarkdownPaths({
+    root: options.root,
+    paths: explicitFormatWritePaths(loaded.authority, paths),
+    operation: "mutate",
+    exec: options.exec,
+    lstat: options.lstat,
+    realpath: options.realpath,
+  });
   return planExplicitMarkdownFormat({
     root: options.root,
     paths,
@@ -240,15 +291,7 @@ export async function planFrameworkProjection(
   if (unique.size !== options.paths.length) {
     throw new ArcError("Framework projection paths must be unique", "markdown.duplicate-selection");
   }
-  const identities = options.paths.map((path) => options.authority.classify(path));
-  for (const identity of identities) {
-    if (identity.kind !== "package-framework" || identity.counterpart === undefined) {
-      throw new ArcError(
-        `Framework projection requires an explicitly installed Framework source: ${identity.path}`,
-        "markdown.projection-refused",
-      );
-    }
-  }
+  const identities = frameworkProjectionIdentities(options.authority, options.paths);
 
   const files: PlannedMarkdownFile[] = [];
   for (const identity of identities) {
@@ -285,6 +328,15 @@ export async function prepareFrameworkProjection(
     root: options.root,
     readFile: options.readText,
     lstat: options.lstat,
+  });
+  const identities = frameworkProjectionIdentities(loaded.authority, paths);
+  await validateExplicitMarkdownPaths({
+    root: options.root,
+    paths: frameworkProjectionWritePaths(identities),
+    operation: "mutate",
+    exec: options.exec,
+    lstat: options.lstat,
+    realpath: options.realpath,
   });
   return planFrameworkProjection({
     root: options.root,

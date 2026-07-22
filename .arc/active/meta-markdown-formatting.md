@@ -16,7 +16,7 @@
 - **Next Task:** Task 7.1 — Complete verification (line ~243 in `tasks-markdown-formatting.md`)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 7.1 — load and follow `verify-work-unit.md`.
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
