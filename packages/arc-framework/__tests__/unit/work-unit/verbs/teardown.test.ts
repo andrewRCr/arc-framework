@@ -529,6 +529,50 @@ describe("runTeardown — branch resolution", () => {
 describe("runTeardown — worktree dispatch (presence guard)", () => {
   const PRIMARY_PORCELAIN = "worktree /repo\nHEAD abc\nbranch refs/heads/main\n";
 
+  it("suppresses a live locus before removing an otherwise authorized linked worktree", async () => {
+    const porcelain = PRIMARY_PORCELAIN
+      + "\nworktree /repo-feat-demo\nHEAD def\nbranch refs/heads/feat/demo\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: porcelain,
+    });
+    ctx.readLocusOccupancy = async () => ({
+      kind: "suppress",
+      reason: "lease-live",
+      message: "The teardown target has a live session lease.",
+    });
+
+    await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(/live session lease/iu),
+    });
+    expect(calls).not.toContainEqual(["git", "worktree", "remove", "/repo-feat-demo"]);
+  });
+
+  it("rejects a locus generation change during pre-removal revalidation", async () => {
+    const porcelain = PRIMARY_PORCELAIN
+      + "\nworktree /repo-feat-demo\nHEAD def\nbranch refs/heads/feat/demo\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: porcelain,
+    });
+    let reads = 0;
+    ctx.readLocusOccupancy = async () => ({
+      kind: "clear",
+      recordId: `sha256:${"a".repeat(64)}`,
+      leaseId: reads++ === 0 ? "a".repeat(32) : "b".repeat(32),
+      leaseState: "dead",
+      recordGeneration: `sha256:${"c".repeat(64)}`,
+      lockGeneration: null,
+    });
+
+    await expect(runTeardown(ctx, { name: "demo", base: "main" })).resolves.toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(/generation changed/iu),
+    });
+    expect(calls).not.toContainEqual(["git", "worktree", "remove", "/repo-feat-demo"]);
+  });
+
   it("in-place arm: branch lives in the primary worktree → relocate to base, no worktree removal", async () => {
     const porcelain =
       "worktree /repo\nHEAD abc\nbranch refs/heads/feat/demo\n";

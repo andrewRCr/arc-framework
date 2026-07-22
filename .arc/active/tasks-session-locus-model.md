@@ -714,12 +714,10 @@ as their machine-local occupancy authority.
 - _Goal:_ Cleanup cannot remove a checkout while a session attaches, and a dead lease never replaces any existing
   provenance, cleanliness, terminal-head, remote, or user-surface predicate.
 
-    - `[ ]` **6.5.a Add locus occupancy to teardown authorization**
-        - Extend `TeardownContext`, worktree cleanup decisions, and retirement revalidation with record/lock reads.
-        - Suppress live leases; prompt on unknown, malformed, legacy, cross-identity, duplicate, or markerless
-          state; allow dead/absent only when every pre-existing predicate independently authorizes removal.
-        - Build `test-first` (one behavior at a time):
-            - Cover each occupancy state without changing current shipped-husk outcomes.
+    - `[x]` **6.5.a Add locus occupancy to teardown authorization**
+        - Added an exact-path, network-free record/lock/marker classifier to teardown candidate selection and
+          generation-stable pre-removal revalidation. Live leases suppress cleanup; indeterminate or untrusted
+          occupancy stays manual, while dead/absent generations leave every existing retirement guard intact.
 
     - `[ ]` **6.5.b Hold the target lock across final local revalidation and removal**
         - Derive the target lock from the live roster path even when no record exists, then reread the role/lease
