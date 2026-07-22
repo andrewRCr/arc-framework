@@ -1,4 +1,4 @@
-# Research: pr-decomposition
+# Research: review-chunking
 
 > _Captured 2026-06-23 from a deep-research run (fan-out web search → fetch → 3-vote adversarial verification →
 > synthesis; 22 sources, 105 claims extracted, 25 verified, 24 confirmed / 1 killed). Grounding for

@@ -1,12 +1,11 @@
-# Draft: pr-decomposition
+# Draft: review-chunking
 
 - **Origin:** [internal] — surfaced 2026-06-23 during `lifecycle-closeout` planning, reflecting on why ARC's
   work units run broader than the industry small-PR norm and whether that is a coupling artifact rather than a
   deliberate stance.
-- **Intended retitle: `review-chunking`** — decided at the 2026-07-21 cohort-fit cut (§ Decomposition), which moved
-  the multi-PR half to `chunked-delivery`. The retained scope emits exactly one PR, so "PR decomposition" now names
-  the sibling's shape rather than this one's. Deferred because no sanctioned slug-rename transition exists;
-  `cohortless-decomposition` area 5 owns shipping one. Execute the rename once it lands.
+- **Retitled `pr-decomposition` → `review-chunking`** — executed 2026-07-22 via `wu-rename` (its first real use),
+  after the 2026-07-21 cohort-fit cut (§ Decomposition) moved the multi-PR half to `chunked-delivery`. The retained
+  scope emits exactly one PR, so "PR decomposition" named the sibling's shape rather than this one's.
 - **Purpose:** Make a large but coherent single-concern change **actually reviewable** by carving its review
   surface into bounded, cohesive scopes — **without changing merge topology**. One branch, one PR, merging once;
   only the review surface is decomposed. This is **reviewer-agnostic** — the small-PR doctrine, strongly evidenced
@@ -20,7 +19,7 @@
 
 ## Grooming status (continuity)
 
-> _Updated each `--plan pr-decomposition` pass — see `draft-design` § Re-synthesize. This is the resume anchor._
+> _Updated each `--plan review-chunking` pass — see `draft-design` § Re-synthesize. This is the resume anchor._
 
 - **Readiness:** `maturing` — the frame, core mechanism, and `Class` (Heavy) are settled, and the 2026-07-21 cut
   narrowed the scope to one arm. Open items are detail-design (boundary doctrine, invocation surface, terminology).
@@ -114,18 +113,18 @@ unproven, and `chunked-delivery` may recurse at its own grooming.
 
 | Entry              | Kind                             | Scope                                                                 | Deliverable boundary                                                                  |
 | ------------------ | -------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `pr-decomposition` | surviving-origin (`keep-active`) | chunk-boundary doctrine; Mode B review-only retrofit                  | a chunked review of an already-built change set; no topology change                   |
+| `review-chunking`  | surviving-origin (`keep-active`) | chunk-boundary doctrine; Mode B review-only retrofit                  | a chunked review of an already-built change set; no topology change                   |
 | `chunked-delivery` | new member                       | Mode A up-front chunk planning; Axis 2 merge topology; assurance core | `1 WU = 1 branch, emitting ≥ 1 PR`, with chunks landing through an integration branch |
 
-**Edge:** `chunked-delivery` → `Depends On: pr-decomposition` (boundary doctrine and review-unit vocabulary are
+**Edge:** `chunked-delivery` → `Depends On: review-chunking` (boundary doctrine and review-unit vocabulary are
 authored here, consumed there).
 
 **Executed manually**, not via `arc decompose`. That verb would have tripped three of the five gaps
 `cohortless-decomposition` records: it mints a cohort node on every non-at-cap arm (forcing a vacuous one onto a
 flat-sibling split), its base-run contract cannot resolve an authoritative origin when a stale base stub coexists
 with live active artifacts, and it has no lifecycle-complete terminal. Incoming-edge conservation was checked by
-hand across all worktrees — no incoming `Depends On` edges existed. The origin keeps its slug, so no rename
-transition was needed.
+hand across all worktrees — no incoming `Depends On` edges existed. The origin kept its slug at the cut; the retitle to
+`review-chunking` executed later — 2026-07-22, via `wu-rename` (its first real use).
 
 **Carried to `chunked-delivery`:** the `notes-*` companion holding the inherited assurance algebra, and inbound
 buffer entries for multi-PR review cardinality, adversarial-verify cardinality, and the assurance-group contract —
