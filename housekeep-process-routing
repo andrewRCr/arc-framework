@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "housekeep-process-routing",
+  "origin": "description",
+  "intent": "housekeep-process-routing",
+  "branch": "chore/housekeep-process-routing",
+  "createdAt": "2026-07-22T02:04:59.230Z",
+  "returnBranch": "main"
+}
