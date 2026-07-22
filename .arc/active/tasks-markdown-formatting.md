@@ -143,31 +143,13 @@ with one pure repository rule, and migrate the selected current task surface.
 _Design decisions:_ Loose spacing is semantic ARC guidance, but the validator and its command wiring remain
 repository-only. Singular `_Note:_` is the sole peer descriptor spelling.
 
-### `[ ]` **5.1 Author the canonical task descriptor-cluster contract**
+### `[x]` **5.1 Author the canonical task descriptor-cluster contract**
 
 - _Goal:_ Generated and hand-maintained ARC task lists communicate one loose-spacing rule for wrapped root
   descriptors while accepting both tight and loose one-line clusters.
 
-- **Additional Context:** `strategy-workflow-authoring.md` § Prose economy and
-  `notes-markdown-formatting.md` § Migration Review Cautions
-
-    - Update the package-source task-list strategy, task template, and generate-tasks template together.
-    - Register the task template in `init-recipe.json` and the current self-host manifest through the existing
-      `buildManifestFiles()` entry/hash machinery; prove a fresh initialization installs the workflow's linked
-      template without expanding into general recipe/manifest inventory reconciliation.
-    - Correct the template's relative links to the installed generate-tasks workflow and task-list strategy, and
-      prove both targets resolve in the rendered fresh-init fixture.
-    - Define the root cluster as `_Goal:_`, documented peer descriptors, and optional
-      `**Additional Context:**` entries before operational children.
-    - Require at least one blank line between every cluster entry when any entry spans multiple physical lines;
-      permit all-one-line clusters to be either tight or loose, with existing `MD012` enforcement owning excess
-      consecutive blank lines.
-    - Preserve existing boundaries before operational children and `_Outcome:_`, and emit canonical singular
-      `_Note:_` for inline references to a `notes-{name}.md` companion.
-    - Add a representative wrapped peer-descriptor cluster to the canonical task template so the shipped example
-      and repository fixture exercise the contract.
-    - Update project instances through the selected Framework projection and verify framework parity without
-      copying Configurable files wholesale.
+- _Outcome:_ Canonical strategy, workflow, and template guidance now agree on wrapped-cluster spacing and singular
+  `_Note:_`; fresh initialization installs the registered task template with both framework links resolving.
 
 ### `[ ]` **5.2 Implement descriptor validation and focused fixtures**
 

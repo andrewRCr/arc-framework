@@ -107,6 +107,25 @@ describe("init", () => {
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-config.yml"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "system", "rules", "DEV-RULES.ARC.md"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "reference", "templates", "arc", "work-unit", "template-draft.md"))).toBe(true);
+
+    const taskTemplatePath = join(
+      tmpDir,
+      ".arc",
+      "reference",
+      "templates",
+      "arc",
+      "work-unit",
+      "template-tasks.md",
+    );
+    expect(await pathExists(taskTemplatePath)).toBe(true);
+
+    const taskTemplate = await readFile(taskTemplatePath, "utf-8");
+    const linkedTargets = [...taskTemplate.matchAll(/^\[(?:generate-tasks|task-list-formatting)\]:\s+(.+)$/gm)]
+      .map((match) => resolve(dirname(taskTemplatePath), match[1]!));
+    expect(linkedTargets).toHaveLength(2);
+    for (const target of linkedTargets) {
+      expect(await pathExists(target), target).toBe(true);
+    }
   });
 
   it("init with --pm-mode arc-in-git installs arc-in-git files", async () => {
