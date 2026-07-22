@@ -273,6 +273,18 @@ fires.
     - Run framework-sync and package-neutrality checks, verify root script discoverability, and reconcile the final
       selected-scope inventory.
 
+### `[ ]` **6.4 Keep copied harness projections inside their worktree**
+
+- _Goal:_ A linked worktree's registered harness directories cannot redirect normalization or other writes into the
+  primary checkout through copied symlinks.
+
+    - Preserve relative symbolic-link targets when copying registered harness directories from the primary checkout,
+      so canonical skill links resolve through the destination worktree's own `.arc/` tree.
+    - Build `test-first` with a real filesystem copy proving a source-relative skill link remains relative and resolves
+      inside the destination worktree; retain existing behavior for ordinary directories and files.
+    - Audit Markdown normalization and projection entry points for primary-worktree or escaping-realpath resolution,
+      and repair this worktree's affected local harness links without committing generated harness state.
+
 ## **Phase 7:** Verification
 
 ### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
