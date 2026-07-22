@@ -1,8 +1,8 @@
 # Metadata: wu-rename
 
-| **State**     | **Owner** | **Branch**       | **Class** | **Priority** |
-| ------------- | --------- | ---------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/wu-rename` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -17,10 +17,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/329>
+- **Completed:** 2026-07-22
 
 ---
 
