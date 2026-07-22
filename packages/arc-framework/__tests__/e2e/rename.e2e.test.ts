@@ -15,6 +15,7 @@ import {
   runArcNoTty,
 } from "./helpers.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
+import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -60,7 +61,9 @@ async function seedTrackedSweep(repo: string, artifactDir: string, slug: string)
     .replace("- **Cohort:** [none]", `- **Cohort:** ${COHORT}`)
     .replace("- **Design:** [none]", `- **Design:** spec-${slug}.md`)
     .replace("- **Task List:** [none]", `- **Task List:** tasks-${slug}.md`);
-  expect(meta).not.toBe(originalMeta);
+  expect(parseMetaRecord(meta).Cohort).toBe(COHORT);
+  expect(meta).toContain(`- **Design:** spec-${slug}.md`);
+  expect(meta).toContain(`- **Task List:** tasks-${slug}.md`);
   await writeFile(metaPath, meta, "utf8");
   for (const prefix of COMPANION_PREFIXES) {
     await writeFile(join(repo, artifactDir, `${prefix}-${slug}.md`), `# ${prefix}: ${slug}\n`, "utf8");
