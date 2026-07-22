@@ -78,7 +78,8 @@ export async function openHousekeepAtRuntime(options: OpenHousekeepRuntimeOption
     );
     record = claimed.value.record;
     claimApplied = claimed.kind === "applied" && claimed.value.kind === "claimed";
-    const existing = exactHousekeepRow(state, record);
+    const adoptedState = claimApplied ? state : await readHousekeepState(options, anchor, inspector);
+    const existing = exactHousekeepRow(adoptedState, record);
     if (existing !== null) {
       await bindInbox(options, record.dispatchId);
       return success(
@@ -219,13 +220,15 @@ export async function readHousekeepState(
 }
 
 export function exactHousekeepRow(state: LocusStateV1, record: HousekeepIdentityRecord) {
-  const rows = state.roster.rows.filter((row) => row.role?.subject.kind === "housekeep"
+  const rows = state.roster.rows.filter((row) => row.role?.kind === "housekeep"
+    && row.role.subject.kind === "errand"
     && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId);
   return rows.length === 1 ? rows[0] ?? null : null;
 }
 
 export function exactPartialHousekeepRow(state: LocusStateV1, slug: string) {
-  const rows = state.roster.rows.filter((row) => row.role?.subject.kind === "housekeep"
+  const rows = state.roster.rows.filter((row) => row.role?.kind === "housekeep"
+    && row.role.subject.kind === "housekeep"
     && row.role.subject.key === slug && row.role.subject.claimId === null);
   return rows.length === 1 ? rows[0] ?? null : null;
 }
@@ -256,7 +259,9 @@ async function rollbackProvision(
   try {
     await popOwnedLocusRole({
       operation: "housekeep-abandon", recommendedPromptText: "Rolled back housekeeping occupancy.",
-      recordId, checkoutPath, expectedSubject: subject, expectedLeaseId: leaseId, enteringAnchor: anchor,
+      recordId, checkoutPath,
+      expectedSubject: { kind: "errand", key: subject.key, claimId: subject.claimId },
+      expectedLeaseId: leaseId, enteringAnchor: anchor,
       io: {
         read: () => runtime.readRecord(acquired.handle.recordPath, acquired.handle),
         remove: (bytes) => runtime.removeRecord(acquired.handle.recordPath, bytes, acquired.handle),

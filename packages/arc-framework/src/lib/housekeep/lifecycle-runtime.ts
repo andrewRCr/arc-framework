@@ -301,7 +301,9 @@ async function cleanupOccupancy(
     }
     return await popOwnedLocusRole({
       operation, recommendedPromptText: "Housekeeping occupancy removed.", recordId, checkoutPath,
-      expectedSubject: { kind: "housekeep", key: options.slug, claimId: record?.claimId ?? null },
+      expectedSubject: record === null
+        ? { kind: "housekeep", key: options.slug, claimId: null }
+        : { kind: "errand", key: options.slug, claimId: record.claimId },
       expectedLeaseId: leaseId, enteringAnchor: anchor,
       io: {
         read: () => runtime.readRecord(acquired.handle.recordPath, acquired.handle),

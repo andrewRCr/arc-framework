@@ -863,11 +863,11 @@ protection modes, recovery boundaries, and package/source parity.
           resumption, partial primary completion, and cold/warm promotion. Warm promotion now atomically rebases the
           promoted lease home while releasing its parent; partial completion returns the primary to a record-free row.
 
-    - `[ ]` **7.4.c Cover grooming and one-sweep housekeeping concurrency**
-        - Exercise single/multi-member groom claims, disjoint concurrency, exact-set retry adoption, partial/full
-          overlap races, fixed-set diff bounds, exact merged-tail retirement, mixed-lane one-PR routing, exact
-          plan-digest adoption/refusal, repeated housekeeping branch-name generations, generation-bound execute-now
-          sibling continuation, interrupted dispatch isolation, and compaction during/at the edge of routing close.
+    - `[x]` **7.4.c Cover grooming and one-sweep housekeeping concurrency**
+        - Added real CLI round trips for immutable grooming sets, exact replay, overlap refusal, disjoint generations,
+          one-sweep lane escalation, plan-digest refusal, compaction recovery, and same-branch generation reuse. Exact
+          grooming replay now returns its live allocation, while full housekeeping matches and retires its
+          identity-backed role without confusing it with the partial-mode role shape.
 
     - `[ ]` **7.4.d Cover materialization, adoption, and ambiguous residue**
         - Exercise WU/Errand materialization provenance, recordless ARC-marked backfill, failed claim rollback,

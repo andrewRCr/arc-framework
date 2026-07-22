@@ -217,6 +217,27 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
     identityGlobalUserDir, activeExtensions: activeExtensions.active, enteringAnchor: anchor,
     readPrimarySafety: (path) => readPrimarySafety({ primaryPath: path, baseBranch: base, exec: io.exec }),
   });
+  const existingRows = state.roster.rows.filter((row) => row.role?.subject.kind === "groom"
+    && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId);
+  if (existingRows.length > 1) {
+    emitPlanFailure("duplicate-locus", "Exact grooming occupancy is ambiguous.", opts.json === true); return;
+  }
+  const existing = existingRows[0];
+  if (existing !== undefined) {
+    if (existing.checkoutPath === null || existing.recordId === null || existing.lease === null) {
+      emitPlanFailure("record-malformed", "Exact grooming occupancy is incomplete.", opts.json === true); return;
+    }
+    emitPlanResult(createLocusMutationResult({
+      outcome: "idempotent", operation: "plan-open",
+      allocation: { kind: existing.primary === true ? "primary" : "spawned", checkoutPath: existing.checkoutPath },
+      recordId: existing.recordId, leaseId: existing.lease.leaseId,
+      activeLocusPath: existing.checkoutPath, sessionHomePath: existing.lease.sessionHomePath,
+      identity: projectLocusIdentity(record), originEntry: null, dispatchId: null, routingPlanDigest: null,
+      restoredParent: null, nextOffer: null,
+      recommendedPromptText: `Grooming set is already open at ${existing.checkoutPath}.`,
+    }), opts.json === true);
+    return;
+  }
   const proposal = planLocusAllocation({
     state, protection, isolation: "prefer-primary",
     subject: { kind: "groom", key: slug, claimId: record.claimId },
