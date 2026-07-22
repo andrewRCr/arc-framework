@@ -8,6 +8,7 @@ import { getVersion as getMarkdownlintVersion } from "markdownlint";
 import stringWidth from "string-width";
 
 import { assertMarkdownDependencyAlignment } from "../lib/markdown/index.js";
+import type { MarkdownDependencyVersions } from "../lib/markdown/dependency-alignment.js";
 import { resolveRepoRoot } from "./repo-root.js";
 
 function readJson(path: string): unknown {
@@ -31,18 +32,22 @@ function importedPackageVersion(entryPath: string, packageName: string): string 
   throw new Error(`Unable to resolve the imported ${packageName} package version`);
 }
 
+/** Return versions from the implementations imported by the Markdown tooling process. */
+export function markdownRuntimeVersions(): MarkdownDependencyVersions {
+  stringWidth("");
+  return {
+    markdownlint: getMarkdownlintVersion(),
+    stringWidth: importedPackageVersion(fileURLToPath(import.meta.resolve("string-width")), "string-width"),
+  };
+}
+
 /** Verify the current worktree manifests, lockfile, and imported Markdown dependency versions. */
 export function verifyMarkdownDependencies(root: string): void {
-  // Evaluate the imported implementation so the reported version cannot describe an unused resolution.
-  stringWidth("");
   assertMarkdownDependencyAlignment({
     rootManifest: readJson(join(root, "package.json")),
     packageManifest: readJson(join(root, "packages/arc-framework/package.json")),
     lockfile: readJson(join(root, "package-lock.json")),
-    runtimeVersions: {
-      markdownlint: getMarkdownlintVersion(),
-      stringWidth: importedPackageVersion(fileURLToPath(import.meta.resolve("string-width")), "string-width"),
-    },
+    runtimeVersions: markdownRuntimeVersions(),
   });
 }
 

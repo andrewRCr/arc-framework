@@ -183,7 +183,7 @@ _Design decisions:_ The staged gate is check-only and reads a complete indexed s
 check stops irrelevant runs before corpus loading, and neither lint engine may substitute worktree bytes after it
 fires.
 
-### `[ ]` **6.1 Implement the exact-index Markdown runner test-first**
+### `[x]` **6.1 Implement the exact-index Markdown runner test-first**
 
 - _Goal:_ One staged command certifies selected indexed Markdown with the indexed configuration cascade through
   standard markdownlint and the shared descriptor rule.
@@ -200,21 +200,13 @@ fires.
           nested rule-only boundaries are enforced before deterministic ancestor inheritance groups the selected
           Markdown paths, including staged `docs/` overrides.
 
-    - `[ ]` **6.1.c Certify the indexed snapshot through both lint engines**
-        - Build `test-first` (one behavior at a time):
-            - The shared dependency-alignment check consumes indexed `package.json`,
-              `packages/arc-framework/package.json`, and `package-lock.json` metadata plus the actually imported
-              versions; candidate/runtime drift fails before Markdown linting.
-            - `lint()` from `markdownlint/promise` processes each effective-config group in one runner process,
-              while the shared descriptor validator consumes the same full indexed `{ path, content }` map; no
-              `markdownlint-cli2` internals are imported.
-            - An unstaged worktree fix cannot hide an invalid indexed blob, and an unstaged worktree violation
-              cannot block a valid indexed blob.
-            - Staged supported root and nested rule changes govern the candidate commit, while config-only or
-              nested path-selection changes fail closed.
-            - Standard lint and descriptor failures both fail with stable repository-relative diagnostics;
-              aligned-table failures print `npm run format:tables -- <path>`.
-            - A valid complete snapshot passes as one staged command.
+    - `[x]` **6.1.c Certify the indexed snapshot through both lint engines**
+        - Added in-process dependency alignment, effective-group `markdownlint/promise` execution, and descriptor
+          validation over the shared indexed content map. Stable diagnostics carry explicit table remedies, and
+          divergent worktree content cannot change either passing or failing candidate results.
+
+- _Outcome:_ The staged entry point now certifies one complete candidate from indexed dependencies, configuration,
+  and Markdown bytes without importing CLI internals or consulting the worktree after repository-root resolution.
 
 ### `[ ]` **6.2 Wire relevant-change gating into the project pre-commit chain**
 
