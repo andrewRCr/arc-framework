@@ -823,7 +823,7 @@ protection modes, recovery boundaries, and package/source parity.
   operational identity tails now appear at their decision and command fire sites across strategies, concise
   references, and canonical entry skills without adding an always-loaded doctrine surface.
 
-### `[ ]` **7.3 Synchronize packaged and self-hosted methodology surfaces** — D11
+### `[x]` **7.3 Synchronize packaged and self-hosted methodology surfaces** — D11
 
 - _Goal:_ Adopters and this self-hosted checkout execute the same locus procedures without overwriting
   project-specific configurable sections or leaking internal planning context.
@@ -838,15 +838,15 @@ protection modes, recovery boundaries, and package/source parity.
           union of manifest-tracked and currently resolved Framework outputs under the stored install config.
           Fresh init, update, E2E, and existing canonical-skill parity coverage now close the affected install paths.
 
-    - `[ ]` **7.3.c Add and run methodology structural contracts**
-        - Add a focused integration contract for required locus verbs and `locusState`, exact-set planning syntax,
-          forbidden raw Errand materialization/compound state dispatch, absence of a second workflow-side frame
-          selector, package/project references, and recipe-installed workflow/strategy reach; register it in
-          `test:arc-contracts`.
-        - Run `npm run test:arc-contracts`, targeted init/update/skills tests,
-          `npx tsx packages/arc-framework/src/scripts/validate-extension-points.ts` over changed workflows,
-          `npm run lint:arc:triggers`, `npm run lint:arc:section-refs`, and `npm run -s lint:md`.
-        - Confirm new CLI names resolve in packaged templates and canonical/generated harness skills.
+    - `[x]` **7.3.c Add and run methodology structural contracts**
+        - Registered a focused locus-methodology suite in `test:arc-contracts`; it binds the public verb set,
+          reader-owned frame projection, exact-set planning, transient materialization boundary, mirrored decision
+          sites, and recipe reach. Contract, init/update/skills, extension, trigger, section-reference, and CLI-help
+          validation all resolve against the packaged and generated surfaces.
+
+- _Outcome:_ Package/project reconciliation now includes both direct mirror drift and current-recipe omissions;
+  fresh installs receive every locus-era decision surface referenced by the updated workflows, and structural
+  contracts protect the command/projection boundaries that byte parity alone cannot express.
 
 ### `[ ]` **7.4 Cover cross-flow locus scenarios end to end** — D4-D10
 
