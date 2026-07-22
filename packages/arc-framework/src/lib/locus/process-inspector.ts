@@ -150,6 +150,8 @@ function isArcWrapper(snapshot: AncestorProcessSnapshot): boolean {
   const commandLine = snapshot.commandLine ?? "";
   if ((executable === "node" || executable === "node.exe")
     && /(?:^|[\\/])(?:dist[\\/]cli\.js|arc(?:\.js)?)\b/u.test(commandLine)) return true;
+  if ((executable === "node" || executable === "node.exe")
+    && /^npm(?:\.cmd)?\s+(?:exec|run)\s+(?:--\s+)?arc\b/u.test(commandLine)) return true;
   if ((executable === "npm" || executable === "npm.cmd" || snapshot.commandIdentity.toLowerCase() === "npm exec")
     && /\b(?:exec|run)\b.*\barc\b/u.test(commandLine)) return true;
   if ((executable === "npx" || executable === "npx.cmd") && /\barc\b/u.test(commandLine)) return true;

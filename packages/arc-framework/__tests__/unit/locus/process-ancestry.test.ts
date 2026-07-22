@@ -46,7 +46,10 @@ describe("session anchor acquisition", () => {
         kind: "present",
         snapshot: snapshot(30, 20, "/usr/bin/dash", 'sh -c "arc" recover audit --json'),
       }],
-      [20, { kind: "present", snapshot: snapshot(20, 15, "npm", "npm exec arc recover audit --json") }],
+      [20, {
+        kind: "present",
+        snapshot: snapshot(20, 15, "/opt/node/bin/node", "npm exec arc recover audit --json"),
+      }],
       [15, {
         kind: "present",
         snapshot: snapshot(15, 10, "/bin/bash", "bash -c npx arc recover audit --json"),
@@ -67,6 +70,20 @@ describe("session anchor acquisition", () => {
 
     await expect(acquireSessionAnchor(30, inspector(entries))).resolves.toEqual({
       kind: "unverifiable", reason: "Unrecognized process boundary: /usr/bin/dash",
+    });
+  });
+
+  it("refuses an arbitrary Node command that merely mentions npm exec arc", async () => {
+    const entries = new Map<number, AncestorProcessInspection>([
+      [30, {
+        kind: "present",
+        snapshot: snapshot(30, 10, "/opt/node/bin/node", "node other.js npm exec arc status"),
+      }],
+      [10, { kind: "present", snapshot: snapshot(10, 1, "/opt/codex", "codex") }],
+    ]);
+
+    await expect(acquireSessionAnchor(30, inspector(entries))).resolves.toEqual({
+      kind: "unverifiable", reason: "Unrecognized process boundary: /opt/node/bin/node",
     });
   });
 
