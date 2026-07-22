@@ -3,7 +3,7 @@
 - **Origin:** [internal] — extracted from `pr-decomposition` on 2026-07-21 at its `assess-cohort-fit` re-read,
   which returned a two-member cut (flat siblings + one dependency edge, no cohort node). The origin retains the
   chunk-boundary doctrine and the review-only retrofit; this member takes the up-front planning half and the merge
-  topology. The cut-map and its rationale are recorded in `draft-pr-decomposition.md` § Decomposition.
+  topology. The cut-map and its rationale are recorded in `draft-review-chunking.md` § Decomposition.
 - **Purpose:** Make a work unit able to **plan** its review surface during task generation and **land** the
   resulting chunks through a merge topology that keeps `main` coherent. Two halves, both deferred out of the
   origin because their consumers are future work units rather than today's integration backlog: **(A) up-front
@@ -151,7 +151,7 @@ Both mature precedents decompose up front — Google's splitting strategies plus
 "each cell is its own standalone CL", and the Linux kernel's patch-series with its hard bisectability rule (every
 intermediate state must build and run, which implies expand → migrate → contract ordering that must be _planned_).
 So the chunk boundary belongs where ARC already decomposes: `generate-tasks`. Grounding research is captured in
-`research-pr-decomposition.md` (retained by the origin).
+`research-review-chunking.md` (retained by the origin).
 
 The cost of the coupling shows up on cross-cutting work units — `lifecycle-closeout` is the trigger case: one work
 unit bundling a ~20-file two-mirror doc sweep, several code-wiring legs, a new ceremony, a CLI removal, and a

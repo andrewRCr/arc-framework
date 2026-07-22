@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** pr-decomposition
+- **Depends On:** `review-chunking`
 
 - **Origin:** [internal]
 - **Design:** `draft-chunked-delivery.md`

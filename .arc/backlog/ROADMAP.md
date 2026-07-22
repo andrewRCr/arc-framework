@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `a6b2f39c7`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `76937ca3b`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -18,6 +18,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning`    | cohortless-decomposition | P1       | andrew | —          | —                      |
 | `Planning`    | decomposition-doctrine   | P1       | andrew | —          | —                      |
 | `Planning`    | pr-decomposition         | P1       | andrew | —          | —                      |
+| `Planning`    | review-chunking          | P1       | andrew | —          | —                      |
 | `Planning`    | review-gate-right-sizing | P1       | andrew | —          | —                      |
 | `Planning`    | review-surface-binding   | P1       | andrew | —          | —                      |
 | `Active`      | session-locus-model      | P1       | andrew | —          | —                      |
@@ -91,7 +92,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                         | Priority | Owner  | Depends on                                  | Cohort                     |
 | --------------------------------- | -------- | ------ | ------------------------------------------- | -------------------------- |
-| chunked-delivery                  | P1       | andrew | pr-decomposition                            | —                          |
+| chunked-delivery                  | P1       | andrew | review-chunking                             | —                          |
 | review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification       | —                          |
 | unit-scoped-review                | P2       | andrew | commit-increments                           | approval-flow-refinement   |
 | cli-substrate-complete-migration  | P2       | andrew | cli-validation-surfaces, cli-command-inputs | cli-substrate-adoption     |

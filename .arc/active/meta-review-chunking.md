@@ -1,14 +1,14 @@
-# Metadata: pr-decomposition
+# Metadata: review-chunking
 
-| **State**  | **Owner** | **Branch**              | **Class** | **Priority** |
-| ---------- | --------- | ----------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/pr-decomposition` | `Heavy`   | `P1`         |
+| **State**  | **Owner** | **Branch**             | **Class** | **Priority** |
+| ---------- | --------- | ---------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/review-chunking` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-pr-decomposition.md`
+- **Design:** `draft-review-chunking.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

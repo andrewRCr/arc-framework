@@ -14,7 +14,7 @@
   often a solo developer's only reviewer). Two things are owned here: the **chunk-boundary doctrine** (what makes a
   good review boundary) and **Mode B, the review-only retrofit** (carving an already-built branch). Planned-up-front
   chunking and the merge topology that would let chunks land separately are the sibling `chunked-delivery`'s.
-  **Maturing draft under active grooming.** Grounding research lives in `research-pr-decomposition.md`.
+  **Maturing draft under active grooming.** Grounding research lives in `research-review-chunking.md`.
 
 ---
 
@@ -40,7 +40,7 @@
     - **Cover letter / reviewer's guide is deferred, out of scope** — a human-_navigation_ aid (it doesn't reduce
       surface, so it doesn't help AI review), and storage-sensitive (it reads `meta` / `spec` / `cohort`, which
       `strategy-storage-evolution` moves to a separate backing store). Coordinate PR-side composition later.
-    - Idiom re-examination **ran** (heavy-research, 2026-07-20; `research-pr-decomposition.md` § Idiom
+    - Idiom re-examination **ran** (heavy-research, 2026-07-20; `research-review-chunking.md` § Idiom
       re-examination). It corroborates the retrofit conclusion directly: for an already-built coherent change, the
       industry-aligned answer is a **review decomposition**, not a re-split into a mergeable stack.
     - **Class = Heavy** (settled 2026-07-20; re-confirmed at the cut) — composition from mature prior art. The
@@ -129,7 +129,7 @@ transition was needed.
 
 **Carried to `chunked-delivery`:** the `notes-*` companion holding the inherited assurance algebra, and inbound
 buffer entries for multi-PR review cardinality, adversarial-verify cardinality, and the assurance-group contract —
-all multi-PR-shaped. `research-pr-decomposition.md` stays here and is cited by the sibling.
+all multi-PR-shaped. `research-review-chunking.md` stays here and is cited by the sibling.
 
 ---
 
