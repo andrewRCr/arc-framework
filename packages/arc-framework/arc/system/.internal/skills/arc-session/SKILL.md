@@ -1,14 +1,14 @@
 ---
 name: arc-session
-description: Initialize an ARC session — resume or start a work unit, or handle isolated work with --errand [<slug|description>], --housekeep, or --plan <stub>.
+description: Initialize an ARC session — resume or start a work unit, or handle isolated work with --errand [<slug|description>], --housekeep, or --plan <anchor> [--include <stub>...].
 disable-model-invocation: false
 ---
 
 # ARC Session
 
-Run `.arc/system/workflows/arc/session-lifecycle/session-init.md`. It resolves the session probe and
-dispatches the entry mode — resume or start a work unit, orient when none is active, or enter errand
-mode — establishing session context.
+Run `.arc/system/workflows/arc/session-lifecycle/session-init.md`. It consumes the reader-owned locus projection,
+attaches the exact entering role, and dispatches its derived workflow/load set. Never select entry from branch
+shape, active-meta hints, or a second worktree scan.
 
 An optional positional argument supplies an **entry seed** — a spec pointer or description that the workflow's
 new-work arm consumes (confirmed before use). A bare invocation enters per the probe.
@@ -25,11 +25,13 @@ sync, dirty-tree, and freshness surfaces and stop-and-ask mismatches; on launch,
 commit/push interlocks and `Class` guard fire unchanged, and it hands off to a fresh in-worktree session rather
 than continuing in place.
 
-An **explicit-intent signal** instead routes session entry to an out-of-work-unit locus, regardless of what is
-active — the resumed work unit's checkout is preserved. Each is orthogonal to the positional seed:
+An **explicit-intent signal** instead routes session entry through its transient allocation verb, regardless of
+what is active. A WU-owned checkout is preserved and never switched or repurposed. Each signal is orthogonal to the
+positional seed:
 
 - `--errand [<slug|description>]` — isolated atomic work. A bare `--errand` (no slug/description) is supported:
   the entry elicits the concern, or adopts a flagged `USER-INBOX § Errand` capture.
 - `--housekeep` — drain the user inbox to its authoritative homes (reaches the `arc-housekeep` skill).
-- `--plan <stub>` — groom a `backlog/` stub's draft (`planned` or `provisional`) in place, resumable via
-  `--plan <stub>` across sessions.
+- `--plan <anchor> [--include <stub>...]` — open one exact immutable set of branchless `planned`/`provisional`
+  backlog members through `arc plan open`. The anchor-only shorthand is a one-member set. Reject any started WU;
+  changing membership requires closing or abandoning before reopening the complete set.

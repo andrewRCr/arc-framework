@@ -799,7 +799,7 @@ protection modes, recovery boundaries, and package/source parity.
   consume reader-owned results. Allocation, fixed-set sequencing, recovery, frame restoration, identity tails, and
   primary occupancy no longer depend on branch-shape inference or prose-encoded state transitions.
 
-### `[ ]` **7.2 Update locus doctrine at operation fire sites** — D1, D4, D8, D11
+### `[x]` **7.2 Update locus doctrine at operation fire sites** — D1, D4, D8, D11
 
 - _Goal:_ Teams encounter durable checkout roles, sequential transient allocation, identity-tail behavior, and
   occupancy-aware cleanup where those rules govern action, without adding another always-loaded document.
@@ -814,13 +814,14 @@ protection modes, recovery boundaries, and package/source parity.
           canonical template and project-specific quick reference without disturbing configurable project sections.
           Added only the minimal locus/transient-identity vocabulary to canonical and self-hosted agent orientation.
 
-    - `[ ]` **7.2.c Update canonical entry skills without editing generated copies**
-        - Update package and project canonical `arc-session`, `arc-errand`, `arc-housekeep`, `arc-handoff`, and
-          `arc-plan` `SKILL.md` sources with their exact locus-aware entry contracts.
-        - Make `arc-session --plan` and `arc-plan` carry one anchor plus explicit included backlog members into the
-          exact-set groom open; preserve the single-anchor shorthand and reject started-WU members.
-        - Let init/update regenerate harness-local skill copies and assert byte parity; do not hand-edit `.claude/`,
-          `.codex/`, `.agents/`, or other generated tool directories.
+    - `[x]` **7.2.c Update canonical entry skills without editing generated copies**
+        - Updated package and project canonical session, Errand, housekeep, handoff, and planning skills with exact
+          locus-aware entry contracts. Planning now carries one anchor plus explicit included branchless members;
+          repository skill-generation tests prove generated copies remain byte-identical without hand edits.
+
+- _Outcome:_ Durable role ownership, free-primary allocation, exact-set grooming, fixed routing sweeps, and
+  operational identity tails now appear at their decision and command fire sites across strategies, concise
+  references, and canonical entry skills without adding an always-loaded doctrine surface.
 
 ### `[ ]` **7.3 Synchronize packaged and self-hosted methodology surfaces** — D11
 

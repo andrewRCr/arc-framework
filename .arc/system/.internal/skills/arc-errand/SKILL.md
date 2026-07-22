@@ -29,7 +29,7 @@ context is already established — it does **not** run session-init.
    Run `.arc/system/workflows/arc/supplemental/run-errand.md`. Its Launch confirms errand-vs-Work-Unit
    (a concern crossing either floor — a design worth recording, or a durable cross-session plan a correct
    execution must navigate — is a Work Unit; route it through `init-work-unit` instead), runs the advisory
-   `arc errand check` overlap probe, and relocates the execution locus to an isolated base-derived branch —
-   so the errand never executes on the branch you launched from. Execute and Integrate carry it to a landed
-   commit. When this errand adopts a flagged `USER-INBOX § Errand` capture, Launch threads it as the originating
-   entry (`arc errand open --from-inbox`), so the capture drops at the errand's close instead of being orphaned.
+   `arc errand check`, then consumes `arc errand open`'s exact primary/spawned locus result. It never switches or
+   repurposes a WU-owned checkout; partial protection uses only the free primary or refuses. Execute and Integrate
+   carry the concern through leave/close/abandon as appropriate. When the Errand adopts a flagged `USER-INBOX §
+   Errand` capture, `open --from-inbox` binds its origin so exact close drops the capture and abandonment retains it.

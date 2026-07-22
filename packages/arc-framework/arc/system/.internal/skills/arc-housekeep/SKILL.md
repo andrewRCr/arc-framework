@@ -6,6 +6,7 @@ disable-model-invocation: false
 
 # ARC Housekeep
 
-Apply `.arc/system/workflows/arc/supplemental/drain-inbox.md`. The workflow resolves the base-branch
-write-context precondition, then classifies each `USER-INBOX` entry by character and home and routes
-it to its authoritative home in one batched pass.
+Apply `.arc/system/workflows/arc/supplemental/drain-inbox.md`. Confirm judgment-only dispositions, compile their
+source-qualified exact plan with `arc housekeep plan`, then open one routing occupancy at the strictest lane. Route
+the complete fixed sweep before closing it; only then consume the CLI's exact next offers for sequential sibling
+Errands. Never reopen the drain frame, split routing by lane, or infer restoration from the checkout branch.
