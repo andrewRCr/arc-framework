@@ -115,7 +115,7 @@ export function selectSessionAnchor(
 }
 
 function anchorSelector(snapshot: AncestorProcessSnapshot): string | null {
-  return harnessSelector(snapshot.commandIdentity) ?? (isInteractiveShell(snapshot) ? "interactive-shell" : null);
+  return harnessSelector(snapshot) ?? (isInteractiveShell(snapshot) ? "interactive-shell" : null);
 }
 
 /** Verify PID generation through the inspector that minted the anchor. */
@@ -130,12 +130,22 @@ export async function verifyProcessAnchor(
   return inspected.pid === anchor.pid && inspected.startToken === anchor.startToken ? "live" : "dead";
 }
 
-function harnessSelector(identity: string): "codex" | "claude" | "gemini" | null {
-  const executable = basename(identity).toLowerCase();
-  if (executable === "codex" || executable === "codex.exe") return "codex";
-  if (executable === "claude" || executable === "claude.exe") return "claude";
-  if (executable === "gemini" || executable === "gemini.exe") return "gemini";
+function harnessSelector(snapshot: AncestorProcessSnapshot): "codex" | "claude" | "gemini" | null {
+  // Native harness installs run versioned binaries (/proc exe resolves to e.g.
+  // .../claude/versions/2.1.217), so argv[0] may carry the only recognizable name.
+  for (const identity of [snapshot.commandIdentity, argv0(snapshot.commandLine)]) {
+    if (identity === null) continue;
+    const executable = basename(identity).toLowerCase();
+    if (executable === "codex" || executable === "codex.exe") return "codex";
+    if (executable === "claude" || executable === "claude.exe") return "claude";
+    if (executable === "gemini" || executable === "gemini.exe") return "gemini";
+  }
   return null;
+}
+
+function argv0(commandLine: string | undefined): string | null {
+  const first = commandLine?.trimStart().split(/\s/u, 1)[0];
+  return first === undefined || first === "" ? null : first;
 }
 
 function isInteractiveShell(snapshot: AncestorProcessSnapshot): boolean {
@@ -155,6 +165,12 @@ function isArcWrapper(snapshot: AncestorProcessSnapshot): boolean {
   if ((executable === "npm" || executable === "npm.cmd" || snapshot.commandIdentity.toLowerCase() === "npm exec")
     && /\b(?:exec|run)\b.*\barc\b/u.test(commandLine)) return true;
   if ((executable === "npx" || executable === "npx.cmd") && /\barc\b/u.test(commandLine)) return true;
+  // Agent-harness tool shells source a session snapshot, then eval the requested
+  // command; the arc invocation sits inside the eval payload, not after -c.
+  if ((executable === "bash" || executable === "zsh" || executable === "sh" || executable === "dash")
+    && /\s-c\s+source\s+\S*[\\/]shell-snapshots[\\/]snapshot-\S+\.sh(?:\s|$)/u.test(commandLine)
+    && /\beval\s+["'](?:[\s\S]*?(?:&&|;|\|)\s*)?(?:npx\s+arc\b|arc\b|node\s+\S*(?:dist[\\/]cli\.js|arc(?:\.js)?))/u
+      .test(commandLine)) return true;
   return (executable === "bash" || executable === "zsh" || executable === "sh" || executable === "dash"
     || executable === "pwsh" || executable === "powershell.exe")
     && /\s-(?:l)?c\s+(?:npx\s+arc\b|arc\b|["']arc["'](?=\s|$)|node\s+\S*(?:dist[\\/]cli\.js|arc(?:\.js)?))/u

@@ -73,6 +73,44 @@ describe("session anchor acquisition", () => {
     });
   });
 
+  it("walks the snapshot-sourcing agent tool shell to the versioned harness binary", async () => {
+    const toolShell = "/bin/bash -c source /home/dev/.claude/shell-snapshots/snapshot-bash-1784721318921-6hnnbc.sh"
+      + " 2>/dev/null || true && shopt -u extglob 2>/dev/null || true"
+      + " && eval 'pwd && npx arc status --session-init --json' < /dev/null && pwd -P >| /tmp/claude-cwd";
+    const entries = new Map<number, AncestorProcessInspection>([
+      [40, { kind: "present", snapshot: snapshot(40, 30, "node", "node /repo/dist/cli.js status --session-init --json") }],
+      [30, {
+        kind: "present",
+        snapshot: snapshot(30, 20, "/opt/node/bin/node", "npm exec arc status --session-init --json"),
+      }],
+      [20, { kind: "present", snapshot: snapshot(20, 10, "/usr/bin/bash", toolShell) }],
+      [10, {
+        kind: "present",
+        snapshot: snapshot(10, 1, "/home/dev/.local/share/claude/versions/2.1.217", "claude"),
+      }],
+    ]);
+
+    await expect(acquireSessionAnchor(40, inspector(entries))).resolves.toEqual({
+      kind: "process", pid: 10, startToken: "start-10", inspector: "fixture-native", selector: "claude",
+    });
+  });
+
+  it("refuses the agent tool shell when its eval payload does not invoke arc", async () => {
+    const toolShell = "/bin/bash -c source /home/dev/.claude/shell-snapshots/snapshot-bash-1.sh 2>/dev/null || true"
+      + " && eval 'cd /repo/arc-framework && make build' < /dev/null";
+    const entries = new Map<number, AncestorProcessInspection>([
+      [20, { kind: "present", snapshot: snapshot(20, 10, "/usr/bin/bash", toolShell) }],
+      [10, {
+        kind: "present",
+        snapshot: snapshot(10, 1, "/home/dev/.local/share/claude/versions/2.1.217", "claude"),
+      }],
+    ]);
+
+    await expect(acquireSessionAnchor(20, inspector(entries))).resolves.toEqual({
+      kind: "unverifiable", reason: "Unrecognized process boundary: /usr/bin/bash",
+    });
+  });
+
   it("refuses an arbitrary Node command that merely mentions npm exec arc", async () => {
     const entries = new Map<number, AncestorProcessInspection>([
       [30, {
