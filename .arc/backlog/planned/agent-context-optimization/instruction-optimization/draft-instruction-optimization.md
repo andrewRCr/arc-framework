@@ -44,6 +44,11 @@ the cohort layers model — see `cohort-agent-context-optimization.md`.
   unconditional-but-easily-short-circuited phrasing. Consider whether other early steps warrant the same treatment.
 - *Infra smell:* touches load-bearing `session-init.md` (and possibly the `arc-session` skill doc) — reviewed lane;
   watch for design hiding (instruction bar-raise vs a structural gate).
+- *Companion route (2026-07-21):* add a checkout-preserving `--context` arm for the common intent “load universal
+  ARC context for a specific discussion.” It loads the universal set, skips discovery and every WU artifact, and
+  ends at orientation; on a Resume checkout it remains unrelated to the active WU. Keep discovery as the Orient
+  default, but make its candidate artifact reads lazy after the probe/status surface. Coordinate the agenda-depth
+  half with `composable-workflows` D3 rather than creating a parallel mechanism.
 
 ### `[ ]` **arc-modes dissolved → `local-mode`: prune the Lite probe-shape callbacks**
 

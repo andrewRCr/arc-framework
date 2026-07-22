@@ -13,6 +13,26 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Narrow the draft around the shipped descriptor-spacing rule**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
+  `markdown-formatting` task generation.
+- *Concern:* `markdown-formatting` now owns descriptor-cluster spacing guidance and validation, so retaining a
+  second spacing contract here would create competing authorities.
+- *Fold-in:* remove descriptor-spacing ownership while preserving requirement anchors, inserted-phase rules,
+  interlock language, completion shape, and the remaining task grammar.
+
+### `[ ]` **Clarify the `[~]` success-criterion disposition**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
+  `review-architecture` verification.
+- *Concern:* `[~]` currently combines dropped, irrelevant, and deferred criteria under a `Superseded` note, even
+  though deferral means the intent remains owed elsewhere. It also cannot distinguish a planned scope exclusion
+  from an implementation-time delivery gap that was subsequently routed.
+- *Approach:* prefer a note convention that names the actual disposition (`Deferred`, `Dropped`, or `Irrelevant`),
+  or a neutral `Not delivered here`, without adding a new marker unless the provenance distinction proves worth
+  the corpus-wide state cost.
+
 ### `[ ]` **Forbid non-linear blocked-open leaves in generated task lists**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: task-list-conventions`), housekeep drain (2026-07-07);
