@@ -76,10 +76,10 @@ without distortion.
 
 ### PD2. Canonical method contract
 
-Create the public `assess-solution-proportionality` method with this signature:
+Create the public `assess-design-proportionality` method with this signature:
 
 ```text
-assess-solution-proportionality(problem, candidate, substrate-referents?) -> { verdict, findings }
+assess-design-proportionality(problem, candidate, substrate-referents?) -> { verdict, findings }
 ```
 
 | Input                 | Kind     | Contents                                                                                     |
@@ -134,7 +134,7 @@ equivalent structure.
 
 ### PD4. Authoring-time integration
 
-Both `draft-design.md` and `create-spec.md` declare `assess-solution-proportionality` in `arc.methods` because both
+Both `draft-design.md` and `create-spec.md` declare `assess-design-proportionality` in `arc.methods` because both
 invoke it directly.
 
 - **Drafting:** Add one shared authoring guard that applies at every drafting depth. Run it when a candidate
@@ -154,10 +154,10 @@ do not restate its checklist, introduce a detector, or create persistent state.
 ### PD5. Design-boundary composition
 
 Keep `design-audit`'s finished-draft floor and broader efficacy/fit role. Under its Fit lens, point material
-complexity mismatch to `assess-solution-proportionality` rather than duplicating the six questions.
+complexity mismatch to `assess-design-proportionality` rather than duplicating the six questions.
 
 At the draft-readiness and spec-finalization adversarial call sites, explicitly supply both
-`assess-solution-proportionality` and `design-audit` in the rubric. The workflows already declare `design-audit` and
+`assess-design-proportionality` and `design-audit` in the rubric. The workflows already declare `design-audit` and
 now also declare the proportionality method, so fresh reviewers receive both under the shipped loading contract.
 
 Map proportionality findings into `adversarial-review`'s existing severity enum:
@@ -208,7 +208,7 @@ Use the loading substrate that exists now:
 - `draft-design.md`, `create-spec.md`, and `generate-tasks.template.md` declare the method directly;
 - both adversarial design-boundary rubrics name the method beside `design-audit`;
 - the standalone skill explicitly loads both methods; and
-- `methods/README.md` records `assess-solution-proportionality` and `design-audit` as related methods, while the
+- `methods/README.md` records `assess-design-proportionality` and `design-audit` as related methods, while the
   canonical skills `README.md` lists the standalone design-audit door.
 
 These are compatibility declarations at known consumers, not duplicated criteria. Do not add dependency fields to
@@ -233,7 +233,8 @@ must then exercise its generation and update behavior alongside the other standa
 
 This is bounded delivery closure, not the systemic recurrence fix. `self-hosting-manifest-freshness` retains
 ownership of automatically detecting or eliminating future recipe/manifest inventory omissions. Do not absorb its
-general guard or self-hosting manifest reconciliation into this work unit.
+general guard or broader manifest-freshness repair into this work unit; only the recipe-derived entries and hashes
+required by the touched inventory land here.
 
 ### PD9. Recording and vocabulary
 
@@ -295,7 +296,7 @@ Mechanical verification covers Markdown, references, package/project projection,
 enumeration, and direct workflow declarations. `lint:arc:triggers` must see at least one workflow declaration for
 the new method, which is the general coverage guarantee that audit owns. A targeted package-source assertion using
 the existing `parseWorkflowFrontmatter` helper must confirm that `draft-design.md`, `create-spec.md`, and
-`generate-tasks.template.md` each declare `assess-solution-proportionality`; framework-sync then proves the rendered
+`generate-tasks.template.md` each declare `assess-design-proportionality`; framework-sync then proves the rendered
 self-hosted workflows match their package sources. Fresh-install and framework-sync tests must also see the new
 method, canonical skill, and every direct method dependency of the touched planning workflows installed with the
 correct classification and rendered copies. A targeted registry assertion must name `arc-design-audit` in
@@ -336,7 +337,7 @@ and the existing package/project projection model; no new technology or infrastr
 
 ## Success Criteria
 
-- `assess-solution-proportionality` ships with the PD2 signature, closed finding kinds, adequacy floor, materiality
+- `assess-design-proportionality` ships with the PD2 signature, closed finding kinds, adequacy floor, materiality
   threshold, and the six-question PD3 lens.
 - `draft-design` and `create-spec` invoke the method during authoring and re-run it before their final boundaries at
   every resolved depth/form. `create-spec` corrects an already-settled local decision in place, but routes an
@@ -354,7 +355,7 @@ and the existing package/project projection model; no new technology or infrastr
 - `lint:arc:triggers` confirms general method coverage; a targeted source assertion confirms all three named direct
   consumers declare the method; Markdown/reference and framework-sync checks pass with those declarations present
   in package source and the self-hosted instance.
-- Fresh init/update delivery includes `assess-solution-proportionality`, the canonical `arc-design-audit` skill, and
+- Fresh init/update delivery includes `assess-design-proportionality`, the canonical `arc-design-audit` skill, and
   all existing direct method dependencies declared by the three touched planning workflows; installed methods use
   Configurable update semantics and the canonical skills index names the installed door.
 - No project-size/team-size discount, appetite rule, decomposition rule, mandatory evidence section, persistent

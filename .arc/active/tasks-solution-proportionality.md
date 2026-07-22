@@ -1,0 +1,259 @@
+# Task List: Solution Proportionality
+
+- **Design:** `spec-solution-proportionality.md`
+
+---
+
+## **Phase 1:** Canonical method, first consumer, and delivery closure
+
+_Purpose:_ Establish the decision contract, land its first authoring consumer with every installed dependency,
+and relate it to ARC's broader design-fit rubric before the remaining planning surfaces consume it.
+
+### `[ ]` **1.1 Land the canonical method, drafting guard, and method inventory atomically**
+
+- _Goal:_ Drafting receives one trigger-clean, overridable judgment that rejects materially unjustified machinery
+  without simplifying below the chartered adequacy floor, and fresh installations include every dependency it uses.
+
+- _Note:_ Design coverage: PD1-PD4, PD8, PD9. This parent is one review increment because method declaration,
+  Framework workflow projection, and installed dependency closure must remain coherent at every committed state.
+
+    - Add package and self-hosted `assess-design-proportionality.md` copies with the declared `problem`, `candidate`,
+      and optional `substrate-referents` inputs and the `proportionate | revise` result.
+    - Define the five closed finding kinds, source-grounded finding shape, materiality threshold, and explicit
+      adequacy rail without adding a note tier, persistence, configuration, or runtime state.
+    - Cover goal-to-mechanism trace, the minimal credible alternative, existing-substrate composition, marginal
+      justification, consequence-scaled rigor, and essential complexity as one judgment.
+    - Keep project and team status out of the criterion while allowing concrete security, compatibility, authority,
+      data-loss, and operational consequences to justify substantial machinery.
+    - Declare and invoke the method in the package and self-hosted `draft-design.md` workflows whenever a candidate
+      direction adds a material mechanism and again at loop exit; keep `revise` in the drafting loop and the clean
+      path silent.
+    - Build `test-first` (one behavior at a time):
+        - Extend `__tests__/unit/init.test.ts` so `classifyFile()` requires `Configurable` for
+          `assess-design-proportionality`, `assess-cohort-fit`, `assess-draft-readiness`, `adversarial-review`,
+          `design-audit`, and `task-audit`; then add the six paths to `CONFIGURABLE_FILES` in
+          `src/lib/classification.ts`.
+        - Extend the integration init and update inventories with all six methods, their installed `Configurable`
+          classifications, and a count-independent method-presence test title.
+        - Add the six method files to `packages/arc-framework/init-recipe.json` and add the recipe-derived entries,
+          classifications, and pristine hashes to `.arc/system/.internal/manifest.json` in the same increment.
+        - Extend the packaged init E2E inventory with all six methods and replace stale numeric method/extension
+          comments in the unit, init E2E, and reconfigure E2E coverage with count-independent statements.
+        - Add `assess-design-proportionality.md` to the focused neutral Configurable-contract parity assertion in
+          `__tests__/integration/framework-sync.test.ts`, leaving the Framework-only loop classification-bounded.
+    - Run the focused classification, init, update, framework-sync, init E2E, and reconfigure E2E coverage for the
+      complete first-consumer delivery slice.
+
+### `[ ]` **1.2 Compose proportionality with design-audit and the method index**
+
+- _Goal:_ `design-audit` retains its broader efficacy and fit role while material complexity mismatch has one
+  canonical criterion and every caller can discover the relationship without duplicated checklists.
+
+- _Note:_ Design coverage: PD5, PD8.
+
+    - `[ ]` **1.2.a Reframe the Fit lens around the canonical proportionality method**
+        - Update package and self-hosted `design-audit.md` copies so material complexity mismatch delegates to
+          `assess-design-proportionality` while broader efficacy, coherence, forward compatibility, and minor fit
+          residue stay owned by `design-audit`.
+        - Preserve the finished-draft floor, standalone read-only posture, and existing severity contract.
+        - Add `design-audit.md` to the focused neutral Configurable-contract parity assertion beside the canonical
+          proportionality method so both changed defaults remain byte-aligned across package and self-hosted copies.
+
+    - `[ ]` **1.2.b Register the method relationship in both indexes**
+        - Update the package and self-hosted `system/methods/README.md` tables to relate
+          `assess-design-proportionality` and `design-audit` without introducing transitive-loading machinery.
+
+## **Phase 2:** Spec and design-boundary guards
+
+_Purpose:_ Apply the canonical judgment while the spec crystallizes and at the two adversarial boundaries that
+certify the design for downstream planning.
+
+### `[ ]` **2.1 Guard spec crystallization with correction and re-entry routing**
+
+- _Goal:_ Every emitted spec form is proportionate before final review, with wrong settled mechanisms corrected in
+  place and genuinely missing design routed back to its owning stage.
+
+- _Note:_ Design coverage: PD4.
+
+- **Additional Context:** `strategy-procedure-evolution.md` § Forward-Compat Principles and
+  `strategy-knowledge-evolution.md` § Forward-Compat Principles.
+
+    - Add `assess-design-proportionality` to `arc.methods` in both package and self-hosted `create-spec.md` copies.
+    - Apply the guard while every spec form crystallizes the settled design and re-run it over the saved spec before
+      finalization self-review in both workflows.
+    - Route a wrong named mechanism through in-place spec correction; route an unshaped or under-derived direction
+      through `resolve-planning-depth` back to `draft-design`.
+    - Land declaration, discovery guard, final readiness re-check, and correction/re-entry routing across both
+      Framework copies as one review increment so framework-sync remains green.
+
+### `[ ]` **2.2 Pair proportionality with design-audit at adversarial design boundaries**
+
+- _Goal:_ Fresh-context draft and spec attacks test both general design fitness and material proportionality while
+  retaining one severity model and primary-held disposition authority.
+
+- _Note:_ Design coverage: PD5.
+
+    - `[ ]` **2.2.a Bind proportionality findings to existing severity semantics**
+        - Add the severity interpretation to the package and self-hosted `assess-design-proportionality.md`
+          methods before either adversarial call site consumes the rubric.
+        - Map goal-breaking `adequacy-regression` to `blocker`, other adequacy regressions and the remaining four
+          finding kinds to `major`, and leave `minor` fit residue to `design-audit`.
+        - Preserve the read-only reviewer, source verification, approved disposition, pass-cap, and convergence
+          contracts without creating a second gate.
+
+    - `[ ]` **2.2.b Expand the draft-readiness adversarial rubric**
+        - Name `assess-design-proportionality` beside `design-audit` in the package `draft-design.md` rubric and
+          mirror the same call-site contract into the self-hosted workflow.
+
+    - `[ ]` **2.2.c Expand the spec-finalization adversarial rubric**
+        - Name `assess-design-proportionality` beside `design-audit` in the package `create-spec.md` rubric and
+          mirror the same call-site contract into the self-hosted workflow.
+
+## **Phase 3:** Task-generation backstop
+
+_Purpose:_ Reassess the design once decomposition makes its implementation weight concrete, before content fill
+institutionalizes unsupported machinery.
+
+### `[ ]` **3.1 Add the proportionality backstop and approved rebuild loop to task generation**
+
+- _Goal:_ A provisional task skeleton can expose disproportionate design weight, stop for a deliberate correction,
+  and restart cleanly before task detail is authored against an invalid referent.
+
+- _Note:_ Design coverage: PD7-PD9.
+
+- **Additional Context:** `strategy-procedure-evolution.md` § Forward-Compat Principles and
+  `draft-composable-workflows.md` § D1 - The workflow contract shape.
+
+    - In the package `generate-tasks.template.md`, declare `assess-design-proportionality` and invoke it after
+      Structural decomposition saves phases, parent titles, design anchors, and rough subtask signals but before
+      Content fill or later decomposition; pass that materialized evidence with the spec as the candidate.
+    - Continue the resolved `low`, `medium`, or `high` path unchanged on `proportionate`; a justified large skeleton
+      remains valid and creates no persistent proof line.
+    - On `revise`, surface each finding and the proposed spec correction at a `workflow-interlock` before mutating
+      either artifact; a decline returns control without laundering the result into a clean verdict.
+    - On approval, amend the spec, discard the superseded skeleton, and restart at Resolve depth & Class so the
+      scale read, Class ratchet, level, and complete task artifact are rebuilt from the corrected design.
+    - Render the complete template change into the self-hosted `generate-tasks.md` so declaration, invocation, both
+      result arms, and restart semantics land as one review increment across the source and projected workflow.
+
+### `[ ]` **3.2 Lock direct planning-workflow declarations to the package source**
+
+- _Goal:_ The three direct planning consumers cannot silently drop the proportionality method from their loading
+  contracts while general trigger coverage continues to enforce non-orphaned methods.
+
+- _Note:_ Design coverage: PD4, PD5, PD7, PD8.
+
+    - In `packages/arc-framework/__tests__/integration/framework-sync.test.ts`, use the exported
+      `parseWorkflowFrontmatter` helper from `src/scripts/audit-method-triggers.ts` in a focused real-corpus test over
+      package `draft-design.md`, `create-spec.md`, and `generate-tasks.template.md`.
+    - Assert that every named consumer declares `assess-design-proportionality` directly; do not replace the
+      general `lint:arc:triggers` coverage check.
+    - Retain the existing whole-file Framework comparison as the proof that rendering preserves declarations and
+      surrounding call sites in all three self-hosted workflows; do not duplicate that projection contract.
+
+## **Phase 4:** Standalone audit door and skill projection
+
+_Purpose:_ Preserve ad-hoc design re-validation while making the installed canonical door discoverable and
+generated consistently for every selected harness.
+
+### `[ ]` **4.1 Extend the standalone design-audit door across both methods and input contracts**
+
+- _Goal:_ A user-invoked design audit reports general design fitness and proportionality through one read-only door
+  without weakening the finished-draft floor or exposing a second mutation gate.
+
+- _Note:_ Design coverage: PD6, PD9. The package and self-hosted canonical sources land as one review increment so
+  their neutral contract is aligned before recipe registration makes the Framework copy authoritative.
+
+    - Rewrite the package and self-hosted skill frontmatter `description` as a directive, trigger-bearing discovery
+      line for ad-hoc finished draft or spec re-validation across efficacy, fit, and proportionality.
+    - Map `design` to the proportionality `candidate`, derive `problem` from `goal-referents` or the artifact's own
+      problem statement, accept optional `substrate-referents`, and load both public methods.
+    - Report combined recommendations through `design-audit`'s existing severity vocabulary while keeping the door
+      user-invoked, read-only, and floored at a finished draft.
+    - Retain package/project byte parity for the canonical definition.
+
+### `[ ]` **4.2 Register and project the canonical design-audit skill**
+
+- _Goal:_ Normal init and update generation includes `arc-design-audit` for every selected harness and keeps its
+  typed description and canonical source synchronized.
+
+- _Note:_ Design coverage: PD6, PD8.
+
+    - Build `test-first` (one behavior at a time):
+        - `[ ]` **4.2.a Register and install the canonical skill source**
+            - Add a focused expectation for `arc-design-audit`, then extend `CANONICAL_SKILLS` in
+              `src/lib/skills/resolution.ts` and the exhaustive `Record<CanonicalSkillName, string>` description
+              fixture in `__tests__/unit/skills/skills.test.ts`.
+            - Extend the integration init and update expectations with the canonical skill source's Framework
+              presence under the core layer.
+            - Add `system/.internal/skills/arc-design-audit/SKILL.md` to
+              `packages/arc-framework/init-recipe.json` and add its recipe-derived Framework entry and pristine hash
+              to `.arc/system/.internal/manifest.json` in the same increment.
+
+        - `[ ]` **4.2.b Exercise canonical generation and update loops**
+            - Let the existing per-skill unit and integration loops cover init output directories, canonical byte
+              parity, and Codex supplements.
+            - In `__tests__/integration/skills.test.ts`, modify the generated `arc-design-audit` skill, run update,
+              and assert that its canonical content is restored so the new member is visible on the update path.
+
+    - `[ ]` **4.2.c Index the standalone door in both canonical skill READMEs**
+        - Add a directive, trigger-bearing entry for `arc-design-audit` to the package and self-hosted
+          `system/.internal/skills/README.md` lists without growing the always-loaded session context.
+
+## **Phase 5:** Behavioral acceptance
+
+_Purpose:_ Exercise the judgment contract against the motivating precedents and both adequacy rails without
+inventing a runtime evaluation subsystem.
+
+### `[ ]` **5.1 Record the four proportionality case-family results**
+
+- _Goal:_ The method demonstrates that it removes unsupported lifecycle cost, preserves consequence-justified
+  complexity, and rejects simplification that drops required behavior.
+
+- _Note:_ Design coverage: PD1-PD3, PD5, PD9.
+
+- **Additional Context:** Resolve the live `review-surface-binding` and `session-locus-model` work units with
+  `npx arc status <slug>` before reading `draft-review-surface-binding.md` § Grooming status, Proportionality
+  posture, Approved dispositions and the fix path, and Scope boundaries and downstream fit;
+  `notes-session-locus-model.md` § Right-sizing audit; and `tasks-session-locus-model.md` Phase 7.R.
+
+    - Create `notes-solution-proportionality.md` and write each applied-method result as it is exercised so every
+      judgment remains durable within this single review increment.
+    - Record how the pre-revision `review-surface-binding` candidate flags durable fix carry, local anti-tamper,
+      excessive public verbs, and over-broad evidence persistence, while the reduced candidate clears.
+    - Record how the pre-7.R `session-locus-model` candidate flags maximum exactness on routine operator paths while
+      retaining exactness for destructive paths.
+    - Record a complex candidate whose mechanisms trace to concrete security, trust, compatibility, or failure
+      consequences as `proportionate` regardless of project/team status.
+    - Record a smaller candidate that loses stated behavior as `revise` with `adequacy-regression`.
+    - Keep the evidence concise and read-only: no runtime state, evaluation subsystem, or mutation of the sibling
+      work units.
+
+## **Phase 6:** Verification
+
+_Purpose:_ Validate the finished implementation and planning artifacts against the spec and repository gates.
+
+### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+---
+
+## Success Criteria
+
+- `[ ]` The canonical method returns only `proportionate` or decision-bearing `revise` findings through the five
+  closed kinds, six-question lens, materiality threshold, and adequacy floor.
+- `[ ]` Draft and spec authoring invoke the method while mechanisms form and at their final boundaries, with local
+  correction and derivation re-entry routed to the owning stage.
+- `[ ]` Draft/spec adversarial rubrics pair proportionality with `design-audit` through the existing severity,
+  source-verification, disposition, and convergence contracts.
+- `[ ]` Task generation evaluates the materialized skeleton before Content fill and requires an approved spec
+  correction plus a fresh scale/Class read and full rebuild for `revise`.
+- `[ ]` The standalone design-audit door loads both methods, maps optional substrate referents, remains read-only,
+  and is generated from the canonical registry for every selected harness.
+- `[ ]` Fresh init/update installs every direct planning dependency with Configurable method semantics, aligned
+  package/project copies, manifest inventory, and canonical skill projection.
+- `[ ]` The four judgment case families distinguish unsupported machinery from justified complexity and catch an
+  adequacy-regressing simplification without adding an evaluation runtime.
+- `[ ]` No project-status discount, appetite/decomposition rule, mandatory proof, persistent result, configuration
+  axis, transitive loader, or new CLI surface is introduced.
+- `[ ]` All quality gates pass (tests, linting, type checking).
+- `[ ]` Ready for integration.
