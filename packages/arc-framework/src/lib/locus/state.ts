@@ -65,7 +65,6 @@ function deriveRecovery(
 ): LocusStateV1["recovery"] {
   const managed = rows.filter((row) => row.kind === "managed-role" && row.role !== null);
   const stopReasons = [
-    ...(primaryAvailability.kind === "unsafe" ? primaryAvailability.reasons : []),
     ...(current.kind === "ambiguous" ? current.reasons : []),
     ...(managed.some((row) => row.lease?.state === "unknown") ? ["lease-unknown" as const] : []),
   ];
@@ -76,6 +75,9 @@ function deriveRecovery(
       activeRecordId: current.activeRecordId,
       parentRecordId: current.parentRecordId,
     };
+  }
+  if (primaryAvailability.kind === "unsafe") {
+    return { kind: "stop", reasons: primaryAvailability.reasons };
   }
   const transientResidue = managed.filter((row) =>
     row.role?.kind !== "work-unit" && (row.lease === null || row.lease.state === "dead"));

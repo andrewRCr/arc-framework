@@ -381,4 +381,34 @@ describe("locus operational derivation", () => {
       primaryLock: "absent",
     }).recovery).toEqual({ kind: "stop", reasons: ["lease-unknown"] });
   });
+
+  it("resumes an exact live entering frame while the separate primary is unavailable", () => {
+    const primary = {
+      ...row({ id: "1", path: "/repo", kind: "free-primary", lease: null }),
+      primary: true,
+      recordId: null,
+      role: null,
+    } satisfies ProvisionalLocusRow;
+    const active = row({ id: "2", path: "/repo.active", lease: "live" });
+    const frames = deriveLocusFrames({ rows: [primary, active], enteringAnchor: ANCHOR });
+
+    const state = deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: frames.rows,
+      current: frames.current,
+      primarySafety: { kind: "complete", clean: false, onBase: false, branch: "feat/unrelated" },
+      primaryLock: "absent",
+    });
+
+    expect(state.primaryAvailability).toEqual({
+      kind: "unsafe",
+      checkoutPath: "/repo",
+      reasons: ["primary-dirty", "primary-off-base"],
+    });
+    expect(state.recovery).toEqual({
+      kind: "resume",
+      activeRecordId: active.recordId,
+      parentRecordId: null,
+    });
+  });
 });
