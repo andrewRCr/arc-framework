@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft-design — draft captured (formalization-ready)
+- **Last Completed:** create-spec — `spec-wu-rename.md` finalized (`detailed`·RFC); draft retired
 - **Next Task:** [none]
 - **Blockers:** [none]
 
