@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Draft design formalization-ready after adversarial and coherence review
+- **Last Completed:** Draft captured after proportionality revision and two adversarial passes at the Heavy cap
 - **Next Task:** [none]
 - **Blockers:** [none]
 
