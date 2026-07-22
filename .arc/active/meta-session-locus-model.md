@@ -12,11 +12,11 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.5.b — Wire the supported-OS CI matrix
-- **Next Task:** Task 8.1 — Complete verification (line ~903)
+- **Last Completed:** Task 7.R.a — Settle the right-sizing deltas in the spec
+- **Next Task:** Task 7.R.b — Ratify verb-scoped leases and align spec, workflow, and narration (line ~929)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 8.1 — load and follow `verify-work-unit.md`
+- **Next Action:** Start Task 7.R.b — align handoff/init dispatch and narration with verb-scoped leases
 
 - **PR URL:** [none]
 - **Completed:** [none]
