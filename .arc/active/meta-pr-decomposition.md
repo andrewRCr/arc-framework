@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** Cohort-fit cut — extracted `chunked-delivery`; draft narrowed to the retrofit half
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Resume `draft-design` — fold the first-run field evidence into an authored chunk-boundary
+  doctrine, then settle the review-unit terminology.
 
 - **PR URL:** [none]
 - **Completed:** [none]
