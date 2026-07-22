@@ -229,4 +229,4 @@ corrects the threshold basis and identity model it left in place. Full design: `
 [adr-019]: adr-019-work-unit-lifecycle-reform.md
 [adr-020]: adr-020-adopt-principle-anchored-scalable-core.md
 [adr-027]: adr-027-refine-errand-model.md
-[cohort]: ../../backlog/planned/agile-parallelism/cohort-agile-parallelism.md
+[cohort]: ../../completed/2026-q3/18a_cohort-agile-parallelism/cohort-agile-parallelism.md
