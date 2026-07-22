@@ -495,8 +495,6 @@ async function teardownBranchProjection(
   const detachedCandidate = matches[0];
 
   if (detachedCandidate !== undefined) {
-    const occupancyRefusal = await revalidateOccupancy(detachedCandidate.path);
-    if (occupancyRefusal !== null) return occupancyRefusal;
     const clean = await isWorktreeClean({ exec, cwd: detachedCandidate.path });
     const decision = decideHuskCleanup({
       marker: { kind: "present", marker: detachedCandidate.marker },
@@ -542,6 +540,8 @@ async function teardownBranchProjection(
         return { status: "rejected", reason: "legacy husk remote state is unavailable" };
       }
     }
+    const occupancyRefusal = await revalidateOccupancy(detachedCandidate.path);
+    if (occupancyRefusal !== null) return occupancyRefusal;
     pendingHuskRemoval = detachedCandidate;
     husk = {
       worktreePath: detachedCandidate.path,
@@ -553,10 +553,6 @@ async function teardownBranchProjection(
   } else if (branch !== null) {
     const registered = branchedRegistration;
     const primary = scan.worktrees.find((worktree) => worktree.primary)?.path;
-    if (registered !== undefined) {
-      const occupancyRefusal = await revalidateOccupancy(registered.path);
-      if (occupancyRefusal !== null) return occupancyRefusal;
-    }
     const selfTeardown = registered !== undefined
       && registered.path !== primary
       && await isSelfTeardown(registered.path, cwd);
@@ -611,15 +607,6 @@ async function teardownBranchProjection(
       if (dryRun.status === "blocked") {
         return { status: "rejected", reason: dryRun.reason, huskRefusal: "user-surfaces" };
       }
-      const reconciliation = await reconcileLinkedIdentityGlobalUserSurfaces({
-        worktreePath: registered.path,
-        primaryWorktreePath: primary,
-        fs,
-        signpost: true,
-      });
-      if (reconciliation.status === "blocked") {
-        return { status: "rejected", reason: reconciliation.reason, huskRefusal: "user-surfaces" };
-      }
       if (authority === null || authorizationRequest === null || directionalAuthorization === null) {
         return { status: "rejected", reason: "retirement authority is unavailable" };
       }
@@ -630,6 +617,19 @@ async function teardownBranchProjection(
           reason: describeTeardownAuthorizationRefusal(revalidation.reason),
           huskRefusal: "authorization-refused",
         };
+      }
+      if (!(selfTeardown && mode === "shipped")) {
+        const occupancyRefusal = await revalidateOccupancy(registered.path);
+        if (occupancyRefusal !== null) return occupancyRefusal;
+      }
+      const reconciliation = await reconcileLinkedIdentityGlobalUserSurfaces({
+        worktreePath: registered.path,
+        primaryWorktreePath: primary,
+        fs,
+        signpost: true,
+      });
+      if (reconciliation.status === "blocked") {
+        return { status: "rejected", reason: reconciliation.reason, huskRefusal: "user-surfaces" };
       }
       let stamped = false;
       try {
@@ -678,10 +678,13 @@ async function teardownBranchProjection(
           };
         }
       }
-      const expectedOccupancy = occupancyGenerations.get(registered.path);
+      if (!(await isWorktreeClean({ exec, cwd: registered.path }))) {
+        return { status: "rejected", reason: `refusing to tear down a dirty worktree: ${registered.path}` };
+      }
       try {
         const occupancyRefusal = await revalidateOccupancy(registered.path);
         if (occupancyRefusal !== null) return occupancyRefusal;
+        const expectedOccupancy = occupancyGenerations.get(registered.path);
         await reconcileWorkUnitWorktree(
           {
             exec,
@@ -730,6 +733,8 @@ async function teardownBranchProjection(
         }
       }
       if (directionalAuthorization !== null) {
+        const occupancyRefusal = await revalidateOccupancy(primary);
+        if (occupancyRefusal !== null) return occupancyRefusal;
         pendingAuthorizedPrimaryRelocation = primary;
       } else {
         const relocate = async (): Promise<void> => {
@@ -832,20 +837,43 @@ async function teardownBranchProjection(
         ) {
           let localMutationReady = true;
           if (pendingAuthorizedPrimaryRelocation !== null) {
-            const relocationFailure = await relocatePrimaryToBase(
-              exec,
-              pendingAuthorizedPrimaryRelocation,
-              base,
-              baseRef,
-            );
-            if (relocationFailure === null) {
+            const relocationPath = pendingAuthorizedPrimaryRelocation;
+            const relocation = async (): Promise<void> => {
+              const relocationFailure = await relocatePrimaryToBase(
+                exec,
+                relocationPath,
+                base,
+                baseRef,
+              );
+              if (relocationFailure !== null) throw new Error(relocationFailure);
+            };
+            const expectedOccupancy = occupancyGenerations.get(relocationPath);
+            try {
+              if (ctx.teardownLocus !== undefined && expectedOccupancy !== undefined && branchedRegistration !== undefined) {
+                await ctx.teardownLocus.retire({
+                  checkoutPath: relocationPath,
+                  expectedHead: branchedRegistration.head,
+                  subject,
+                  expectedOccupancy,
+                  revalidateLocal: async () => {
+                    if (!(await isWorktreeClean({ exec, cwd: relocationPath }))) {
+                      throw new Error(`refusing to relocate a dirty worktree: ${relocationPath}`);
+                    }
+                    await revalidateLocalPredicates(relocationPath);
+                  },
+                  retireProjection: relocation,
+                });
+              } else {
+                await relocation();
+              }
               primaryRelocatedForLocalDelete = true;
               notices.push(`Relocated the primary worktree to \`${base}\` before reaping \`${branchForCleanup}\`.`);
-            } else {
+            } catch (error) {
               localMutationReady = false;
               notices.push(
                 `Could not relocate the primary worktree to \`${base}\` after resolving the remote obligation `
-                  + `(${relocationFailure}); local branch \`${branchForCleanup}\` remains checked out for retry.`,
+                  + `(${error instanceof Error ? error.message : String(error)}); local branch `
+                  + `\`${branchForCleanup}\` remains checked out for retry.`,
               );
             }
           }

@@ -7,9 +7,11 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { deriveLocusRecordId } from "../../../src/lib/locus/path-identity.js";
+import { createPlatformProcessInspector } from "../../../src/lib/locus/platform-inspectors.js";
 import { mintLocusRecord, readLocusRecord } from "../../../src/lib/locus/record-store.js";
 import { locusLockPath, locusRecordPath, type LocusRoot } from "../../../src/lib/locus/root.js";
 import { createNodeTeardownLocusDriver } from "../../../src/lib/work-unit/teardown-locus.js";
+import { createNodeWorkUnitLocusDriver } from "../../../src/lib/work-unit/work-unit-locus.js";
 
 const removals: string[] = [];
 
@@ -23,16 +25,26 @@ async function harness(options: { record?: boolean; head?: string } = {}) {
   removals.push(primary, target);
   const head = options.head ?? "a".repeat(40);
   const calls: string[][] = [];
+  let targetPresent = true;
   const exec: GitExec = async (_command, args) => {
     calls.push([...args]);
     if (args[0] !== "worktree" || args[1] !== "list") throw new Error(`unexpected git call: ${args.join(" ")}`);
     return {
-      stdout:
-        `worktree ${primary}\0HEAD ${"b".repeat(40)}\0branch refs/heads/main\0\0`
-        + `worktree ${target}\0HEAD ${head}\0branch refs/heads/feat/demo\0\0`,
+      stdout: `worktree ${primary}\0HEAD ${"b".repeat(40)}\0branch refs/heads/main\0\0`
+        + (targetPresent ? `worktree ${target}\0HEAD ${head}\0branch refs/heads/feat/demo\0\0` : ""),
     };
   };
   const identity = deriveLocusRecordId(target, process.platform === "win32" ? "windows" : "posix");
+  const inspector = createPlatformProcessInspector();
+  const inspected = await inspector.inspect(process.pid);
+  if (inspected.kind !== "present") throw new Error("current process is unavailable to the test inspector");
+  const mutationAnchor = {
+    kind: "process" as const,
+    pid: inspected.pid,
+    startToken: inspected.startToken,
+    inspector: inspector.kind,
+    selector: "vitest",
+  };
   const root: LocusRoot = {
     primaryPath: primary,
     userRoot: join(primary, ".arc", "user", "andrew"),
@@ -70,6 +82,8 @@ async function harness(options: { record?: boolean; head?: string } = {}) {
     recordPath,
     lockPath: locusLockPath(root, identity.digest),
     driver: createNodeTeardownLocusDriver({ exec, identity: "andrew" }),
+    attachDriver: createNodeWorkUnitLocusDriver({ exec, identity: "andrew", mutationAnchor }),
+    removeFromRoster: () => { targetPresent = false; },
     expectedOccupancy: {
       kind: "clear" as const,
       recordId: options.record === false ? null : identity.recordId,
@@ -172,6 +186,55 @@ describe("teardown target-lock transaction", () => {
     })).rejects.toThrow(/role generation changed before pop/iu);
     await expect(readFile(h.lockPath)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(h.recordPath)).resolves.toBeInstanceOf(Buffer);
+  });
+
+  it("lets an attached live lease linearize first and veto retirement", async () => {
+    const h = await harness({ record: false });
+    await h.attachDriver.reconcile({
+      checkoutPath: h.target,
+      branch: "feat/demo",
+      wuName: "demo",
+      attachSession: true,
+    });
+    let removed = false;
+    await expect(h.driver.retire({
+      checkoutPath: h.target,
+      expectedHead: h.head,
+      subject: { kind: "work-unit", name: "demo" },
+      expectedOccupancy: h.expectedOccupancy,
+      revalidateLocal: async () => {},
+      retireProjection: async () => { removed = true; },
+    })).rejects.toThrow(/role or lease generation changed|lease is live/iu);
+    expect(removed).toBe(false);
+  });
+
+  it("lets removal linearize first and makes a waiting attach fail the fresh roster check", async () => {
+    const h = await harness();
+    let enteredRevalidation!: () => void;
+    const revalidationEntered = new Promise<void>((resolve) => { enteredRevalidation = resolve; });
+    let allowRemoval!: () => void;
+    const removalAllowed = new Promise<void>((resolve) => { allowRemoval = resolve; });
+    const teardown = h.driver.retire({
+      checkoutPath: h.target,
+      expectedHead: h.head,
+      subject: { kind: "work-unit", name: "demo" },
+      expectedOccupancy: h.expectedOccupancy,
+      revalidateLocal: async () => {
+        enteredRevalidation();
+        await removalAllowed;
+      },
+      retireProjection: async () => { h.removeFromRoster(); },
+    });
+    await revalidationEntered;
+    const attach = h.attachDriver.reconcile({
+      checkoutPath: h.target,
+      branch: "feat/demo",
+      wuName: "demo",
+      attachSession: true,
+    });
+    allowRemoval();
+    await expect(teardown).resolves.toEqual({ roleRemoved: true });
+    await expect(attach).rejects.toThrow(/roster generation changed under lock/iu);
   });
 });
 

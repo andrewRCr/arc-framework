@@ -595,4 +595,28 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       ["git", "worktree", "remove", worktreePath],
     ]);
   });
+
+  it("keeps self-teardown relocation outside the target before locked removal", async () => {
+    const worktreePath = "/work/wt/demo";
+    const primary = "/work/primary";
+    const { ctx, events } = buildCtx({ status: "", worktreeList: porcelain(primary, worktreePath) });
+    ctx.teardownLocus = {
+      retire: async (options) => {
+        expect(events).toContainEqual(["chdir", primary]);
+        await options.revalidateLocal();
+        await options.retireProjection();
+        return { roleRemoved: false };
+      },
+    };
+
+    await expect(reconcileWorkUnitWorktree(ctx, {
+      mutation: "teardown",
+      worktreePath,
+      currentLocus: join(worktreePath, "packages/arc-framework"),
+      subject: { kind: "work-unit", name: "demo" },
+      expectedHead: "2".repeat(40),
+      expectedOccupancy: clearOccupancy,
+    })).resolves.toEqual({ mutation: "teardown", worktreePath, locusHopped: true });
+    expect(events).toContainEqual(["git", "worktree", "remove", worktreePath]);
+  });
 });

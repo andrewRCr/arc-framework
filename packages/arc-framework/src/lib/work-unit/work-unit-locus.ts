@@ -19,6 +19,7 @@ import {
   replaceLocusRecord,
 } from "../locus/record-store.js";
 import { locusLockPath, locusRecordPath, resolveLocusRoot } from "../locus/root.js";
+import type { LocusProcessAnchor } from "../locus/schema/index.js";
 
 export interface ReconcileWorkUnitLocusOptions {
   readonly checkoutPath: string;
@@ -54,6 +55,8 @@ export interface WorkUnitLocusDriver {
 export function createNodeWorkUnitLocusDriver(options: {
   readonly exec: GitExec;
   readonly identity: string;
+  /** Exact command/session anchor override for deterministic runtime tests. */
+  readonly mutationAnchor?: LocusProcessAnchor;
 }): WorkUnitLocusDriver {
   return {
     reconcile: (request) => reconcileNodeWorkUnitLocus(options, request),
@@ -62,7 +65,7 @@ export function createNodeWorkUnitLocusDriver(options: {
 }
 
 async function retireNodeWorkUnitLocus(
-  runtime: { readonly exec: GitExec; readonly identity: string },
+  runtime: { readonly exec: GitExec; readonly identity: string; readonly mutationAnchor?: LocusProcessAnchor },
   options: RetireWorkUnitLocusOptions,
 ): Promise<RetireWorkUnitLocusReceipt> {
   const checkoutPath = resolve(options.checkoutPath);
@@ -71,7 +74,7 @@ async function retireNodeWorkUnitLocus(
   const matches = topology.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
   if (matches.length !== 1) throw new Error("cannot retire work-unit locus: target is not an exact live roster entry");
   const inspector = createPlatformProcessInspector();
-  const anchor = await selectMutationAnchor(false, inspector);
+  const anchor = runtime.mutationAnchor ?? await selectMutationAnchor(false, inspector);
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
   if (!root.ok) throw new Error(`cannot retire work-unit locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
@@ -137,7 +140,7 @@ async function retireNodeWorkUnitLocus(
 }
 
 async function reconcileNodeWorkUnitLocus(
-  runtime: { readonly exec: GitExec; readonly identity: string },
+  runtime: { readonly exec: GitExec; readonly identity: string; readonly mutationAnchor?: LocusProcessAnchor },
   options: ReconcileWorkUnitLocusOptions,
 ): Promise<WorkUnitLocusReceipt> {
   const checkoutPath = resolve(options.checkoutPath);
@@ -150,7 +153,7 @@ async function reconcileNodeWorkUnitLocus(
   }
 
   const inspector = createPlatformProcessInspector();
-  const anchor = await selectMutationAnchor(options.attachSession, inspector);
+  const anchor = runtime.mutationAnchor ?? await selectMutationAnchor(options.attachSession, inspector);
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
   if (!root.ok) throw new Error(`cannot establish work-unit locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
@@ -166,6 +169,13 @@ async function reconcileNodeWorkUnitLocus(
   }
 
   const applyUnderLock = async (): Promise<WorkUnitLocusReceipt> => {
+    const freshTopology = await scanRegisteredWorktrees(runtime.exec);
+    if (!freshTopology.ok) throw new Error(`cannot establish work-unit locus: ${freshTopology.message}`);
+    const freshMatches = freshTopology.worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
+    const freshTarget = freshMatches.length === 1 ? freshMatches[0] : undefined;
+    if (freshTarget === undefined || freshTarget.detached || freshTarget.branch !== options.branch) {
+      throw new Error("cannot establish work-unit locus: target roster generation changed under lock");
+    }
     const io = {
       read: () => readLocusRecord({
         path: recordPath,

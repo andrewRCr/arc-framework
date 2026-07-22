@@ -709,7 +709,7 @@ as their machine-local occupancy authority.
 - _Outcome:_ Handoff now starts from one exact current-frame action and converges through subject leave plus
   generation-checked WU release to a record-free or idle-role boundary without clearing another session's lease.
 
-### `[ ]` **6.5 Linearize lease-aware teardown with existing retirement guards** — D3, D10
+### `[x]` **6.5 Linearize lease-aware teardown with existing retirement guards** — D3, D10
 
 - _Goal:_ Cleanup cannot remove a checkout while a session attaches, and a dead lease never replaces any existing
   provenance, cleanliness, terminal-head, remote, or user-surface predicate.
@@ -725,10 +725,13 @@ as their machine-local occupancy authority.
           local subject authority under lock, then encloses removal or base restoration plus compare-pop without
           remote work; failures preserve the record and always release the lock.
 
-    - `[ ]` **6.5.c Prove attach-versus-delete linearization**
-        - Add deterministic race tests where attach wins and vetoes removal, removal wins and makes attach fail on
-          missing roster state, or a generation changes during advisory-to-final revalidation.
-        - Cover WU teardown, branch teardown, spawned transient cleanup, self-teardown relocation, and husk replay.
+    - `[x]` **6.5.c Prove attach-versus-delete linearization**
+        - Added deterministic lock-order tests where an attached live generation vetoes retirement and a pre-lock
+          attach snapshot loses to removal, then fails its new under-lock roster reread. Coverage follows locked
+          cleanup through WU, cheap-branch/transient, self-relocation, and detached-husk replay paths.
+
+- _Outcome:_ Teardown occupancy is now a veto layered over every existing retirement predicate, with attach and
+  removal serialized at the target record lock and no path for a dead lease to authorize deletion by itself.
 
 ### `[ ]` **6.6 Project locus reconciliation and cleanup guidance into session surfaces** — D6, D10, D11
 
