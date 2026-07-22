@@ -5,6 +5,24 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Reconcile ownership after repository Markdown enforcement ships**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
+  `markdown-formatting` task generation.
+- *Concern:* `markdown-formatting` now owns Markdown-table CI plus the exact-index, check-only pre-commit runner.
+  Older table, emphasis, emoji, and commit-time auto-fix scope here would duplicate or contradict that substrate.
+- *Fold-in:* remove superseded Markdown-specific ownership while retaining generalized gate dispatch, pre-push and
+  tier orchestration, and future index-safe auto-fix/restage machinery. Consume the shipped exact-index runner.
+
+### `[ ]` **Fail closed when a worktree's hooks path is unprovisioned**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured after a hand-created worktree
+  silently bypassed every hook because its gitignored `.husky/_` directory was absent.
+- *Concern:* `core.hooksPath` can point at a nonexistent generated directory, and Git then commits without any
+  warning or quality gate. The hazard grows with parallel worktree use.
+- *Approach:* evaluate provisioning hooks during worktree creation and a fail-closed detection path that also
+  catches manually created worktrees; pin the selected composition with tests.
+
 ### `[ ]` **Distinguish raw Git rename/copy statuses from planning references**
 
 - *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-20); captured during

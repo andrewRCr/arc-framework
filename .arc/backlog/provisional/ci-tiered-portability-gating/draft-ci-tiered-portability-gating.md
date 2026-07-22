@@ -2,15 +2,26 @@
 
 - **Origin:** [internal] — `USER-INBOX § Work Unit`, housekeep drain (2026-07-01); captured during
   `ci-content-aware-depth` generate-tasks, weighing further CI-efficiency levers.
-- **Purpose:** Add a finer second CI tier — skip the 3-OS `Portability` matrix for changes that provably can't
-  touch the concurrency primitives — extending "cost follows content" one level past the single code-vs-docs
-  gate.
+- **Purpose:** Restore relevance-gated pre-merge cross-platform signal by reusing a successful portability result
+  only for an identical portability-relevant tree. Scheduled and explicit full-suite coverage remains unconditional;
+  cost containment is already solved by schedule-only execution.
 
 ---
 
 ## Inbound Buffer — Pending Integration
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Reuse successful portability checks for an unchanged verified tree**
+
+- _Routed from:_ retained `USER-INBOX § Errand`, housekeep drain (2026-07-21); urgency re-triaged after the
+  schedule-only fix shipped in PR #315.
+- _Concern:_ pull requests no longer run the Windows/macOS pair, so the cost bleed is resolved. The surviving value
+  is capability: recover pre-merge cross-platform evidence for relevant changes without rerunning an unchanged
+  portability tree on every synchronization.
+- _Approach:_ derive a deterministic identity for the exact portability-relevant tree and reuse only a prior
+  successful result with the same identity. Never key only on the newest commit's paths; retain unconditional
+  scheduled and explicit full-suite runs, and fail safe when lookup or evidence is incomplete.
 
 ### `[ ]` **Audit CI job topology for setup and whole-minute rounding waste**
 
@@ -30,6 +41,9 @@
 ---
 
 ## Problem / Motivation
+
+The original cost-containment urgency is resolved: PR events no longer run the portability pair. This WU is now a
+low-priority capability proposal for restoring trustworthy, relevance-gated pre-merge cross-platform signal.
 
 `ci-content-aware-depth` gates the heavy suite on a single binary code-vs-docs path set. The 3-OS `Portability`
 matrix, however, only validates the concurrency guards (exclusive-create `wx`/`O_EXCL`, advisory-lock `mkdir` +
