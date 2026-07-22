@@ -290,87 +290,41 @@ _Design decisions:_ The either-slug subject resolver and the different-unit scop
 matched pair: an unscoped guard would fire on the subject's own post-commit meta and make the resume the resolver
 exists to enable unreachable.
 
-### `[ ]` **6.1 Either-slug subject resolution**
+### `[x]` **6.1 Either-slug subject resolution**
 
 - _Goal:_ The verb finds its subject under whichever slug currently exists, which is what lets a re-run after the
   commit has landed reach the outstanding identity legs at all.
-- _Rationale:_ Once the commit lands, the old meta is gone and the new one is present. A resolver keyed to the old
-  slug alone would refuse every re-run and strand the identity legs in exactly the mixed-name state the design
-  calls worse than either pole.
-- _Note:_ First because the guards depend on it — the execution-locus guard cannot name the subject's branch until
-  the subject resolves, which is why the verb's own order resolves before it guards.
+- _Outcome:_ The resolver accepts exactly one side of the identity pair and carries an explicit resume bit when
+  the new slug owns the subject, while neither/both states fail before any mutation.
 
-    - Resolve from the old or the new slug, whichever exists; refuse only when neither or both do.
-    - Resolving to the new slug also tells the remaining legs they are resuming, so each runs its own post-state
-      check and skips what has landed.
-    - Build `test-first` (one behavior at a time):
-        - Only the old slug present resolves to the subject.
-        - Only the new slug present resolves to the same subject and marks the run as resuming.
-        - Neither present refuses.
-        - Both present refuses.
-
-### `[ ]` **6.2 Preflight guard set**
+### `[x]` **6.2 Preflight guard set**
 
 - _Goal:_ Every refusal happens before any mutation, so a refused rename leaves the repository exactly as it
   found it.
-- _Note:_ Occupancy needs no guard of its own. Its dirty half is the clean-tree check below, and no shipped
-  primitive reads session liveness — the existing worktree-occupancy guard answers a different question, and the
-  sweeps are age-based. Liveness arrives with the lease model; inventing one here would mean authoring a design
-  this unit has no reason to own.
+    - `[x]` **6.2.a Execution locus**
+        - Canonical path containment accepts the holding checkout and refuses every other locus with its live
+          worktree path in the diagnostic.
 
-    - `[ ]` **6.2.a Execution locus**
-        - For a spawned or in-place subject the verb runs from the checkout holding the subject's branch — not a
-          preference but a constraint, since source capture throws when the process branch differs and git forbids
-          a second checkout of the same branch. A run from elsewhere refuses with a diagnostic naming the holding
-          worktree.
-        - Build `test-first` (one behavior at a time):
-            - A run from the holding checkout proceeds past the guard.
-            - A run from another checkout refuses and names the holding worktree.
+    - `[x]` **6.2.b Target-slug validity**
+        - The shipped schema narrows both identities before resolution, and equal old/new slugs refuse as a
+          no-op request rather than reaching same-path mutation.
 
-    - `[ ]` **6.2.b Target-slug validity**
-        - Validate the new slug with the shipped schema before anything else. The collision guard does not
-          incidentally cover shape — a traversal-shaped string simply resolves to nonexistent.
-        - Refuse a target slug equal to the current one. It is well-formed, resolves to exactly one subject, and
-          is not a collision, so every other guard passes it through — and it then fails mid-mutation, where a
-          same-path move errors and source and result paths coincide in the patch.
-        - Build `test-first` (one behavior at a time):
-            - A malformed target slug refuses before any resolution work runs.
-            - A target slug equal to the current slug refuses, with nothing applied.
+    - `[x]` **6.2.c Subject kind, tier, and clean tree**
+        - Work-unit type, non-completed location, and a clean checkout are explicit preconditions shared by all
+          subject shapes.
 
-    - `[ ]` **6.2.c Subject kind, tier, and clean tree**
-        - Work units only, never an archived subject, and never a dirty checkout — the last required twice over,
-          since the receipt binds the exact staged patch and the authority snapshot refuses when anything is
-          already staged.
-        - Build `test-first` (one behavior at a time):
-            - An errand or branch subject refuses.
-            - An archived subject refuses.
-            - A dirty checkout refuses, including the primary checkout for a stub subject.
+    - `[x]` **6.2.d No open PR**
+        - A populated tracked `PR URL` refuses before mutation; empty and `[none]` sentinels remain admissible.
 
-    - `[ ]` **6.2.d No open PR**
-        - Refuse when the meta's PR field is populated — keying on tracked state keeps the guard host-agnostic. A
-          trip refuses the entire rename; the design never produces a partial rename beside a live PR.
-        - Build `test-first` (one behavior at a time):
-            - A meta carrying a PR URL refuses the whole rename, with no leg applied.
+- _Outcome:_ The preflight surface now centralizes every mutation-free refusal and deliberately leaves occupancy
+  at the clean-tree boundary, without inventing a second liveness model.
 
-### `[ ]` **6.3 Live name-collision guard**
+### `[x]` **6.3 Live name-collision guard**
 
 - _Goal:_ A rename onto a slug held by a different in-flight work unit is refused, while a re-run whose new slug
   resolves to the subject itself is not.
-- _Rationale:_ A rename mints a branch and an active meta exactly as the start verb's branch-minting arms do, and
-  every sibling in-flight work unit's meta lives only on its own branch — invisible to a tree-only index.
-
-    - Resolve against the composed lifecycle index with the in-flight oracle — configured to read live membership
-      rather than local-only, and to expand live-only branches absent from local remote-tracking refs — not the
-      checkout-local index that backs the bare collision floor.
-    - Refuse outright when live truth is indeterminate, through the shipped indeterminacy predicate rather than a
-      hand-rolled reading of marks and warnings. The start verb reads the same predicate but downgrades to a
-      confirmation prompt when a terminal is attached, hard-refusing only when confirmation is suppressed; this
-      verb takes no confirmation flag, so its refusal is unconditional — do not model the prompt.
-    - Build `test-first` (one behavior at a time):
-        - A target slug held by a live sibling visible only through the oracle refuses.
-        - A target slug that resolves to the subject itself does not refuse.
-        - Indeterminate live truth refuses rather than proceeding.
-        - A target slug held by no unit passes.
+- _Outcome:_ Collision decisions consume live-composed lifecycle truth and its shipped indeterminacy predicate,
+  allowing only an unused target or the resumed subject's own new identity.
 
 ### `[ ]` **6.4 Short-lived branch for stub subjects**
 
