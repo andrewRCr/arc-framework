@@ -29,28 +29,12 @@ compilation breaks are where "rename is not teardown authority" physically lives
 - _Outcome:_ Rename receipts now carry the target slug and renamed artifact digest, and the fixed matrix admits
   only `rename` + `identity-renamed` + `nonexistent` + the rename result kind while rejecting crossed pairings.
 
-### `[ ]` **1.3 Receipt codec `rename` arm**
+### `[x]` **1.3 Receipt codec `rename` arm**
 
 - _Goal:_ An untrusted rename receipt decodes only when it is exactly well-formed — closed key set, canonical
   round-trip, and a slug-shaped `targetSlug` — and every malformation decodes to `null` rather than a partial value.
-- _Rationale:_ `targetSlug` reaches `git mv` destinations, a branch name, a worktree path, and a directory name,
-  so it narrows at the parse boundary like the codec's peer fields, not downstream.
-
-    - Widen the transition and authorization accept-sets in `parseRetirementReceipt`; the receipt-id
-      re-derivation and matrix cross-checks at the end of the parse already cover the new transition.
-    - Parse the rename result under the same closed `hasExactKeys` discipline as `discard` and `relocate`,
-      narrowing `targetSlug` with the shipped `SlugSchema` and `artifactDigest` with `isCanonicalDigest`.
-    - Build `test-first` (one behavior at a time):
-        - A canonical rename receipt decodes to a fully narrowed value.
-        - A rename result carrying an extra or missing key decodes to `null`.
-        - A traversal-shaped or otherwise malformed `targetSlug` decodes to `null`.
-        - A rename receipt whose `retiringProjection` is `unchanged` decodes to `null`.
-        - A decoded rename receipt's derived `expectedLifecycle` resolves `nonexistent` and its derived
-          `expectedProjection` resolves `direct-transition`, with neither derivation changed. Both are internal
-          to the decode, so the behavior is only reachable once this task widens the accept-set.
-        - A receipt claiming `rename` with a shipped authorization decodes to `null`.
-        - Content that is valid JSON but not its own canonical serialization decodes to `null`.
-        - A receipt whose `receiptId` does not re-derive from its own fields decodes to `null`.
+- _Outcome:_ The closed-schema codec accepts only canonical rename receipts with a `SlugSchema`-validated target,
+  exact result keys, the designed projection and authorization, canonical digests, and a re-derived receipt ID.
 
 ## **Phase 2:** Receipt production through the authority port
 
