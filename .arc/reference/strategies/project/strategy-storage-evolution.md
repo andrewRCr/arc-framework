@@ -52,12 +52,12 @@ The tiers are **not three designs**. They are the same **git-backing-store** sub
 the canonical store is a git repo (just not the project's *code* repo), materialized into a gitignored `.arc/` so
 agents and humans see ordinary local files (the chezmoi/dotfile-manager shape).
 
-| Tier | Canonical store | Scale / fit | State |
-| --- | --- | --- | --- |
-| **In-repo** | the code repo (tracked `.arc/`) | solo / small team, no constraints | Current |
-| **Local** | a separate **private git repo** (`~/.arc-state/`) | single-user multi-machine; privacy | Planned |
-| **Shared** | that repo, on a **shared private remote** (git-only) | small team, multi-writer | Planned (north star) |
-| **Coordinated** | a **service fronting the same store** | high-parallelism / org authz | Provisional — deferred |
+| Tier            | Canonical store                                      | Scale / fit                        | State                  |
+| --------------- | ---------------------------------------------------- | ---------------------------------- | ---------------------- |
+| **In-repo**     | the code repo (tracked `.arc/`)                      | solo / small team, no constraints  | Current                |
+| **Local**       | a separate **private git repo** (`~/.arc-state/`)    | single-user multi-machine; privacy | Planned                |
+| **Shared**      | that repo, on a **shared private remote** (git-only) | small team, multi-writer           | Planned (north star)   |
+| **Coordinated** | a **service fronting the same store**                | high-parallelism / org authz       | Provisional — deferred |
 
 **Local *is* tier-2 of the materialized substrate; the Shared tier is that store on a shared remote with
 multi-writer discipline (version-checked writes, entry-granular records, optimistic push-retry); team is the
@@ -71,11 +71,11 @@ demand or contributor capacity exists. Tiers 1–3 require nothing hosted beyond
 
 ### The line: tracked vs. materialized
 
-| Class | Members | Tier | Configurable? |
-| --- | --- | --- | --- |
-| **Machinery** | `system/**` (workflows, rules, methods, templates) | tracked | No — versions with checkout (behavior pins to code) |
-| **Operational state** | `meta-*`, `tasks-*`, inboxes, `STATUS`/`ROADMAP`, notes, `WORKING-MEMORY`, `SESSION-NOTES` | materialized | No — pure churn, no review value |
-| **Authored design** | `draft-*`, `spec-*` | materialized (default) | **Yes — one knob** |
+| Class                 | Members                                                                                    | Tier                   | Configurable?                                       |
+| --------------------- | ------------------------------------------------------------------------------------------ | ---------------------- | --------------------------------------------------- |
+| **Machinery**         | `system/**` (workflows, rules, methods, templates)                                         | tracked                | No — versions with checkout (behavior pins to code) |
+| **Operational state** | `meta-*`, `tasks-*`, inboxes, `STATUS`/`ROADMAP`, notes, `WORKING-MEMORY`, `SESSION-NOTES` | materialized           | No — pure churn, no review value                    |
+| **Authored design**   | `draft-*`, `spec-*`                                                                        | materialized (default) | **Yes — one knob**                                  |
 
 The boundary is **PM state-and-design (materialized) vs. PM machinery (tracked)**, drawn at the directory level so a
 single artifact group doesn't split arbitrarily. The two non-storage payoffs of materializing state: **(c)** privacy

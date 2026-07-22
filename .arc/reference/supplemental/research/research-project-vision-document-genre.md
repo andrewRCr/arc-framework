@@ -308,17 +308,17 @@ Governance implicit in kernel development process docs.
 
 ## 2. Comparative Strengths and Gaps
 
-| **Dimension** | **PMI Charter** | **Agile Vision** | **Principles Doc** | **Manifesto** |
-| --- | --- | --- | --- | --- |
-| Minimal viable form | ✓ (problem statement) | ✓ (1-3 sentences) | ✗ | ✗ |
-| Scales to elaborate | ✓ | ✓ | ✓ | ✗ (fixed set) |
-| Handles "don't know yet" | ✓ (charter the discovery) | ✓ (incomplete OK) | ✗ | ✗ |
-| Wired to ceremony | ~ (gate control) | ✓ (active ref.) | ✓ (hiring/decisions) | ~ (cultural) |
-| Scope boundaries | ✓ (in/out) | ~ (implicit) | ✗ | ✗ |
-| Decision guidance | ~ (what, not why) | ✓ (why) | ✓ (why) | ✓ (why) |
-| Explicit update discipline | ✗ | ✗ | ~ (Amazon: yes, informal) | ✗ |
-| Principles identifier (named vs. #) | N/A | N/A | **Both** (Amazon, Google) | **#** (Agile, Zen) |
-| Suitable for project-scope PRD | ✓ | ✗ (product-level) | ✗ (standalone) | ✗ |
+| **Dimension**                       | **PMI Charter**           | **Agile Vision**  | **Principles Doc**        | **Manifesto**      |
+| ----------------------------------- | ------------------------- | ----------------- | ------------------------- | ------------------ |
+| Minimal viable form                 | ✓ (problem statement)     | ✓ (1-3 sentences) | ✗                         | ✗                  |
+| Scales to elaborate                 | ✓                         | ✓                 | ✓                         | ✗ (fixed set)      |
+| Handles "don't know yet"            | ✓ (charter the discovery) | ✓ (incomplete OK) | ✗                         | ✗                  |
+| Wired to ceremony                   | ~ (gate control)          | ✓ (active ref.)   | ✓ (hiring/decisions)      | ~ (cultural)       |
+| Scope boundaries                    | ✓ (in/out)                | ~ (implicit)      | ✗                         | ✗                  |
+| Decision guidance                   | ~ (what, not why)         | ✓ (why)           | ✓ (why)                   | ✓ (why)            |
+| Explicit update discipline          | ✗                         | ✗                 | ~ (Amazon: yes, informal) | ✗                  |
+| Principles identifier (named vs. #) | N/A                       | N/A               | **Both** (Amazon, Google) | **#** (Agile, Zen) |
+| Suitable for project-scope PRD      | ✓                         | ✗ (product-level) | ✗ (standalone)            | ✗                  |
 
 ---
 

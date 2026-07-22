@@ -34,14 +34,14 @@ drift across.
 
 ## 1. Storage topologies observed in the wild
 
-| Camp | Exemplars | Canonical store | Notes |
-| --- | --- | --- | --- |
-| In-repo tracked markdown | spec-kit (~121k★), OpenSpec core (~61k★), Kiro specs, backlog.md, TASKS.md | code repo working tree | Dominant by adoption volume; team story = branches + PR + decomposition |
-| Separate planning git repo | **OpenSpec Stores (beta)**, Kiro central-spec-repo pattern, "private knowledge repo" pattern | standalone git repo | "A store is just a git repo. You commit, push, pull... yourself" — closest analog to ARC's substrate |
-| Git refs outside worktree | **grite** (`refs/grite/wal`), beads sync (`refs/dolt/data`), Agent Note / git-ai (`refs/notes` provenance) | same repo's ref layer | Solves history noise, not privacy — same limit ARC identified for notes |
-| DB-canonical | beads current (Dolt), Task Master team mode (Hamster cloud), Augment Cosmos | database / hosted service | Team tiers of file-based tools tend to jump here |
-| CRDT operation stream | Zed **DeltaDB** (announced 2026-06-11, waitlist) | op log, git as complement | "Before and between commits" collaboration layer |
-| Shared filesystem | Archil (S3-as-POSIX, delegation locks), Turso AgentFS (SQLite-FS) | cloud FS / DB-file | Emerging "file systems for agents" category (Amplify, 2026-07) |
+| Camp                       | Exemplars                                                                                                  | Canonical store           | Notes                                                                                                |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| In-repo tracked markdown   | spec-kit (~121k★), OpenSpec core (~61k★), Kiro specs, backlog.md, TASKS.md                                 | code repo working tree    | Dominant by adoption volume; team story = branches + PR + decomposition                              |
+| Separate planning git repo | **OpenSpec Stores (beta)**, Kiro central-spec-repo pattern, "private knowledge repo" pattern               | standalone git repo       | "A store is just a git repo. You commit, push, pull... yourself" — closest analog to ARC's substrate |
+| Git refs outside worktree  | **grite** (`refs/grite/wal`), beads sync (`refs/dolt/data`), Agent Note / git-ai (`refs/notes` provenance) | same repo's ref layer     | Solves history noise, not privacy — same limit ARC identified for notes                              |
+| DB-canonical               | beads current (Dolt), Task Master team mode (Hamster cloud), Augment Cosmos                                | database / hosted service | Team tiers of file-based tools tend to jump here                                                     |
+| CRDT operation stream      | Zed **DeltaDB** (announced 2026-06-11, waitlist)                                                           | op log, git as complement | "Before and between commits" collaboration layer                                                     |
+| Shared filesystem          | Archil (S3-as-POSIX, delegation locks), Turso AgentFS (SQLite-FS)                                          | cloud FS / DB-file        | Emerging "file systems for agents" category (Amplify, 2026-07)                                       |
 
 Key per-tool findings:
 

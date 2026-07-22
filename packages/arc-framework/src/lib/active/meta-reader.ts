@@ -371,12 +371,16 @@ export function formatValue(value: string, valueClass: MetaValueClass): string {
  * line up in raw markdown. (`MD013 tables:false` exempts the table from the
  * line-length gate.)
  */
-function renderCoreTable(valueOf: (field: MetaFieldDescriptor) => string): string[] {
+function renderCoreTable(
+  valueOf: (field: MetaFieldDescriptor) => string,
+  valuesAreRendered = false,
+): string[] {
   const columns = META_FIELDS.filter((f) => f.render === "core-table").map((f) => {
     // Bold the header so the table's keys read as labels in raw markdown,
     // matching the `**Field:**` bullet labels (parse strips the bold on read).
     const header = `**${f.name}**`;
-    const cell = formatValue(valueOf(f), f.valueClass);
+    const value = valueOf(f);
+    const cell = valuesAreRendered ? value : formatValue(value, f.valueClass);
     return { header, cell, width: Math.max(displayWidth(header), displayWidth(cell)) };
   });
   const headerRow = `| ${columns.map((c) => padToDisplayWidth(c.header, c.width)).join(" | ")} |`;
@@ -762,7 +766,15 @@ function setMetaCoreFields(content: string, overrides: MetaFieldOverrides): stri
 
 /** Normalize the managed three-row core table without changing any field value or surrounding byte. */
 export function normalizeMetaCoreTable(content: string): string {
-  return setMetaCoreFields(content, {});
+  const located = locateMetaCoreTable(content);
+  const rendered = renderCoreTable(
+    (field) => located.renderedValues.get(field.name) ?? formatValue(field.default, field.valueClass),
+    true,
+  );
+  const replacement = rendered
+    .map((line, index) => `${line}${located.lineEndings[index] ?? ""}`)
+    .join("");
+  return `${content.slice(0, located.startOffset)}${replacement}${content.slice(located.endOffset)}`;
 }
 
 /**
@@ -851,6 +863,7 @@ export interface MetaCoreTableLocation {
   readonly endOffset: number;
   readonly lineEndings: readonly [string, string, string];
   readonly values: ReadonlyMap<string, string>;
+  readonly renderedValues: ReadonlyMap<string, string>;
 }
 
 function sourceLines(content: string): MetaSourceLine[] {
@@ -926,18 +939,22 @@ export function locateMetaCoreTable(content: string): MetaCoreTableLocation {
   }
 
   const values = new Map<string, string>();
+  const renderedValues = new Map<string, string>();
   headers.forEach((headerName, index) => {
-    const normalized = normalizeValue(cells[index] ?? "");
+    const rendered = cells[index] ?? "";
+    const normalized = normalizeValue(rendered);
     if (normalized === null) {
       throw new Error(`Malformed meta core-block table: \`${headerName}\` has no value.`);
     }
     values.set(headerName, normalized);
+    renderedValues.set(headerName, rendered);
   });
   return {
     startOffset: header.startOffset,
     endOffset: value.endOffset,
     lineEndings: [header.lineEnding, separator.lineEnding, value.lineEnding],
     values,
+    renderedValues,
   };
 }
 

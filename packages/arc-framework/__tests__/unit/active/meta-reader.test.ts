@@ -1377,6 +1377,23 @@ describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
 });
 
 describe("normalizeMetaCoreTable — exact-span normalization", () => {
+  it("preserves authored inline-code markers around bracket sentinels", () => {
+    const before = [
+      "# Metadata: sentinel",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "|---|---|---|---|---|",
+      "| `Planning` | `andrew` | [none] | `[TBD]` | `P2` |",
+      "",
+      "- **Cohort:** [none]",
+    ].join("\n");
+
+    const after = normalizeMetaCoreTable(before);
+
+    expect(after).toMatch(/\|\s+`\[TBD\]`\s+\|/u);
+    expect(parseMetaRecord(after)).toEqual(parseMetaRecord(before));
+  });
+
   it("re-renders only the managed table rows while preserving fields and CRLF framing", () => {
     const prefix = "# Metadata: 表示\r\n\r\n";
     const table = [

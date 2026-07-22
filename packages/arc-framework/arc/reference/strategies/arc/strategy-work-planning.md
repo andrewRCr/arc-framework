@@ -217,12 +217,12 @@ it from the work's derivation depth (see [Planning Depth](#planning-depth)).
 
 **The four forms** — one template each, separate rather than one template flexing by conditionals:
 
-| Form | Records | Template |
-| --- | --- | --- |
-| `brief` | ~1 paragraph: intent + scope boundary + one falsifiable success signal | `template-spec-brief.md` |
-| `outline` | ~1-2 pages: Problem, Decision(s), No-gos, Consequences, Success Criteria, Open items | `template-spec-outline.md` |
-| `detailed` (PRD) | full product spec: User Stories + prioritized Requirements | `template-spec-detailed-prd.md` |
-| `detailed` (RFC) | full technical spec: Proposed Design + Alternatives + Cross-cutting | `template-spec-detailed-rfc.md` |
+| Form             | Records                                                                              | Template                        |
+| ---------------- | ------------------------------------------------------------------------------------ | ------------------------------- |
+| `brief`          | ~1 paragraph: intent + scope boundary + one falsifiable success signal               | `template-spec-brief.md`        |
+| `outline`        | ~1-2 pages: Problem, Decision(s), No-gos, Consequences, Success Criteria, Open items | `template-spec-outline.md`      |
+| `detailed` (PRD) | full product spec: User Stories + prioritized Requirements                           | `template-spec-detailed-prd.md` |
+| `detailed` (RFC) | full technical spec: Proposed Design + Alternatives + Cross-cutting                  | `template-spec-detailed-rfc.md` |
 
 The `detailed` form carries its subtype in the H1, middot-joined and backticked, e.g.
 Spec (`detailed` · `RFC`): Payment Retry. The kebab slug stays in the filename and every cross-reference;

@@ -128,10 +128,10 @@ non-handed-off session doesn't orphan the sentinel.
 
 **Delivery vs enforcement — the harness asymmetry (this is the subtle part):**
 
-| Harness | Instruction delivery | Consequence for the gate |
-| --- | --- | --- |
-| **Claude** | `SessionStart` additionalContext — **before any tool call** | A PreToolUse gate is **pure enforcement**, zero delivery conflict — the agent already has the instructions in hand. |
-| **Codex** | `PostToolUse` relay — mid-turn, **after** a tool runs | A pre-tool block on the *first* call **preempts** the relay → the agent is bounced *without ever being told what to do*. The block message must then be **self-sufficient**. |
+| Harness    | Instruction delivery                                        | Consequence for the gate                                                                                                                                                     |
+| ---------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Claude** | `SessionStart` additionalContext — **before any tool call** | A PreToolUse gate is **pure enforcement**, zero delivery conflict — the agent already has the instructions in hand.                                                          |
+| **Codex**  | `PostToolUse` relay — mid-turn, **after** a tool runs       | A pre-tool block on the *first* call **preempts** the relay → the agent is bounced *without ever being told what to do*. The block message must then be **self-sufficient**. |
 
 ### 2. Hook provenance-scoping
 

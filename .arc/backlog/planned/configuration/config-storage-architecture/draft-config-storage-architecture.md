@@ -90,11 +90,11 @@ exactly the mismatch we're seeing.
 
 Three-tier storage model, each tier mapped to its natural scope:
 
-| Tier | Storage | Settings | Sync |
-| ---- | ------- | -------- | ---- |
-| Per-developer, global (per-user-cross-project) | `~/.arc/config.yml` (XDG-style global) | `identity` | None — per-user-per-machine by definition |
-| Per-developer, per-project | `.arc/user/{identity}/config.user.yml` (in-repo, gitignored) | `role`, `commitInterlock`, `pushInterlock`, `syncInterlock`, `releaseOptedIn` | Yes — via existing user-notes sync infrastructure |
-| Per-developer, per-project, per-machine | `.arc/user/{identity}/.local/` (gitignored, sync-excluded) | Install markers (`release-setup.json`), audit log, pre-load backups, sync state | Never — per-machine state by intent |
+| Tier                                           | Storage                                                      | Settings                                                                        | Sync                                              |
+| ---------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Per-developer, global (per-user-cross-project) | `~/.arc/config.yml` (XDG-style global)                       | `identity`                                                                      | None — per-user-per-machine by definition         |
+| Per-developer, per-project                     | `.arc/user/{identity}/config.user.yml` (in-repo, gitignored) | `role`, `commitInterlock`, `pushInterlock`, `syncInterlock`, `releaseOptedIn`   | Yes — via existing user-notes sync infrastructure |
+| Per-developer, per-project, per-machine        | `.arc/user/{identity}/.local/` (gitignored, sync-excluded)   | Install markers (`release-setup.json`), audit log, pre-load backups, sync state | Never — per-machine state by intent               |
 
 Rationale per tier:
 

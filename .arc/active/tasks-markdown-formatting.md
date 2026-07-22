@@ -101,27 +101,15 @@ derived readiness output through the ordinary AST path; each class follows its o
   blob loading, shared position-free GFM comparison, complete changed-range evidence, and independent outside-table
   byte verification. Real-Git and focused fixtures cover retries, nested/canonicalized tables, and fail-closed drift.
 
-### `[ ]` **3.2 Enable aligned `MD060` with source-first normalization and regeneration**
+### `[x]` **3.2 Enable aligned `MD060` with source-first normalization and regeneration**
 
 - _Goal:_ The selected current Markdown corpus reaches one aligned-table baseline without wrong-direction edits,
   unrelated syntax changes, or an interval where the enabled rule cannot pass.
 
-- _Note:_ Treat rule enablement, normalization, and regeneration as one review increment.
-
-    - Recompute the selected path inventory and migration counts before mutation; retain the result as review
-      evidence rather than a permanent assertion.
-    - Format authoritative package source first, then update recipe-mapped installed Framework instances through
-      the selected projection while leaving package sources outside the current install source-only; edit
-      Configurable copies independently and preserve project overrides.
-    - Normalize managed meta tables through their public normalizer and regenerate tracked readiness output only
-      after its renderer is display-width-aware.
-    - Set `MD060` to `aligned`, expand the root lint scope to both authoritative package and rendered/project
-      Markdown by updating the shared selector and its root-config declaration together, and preserve the
-      deliberate completed/private/temporary exclusions.
-    - Run the table migration audit over formatter-controlled Markdown, normalized meta tables, and projected
-      Framework counterparts; inspect every reported serializer canonicalization and prove idempotence.
-    - Verify readiness output through its renderer/regeneration assertion, review non-Markdown configuration and
-      lockfile changes separately, and leave `npm run -s lint:md` green in the same increment.
+- _Outcome:_ Enabled aligned `MD060` across the shared repository selection and normalized the 16 violating files
+  from a 599-file tracked inventory, projecting both installed Framework counterparts from package source. The
+  migration is table-range-only and idempotent; managed meta values now remain byte-faithful, and `ROADMAP` was
+  regenerated through its display-width-aware renderer.
 
 ## **Phase 4:** Emphasis enforcement and migration
 

@@ -30,9 +30,9 @@ For ARC methodology rules (commit discipline, task execution, session management
 1. **Markdown Linting**: Zero violations
     - Command: `npm run -s lint:md`
     - Auto-fix: `npm run -s lint:md:fix`
-    - Table alignment (`MD060`): `lint:md:fix` does **not** realign table columns — fix the affected file with
-      `npx --yes markdown-table-formatter <file>` (explicit single file; never argless — it cwd-globs `**/*.md`
-      and can rewrite unrelated tables). Interim until `markdown-formatting` ships a scoped `format:tables`.
+    - Table alignment (`MD060`): `lint:md:fix` does **not** realign table columns — use
+      `npm run format:tables -- <file> [<file> ...]`. The command requires explicit tracked Markdown paths and
+      applies source-first Framework projection without rewriting surrounding prose.
     - Config: `.markdownlint-cli2.jsonc`
 
 2. **Code Linting**: Zero violations

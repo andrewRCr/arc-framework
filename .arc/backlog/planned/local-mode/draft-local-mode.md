@@ -96,13 +96,13 @@ or honestly name the cost (e.g., the editor quick-open gap below). No silent deg
 The single structural correction the substrate reframe forces on the carried design. The original Local model
 and the target share the same parts but **invert authority**:
 
-| | Original Local design (2026-04) | Substrate target (tier-2) |
-| --- | --- | --- |
-| Canonical state | working-tree `.arc/` | the backing repo (`~/.arc-state/{id}/`) |
-| The store is | a best-effort backup snapshot | the canonical store |
-| `.arc/` on disk is | the state itself | a rendered projection (Architecture B, ADR-022) |
-| Sync shape | whole-tree `git add -A` snapshot at handoff | record-level writes, version-checked |
-| Stale-read safety | n/a (single writer, single machine) | version-checked writes reject clobbers |
+|                    | Original Local design (2026-04)             | Substrate target (tier-2)                       |
+| ------------------ | ------------------------------------------- | ----------------------------------------------- |
+| Canonical state    | working-tree `.arc/`                        | the backing repo (`~/.arc-state/{id}/`)         |
+| The store is       | a best-effort backup snapshot               | the canonical store                             |
+| `.arc/` on disk is | the state itself                            | a rendered projection (Architecture B, ADR-022) |
+| Sync shape         | whole-tree `git add -A` snapshot at handoff | record-level writes, version-checked            |
+| Stale-read safety  | n/a (single writer, single machine)         | version-checked writes reject clobbers          |
 
 Consequences for the carried design, worked through the sections below:
 

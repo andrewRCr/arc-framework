@@ -60,20 +60,18 @@ npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 - Without `--no-globs`, markdownlint-cli2 processes config globs **in addition to** specified files
 - Use `--no-globs` when checking/fixing individual files to avoid processing entire workspace
 - If local dependencies are unavailable, use fallback: `npx --yes markdownlint-cli2 ...`
-- `markdownlint-cli2 --fix` does NOT fix MD060 (table alignment) — use `markdown-table-prettify` instead:
+- `markdownlint-cli2 --fix` does not fix MD060 (table alignment). Use the repository's explicit table formatter:
 
 ```bash
-# Fix table formatting (MD060 violations)
-npx --yes markdown-table-prettify < input.md > output.md
-# Or use VS Code extension: "Markdown Table Prettifier"
+# Fix table formatting without rewriting surrounding prose
+npm run format:tables -- "path/to/file.md"
 ```
 
 ### Prettier (Markdown Formatting)
 
-Use `prettier` for bulk line-length wrapping (MD013). It's markdown-aware — won't
-break inside links, emphasis, or code spans. **Not recommended for MD060** (table
-alignment) — use `markdown-table-prettify` instead, which fixes tables without
-reformatting surrounding prose.
+Use `prettier` for bulk line-length wrapping (MD013). It's markdown-aware — won't break inside links, emphasis, or
+code spans. Do not use it for MD060 table alignment; use `npm run format:tables -- <file>` so only validated table
+ranges change.
 
 ```bash
 # Format a file (prose wrap at 120 chars, matching markdownlint config)
