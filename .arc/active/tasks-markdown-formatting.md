@@ -165,22 +165,14 @@ repository-only. Singular `_Note:_` is the sole peer descriptor spelling.
           fixtures cover every supported label, loose one-line clusters, completion and operational boundaries,
           fenced examples, the canonical template, and the current work-unit task list.
 
-### `[ ]` **5.3 Compose descriptor validation into worktree lint and normalize live tasks**
+### `[x]` **5.3 Compose descriptor validation into worktree lint and normalize live tasks**
 
 - _Goal:_ CI's existing Markdown command enforces descriptor spacing over selected worktree content using the same
   selector and pure validator that staged enforcement will consume.
 
-    - Add a worktree content loader and `lint:md:descriptors` command over the complete selected task-list and
-      canonical fixture surface.
-    - Rename the markdownlint-only underlying script to `lint:md:markdownlint`, require root
-      `globs`/`ignores`/`gitignore` values to match the shared selector structurally, reject those options in nested
-      configs, and run `markdownlint-cli2 --no-globs` over explicit selector-emitted worktree paths. Make the public
-      `lint:md` command run it before `lint:md:descriptors`; keep `lint:md:file`, `lint:md:fix`, and
-      `lint:md:fix:file` markdownlint-only.
-    - Normalize selected live task lists, including this work unit's task list, in a distinct descriptor-only
-      migration and verify no task status, text, nesting, or completion semantics changed.
-    - Integration-test selector parity, worktree diagnostic aggregation, composed-command order and short-circuit
-      exit behavior, and a green current baseline.
+- _Outcome:_ The public command now validates config/selector parity, runs markdownlint over 599 explicit tracked
+  paths, then checks 82 selected task/fixture paths; the live descriptor migration audited as a no-op because the
+  selected baseline, including this work unit, was already canonical.
 
 ## **Phase 6:** Exact-index enforcement and discoverability
 

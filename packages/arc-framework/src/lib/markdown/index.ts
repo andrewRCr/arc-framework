@@ -2,6 +2,7 @@
 
 export * from "./authority.js";
 export * from "./contracts.js";
+export * from "./configuration.js";
 export * from "./dependency-alignment.js";
 export * from "./descriptor-spacing.js";
 export * from "./descriptor-worktree.js";
@@ -13,3 +14,4 @@ export * from "./migration-audit.js";
 export * from "./selection.js";
 export * from "./table-audit.js";
 export * from "./table-transform.js";
+export * from "./worktree-lint.js";
