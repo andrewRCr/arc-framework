@@ -73,8 +73,10 @@ import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
   createInRepoParkPlanningRetirementContext,
+  createInRepoRenameRetirementContext,
   type InRepoDirectRetirementDeps,
 } from "../lib/work-unit/direct-retirement-driver.js";
+import { runRenameCommand } from "../commands/rename.js";
 import {
   createInRepoParkPlanningLandingContext,
   landParkPlanningTransition,
@@ -424,6 +426,62 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
     );
   }
   p.note(lines.join("\n"), "Decomposed");
+  p.outro("Done.");
+}
+
+/** `arc rename <slug> <new-slug>` — atomically rename a work unit and its applicable identities. */
+export async function handleRename(sourceSlug: string, targetSlug: string): Promise<void> {
+  p.intro("arc rename");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+  const { settings } = await readConfigSettings(base.cwd);
+  const result = await runRenameCommand({
+    cwd: base.cwd,
+    identity: base.identity,
+    baseBranch: settings["branch.base"],
+    io: base.io,
+    retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
+  }, { sourceSlug, targetSlug });
+  if (result.status !== "renamed") {
+    refuse(result.reason);
+    return;
+  }
+  const lines = [
+    `Work unit: ${sourceSlug} → ${targetSlug}`,
+    `Shape:     ${result.shape}`,
+  ];
+  if (result.pendingIntegration) {
+    lines.push("Visibility: pending integration of the rename branch");
+  }
+  if (result.remote?.status === "unpublished") lines.push("Remote:    unpublished; no ref created");
+  if (result.shape === "in-place") {
+    lines.push("Marker:    skipped; in-place work units carry no ownership marker");
+    lines.push("Worktree:  unchanged; the primary worktree cannot be moved");
+  }
+  if (result.worktree !== undefined) {
+    if ("mutation" in result.worktree) {
+      if (result.worktree.mutation !== "move") {
+        lines.push("Worktree:  unchanged; rename returned an unexpected worktree result");
+      } else {
+        const notice = result.worktree.followUpNotice;
+        if (notice !== undefined) {
+          lines.push(`Follow-up:  ${notice}`);
+        } else {
+          lines.push(
+            `Worktree:  ${result.worktree.to}`
+            + (result.worktree.locusHopped ? " (process relocated)" : ""),
+          );
+        }
+      }
+    } else if (result.worktree.status === "already-moved") {
+      lines.push(`Worktree:  unchanged; registered path already carries the new slug: ${result.worktree.worktreePath}`);
+    } else if (result.worktree.status === "unmatched") {
+      lines.push(`Worktree:  unchanged; registered path does not contain the old slug: ${result.worktree.worktreePath}`);
+    } else {
+      lines.push("Worktree:  unchanged; no linked worktree is registered for the renamed branch");
+    }
+  }
+  p.note(lines.join("\n"), "Renamed");
   p.outro("Done.");
 }
 

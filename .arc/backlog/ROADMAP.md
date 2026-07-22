@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `cbd0933ac`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `c7757bb50`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -18,11 +18,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning`    | cohortless-decomposition | P1       | andrew | —          | —                      |
 | `Planning`    | decomposition-doctrine   | P1       | andrew | —          | —                      |
 | `Planning`    | pr-decomposition         | P1       | andrew | —          | —                      |
+| `Planning`    | review-gate-right-sizing | P1       | andrew | —          | —                      |
 | `Planning`    | review-surface-binding   | P1       | andrew | —          | —                      |
 | `Active`      | session-locus-model      | P1       | andrew | —          | —                      |
 | `Integrating` | cli-command-inputs       | P2       | andrew | —          | cli-substrate-adoption |
 | `Active`      | cli-validation-surfaces  | P2       | andrew | —          | cli-substrate-adoption |
-| `Active`      | wu-rename                | P2       | andrew | —          | —                      |
 
 ## Ready
 
@@ -32,7 +32,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | recovery-hardening                    | P1       | andrew | —          | —                          |
 | review-gate-enforcement-qualification | P1       | andrew | —          | —                          |
-| review-gate-right-sizing              | P1       | andrew | —          | —                          |
 | roadmap-tooling                       | P1       | andrew | —          | —                          |
 | stub-mint-to-launch                   | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model              | P1       | andrew | —          | —                          |

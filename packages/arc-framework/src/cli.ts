@@ -57,6 +57,7 @@ import {
   handleSetStage,
   handleFinalizeStage,
   handleRepointDesign,
+  handleRename,
   type StubOptions,
   type ParkOptions,
   type ResumeOptions,
@@ -220,6 +221,11 @@ program
   .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
   .option("--finalize <receipt-id>", "Verify the staged allocation and replace its preparation with a finalized receipt")
   .action((origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts));
+
+program
+  .command("rename <slug> <new-slug>")
+  .description("Rename a work unit and its branch, workspace, remote, marker, and worktree identities")
+  .action((slug: string, newSlug: string) => handleRename(slug, newSlug));
 
 program
   .command("promote [slug]")
