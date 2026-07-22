@@ -127,6 +127,8 @@ arc housekeep open <sweep-slug> --plan-file <canonical-plan-path> --lane <auto|r
 On `applied` / `idempotent`, require the returned digest to match the compiler result, render
 `recommendedPromptText`, and route only from `activeLocusPath`; retain `sessionHomePath` and exact IDs. A retry
 re-supplies the same canonical plan file and lane—never reconstruct a partial plan from visible dispatch marks.
+When the rendered text asks for directed-command confirmation, confirm the current session can run there; otherwise
+recommend a cold session at that checkout and stop before routing.
 On `refused` / `error`, render the supplied text and stop.
 
 ### 4. Chunk if the sweep is large

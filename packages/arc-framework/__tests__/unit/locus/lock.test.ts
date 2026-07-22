@@ -41,6 +41,27 @@ afterEach(async () => {
 });
 
 describe("locus record lock", () => {
+  it("admits an unverifiable command anchor while preserving unknown stale-holder safety", async () => {
+    const path = await lockPath();
+    const unverifiable = { kind: "unverifiable" as const, reason: "process inspection unavailable" };
+    const first = await acquireLocusLock({
+      path,
+      anchor: unverifiable,
+      inspector: inspector("unknown"),
+      token: "a".repeat(32),
+    });
+    expect(first).toMatchObject({ kind: "acquired", handle: { anchor: unverifiable } });
+    await expect(acquireLocusLock({
+      path,
+      anchor,
+      inspector: inspector("dead"),
+      token: "b".repeat(32),
+      timeoutMs: 0,
+    })).resolves.toMatchObject({ kind: "refused", reason: "unknown" });
+    if (first.kind !== "acquired") throw new Error("fixture acquisition failed");
+    await expect(releaseLocusLock(first.handle)).resolves.toEqual({ kind: "released" });
+  });
+
   it("grants one contender and refuses live or unknown holders without eviction", async () => {
     const path = await lockPath();
     const first = await acquireLocusLock({ path, anchor, inspector: inspector("live"), token: "a".repeat(32) });

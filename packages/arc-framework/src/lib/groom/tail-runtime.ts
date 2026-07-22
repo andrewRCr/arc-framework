@@ -56,7 +56,7 @@ export async function settleGroomAtRuntime(options: SettleGroomRuntimeOptions): 
   }
 
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") return refusal("cold-entry-required", anchor.reason);
+  if (anchor.kind !== "process") return refusal("lease-unknown", anchor.reason);
   const inspector = createPlatformProcessInspector();
   const state = await readGroomRuntimeState(options, anchor, inspector);
   const row = exactGroomRow(state, record);

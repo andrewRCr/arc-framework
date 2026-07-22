@@ -33,12 +33,12 @@ import {
   replaceLocusRecord,
 } from "./record-store.js";
 import { locusLockPath, locusRecordPath, resolveLocusRoot } from "./root.js";
-import type { LocusProcessAnchor } from "./schema/index.js";
+import type { LocusAnchor } from "./schema/index.js";
 
 export interface NodeProvisioningRuntimeOptions {
   readonly exec: GitExec;
   readonly identity: string;
-  readonly anchor: LocusProcessAnchor;
+  readonly anchor: LocusAnchor;
   readonly inspector: ProcessInspector;
   readonly pathFlavor: PathFlavor;
   readonly base: string;

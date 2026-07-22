@@ -37,6 +37,10 @@ consume returned paths, record/lease IDs, restored parent, origin/dispatch IDs, 
 `error`, render the supplied text and stop. Never reconstruct allocation, preservation, cleanup, or continuation
 from Git branch shape.
 
+When the rendered text asks for directed-command confirmation, confirm that the current session can run subsequent
+commands at `activeLocusPath`. If it cannot or the capability is uncertain, recommend a cold session at that
+checkout and stop before execution.
+
 ## Launch
 
 Confirm the work is an Errand, check for in-flight overlap, then open or resume its allocated locus.

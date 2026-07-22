@@ -48,6 +48,7 @@ import {
 } from "../lib/errand/identity-claims.js";
 import { transactTransientIdentities } from "../lib/errand/identity-transaction.js";
 import { acquireSessionAnchor } from "../lib/locus/process-inspector.js";
+import { appendDirectedCommandAdvisory } from "../lib/locus/entry-boundary.js";
 import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "../lib/locus/platform-inspectors.js";
 import { createLocusEvidenceIO } from "../lib/locus/evidence.js";
 import { readLocusState } from "../lib/locus/reader.js";
@@ -194,10 +195,6 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
   const record = claimed.value.record;
   const inspector = createPlatformProcessInspector();
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") {
-    if (claimed.kind === "applied") await rollbackGroomClaim(io.exec, execInput, identity, resolved.anchor.slug, record);
-    emitPlanFailure("cold-entry-required", anchor.reason, opts.json === true); return;
-  }
   const primaryPath = await resolvePrimaryWorktreePath(io.exec);
   if (primaryPath === null) {
     if (claimed.kind === "applied") await rollbackGroomClaim(io.exec, execInput, identity, resolved.anchor.slug, record);
@@ -227,7 +224,7 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
     if (existing.checkoutPath === null || existing.recordId === null || existing.lease === null) {
       emitPlanFailure("record-malformed", "Exact grooming occupancy is incomplete.", opts.json === true); return;
     }
-    emitPlanResult(createLocusMutationResult({
+    emitPlanResult(appendDirectedCommandAdvisory(createLocusMutationResult({
       outcome: "idempotent", operation: "plan-open",
       allocation: { kind: existing.primary === true ? "primary" : "spawned", checkoutPath: existing.checkoutPath },
       recordId: existing.recordId, leaseId: existing.lease.leaseId,
@@ -235,7 +232,7 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
       identity: projectLocusIdentity(record), originEntry: null, dispatchId: null, routingPlanDigest: null,
       restoredParent: null, nextOffer: null,
       recommendedPromptText: `Grooming set is already open at ${existing.checkoutPath}.`,
-    }), opts.json === true);
+    })), opts.json === true);
     return;
   }
   const proposal = planLocusAllocation({
@@ -270,7 +267,7 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
     const message = provisioned.kind === "error" ? provisioned.error.message : provisioned.reason;
     emitPlanError("provision", message, opts.json === true); return;
   }
-  emitPlanResult(createLocusMutationResult({
+  emitPlanResult(appendDirectedCommandAdvisory(createLocusMutationResult({
     outcome: claimed.kind === "idempotent" ? "idempotent" : "applied", operation: "plan-open",
     allocation: { kind: provisioned.receipt.allocation, checkoutPath: provisioned.receipt.checkoutPath },
     recordId: provisioned.receipt.record.recordId, leaseId: provisioned.receipt.leaseToken,
@@ -278,7 +275,7 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
     identity: projectLocusIdentity(record), originEntry: null, dispatchId: null, routingPlanDigest: null,
     restoredParent: null, nextOffer: null,
     recommendedPromptText: `Grooming set opened at ${provisioned.receipt.checkoutPath}.`,
-  }), opts.json === true);
+  })), opts.json === true);
 }
 
 async function rollbackGroomClaim(

@@ -13,7 +13,7 @@ export const LocusOperationSchema = z.enum([
 export const LocusRefusalReasonSchema = z.enum([
   "primary-occupied", "primary-dirty", "primary-off-base", "topology-unknown", "record-malformed",
   "duplicate-locus", "checkout-missing", "lease-live", "lease-unknown", "lease-generation-mismatch",
-  "role-conflict", "full-protection-required", "cold-entry-required", "remote-unreachable", "identity-conflict",
+  "role-conflict", "full-protection-required", "remote-unreachable", "identity-conflict",
   "change-request-open", "change-request-unverifiable", "partial-handoff-forbidden", "preservation-unproven",
   "inbox-link-conflict", "work-unit-name-taken", "promotion-source-invalid", "dispatch-conflict",
   "routing-plan-mismatch", "routing-lane-downgrade", "stub-ambiguous",

@@ -13,7 +13,7 @@ import {
 } from "../locus/platform-inspectors.js";
 import { acquireSessionAnchor } from "../locus/process-inspector.js";
 import { readPrimarySafety } from "../locus/primary-safety.js";
-import type { LocusMutationResultV1, LocusProcessAnchor } from "../locus/schema/index.js";
+import type { LocusAnchor, LocusMutationResultV1 } from "../locus/schema/index.js";
 import type { GitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import { rollbackIdentityClaim } from "./identity-claims.js";
@@ -61,7 +61,7 @@ export async function openOrdinaryErrandAtRuntime(
   const inspector = createPlatformProcessInspector();
   const ancestry = createPlatformProcessAncestryInspector();
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
-  let selectedAnchor: LocusProcessAnchor | null = null;
+  let selectedAnchor: LocusAnchor | null = null;
   return openOrdinaryErrand({
     slug: options.slug,
     intent: options.intent,
@@ -78,7 +78,7 @@ export async function openOrdinaryErrandAtRuntime(
     dependencies: {
       acquireAnchor: async () => {
         const anchor = await acquireSessionAnchor(process.pid, ancestry);
-        if (anchor.kind === "process") selectedAnchor = anchor;
+        selectedAnchor = anchor;
         return anchor;
       },
       readState: async () => {
@@ -191,9 +191,6 @@ export async function openOrdinaryErrandAtRuntime(
           : { kind: "generation-mismatch" as const };
       },
       provision: async (request) => {
-        if (request.anchor.kind !== "process") {
-          return { kind: "refused", reason: "lease-unknown", evidence: { kind: "identity-only" } };
-        }
         return provisionTransientLocus({
           ...request,
           dependencies: createNodeProvisioningDependencies({

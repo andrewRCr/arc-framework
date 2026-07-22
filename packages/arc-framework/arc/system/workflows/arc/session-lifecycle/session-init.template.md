@@ -64,6 +64,10 @@ checkout path from `worktree.value.identity` (`linked.path` for a linked checkou
   frame is `idle`; a null lease is the normal ordinary-session state. Multiple matching rows or a non-idle WU row
   stop. When no WU role matches, continue from the reader's `primaryAvailability` and identity tails.
 
+When an attach or open result asks for directed-command confirmation, confirm that the current session can run
+subsequent commands at `activeLocusPath`. If it cannot or the capability is uncertain, recommend a cold session at
+that checkout and stop before loading or executing the returned frame.
+
 **Probe failure fallback**: If the composite call fails, fall back to direct commands:
 `git config arc.identity` / `arc.role`, `grep -l "^active: true" .arc/system/extensions/*.md`, and a scan
 of the role-resolved active root — `.arc/active/**/meta-*.md` for maintainer / null role,

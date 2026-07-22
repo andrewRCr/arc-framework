@@ -14,6 +14,7 @@ const RECORD_ID = `sha256:${"a".repeat(64)}`;
 const CLAIM_ID = "c".repeat(32);
 const LEASE_ID = "d".repeat(32);
 const ANCHOR = { kind: "process" as const, selector: "codex", pid: 7, startToken: "start", inspector: "linux-procfs" };
+const INTERACTIVE_ANCHOR = { ...ANCHOR, selector: "interactive-shell" };
 
 function state(availability: LocusStateV1["primaryAvailability"]): LocusStateV1 {
   return {
@@ -438,7 +439,7 @@ describe("openOrdinaryErrand", () => {
       leaseId: LEASE_ID,
       dependencies: {
         mintClaimId: () => CLAIM_ID,
-        acquireAnchor: async () => ANCHOR,
+        acquireAnchor: async () => INTERACTIVE_ANCHOR,
         readState: async () => warm,
         readIdentity: async () => ({ kind: "ready", record: null }),
         claim: async (record) => ({ kind: "applied", record }),
@@ -457,6 +458,7 @@ describe("openOrdinaryErrand", () => {
       allocation: { kind: "spawned", checkoutPath: "/work/repo.locus-errand-child" },
       activeLocusPath: "/work/repo.locus-errand-child",
       sessionHomePath: "/repo",
+      recommendedPromptText: expect.stringMatching(/confirm.*direct commands/iu),
     });
   });
 
@@ -486,12 +488,29 @@ describe("openOrdinaryErrand", () => {
     expect(result).toMatchObject({ outcome: "refused", reason: "primary-dirty" });
   });
 
-  it("refuses unavailable ancestry before identity or allocation mutation", async () => {
+  it("records unavailable ancestry as an unverifiable lease anchor and continues", async () => {
     const claim = vi.fn();
     const readState = vi.fn();
+    const provision = vi.fn(async (options: Parameters<OpenOrdinaryErrandDependencies["provision"]>[0]) => {
+      if (options.anchor.kind !== "unverifiable" || options.anchor.reason !== "permission denied") {
+        throw new Error("expected the unverifiable entering anchor");
+      }
+      return {
+        kind: "provisioned" as const,
+        receipt: {
+          allocation: "primary" as const,
+          checkoutPath: "/repo",
+          branch: { name: null, created: false, head: "b".repeat(40), base: null },
+          worktree: { path: "/repo", created: false, head: "b".repeat(40) },
+          marker: null,
+          record: { recordId: RECORD_ID, bytes: Buffer.from("record") },
+          leaseToken: LEASE_ID,
+        },
+      };
+    });
     const result = await openOrdinaryErrand({
       slug: "blocked-anchor",
-      protection: "full",
+      protection: "partial",
       base: "main",
       createdAt: "2026-07-21T12:00:00.000Z",
       identityName: "andrew",
@@ -500,17 +519,21 @@ describe("openOrdinaryErrand", () => {
       leaseId: LEASE_ID,
       dependencies: {
         acquireAnchor: async () => ({ kind: "unverifiable", reason: "permission denied" }),
-        readState,
+        readState: async () => {
+          readState();
+          return state({ kind: "free", checkoutPath: "/repo" });
+        },
         readIdentity: async () => ({ kind: "ready", record: null }),
         claim,
         rollbackClaim: vi.fn(),
-        provision: vi.fn(),
+        provision,
       },
     });
 
-    expect(result).toMatchObject({ outcome: "refused", reason: "cold-entry-required" });
-    expect(readState).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ outcome: "applied", operation: "errand-open" });
+    expect(readState).toHaveBeenCalledOnce();
     expect(claim).not.toHaveBeenCalled();
+    expect(provision).toHaveBeenCalledOnce();
   });
 
   it("keeps legacy identity conflicts close-only without provisioning a new locus", async () => {

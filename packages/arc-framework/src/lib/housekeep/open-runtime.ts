@@ -17,6 +17,7 @@ import {
 } from "../errand/identity-claims.js";
 import { transactTransientIdentities } from "../errand/identity-transaction.js";
 import { planLocusAllocation } from "../locus/allocator.js";
+import { appendDirectedCommandAdvisory } from "../locus/entry-boundary.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
 import { createLocusMutationResult, popOwnedLocusRole } from "../locus/mutation.js";
 import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "../locus/platform-inspectors.js";
@@ -25,7 +26,7 @@ import { readPrimarySafety } from "../locus/primary-safety.js";
 import { provisionTransientLocus } from "../locus/provisioning.js";
 import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
 import { readLocusState } from "../locus/reader.js";
-import type { LocusMutationResultV1, LocusProcessAnchor, LocusStateV1 } from "../locus/schema/index.js";
+import type { LocusAnchor, LocusMutationResultV1, LocusStateV1 } from "../locus/schema/index.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import { executePlanEntries, type ParsedHousekeepPlan } from "./plan.js";
@@ -50,7 +51,6 @@ export async function openHousekeepAtRuntime(options: OpenHousekeepRuntimeOption
   const now = new Date().toISOString();
   const dispatchId = mintHousekeepDispatchId();
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") return refusal("cold-entry-required", anchor.reason);
   const inspector = createPlatformProcessInspector();
   const state = await readHousekeepState(options, anchor, inspector);
 
@@ -83,13 +83,14 @@ export async function openHousekeepAtRuntime(options: OpenHousekeepRuntimeOption
     if (existing !== null) {
       await bindInbox(options, record.dispatchId);
       return success(
-        "idempotent", record, existing.checkoutPath, existing.recordId, existing.lease?.leaseId ?? null,
+        "idempotent", record, existing.checkoutPath, existing.lease?.sessionHomePath ?? existing.checkoutPath,
+        existing.recordId, existing.lease?.leaseId ?? null,
         existing.primary === true ? "primary" : "spawned", record.dispatchId, record.routingPlanDigest,
       );
     }
     if (!claimApplied) {
       return success(
-        "idempotent", record, null, null, null, "spawned", record.dispatchId, record.routingPlanDigest,
+        "idempotent", record, null, null, null, null, "spawned", record.dispatchId, record.routingPlanDigest,
       );
     }
     try {
@@ -106,7 +107,8 @@ export async function openHousekeepAtRuntime(options: OpenHousekeepRuntimeOption
       }
       await bindInbox(options, existing.role.dispatchId as string);
       return success(
-        "idempotent", null, existing.checkoutPath, existing.recordId, existing.lease?.leaseId ?? null,
+        "idempotent", null, existing.checkoutPath, existing.lease?.sessionHomePath ?? existing.checkoutPath,
+        existing.recordId, existing.lease?.leaseId ?? null,
         "primary", existing.role.dispatchId as string, existing.role.routingPlanDigest,
       );
     }
@@ -163,7 +165,7 @@ export async function openHousekeepAtRuntime(options: OpenHousekeepRuntimeOption
     return failure("inbox", error instanceof Error ? error.message : String(error));
   }
   return success(
-    claimApplied ? "applied" : "idempotent", record, provisioned.receipt.checkoutPath,
+    claimApplied ? "applied" : "idempotent", record, provisioned.receipt.checkoutPath, sessionHomePath,
     provisioned.receipt.record.recordId, provisioned.receipt.leaseToken, provisioned.receipt.allocation,
     record?.dispatchId ?? dispatchId, record?.routingPlanDigest ?? options.plan.digest,
   );
@@ -201,7 +203,7 @@ async function unbindInbox(options: OpenHousekeepRuntimeOptions, dispatchId: str
 
 export async function readHousekeepState(
   options: Pick<OpenHousekeepRuntimeOptions, "cwd" | "identity" | "base" | "io">,
-  anchor: LocusProcessAnchor,
+  anchor: LocusAnchor,
   inspector: ReturnType<typeof createPlatformProcessInspector>,
 ): Promise<LocusStateV1> {
   const activeExtensions = await runExtensionsSessionInitStatus({ cwd: options.cwd });
@@ -245,7 +247,7 @@ async function rollbackProvision(
   recordId: string,
   leaseId: string,
   subject: { kind: "housekeep"; key: string; claimId: string | null },
-  anchor: LocusProcessAnchor,
+  anchor: LocusAnchor,
   inspector: ReturnType<typeof createPlatformProcessInspector>,
 ): Promise<void> {
   const runtime = createNodeProvisioningDependencies({
@@ -278,21 +280,22 @@ function success(
   outcome: "applied" | "idempotent",
   record: HousekeepIdentityRecord | null,
   checkoutPath: string | null,
+  sessionHomePath: string | null,
   recordId: string | null,
   leaseId: string | null,
   allocation: "primary" | "spawned",
   dispatchId: string,
   routingPlanDigest: string,
 ): LocusMutationResultV1 {
-  return createLocusMutationResult({
+  return appendDirectedCommandAdvisory(createLocusMutationResult({
     outcome, operation: "housekeep-open",
     allocation: checkoutPath === null ? null : { kind: allocation, checkoutPath },
-    recordId, leaseId, activeLocusPath: checkoutPath, sessionHomePath: checkoutPath,
+    recordId, leaseId, activeLocusPath: checkoutPath, sessionHomePath,
     identity: record === null ? null : projectLocusIdentity(record), originEntry: null,
     dispatchId, routingPlanDigest,
     restoredParent: null, nextOffer: null,
     recommendedPromptText: checkoutPath === null ? "Housekeeping sweep is awaiting merge." : `Housekeeping sweep opened at ${checkoutPath}.`,
-  });
+  }));
 }
 
 function refusal(reason: import("../locus/schema/index.js").LocusRefusalReason, text: string): LocusMutationResultV1 {

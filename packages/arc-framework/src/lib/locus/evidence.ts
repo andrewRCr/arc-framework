@@ -13,7 +13,7 @@ import { verifyProcessAnchor, type ProcessInspector, type ProcessLiveness } from
 import { readLocusLockHolder, type LocusLockReadResult } from "./lock.js";
 import { readLocusRecord, type LocusRecordReadResult } from "./record-store.js";
 import { deriveLocusRoot, type LocusRoot } from "./root.js";
-import type { LocusProcessAnchor } from "./schema/index.js";
+import type { LocusAnchor, LocusProcessAnchor } from "./schema/index.js";
 
 export interface LocusEvidenceIO {
   scanWorktrees(): Promise<RegisteredWorktreeScanResult>;
@@ -285,8 +285,9 @@ function createLimiter(limit: number): RunBounded {
 async function inspectOrUnknown(
   io: LocusEvidenceIO,
   run: RunBounded,
-  anchor: LocusProcessAnchor,
+  anchor: LocusAnchor,
 ): Promise<ProcessLiveness> {
+  if (anchor.kind === "unverifiable") return "unknown";
   try {
     return await run(() => io.inspectAnchor(anchor));
   } catch {

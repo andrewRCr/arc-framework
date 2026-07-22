@@ -51,7 +51,7 @@ export async function closeGroomAtRuntime(options: CloseGroomRuntimeOptions): Pr
     return success("idempotent", record, null, "Grooming change request is awaiting merge.");
   }
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") return refusal("cold-entry-required", anchor.reason);
+  if (anchor.kind !== "process") return refusal("lease-unknown", anchor.reason);
   const inspector = createPlatformProcessInspector();
   const state = await readGroomRuntimeState(options, anchor, inspector);
   const row = exactGroomRow(state, record);

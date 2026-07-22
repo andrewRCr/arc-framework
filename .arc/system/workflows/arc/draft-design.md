@@ -31,6 +31,8 @@ start.
 `arc plan open <anchor-stub> [--include <related-stub>...] --json`. The anchor is always a member and the set is
 fixed for this generation. On `applied` / `idempotent`, render `recommendedPromptText`, retain the returned identity
 and record/lease IDs, and perform every grooming edit from `activeLocusPath`; `sessionHomePath` is the return frame.
+When the rendered text asks for directed-command confirmation, confirm the current session can run there; otherwise
+recommend a cold session at that checkout and stop before editing.
 On `refused` / `error`, render the supplied text and stop. Skip the remaining planning-entry check and continue to
 **Resolve depth & Class**. Never infer the set, protection mode, branch, or placement from Git state.
 

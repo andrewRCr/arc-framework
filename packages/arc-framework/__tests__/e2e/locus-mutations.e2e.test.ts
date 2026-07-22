@@ -1,7 +1,7 @@
 /** Built-command coverage for stateful locus companions. */
 
 import { execFile, spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -219,13 +219,23 @@ describe("arc locus mutation commands", () => {
       "",
     ].join("\n"), "utf8");
 
-    const adopted = await runAnchored(["locus", "attach", "--json"], repository);
+    const adopted = await runCli(["locus", "attach", "--json"], { cwd: repository });
     expect(adopted.exitCode, adopted.stdout + adopted.stderr).toBe(0);
-    expect(JSON.parse(adopted.stdout.trim())).toMatchObject({
+    const adoption = JSON.parse(adopted.stdout.trim()) as { recordId: string };
+    expect(adoption).toMatchObject({
       outcome: "applied",
       operation: "locus-attach",
       identity: null,
       activeLocusPath: repository,
+      recommendedPromptText: expect.stringMatching(/confirm.*direct commands/iu),
+    });
+    const lociRoot = join(repository, ".arc", "user", "test-user", ".internal", "loci");
+    const recordName = (await readdir(lociRoot)).find((name) => name.endsWith(".json"));
+    expect(recordName).toBeDefined();
+    const record = JSON.parse(await readFile(join(lociRoot, recordName as string), "utf8"));
+    expect(record).toMatchObject({
+      recordId: adoption.recordId,
+      lease: { anchor: { kind: "unverifiable" } },
     });
 
   });

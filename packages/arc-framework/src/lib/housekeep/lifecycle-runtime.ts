@@ -254,7 +254,7 @@ async function runtimeState(options: HousekeepLifecycleRuntimeOptions): Promise<
   | { kind: "refused"; result: LocusMutationResultV1 }
 > {
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") return { kind: "refused", result: refusal("cold-entry-required", anchor.reason) };
+  if (anchor.kind !== "process") return { kind: "refused", result: refusal("lease-unknown", anchor.reason) };
   const inspector = createPlatformProcessInspector();
   const state = await readHousekeepState(options, anchor, inspector);
   return { kind: "ready", state, anchor, inspector };

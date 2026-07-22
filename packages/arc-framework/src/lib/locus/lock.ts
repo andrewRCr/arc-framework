@@ -8,16 +8,16 @@ import { z } from "zod";
 
 import { verifyProcessAnchor, type ProcessInspector } from "./process-inspector.js";
 import {
-  LocusProcessAnchorSchema,
+  LocusAnchorSchema,
   LocusTimestampSchema,
   LocusTokenSchema,
-  type LocusProcessAnchor,
+  type LocusAnchor,
 } from "./schema/index.js";
 
 const MAX_LOCK_BYTES = 64 * 1024;
 const LocusLockHolderSchema = z.strictObject({
   token: LocusTokenSchema,
-  anchor: LocusProcessAnchorSchema,
+  anchor: LocusAnchorSchema,
   createdAt: LocusTimestampSchema,
 });
 
@@ -26,7 +26,7 @@ export type LocusLockHolder = z.infer<typeof LocusLockHolderSchema>;
 export interface LocusLockHandle {
   readonly path: string;
   readonly token: string;
-  readonly anchor: LocusProcessAnchor;
+  readonly anchor: LocusAnchor;
   readonly holderBytes: Buffer;
 }
 
@@ -46,7 +46,7 @@ export function serializeLocusLockHolder(holder: LocusLockHolder): Buffer {
 /** Acquire a record lock, breaking only a token-stable conclusively dead holder. */
 export async function acquireLocusLock(options: {
   path: string;
-  anchor: LocusProcessAnchor;
+  anchor: LocusAnchor;
   inspector: ProcessInspector;
   token?: string;
   timeoutMs?: number;
@@ -76,7 +76,9 @@ export async function acquireLocusLock(options: {
     if (observed.kind !== "valid") {
       lastReason = "unknown";
     } else {
-      const liveness = await verifyProcessAnchor(observed.holder.anchor, options.inspector);
+      const liveness = observed.holder.anchor.kind === "unverifiable"
+        ? "unknown"
+        : await verifyProcessAnchor(observed.holder.anchor, options.inspector);
       if (liveness === "live") lastReason = "live";
       else if (liveness === "unknown") lastReason = "unknown";
       else {
@@ -134,7 +136,9 @@ export async function breakDeadLocusLock(options: {
     if (current.kind !== "valid" || !current.bytes.equals(options.observed.bytes)) {
       return { kind: "generation-mismatch" };
     }
-    const liveness = await verifyProcessAnchor(current.holder.anchor, options.inspector);
+    const liveness = current.holder.anchor.kind === "unverifiable"
+      ? "unknown"
+      : await verifyProcessAnchor(current.holder.anchor, options.inspector);
     if (liveness !== "dead") return { kind: liveness };
     await unlink(options.path);
     return { kind: "broken" };

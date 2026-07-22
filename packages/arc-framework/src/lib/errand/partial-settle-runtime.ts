@@ -52,7 +52,7 @@ export async function settlePartialErrandAtRuntime(
 ): Promise<LocusMutationResultV1> {
   const operation = options.action === "close" ? "errand-close" : "errand-abandon";
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") return refusal(operation, "cold-entry-required", anchor.reason);
+  if (anchor.kind !== "process") return refusal(operation, "lease-unknown", anchor.reason);
   const inspector = createPlatformProcessInspector();
   const state = await readRuntimeState(options, anchor, inspector);
   const target = exactPartialErrandRow(state, options.slug);

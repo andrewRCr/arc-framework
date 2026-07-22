@@ -79,7 +79,7 @@ export async function promoteOrdinaryErrandAtRuntime(
     return createLocusMutationResult({
       outcome: "refused",
       operation: "errand-promote",
-      reason: "cold-entry-required",
+      reason: "lease-unknown",
       recommendedPromptText: `A durable session anchor is unavailable: ${anchor.reason}`,
     });
   }

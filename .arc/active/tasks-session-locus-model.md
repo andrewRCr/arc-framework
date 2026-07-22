@@ -936,16 +936,14 @@ full guard set unchanged.
   leases read idle. CLI/workflow narration treats the checkout as normal, while heartbeats remain scoped to
   state-touching transient operations and explicit attach.
 
-### `[ ]` **7.R.c Demote the warm-entry capability gate to advisory** — D1, D5
+### `[x]` **7.R.c Demote the warm-entry capability gate to advisory** — D1, D5
 
 - _Goal:_ Warm entry never hard-refuses on harness identity: anchor acquisition stays best-effort lease metadata,
   and directed-command capability becomes an operator-confirmed advisory.
 
-    - Replace the `cold-entry-required` refusal and its fixed selector allow-list with an advisory/confirm path
-      in the open/attach drivers; an unverifiable anchor yields the existing unverifiable-anchor lease and
-      unknown-liveness tier instead of refusing.
-    - Keep selector detection as anchor metadata only; update the refusal-reason union, tests, and workflow
-      narration accordingly.
+- _Outcome:_ Open and attach persist best-effort process anchors, including unverifiable generations with unknown
+  liveness, while checkout-directed success narration asks the operator to confirm command routing and recommends
+  a cold session when needed. Selector identity is metadata only; destructive verbs retain unknown-lease safety.
 
 ### `[ ]` **7.R.d Relax awaiting-merge re-entry to open-change-request** — D7, D8
 

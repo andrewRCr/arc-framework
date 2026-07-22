@@ -14,8 +14,8 @@ import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
 const refusal = createLocusMutationResult({
   outcome: "refused",
   operation: "errand-open",
-  reason: "cold-entry-required",
-  recommendedPromptText: "Start a cold session.",
+  reason: "lease-unknown",
+  recommendedPromptText: "The existing lease cannot be verified.",
 });
 
 describe("errand open result rendering", () => {
@@ -28,7 +28,7 @@ describe("errand open result rendering", () => {
   it("renders the same refusal reason and narration for humans", () => {
     expect(formatErrandOpenResult(refusal, false)).toEqual({
       stream: "stderr",
-      text: "Refused [cold-entry-required]: Start a cold session.",
+      text: "Refused [lease-unknown]: The existing lease cannot be verified.",
       exitCode: 1,
     });
   });

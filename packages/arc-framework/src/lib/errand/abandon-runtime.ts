@@ -110,7 +110,7 @@ async function cleanupResidue(
   if (anchor.kind !== "process") {
     return {
       kind: "refused",
-      reason: "cold-entry-required",
+      reason: "lease-unknown",
       message: `Dead residue cleanup needs a durable session anchor: ${anchor.reason}`,
     };
   }

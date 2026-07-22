@@ -22,7 +22,7 @@ import type { ErrandRecordIO } from "./ref-tree.js";
 import type { GitExec } from "../git/exec.js";
 import { planLocusAllocation, type LocusAllocationRefusalReason } from "../locus/allocator.js";
 import { createLocusMutationResult } from "../locus/mutation.js";
-import { enteringProcessCapabilities } from "../locus/entry-boundary.js";
+import { appendDirectedCommandAdvisory } from "../locus/entry-boundary.js";
 import type {
   ProvisionTransientLocusOptions,
   ProvisionTransientLocusResult,
@@ -123,9 +123,6 @@ export async function openOrdinaryErrand(
   } catch (error) {
     return openError("locus.errand-open.anchor", error instanceof Error ? error.message : String(error));
   }
-  if (anchor.kind === "unverifiable") {
-    return openRefusal("cold-entry-required", `Errand open cannot establish a durable session anchor: ${anchor.reason}`);
-  }
   let state: LocusStateV1;
   try {
     state = await options.dependencies.readState();
@@ -134,12 +131,6 @@ export async function openOrdinaryErrand(
   }
   const parent = warmWorkUnitParent(state);
   if (parent.kind === "refused") return openRefusal(parent.reason, `Errand open refused: ${parent.reason}.`);
-  if (parent.checkoutPath !== null && !enteringProcessCapabilities(anchor).directedCommands) {
-    return openRefusal(
-      "cold-entry-required",
-      "Start a cold Codex or Claude session; this entering process cannot direct work to a separate locus.",
-    );
-  }
 
   const branch = options.protection === "full" ? `chore/${slug}` : null;
   let record: OrdinaryErrandRecord | null = null;
@@ -291,7 +282,7 @@ export async function openOrdinaryErrand(
   }
   const resultOriginEntry = record?.origin === "inbox" ? record.originEntry : originEntry;
   const resultDispatchId = record?.dispatchId ?? dispatchId;
-  return createLocusMutationResult({
+  return appendDirectedCommandAdvisory(createLocusMutationResult({
     outcome: claimKind === "idempotent" ? "idempotent" : "applied",
     operation: "errand-open",
     allocation: { kind: provisioned.receipt.allocation, checkoutPath: provisioned.receipt.checkoutPath },
@@ -307,7 +298,7 @@ export async function openOrdinaryErrand(
     nextOffer: null,
     recommendedPromptText: `Errand opened at ${provisioned.receipt.checkoutPath}; session home remains `
       + `${sessionHomePath}. Run subsequent commands in the active locus.`,
-  });
+  }));
 }
 
 function warmWorkUnitParent(state: LocusStateV1):

@@ -24,10 +24,11 @@ import {
   type LocusRoleAuthority,
 } from "./mutation.js";
 import { deriveLocusRecordId } from "./path-identity.js";
+import { appendDirectedCommandAdvisory } from "./entry-boundary.js";
 import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "./platform-inspectors.js";
 import { acquireSessionAnchor } from "./process-inspector.js";
 import { createNodeProvisioningDependencies } from "./provisioning-runtime.js";
-import type { LocusMutationResultV1, LocusRefusalReason, LocusRowV1 } from "./schema/index.js";
+import type { LocusAnchor, LocusMutationResultV1, LocusRefusalReason, LocusRowV1 } from "./schema/index.js";
 import { deriveTransientAdoptionCandidate } from "./reconciliation.js";
 import { resolveLocusGeneration, type LocusResolveSubject } from "./resolve-driver.js";
 
@@ -93,7 +94,6 @@ async function adoptTrustedRoleAtRuntime(
   options: LocusCommandRuntimeOptions,
 ): Promise<{ kind: "not-applicable" } | { kind: "result"; result: LocusMutationResultV1 }> {
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") return { kind: "not-applicable" };
   const checkoutPath = resolve(options.cwd, options.checkout ?? ".");
   const roster = await scanRegisteredWorktrees(options.io.exec);
   if (!roster.ok) return { kind: "not-applicable" };
@@ -193,8 +193,11 @@ async function adoptTrustedRoleAtRuntime(
       recordId: recordId.recordId,
       role: attached.record.role,
       identity: adoption.identity,
-      lease: attached.record.lease === null ? null : { ...attached.record.lease, state: "live" },
-      frame: "active",
+      lease: attached.record.lease === null ? null : {
+        ...attached.record.lease,
+        state: anchor.kind === "process" ? "live" : "unknown",
+      },
+      frame: anchor.kind === "process" ? "active" : "residue",
       derived: null,
       diagnostics: [],
     };
@@ -300,7 +303,7 @@ export async function releaseLocusAtRuntime(
 /** Resolve one exact dead transient role through reattach or its subject abandonment driver. */
 export async function resolveLocusAtRuntime(options: ResolveLocusRuntimeOptions): Promise<LocusMutationResultV1> {
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") return refusal("locus-resolve", "cold-entry-required", anchor.reason);
+  if (anchor.kind !== "process") return refusal("locus-resolve", "lease-unknown", anchor.reason);
   const inspector = createPlatformProcessInspector();
   const state = await readHousekeepState(options, anchor, inspector);
   const matches = state.roster.rows.filter((row) => row.recordId === options.recordId);
@@ -371,15 +374,12 @@ async function prepare(
       kind: "ready";
       row: LocusRowV1 & { recordId: string; checkoutPath: string };
       checkoutPath: string;
-      anchor: Extract<Awaited<ReturnType<typeof acquireSessionAnchor>>, { kind: "process" }>;
+      anchor: LocusAnchor;
       inspector: ReturnType<typeof createPlatformProcessInspector>;
       runtime: ReturnType<typeof createNodeProvisioningDependencies>;
     }
 > {
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") {
-    return { kind: "result", result: refusal(operation, "cold-entry-required", anchor.reason) };
-  }
   const inspector = createPlatformProcessInspector();
   const state = await readHousekeepState(options, anchor, inspector);
   const target = options.checkout === undefined ? null : resolve(options.cwd, options.checkout);
@@ -417,7 +417,7 @@ function success(
   row: LocusRowV1 & { recordId: string; checkoutPath: string },
   leaseId: string | null,
 ): LocusMutationResultV1 {
-  return createLocusMutationResult({
+  const result = createLocusMutationResult({
     outcome, operation, allocation: null, recordId: row.recordId, leaseId,
     activeLocusPath: operation === "locus-attach" ? row.checkoutPath : null,
     sessionHomePath: operation === "locus-attach" ? row.checkoutPath : null,
@@ -428,6 +428,9 @@ function success(
       ? `Attached the entering session to ${row.checkoutPath}.`
       : `Released the exact lease for ${row.checkoutPath}.`,
   });
+  return operation === "locus-attach"
+    ? appendDirectedCommandAdvisory(result, { confirmationRequired: true })
+    : result;
 }
 
 function lockRefusal(

@@ -65,7 +65,7 @@ export async function leaveOrdinaryErrandAtRuntime(
     return createLocusMutationResult({
       outcome: "refused",
       operation: "errand-leave",
-      reason: "cold-entry-required",
+      reason: "lease-unknown",
       recommendedPromptText: `Errand leave cannot establish a durable session anchor: ${anchor.reason}`,
     });
   }

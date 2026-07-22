@@ -1,17 +1,12 @@
-/** Directed-command capability and warm locus-entry boundary tests. */
+/** Directed-command advisory and checkout-pinned execution tests. */
 
 import { describe, expect, it } from "vitest";
 
 import {
-  enteringProcessCapabilities,
-  guardWarmLocusEntry,
+  appendDirectedCommandAdvisory,
   pinLocusGitExec,
 } from "../../../src/lib/locus/entry-boundary.js";
-import type { LocusAnchor, LocusMutationResultV1 } from "../../../src/lib/locus/schema/index.js";
-
-function processAnchor(selector: string): LocusAnchor {
-  return { kind: "process", pid: 42, startToken: "start", inspector: "linux-proc", selector };
-}
+import type { LocusMutationResultV1 } from "../../../src/lib/locus/schema/index.js";
 
 const SUCCESS: LocusMutationResultV1 = {
   outcome: "applied",
@@ -30,52 +25,30 @@ const SUCCESS: LocusMutationResultV1 = {
   recommendedPromptText: "Continue in /work/transient.",
 };
 
-describe("enteringProcessCapabilities", () => {
-  it.each(["codex", "claude"])("admits the %s selector for directed warm entry", (selector) => {
-    expect(enteringProcessCapabilities(processAnchor(selector))).toEqual({ directedCommands: true });
+describe("appendDirectedCommandAdvisory", () => {
+  it("keeps a separate active checkout admitted and adds operator-confirmed direction guidance", () => {
+    const result = appendDirectedCommandAdvisory(SUCCESS);
+    expect(result).toMatchObject({ outcome: "applied", operation: "errand-open" });
+    expect(result.recommendedPromptText).toContain("Continue in /work/transient.");
+    expect(result.recommendedPromptText).toMatch(/confirm.*direct commands.*active (?:checkout|locus)/iu);
+    expect(result.recommendedPromptText).toMatch(/cold session/iu);
   });
 
-  it.each(["gemini", "interactive-shell", "shared-host", "unknown"])(
-    "does not admit the %s selector for directed warm entry",
-    (selector) => {
-      expect(enteringProcessCapabilities(processAnchor(selector))).toEqual({ directedCommands: false });
-    },
-  );
+  it("does not add a direction advisory when the session is already in the active checkout", () => {
+    const colocated = { ...SUCCESS, sessionHomePath: SUCCESS.activeLocusPath };
+    expect(appendDirectedCommandAdvisory(colocated)).toStrictEqual(colocated);
+  });
 
-  it("does not admit an unverifiable entering anchor", () => {
-    expect(enteringProcessCapabilities({ kind: "unverifiable", reason: "ancestry unavailable" }))
-      .toEqual({ directedCommands: false });
+  it("can require confirmation for a directed attach even when the result re-roots session home", () => {
+    const attached = { ...SUCCESS, operation: "locus-attach" as const, sessionHomePath: SUCCESS.activeLocusPath };
+    expect(appendDirectedCommandAdvisory(attached, { confirmationRequired: true }).recommendedPromptText)
+      .toMatch(/confirm.*direct commands/iu);
   });
 });
 
-describe("guardWarmLocusEntry", () => {
-  it("refuses before identity or local allocation mutation when directed commands are unavailable", async () => {
-    let mutations = 0;
-    const result = await guardWarmLocusEntry({
-      anchor: processAnchor("interactive-shell"),
-      operation: "errand-open",
-      mutate: async () => {
-        mutations += 1;
-        return SUCCESS;
-      },
-    });
-
-    expect(result).toMatchObject({
-      outcome: "refused",
-      operation: "errand-open",
-      reason: "cold-entry-required",
-    });
-    expect(result.recommendedPromptText).toMatch(/fresh (?:Codex|Claude)|cold session/iu);
-    expect(mutations).toBe(0);
-  });
-
-  it("returns successful path coordinates and pins directed Git work to the active locus", async () => {
-    const result = await guardWarmLocusEntry({
-      anchor: processAnchor("codex"),
-      operation: "errand-open",
-      mutate: async () => SUCCESS,
-    });
-    expect(result).toStrictEqual(SUCCESS);
+describe("pinLocusGitExec", () => {
+  it("pins directed Git work to the active locus", async () => {
+    const result = appendDirectedCommandAdvisory(SUCCESS);
     if (result.outcome === "refused" || result.outcome === "error") throw new Error("expected open success");
     expect(result.activeLocusPath).toBe("/work/transient");
     expect(result.sessionHomePath).toBe("/work/session-home");
