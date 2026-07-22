@@ -362,17 +362,13 @@ exists to enable unreachable.
     - Registered the explicit two-argument command beside the lifecycle verbs; the handler resolves production
       dependencies and owns refusal/success presentation while the command adapter and lib own execution.
 
-### `[ ]` **6.7 End-to-end coverage across the subject shapes**
+### `[x]` **6.7 End-to-end coverage across the subject shapes**
 
 - _Goal:_ The verb is exercised as an operator invokes it — real repository fixtures, real git state — across
   every shape and every interruption point the convergence claim rests on.
-- _Rationale:_ Its own increment rather than a bullet on the CLI wiring: three shaped fixtures plus an injected
-  failure at each leg boundary is the heaviest work in the phase, and burying it under registration would hide it
-  from review.
-
-    - Cover a spawned subject, an in-place subject, and a backlog stub end-to-end.
-    - Cover a self-rename exercising the locus hop and the relocation handoff.
-    - Cover a resumed run after an injected failure at each leg boundary, asserting only the outstanding legs run.
+- _Outcome:_ Built-CLI tests exercise real repositories for stub, in-place, and spawned subjects; spawned coverage
+  self-moves the active checkout and verifies marker/remote identity, while an injected stale lease proves a
+  post-commit rerun skips durable work and completes the remaining marker and worktree legs.
 
 ## **Phase 7:** Ship surface and integration readiness
 

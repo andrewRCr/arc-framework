@@ -211,4 +211,58 @@ describe("runRename", () => {
       .resolves.toEqual({ status: "partial", reason: "notes failed" });
     expect(calls.at(-1)).toBe("notes");
   });
+
+  it.each(["branch", "notes", "remote", "marker", "move-worktree"] as const)(
+    "resumes from the outstanding %s identity leg",
+    async (failureLeg) => {
+      const { ctx } = buildContext();
+      const landed = new Set<string>();
+      const mutations: string[] = [];
+      let trackedCommitted = false;
+      let injectFailure = true;
+      const apply = (leg: string): void => {
+        if (landed.has(leg)) return;
+        mutations.push(leg);
+        if (leg === failureLeg && injectFailure) throw new Error(`${leg} interrupted`);
+        landed.add(leg);
+      };
+      ctx.preflight = async () => plan("spawned", trackedCommitted);
+      ctx.commitTracked = async () => {
+        trackedCommitted = true;
+      };
+      ctx.renameLocalBranch = async () => {
+        apply("branch");
+      };
+      ctx.renameUserWorkspace = async () => {
+        apply("notes");
+      };
+      ctx.renameRemoteBranch = async () => {
+        apply("remote");
+        return { status: "renamed", oldOid: "c".repeat(40) };
+      };
+      ctx.renameMarker = async () => {
+        apply("marker");
+        return "renamed";
+      };
+      ctx.moveWorktree = async () => {
+        apply("move-worktree");
+        return {
+          mutation: "move",
+          from: "/work/project.old-name",
+          to: "/work/project.new-name",
+          locusHopped: true,
+        };
+      };
+
+      await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
+        .resolves.toMatchObject({ status: "partial" });
+      mutations.length = 0;
+      injectFailure = false;
+
+      await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
+        .resolves.toMatchObject({ status: "renamed", trackedCommit: "existing" });
+      const order = ["branch", "notes", "remote", "marker", "move-worktree"];
+      expect(mutations).toEqual(order.slice(order.indexOf(failureLeg)));
+    },
+  );
 });
