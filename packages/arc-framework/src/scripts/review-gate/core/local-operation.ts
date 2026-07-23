@@ -3,11 +3,11 @@
 import { z } from "zod";
 
 import { canonicalDigest, canonicalize } from "../../../lib/kernel/index.js";
-import type { LocalReviewAuthority } from "../hosts/local/review-authority.js";
 import {
   createLocalChangeSetCarrier,
   type LocalChangeSetCarrierContract,
 } from "./local-carrier.js";
+import type { LocalReviewAuthority } from "./local-review-authority.js";
 import {
   validateReviewRequirement,
   validateReviewTarget,

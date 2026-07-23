@@ -203,16 +203,11 @@ is written once at admission and never advanced (publication state derives from 
 inline in prepare/resume, reaping both orphan and terminally-expired classes. Derivation, materialization, and
 validation are test-first; the Commander wiring is test-after.
 
-### `[ ]` **4.1 `arc review local prepare` — canonical target and request derivation**
+### `[x]` **4.1 `arc review local prepare` — canonical target and request derivation**
 
 - _Goal:_ `local prepare` derives the exact local target and request from trusted repository/vehicle/policy/runtime
   bindings — never a prebuilt target — and admits (or identical-retry-returns) one operation, emitting a `ready`
   payload with the typed reviewer payload.
-
-- _Context:_ The only explicit caller selection is `evaluatorIdentity` (must differ from the author); repository
-  preconditions (unborn, unresolved base, dirty index/worktree, non-commit HEAD) are `invalid-input`, not domain states.
-
-- **Additional Context:** `spec-review-surface-binding.md` § D4 (derivation steps, identical-retry predicate)
 
     - `[x]` **4.1.a Repository identity record** (`hosts/local/git-common-state.ts`)
         - Added a locked, schema-validated repository UUID record under the Git common directory; a real-Git
@@ -234,7 +229,12 @@ validation are test-first; the Commander wiring is test-after.
         - An identical retry returns and re-verifies the persisted operation without publishing or rebuilding, while
           any keyed-fact difference derives a new operation identity
 
-    - `[ ]` **4.1.e Wire the `arc review local prepare` handler and command** — test-after (envelope in/out; `handleReviewLocalPrepare`)
+    - `[x]` **4.1.e Wire the `arc review local prepare` handler and command**
+        - Added the production prepare composition and the file/stdin handler seam, registered `review local prepare`,
+          and emit only validated success or typed error envelopes
+
+- _Outcome:_ The command now derives every target, actor, assurance, policy, request, source, and retry fact through
+  trusted local bindings; callers supply only evaluator identity, routing facts, and an optional freshness bound.
 
 ### `[x]` **4.2 Immutable local review source materialization**
 

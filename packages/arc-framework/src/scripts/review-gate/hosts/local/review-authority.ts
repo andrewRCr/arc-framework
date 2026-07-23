@@ -3,6 +3,9 @@
 import {
   ReviewIdentifierSchema,
 } from "../../core/gate-contract-v2-schema.js";
+import type { LocalReviewAuthority } from "../../core/local-review-authority.js";
+
+export type { LocalReviewAuthority } from "../../core/local-review-authority.js";
 
 export interface LocalReviewLiveContext {
   activeIdentity: string | null;
@@ -18,17 +21,6 @@ export interface LocalReviewRuntimeBinding {
 export interface LocalReviewAuthorityDependencies {
   readLiveContext(): Promise<LocalReviewLiveContext>;
   resolveRuntimeBinding(): Promise<LocalReviewRuntimeBinding>;
-}
-
-export interface LocalReviewAuthority {
-  vehicle:
-    | { kind: "work-unit"; identity: string }
-    | { kind: "errand"; identity: string };
-  authorIdentity: string;
-  evaluatorIdentity: string;
-  attestationRuntimeKind: string;
-  runtimeIdentity: string;
-  attestationMechanism: "local-attestation";
 }
 
 /** Stable invalid-input failure at the local actor authority boundary. */

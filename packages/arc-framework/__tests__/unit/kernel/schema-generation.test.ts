@@ -67,6 +67,8 @@ describe("kernel schema artifact generation", () => {
       "frontline-outcome-record",
       "frontline-run-state",
       "local-disposition-terminal",
+      "local-review-policy-binding",
+      "local-review-policy-binding-digest-preimage",
       "local-review-source",
       "local-review-source-digest-preimage",
       "local-review-state",

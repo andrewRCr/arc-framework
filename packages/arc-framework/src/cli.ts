@@ -84,7 +84,10 @@ import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
-import { handleReviewFrontlineResolve } from "./handlers/review.js";
+import {
+  handleReviewFrontlineResolve,
+  handleReviewLocalPrepare,
+} from "./handlers/review.js";
 import {
   handleCheckCommitMessage,
   type HandleCheckCommitMessageOptions,
@@ -826,6 +829,17 @@ frontlineCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewFrontlineResolve(input));
+
+const localReviewCmd = reviewCmd
+  .command("local")
+  .description("Local immutable-source review operations");
+
+localReviewCmd
+  .command("prepare")
+  .description("Derive and prepare one immutable local review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewLocalPrepare(input));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 
