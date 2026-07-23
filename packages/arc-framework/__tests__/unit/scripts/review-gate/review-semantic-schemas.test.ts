@@ -185,11 +185,15 @@ describe("review semantic schemas", () => {
       { id: "disposition-set", version: 2, owner: "finding-settlement" },
       { id: "fix-authorization", version: 2, owner: "finding-settlement" },
       { id: "fix-consumption", version: 2, owner: "finding-settlement" },
+      { id: "local-review-source", version: 1, owner: "local-source" },
+      { id: "approved-disposition-record", version: 1, owner: "advisory-records" },
+      { id: "frontline-outcome-record", version: 1, owner: "advisory-records" },
+      { id: "review-reduction-projection", version: 1, owner: "advisory-records" },
       {
         id: "review-operation-state",
         version: 1,
         owner: "operation-state",
-        variants: ["frontline-run", "review-suspension"],
+        variants: ["frontline-run", "review-suspension", "local-review"],
       },
     ]);
     expect(new Set(REVIEW_DURABLE_RECORD_INVENTORY.map(({ id }) => id)).size)

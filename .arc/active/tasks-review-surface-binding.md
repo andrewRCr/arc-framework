@@ -87,98 +87,70 @@ outcome-enum extension are mandated to land as one inventory change — and lets
 types. Command parsers, emitted JSON schema, and reference projections all derive from these types. Schemas are
 test-first (contract tests: legal-pair round-trips, impossible-field rejection — SC 7).
 
-### `[ ]` **2.1 Shared envelope header, result vocabulary, and strict error union**
+### `[x]` **2.1 Shared envelope header, result vocabulary, and strict error union**
 
 - _Goal:_ Every verb has a registered discriminated-union contract for its success envelopes (each a single legal
   `state`→`nextAction` pair) plus a shared strict error union (`invalid-input | corrupt-state | unexpected-failure`),
   so parsers, emitted schema, and projections derive from one authority.
 
-- _Context:_ Common header is `schemaVersion` + `mode` + typed `diagnostics`; success envelopes add a
-  state-discriminated payload; error envelopes carry no `state`/`nextAction`/payload and exit 1.
+- _Outcome:_ Added and registered strict success envelopes for all seven verbs plus the shared error union, with
+  exact state/action pairings, reason-class action splits, attestation terminal checks, and typed repository
+  precondition diagnostics.
 
-    - Build `test-first` (one behavior at a time):
-        - each command's legal `state -> nextAction` pairs parse and an illegal pair is rejected (the § D2 table)
-        - `frontline run: unavailable`/`failed` reason-class discriminants map to `retry` vs `operator-repair` exactly
-        - `local attest: not-attestable` fires on a non-terminal status or a `complete` status with a null verdict
-        - the error union rejects any envelope carrying `state`, `nextAction`, or a success payload
-        - a `local prepare` repository precondition surfaces as `invalid-input` with a typed diagnostic naming it
-
-### `[ ]` **2.2 `local-review` operation-state variant and `frontline-run` outcome-enum extension**
+### `[x]` **2.2 `local-review` operation-state variant and `frontline-run` outcome-enum extension**
 
 - _Goal:_ `ReviewOperationStateSchema` gains a third `local-review` variant carrying the admission-fixed envelope, and
   `FrontlineRunState.outcome` extends with `timed-out` and `stale-target`, registered as one strict-current inventory
   change so persistence no longer throws on those two terminals.
 
-- _Note:_ `core/operation-state-schema.ts`; the `local-review` fields per § D6 (envelope, vehicle, `repositoryId`,
-  `targetId`, `requestId`, `policyVersion`, policy-binding digest, admitted runtime kind, `sourceRef`, `sourceDigest`,
-  cleanup TTL) — written once at admission, never advanced.
+- _Outcome:_ Registered the strict admission-fixed `local-review` state and extended `frontline-run` persistence
+  with `timed-out` and `stale-target`; the closed operation union now discriminates all three variants.
 
-    - Build `test-first` (one behavior at a time):
-        - the `local-review` variant round-trips and rejects extra/missing fields (`strictObject`)
-        - `FrontlineRunState.outcome` accepts `timed-out` / `stale-target`
-        - `ReviewOperationStateSchema` discriminates all three variants on `kind`
-
-### `[ ]` **2.3 Normalized frontline outcome union — `timed-out` / `stale-target` terminals and reason classes**
+### `[x]` **2.3 Normalized frontline outcome union — `timed-out` / `stale-target` terminals and reason classes**
 
 - _Goal:_ The provider-neutral normalized outcome union makes `timed-out` and `stale-target` first-class alongside
   clean/findings/unavailable/failed/pass-cap-exhausted, each non-clean terminal carrying a non-null typed `reason`
   under the shipped refinement, with the closed reason classes § D2 names.
 
-- _Note:_ Owned by the provider-neutral outcome schema (`policy/frontline-outcome.ts`); adapters map into it.
+- _Outcome:_ Recast normalized outcomes as a strict discriminated union with closed typed reasons, added timeout
+  and stale-target terminals, and made CodeRabbit stale-head observations retain the expected and observed heads.
 
-    - Build `test-first` (one behavior at a time):
-        - `timed-out` carries an execution-timeout reason; `stale-target` carries an observed-vs-expected head mismatch
-        - `unavailable` reason classes: `rate-limited | transient-unavailable | source-unbound | capability-unsupported`
-        - `failed` reason classes: `transient-transport | process-failure | signal-termination |
-          unexpected-adapter-failure | invalid-output | authorization-rejected`
-        - a non-clean outcome with a null reason is rejected
-
-### `[ ]` **2.4 `LocalReviewSourceV1` descriptor and semantic digest**
+### `[x]` **2.4 `LocalReviewSourceV1` descriptor and semantic digest**
 
 - _Goal:_ A registered `LocalReviewSourceV1` descriptor binds the exact Git-object range — repo/target identities,
   object format, `diffBaseSha`/`headSha`, `diffBaseTree`/`headTree`, opaque `reachabilityRef`/`materializationRef`,
   and a domain-separated `sourceDigest` over the semantic fields only.
 
-    - Build `test-first` (one behavior at a time):
-        - the digest excludes `sourceDigest` itself and both operational locators (no recursive preimage, no ref-name dependence)
-        - two descriptors over the same Git range with different locators share a `sourceDigest`
-        - `semanticsVersion: git-object-range/v1` is fixed
+- _Outcome:_ Added the strict Git-object-range descriptor, object-format width validation, and a registered
+  domain-separated digest preimage that excludes both operational locators and the digest itself.
 
-### `[ ]` **2.5 Advisory record schemas — disposition, frontline-outcome, and reduction projection**
+### `[x]` **2.5 Advisory record schemas — disposition, frontline-outcome, and reduction projection**
 
 - _Goal:_ Three registered advisory records exist — `ApprovedDispositionRecordV1`, `FrontlineOutcomeRecordV1`, and
   `ReviewReductionProjectionV1` — consuming the shipped disposition/approval/fix-authorization contracts as-is, with
   no parallel authority store.
 
-    - Build `test-first` (one behavior at a time):
-        - `ApprovedDispositionRecordV1` binds the operation, a discriminated source ref (receipt+source **or**
-          frontline-outcome), the full `ApprovedDispositionSet`, and a nullable `FixAuthorization`; round-trips
-        - `FrontlineOutcomeRecordV1` executable identity (digest + qualified version) is present **iff** an executable
-          was resolved and launched; carries the normalized outcome + canonical digest
-        - `ReviewReductionProjectionV1` round-trips
-        - each registers under the closed durable-record inventory
+- _Outcome:_ Added registered advisory disposition, digest-bound frontline outcome, and strict reduction
+  projection records; source authority is discriminated and executable identity is enforced against launch status.
 
-### `[ ]` **2.6 Storage ports, rubric-binding port, and schema-inventory registration**
+### `[x]` **2.6 Storage ports, rubric-binding port, and schema-inventory registration**
 
 - _Goal:_ The local-source, disposition-record, frontline-outcome, and reduction storage ports are declared as
   path/ref-agnostic abstractions, the boolean `ReviewRubricAvailabilityPort` is replaced by an identity-keyed
   `ReviewRubricBindingPort`, and every new record/variant is registered in the closed durable-record inventory.
 
-- _Context:_ Ports follow the shipped `export interface XStore { ... }` style in `core/ports.ts`; durable references
-  are opaque; mutations are append-only or version-checked. Port interfaces are compiler-validated (not test-first);
-  the inventory registration is tested.
+    - `[x]` **2.6.a Declare the new storage ports** — added path-agnostic local-source,
+      disposition-record, versioned frontline-outcome, and read-only reduction interfaces.
 
-    - `[ ]` **2.6.a Declare the new storage ports** — local-source, disposition-record, frontline-outcome, reduction
-      in `core/ports.ts`
+    - `[x]` **2.6.b Replace the rubric port** — assurance now resolves an identity-keyed binding and treats missing,
+      mismatched, or failed resolution as unavailable.
 
-    - `[ ]` **2.6.b Replace the rubric port** — `ReviewRubricAvailabilityPort` → identity-keyed `ReviewRubricBindingPort`
-      in `policy/assurance.ts`; update `resolveWorkUnitReviewAssurance` and interface consumers
+    - `[x]` **2.6.c Register records in the closed inventory**
+        - Composed the new source, advisory, outcome, command-envelope, and operation schemas through the kernel
+          registry and updated durable inventory variants plus generated-schema assertions.
 
-    - `[ ]` **2.6.c Register records in the closed inventory**
-        - add ids/variants to `core/schema-inventory.ts` `REVIEW_DURABLE_RECORD_INVENTORY` (incl. the `local-review`
-          variant on `review-operation-state`) and `core/register-review-schemas.ts`
-        - Build `test-first`: the inventory stays closed, includes the new ids, and registration round-trips
-          through the kernel registry
+- _Outcome:_ The contract family now composes from one registry into stable generated schema artifacts while its
+  storage and rubric seams remain implementation-neutral.
 
 ---
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
   FrontlineRunStateSchema,
+  LocalReviewStateSchema,
   ReviewOperationStateSchema,
   ReviewSuspensionStateSchema,
   type ReviewOperationState,
@@ -46,13 +47,43 @@ const suspension = {
   wakeupToken: digest("wakeup"),
 };
 
+const localReview = {
+  schemaVersion: 1 as const,
+  semanticsVersion: "review-operation/v1" as const,
+  operationId: "local-1",
+  updatedAt: "2026-07-20T20:00:00Z",
+  kind: "local-review" as const,
+  vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
+  repositoryId: "repo-1",
+  targetId: digest("target"),
+  requestId: digest("request"),
+  policyVersion: digest("policy"),
+  policyBindingDigest: digest("binding"),
+  attestationRuntimeKind: "delegated-agent",
+  sourceRef: "refs/arc/review/local-1",
+  sourceDigest: digest("source"),
+  cleanupTtlMs: 86_400_000,
+};
+
 describe("review operation state schemas", () => {
-  it("infers and accepts only the two registered operation variants", () => {
+  it("round-trips the immutable local-review operation and rejects missing or extra fields", () => {
+    expect(LocalReviewStateSchema.parse(localReview)).toEqual(localReview);
+    expect(() => LocalReviewStateSchema.parse({ ...localReview, sourceRef: undefined })).toThrow();
+    expect(() => LocalReviewStateSchema.parse({ ...localReview, phase: "ready" })).toThrow();
+  });
+
+  it("accepts the new frontline terminal outcomes", () => {
+    expect(FrontlineRunStateSchema.parse({ ...frontline, outcome: "timed-out" }).outcome).toBe("timed-out");
+    expect(FrontlineRunStateSchema.parse({ ...frontline, outcome: "stale-target" }).outcome).toBe("stale-target");
+  });
+
+  it("discriminates all three registered operation variants", () => {
     const records: ReviewOperationState[] = [
       FrontlineRunStateSchema.parse(frontline),
       ReviewSuspensionStateSchema.parse(suspension),
+      LocalReviewStateSchema.parse(localReview),
     ];
-    expect(records.map((record) => record.kind)).toEqual(["frontline-run", "review-suspension"]);
+    expect(records.map((record) => record.kind)).toEqual(["frontline-run", "review-suspension", "local-review"]);
     expect(() => ReviewOperationStateSchema.parse({ ...frontline, kind: "controller-verdict" })).toThrow();
   });
 

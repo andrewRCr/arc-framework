@@ -11,7 +11,7 @@ export type CodeRabbitAgentProviderResult =
   | { kind: "clean" }
   | { kind: "findings"; findings: NormalizedReviewFinding[] }
   | { kind: "rate-limited" }
-  | { kind: "stale-head" }
+  | { kind: "stale-head"; expectedHeadSha: string; observedHeadSha: string }
   | { kind: "ambiguous" }
   | { kind: "partial" }
   | { kind: "malformed" }
@@ -105,7 +105,13 @@ export function parseCodeRabbitAgentResult(input: {
   observedHead: string;
 }): CodeRabbitAgentProviderResult {
   if (input.cliVersion !== CODERABBIT_AGENT_CLI_VERSION) return { kind: "malformed" };
-  if (input.observedHead !== input.expectedHead) return { kind: "stale-head" };
+  if (input.observedHead !== input.expectedHead) {
+    return {
+      kind: "stale-head",
+      expectedHeadSha: input.expectedHead,
+      observedHeadSha: input.observedHead,
+    };
+  }
   if (/rate limit(?:ed| exceeded)?/iu.test(`${input.stdout}\n${input.stderr}`)) {
     return { kind: "rate-limited" };
   }

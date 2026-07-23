@@ -124,12 +124,17 @@ describe("frontline follow-up policy", () => {
   it.each(["unavailable", "failed", "pass-cap-exhausted"] as const)(
     "keeps %s advisory and non-following",
     (terminal) => {
+      const reason = terminal === "unavailable"
+        ? { class: "rate-limited" }
+        : terminal === "failed"
+          ? { class: "unexpected-adapter-failure" }
+          : { class: "pass-cap-exhausted" };
       expect(resolveFrontlineFollowUp({
         outcome: {
           ...outcome(),
           outcome: terminal,
           findings: [],
-          reason: terminal,
+          reason,
         },
         ...approved("major"),
         changedTarget,

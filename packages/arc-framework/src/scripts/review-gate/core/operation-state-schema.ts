@@ -12,6 +12,10 @@ const OperationEnvelopeShape = {
   operationId: IdentifierSchema,
   updatedAt: z.iso.datetime({ offset: true }),
 };
+const ReviewVehicleSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("work-unit"), identity: IdentifierSchema }),
+  z.strictObject({ kind: z.literal("errand"), identity: IdentifierSchema }),
+]);
 
 export const FrontlineRunStateSchema = z.strictObject({
   ...OperationEnvelopeShape,
@@ -19,7 +23,16 @@ export const FrontlineRunStateSchema = z.strictObject({
   targetId: CanonicalDigestSchema,
   sourceIdentity: IdentifierSchema,
   generation: z.number().int().nonnegative(),
-  outcome: z.enum(["pending", "clean", "findings", "failed", "unavailable", "pass-cap-exhausted"]),
+  outcome: z.enum([
+    "pending",
+    "clean",
+    "findings",
+    "failed",
+    "unavailable",
+    "timed-out",
+    "stale-target",
+    "pass-cap-exhausted",
+  ]),
   passCount: z.number().int().nonnegative(),
   policyVersion: CanonicalDigestSchema,
   sourceBindingId: CanonicalDigestSchema,
@@ -29,10 +42,7 @@ export type FrontlineRunState = z.infer<typeof FrontlineRunStateSchema>;
 export const ReviewSuspensionStateSchema = z.strictObject({
   ...OperationEnvelopeShape,
   kind: z.literal("review-suspension"),
-  vehicle: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("work-unit"), identity: IdentifierSchema }),
-    z.strictObject({ kind: z.literal("errand"), identity: IdentifierSchema }),
-  ]),
+  vehicle: ReviewVehicleSchema,
   repositoryId: IdentifierSchema,
   changeRequestId: IdentifierSchema.nullable(),
   targetId: CanonicalDigestSchema,
@@ -47,9 +57,26 @@ export const ReviewSuspensionStateSchema = z.strictObject({
 });
 export type ReviewSuspensionState = z.infer<typeof ReviewSuspensionStateSchema>;
 
+export const LocalReviewStateSchema = z.strictObject({
+  ...OperationEnvelopeShape,
+  kind: z.literal("local-review"),
+  vehicle: ReviewVehicleSchema,
+  repositoryId: IdentifierSchema,
+  targetId: CanonicalDigestSchema,
+  requestId: CanonicalDigestSchema,
+  policyVersion: CanonicalDigestSchema,
+  policyBindingDigest: CanonicalDigestSchema,
+  attestationRuntimeKind: IdentifierSchema,
+  sourceRef: z.string().trim().min(1),
+  sourceDigest: CanonicalDigestSchema,
+  cleanupTtlMs: z.number().int().positive(),
+});
+export type LocalReviewState = z.infer<typeof LocalReviewStateSchema>;
+
 export const ReviewOperationStateSchema = z.discriminatedUnion("kind", [
   FrontlineRunStateSchema,
   ReviewSuspensionStateSchema,
+  LocalReviewStateSchema,
 ]);
 export type ReviewOperationState = z.infer<typeof ReviewOperationStateSchema>;
 
@@ -62,6 +89,11 @@ export function registerReviewOperationStateSchemas(registry: KernelRegistry): K
   });
   registry.register(ReviewSuspensionStateSchema, {
     id: "review-suspension-state",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(LocalReviewStateSchema, {
+    id: "local-review-state",
     version: 1,
     migrationPosture: "strict-current",
   });

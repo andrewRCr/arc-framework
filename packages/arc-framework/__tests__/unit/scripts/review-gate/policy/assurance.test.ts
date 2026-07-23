@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   resolveWorkUnitReviewAssurance,
-  type ReviewRubricAvailabilityPort,
+  type ReviewRubricBindingPort,
 } from "../../../../../src/scripts/review-gate/policy/assurance.js";
 import type { ReviewMethodActivityPort } from "../../../../../src/scripts/review-gate/policy/activity.js";
 
 const activity = (value: unknown): ReviewMethodActivityPort => ({
   readReviewMethodActivity: () => value,
 });
-const rubrics = (available: boolean): ReviewRubricAvailabilityPort => ({
-  isReviewRubricAvailable: () => available,
+const rubrics = (available: boolean): ReviewRubricBindingPort => ({
+  resolveReviewRubricBinding: (identity) => available ? { identity } : null,
 });
 
 describe("work-unit review assurance", () => {
@@ -18,7 +18,7 @@ describe("work-unit review assurance", () => {
     const result = resolveWorkUnitReviewAssurance(
       { Class: "Heavy", "Review Rubric": "[none]" },
       activity({ selfReview: false, frontlineReview: true }),
-      { isReviewRubricAvailable: () => { throw new Error("must not resolve absence"); } },
+      { resolveReviewRubricBinding: () => { throw new Error("must not resolve absence"); } },
     );
 
     expect(result).toEqual({
@@ -48,7 +48,7 @@ describe("work-unit review assurance", () => {
     const result = resolveWorkUnitReviewAssurance(
       { Class: "Light", "Review Rubric": "security-audit" },
       activity({ selfReview: true, frontlineReview: true }),
-      { isReviewRubricAvailable: () => { throw new Error("registry unavailable"); } },
+      { resolveReviewRubricBinding: () => { throw new Error("registry unavailable"); } },
     );
 
     expect(result.reviewRubric).toEqual({ state: "unavailable", identity: "security-audit" });

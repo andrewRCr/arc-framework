@@ -6,7 +6,7 @@ export const CODERABBIT_FRONTLINE_MODE = "plain-compatibility";
 export type CodeRabbitPlainProviderResult =
   | { kind: "clean" }
   | { kind: "rate-limited" }
-  | { kind: "stale-head" }
+  | { kind: "stale-head"; expectedHeadSha: string; observedHeadSha: string }
   | { kind: "malformed" }
   | { kind: "failed"; reason: string };
 
@@ -26,7 +26,13 @@ export function parseCodeRabbitPlainResult(input: {
   observedHead: string;
 }): CodeRabbitPlainProviderResult {
   if (input.cliVersion !== CODERABBIT_FRONTLINE_CLI_VERSION) return { kind: "malformed" };
-  if (input.observedHead !== input.expectedHead) return { kind: "stale-head" };
+  if (input.observedHead !== input.expectedHead) {
+    return {
+      kind: "stale-head",
+      expectedHeadSha: input.expectedHead,
+      observedHeadSha: input.observedHead,
+    };
+  }
   if (/rate limit(?:ed| exceeded)?/iu.test(`${input.stdout}\n${input.stderr}`)) {
     return { kind: "rate-limited" };
   }

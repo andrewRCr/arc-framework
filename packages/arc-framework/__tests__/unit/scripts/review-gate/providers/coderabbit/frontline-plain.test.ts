@@ -62,7 +62,11 @@ describe("CodeRabbit plain frontline compatibility parser", () => {
       stderr: String(stale?.stderr),
       expectedHead: String(stale?.expectedHead),
       observedHead: String(stale?.observedHead),
-    })).toEqual({ kind: "stale-head" });
+    })).toEqual({
+      kind: "stale-head",
+      expectedHeadSha: "a".repeat(40),
+      observedHeadSha: "b".repeat(40),
+    });
   });
 
   it.each([

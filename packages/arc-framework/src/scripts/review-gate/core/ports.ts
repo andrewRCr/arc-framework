@@ -14,6 +14,12 @@ import type {
 } from "./gate-contract-v2-schema.js";
 import type { ForwardGateProjection } from "./projection.js";
 import type { ReviewOperationState } from "./operation-state-schema.js";
+import type { LocalReviewSource } from "./local-review-source.js";
+import type {
+  ApprovedDispositionRecord,
+  FrontlineOutcomeRecord,
+  ReviewReductionProjection,
+} from "./advisory-records.js";
 import type {
   GateProjection,
   ReceiptEnvelope,
@@ -275,6 +281,36 @@ export interface ReviewOperationStateStore {
     state: ReviewOperationState,
     expectedVersion: number,
   ): Promise<{ version: number }>;
+}
+
+/** Path-agnostic immutable source storage for local review materializations. */
+export interface LocalReviewSourceStore {
+  readSource(sourceRef: string): Promise<LocalReviewSource | null>;
+  appendSource(source: LocalReviewSource): Promise<{ sourceRef: string }>;
+}
+
+/** Append-only approved-disposition storage keyed by the exact operation. */
+export interface ApprovedDispositionRecordStore {
+  readDispositionRecord(operationId: string): Promise<ApprovedDispositionRecord | null>;
+  appendDispositionRecord(record: ApprovedDispositionRecord): Promise<{ dispositionRecordRef: string }>;
+}
+
+/** Version-checked durable frontline outcome storage. */
+export interface FrontlineOutcomeStore {
+  readOutcome(operationId: string): Promise<{
+    version: number;
+    record: FrontlineOutcomeRecord | null;
+    outcomeRef: string | null;
+  }>;
+  appendOutcome(
+    record: FrontlineOutcomeRecord,
+    expectedVersion: number,
+  ): Promise<{ version: number; outcomeRef: string }>;
+}
+
+/** Read-only reduction boundary over durable advisory review records. */
+export interface ReviewReductionPort {
+  reduce(operationId: string): Promise<ReviewReductionProjection>;
 }
 
 /** Exact, deduplicated request accepted only by a promoted review watcher capability. */

@@ -100,7 +100,7 @@ describe("CodeRabbit frontline execution", () => {
       readHead: vi.fn().mockResolvedValue(target.headSha),
     });
 
-    expect(result).toMatchObject({ outcome: "unavailable", reason: "rate-limited" });
+    expect(result).toMatchObject({ outcome: "unavailable", reason: { class: "rate-limited" } });
     expect(CODERABBIT_FRONTLINE_REGISTRATION.sourceId).toBe("coderabbit-cli");
     expect(CODERABBIT_FRONTLINE_REGISTRATION.sourceId).not.toBe("coderabbit-pr");
   });

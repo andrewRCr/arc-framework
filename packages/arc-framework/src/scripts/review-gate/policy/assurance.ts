@@ -12,29 +12,29 @@ import {
   type ReviewMethodActivityPort,
 } from "./activity.js";
 
-/** Availability seam; method discovery and registry binding stay in its adapter. */
-export interface ReviewRubricAvailabilityPort {
-  isReviewRubricAvailable(identity: string): boolean;
+/** Identity-keyed rubric binding seam; method discovery stays in its adapter. */
+export interface ReviewRubricBindingPort {
+  resolveReviewRubricBinding(identity: string): { identity: string } | null;
 }
 
 /** Resolve WU review inputs without binding production method discovery. */
 export function resolveWorkUnitReviewAssurance(
   meta: Pick<MetaRecord, "Class" | "Review Rubric">,
   activityPort: ReviewMethodActivityPort,
-  rubricPort: ReviewRubricAvailabilityPort,
+  rubricPort: ReviewRubricBindingPort,
 ): WorkUnitReviewAssurance {
   const workClass = WorkClassSchema.parse(meta.Class);
   const identity = parseReviewRubric(meta["Review Rubric"]);
   let reviewRubric: ReviewRubricOverlayResolution = { state: "absent" };
   if (identity !== null) {
-    const available = (() => {
+    const binding = (() => {
       try {
-        return rubricPort.isReviewRubricAvailable(identity);
+        return rubricPort.resolveReviewRubricBinding(identity);
       } catch {
-        return false;
+        return null;
       }
     })();
-    reviewRubric = available
+    reviewRubric = binding?.identity === identity
       ? { state: "resolved", identity }
       : { state: "unavailable", identity };
   }
