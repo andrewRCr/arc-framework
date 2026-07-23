@@ -124,36 +124,25 @@ canonical commit/push path under workflow guidance. Off-workflow commits use raw
 
 ### Self-Hosting Review Gate
 
-The review controller is not operational merge authority. Until its separate qualification and promotion work
-completes, integration uses the established manual integration path and the live legacy CI requirement; checked-in
-controller state, receipts, or verdicts must not be treated as permission to merge.
+The review controller is not operational merge authority. Integration uses the established manual integration path
+and the live CI requirement; no host-side review context, local receipt, advisory outcome, or controller verdict is
+treated as permission to merge.
 
-This repository carries a repository-only TypeScript review controller under
-`packages/arc-framework/src/scripts/review-gate/`; it is linted, typechecked, and tested with the CLI source but is
-outside the tsup entry graph and npm package manifest. Its immutable private entrypoint registry composes three layers:
+The shipped `arc review` command tree is part of the tsup bundle and published CLI. Its strict JSON-in / JSON-out
+operations compose one advisory review protocol:
 
-- **Neutral contracts and runtimes** — typed policy, request reservation, receipts, evidence, admission, fallback,
-  findings, settlement, passive waiting, head mutability, and verdict reduction depend on injected ports rather than
-  GitHub or provider APIs.
-- **GitHub and provider implementations** — REST/GraphQL readers, App-authored ledger/check writers, native review
-  state, CodeRabbit and hosted-Codex parsers, trigger actions, and exact-head settlement implement those ports.
-- **Repository policy and launchers** — self-hosting source identities, provider order, risk rules, workflow entry
-  points, local watcher, qualification coordinator, and repair tooling remain repository-specific.
+- **Frontline review** — `frontline resolve` selects an ordered configured source without invoking it, and
+  `frontline run` executes an authorized source against an immutable exact-head checkout before persisting its
+  normalized outcome.
+- **Delegated local review** — `local prepare` derives and materializes an immutable change set, `local attest`
+  validates the evaluator result against that source, and `local resume` reconstructs the next action from durable
+  operation state.
+- **Disposition and reduction** — `respond` persists an approved, source-bound disposition set, while `reduce`
+  projects the current advisory result without turning it into merge authority.
 
-The dedicated GitHub App has no webhook or service runtime. Short-lived GitHub Actions runs execute protected
-default-branch code: secretless discovery emits bounded repository/PR candidates, environment-scoped App jobs re-query
-canonical state, and per-PR concurrency serializes authoritative writes. Event reconciliation and scheduled discovery
-converge on the same canonical state. Provider effects are admitted only after a durable reservation and confirmed
-App-authored pending projection; active flights freeze the reviewed head, and finding settlement remains bound to its
-original conversation.
-
-The private qualification launcher runs only from a clean checkout at an immutable remote default-branch SHA. It
-performs assigned developer-authenticated actions, dispatches protected App/token/repair probes, re-queries GitHub,
-and persists mode-restricted raw non-secret evidence plus tamper-evident checkpoints outside the repository. A closed
-typed matrix and deterministic activation compiler emit only sanitized candidates. Incomplete, contaminated,
-credential-shaped, mismatched, or unshipped results cannot activate policy. The checked-in policy remains inactive
-and legacy CI remains authoritative until live baseline qualification and the later source-pinned enforcement
-promotion complete their add-before-remove proofs.
+The same source tree still contains repository-only hosted-controller launchers and GitHub/provider adapters invoked
+by self-hosting scripts and Actions rather than the public command tree. That machinery remains separate from the
+shipped advisory CLI contract and confers no authority on its records or projections.
 
 ## 3. Infrastructure
 

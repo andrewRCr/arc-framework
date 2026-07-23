@@ -468,7 +468,7 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
 - _Outcome:_ Every D14 consume-set module now has a substantive production caller, while the retire and coordinated
   hand-off sets remain completely classified.
 
-### `[ ]` **7.4 `TECHNICAL-OVERVIEW` § 2 reconciliation**
+### `[x]` **7.4 `TECHNICAL-OVERVIEW` § 2 reconciliation**
 
 - _Goal:_ `TECHNICAL-OVERVIEW` § 2 describes the shipped `arc review` CLI surface (the review tree is in the bundle) and
   preserves the statement that no host-side context is treated as operational merge authority.
@@ -479,8 +479,13 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
   rendered file directly, with no package-source projection. Merge-order-coordinated with the sibling's E2, which
   deletes the controller/check-run text.
 
-    - `[ ]` **7.4.a Rewrite the review-gate section in `.arc/reference/TECHNICAL-OVERVIEW.md`** to the shipped
-      surface; reconcile with the sibling's deletion by merge order; markdown lint green
+    - `[x]` **7.4.a Rewrite the review-gate section in `.arc/reference/TECHNICAL-OVERVIEW.md`**
+        - Replaced the inaccurate outside-the-bundle controller narrative with the shipped frontline, delegated-local,
+          response, and reduction command surface; retained the current hosted-controller boundary without granting
+          its records or projections merge authority.
+
+- _Outcome:_ The project-owned overview now describes the executable advisory CLI contract while leaving a clean
+  merge-order seam for the sibling's later controller deletion and thin-guard architecture.
 
 ### `[ ]` **7.5 `integrate-work-unit` / `run-errand` review-lane rewrite to verb invocations**
 
