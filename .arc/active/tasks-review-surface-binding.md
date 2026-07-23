@@ -556,43 +556,47 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
   ports, bounds and durably classifies frontline execution, self-heals expected concurrency, releases completed or
   expired sources, and is exercised through built commands across its complete advisory and recovery matrix.
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; full typecheck; 645 test files / 8,057 tests; build — all
+  passed, with one skipped test file and test
+- _Success criteria:_ 14 criteria met with no deviations, supersessions, or remaining gaps
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A project on the `local` channel completes a standard review end to end through documented `arc review`
+- `[x]` A project on the `local` channel completes a standard review end to end through documented `arc review`
   commands with no hosted provider; clean, findings, and fully-dispositioned results reach their advisory reduction
   states, and a defer/reject-only set reaches durable local closure with no fix machinery
-- `[ ]` The public path consumes effective method activation and a declared typed rubric augmentation; malformed or
+- `[x]` The public path consumes effective method activation and a declared typed rubric augmentation; malformed or
   unavailable declarations produce visible fail-closed diagnostics, and the delivered guidance is re-verified at attestation
-- `[ ]` The registered CodeRabbit source runs against the exact head through an immutable checkout, records the digest
+- `[x]` The registered CodeRabbit source runs against the exact head through an immutable checkout, records the digest
   and qualified version of the executable that ran, persists the outcome durably, re-enters the response path after a
   crash, and returns `timed-out` on a hung provider
-- `[ ]` No expected concurrency residue surfaces as an operator interrupt; the only `operator-repair` edges are the five
+- `[x]` No expected concurrency residue surfaces as an operator interrupt; the only `operator-repair` edges are the five
   the design enumerates (unresolvable source binding, unsupported capability, rejected authorization, invalid output,
   unparseable/unregistered policy binding)
-- `[ ]` Failure-injection tests cover the recovery surface: dirty/unborn refusal, Git target/request derivation, pin
+- `[x]` Failure-injection tests cover the recovery surface: dirty/unborn refusal, Git target/request derivation, pin
   loss/restore and pruned-object corruption, failure between publication and pin creation, attest staleness, disposition
   idempotent and conflicting replay, outcome-before-advance, re-admission after a non-review terminal, provider timeout,
   stale-run-never-evidence, target movement during attestation, and every reduction result
-- `[ ]` A local evaluator sees only the detached exact-head checkout; moving the worktree away and back cannot change
+- `[x]` A local evaluator sees only the detached exact-head checkout; moving the worktree away and back cannot change
   the source digest or satisfy attestation for different bytes; the pin keeps the range reachable through branch
   deletion and Git maintenance; resume recreates the identical review root
-- `[ ]` Contract tests exercise every legal command-specific state/action pair, reject impossible fields, and prove
+- `[x]` Contract tests exercise every legal command-specific state/action pair, reject impossible fields, and prove
   per-state payloads, strict error variants, and domain outcomes retain their distinct field and exit semantics
-- `[ ]` Integration tests enter through the CLI or a production launcher rather than composing library calls; every
+- `[x]` Integration tests enter through the CLI or a production launcher rather than composing library calls; every
   delivered port has a non-test production caller and a user-reachable path
-- `[ ]` The prune-at-consumption pass leaves no dormant review module unclassified; a re-run reachability walk shows no
+- `[x]` The prune-at-consumption pass leaves no dormant review module unclassified; a re-run reachability walk shows no
   consume-set module without a production caller, and the two boundary `policy/` modules are dispositioned under the
   consumer test
-- `[ ]` `TECHNICAL-OVERVIEW` § 2 describes the shipped `arc review` surface, and no added behavior is represented as
+- `[x]` `TECHNICAL-OVERVIEW` § 2 describes the shipped `arc review` surface, and no added behavior is represented as
   host-side enforcement; the required-check boundary remains explicit
-- `[ ]` `integrate-work-unit` and `run-errand` reach the review lane exclusively through `arc review` verbs in both
+- `[x]` `integrate-work-unit` and `run-errand` reach the review lane exclusively through `arc review` verbs in both
   package source and the projected instance; a grep for `ReviewOperationStateStore` / `invalid-request` returns nothing,
   and neither supplies `changeSetState`
-- `[ ]` No abandoned local review leaks its pin or checkout; the failure-injection suite proves both sweep classes and
+- `[x]` No abandoned local review leaks its pin or checkout; the failure-injection suite proves both sweep classes and
   that a live unexpired operation's pin is never reaped by a concurrent sweep
-- `[ ]` All quality gates pass (tests, linting, type checking, build)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking, build)
+- `[x]` Ready for integration
