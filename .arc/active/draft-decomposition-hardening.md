@@ -1,11 +1,11 @@
-# Draft: cohortless-decomposition — make WU decomposition a first-class parallel-era primitive
+# Draft: decomposition-hardening — make WU decomposition a first-class parallel-era primitive
 
 - **Origin:** [internal] — routed from `USER-INBOX § Work Unit` at the housekeep drain (2026-07-07); captured
-  during `roadmap-tooling` grooming, 2026-07-06. **Intended retitle: `decomposition-machinery`** — decided on
-  the decomposition-program grooming branch (2026-07-21) when the 2026-07-19 consolidation (the retired
-  `decomposition-machinery-hardening` slug's three transform-hardening captures folded into this stub's buffer)
-  widened its real scope past the original cohort-less-split concern; deferred because no sanctioned slug-rename
-  transition exists (see the rename-transition buffer entry below). Execute the rename once this WU ships one.
+  during `roadmap-tooling` grooming, 2026-07-06. Scope widened past the original cohort-less-split concern by the
+  2026-07-19 consolidation — the retired `decomposition-machinery-hardening` slug's three transform-hardening
+  captures folded into this stub's buffer. Renamed `cohortless-decomposition` → `decomposition-hardening`
+  (2026-07-23) via the shipped `wu-rename` verb; the originally-intended `decomposition-machinery` slug was
+  unavailable (a completed work unit already owns it).
 - **Purpose:** Make `decompose-work-unit` + `arc decompose` a first-class primitive that is correct under
   parallel multi-worktree operation. Four concerns, all live-run evidence: a cohort-less multi-WU split shape
   (flat siblings + dependency edge, no vacuous cohort node); authoritative-source resolution for base-run
@@ -41,9 +41,11 @@ multiplies: the transform must become boring, correct machinery before the doctr
    surviving-base terminal, or reuse of the stamped-husk machinery on any origin-worktree arm; one
    lifecycle-complete result covering teardown and user-workspace close; ready-member derivation from the cut
    graph with a spawn-anchored launch offer on a unique head.
-5. **Slug rename transition** — a rename receipt kind (or an `arc rename` verb producing one) the retirement
-   gate accepts, plus the reference sweep; first use: execute this WU's own retitle to
-   `decomposition-machinery`.
+5. **Slug rename transition** — superseded by the shipped `wu-rename` (the `arc rename` verb, its
+   retirement-receipt kind, and the reference sweep), which executed this WU's own retitle on 2026-07-23. No known
+   residue belongs here — the post-ship gaps found during that rename (phantom ROADMAP row, sweep prose-scope) are
+   `wu-rename` follow-ups captured to `USER-INBOX § Errand`. Confirm at spec, then drop this area (leaving the four
+   parallel-era concerns).
 
 ## Coordination
 
