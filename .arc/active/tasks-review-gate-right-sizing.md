@@ -20,17 +20,11 @@ shadow runtime that currently contains their reusable pieces.
           and ambiguous-delivery outcomes, and the public `arc review hosted request` handler/CLI surface without
           introducing controller, receipt, or local operation state.
 
-    - `[ ]` **1.1.b Re-home bounded hosted-review observation behind the await verb**
+    - `[x]` **1.1.b Re-home bounded hosted-review observation behind the await verb**
 
-        - Salvage bounded deadline, backoff, and exact-head staleness behavior from `runtime/await.ts`, the
-          developer-authenticated process-read boundary from `runtime/gh-action-port.ts`, and provider-specific
-          observation parsers. Do not retain `hosts/github/await-observation.ts` or its aggregate check-run state.
-        - Accept a bounded per-invocation timeout, return completed observations immediately, and return a typed,
-          resumable pending state on timeout without an agent-side polling loop.
-        - Build `test-first` (one behavior at a time):
-            - pending review reaches a resumable timeout state;
-            - terminal provider observations normalize into findings, clean, or unavailable outcomes;
-            - repeated bounded calls preserve request identity without creating a second review request.
+        - Added the exact-head-aware `arc review hosted await` contract with bounded exponential backoff, immediate
+          terminal normalization, safe read-side unavailability, and resumable timeout results that preserve the
+          durable request handle across repeated calls.
 
     - `[ ]` **1.1.c Re-home direct thread replies and resolution behind the settlement verb**
 

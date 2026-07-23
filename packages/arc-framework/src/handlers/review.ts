@@ -12,6 +12,10 @@ import {
   requestHostedReview,
   type HostedReviewAdapter,
 } from "../scripts/review-gate/hosted/request.js";
+import {
+  awaitHostedReview,
+  type HostedReviewObserver,
+} from "../scripts/review-gate/hosted/await.js";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -78,5 +82,31 @@ export async function handleReviewHostedRequest(
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
     emitReviewError("review-hosted-request", error);
+  }
+}
+
+/**
+ * Await one already-requested hosted review and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param dependencies - Built-in observers supplied by the CLI composition root.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleReviewHostedAwait(
+  source: string,
+  dependencies: { observers: readonly HostedReviewObserver[] } = { observers: [] },
+): Promise<void> {
+  try {
+    const request = await readJsonSource(source);
+    const result = await awaitHostedReview(request, {
+      ...dependencies,
+      clock: {
+        now: () => Date.now(),
+        sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+      },
+    });
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    emitReviewError("review-hosted-await", error);
   }
 }
