@@ -786,8 +786,10 @@ surface and preserve the standing statement that no host-side context is treated
 **Shared surface with `review-gate-right-sizing` (its E2).** That WU also rewrites § 2 — its cut deletes the GitHub
 App, controller, and check-run projection this text would otherwise describe a boundary against. The two edits are
 append-only and merge-order-coordinated: whichever lands second reconciles so § 2 neither reintroduces the deleted
-controller nor describes a boundary against a machine that no longer exists. Edits originate in package source and
-project into `.arc/`.
+controller nor describes a boundary against a machine that no longer exists. The review-controller text is
+repository-specific and lives in the rendered instance `.arc/reference/TECHNICAL-OVERVIEW.md` (its
+`### Self-Hosting Review Gate` section); the generic package-source template carries no such section, so these edits
+land in the rendered file directly rather than projecting from package source.
 
 ### D16 — Invoking workflow reconciliation
 
