@@ -214,8 +214,9 @@ validation are test-first; the Commander wiring is test-after.
 
 - **Additional Context:** `spec-review-surface-binding.md` § D4 (derivation steps, identical-retry predicate)
 
-    - `[ ]` **4.1.a Repository identity record** (`hosts/local/git-common-state.ts`)
-        - Build `test-first`: mint-once then resolve-same; shared across sibling worktrees; survives checkout relocation
+    - `[x]` **4.1.a Repository identity record** (`hosts/local/git-common-state.ts`)
+        - Added a locked, schema-validated repository UUID record under the Git common directory; a real-Git
+          integration test proves mint-once resolution across sibling worktrees and checkout relocation
 
     - `[ ]` **4.1.b Target derivation and preconditions**
         - resolve `branch.base` → `refs/heads/<base>` + HEAD as commits, merge-base `diffBaseSha`, resolve trees
