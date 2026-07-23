@@ -31,6 +31,29 @@ function systemErrorCode(error: unknown): string | null {
   return typeof error.code === "string" ? error.code : null;
 }
 
+function awaitWithSignal<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const aborted = () => {
+      reject(signal.reason instanceof Error ? signal.reason : new Error("frontline execution aborted"));
+    };
+    if (signal.aborted) {
+      aborted();
+      return;
+    }
+    signal.addEventListener("abort", aborted, { once: true });
+    operation.then(
+      (value) => {
+        signal.removeEventListener("abort", aborted);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", aborted);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
+    );
+  });
+}
+
 /**
  * Execute the pinned structured adapter against one exact diff base and normalize its truthful outcome.
  *
@@ -47,7 +70,10 @@ export async function executeCodeRabbitFrontline(input: {
   remainingMs: number;
   signal: AbortSignal;
 }, dependencies: {
-  resolveExecutable(command: string): Promise<ResolvedCodeRabbitExecutable>;
+  resolveExecutable(
+    command: string,
+    context: { remainingMs: number; signal: AbortSignal },
+  ): Promise<ResolvedCodeRabbitExecutable>;
   run(
     command: string,
     argv: readonly string[],
@@ -57,6 +83,8 @@ export async function executeCodeRabbitFrontline(input: {
   outcome: FrontlineExecutionOutcome;
   executableIdentity: FrontlineExecutableIdentity | null;
 }> {
+  const deadlineAt = Date.now() + input.remainingMs;
+  const remainingMs = () => Math.max(1, deadlineAt - Date.now());
   const expected = CODERABBIT_FRONTLINE_REGISTRATION.descriptor;
   if (input.source.sourceId !== CODERABBIT_FRONTLINE_REGISTRATION.sourceId
     || input.source.kind !== "command"
@@ -77,8 +105,26 @@ export async function executeCodeRabbitFrontline(input: {
 
   let executable: ResolvedCodeRabbitExecutable;
   try {
-    executable = await dependencies.resolveExecutable(input.source.executable);
+    executable = await awaitWithSignal(
+      dependencies.resolveExecutable(input.source.executable, {
+        remainingMs: remainingMs(),
+        signal: input.signal,
+      }),
+      input.signal,
+    );
   } catch (error) {
+    if (input.signal.aborted) {
+      return {
+        outcome: normalizeFrontlineOutcome({
+          providerResult: { kind: "timed-out" },
+          source: input.source,
+          target: input.target,
+          pass: input.pass,
+          maxPasses: input.maxPasses,
+        }),
+        executableIdentity: null,
+      };
+    }
     if (!(error instanceof CodeRabbitExecutableUnavailableError)) throw error;
     return {
       outcome: normalizeFrontlineOutcome({
@@ -93,16 +139,34 @@ export async function executeCodeRabbitFrontline(input: {
   }
   let processResult: CodeRabbitProcessResult;
   try {
-    processResult = await dependencies.run(executable.path, [
-      ...input.source.argv,
-      "--base-commit",
-      input.target.diffBaseSha,
-    ], {
-      cwd: input.reviewRoot,
-      remainingMs: input.remainingMs,
-      signal: input.signal,
-    });
+    processResult = await awaitWithSignal(
+      dependencies.run(executable.path, [
+        ...input.source.argv,
+        "--base-commit",
+        input.target.diffBaseSha,
+      ], {
+        cwd: input.reviewRoot,
+        remainingMs: remainingMs(),
+        signal: input.signal,
+      }),
+      input.signal,
+    );
   } catch (error) {
+    if (input.signal.aborted) {
+      return {
+        outcome: normalizeFrontlineOutcome({
+          providerResult: { kind: "timed-out" },
+          source: input.source,
+          target: input.target,
+          pass: input.pass,
+          maxPasses: input.maxPasses,
+        }),
+        executableIdentity: {
+          digest: executable.digest,
+          qualifiedVersion: executable.qualifiedVersion,
+        },
+      };
+    }
     if (["EACCES", "EPERM"].includes(systemErrorCode(error) ?? "")) {
       return {
         outcome: normalizeFrontlineOutcome({

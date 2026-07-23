@@ -31,8 +31,15 @@ describe("CodeRabbit executable resolution", () => {
       digest: "sha256:135a9af43260004bfc617b97f806fcc6600e211fe0219d6c4311ef8cc6d59b48",
       qualifiedVersion: "coderabbit/0.6.5",
     });
+    expect(access).toHaveBeenCalledWith("/trusted/bin/coderabbit", constants.X_OK, {
+      remainingMs: expect.any(Number),
+      signal: expect.any(AbortSignal),
+    });
     expect(realpath).toHaveBeenCalledOnce();
     expect(readFile).toHaveBeenCalledOnce();
-    expect(interrogate).toHaveBeenCalledOnce();
+    expect(interrogate).toHaveBeenCalledWith("/trusted/bin/coderabbit-v0.6.5", {
+      remainingMs: expect.any(Number),
+      signal: expect.any(AbortSignal),
+    });
   });
 });

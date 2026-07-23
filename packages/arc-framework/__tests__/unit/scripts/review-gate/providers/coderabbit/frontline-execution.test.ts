@@ -4,11 +4,15 @@ import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
 import { createReviewTarget } from "../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   CodeRabbitExecutableUnavailableError,
+  resolveCodeRabbitExecutable,
 } from "../../../../../../src/scripts/review-gate/providers/coderabbit/executable.js";
 import {
   CODERABBIT_FRONTLINE_REGISTRATION,
   executeCodeRabbitFrontline,
 } from "../../../../../../src/scripts/review-gate/providers/coderabbit/frontline-execution.js";
+import {
+  executeBoundedFrontlineCarrier,
+} from "../../../../../../src/scripts/review-gate/runtime/frontline-execution-boundary.js";
 
 const oid = (value: string): string => value.repeat(40);
 const target = createReviewTarget({
@@ -111,6 +115,79 @@ describe("CodeRabbit frontline execution", () => {
     });
   });
 
+  it("returns timed-out when executable version interrogation exceeds the run deadline", async () => {
+    const interrogate = vi.fn((
+      _path: string,
+      context: { remainingMs: number; signal: AbortSignal },
+    ) => new Promise<string>((_resolve, reject) => {
+      context.signal.addEventListener("abort", () => {
+        reject(context.signal.reason);
+      }, { once: true });
+    }));
+    const resolveExecutable = vi.fn((
+      command: string,
+      context: { remainingMs: number; signal: AbortSignal },
+    ) => resolveCodeRabbitExecutable(command, {
+      access: async () => undefined,
+      realpath: async () => "/trusted/bin/coderabbit",
+      readFile: async () => Buffer.from("exact executable bytes"),
+      interrogate,
+      pathValue: "/trusted/bin",
+      pathExtValue: "",
+      platform: "linux",
+      ...context,
+    }));
+    const run = vi.fn();
+
+    await expect(executeBoundedFrontlineCarrier({
+      timeoutMs: 5,
+      execute: ({ remainingMs, signal }) => executeCodeRabbitFrontline({
+        source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+        target,
+        pass: 1,
+        maxPasses: 2,
+        reviewRoot: "/tmp/exact-head",
+        remainingMs,
+        signal,
+      }, { run, resolveExecutable }),
+    })).resolves.toMatchObject({
+      outcome: {
+        outcome: "timed-out",
+        reason: { class: "execution-timeout" },
+      },
+      executableIdentity: null,
+    });
+    expect(interrogate).toHaveBeenCalledOnce();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("returns timed-out when the launched provider ignores cancellation", async () => {
+    await expect(executeBoundedFrontlineCarrier({
+      timeoutMs: 5,
+      execute: ({ remainingMs, signal }) => executeCodeRabbitFrontline({
+        source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+        target,
+        pass: 1,
+        maxPasses: 2,
+        reviewRoot: "/tmp/exact-head",
+        remainingMs,
+        signal,
+      }, {
+        resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+        run: vi.fn(() => new Promise<never>(() => undefined)),
+      }),
+    })).resolves.toMatchObject({
+      outcome: {
+        outcome: "timed-out",
+        reason: { class: "execution-timeout" },
+      },
+      executableIdentity: {
+        digest: executableIdentity.digest,
+        qualifiedVersion: executableIdentity.qualifiedVersion,
+      },
+    });
+  });
+
   it("runs the resolved executable once inside the immutable exact-head checkout", async () => {
     const run = vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout: cleanOutput, stderr: "" });
     const resolveExecutable = vi.fn().mockResolvedValue(executableIdentity);
@@ -139,7 +216,7 @@ describe("CodeRabbit frontline execution", () => {
       "review", "--agent", "--type", "committed", "--base-commit", target.diffBaseSha,
     ], {
       cwd: "/tmp/exact-head",
-      remainingMs: 60_000,
+      remainingMs: expect.any(Number),
       signal: expect.any(AbortSignal),
     });
   });

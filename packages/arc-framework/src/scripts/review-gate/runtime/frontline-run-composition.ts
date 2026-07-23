@@ -67,7 +67,7 @@ export function createFrontlineRunDependencies(input: {
             ? {
                 status: "ready",
                 execute: () => executeCodeRabbitFrontline(execution, {
-                  resolveExecutable: resolveCodeRabbitExecutable,
+                  resolveExecutable: (command, context) => resolveCodeRabbitExecutable(command, context),
                   run: runCodeRabbitProcess,
                 }),
               }

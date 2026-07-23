@@ -12,13 +12,20 @@ import { delimiter, extname, join } from "node:path";
 import { execa } from "execa";
 
 interface CodeRabbitExecutableResolutionDependencies {
-  access(path: string, mode: number): Promise<void>;
-  realpath(path: string): Promise<string>;
-  readFile(path: string): Promise<Uint8Array>;
-  interrogate(path: string): Promise<string>;
+  access(path: string, mode: number, context: CodeRabbitExecutableDeadline): Promise<void>;
+  realpath(path: string, context: CodeRabbitExecutableDeadline): Promise<string>;
+  readFile(path: string, context: CodeRabbitExecutableDeadline): Promise<Uint8Array>;
+  interrogate(path: string, context: CodeRabbitExecutableDeadline): Promise<string>;
   pathValue: string;
   pathExtValue: string;
   platform: NodeJS.Platform;
+  remainingMs: number;
+  signal: AbortSignal;
+}
+
+interface CodeRabbitExecutableDeadline {
+  remainingMs: number;
+  signal: AbortSignal;
 }
 
 export interface ResolvedCodeRabbitExecutable {
@@ -53,14 +60,15 @@ function executableNames(
 async function findExecutable(
   command: string,
   dependencies: CodeRabbitExecutableResolutionDependencies,
+  context: () => CodeRabbitExecutableDeadline,
 ): Promise<string> {
   const names = executableNames(command, dependencies.platform, dependencies.pathExtValue);
   for (const directory of dependencies.pathValue.split(delimiter).filter(Boolean)) {
     for (const name of names) {
       const candidate = join(directory, name);
       try {
-        await dependencies.access(candidate, constants.X_OK);
-        return await dependencies.realpath(candidate);
+        await dependencies.access(candidate, constants.X_OK, context());
+        return await dependencies.realpath(candidate, context());
       } catch {
         // Continue through PATH without treating a missing candidate as a provider failure.
       }
@@ -69,10 +77,15 @@ async function findExecutable(
   throw new CodeRabbitExecutableUnavailableError(command);
 }
 
-async function interrogateVersion(path: string): Promise<string> {
+async function interrogateVersion(
+  path: string,
+  context: CodeRabbitExecutableDeadline,
+): Promise<string> {
   const result = await execa(path, ["--version"], {
     reject: true,
     stripFinalNewline: false,
+    cancelSignal: context.signal,
+    forceKillAfterDelay: 1_000,
   });
   return `${result.stdout}\n${result.stderr}`;
 }
@@ -91,20 +104,28 @@ export async function resolveCodeRabbitExecutable(
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(command)) {
     throw new Error("invalid frontline executable name");
   }
+  const defaultSignal = new AbortController().signal;
   const dependencies: CodeRabbitExecutableResolutionDependencies = {
-    access: nodeAccess,
-    realpath: nodeRealpath,
-    readFile: nodeReadFile,
+    access: (path, mode) => nodeAccess(path, mode),
+    realpath: (path) => nodeRealpath(path),
+    readFile: (path, context) => nodeReadFile(path, { signal: context.signal }),
     interrogate: interrogateVersion,
     pathValue: process.env.PATH ?? "",
     pathExtValue: process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD",
     platform: process.platform,
+    remainingMs: 2_147_483_647,
+    signal: defaultSignal,
     ...overrides,
   };
-  const path = await findExecutable(command, dependencies);
+  const deadlineAt = Date.now() + dependencies.remainingMs;
+  const context = (): CodeRabbitExecutableDeadline => ({
+    remainingMs: Math.max(1, deadlineAt - Date.now()),
+    signal: dependencies.signal,
+  });
+  const path = await findExecutable(command, dependencies, context);
   const [bytes, versionOutput] = await Promise.all([
-    dependencies.readFile(path),
-    dependencies.interrogate(path),
+    dependencies.readFile(path, context()),
+    dependencies.interrogate(path, context()),
   ]);
   return {
     path,

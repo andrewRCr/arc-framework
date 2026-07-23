@@ -536,9 +536,9 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
           capability, rejected launch authorization, and invalid provider output to their closed public outcomes while
           retaining the detached-checkout boundary
 
-    - `[ ]` **8.R.d Bound executable resolution and provider execution**
-        - Carry the existing deadline and abort signal through executable lookup, version interrogation, and provider
-          launch; prove a hung interrogation returns `timed-out`
+    - `[x]` **8.R.d Bound executable resolution and provider execution**
+        - The frontline deadline now shrinks across executable lookup, version interrogation, and provider launch;
+          abort-aware races convert hung interrogation or execution to durable `timed-out` outcomes
 
     - `[ ]` **8.R.e Close the completed-source cleanup lifecycle**
         - Release the materialization and reachability pin after durable receipt publication, and make sweep recovery
