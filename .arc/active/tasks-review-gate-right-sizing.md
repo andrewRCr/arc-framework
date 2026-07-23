@@ -332,9 +332,8 @@ integration callers, leaving judgment only at disposition and convergence.
 
 - _Note:_ RSB Task 7.5 integrates its standard-review/local/frontline rewrite first. Reconcile this branch with that
   landed contract, then append this WU's hosted-PR and guard segment to the current package-source workflow without
-  replacing RSB-owned behavior; project the composed result to `.arc/`. Thread a review-chunking scope selection
-  into the driver when its preflight is available; otherwise preserve the driver's whole-target default rather than
-  implementing thresholds or measurement here.
+  replacing RSB-owned behavior; project the composed result to `.arc/`. Invoke review-chunking's typed preflight
+  before source resolution without duplicating its thresholds, measurement, or advisory policy.
 
     - `[ ]` **3.1.a Insert the typed review-driver entry and mechanical action loop**
 
@@ -344,6 +343,12 @@ integration callers, leaving judgment only at disposition and convergence.
           creation.
         - At each boundary, dispatch only on the returned `nextAction` and feed each verb's envelope into the next
           call.
+        - Invoke `arc review chunking resolve` once per new canonical target before either review role resolves a
+          source. Reuse its target-level facts while that target is unchanged, select whole-target or chunked
+          separately for each role invocation, and pass the selection into `arc review resolve`.
+        - Re-run chunking preflight after every target movement, including finding-driven fixes, candidate
+          composition, and base reconciliation. Keep the driver's default whole-target behavior for direct callers
+          that omit a selection; automatic lifecycle review does not omit the preflight.
         - Cover frontline resolution, delegated-agent verbs, hosted request/await, ordered safe fallback, and
           thread settlement without prose comparisons, source-selection questions, fan-out, or agent-authored
           polling loops.
@@ -413,6 +418,8 @@ integration callers, leaving judgment only at disposition and convergence.
         - Assert a standard pass invokes exactly one source, an empty standard list no-ops despite non-exempt
           `standardReview`, a configured-but-unsatisfiable list returns `unavailable`, and frontline execution does
           not depend on either result.
+        - Cover disabled, below-threshold, consider-chunks, per-role whole/chunked selection, unchanged-target fact
+          reuse, and moved-target preflight refresh without duplicating threshold comparisons in workflow prose.
         - Prove a pre-composition head cannot unlock, the candidate push re-enters review, and only the ready,
           base-clean, still-current candidate head reaches the combined gate; speculative local drafting never
           changes the reviewed target. After approval, unlock failure, changed status, head drift, or base drift
@@ -427,12 +434,16 @@ integration callers, leaving judgment only at disposition and convergence.
 
 - _Note:_ This is the second shared surface with RSB Task 7.5; after RSB's integration is reconciled, append this
   WU's hosted-PR and guard behavior to the current package-source `run-errand.md` and project the composed result.
-  Reuse the same selected-scope input and whole-target default without duplicating review-chunking preflight policy.
+  Invoke the same review-chunking preflight before source resolution and reuse the selected-scope contract without
+  duplicating review-chunking's threshold, measurement, or advisory policy.
 
     - `[ ]` **3.2.a Add the shared typed segment at the Errand review boundary**
 
         - Reuse the same CLI envelopes, disposition format, combined convergence/release gate, and pass-ceiling
           exception; do not fork a second policy or duplicate provider logic in workflow prose.
+        - Invoke `arc review chunking resolve` once per new canonical Errand target, reuse target-level facts while
+          unchanged, select scope separately per review-role invocation, pass it into the driver, and refresh the
+          preflight after every target movement.
         - Reuse the same final public PR review record, including local/hosted attribution, final finding counts,
           human GitHub triage identity, content gating, and stale-head replacement; do not create an Errand-specific
           summary vocabulary.

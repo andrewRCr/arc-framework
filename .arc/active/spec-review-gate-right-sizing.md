@@ -549,8 +549,11 @@ Chunked mode admits only local curated-scope carriers, while whole-target mode r
 eligibility and provider-specific capability checks. Generic project thresholds remain advisory policy rather than
 provider truth. A complete chunk series consumes one logical frontline or standard-review pass, never one pass per
 chunk, and any exact-target movement invalidates the prior selection. `review-chunking` owns threshold configuration,
-exact-target measurement, advisory rendering, and preflight orchestration; this WU owns the driver input,
-capability filtering, fallback, and pass accounting.
+exact-target measurement, advisory rendering, and the typed `arc review chunking resolve` preflight. This WU owns
+automatic lifecycle consumption: `integrate-work-unit.md` and `run-errand.md` invoke that preflight once per new
+canonical target before review-source resolution, reuse target-level facts while the target is unchanged, select
+whole-target or chunked separately for each review-role invocation, and re-run the preflight after target movement.
+The review driver owns the selected-scope input, capability filtering, fallback, and pass accounting.
 
 ### E. Prose and documentation reconciliation
 
