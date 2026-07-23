@@ -26,6 +26,17 @@ This plan establishes the shape, audience fit, and forward-compat discipline; de
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Stop started or materialized WUs from leaving misleading backlog copies**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-23); observed during `review-chunking`
+  adversarial review.
+- _Concern:_ starting or materializing a WU leaves its backlog stub behind, so a fresh reader can resolve the stale
+  draft/meta copy instead of the settled artifacts in the active worktree. This produced a partly invalid review
+  finding against `review-surface-binding`.
+- _Fold-in:_ settle promotion semantics under placement-as-record and the materialized backing-store target. The
+  current-system correction may relocate the stub or flag/remove a backlog copy whose slug is already active, but
+  must not bake tracked-code-repository placement into the long-term substrate.
+
 ### `[ ]` **Review coupling-audit finding: storage address assumptions**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: arc-backend`), housekeep drain (2026-07-18); captured
