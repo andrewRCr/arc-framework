@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-decomposition-hardening.md`
+- **Design:** `spec-decomposition-hardening.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Draft formalization-ready — final forks settled + two-pass adversarial review converged
 - **Next Task:** [none]
 - **Blockers:** [none]
