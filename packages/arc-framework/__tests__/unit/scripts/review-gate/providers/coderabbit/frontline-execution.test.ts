@@ -94,6 +94,33 @@ describe("CodeRabbit frontline execution", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("maps unknown executable-resolution failures to the closed adapter-failure class", async () => {
+    const run = vi.fn();
+
+    await expect(executeCodeRabbitFrontline({
+      source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
+    }, {
+      run,
+      resolveExecutable: vi.fn().mockRejectedValue(
+        new Error("CodeRabbit executable returned an unrecognized version"),
+      ),
+    })).resolves.toMatchObject({
+      outcome: {
+        outcome: "failed",
+        findings: [],
+        reason: { class: "unexpected-adapter-failure" },
+      },
+      executableIdentity: null,
+    });
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("returns authorization-rejected when the resolved executable cannot be launched", async () => {
     await expect(executeCodeRabbitFrontline({
       source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },

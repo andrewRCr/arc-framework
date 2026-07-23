@@ -125,10 +125,15 @@ export async function executeCodeRabbitFrontline(input: {
         executableIdentity: null,
       };
     }
-    if (!(error instanceof CodeRabbitExecutableUnavailableError)) throw error;
+    const providerResult = error instanceof CodeRabbitExecutableUnavailableError
+      ? { kind: "capability-unsupported" as const }
+      : {
+          kind: "failed" as const,
+          reason: error instanceof Error ? error.message : String(error),
+        };
     return {
       outcome: normalizeFrontlineOutcome({
-        providerResult: { kind: "capability-unsupported" },
+        providerResult,
         source: input.source,
         target: input.target,
         pass: input.pass,
