@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "housekeep-existing-homes",
+  "origin": "description",
+  "intent": "Route confirmed USER-INBOX captures to existing backlog stubs",
+  "branch": "chore/housekeep-existing-homes",
+  "createdAt": "2026-07-23T18:34:11.027Z",
+  "returnBranch": "main"
+}
