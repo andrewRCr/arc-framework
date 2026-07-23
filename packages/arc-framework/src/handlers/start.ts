@@ -97,6 +97,31 @@ async function confirmStep(message: string): Promise<boolean> {
   return !p.isCancel(proceed) && proceed;
 }
 
+/**
+ * Run a slow start leg under a clack spinner so long silent intervals (worktree
+ * spawn, ROADMAP regen, ceremony commit/push) do not look hung. Stops with
+ * `doneLabel` when `isOk` holds, otherwise `failedLabel`. Does not catch —
+ * thrown errors stop the spinner as failed and rethrow.
+ */
+async function withStartProgress<T>(
+  label: string,
+  doneLabel: string,
+  fn: () => Promise<T>,
+  isOk: (value: T) => boolean,
+  failedLabel = "Failed.",
+): Promise<T> {
+  const spinner = p.spinner();
+  spinner.start(label);
+  try {
+    const value = await fn();
+    spinner.stop(isOk(value) ? doneLabel : failedLabel);
+    return value;
+  } catch (err) {
+    spinner.stop(failedLabel);
+    throw err;
+  }
+}
+
 export async function handleStart(
   name: string | undefined,
   opts: StartOptions,
@@ -313,9 +338,15 @@ async function createNew(
     }
   }
 
-  const outcome = await runCreateNew(
-    { io: ctx.io, internalTemplateDir: getInternalTemplatePath() },
-    { worktreePath: ctx.cwd, identity: ctx.identity, name: wuName, baseRef: provenance.sha },
+  const outcome = await withStartProgress(
+    "Spawning worktree...",
+    "Worktree ready.",
+    () => runCreateNew(
+      { io: ctx.io, internalTemplateDir: getInternalTemplatePath() },
+      { worktreePath: ctx.cwd, identity: ctx.identity, name: wuName, baseRef: provenance.sha },
+    ),
+    (r) => r.ok,
+    "Spawn failed.",
   );
   if (!outcome.ok) {
     p.log.error(outcome.reason);
@@ -335,19 +366,31 @@ async function createNew(
   );
   p.log.info(renderStartBaseProvenance(provenance));
   if (r.postCreateNotice) p.log.info(r.postCreateNotice);
-  const roadmap = await refreshRoadmapForStartCeremony(ctx, r.worktreePath, r.branch);
+  const roadmap = await withStartProgress(
+    "Refreshing ROADMAP...",
+    "ROADMAP updated.",
+    () => refreshRoadmapForStartCeremony(ctx, r.worktreePath, r.branch),
+    (r) => r.ok,
+    "ROADMAP refresh failed.",
+  );
   if (!roadmap.ok) {
     p.log.error(roadmap.reason);
     process.exitCode = 1;
     return;
   }
   reportProjectReadinessWarnings(roadmap.warnings);
-  const ceremony = await commitAndPushStartCeremony(ctx, {
-    cwd: r.worktreePath,
-    branch: r.branch,
-    stagePaths: [projectActiveMetaPath(r.wuName), ROADMAP_PATH],
-    message: buildCreateNewCeremonyCommitMessage(r.wuName),
-  });
+  const ceremony = await withStartProgress(
+    "Committing and pushing start ceremony...",
+    "Ceremony committed and pushed.",
+    () => commitAndPushStartCeremony(ctx, {
+      cwd: r.worktreePath,
+      branch: r.branch,
+      stagePaths: [projectActiveMetaPath(r.wuName), ROADMAP_PATH],
+      message: buildCreateNewCeremonyCommitMessage(r.wuName),
+    }),
+    (r) => r.ok,
+    "Ceremony commit/push failed.",
+  );
   if (!ceremony.ok) {
     p.log.error(ceremony.reason);
     process.exitCode = 1;
@@ -452,14 +495,20 @@ async function graduate(
         return;
       }
     }
-    const result = await runGraduate(
-      buildExecutorContext({
-        ...ctx,
-        teamMode: settings["team.mode"] === "true",
-        baseBranch: settings["branch.base"],
-        internalTemplateDir: getInternalTemplatePath(),
-      }),
-      { name: wuName, cls, writeClass, inPlace: true },
+    const result = await withStartProgress(
+      "Graduating onto plan branch...",
+      "Graduation complete.",
+      () => runGraduate(
+        buildExecutorContext({
+          ...ctx,
+          teamMode: settings["team.mode"] === "true",
+          baseBranch: settings["branch.base"],
+          internalTemplateDir: getInternalTemplatePath(),
+        }),
+        { name: wuName, cls, writeClass, inPlace: true },
+      ),
+      (r) => r.status !== "rejected",
+      "Graduation failed.",
     );
     if (result.status === "rejected") {
       p.log.error(result.reason);
@@ -496,26 +545,32 @@ async function graduate(
     }
   }
 
-  const result = await runGraduate(
-    buildExecutorContext({
-      ...ctx,
-      teamMode: config.teamMode,
-      baseBranch: config.baseBranch,
-      internalTemplateDir: getInternalTemplatePath(),
-    }),
-    {
-      name: wuName,
-      cls,
-      writeClass,
-      baseBranch: ctx.baseRef,
-      locationTemplate: config.locationTemplate,
-      postCreateScript: config.postCreateScript,
-      primaryWorktreePath: config.primaryWorktreePath,
-      registeredHarnessDirs: config.registeredHarnessDirs,
-      repo: config.repo,
-      sourceIndex: { cwd: ctx.cwd, fs: ctx.metaFs },
-      spawningIdentity: ctx.identity,
-    },
+  const result = await withStartProgress(
+    "Spawning graduated worktree...",
+    "Worktree ready.",
+    () => runGraduate(
+      buildExecutorContext({
+        ...ctx,
+        teamMode: config.teamMode,
+        baseBranch: config.baseBranch,
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
+      {
+        name: wuName,
+        cls,
+        writeClass,
+        baseBranch: ctx.baseRef,
+        locationTemplate: config.locationTemplate,
+        postCreateScript: config.postCreateScript,
+        primaryWorktreePath: config.primaryWorktreePath,
+        registeredHarnessDirs: config.registeredHarnessDirs,
+        repo: config.repo,
+        sourceIndex: { cwd: ctx.cwd, fs: ctx.metaFs },
+        spawningIdentity: ctx.identity,
+      },
+    ),
+    (r) => r.status !== "rejected",
+    "Graduation failed.",
   );
   if (result.status === "rejected") {
     p.log.error(result.reason);
@@ -536,33 +591,46 @@ async function graduate(
   if (result.postCreateNotice) p.log.info(result.postCreateNotice);
   const reportedRoadmapWarnings = reportAdvisories(result.outcome);
   if (result.notice) p.log.info(result.notice);
-  if (result.worktreePath !== undefined) {
-    const roadmap = await refreshRoadmapForStartCeremony(ctx, result.worktreePath, result.branch);
+  const graduatedWorktree = result.worktreePath;
+  if (graduatedWorktree !== undefined) {
+    const roadmap = await withStartProgress(
+      "Refreshing ROADMAP...",
+      "ROADMAP updated.",
+      () => refreshRoadmapForStartCeremony(ctx, graduatedWorktree, result.branch),
+      (r) => r.ok,
+      "ROADMAP refresh failed.",
+    );
     if (!roadmap.ok) {
       p.log.error(roadmap.reason);
       process.exitCode = 1;
       return;
     }
     reportProjectReadinessWarnings(roadmap.warnings, reportedRoadmapWarnings);
-    const ceremony = await commitAndPushStartCeremony(ctx, {
-      cwd: result.worktreePath,
-      branch: result.branch,
-      stagePaths: [projectActiveMetaPath(wuName), ROADMAP_PATH],
-      message: buildGraduateCeremonyCommitMessage(wuName),
-    });
+    const ceremony = await withStartProgress(
+      "Committing and pushing start ceremony...",
+      "Ceremony committed and pushed.",
+      () => commitAndPushStartCeremony(ctx, {
+        cwd: graduatedWorktree,
+        branch: result.branch,
+        stagePaths: [projectActiveMetaPath(wuName), ROADMAP_PATH],
+        message: buildGraduateCeremonyCommitMessage(wuName),
+      }),
+      (r) => r.ok,
+      "Ceremony commit/push failed.",
+    );
     if (!ceremony.ok) {
       p.log.error(ceremony.reason);
       process.exitCode = 1;
       return;
     }
     await stampStartSessionNotesCommit(ctx, {
-      cwd: result.worktreePath,
+      cwd: graduatedWorktree,
       identity: ctx.identity,
       wuName,
       commit: ceremony.commit,
     });
     p.log.info(`Committed ${ceremony.commit} and pushed ${result.branch}.`);
-    reportWorktreeEntryRecipe(result.worktreePath);
+    reportWorktreeEntryRecipe(graduatedWorktree);
   }
   p.outro("Done.");
 }
@@ -583,23 +651,29 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
         return;
       }
     }
-    const result = await runResume(
-      {
-        executor: buildExecutorContext({
-          ...ctx,
-          teamMode: settings["team.mode"] === "true",
-          baseBranch: settings["branch.base"],
-          internalTemplateDir: getInternalTemplatePath(),
-        }),
-        fs: {
-          writeFile: (path, content) => ctx.io.writeFile(path, content),
-          mkdir: (path, opts) => ctx.io.mkdir(path, opts),
-          rm: (path) => rm(path),
-          readdir: (path) => readdir(path),
-          rmdir: (path) => rmdir(path),
+    const result = await withStartProgress(
+      "Resuming parked work unit...",
+      "Resume complete.",
+      () => runResume(
+        {
+          executor: buildExecutorContext({
+            ...ctx,
+            teamMode: settings["team.mode"] === "true",
+            baseBranch: settings["branch.base"],
+            internalTemplateDir: getInternalTemplatePath(),
+          }),
+          fs: {
+            writeFile: (path, content) => ctx.io.writeFile(path, content),
+            mkdir: (path, opts) => ctx.io.mkdir(path, opts),
+            rm: (path) => rm(path),
+            readdir: (path) => readdir(path),
+            rmdir: (path) => rmdir(path),
+          },
         },
-      },
-      { name: wuName, inPlace: true },
+        { name: wuName, inPlace: true },
+      ),
+      (r) => r.status !== "rejected",
+      "Resume failed.",
     );
     if (result.status === "rejected") {
       p.log.error(result.reason);
@@ -622,31 +696,37 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
     }
   }
 
-  const result = await runResume(
-    {
-      executor: buildExecutorContext({
-        ...ctx,
-        teamMode: config.teamMode,
-        baseBranch: config.baseBranch,
-        internalTemplateDir: getInternalTemplatePath(),
-      }),
-      fs: {
-        writeFile: (path, content) => ctx.io.writeFile(path, content),
-        mkdir: (path, opts) => ctx.io.mkdir(path, opts),
-        rm: (path) => rm(path),
-        readdir: (path) => readdir(path),
-        rmdir: (path) => rmdir(path),
+  const result = await withStartProgress(
+    "Spawning resume worktree...",
+    "Worktree ready.",
+    () => runResume(
+      {
+        executor: buildExecutorContext({
+          ...ctx,
+          teamMode: config.teamMode,
+          baseBranch: config.baseBranch,
+          internalTemplateDir: getInternalTemplatePath(),
+        }),
+        fs: {
+          writeFile: (path, content) => ctx.io.writeFile(path, content),
+          mkdir: (path, opts) => ctx.io.mkdir(path, opts),
+          rm: (path) => rm(path),
+          readdir: (path) => readdir(path),
+          rmdir: (path) => rmdir(path),
+        },
       },
-    },
-    {
-      name: wuName,
-      locationTemplate: config.locationTemplate,
-      postCreateScript: config.postCreateScript,
-      primaryWorktreePath: config.primaryWorktreePath,
-      registeredHarnessDirs: config.registeredHarnessDirs,
-      repo: config.repo,
-      spawningIdentity: ctx.identity,
-    },
+      {
+        name: wuName,
+        locationTemplate: config.locationTemplate,
+        postCreateScript: config.postCreateScript,
+        primaryWorktreePath: config.primaryWorktreePath,
+        registeredHarnessDirs: config.registeredHarnessDirs,
+        repo: config.repo,
+        spawningIdentity: ctx.identity,
+      },
+    ),
+    (r) => r.status !== "rejected",
+    "Resume failed.",
   );
   if (result.status === "rejected") {
     p.log.error(result.reason);
@@ -692,9 +772,15 @@ async function coldStart(
     }
   }
 
-  const outcome = await runColdStart(
-    { io: ctx.io, internalTemplateDir: getInternalTemplatePath() },
-    { worktreePath: ctx.cwd, branch, identity: ctx.identity, name, from: opts.from },
+  const outcome = await withStartProgress(
+    "Scaffolding planning meta...",
+    "Cold-start scaffold complete.",
+    () => runColdStart(
+      { io: ctx.io, internalTemplateDir: getInternalTemplatePath() },
+      { worktreePath: ctx.cwd, branch, identity: ctx.identity, name, from: opts.from },
+    ),
+    (r) => r.ok,
+    "Cold-start failed.",
   );
   if (!outcome.ok) {
     p.log.error(outcome.reason);

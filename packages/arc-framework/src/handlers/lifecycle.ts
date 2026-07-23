@@ -936,24 +936,34 @@ export async function handleMaterialize(
   const candidate = await resolveMaterializeCandidate(base, settings, slug);
   if (candidate === null) return;
 
-  try {
-    await fetchMaterializeBranch(base.io.exec, candidate.branch);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    refuse(`could not fetch \`origin/${candidate.branch}\` for materialize: ${detail}`);
-    return;
+  {
+    const spinner = p.spinner();
+    spinner.start(`Fetching origin/${candidate.branch}...`);
+    try {
+      await fetchMaterializeBranch(base.io.exec, candidate.branch);
+      spinner.stop("Fetch complete.");
+    } catch (err) {
+      spinner.stop("Fetch failed.");
+      const detail = err instanceof Error ? err.message : String(err);
+      refuse(`could not fetch \`origin/${candidate.branch}\` for materialize: ${detail}`);
+      return;
+    }
   }
 
   if (opts.here) {
+    const spinner = p.spinner();
+    spinner.start("Materializing in place...");
     const result = await runMaterialize(executor, {
       name: candidate.name,
       branch: candidate.branch,
       inPlace: true,
     });
     if (result.status === "rejected") {
+      spinner.stop("Materialize failed.");
       refuse(result.reason);
       return;
     }
+    spinner.stop("Materialize complete.");
     reportOutcome(
       "Materialized (in place)",
       [
@@ -972,30 +982,36 @@ export async function handleMaterialize(
     refuse("could not resolve the primary worktree path to derive the repository name");
     return;
   }
-  const result = await runMaterialize(executor, {
-    name: candidate.name,
-    branch: candidate.branch,
-    locationTemplate: settings["worktree.location_template"],
-    postCreateScript: settings["worktree.post_create"],
-    primaryWorktreePath,
-    registeredHarnessDirs: settings["worktree.harness_dirs"],
-    repo: basename(primaryWorktreePath),
-    spawningIdentity: base.identity,
-  });
-  if (result.status === "rejected") {
-    refuse(result.reason);
-    return;
+  {
+    const spinner = p.spinner();
+    spinner.start("Spawning materialize worktree...");
+    const result = await runMaterialize(executor, {
+      name: candidate.name,
+      branch: candidate.branch,
+      locationTemplate: settings["worktree.location_template"],
+      postCreateScript: settings["worktree.post_create"],
+      primaryWorktreePath,
+      registeredHarnessDirs: settings["worktree.harness_dirs"],
+      repo: basename(primaryWorktreePath),
+      spawningIdentity: base.identity,
+    });
+    if (result.status === "rejected") {
+      spinner.stop("Materialize failed.");
+      refuse(result.reason);
+      return;
+    }
+    spinner.stop("Worktree ready.");
+    reportOutcome(
+      "Materialized",
+      [
+        `Work unit: ${candidate.name}`,
+        `Branch:    ${candidate.branch}`,
+        ``,
+        `Run \`arc user pull\` in the materialized checkout, then re-run session init to resume.`,
+      ],
+      result.outcome,
+    );
   }
-  reportOutcome(
-    "Materialized",
-    [
-      `Work unit: ${candidate.name}`,
-      `Branch:    ${candidate.branch}`,
-      ``,
-      `Run \`arc user pull\` in the materialized checkout, then re-run session init to resume.`,
-    ],
-    result.outcome,
-  );
 }
 
 // ---------------------------------------------------------------------------
