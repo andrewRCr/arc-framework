@@ -236,28 +236,15 @@ validation are test-first; the Commander wiring is test-after.
 
     - `[ ]` **4.1.e Wire the `arc review local prepare` handler and command** — test-after (envelope in/out; `handleReviewLocalPrepare`)
 
-### `[ ]` **4.2 Immutable local review source materialization**
+### `[x]` **4.2 Immutable local review source materialization**
 
 - _Goal:_ After deriving the clean target, `local prepare` publishes the admitted operation first, then materializes
   the immutable source — operation-owned pin at `headSha`, detached exact-head checkout — verified by pre-launch
   proofs, so an orphan pin cannot arise from a live prepare and the reviewer never sees a mutable worktree.
 
-- _Context:_ Publish-first ordering is a correctness requirement (the namespace lock is non-reentrant). Pre-launch
-  proofs: detached `HEAD == headSha`, tree == `headTree`, both endpoints present, reachability ref == `headSha`, empty
-  porcelain-v2 status.
-
-- **Additional Context:** `spec-review-surface-binding.md` § D5 (publish-first ordering, proof-failure outcomes)
-
-    - Build `test-first` (one behavior at a time):
-        - publication precedes pin creation; a failure between publication and pin leaves a recoverable operation, not an
-          unreachable ref
-        - each pre-launch proof failure has its defined outcome — idempotent restore-in-place vs `corrupt-state` (pin to
-          different bytes, or pruned objects)
-        - the reviewer payload carries the review root + `diffBaseSha`/`headSha`/`sourceRef`/`sourceDigest`; no mutable
-          caller-worktree path enters it
-        - moving the original branch away and back during evaluation does not change the reviewed source
-
-- _Note:_ `core/local-carrier.ts` materialization over the `hosts/local/git-common-state.ts` namespace lock.
+- _Outcome:_ Added append-only source descriptors, publish-before-pin operation choreography, and an operation-owned
+  Git ref plus repairable detached checkout. Exact-head/tree/range/ref/cleanliness proofs fail closed on mismatched
+  bytes, while the evaluator payload exposes only immutable source coordinates.
 
 ### `[ ]` **4.3 Source-store sweep — orphan and terminally-expired reaping**
 
