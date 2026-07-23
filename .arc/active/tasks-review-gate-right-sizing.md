@@ -43,18 +43,11 @@ shadow runtime that currently contains their reusable pieces.
           developer-authenticated `gh api` port, retaining immutable provider identity, normalized finding loci,
           and distinct rate-limit/transient/terminal outcomes without receipt qualification or frontline changes.
 
-    - `[ ]` **1.2.b Re-home the Codex hosted path behind the same contract**
+    - `[x]` **1.2.b Re-home the Codex hosted path behind the same contract**
 
-        - Ground the salvage boundary across `providers/codex/{adapter,github-trigger,github-observation,git-object,
-          guidance,locators}.ts`; retain only behavior consumed by request, await, and settlement.
-        - Register `codex-pr` with its request command and immutable provider identities in the built-in registry;
-          make request create the command comment rather than merely acknowledging a pre-existing user comment.
-        - Normalize Codex output into the same hosted result vocabulary without erasing provider-specific source
-          loci or review identity, and leave guidance-evidence qualification behind.
-        - Build `test-first` (one behavior at a time):
-            - Codex is directly selectable as the first configured provider;
-            - request and observation round-trip through the common envelopes;
-            - rate-limited and transient-unavailable outcomes remain distinguishable from terminal failures.
+        - Re-homed Codex as an independently selectable hosted source that creates `@codex review`, observes the
+          immutable App/bot identities through the common exact-head contract, and normalizes clean/findings and
+          availability outcomes without carrying guidance-evidence qualification into the lean path.
 
     - `[ ]` **1.2.c Make provider preference and fallback total**
 

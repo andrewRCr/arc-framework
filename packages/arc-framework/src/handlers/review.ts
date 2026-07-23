@@ -20,6 +20,9 @@ import {
   settleHostedFinding,
   type HostedSettlementPort,
 } from "../scripts/review-gate/hosted/settle.js";
+import { GhHostedReviewPort, hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
+import { CodeRabbitHostedAdapter } from "../scripts/review-gate/hosted/coderabbit.js";
+import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -42,6 +45,19 @@ function emitReviewError(mode: string, error: unknown): void {
     error: { code: "invalid-request", message },
   })}\n`);
   process.exitCode = 1;
+}
+
+function createHostedAdapters(): {
+  adapters: readonly HostedReviewAdapter[];
+  observers: readonly HostedReviewObserver[];
+  port: HostedSettlementPort;
+} {
+  const port = new GhHostedReviewPort(hostedGhRunner);
+  const adapters = [
+    new CodeRabbitHostedAdapter(port),
+    new CodexHostedAdapter(port),
+  ];
+  return { adapters, observers: adapters, port };
 }
 
 /**
@@ -78,7 +94,7 @@ export async function handleReviewFrontlineResolve(source: string): Promise<void
  */
 export async function handleReviewHostedRequest(
   source: string,
-  dependencies: { adapters: readonly HostedReviewAdapter[] } = { adapters: [] },
+  dependencies: { adapters: readonly HostedReviewAdapter[] } = createHostedAdapters(),
 ): Promise<void> {
   try {
     const request = await readJsonSource(source);
@@ -98,7 +114,7 @@ export async function handleReviewHostedRequest(
  */
 export async function handleReviewHostedAwait(
   source: string,
-  dependencies: { observers: readonly HostedReviewObserver[] } = { observers: [] },
+  dependencies: { observers: readonly HostedReviewObserver[] } = createHostedAdapters(),
 ): Promise<void> {
   try {
     const request = await readJsonSource(source);
@@ -124,10 +140,9 @@ export async function handleReviewHostedAwait(
  */
 export async function handleReviewHostedSettle(
   source: string,
-  dependencies?: { port: HostedSettlementPort },
+  dependencies: { port: HostedSettlementPort } = createHostedAdapters(),
 ): Promise<void> {
   try {
-    if (dependencies === undefined) throw new Error("Hosted settlement source is unavailable.");
     const request = await readJsonSource(source);
     const result = await settleHostedFinding(request, dependencies);
     process.stdout.write(`${JSON.stringify(result)}\n`);
