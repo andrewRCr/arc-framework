@@ -349,19 +349,16 @@ test-after.
   data in the success payload; fresh ready results authorize pass 1 with the effective allowance. Malformed input
   uses the shared strict `invalid-input` error envelope.
 
-### `[ ]` **5.5 Frontline outcome recovery and reuse discrimination**
+### `[x]` **5.5 Frontline outcome recovery and reuse discrimination**
 
 - _Goal:_ An interruption after outcome publication is repaired by validating that exact record and advancing operation
   state; reuse discriminates on review content — a review-concluding outcome (clean/findings/pass-cap-exhausted) is
   reused at unchanged coordinates, while every non-review terminal admits a fresh operation at an advanced generation
   with the same pass number.
 
-    - Build `test-first` (one behavior at a time):
-        - re-entry to a concluded operation returns the same durable outcome reference
-        - a review-concluding outcome is reused at unchanged coordinates
-        - a non-review terminal (`timed-out` / `unavailable` / `failed`) admits a new generation, same pass number;
-          retry-vs-`operator-repair` is advice, not a persistence discriminator
-        - if no record was published, re-entry retries the same operation and never promotes an inferred result
+- _Outcome:_ Re-entry now validates and repairs an exactly bound published outcome, or retries the same pending operation
+  when no record exists. Review conclusions retain their durable reference; every retryable non-review result advances
+  generation at the same pass, independent of its follow-up advice.
 
 ---
 

@@ -1,19 +1,30 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import {
+  createFrontlineOutcomeRecord,
+  type FrontlineOutcomeRecord,
+} from "../../../../../src/scripts/review-gate/core/advisory-records.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   ReviewOperationStateSchema,
   type ReviewOperationState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
-import type { ReviewOperationStateStore } from "../../../../../src/scripts/review-gate/core/ports.js";
+import type {
+  FrontlineOutcomeStore,
+  ReviewOperationStateStore,
+} from "../../../../../src/scripts/review-gate/core/ports.js";
 import {
   executeFrontlineRun,
   persistFrontlineRunPending,
   persistFrontlineRunOutcome,
   resolveFrontlineRun,
 } from "../../../../../src/scripts/review-gate/policy/frontline-operation.js";
-import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import {
+  FrontlineExecutionOutcomeSchema,
+  normalizeFrontlineOutcome,
+  type FrontlineExecutionOutcome,
+} from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 
 const oid = (value: string): string => value.repeat(40);
 const target = (head: string) => createReviewTarget({
@@ -51,6 +62,32 @@ function memoryStore(): ReviewOperationStateStore & { records: Map<string, { ver
   };
 }
 
+function memoryOutcomeStore(): FrontlineOutcomeStore & {
+  records: Map<string, { version: number; record: FrontlineOutcomeRecord; outcomeRef: string }>;
+} {
+  const records = new Map<string, { version: number; record: FrontlineOutcomeRecord; outcomeRef: string }>();
+  return {
+    records,
+    readOutcome: async (operationId) => records.get(operationId) ?? {
+      version: 0,
+      record: null,
+      outcomeRef: null,
+    },
+    appendOutcome: async (record, expectedVersion) => {
+      const current = records.get(record.operationId);
+      if (current !== undefined) return { version: current.version, outcomeRef: current.outcomeRef };
+      if (expectedVersion !== 0) throw new Error("version-conflict");
+      const stored = {
+        version: 1,
+        record,
+        outcomeRef: `outcomes/${record.operationId}.json`,
+      };
+      records.set(record.operationId, stored);
+      return { version: stored.version, outcomeRef: stored.outcomeRef };
+    },
+  };
+}
+
 function binding(overrides: Partial<Parameters<typeof resolveFrontlineRun>[1]> = {}) {
   return {
     target: target("c"),
@@ -59,6 +96,58 @@ function binding(overrides: Partial<Parameters<typeof resolveFrontlineRun>[1]> =
     policyVersion,
     ...overrides,
   };
+}
+
+function executionBinding(overrides: Partial<ReturnType<typeof binding>> = {}) {
+  return {
+    ...binding(overrides),
+    pass: 1 as const,
+    maxPasses: 2 as const,
+  };
+}
+
+const executableIdentity = {
+  digest: canonicalDigest({ executable: "reviewer" }),
+  qualifiedVersion: "reviewer/1.0.0",
+};
+
+function normalizedOutcome(
+  outcome: FrontlineExecutionOutcome["outcome"],
+  reason?: FrontlineExecutionOutcome["reason"],
+): FrontlineExecutionOutcome {
+  if (outcome === "clean") {
+    return normalizeFrontlineOutcome({
+      providerResult: { kind: "clean" }, source, target: target("c"), pass: 1, maxPasses: 2,
+    });
+  }
+  if (outcome === "findings") {
+    return normalizeFrontlineOutcome({
+      providerResult: {
+        kind: "findings",
+        findings: [{
+          findingId: canonicalDigest({ finding: "one" }),
+          severity: "major",
+          locus: "src/index.ts",
+          evidenceUrlOrId: "finding-one",
+        }],
+      },
+      source,
+      target: target("c"),
+      pass: 1,
+      maxPasses: 2,
+    });
+  }
+  return FrontlineExecutionOutcomeSchema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "frontline-review/v1",
+    source,
+    target: target("c"),
+    pass: 1,
+    maxPasses: 2,
+    outcome,
+    findings: [],
+    reason,
+  });
 }
 
 describe("frontline operation continuity", () => {
@@ -99,13 +188,182 @@ describe("frontline operation continuity", () => {
         };
       },
       now: () => "2026-07-23T19:00:00Z",
-    }, binding())).resolves.toMatchObject({
+    }, executionBinding())).resolves.toMatchObject({
       persistedVersion: 2,
       target: target("c"),
       outcomeRef: "outcomes/operation.json",
       outcomeDigest: expect.stringMatching(/^sha256:/u),
     });
     expect(order).toEqual(["pending", "execute", "outcome", "terminal"]);
+  });
+
+  it("repairs a published outcome by advancing pending state without re-executing the carrier", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const resolved = await resolveFrontlineRun(operationStore, binding());
+    if (resolved.action !== "execute") throw new Error("expected execution");
+    await persistFrontlineRunPending(operationStore, {
+      ...binding(),
+      updatedAt: "2026-07-23T19:00:00Z",
+      expectedVersion: resolved.expectedVersion,
+    });
+    const outcome = normalizedOutcome("clean");
+    const record = createFrontlineOutcomeRecord({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: target("c").repositoryId,
+      operationId: resolved.operationId,
+      sourceIdentity: source.sourceId,
+      executableIdentity,
+      outcome,
+    });
+    const published = await outcomeStore.appendOutcome(record, 0);
+    const execute = vi.fn();
+
+    await expect(executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      execute,
+      now: () => "2026-07-23T19:01:00Z",
+    }, executionBinding())).resolves.toMatchObject({
+      operationId: resolved.operationId,
+      persistedVersion: 2,
+      outcomeRef: published.outcomeRef,
+      outcome: { outcome: "clean", pass: 1 },
+    });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("refuses to recover a pending operation from an outcome with different coordinates", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const resolved = await resolveFrontlineRun(operationStore, binding());
+    if (resolved.action !== "execute") throw new Error("expected execution");
+    await persistFrontlineRunPending(operationStore, {
+      ...binding(),
+      updatedAt: "2026-07-23T19:00:00Z",
+      expectedVersion: resolved.expectedVersion,
+    });
+    const mismatchedOutcome = normalizeFrontlineOutcome({
+      providerResult: { kind: "clean" },
+      source,
+      target: target("d"),
+      pass: 1,
+      maxPasses: 2,
+    });
+    await outcomeStore.appendOutcome(createFrontlineOutcomeRecord({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: target("d").repositoryId,
+      operationId: resolved.operationId,
+      sourceIdentity: source.sourceId,
+      executableIdentity,
+      outcome: mismatchedOutcome,
+    }), 0);
+
+    await expect(executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      execute: vi.fn(),
+      now: () => "2026-07-23T19:01:00Z",
+    }, executionBinding())).rejects.toMatchObject({ code: "corrupt-state" });
+  });
+
+  it("retries a pending operation without an outcome at the same operation id", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const resolved = await resolveFrontlineRun(operationStore, binding());
+    if (resolved.action !== "execute") throw new Error("expected execution");
+    await persistFrontlineRunPending(operationStore, {
+      ...binding(),
+      updatedAt: "2026-07-23T19:00:00Z",
+      expectedVersion: resolved.expectedVersion,
+    });
+    const execute = vi.fn(async () => ({
+      outcome: normalizedOutcome("clean"),
+      executableIdentity,
+    }));
+
+    await expect(executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      execute,
+      now: () => "2026-07-23T19:01:00Z",
+    }, executionBinding())).resolves.toMatchObject({
+      operationId: resolved.operationId,
+      persistedVersion: 2,
+      outcome: { outcome: "clean", pass: 1 },
+    });
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it.each(["clean", "findings", "pass-cap-exhausted"] as const)(
+    "replays a concluded %s outcome from the same durable reference",
+    async (outcomeName) => {
+      const operationStore = memoryStore();
+      const outcomeStore = memoryOutcomeStore();
+      const outcome = outcomeName === "pass-cap-exhausted"
+        ? normalizedOutcome("pass-cap-exhausted", { class: "pass-cap-exhausted" })
+        : normalizedOutcome(outcomeName);
+      const first = await executeFrontlineRun({
+        operationStore,
+        outcomeStore,
+        execute: async () => ({
+          outcome,
+          executableIdentity: outcomeName === "pass-cap-exhausted" ? null : executableIdentity,
+        }),
+        now: () => "2026-07-23T19:00:00Z",
+      }, executionBinding());
+      const execute = vi.fn();
+
+      await expect(executeFrontlineRun({
+        operationStore,
+        outcomeStore,
+        execute,
+        now: () => "2026-07-23T19:01:00Z",
+      }, executionBinding())).resolves.toMatchObject({
+        operationId: first.operationId,
+        persistedVersion: first.persistedVersion,
+        outcomeRef: first.outcomeRef,
+        outcome: { outcome: outcomeName, pass: 1 },
+      });
+      expect(execute).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["timed-out", { class: "execution-timeout" }],
+    ["unavailable", { class: "rate-limited" }],
+    ["unavailable", { class: "capability-unsupported" }],
+    ["failed", { class: "unexpected-adapter-failure" }],
+    ["failed", { class: "invalid-output" }],
+  ] as const)("advances generation after %s with reason %s", async (outcomeName, reason) => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const first = await executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      execute: async () => ({
+        outcome: normalizedOutcome(outcomeName, reason),
+        executableIdentity: reason.class === "capability-unsupported" ? null : executableIdentity,
+      }),
+      now: () => "2026-07-23T19:00:00Z",
+    }, executionBinding());
+    const execute = vi.fn(async () => ({
+      outcome: normalizedOutcome("clean"),
+      executableIdentity,
+    }));
+
+    const retry = await executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      execute,
+      now: () => "2026-07-23T19:01:00Z",
+    }, executionBinding());
+
+    expect(retry.operationId).not.toBe(first.operationId);
+    expect(retry.outcome).toMatchObject({ outcome: "clean", pass: 1 });
+    expect(execute).toHaveBeenCalledOnce();
   });
 
   it("reuses a durable outcome for an unchanged target, source, policy, and generation", async () => {

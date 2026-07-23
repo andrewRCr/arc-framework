@@ -135,6 +135,8 @@ export async function runFrontlineReviewCommand(
       target,
       source,
       generation: 0,
+      pass: readyPayload.pass,
+      maxPasses: readyPayload.maxPasses,
       policyVersion: canonicalDigest({
         routing: readyPayload.routing,
         frontlineReview: semantic,
