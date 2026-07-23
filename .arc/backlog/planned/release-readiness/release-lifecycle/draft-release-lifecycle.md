@@ -19,15 +19,15 @@ downstream WUs surface the felt need.
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Post-integration / post-merge extension fire-point**
 
-- *Routed from:* `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01). Folded here as the
+- _Routed from:_ `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01). Folded here as the
   closest existing home — this WU already scopes optional post-merge aggregation fire-points; the owning WU
   decides at iteration whether deploy-governance fire-points belong here or spin out.
-- *Concern:* ARC's interlock model terminates at the integration-interlock — merge requires explicit human
+- _Concern:_ ARC's interlock model terminates at the integration-interlock — merge requires explicit human
   approval, but downstream production deployment is out of scope. Teams wanting ARC-style governance over deploy
   approvals (configurable autonomy, structured-prompt approvals, audit-trail consistency) have no discoverable
   hook today. Proposed: a new `post-integration` (or `post-merge`) extension fire-point — opt-in per project,
@@ -36,8 +36,8 @@ downstream WUs surface the felt need.
   structured-prompt model; decide whether a `deploy-interlock` belongs in the autonomy vocabulary (likely not —
   it implies ARC owns the deploy-floor decision; extensions are the loose coupling that keeps ARC out of
   deploy-system specifics).
-- *Out of scope:* deploy-system specifics, observability contracts, rollback semantics — adopters wire their own.
-- *Scope-creep risk:* data migrations, schema rollouts, feature-flag toggles all want similar hooks. Treat as one
+- _Out of scope:_ deploy-system specifics, observability contracts, rollback semantics — adopters wire their own.
+- _Scope-creep risk:_ data migrations, schema rollouts, feature-flag toggles all want similar hooks. Treat as one
   of several possible `post-*` points, not a deploy-specific addition.
 
 ---
@@ -79,7 +79,7 @@ Some methodology-level awareness is unavoidable for the building blocks to compo
 should be considered the minimum surface:
 
 - **Version markers** — some discoverable boundary that says "this is what was shipped at
-  point X." Format (semver / calver / dates / arbitrary tags) is adopter-chosen; *presence* is
+  point X." Format (semver / calver / dates / arbitrary tags) is adopter-chosen; _presence_ is
   required for aggregation to define a range.
 - **Aggregation read-path** — tooling that walks `completed/<dated>/<wu-name>/meta-*.md` and
   composes per-WU Release Notes Entries into a CHANGELOG-shaped artifact. Output format
@@ -88,7 +88,7 @@ should be considered the minimum surface:
 - **Optional aggregation fire-points** — when adopters want aggregation to fire at specific
   moments (e.g., at tag creation, at release-branch merge), an extension fire-point
   (`pre-tag` / `post-release` / similar) lets them wire it up without ARC prescribing
-  *when* the cut happens.
+  _when_ the cut happens.
 
 ARC should stay opinion-free on:
 

@@ -59,7 +59,7 @@ The capture surfaces split by **ownership** (personal vs. project-shared) and **
 - **Personal** — resolver-backed identity-global `user/{identity}/USER-INBOX.md`. Live-capture
   surface; cross-PM-mode (exists outside arc-in-git too). See `strategy-session-operations.md`
   § USER-INBOX for purpose, lifecycle, and the `## Errand` / `## Work Unit` section semantics.
-- **Project-shared atomic** — `backlog/ATOMIC-INBOX.md` (below). The *only* shared inbox: multi-step
+- **Project-shared atomic** — `backlog/ATOMIC-INBOX.md` (below). The _only_ shared inbox: multi-step
   work always has a stub home, so there is no shared multi-step surface.
 
 § How Work Flows Through covers the routing tree; the subsection below covers orientation for the
@@ -67,9 +67,9 @@ shared atomic inbox.
 
 ### `backlog/ATOMIC-INBOX.md` — project-shared atomic capture
 
-Committed-tracked queue of *homeless* atomic-character entries — single-step work with no better
-home than the shared surface. The between-WUs housekeep drain *writes* it, flushing homeless
-`USER-INBOX § Errand` items here; activation and planning-kickoff *read* from it, pulling in items
+Committed-tracked queue of _homeless_ atomic-character entries — single-step work with no better
+home than the shared surface. The between-WUs housekeep drain _writes_ it, flushing homeless
+`USER-INBOX § Errand` items here; activation and planning-kickoff _read_ from it, pulling in items
 whose home turns out to be the WU. Entries execute as-is from inbox at their owning WU; completion
 deletes the entry, and the routing record lives in the deletion commit message plus the absorbing
 artifact. Multi-step work never lands here — it always has a stub home.
@@ -109,9 +109,9 @@ New work item
 ```
 
 Captures land in `USER-INBOX.md` (personal, live). The between-WUs housekeep drain routes them —
-*not* the integration ceremony: § Errand items route to their home, or flush to
+_not_ the integration ceremony: § Errand items route to their home, or flush to
 `backlog/ATOMIC-INBOX.md` if homeless; § Work Unit items route to an existing stub, or scaffold a new
-*provisional* stub under `backlog/{planned,provisional}/` (there is no shared multi-step inbox).
+_provisional_ stub under `backlog/{planned,provisional}/` (there is no shared multi-step inbox).
 Atomic items execute as-is from inbox; multi-step items mature into `plan-<wu-name>.md` and (when
 ready) a `spec-<wu-name>.md`. See [Work Planning Strategy][work-planning] for the draft → spec
 pipeline.
@@ -127,11 +127,11 @@ The shared `backlog/ATOMIC-INBOX.md` is **written** at one point and **read** at
 continuously multi-writer-edited:
 
 - **Written by the housekeep drain (between-WUs).** When `USER-INBOX` drains, genuinely homeless
-  `§ Errand` items flush to `ATOMIC-INBOX`. This is the only write path, and it lives *off* the
+  `§ Errand` items flush to `ATOMIC-INBOX`. This is the only write path, and it lives _off_ the
   integration ceremony. (`§ Work Unit` items never flush here — multi-step work is scaffolded into a
-  *provisional* stub instead; there is no shared multi-step inbox.)
+  _provisional_ stub instead; there is no shared multi-step inbox.)
 - **Read at activation** — a WU pulls in shared-inbox items whose home turns out to be its domain;
-  the rest stay put. Absorption *from* `USER-INBOX` is the degenerate case (empty post-housekeep).
+  the rest stay put. Absorption _from_ `USER-INBOX` is the degenerate case (empty post-housekeep).
 - **Read at planning-kickoff** — when a maintainer commits to a backlog WU, shared-inbox or
   provisional-subdir items promote into its plan/PRD as concrete tasks.
 

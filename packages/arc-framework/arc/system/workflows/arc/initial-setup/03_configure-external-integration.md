@@ -161,7 +161,7 @@ built-in capture surfaces), override the triage routing.
 - Should the severity assessment change based on your team's triage process?
 
 **If the defaults work:** Skip — capture routing (Step 2) already defines where deferred
-items go. The issue-triage method controls *when* to defer; capture routing controls *where*.
+items go. The issue-triage method controls _when_ to defer; capture routing controls _where_.
 
 ---
 

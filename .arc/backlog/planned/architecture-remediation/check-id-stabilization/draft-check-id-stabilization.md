@@ -44,7 +44,7 @@ migration pass corrects the current drift.
 
 ## Priority note
 
-Carried `P2` (above the cohort's usual `P3`) because the surfaced off-by-one drift is an *active* inconsistency,
+Carried `P2` (above the cohort's usual `P3`) because the surfaced off-by-one drift is an _active_ inconsistency,
 not only future-churn risk — revisit at planning.
 
 ---

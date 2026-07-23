@@ -16,6 +16,7 @@
 
 import type { Priority, WorkClass } from "../../commands/active/types.js";
 import { cohortLeaf } from "../active/cohort-path.js";
+import { displayWidth, padToDisplayWidth } from "../markdown/display-width.js";
 
 /** One row of a status view — a work unit's render-relevant fields, pre-resolved. */
 export interface StatusViewRow {
@@ -139,10 +140,10 @@ function cellOf(row: StatusViewRow, column: StatusColumn): string {
 /** Format a header + body grid into a width-padded markdown table. */
 function formatTable(headers: readonly string[], rows: readonly (readonly string[])[]): string {
   const widths = headers.map((header, col) =>
-    rows.reduce((max, row) => Math.max(max, (row[col] ?? "").length), header.length),
+    rows.reduce((max, row) => Math.max(max, displayWidth(row[col] ?? "")), displayWidth(header)),
   );
   const line = (cells: readonly string[]): string =>
-    `| ${cells.map((cell, col) => cell.padEnd(widths[col] ?? 0)).join(" | ")} |`;
+    `| ${cells.map((cell, col) => padToDisplayWidth(cell, widths[col] ?? 0)).join(" | ")} |`;
   const separator = `| ${widths.map((width) => "-".repeat(width)).join(" | ")} |`;
   return [line(headers), separator, ...rows.map(line)].join("\n");
 }

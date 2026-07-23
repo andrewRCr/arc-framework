@@ -20,7 +20,7 @@ WU activation.
 The two adjacent docs-touching WUs don't absorb this work cleanly:
 
 - **`plan-docs-site-refresh.md`** (mkdocs → Astro/Starlight migration) is explicitly
-  *format migration, not content rewrite* (Non-Goals: "not a content-expansion pass",
+  _format migration, not content rewrite_ (Non-Goals: "not a content-expansion pass",
   "not a content rewrite"). It carries one content-sweep hitchhiker — the rebrand
   branding sweep from `plan-arcd-rebrand.md` — because branding is mechanical
   find-replace that pairs cleanly with the per-file content port. Methodology model
@@ -83,7 +83,7 @@ together without seeing the old model.
 - `docs/reference/team-coordination.md:23,44,120,136`
 - `docs/reference/updating.md:63`
 
-**Nuance:** Public-facing prose should explain *why* the per-WU model (disentangles
+**Nuance:** Public-facing prose should explain _why_ the per-WU model (disentangles
 project pointer from session pointer; eliminates parallel-WU concurrency flaw;
 cleans up under full protection) without assuming prior knowledge of the retired
 model. Archive under `docs/reference/archive/` or similar if a historical note
@@ -320,7 +320,7 @@ context window natively — no MCP server, no API fetch, no auth round-trip. For
 agent interaction that touches planning state, this is zero-overhead. Externalizing
 the planning surface to Jira / Linear / GitHub Issues pushes the agent through
 `fetch → parse → reason → write-back` cycles per task, adding tokens, latency, and
-a failure mode per interaction. File-based tracking makes the planning surface *free*
+a failure mode per interaction. File-based tracking makes the planning surface _free_
 for the agent.
 
 **Supporting points (not all need foregrounding in every surface):**
@@ -412,15 +412,15 @@ concept; the rest reads as supporting structure.
 **Candidate positioning phrases** (test against actual hero copy at execution time, don't
 lock in at planning time):
 
-- *task-cadence development*
-- *controlled-burst co-development*
-- *deliberate AI development*
-- *bounded human-AI co-development*
+- _task-cadence development_
+- _controlled-burst co-development_
+- _deliberate AI development_
+- _bounded human-AI co-development_
 
-**Suggested approach:** lean *into* the differentiation, don't rewrite away from current
+**Suggested approach:** lean _into_ the differentiation, don't rewrite away from current
 framing. The existing material is correct; the goal is to make the load-bearing
 differentiator the leading concept upfront so newcomers grasp what makes ARC distinct in
-the agentic-tooling landscape *before* working through the supporting structure.
+the agentic-tooling landscape _before_ working through the supporting structure.
 
 **Suggested destinations:**
 
@@ -433,7 +433,7 @@ the agentic-tooling landscape *before* working through the supporting structure.
 **Pairs with item #5** (agent-native positioning) — both sharpen the value prop, hit
 different facets of "why this design."
 
-**Nuance — don't over-claim:** frame as *deliberate design stance* grounded in current
+**Nuance — don't over-claim:** frame as _deliberate design stance_ grounded in current
 agent-collaboration evidence (cognitive-load research, code-review-size studies cited in
 `methodology/rationale.md`), not as universal truth. Same principle as item #5's
 non-over-claim guidance.
@@ -451,14 +451,14 @@ these, independently converged on the same shape (markdown + frontmatter, direct
 README/ALL-CAPS hubs = their `index.md`, append logs = their `log.md`, an LLM-maintained
 knowledge base, a schema/convention file). Framing ARC against these established norms gives
 newcomers a fast on-ramp ("if you know the LLM-wiki pattern, ARC is that — for the
-software-development process; its ingest / query / lint loop *is* the session lifecycle") and
+software-development process; its ingest / query / lint loop _is_ the session lifecycle") and
 lends perceived legitimacy.
 
-**Register — convergence, not adoption (load-bearing):** frame as *convergent with / a mature
-instance of* the family — "we independently arrived at the same shape these now describe; here's
-the mapping" — never *built on / conformant to*. Convergence is the stronger legitimacy claim
+**Register — convergence, not adoption (load-bearing):** frame as _convergent with / a mature
+instance of_ the family — "we independently arrived at the same shape these now describe; here's
+the mapping" — never _built on / conformant to_. Convergence is the stronger legitimacy claim
 (independent arrival signals sound design, not derivation) and avoids coupling ARC's identity to a
-one-day-old v0.1 spec. In *shipped* surfaces (briefs), cite the durable *pattern* (the LLM-wiki
+one-day-old v0.1 spec. In _shipped_ surfaces (briefs), cite the durable _pattern_ (the LLM-wiki
 family); reserve named-spec hooks (OKF, the Karpathy gist) for docs-site / positioning copy, where
 naming the zeitgeist is the point and a v0.1 reference aging out is acceptable.
 
@@ -473,7 +473,7 @@ naming the zeitgeist is the point and a v0.1 reference aging out is acceptable.
 identity legible upfront; #9 leads with task-cadence discipline, this adds the family on-ramp.
 
 **Nuance — don't over-claim:** the convergence is real but ARC's domain (development-process state)
-differs from OKF's (data-asset catalogs); don't imply ARC *is* an OKF tool or that the family's
+differs from OKF's (data-asset catalogs); don't imply ARC _is_ an OKF tool or that the family's
 coarser vocabulary replaces ARC's precise internal terms. Frame as kinship + independent maturity.
 
 ## Adding Items
@@ -545,9 +545,9 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 
 ## Backlog Inbox Absorption (2026-05-19, WOR Task 6.3.b)
 
-*Entries folded from retired `backlog/feature/BACKLOG-FEATURE.md` during WOR Task 6.3.b
+_Entries folded from retired `backlog/feature/BACKLOG-FEATURE.md` during WOR Task 6.3.b
 inbox-drain to the four-surface model. Domain overlap with this plan flagged; integration
-into plan body deferred to a focused iteration session.*
+into plan body deferred to a focused iteration session._
 
 ### Strategy Documents on Docs Site
 

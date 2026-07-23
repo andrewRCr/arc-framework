@@ -13,8 +13,8 @@ by [ADR-027][adr-027] (2026-06-19 amendment below), which leaves ADR-021's work-
 
 [ADR-019][adr-019] reformed the work-unit (WU) lifecycle to a single-branch-per-WU model and separated
 two long-tangled concepts: **work unit** (the wrapper noun — a bounded chunk of work with a branch, a
-meta file, and one PR) and **atomic** (a work *character* — single-bounded, indivisible). It did not,
-however, question the assumption underneath both: that *every* bounded chunk of work is a WU. Under that
+meta file, and one PR) and **atomic** (a work _character_ — single-bounded, indivisible). It did not,
+however, question the assumption underneath both: that _every_ bounded chunk of work is a WU. Under that
 assumption a branch + PR implies a meta file and a full lifecycle.
 
 Worktree Foundation makes WU isolation and shifting cheap, which sharpens a tension the single-branch
@@ -34,7 +34,7 @@ masquerade as a WU. The mismatch is structural, not cosmetic.
 ARC already carries the seams for WU-less work. ADR-019's `commit-footer` defines a `standalone` anchor
 with off-WU vocabulary (`maintenance | planning | documentation | refactor`) for "no active WU," and
 session-init has a no-active-WU orphan path. The low-level accommodation exists; what is missing is the
-*named work class*, the *threshold* that separates it from a WU, and the conventions that keep it
+_named work class_, the _threshold_ that separates it from a WU, and the conventions that keep it
 isolated and cheap.
 
 External practice corroborates the shape. Trunk-based and GitHub-flow shops lean on heuristics rather
@@ -46,13 +46,13 @@ gives a size sanity-check (not a primary criterion).
 ### Alternatives considered
 
 - **Force every change into an atomic-tier WU.** Preserves strict 1:1. Rejected — disproportionate
-  ceremony, WU-namespace pollution, and it re-couples the atomic *character* to the WU *wrapper*, the
+  ceremony, WU-namespace pollution, and it re-couples the atomic _character_ to the WU _wrapper_, the
   exact tangle ADR-019 separated.
 - **Fold cross-cutting edits into the in-flight WU's branch.** Rejected — diff pollution plus latent
   cross-branch conflict; defeats Worktree Foundation's isolation.
 - **Defer all such edits to capture surfaces (USER-INBOX) and drain later.** Rejected for
   stub-ready / actionable work — double-work plus inbox bloat. Capture surfaces remain correct for
-  *not-yet-actionable* pointers only.
+  _not-yet-actionable_ pointers only.
 - **Introduce an Errand work class (chosen).** A wrapper-optional class for work fully consumed in a
   single review increment.
 
@@ -64,19 +64,19 @@ optional for work that does not need it.
 **The Errand class.** An Errand is a single review increment, fully consumed when its commit lands: no
 meta file, no `State` / lifecycle, no name-as-WU. It is tracked by git history (Conventional Commits +
 context footer), not by the planning layer (ROADMAP / backlog / `active/`). Its commit carries the
-existing `standalone (...)` footer — the Errand *is* the work that anchor was reserved for. An Errand
-routes *around* WU machinery rather than through it; the `standalone` footer and the session-init orphan
+existing `standalone (...)` footer — the Errand _is_ the work that anchor was reserved for. An Errand
+routes _around_ WU machinery rather than through it; the `standalone` footer and the session-init orphan
 path are the seams that already make this possible.
 
-**Naming.** "Errand" over the alternatives. *Change* (Gerrit's review noun) is precedented and neutral
-but generic — every WU also produces changes — so it carries no lightweight signal. *Patch* is
+**Naming.** "Errand" over the alternatives. _Change_ (Gerrit's review noun) is precedented and neutral
+but generic — every WU also produces changes — so it carries no lightweight signal. _Patch_ is
 fix-shaped and misfits the class's maintenance-leaning center (cohort cross-references, dependency
-notes, doc fixes). *Increment* is the most precise (an Errand is exactly one review increment) but
-clunky as a count-noun. *Atomic* — ARC's own term — was the strongest challenger, rejected on
-principle rather than surface collision: "atomic" is a cross-scale *character* (atomic commits, tasks,
+notes, doc fixes). _Increment_ is the most precise (an Errand is exactly one review increment) but
+clunky as a count-noun. _Atomic_ — ARC's own term — was the strongest challenger, rejected on
+principle rather than surface collision: "atomic" is a cross-scale _character_ (atomic commits, tasks,
 WUs), and ADR-019 deliberately separated character from wrapper, so naming the class "Atomic" would
 re-tangle them — and it does not nominalize ("an atomic" is awkward). It stays the character; an Errand
-*is* atomic-character work that skips the wrapper. *Errand* names the small, complete, standalone,
+_is_ atomic-character work that skips the wrapper. _Errand_ names the small, complete, standalone,
 untracked side-task: its
 defining trait is being a bounded task you just complete — not triviality (a consequential one-commit
 change is still an Errand) — and it carries the chore-like, not-the-main-concern signal the class
@@ -85,7 +85,7 @@ so "Errand" never enters commit syntax.
 
 **Open question — renaming the "Work Unit" wrapper itself (deferred).** Codifying the Errand sibling
 surfaced whether "Work Unit" / `WU` is the right name for the heavy class. Considered and **not adopted**:
-*program* (maximal collision in a software-methodology tool — every adopter writes programs) and *labor*
+_program_ (maximal collision in a software-methodology tool — every adopter writes programs) and _labor_
 (connotation baggage, and less precise than "work unit"). "Work unit" stays — neutral, accurate, a
 recognized term; its only wart is the `WU` abbreviation, addressed far more cheaply by a
 spell-it-out-on-user-surfaces style rule than by a constitutional rename. A class rename would be an
@@ -98,30 +98,30 @@ Either way it has no meta file and never enters lifecycle, orientation, handoff,
 "one WU = one branch" is unchanged — every WU still has exactly one branch; ADR-021 adds that not every
 branch is a WU.
 
-**The threshold.** A Work Unit is warranted when *any* of these hold:
+**The threshold.** A Work Unit is warranted when _any_ of these hold:
 
 1. the work spans **more than one review increment** (multiple logical commits / internal sequencing);
 2. it carries **design that must be authored and referenced** (a Spec);
 3. it must be **tracked or resumed** as future or owned work (a roadmap slot, dependencies, an owner, a
    cross-session lifecycle).
 
-None of these → it is an Errand. As an empirical *symptom* check (not the primary criterion), a candidate
+None of these → it is an Errand. As an empirical _symptom_ check (not the primary criterion), a candidate
 Errand that cannot be reviewed in one window (~400 lines / ~60 minutes) is almost certainly
-multi-increment and is therefore a WU. The trunk-based one-day rule is explicitly *not* the line: it
+multi-increment and is therefore a WU. The trunk-based one-day rule is explicitly _not_ the line: it
 governs integration cadence at the review-increment grain, not tracking-worthiness — ARC WUs are
 design-bearing and legitimately span sessions.
 
 **Create vs. maintain.** Creating a new tracked unit of future work — a backlog stub — is a (small) WU
-even when it is one commit, because its output is a tracked deliverable with a meta file. *Maintaining*
+even when it is one commit, because its output is a tracked deliverable with a meta file. _Maintaining_
 an existing artifact — a dependency note, a cohort cross-reference, a doc fix — is an Errand. The
 create/maintain distinction scopes the 1:1 relaxation to precisely where it is justified.
 
 **Atomic-as-character, extended.** ADR-019 separated "atomic" (character) from "work unit" (wrapper) but
-still required a wrapper for all work. ADR-021 makes the wrapper *optional* for atomic-character work:
+still required a wrapper for all work. ADR-021 makes the wrapper _optional_ for atomic-character work:
 such work now **defaults to an Errand**, and is promoted to a WU only when the threshold trips. "Atomic"
 remains strictly a character adjective ("an atomic change," "an atomic task") and is not a work class.
-The fate of the *atomic-tier* name within the tier model (atomic / quick / standard) belongs to Agile WU
-Lifecycle, which owns the tier model; ADR-021 only shifts the *default realization* of atomic-character
+The fate of the _atomic-tier_ name within the tier model (atomic / quick / standard) belongs to Agile WU
+Lifecycle, which owns the tier model; ADR-021 only shifts the _default realization_ of atomic-character
 work from "atomic-tier WU" to "Errand."
 
 **Operational conventions (named here, ratified at the cohort PRDs).** The plumbing that makes the
@@ -172,12 +172,12 @@ regenerated from refs / PRs on demand, conflict-free.
 
 ### Risks
 
-- *Threshold mis-application* (work that should be a WU done as an Errand). Mitigation: the empirical size
+- _Threshold mis-application_ (work that should be a WU done as an Errand). Mitigation: the empirical size
   symptom-check and the create/maintain split.
-- *Lighter-gate misclassification* letting a substantive change through a light lane. Mitigation:
+- _Lighter-gate misclassification_ letting a substantive change through a light lane. Mitigation:
   path-graded gating keeps constitutional surfaces reviewed; the conditional "merge-ok" job avoids the
   path-filtering-versus-branch-protection footgun.
-- *Premature ratification.* Status stays Proposed until the cohort PRDs validate the operational pieces;
+- _Premature ratification._ Status stays Proposed until the cohort PRDs validate the operational pieces;
   the taxonomy can be exercised before the plumbing exists, but the conventions are not binding until
   then.
 
@@ -192,19 +192,19 @@ protection / direct commit under partial, tracked by the `standalone (...)` cont
 documented in `strategy-work-organization.md` § Errand Work Class. Status remains **Proposed** pending
 Concurrent Work Conventions and Agile WU Lifecycle.
 
-**Amendment (2026-05-31):** Work-Routing Discipline re-pivots the Errand *realization* (the taxonomy and
+**Amendment (2026-05-31):** Work-Routing Discipline re-pivots the Errand _realization_ (the taxonomy and
 threshold above are unchanged). Two faults surfaced while codifying the work-routing doctrine:
 
 1. **The errand queue is a capture surface holding execution-bound items** — the dual of the core invariant
    that doctrine establishes ("no item with a known home rests in a capture surface"). Errand Enablement's
-   interim `ERRANDS.md` queue let a committed errand *rest* rather than execute, blurring capture (inbox) and
+   interim `ERRANDS.md` queue let a committed errand _rest_ rather than execute, blurring capture (inbox) and
    execution (errand) and requiring a bolted-on staleness sweep to keep it from rotting.
 2. **The queue's model was `branch.protection: full`-shaped** — the `chore/<slug>` queue key presumes the
    ephemeral-branch path, but under partial protection an errand is a direct base commit with no branch.
 
-The corrected model: **an Errand is execution-only.** Capture is inbox-only; an Errand *is* its execution — a
+The corrected model: **an Errand is execution-only.** Capture is inbox-only; an Errand _is_ its execution — a
 `chore/<slug>` branch (full) or a direct base commit (partial), tracked by git history + the `standalone (...)`
-footer, with **no queue, no `errand-*` file, and no State field.** Errand state is *derived* — active = a
+footer, with **no queue, no `errand-*` file, and no State field.** Errand state is _derived_ — active = a
 `chore/` branch with no PR; awaiting-merge = an open PR; done = merged — and cross-session/cross-machine
 continuity rides the notes-synced originating inbox entry (the goal, retained until completion) plus the pushed
 branch (the progress). The **`errand-launch` entry primitive** named under § Operational conventions is
@@ -229,4 +229,4 @@ corrects the threshold basis and identity model it left in place. Full design: `
 [adr-019]: adr-019-work-unit-lifecycle-reform.md
 [adr-020]: adr-020-adopt-principle-anchored-scalable-core.md
 [adr-027]: adr-027-refine-errand-model.md
-[cohort]: ../../backlog/planned/agile-parallelism/cohort-agile-parallelism.md
+[cohort]: ../../completed/2026-q3/18a_cohort-agile-parallelism/cohort-agile-parallelism.md

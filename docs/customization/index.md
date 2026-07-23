@@ -51,7 +51,7 @@ For customization that goes beyond editing project files:
 
 - **[Configuration](configuration.md)** — `arc-config.yml` settings that control enforcement
   levels, mode selections, and behavioral toggles.
-- **[Methods & Extensions](methods.md)** — replace *how* ARC does something (method overrides)
+- **[Methods & Extensions](methods.md)** — replace _how_ ARC does something (method overrides)
   or inject additional steps at workflow boundaries (extension points).
 - **[Agent Hooks](hooks.md)** — platform-level lifecycle hooks that complement ARC's
   document-based workflows with deterministic automation. Optional for platforms that support

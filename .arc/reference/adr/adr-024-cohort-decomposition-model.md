@@ -19,12 +19,12 @@ convention (`composable-workflows`).
 
 [ADR-019][adr-019] fixed **one branch per work unit** from planning through integration, and
 [ADR-021][adr-021] set the lower bound of the work-unit band — the **Errand**, work below the wrapper.
-[ADR-023][adr-023] then graded weight *within* the band (`light` / `heavy` / `novel`). What none of these pinned
+[ADR-023][adr-023] then graded weight _within_ the band (`light` / `heavy` / `novel`). What none of these pinned
 down is the structure a concern takes when it exceeds a single WU: the **grouping above the WU**, and how a live
 WU **decomposes** when it outgrows itself.
 
 The `Cohort` field schema — path-valued, render columns, `backlog/planned/<cohort>/` directories — shipped with
-Class Model Foundation, but no surface defined what a cohort *is*, what its constitutive record holds, or how
+Class Model Foundation, but no surface defined what a cohort _is_, what its constitutive record holds, or how
 decomposition produces one. The concept was **used before defined**.
 
 Several forces constrain any answer:
@@ -43,14 +43,14 @@ Several forces constrain any answer:
 
 - **Model A — one WU sliced into stacked PRs.** Rejected on three grounds, weakest to strongest: (1)
   one-branch-per-WU ([ADR-019][adr-019]) makes "one WU across many branches" inexpressible — it can only collapse
-  into a stack of *WUs*, which is Model B's delivery mode; (2) ARC's review grain is already sub-PR (per-task
+  into a stack of _WUs_, which is Model B's delivery mode; (2) ARC's review grain is already sub-PR (per-task
   increment), so Model A's "split for smaller reviewable units" benefit is largely absorbed; (3) decisive — Model
   A forces a shared mutable spec + task list across branches, the exact cross-branch shared-mutable state
   worktree isolation and relocatability prevent. External practice corroborates: one-RFC-to-many-PRs works at
   enterprise scale "only because they accept spec drift."
 - **Size as the decomposition discriminator.** Rejected — size over-decomposes coupled work and under-decomposes
   wide-but-small work. Concern multiplicity (orthogonal, independently deliverable subsystems) is the real
-  trigger; LOC across *unrelated* subsystems is a corroborating heads-up, never primary.
+  trigger; LOC across _unrelated_ subsystems is a corroborating heads-up, never primary.
 - **A categorical theme / cohort / sub-cohort tier set.** Rejected — making "theme" a distinct doc-less tier
   broke at the single-segment `Cohort` value, where a theme and a genuine top-level cohort are syntactically
   identical and separable only by doc-presence. One grouping kind with a Purpose-floor doc (coordination by
@@ -59,11 +59,11 @@ Several forces constrain any answer:
 - **A maintained roster / minted identifier for at-cap decomposition.** Rejected — it re-mints the grouping node
   the nesting cap denied, adds a second source of truth against membership-is-derived, and sits invisible to the
   cohort-consistency invariant (which keys on the `Cohort` path, identical across fanned-out siblings).
-- **A cohort-owner / DRI role.** Rejected — the per-member partition *is* the coordination mechanism (each member
+- **A cohort-owner / DRI role.** Rejected — the per-member partition _is_ the coordination mechanism (each member
   edits only its own section; cohort-level material is ownerless by definition), so a DRI would carry nothing
   load-bearing. Team-scale arbitration, if it arises, routes to the team-coordination strategy.
-- **A single combined decomposition workflow.** Rejected — the *decision* (orthogonality + rails + maturity
-  timing) and the *execution* (transform a live WU into a cohort) are semantically distinct and fire at different
+- **A single combined decomposition workflow.** Rejected — the _decision_ (orthogonality + rails + maturity
+  timing) and the _execution_ (transform a live WU into a cohort) are semantically distinct and fire at different
   times: the decision fires cheaply at every design-stage read; the execution runs once, terminally.
 - **Unbounded nesting depth.** Rejected for sprawl and an unbrowsable tree; a one-level cap with an at-cap
   lateral fan-out arm handles the "already at the cap" case without raising it.

@@ -3,7 +3,7 @@
 - **Origin:** [internal] — routed from `BACKLOG-INBOX` at the work-routing-discipline retirement pass
   (2026-06-01). Cohorted with `configuration` (config-storage-architecture, customization-arch-realign,
   configurable-lifecycle-artifacts) as the config family; distinct mechanism from each — this is config-key
-  *evolution over time* during update, not where config is stored or the config/method boundary.
+  _evolution over time_ during update, not where config is stored or the config/method boundary.
 - **Purpose:** Give `arc update` chained, version-gated migration of adopter `arc-config.yml` files when ARC's
   config schema changes (key renames, value-enum shifts).
 

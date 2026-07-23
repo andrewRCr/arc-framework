@@ -183,7 +183,7 @@ Reason-class discriminants make every multi-action row exact:
 
 **The pass cap is not a `frontline run` terminal.** `pass-cap-exhausted` stays a variant of the shipped normalized
 outcome union — durable records may carry it, and `reduce` maps it (D10) — but the CLI never produces one. The
-shipped resolver reaches its cap only by declining a *follow-up* after approved dispositions, and because a fix
+shipped resolver reaches its cap only by declining a _follow-up_ after approved dispositions, and because a fix
 produces a new head and therefore a new target, that decline surfaces as advisory follow-up text in `respond` /
 `reduce` output (D9), not as a run outcome. Enumerating it as a `frontline run` state would publish a transition no
 sequence of legal calls can reach.
@@ -199,7 +199,7 @@ base, a dirty index or worktree, or a non-commit `HEAD` (D4 step 2) through the 
 a typed diagnostic naming the failed precondition. These are not domain states: no review was admitted, so there is
 nothing to report a `state` / `nextAction` about, and they are not `operator-repair` edges — the cure is committing
 or stashing, not repairing a binding. This is the one place `invalid-input` covers repository condition rather than
-malformed request input, and it is why the union's first member is named for the *invocation* being invalid rather
+malformed request input, and it is why the union's first member is named for the _invocation_ being invalid rather
 than the request body alone.
 
 The error envelope is a strict union over `invalid-input`, `corrupt-state`, and `unexpected-failure`. It exits 1 and
@@ -249,7 +249,7 @@ no target accepts what its adapter composed.**
   the change request, exactly as `frontline run`'s target does. The frontline lane produces advice, never
   satisfying evidence, so nothing rests on the CLI having independently established these facts.
 
-`contentKind` stays caller-supplied on both lanes even though it is load-bearing for the one obligation-*removing*
+`contentKind` stays caller-supplied on both lanes even though it is load-bearing for the one obligation-_removing_
 transition — `standardReview: exempt` requires `contentKind: documentation` together with
 `surfaceAuthority: planning-grooming` and self / ownerless `ownership`. Deriving it generically is not possible:
 the only shipped classifier is keyed to this repository's own directory layout and treats an unmatched path as
@@ -265,7 +265,7 @@ regardless of what the other fields claimed.
 
 **The obligation is change-shaped; source selection is the driver's.** This projection's obligation is
 change-shaped: `changeSetState: unknown` collapses to the maximal floor (`required`) — the conservative reading of
-what the *change* needs. It is deliberately **not** gated on source availability here. The `standardReview`
+what the _change_ needs. It is deliberately **not** gated on source availability here. The `standardReview`
 obligation is shared: it names the ordinary review a change needs, satisfiable by any one configured **standard
 source** — the local `delegated-agent` (this lane's `local prepare` path) or a hosted provider — and RSB is blind to
 hosted configuration, so demoting it locally would wrongly suppress a hosted-configured install. Source selection
@@ -278,8 +278,8 @@ such source; the driver owns dispatch. See § Cross-cutting — Review-source mo
 **Frontline target authority.** `frontline run` is the one verb that accepts a `target` as caller input, because
 the frontline lane is advisory and its target is composed by the project or host adapter that owns the change
 request. That input is validated, never trusted as proof: `frontline run` re-derives the target coordinates from
-the exact-head checkout it creates (D11) and refuses on any mismatch, so the caller selects *which* target to
-review while the CLI proves *what was actually reviewed*. `frontline run` additionally revalidates the current
+the exact-head checkout it creates (D11) and refuses on any mismatch, so the caller selects _which_ target to
+review while the CLI proves _what was actually reviewed_. `frontline run` additionally revalidates the current
 source registration and derives policy / source digests and operation identity.
 
 Every success payload contains the common header plus only fields the command can truthfully supply. Failure and
@@ -338,18 +338,18 @@ attestation runtime identity as trusted caller data. It derives them:
    those facts. A new head is a new target and a new operation; the frontline lane keeps its own advisory pass /
    generation bookkeeping (D11), separate from this.
 
-**Identical-retry predicate.** A `local prepare` invocation is an *identical retry* — returning the existing
+**Identical-retry predicate.** A `local prepare` invocation is an _identical retry_ — returning the existing
 operation rather than admitting a new one — when the derived `targetId`, evaluator identity, author,
 policy-binding digest, and request mechanism all match a live operation for this repository. Any
 difference in those facts admits a new operation (a new head, by construction, is a different target). An identical
 retry is idempotent: it returns the same `operationId` and re-verifies rather than rebuilds an intact
 materialization, so repeating `local prepare` while an evaluator is running cannot pull the checkout out from under
-it. It does create a pin or checkout that is *absent* — the recoverable case publish-first makes reachable when an
+it. It does create a pin or checkout that is _absent_ — the recoverable case publish-first makes reachable when an
 invocation fails between publication and pin creation (D5). The rule is never-destroy, not never-create.
 
 That predicate is also the **operationId re-acquisition path**. `local resume` takes an `operationId`, and after a
 lost session the caller no longer has one; re-running `local prepare` from the same working tree derives the same
-identity and returns it. No enumeration affordance is added to the operation-state port — the derivation *is* the
+identity and returns it. No enumeration affordance is added to the operation-state port — the derivation _is_ the
 lookup, which is why target and actor facts key the operation rather than a minted opaque id.
 
 ### D5 — Immutable local review source
@@ -497,11 +497,11 @@ enter `policyVersion` and the requirement, while the request mechanism enters th
 digest and admitted runtime kind are carried by the operation record and the receipt, not smuggled into a v2 field
 that does not own them.
 
-**The package default is opt-in, not a forced review.** RSB provides the lane *mechanism* (the verbs); the local
+**The package default is opt-in, not a forced review.** RSB provides the lane _mechanism_ (the verbs); the local
 lane is one **standard source** (`delegated-agent`) the review-policy driver may select, off until a project lists
 it in the driver's ordered `standard_sources` (§ Cross-cutting — Review-source model). When the driver selects it,
 the default binding permits `{ sourceKind: agent, qualifier: standard-review/v1 }` with the fixed
-`local-attestation` request mechanism as the *acceptable source*; a project may further narrow the binding to a
+`local-attestation` request mechanism as the _acceptable source_; a project may further narrow the binding to a
 stricter typed one by supplying a composition adapter (code, not a configuration key, which is why RSB adds no
 configuration axis).
 
@@ -614,7 +614,7 @@ it: `frontline run` takes it from the `ready` resolution it consumes, never from
 reading prior operations. A first resolution over a head authorizes pass 1. After findings are dispositioned, the
 shipped follow-up resolver may authorize one more — and it authorizes it **at the changed head**, returning pass 2
 against the new target. That is the real shape of the two-pass allowance: not two runs at one head, but an initial
-run plus one follow-up run across the fix boundary. Pass numbering therefore does *not* reset per head; it tracks
+run plus one follow-up run across the fix boundary. Pass numbering therefore does _not_ reset per head; it tracks
 the advisory chain the resolver authorizes, and a chain is spent once it reaches its allowance. Pass counts remain
 advisory bookkeeping in the operation-state record — a caller that never consults the follow-up resolver simply
 starts a new chain, which is the same latitude every advisory surface in this design carries.
@@ -637,7 +637,7 @@ Unknown thrown errors map to the closed adapter-failure class rather than an unb
 Local operations persist a cleanup TTL at admission — `freshnessMs` when supplied, else the framework default. It
 bounds only how long an abandoned pin and detached checkout survive before the sweep reaps them (D5); it is not an
 evidence-admissibility window, because nothing here is downstream evidence. Attestation is gated on the
-*materialization*, not the clock: while the pinned source is still present, a late `local attest` records its
+_materialization_, not the clock: while the pinned source is still present, a late `local attest` records its
 advisory receipt normally; once the sweep has reaped the materialization, `local attest` and `local resume` find no
 checkout to attest against and return `expired -> rerun-review`. Re-entry does not extend the TTL, and re-preparing
 re-materializes at the current head.
@@ -808,7 +808,7 @@ Reconcile both workflows against the protocol:
 - Replace hand-composed operation-state management with `arc review frontline run`, which owns pending publication,
   carrier execution, and durable outcome recording (D1 item 3, D11).
 - Keep the routing-fact record the workflows compose for `frontline resolve` (D3 assigns every frontline fact to
-  the caller), but drop the operation-state prose around it. Where a workflow reaches the *local* lane, it supplies
+  the caller), but drop the operation-state prose around it. Where a workflow reaches the _local_ lane, it supplies
   only the five caller-owned fields and lets `local prepare` derive `changeSetState`.
 - Route the local lane through `local prepare` / `local attest` / `local resume` and the universal `respond` /
   `reduce`, so the workflows express the review loop as verb invocations rather than library calls.
@@ -919,7 +919,7 @@ it cites the exact boundary rather than a provisional phase number.
 
 **Frontline-source ordering (RSB reciprocal).** RSB's frontline reason classes already distinguish the
 fall-through-eligible outcomes (`rate-limited | transient-unavailable`) from terminal / ambiguous ones, so
-driver-owned ordered fallback needs no new outcome machinery. The reciprocal on RSB is source *selection*: the
+driver-owned ordered fallback needs no new outcome machinery. The reciprocal on RSB is source _selection_: the
 current singular `review.frontline_source` resolver becomes driver-orderable (ordered `review.frontline_sources` +
 `arc.frontlineSources`), a small change that also lands in the live-closure frontline surface and rides the same
 coordinated edit.
@@ -935,8 +935,8 @@ even though the receipt it guards is.
 
 The **advisory frontline lane** binds differently and deliberately: `frontline run` accepts an adapter-composed
 `target` (D3), because the change request it reviews is owned by the project or host adapter, and because a
-frontline outcome can never become satisfying evidence. That input selects *which* target to review; it is not
-accepted as proof of *what was reviewed* — the exact-head checkout re-derives the coordinates and refuses on
+frontline outcome can never become satisfying evidence. That input selects _which_ target to review; it is not
+accepted as proof of _what was reviewed_ — the exact-head checkout re-derives the coordinates and refuses on
 mismatch (D11). The asymmetry tracks evidence authority, which is the same rule that scales persistence and
 ceremony everywhere else in this design.
 

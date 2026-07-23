@@ -258,8 +258,7 @@ Blank lines required:
   least one item spans 2+ lines, every item in that list separates from its neighbors with a
   blank line. Lists where every item is single-line stay tight. Applies to lists of
   independently-trackable items — subtasks, atomic-file items, ATOMIC-INBOX entries,
-  success-criteria items. It does not reach the descriptor bullets that frame a single item
-  (see the descriptor-cluster carve-out below).
+  success-criteria items. Root descriptor clusters follow their own semantic spacing rule below.
 
 - Before and after multi-paragraph descriptor blocks within a phase preamble
 
@@ -285,17 +284,20 @@ stays tight; a one-sentence Context that fits on one line still gets the separat
 it's prose by role. By convention descriptive fields land at the end of the block, but the
 rule is shape-based — a descriptive field anywhere separates from its neighbors.
 
-**Descriptor clusters also stay tight.** The consecutive root-level descriptor bullets that
-open a parent task — `_Goal:_`, peer descriptors (`_Context:_`, `_Rationale:_`, `_Approach:_`,
-`_Shape:_`, `_Note:_`), and `**Additional Context:**` when present — and the descriptor
-sub-bullets under an atomic item (`_Observation:_`, `_Scope:_`, `_Files:_`) describe one work
-item, not a list of items, so they stay tight to one another even when individual descriptors
-wrap to multiple lines. Separation is supplied at the cluster's boundaries, not within it: a
-blank before the indent-+1 children block and before a post-completion `_Outcome:_` (both above).
+**Root descriptor clusters use semantic loose spacing when wrapped.** A parent task's opening
+cluster consists of `_Goal:_`, documented peer descriptors (`_Context:_`, `_Rationale:_`,
+`_Approach:_`, `_Shape:_`, `_Note:_`), and optional `**Additional Context:**` entries before
+operational children. When any cluster entry spans multiple physical lines, place at least one
+blank line between every adjacent cluster entry. An all-one-line cluster may be tight or loose;
+MD012 owns excess consecutive blank lines. Preserve a blank boundary before indent-+1 operational
+children and before a post-completion `_Outcome:_`.
 
-Markdownlint MD022 enforces heading spacing; the "between every subtask", loose-list,
-descriptor-cluster, and file-header-metadata-block rules are project convention beyond MD022
-and are verified at the pre-save checklist.
+Descriptor sub-bullets under an atomic item (`_Observation:_`, `_Scope:_`, `_Files:_`) describe one
+item but are not root task descriptors, so they remain outside this rule.
+
+Markdownlint MD022 enforces heading spacing; the "between every subtask", loose-list, root-descriptor-cluster,
+and file-header-metadata-block rules are project convention beyond MD022 and are verified at the pre-save
+checklist.
 
 ---
 

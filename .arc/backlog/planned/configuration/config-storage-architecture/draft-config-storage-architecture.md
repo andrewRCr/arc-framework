@@ -4,37 +4,37 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **User-scoped inbox-clean-start policy**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
-- *Concern:* emptying `USER-INBOX` before starting a work unit is recommended practice, not a hard gate. Some
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
+- _Concern:_ emptying `USER-INBOX` before starting a work unit is recommended practice, not a hard gate. Some
   users may want ARC to require a clean personal inbox at `init-work-unit`; teams may find that paternalistic as
   a default.
-- *Approach:* a user-scoped setting such as `inbox.init_policy = warn | require-clean` (or equivalent),
+- _Approach:_ a user-scoped setting such as `inbox.init_policy = warn | require-clean` (or equivalent),
   defaulting to advisory behavior while allowing stricter personal discipline.
-- *Captured during:* work-routing-discipline Task 5.2.
-- *Note:* landing here as the per-user config-settings home; if it reads more as an `init-work-unit` /
+- _Captured during:_ work-routing-discipline Task 5.2.
+- _Note:_ landing here as the per-user config-settings home; if it reads more as an `init-work-unit` /
   planning-module policy than a storage concern, re-route at integration.
 
 ### `[ ]` **Flexible CLI config probe over the resolver (ceremonies stop hand-reading `arc-config.yml`)**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: config-storage-architecture`), housekeep drain (2026-06-19);
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: config-storage-architecture`), housekeep drain (2026-06-19);
   captured during `lifecycle-mechanics-tail` integrate-work-unit Step 1 (2026-06-18).
-- *Concern:* workflow ceremonies resolve config by hand-reading `arc-config.yml` — hit at integrate-work-unit
+- _Concern:_ workflow ceremonies resolve config by hand-reading `arc-config.yml` — hit at integrate-work-unit
   Step 1 (grepped `branch.base` / `merge.strategy` / `archive.cadence` / the then-live `review.pre_merge`, none
   surfaced by the session-init probe's fixed config slice). A correctness gap, not just ergonomics: the interlock modes
   (`commit.interlock` / `push.interlock`) are git-config-resolved with documented defaults — not yaml — and this WU
   is moving more keys (`role`, the three interlocks, `releaseOptedIn`) into `.arc/user/{identity}/config.user.yml`.
   So an agent reading raw yaml silently diverges from the real resolver (`lib/config/resolved-settings.ts`), and
   the drift worsens as that move lands.
-- *Approach:* a caller-agnostic config probe (`arc config get <key> --json`, or an `arc status --config --json`
+- _Approach:_ a caller-agnostic config probe (`arc config get <key> --json`, or an `arc status --config --json`
   mode) over the one resolver, read lazily at point-of-need — the same read authority the session-init envelope's
   `config.value.settings` slice consumes, generalized. Explicitly **not** broadening the fixed init slice (that
   bloats every init for values most sessions never touch).
-- *Scope:* configuration cohort's; design toward the post-storage-move resolver so it sits on records, not today's
+- _Scope:_ configuration cohort's; design toward the post-storage-move resolver so it sits on records, not today's
   yaml. Natural anchor is `config-storage-architecture` (already touches the resolver + the probe-envelope
   consumers); may instead graduate to its own sibling stub in the cohort — drain decides. Check overlap with
   `schema-introspection-layer` (architecture-remediation) for any config-value introspection it already implies.
@@ -43,14 +43,14 @@
 
 ### `[ ]` **Short identity (`arc.identity.short`) for rendered surfaces**
 
-- *Routed from:* agile-wu-lifecycle graduation (PR #55), 2026-06-04 — surfaced rendering the ROADMAP Owner
+- _Routed from:_ agile-wu-lifecycle graduation (PR #55), 2026-06-04 — surfaced rendering the ROADMAP Owner
   column.
-- *Concern:* the Owner field renders the full identity (`andrew` now; a git/source-control username like
+- _Concern:_ the Owner field renders the full identity (`andrew` now; a git/source-control username like
   `andrewRCr` in general), wide and repeated on every row. A second short form (initials, e.g. `aRC`) would let
   rendered views (ROADMAP, STATUS.USER) show a compact owner without losing the canonical identity.
-- *Approach:* add `arc.identity.short` alongside `arc.identity` in the per-developer config substrate
+- _Approach:_ add `arc.identity.short` alongside `arc.identity` in the per-developer config substrate
   (`config.user.yml`); default to derived initials, user-overridable.
-- *Note:* storage home is this WU; the render consumption is roadmap-tooling's (coordinate at PRD).
+- _Note:_ storage home is this WU; the render consumption is roadmap-tooling's (coordinate at PRD).
 
 ## Problem / Motivation
 
@@ -90,11 +90,11 @@ exactly the mismatch we're seeing.
 
 Three-tier storage model, each tier mapped to its natural scope:
 
-| Tier | Storage | Settings | Sync |
-| ---- | ------- | -------- | ---- |
-| Per-developer, global (per-user-cross-project) | `~/.arc/config.yml` (XDG-style global) | `identity` | None — per-user-per-machine by definition |
-| Per-developer, per-project | `.arc/user/{identity}/config.user.yml` (in-repo, gitignored) | `role`, `commitInterlock`, `pushInterlock`, `syncInterlock`, `releaseOptedIn` | Yes — via existing user-notes sync infrastructure |
-| Per-developer, per-project, per-machine | `.arc/user/{identity}/.local/` (gitignored, sync-excluded) | Install markers (`release-setup.json`), audit log, pre-load backups, sync state | Never — per-machine state by intent |
+| Tier                                           | Storage                                                      | Settings                                                                        | Sync                                              |
+| ---------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Per-developer, global (per-user-cross-project) | `~/.arc/config.yml` (XDG-style global)                       | `identity`                                                                      | None — per-user-per-machine by definition         |
+| Per-developer, per-project                     | `.arc/user/{identity}/config.user.yml` (in-repo, gitignored) | `role`, `commitInterlock`, `pushInterlock`, `syncInterlock`, `releaseOptedIn`   | Yes — via existing user-notes sync infrastructure |
+| Per-developer, per-project, per-machine        | `.arc/user/{identity}/.local/` (gitignored, sync-excluded)   | Install markers (`release-setup.json`), audit log, pre-load backups, sync state | Never — per-machine state by intent               |
 
 Rationale per tier:
 
@@ -109,7 +109,7 @@ Rationale per tier:
   cross-machine pain point resolves at zero marginal infrastructure cost since ARC already runs the sync layer
   for `SESSION-NOTES.md`.
 
-- **Per-machine** — install markers track which harnesses are set up on *this* machine (per-machine state by
+- **Per-machine** — install markers track which harnesses are set up on _this_ machine (per-machine state by
   definition, not user preference). Audit log and pre-load backups are local-only by design (audit-log entries
   reference local commit hashes; pre-load backups are recovery surfaces). Today: stored in `.arc/user/{identity}/.internal/`.
   Rename to `.local/` proposed — see below.

@@ -32,8 +32,8 @@ documentation.
 - [Auto-Merge Lane](#auto-merge-lane)
 - [Errand Work Class](#errand-work-class)
 - [Directory Structure](#directory-structure)
-- [Team Coordination](#team-coordination) *(→ dedicated strategy)*
-- [Planning Module](#planning-module) *(→ dedicated strategy)*
+- [Team Coordination](#team-coordination) _(→ dedicated strategy)_
+- [Planning Module](#planning-module) _(→ dedicated strategy)_
 
 ---
 
@@ -61,15 +61,15 @@ For routing deferred or discovered work — inline fix vs. atomic task vs. new w
 
 ## Work Character
 
-Orthogonal to a work unit's *category* (its branch-type prefix, above) is its *character* — whether the work is
-**atomic** or **multi-step**. Character is a routing axis in its own right, and it is *scale-invariant*: the same
+Orthogonal to a work unit's _category_ (its branch-type prefix, above) is its _character_ — whether the work is
+**atomic** or **multi-step**. Character is a routing axis in its own right, and it is _scale-invariant_: the same
 distinction sorts inbox items, individual tasks, and whole work units.
 
 - **atomic** — one **indivisible** self-evident concern, bounded to a single session: no internal stage that needs
-  *durable* decomposition. *Typically* one review increment and a single commit — but both are incidental, not the
+  _durable_ decomposition. _Typically_ one review increment and a single commit — but both are incidental, not the
   character. Commit-count is incidental (one concern may land in several commits under the normal atomicity policy
-  and stay atomic); review-pass-count is too — a *determinate* concern may be staged into a bounded few **in-session**
-  review passes (the *extended errand*) for reviewer ergonomics and stay atomic, since the concern is still one
+  and stay atomic); review-pass-count is too — a _determinate_ concern may be staged into a bounded few **in-session**
+  review passes (the _extended errand_) for reviewer ergonomics and stay atomic, since the concern is still one
   indivisible whole tracked by nothing more durable than its own diff. At the **task scale**, atomic work surfacing
   mid-WU folds into the current commit or routes out (inline, Errand, or capture); at the **item scale**, deferred
   atomic work is a capture.
@@ -81,19 +81,19 @@ distinction sorts inbox items, individual tasks, and whole work units.
 **Character is not the wrapper floor** — the wrapper is the **spec-worthiness** gate ([§ Class Model](#class-model)
 boundary test #1) — but character and wrapper relate tightly. **An Errand is always atomic:** one indivisible
 self-evident concern bounded to one session (a determinate sweep — a doc-grooming pass, a `ROADMAP` re-render, a
-housekeep drain that fans out — is *one* concern, however many files, commits, or in-session review passes it lands
+housekeep drain that fans out — is _one_ concern, however many files, commits, or in-session review passes it lands
 in). What makes work multi-step — and so a **Work Unit** (however light) — is needing a **durable** decomposition: a
-tracked plan that outlives the session, which is also what authoring or recording a design needs. A second *review
-pass* alone does not cross the line; needing a *tracked plan* does. A WU is spec-worthy — a design worth recording,
-or a durable plan a correct execution must navigate — and is *usually* multi-step, though a small spec-worthy
+tracked plan that outlives the session, which is also what authoring or recording a design needs. A second _review
+pass_ alone does not cross the line; needing a _tracked plan_ does. A WU is spec-worthy — a design worth recording,
+or a durable plan a correct execution must navigate — and is _usually_ multi-step, though a small spec-worthy
 concern can be atomic in character too; the WU is decided by spec-worthiness, not by counting passes.
 
-**One indivisible concern, one session** is the sharp line — not increment- or pass-count. "Is this *one* concern
+**One indivisible concern, one session** is the sharp line — not increment- or pass-count. "Is this _one_ concern
 that fits a single session without a durable plan?" carries irreducible boundary judgment — two careful readers can
 split a marginal case differently and both be ARC-correct. The ambiguity is deliberate: within the bounds, the
 developer decides, and a mis-call is cheap to correct via the Errand→WU promotion edge (`arc errand promote`).
 
-**Route by fate, not by wrapper.** Capture surfaces sort on what the work *becomes* — Errand vs WU (spec-worthy?),
+**Route by fate, not by wrapper.** Capture surfaces sort on what the work _becomes_ — Errand vs WU (spec-worthy?),
 not which artifact happened to produce it. For the during-WU-vs-later routing table, see
 [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing.
 
@@ -101,16 +101,16 @@ not which artifact happened to produce it. For the during-WU-vs-later routing ta
 
 ## Class Model
 
-A work unit's **`Class`** is its recorded *weight* — `light`, `heavy`, or `novel` (`[TBD]` until resolved). Weight
-is the work a unit demands across *planning, execution, and review* — intrinsic demand, not output volume. `Class`
+A work unit's **`Class`** is its recorded _weight_ — `light`, `heavy`, or `novel` (`[TBD]` until resolved). Weight
+is the work a unit demands across _planning, execution, and review_ — intrinsic demand, not output volume. `Class`
 is the signal roadmap and parallelism planning read to balance a worklist; the [classify-work-unit][classify-work-unit]
 method is the triage that sets it, and this section is the model and reasoning behind that triage.
 
-`Class` is the *weight* question of a single work-sizing spectrum; the **Errand-vs-WU wrapper line**
-([§ Work Character](#work-character)) is its companion *spec-worthiness* question, and together they place any work
+`Class` is the _weight_ question of a single work-sizing spectrum; the **Errand-vs-WU wrapper line**
+([§ Work Character](#work-character)) is its companion _spec-worthiness_ question, and together they place any work
 from a self-evident Errand (the floor) to a from-scratch `novel` synthesis (the ceiling). The two stay distinct:
-the wrapper line asks *is this spec-worthy?* (below floor on both intrinsic axes → Errand, below the wrapper; clears
-either floor → WU), `Class` asks *how much weight* within a WU. Atomic is **not** a `Class` value — `Class` begins
+the wrapper line asks _is this spec-worthy?_ (below floor on both intrinsic axes → Errand, below the wrapper; clears
+either floor → WU), `Class` asks _how much weight_ within a WU. Atomic is **not** a `Class` value — `Class` begins
 at the `light` floor; an Errand carries none.
 
 What scales with `Class` is **design-authoring ceremony** — how much spec and planning the work warrants. What
@@ -120,32 +120,32 @@ before a competent engineer can execute it well.
 
 ### The two axes
 
-`heavy` iff *either* of two intrinsic axes runs high. They **decorrelate** — each loads a different authoring stage
+`heavy` iff _either_ of two intrinsic axes runs high. They **decorrelate** — each loads a different authoring stage
 — so test them independently rather than collapsing them into one judgment:
 
-- **Derivation** — how much design must be *authored* versus *read off* determinate inputs. This is the
-  **records-vs-derives** line: when the spec merely *records* a design that already follows from the issue and
-  existing patterns, derivation is low; when settling the work *requires authoring* a real design — concerns,
+- **Derivation** — how much design must be _authored_ versus _read off_ determinate inputs. This is the
+  **records-vs-derives** line: when the spec merely _records_ a design that already follows from the issue and
+  existing patterns, derivation is low; when settling the work _requires authoring_ a real design — concerns,
   alternatives, and tradeoffs that do not exist until someone works them out — derivation is high. Derivation loads
   the drafting and spec stages, and tracks how novel-vs-routine the execution is and how much validation review
-  demands. **Floor:** only *spec-worthy* design counts — what a competent engineer must settle before starting; a
-  choice resolved *during* implementation (naming, local structure) is not derivation, even though it involves
+  demands. **Floor:** only _spec-worthy_ design counts — what a competent engineer must settle before starting; a
+  choice resolved _during_ implementation (naming, local structure) is not derivation, even though it involves
   deciding something. This design-vs-implementation line keeps the derivation trigger from swallowing every WU.
-- **Scale / complexity** — how large or intricate an existing-code surface a correct plan *and execution* must
+- **Scale / complexity** — how large or intricate an existing-code surface a correct plan _and execution_ must
   navigate: the codebase-grounding demand. This is the **routine-vs-substantial** bar: most work carries some
-  grounding, so the bar sits at *substantial* — a large or intricate surface of symbols and call-sites a correct
+  grounding, so the bar sits at _substantial_ — a large or intricate surface of symbols and call-sites a correct
   plan must verify, beyond the routine floor. Scale loads the task-generation stage.
 
 `light` iff **both** axes are low. The axes are co-equal: a determinate-but-large refactor is `heavy` by grounding
 demand alone, exactly as a small-but-novel design is `heavy` by derivation alone.
 
 **The top of the derivation axis is `novel`.** Above the `heavy` promotion, a second threshold on derivation alone
-promotes `heavy → novel`: when settling the design requires *inventing* concepts or models that do not yet exist in
-the problem domain (synthesis, research, discovery) rather than *composing* a real design from existing patterns.
+promotes `heavy → novel`: when settling the design requires _inventing_ concepts or models that do not yet exist in
+the problem domain (synthesis, research, discovery) rather than _composing_ a real design from existing patterns.
 The axes are asymmetric here, and the asymmetry falls out of their nature — **scale is endurance** (breadth that is
 chunkable, parallelizable, and self-limiting, since runaway breadth trips decomposition into a cohort, so it caps at
 `heavy`); **derivation is depth** (serial, context-saturating, unbounded, so only it reaches the top). `novel` is a
-distinct *kind*, not just more weight; its recorded purpose is **primarily** parallelism / sequencing (you can hold
+distinct _kind_, not just more weight; its recorded purpose is **primarily** parallelism / sequencing (you can hold
 roughly one genuinely-novel stream — the strongest "don't double up" signal) and **secondarily** an advisory
 distinct planning shape (a discovery / research phase + an ADR), suggested, never forced.
 
@@ -154,47 +154,47 @@ distinct planning shape (a discovery / research phase + an ADR), suggested, neve
 Apply in order. The first sorts work below the wrapper out of the model entirely; the next two each independently
 promote a WU to `heavy`; the last promotes `heavy → novel` on the derivation axis alone:
 
-1. **Errand vs. WU (the wrapper floor).** *Is this spec-worthy — does it clear the floor on either intrinsic axis
+1. **Errand vs. WU (the wrapper floor).** _Is this spec-worthy — does it clear the floor on either intrinsic axis
    (a design worth recording, or a durable plan a correct execution must navigate — a substantial grounding surface
-   or cross-session tracking), or is it self-evident on both?* This reads the same two axes below at their
+   or cross-session tracking), or is it self-evident on both?_ This reads the same two axes below at their
    **sub-floor** — the Errand is the shared below-floor tier of one spectrum, not a separate cardinality gate.
    **Below floor on both** → it is an [Errand](#errand-work-class), not a WU (one indivisible self-evident concern,
-   atomic in character — *typically* one review increment, a determinate one extended to a bounded few in-session
+   atomic in character — _typically_ one review increment, a determinate one extended to a bounded few in-session
    passes, however many commits): below the wrapper, no meta, no `Class`. **Clears either floor** → it is a WU
    (spec-worthy); continue.
-2. **Derivation trigger (→ `heavy`).** *Must a real design be authored — concerns, alternatives, tradeoffs that do
-   not exist until someone works them out — before a competent engineer can start?* **Yes** → `heavy`. Count only
-   *spec-worthy* design (the floor above): a choice resolved during implementation is not derivation.
-3. **Scale / complexity trigger (→ `heavy`).** *Does producing a correct implementation plan require a substantial
-   codebase-grounding pass, beyond the routine floor?* **Yes** → `heavy`. Guard the bar at *substantial* — a soft
+2. **Derivation trigger (→ `heavy`).** _Must a real design be authored — concerns, alternatives, tradeoffs that do
+   not exist until someone works them out — before a competent engineer can start?_ **Yes** → `heavy`. Count only
+   _spec-worthy_ design (the floor above): a choice resolved during implementation is not derivation.
+3. **Scale / complexity trigger (→ `heavy`).** _Does producing a correct implementation plan require a substantial
+   codebase-grounding pass, beyond the routine floor?_ **Yes** → `heavy`. Guard the bar at _substantial_ — a soft
    bar makes everything `heavy`.
-4. **Invent-vs-compose trigger (`heavy → novel`).** *Does settling the design require inventing concepts / models
-   that do not yet exist in the problem domain — versus composing a real design from existing patterns?* **Invent**
+4. **Invent-vs-compose trigger (`heavy → novel`).** _Does settling the design require inventing concepts / models
+   that do not yet exist in the problem domain — versus composing a real design from existing patterns?_ **Invent**
    → `novel`; **compose** → stays `heavy`. Derivation only — scale never reaches `novel`. A magnitude cut within
    "derivation fired," so it reads fuzzier than the fired-or-not lines; acceptable because the consequence is
    advisory.
 
 ### Worked examples
 
-**The wrapper floor, split on the scale axis.** Both of these are one concern that can land across *several
-commits* — the re-based gate's admission is that commit-count alone no longer forces a WU:
+**The wrapper floor, split on the scale axis.** Both of these are one concern that can land across _several
+commits_ — the re-based gate's admission is that commit-count alone no longer forces a WU:
 
 - **Self-evident sweep → Errand.** A doc-grooming pass or a `ROADMAP` re-render cascade: many files or commits, but
   nothing to author and no substantial grounding a correct plan must navigate. Below floor on both axes — one
   concern reviewed once, an Errand.
 - **Widely-used-symbol rename → `heavy` WU.** A rename whose correct plan must verify call-sites across a broad
-  surface clears the *scale* floor: spec-worthy by grounding demand, so a WU even though the design is
+  surface clears the _scale_ floor: spec-worthy by grounding demand, so a WU even though the design is
   determinate.
 
 The two axes form a 2×2; each cell is recognizable in retrospect:
 
 - **Low derivation, low scale → `light`.** A moderate feature whose design reads off a clear issue and existing
-  patterns, over a contained surface. The spec *records* the design; the plan needs only a modest grounding pass.
+  patterns, over a contained surface. The spec _records_ the design; the plan needs only a modest grounding pass.
 - **Low derivation, high scale → `heavy` (scale).** A large mechanical refactor — rename or move a widely-used
   symbol. The design is determinate (nothing to invent), but a correct plan must verify many call-sites across a
   broad surface, and that breadth carries into careful execution and heavier review.
 - **High derivation, low scale → `heavy` (derivation).** A tricky algorithm or novel mechanism whose design must be
-  *worked out* — alternatives and tradeoffs that do not exist until authored — even over a small surface.
+  _worked out_ — alternatives and tradeoffs that do not exist until authored — even over a small surface.
 - **High derivation, high scale → `heavy` (both).** Novel design over a large, intricate surface; both triggers
   fire.
 
@@ -212,36 +212,36 @@ work without author guesswork.
 
 ### Estimating and the ratchet
 
-Every WU *has* a `Class`; `[TBD]` is the pre-classification sentinel (distinct from `[none]`), meaning the weight is
+Every WU _has_ a `Class`; `[TBD]` is the pre-classification sentinel (distinct from `[none]`), meaning the weight is
 merely not yet resolved. When resolving without complete information, set a **best estimate** against the boundary
 tests — never a blanket `heavy` stamp, which would fabricate the very signal `Class` exists to carry.
 
 `Class` is **estimate-then-ratchet**, not strict one-way:
 
-- The ratchet protects **realized** design-authoring: once a stage has *authored* design at some depth, `Class`
+- The ratchet protects **realized** design-authoring: once a stage has _authored_ design at some depth, `Class`
   never drops below that floor.
-- An **estimate** — a value set before that work exists — is freely revisable in *both* directions until planning
-  substantiates a floor. Correcting a too-high estimate *down* is not a demotion: no work is discarded.
+- An **estimate** — a value set before that work exists — is freely revisable in _both_ directions until planning
+  substantiates a floor. Correcting a too-high estimate _down_ is not a demotion: no work is discarded.
 
 So estimating costs nothing — guessing `heavy` and later correcting to `light` loses nothing — which removes any
 lowball incentive. At each lifecycle touchpoint this is a cheap **confirm-or-ratchet**, not a re-derivation.
 
-**"Execution turned out light" ≠ "the design was determinate."** If a real design *was* authored, realized authoring
-floors `Class` even over a tiny surface; only an over-high *estimate* corrects down. A derivation-heavy / scale-light
-WU feels front-loaded, but it was heavy *when both jobs read the value* — at planning; `Class` is a decision-time
+**"Execution turned out light" ≠ "the design was determinate."** If a real design _was_ authored, realized authoring
+floors `Class` even over a tiny surface; only an over-high _estimate_ corrects down. A derivation-heavy / scale-light
+WU feels front-loaded, but it was heavy _when both jobs read the value_ — at planning; `Class` is a decision-time
 signal, not a retrospective effort tally.
 
 ### Readiness rule
 
-A startable work unit carries a *resolved* `Class`. `[TBD]` is legal only in `backlog/provisional/`; entry into
+A startable work unit carries a _resolved_ `Class`. `[TBD]` is legal only in `backlog/provisional/`; entry into
 `backlog/planned/` — the [readiness-ladder](#readiness-ladder) rung the start decision reads — is the **forcing
-point**, because the weight signal must exist *before* a WU becomes a start candidate, not at activation (too late:
+point**, because the weight signal must exist _before_ a WU becomes a start candidate, not at activation (too late:
 the start decision precedes it). The [promote-work-unit][promote-work-unit] workflow performs that rung and forces
 the estimate via the [classify-work-unit][classify-work-unit] method.
 
 ### Planning depth and spec forms
 
-`Class` is the WU-level *weight*; **`planning depth`** is the per-stage *resolution* — how much authoring a given
+`Class` is the WU-level _weight_; **`planning depth`** is the per-stage _resolution_ — how much authoring a given
 stage does. Each authoring stage (drafting, spec, task generation) resolves its own depth on a `low` / `medium` /
 `high` ordinal, independently, from the axis that loads it. Depth is **transient and per-stage**: it is never
 recorded on the meta and may differ across stages (a WU can want a deep spec but shallow task-gen, or the reverse).
@@ -260,11 +260,11 @@ The form ↔ `Class` relationships:
 
 - **`brief` ⇒ `light`.** A brief records a determinate design over a contained surface.
 - **`detailed` ⇒ `heavy` or `novel`.** A detailed spec is authored only when the **derivation** axis is high — a
-  real design must be worked out — which forces `heavy`, or `novel` when that design must be *invented* rather than
+  real design must be worked out — which forces `heavy`, or `novel` when that design must be _invented_ rather than
   composed. The two share the `detailed` form; `novel`'s distinct shape is the advisory discovery / research phase +
   ADR, not a fourth form. `detailed` is the one form that splits by work category: a **PRD** for a feature, an
   **RFC** for a technical change. The other two forms do not split.
-- **`outline` straddles.** An outline serves a `light` WU at moderate scale *and* a `heavy` WU whose weight comes
+- **`outline` straddles.** An outline serves a `light` WU at moderate scale _and_ a `heavy` WU whose weight comes
   from the **scale** axis — a determinate design over a large surface, where the spec records the design but the
   implementation plan still needs a substantial grounding pass. The `Class` field and the task-list scale
   disambiguate the two outline cases.
@@ -277,7 +277,7 @@ honest.
 
 ### Validation contract
 
-What a spec is validated *against* hangs on two form-invariant anchors — not requirement-numbering, which was
+What a spec is validated _against_ hangs on two form-invariant anchors — not requirement-numbering, which was
 only ever a PRD-idiom traceability convenience:
 
 - **Implementation → Success Criteria.** Every form carries concrete, falsifiable Success Criteria (even the
@@ -286,7 +286,7 @@ only ever a PRD-idiom traceability convenience:
 - **Task list → the form's enumerable substrate.** The task list is validated for coverage against whatever the
   form enumerates — numbered **Requirements** (PRD), structured **Proposed Design** elements (RFC), the settled
   **Decision(s)** (`outline`), or the one falsifiable **signal** (`brief`). The substrate differs by form, but
-  the mechanism — grounding-audit coverage of the design's enumerable unit set — is identical. The design *is*
+  the mechanism — grounding-audit coverage of the design's enumerable unit set — is identical. The design _is_
   that unit set; it is simply not always called "requirements."
 
 ---
@@ -298,16 +298,16 @@ single WU. Rather than one WU sliced into stacked PRs, the concern becomes a coh
 single-owner WUs, each with its own `meta-* / spec-* / tasks-*` and one branch — how many PRs a work unit emits
 is a separate axis. The work unit remains the **leaf deliverable**; the cohort is the grouping above it.
 
-This taxonomy complements the [Class Model](#class-model): `Class` is the *weight* of one WU; a cohort is the
-*shape* a concern takes when it spans more than one. The planning-time judgment of whether a concern is one WU or
-a cohort — and where the cuts fall — is the `assess-cohort-fit` method's; this section defines what a cohort *is*
+This taxonomy complements the [Class Model](#class-model): `Class` is the _weight_ of one WU; a cohort is the
+_shape_ a concern takes when it spans more than one. The planning-time judgment of whether a concern is one WU or
+a cohort — and where the cuts fall — is the `assess-cohort-fit` method's; this section defines what a cohort _is_
 once that cut is made.
 
 ### One grouping kind; coordination by degree
 
-There is **one grouping kind — the cohort** — and coordination is a property it carries *by degree*, not a
+There is **one grouping kind — the cohort** — and coordination is a property it carries _by degree_, not a
 separate category. Every cohort **carries a `cohort-{name}.md`**, with no exceptions: a grouping that only
-*organizes* carries a Purpose-only doc; one that actively *coordinates* carries a fuller body. The difference is
+_organizes_ carries a Purpose-only doc; one that actively _coordinates_ carries a fuller body. The difference is
 how much the doc says, not what kind of thing the grouping is.
 
 "Theme" survives only as informal prose for a top-level, mostly-organizing cohort — never a distinct schema kind
@@ -327,24 +327,24 @@ the required floor upward:
 - **Optional coordination content, accreting above the floor** — shared contracts (cross-member design no single
   WU owns), closeout criteria, a parent-cohort pointer (derivable from the `Cohort` path). There is no
   `Coordinated` flag: coordination is the continuum of how much the doc says, not a mode it switches into.
-- **Per-member sections keyed by slug** — a *partitioned coordination surface*, not a membership roster. Each
+- **Per-member sections keyed by slug** — a _partitioned coordination surface_, not a membership roster. Each
   member edits only its own section, so parallel writers line-merge cleanly.
 
 **Membership stays derived.** Membership comes from each WU's `Cohort` field — the meta record is the source of
-truth — never a list the doc maintains. A per-member section is therefore a *subset* of the membership: a WU gets
+truth — never a list the doc maintains. A per-member section is therefore a _subset_ of the membership: a WU gets
 one only when it has cross-cutting coordination to record, and a missing section means "nothing to coordinate."
 The doc never carries a roster or status table — those render from metas. An orphan section (its WU renamed or
 removed) is caught by the cohort-consistency invariant, not by manual upkeep.
 
 **No coordinator or owner.** A cohort needs neither. Membership is derived, per-member coordination is partitioned
-(each member edits only its own section), and cohort-level material is by definition ownerless — *the partition
-is the coordination mechanism, in place of an owner.* `Owner` stays WU-level; any team-scale arbitration need
+(each member edits only its own section), and cohort-level material is by definition ownerless — _the partition
+is the coordination mechanism, in place of an owner._ `Owner` stays WU-level; any team-scale arbitration need
 routes to the team-coordination conventions, not a role minted at the cohort.
 
 **Design vs. coordination — forced, not chosen.** The cohort doc carries **coordination only — never design that
-drives a task list** — and the per-member partition *forces* that boundary rather than merely asking for it. A
+drives a task list** — and the per-member partition _forces_ that boundary rather than merely asking for it. A
 contract's authoritative definition drives its implementing member's task list, so it **must** live in that
-member's spec; the cohort doc holds only a *pointer* to it plus the list of consuming members. Coordination
+member's spec; the cohort doc holds only a _pointer_ to it plus the list of consuming members. Coordination
 itself splits two ways:
 
 - **Cohort-level** — genuinely ownerless shared material: a thesis, closeout criteria, a convention every member
@@ -352,8 +352,8 @@ itself splits two ways:
 - **Per-member** — a single member's own surface, framed as **exposes / consumes**: what it offers its siblings
   and what it depends on from them.
 
-The partition is the forcing function: when a member's section starts filling with design that drives its *own*
-tasks, that visible smell *is* the signal the content belongs in its spec, with only a pointer left behind. The
+The partition is the forcing function: when a member's section starts filling with design that drives its _own_
+tasks, that visible smell _is_ the signal the content belongs in its spec, with only a pointer left behind. The
 boundary holds because crossing it looks wrong in the doc, not because a reviewer must police it.
 
 **Cross-cohort coordination stays coordination, not membership.** When a member or cohort needs to coordinate
@@ -371,7 +371,7 @@ content edit. The archived doc's `Parent` field preserves nesting context; the a
 cohort doc's own slug, not the full parent path. It therefore adopts the movable-artifact relocatability and
 reference-hygiene invariant wholesale: inbound references to it are
 backticked-filename-only (no paths, no Markdown links), and it carries no outbound relative-path links. Both hold
-*by construction* — a cohort doc names sibling drafts and specs by filename, and the parent-cohort pointer is
+_by construction_ — a cohort doc names sibling drafts and specs by filename, and the parent-cohort pointer is
 derivable from the `Cohort` path — so the position-independence the pure-`git mv` relocation depends on needs no
 special handling.
 
@@ -394,12 +394,12 @@ When a WU decomposes it **becomes a cohort**, its `cohort-{name}.md` carrying fo
 from its origin draft. Which arm runs is selected by the parent's position relative to the nesting cap:
 
 1. **Standalone WU → top-level cohort.** A WU in no cohort becomes a new top-level cohort carrying its name,
-   members nested beneath. *Name preserved.*
+   members nested beneath. _Name preserved._
 2. **In-cohort WU → sub-cohort.** A WU already in a single-segment cohort becomes a sub-cohort under its existing
-   parent, members nested one level deeper. *Name preserved.*
+   parent, members nested one level deeper. _Name preserved._
 3. **At-cap WU → lateral fan-out.** A WU already at the cap (a two-segment parent) has no legal nested target —
-   minting a cohort beneath it would be a forbidden third segment — so it decomposes *laterally* into sibling WUs
-   under its existing parent. *The name is not preserved as a grouping node.*
+   minting a cohort beneath it would be a forbidden third segment — so it decomposes _laterally_ into sibling WUs
+   under its existing parent. _The name is not preserved as a grouping node._
 
 Arms 1–2 preserve the name, and the browsing and narrative references that ride it, at the right altitude. The
 "name loss breaks references" worry dissolves across all three arms: dependency edges (`Depends On`) are always
@@ -412,21 +412,21 @@ handles the WU→cohort shift automatically.
 one concern" fact is preserved as **provenance — an immutable past-event record, not live grouping**:
 
 - The origin concern name is recorded **once, write-once at fan-out**, as a cohort-level provenance note in the
-  parent cohort doc, in greppable phrasing: *"Fanned out from `<origin>`: `<m1>`, `<m2>`, `<m3>`."* It records a
+  parent cohort doc, in greppable phrasing: _"Fanned out from `<origin>`: `<m1>`, `<m2>`, `<m3>`."_ It records a
   past event, so it never drifts and needs no guard.
 - Slugs stay content-legible, never ordinal; inter-member order, when it exists, lives in `Depends On`.
 - Coordination for the new siblings rides the parent cohort doc — they are members of it now.
 - **Reality check (judgment, not a gate):** before a lateral fan-out, ask whether hitting the cap signals the
-  *parent* cohort was mis-scoped — calling for a parent restructure — rather than a clean lateral split. A prompt
+  _parent_ cohort was mis-scoped — calling for a parent restructure — rather than a clean lateral split. A prompt
   only; the cap is never raised to rescue a member that legitimately outgrew itself.
 
 ### Active-state decomposition
 
 Decomposition is normally a planning-time act, before code is written. Mid-implementation the supported path is
-**extraction**: the origin stays active and only its *unbuilt* scope splits off into new members — committed code
+**extraction**: the origin stays active and only its _unbuilt_ scope splits off into new members — committed code
 stays put. ARC runs this directly.
 
-Splitting an origin's *already-committed* code across several members — a **full split** — is not an ARC operation;
+Splitting an origin's _already-committed_ code across several members — a **full split** — is not an ARC operation;
 there is no `arc decompose` for it. It is the ordinary git task of dividing a branch's history across branches, and
 it is an escape hatch, not a recommended move:
 
@@ -442,7 +442,7 @@ Git ships no "split this branch for me" command, by design — prevention beats 
 
 Not every decomposition authors design. Splitting a backlog stub in place, or routing pieces to existing homes (an
 established sibling, a standing doc), is **pure relocation** — no new design written — and runs as a bounded few
-in-session increments rather than a planning ceremony: [Errand](#errand-work-class) *character* (not a `Class`).
+in-session increments rather than a planning ceremony: [Errand](#errand-work-class) _character_ (not a `Class`).
 Decompositions that author member design on a live planning branch stay full lifecycle ceremonies.
 
 ### WU sizing standard
@@ -453,7 +453,7 @@ the sizing standard the `assess-cohort-fit` method consumes:
 - **Count distinct deliverables and independently-reviewable surfaces** — the primary signal. Several unrelated
   review surfaces in one WU is the decompose trigger.
 - **LOC and file count are secondary heads-up signals**, not thresholds: roughly `>~few-hundred LOC`,
-  `>~8–10 files`, or work that fails the "reviewable in one sitting" test says *look closer* — review defect
+  `>~8–10 files`, or work that fails the "reviewable in one sitting" test says _look closer_ — review defect
   detection craters past a few hundred LOC per increment. Tightly-coupled work designed as a whole stays one WU
   even when large; the per-task review grain carries quality.
 - **Stack vs. cohort:** sequentially-dependent pieces deliver as a **stack** — dependency-ordered WUs, each its
@@ -513,7 +513,7 @@ Before a work unit enters the `State` lifecycle above, it climbs a **readiness l
 - **`backlog/provisional/`** — pre-commitment thinking; the thesis is not yet one the project commits to.
   `**Class:**` may be `[TBD]`.
 - **`backlog/planned/`** — startable candidates on the ready list. Entry here is the **forcing point for
-  `Class`**: a planned work unit carries a *resolved* `**Class:**` (`Light` / `Heavy` / `Novel`); `[TBD]` is
+  `Class`**: a planned work unit carries a _resolved_ `**Class:**` (`Light` / `Heavy` / `Novel`); `[TBD]` is
   legal only in `provisional/`. The [promote-work-unit][promote-work-unit] workflow performs this rung and
   forces the estimate via the [classify-work-unit][classify-work-unit] method.
 - **`active/`** — execution has a home; the `State` enum above takes over from `Planning` onward.
@@ -527,9 +527,9 @@ weight signal must be present before then.
 The State Enum and the readiness ladder are two orthogonal axes of a single model. A work unit's lifecycle position
 is the pair **(phase, location)**:
 
-- **Phase** — the meta `**State:**` value (`Planning` / `Active` / `Integrating` / `Shipped`): how far the *work*
+- **Phase** — the meta `**State:**` value (`Planning` / `Active` / `Integrating` / `Shipped`): how far the _work_
   itself has progressed.
-- **Location** — a logical position, `provisional` / `planned` / `active` / `completed`: where the work *lives* — its
+- **Location** — a logical position, `provisional` / `planned` / `active` / `completed`: where the work _lives_ — its
   backlog readiness rung, its execution home, or the archive. Location normally coincides with the directory the
   artifacts sit in, but it is a logical value, not the path.
 
@@ -544,7 +544,7 @@ the lowercase `active/` is a directory on the location axis. They coincide in th
 parked one — keeping them typographically distinct keeps that divergence legible.
 
 > This "two axes" model is distinct from the **Class** two axes (§ Class Model § The two axes): those decompose a WU's
-> *weight* (derivation / scale); these decompose its *lifecycle position*. Same phrase, different pair.
+> _weight_ (derivation / scale); these decompose its _lifecycle position_. Same phrase, different pair.
 
 ### Stub required fields
 
@@ -597,7 +597,7 @@ Variation above the invariants happens along two axes:
 ### Deferred contract
 
 This strategy codifies the invariants, the scaling axes, and — below — the `Class` model and the spec
-forms it selects. What stays downstream is the per-*stage* realization: how each authoring stage turns
+forms it selects. What stays downstream is the per-_stage_ realization: how each authoring stage turns
 the `planning depth` it resolves into concrete ceremony (whether `draft-*` is authored, the rigor of
 each pass), and the per-mode artifact orchestration. The invariants establish what's stable; the
 per-stage contract that builds on them lives with the authoring-pipeline surfaces.
@@ -608,7 +608,7 @@ The scaling axes above raise a discipline question: how does the framework keep 
 escape-hatching to lighter ceremony than it warrants? Three mechanisms:
 
 - **The ratchet protects realized work.** `Class` is estimate-then-ratchet: once a stage has
-  *authored* design at some depth, `Class` never drops below that floor (see the
+  _authored_ design at some depth, `Class` never drops below that floor (see the
   [classify-work-unit][classify-work-unit] method). An estimate is freely revisable until planning
   substantiates a floor, but realized design-authoring is never silently shed — a WU cannot shrink
   away from `heavy` once its weight is real.
@@ -708,7 +708,7 @@ and other short-lived off-WU work — see [§ Errand Work Class](#errand-work-cl
 ARC defines no separate, dedicated administrative worktree. Admin operations run from the main worktree
 directly — keeping `main` checked out there is what makes them safe to launch and gives every spawn a
 clean base. The pattern composes with externally spawned worktrees: whatever checkout the tooling treats
-as the primary workspace *is* the main worktree, with no extra setup.
+as the primary workspace _is_ the main worktree, with no extra setup.
 
 Two disciplines keep the launchpad dependable. **`main` is the resting state, not a lock:** an Errand or
 grooming pass may occupy the main worktree with its short-lived branch as a bounded excursion, returning
@@ -791,8 +791,8 @@ The `spec-{name}.md` filename is stable regardless of how heavy or light the spe
 weight is expressed in its H1 and template, not in its filename — so consumers resolve the
 pointer the same way for every work unit.
 
-**Orthogonal to `Origin`.** The two fields answer different questions: `Origin` is *what prompted
-the work*, `Design` is *what defines it*. `**Design:**` names an ARC-owned artifact only; an
+**Orthogonal to `Origin`.** The two fields answer different questions: `Origin` is _what prompted
+the work_, `Design` is _what defines it_. `**Design:**` names an ARC-owned artifact only; an
 external tracker (issue, ticket, upstream discussion) belongs in `**Origin:**`, never in
 `**Design:**`.
 
@@ -1029,10 +1029,10 @@ ROADMAP back into agreement with meta-file state.
 ### `STATUS.USER` view
 
 `STATUS.USER` is a **user-scoped** rendering of the same source as the project readiness view — a filtered mode,
-not a second generator. It scopes to the two slices that drive *your* balance decision — what is on your plate,
+not a second generator. It scopes to the two slices that drive _your_ balance decision — what is on your plate,
 and what fits alongside it: the work units **in flight** for you (wherever they live), and the **ready** work you
 could start next (owned by you, unblocked). In-flight is location-based — a WU in `active/**` (equivalently, an
-unmerged WU branch on the remote) is in flight — so the in-flight slice surfaces actively-*planned* WUs, not only
+unmerged WU branch on the remote) is in flight — so the in-flight slice surfaces actively-_planned_ WUs, not only
 executing ones; the ready slice is your `backlog/planned/**` work whose dependencies have all shipped. Each row is
 sized by `Class` so the balance reads at a glance. Everything else stays in the project view.
 
@@ -1056,9 +1056,9 @@ render core both reproduce.
 **Regeneration triggers.** The in-flight content has two slices with different refresh costs; the ready slice is
 a third, purely-local input that needs no network:
 
-- **Local in-flight slice** — your WUs in flight on *this* machine (the identity-filtered roster). It regenerates
+- **Local in-flight slice** — your WUs in flight on _this_ machine (the identity-filtered roster). It regenerates
   cheaply, with no network read, at every local ceremony: spawn, activate, integrate, shift, and handoff.
-- **Cross-machine in-flight slice** — your WUs in flight only *elsewhere* (remote-only, no local branch or worktree).
+- **Cross-machine in-flight slice** — your WUs in flight only _elsewhere_ (remote-only, no local branch or worktree).
   Surfacing these needs a network round-trip, so it refreshes only at the subset of triggers where cross-machine
   truth matters: handoff, an explicit `arc sync`, an explicit view request (`arc status --user`), and a session
   start with no local active WU. Each network read is bounded by a short timeout and degrades to the last-rendered
@@ -1104,7 +1104,7 @@ ARC defines two branch protection modes configured in `.arc/system/arc-config.ym
 Protection mode governs the **ship layer** — how a change reaches the base branch (through a branch and PR, or by a
 direct commit) — never the **record**. A WU's `(phase, location)` state (§ Work Unit State) and its `meta-{name}.md`
 are identical under either mode: the meta is minted at `init` regardless, and the lifecycle runs the same states and
-transitions. Protection shapes only how the work *ships*, not what the work *is*.
+transitions. Protection shapes only how the work _ships_, not what the work _is_.
 
 ### Mode Summary
 
@@ -1172,7 +1172,7 @@ lane.
 methods, workflows) vs. movable planning artifacts (`draft-*`, `meta-*`, `tasks-*`, stubs, buffers, `ROADMAP`, the
 inboxes) — entirely **independent of the Errand-vs-WU wrapper** ([§ Class Model](#class-model) boundary test #1).
 The wrapper gate (spec-worthiness) does not carry review eligibility; the two axes cross. A determinate dev-rule
-correction is an *Errand* (below both intrinsic floors) that nonetheless **rides the reviewed lane** because it
+correction is an _Errand_ (below both intrinsic floors) that nonetheless **rides the reviewed lane** because it
 touches a constitutional surface; a `tasks-*` grooming pass is auto-merge-lane whether it is an Errand or a WU's
 own planning increment. Under partial protection there is no review lane for Errands at all — the axis is a
 full-protection concern (see [§ Branch Protection Modes](#branch-protection-modes)).
@@ -1186,17 +1186,17 @@ write ships as a PR, so the drain follows a packaging discipline.
 The drain is **gated and phased** — it classifies with no writes, **stops at a confirmation interlock** for the
 full routing plan, then routes — so the packaging below is decided against a confirmed plan, never mid-write. It
 closes on **no un-triaged entries**: every entry routed, dismissed, flushed, dispatched as an errand, or
-explicitly *retained* (a per-entry escape-hatch, never the default). The phased steps live in `drain-inbox.md`.
+explicitly _retained_ (a per-entry escape-hatch, never the default). The phased steps live in `drain-inbox.md`.
 
-**One PR per lane.** A drain produces *one PR per lane* — not one per sweep, nor one per destination; lanes
-never mix in a single PR. What bounds a PR is *concern-coherence*, not file or destination count. A
+**One PR per lane.** A drain produces _one PR per lane_ — not one per sweep, nor one per destination; lanes
+never mix in a single PR. What bounds a PR is _concern-coherence_, not file or destination count. A
 planning-artifact routing sweep is one coherent concern — "route these entries to their homes," certifiable by
 a reviewer of uniform competence — so it batches into one auto-merge PR. A code-execution errand is one concern
 and takes its own PR (1:1; "one concern" may still span many files). Distinct concerns never share a PR: two
 that happen to touch the same file are still two PRs, sequenced (rebase the second on the first), not merged —
 batching them to dodge a rebase is the rider anti-pattern. This is the concern-identity-not-file-identity rule
 of [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing applied to packaging; see it for the rule itself. A freshly
-scaffolded *provisional* stub auto-merges — it is `meta-*`/`draft-*` under `backlog/` with no design authority.
+scaffolded _provisional_ stub auto-merges — it is `meta-*`/`draft-*` under `backlog/` with no design authority.
 When a routing sweep is large enough that one auto-merge PR would exceed a reviewer's reach, chunk it by
 concern-coherence into multiple same-lane PRs — the chunk plan surfaced at the drain's confirmation interlock.
 Under partial protection, where routing writes are direct base commits rather than PRs, chunking degrades to
@@ -1208,7 +1208,7 @@ state; (2) carries **design authority** (`spec-*`/`prd-*`); (3) hits a **constit
 strategies); or (4) is an **unverifiable hand-edit of a derived surface**. Otherwise it auto-merges. Conditions
 2–4 are why the reviewed-lane prefixes are what they are; condition 1 is the one a prefix can't see — a `draft-*`
 or `tasks-*` that would auto-merge by prefix is reviewed-lane when its owner is not the author. Condition 4 is a
-*sunset* trigger: a hand-edit of a rendered surface (`ROADMAP`, and any other source-derived doc) is
+_sunset_ trigger: a hand-edit of a rendered surface (`ROADMAP`, and any other source-derived doc) is
 unverifiable only while that surface is hand-maintained; once a renderer produces it with a verify-against-source
 check, the derivation is verifiable and the change auto-merges. The same sunset applies to every derived surface
 as its renderer lands.
@@ -1219,8 +1219,8 @@ conditions (no foreign owner, no design authority, not constitutional; the cerem
 regen-matches-source check stand in for condition 4).
 
 **Foreign edits beyond the in-flight gate.** Condition 1 classifies a foreign-owned artifact as reviewed in any
-state, but the mechanism below catches a foreign edit only while its PR is *in flight* — the code-owners gate and
-the advisory bot both key on an open PR. Gating a *dormant* foreign edit — one already merged, or written
+state, but the mechanism below catches a foreign edit only while its PR is _in flight_ — the code-owners gate and
+the advisory bot both key on an open PR. Gating a _dormant_ foreign edit — one already merged, or written
 directly to the base branch — is a stewardship question for the project's concurrent-work discipline, not this
 lane: whether it warrants a hard gate or only a notification, and at what granularity, is settled there.
 
@@ -1231,7 +1231,7 @@ Three conditions compose the lane on any host:
 1. A **stable required status check present on every PR** — call it `merge-ok`. It runs unconditionally, so
    branch protection always has a check to wait on. This is why the recipe uses a conditional status job and
    **not** a path-ignored CI workflow: a required check that is path-filtered away never reports, stays
-   *Pending*, and blocks the merge indefinitely.
+   _Pending_, and blocks the merge indefinitely.
 2. **Owner review required for reviewed-lane paths only** — a code-owners mapping that names owners for the
    constitutional surfaces and leaves auto-merge-lane paths unowned, so only reviewed-lane PRs require approval.
 3. **Native auto-merge enabled** — the PR merges itself the moment its required conditions are satisfied
@@ -1243,7 +1243,7 @@ classification as doctrine plus manual review discipline.
 
 **Solo repositories.** Condition 2 is a two-party primitive — a sole maintainer cannot approve their own PR, so
 requiring code-owner review would block every reviewed-lane PR. A solo repo instead requires only the stable
-check (condition 1) plus pull requests, and enforces the reviewed lane by *not* arming auto-merge on those PRs
+check (condition 1) plus pull requests, and enforces the reviewed lane by _not_ arming auto-merge on those PRs
 — a deliberate manual merge rather than a review gate. CODEOWNERS still documents the boundary and becomes a
 live gate the moment a second contributor can review. An agent code-review bot (CodeRabbit, etc.) composes as
 an advisory reviewer on the reviewed lane — keep its check non-required so it doesn't gate the auto-merge lane;
@@ -1261,8 +1261,8 @@ ARC defines two work classes that share commit and review machinery but differ i
 - **Errand** — a single self-evident concern below the WU wrapper, **below floor on both intrinsic `Class` axes**
   (nothing worth recording as design, no durable plan a correct execution must navigate — neither a substantial
   grounding surface nor cross-session tracking) and validated by intent + diff + review. **Atomic in character** —
-  one indivisible concern bounded to a single session; *typically* one review increment, though a determinate sweep
-  may stage into a bounded few **in-session** review passes (the *extended errand*) and stays an Errand, however
+  one indivisible concern bounded to a single session; _typically_ one review increment, though a determinate sweep
+  may stage into a bounded few **in-session** review passes (the _extended errand_) and stays an Errand, however
   many commits it lands in. No meta, no lifecycle, no name as a WU. Tracked by git history (Conventional Commits +
   the `standalone (...)` context footer — see [`commit-footer`][commit-footer-method]), not by the planning layer
   (ROADMAP, backlog, `active/`).
@@ -1274,11 +1274,11 @@ a mode-scaled projection** of `branch.protection`:
 
 - **Character layer (universal).** The Errand-vs-WU gate — spec-worthiness ([§ Class Model](#class-model) boundary
   test #1) — is the same judgment in every protection mode, learned once.
-- **Mechanism layer (mode-scaled).** *Partial — the floor:* a direct base commit tracked by its `standalone (...)`
-  context footer; commit-then-done, no branch, no lifecycle. *Full — the lattice:* a short-lived branch + PR with a
+- **Mechanism layer (mode-scaled).** _Partial — the floor:_ a direct base commit tracked by its `standalone (...)`
+  context footer; commit-then-done, no branch, no lifecycle. _Full — the lattice:_ a short-lived branch + PR with a
   derived lifecycle (see [§ Cheap-branch path](#cheap-branch-path)).
 
-The collapse to a near-zero mechanism under partial protection is the *correct* treatment, and the guardrail is
+The collapse to a near-zero mechanism under partial protection is the _correct_ treatment, and the guardrail is
 one-directional: no part of the full-protection apparatus is pushed down onto the partial floor for model symmetry.
 What a partial-protection user shares is the **vocabulary** and the light `run-errand` entry (correct footer,
 review-increment discipline) — not the apparatus.
@@ -1290,7 +1290,7 @@ path. Work you are not committing to now is an inbox capture — triaged at a la
 directly (the commitment boundary that gates entry to this matrix lives in [DEV-RULES.ARC][dev-rules-arc]
 § Discovered Work Routing). A third case sits outside the matrix entirely: work your **own work unit's spec
 already claims** — a coordination write-back it scoped in — is WU scope and rides the WU's PR, never an Errand;
-the matrix governs *incidental* cross-cutting work only. For that incidental case, two axes govern the choice:
+the matrix governs _incidental_ cross-cutting work only. For that incidental case, two axes govern the choice:
 **create vs. maintain** decides whether the work needs the Work-Unit wrapper at all; **self-contained vs.
 cross-cutting** decides how an Errand routes once it does not.
 
@@ -1303,23 +1303,23 @@ Create resolves to a Work Unit in both columns: minting a tracked deliverable is
 threshold, so the routing axis only bites for **maintain**. A create that also touches a foreign artifact is
 two concerns — mint the Work Unit, and route the foreign edit as its own maintain Errand.
 
-**Create vs. maintain — the Work-Unit/Errand axis.** *Creating* a new tracked unit of future work — a backlog
+**Create vs. maintain — the Work-Unit/Errand axis.** _Creating_ a new tracked unit of future work — a backlog
 stub — is a (small) Work Unit even at one commit, because its output is a tracked deliverable with a meta file
-and a roadmap slot. *Maintaining* an existing artifact — a dependency note, a cross-reference, a doc fix — is
+and a roadmap slot. _Maintaining_ an existing artifact — a dependency note, a cross-reference, a doc fix — is
 an Errand. The split operationalizes the general Work-Unit threshold: promote to a Work Unit when the work is
-**spec-worthy** — *any* of these hold —
+**spec-worthy** — _any_ of these hold —
 
-1. it clears the **scale floor** — a correct plan must navigate a *substantial* codebase-grounding pass, beyond
+1. it clears the **scale floor** — a correct plan must navigate a _substantial_ codebase-grounding pass, beyond
    the routine floor (spec-worthy by grounding demand);
 2. it carries **design that must be authored and referenced** (a Spec — the derivation floor);
 3. it must be **tracked or resumed** as future or owned work (a roadmap slot, dependencies, an owner, a
    cross-session lifecycle).
 
-None of these → it is an Errand, *however many commits it spans* — and, when determinate, however many in-session
+None of these → it is an Errand, _however many commits it spans_ — and, when determinate, however many in-session
 review passes it is staged into. Create trips criterion 3; a maintain edit that turns out to clear a floor —
 substantial grounding, authored design, or a need for cross-session tracking — trips 1, 2, or 3 and likewise
 promotes, but spanning multiple commits or staging review into a few in-session passes never does on its own. As an
-empirical *symptom* check — not the primary criterion — a candidate too large to review in one window
+empirical _symptom_ check — not the primary criterion — a candidate too large to review in one window
 (~400 lines / ~60 minutes) is either an **extended errand** (determinate, reviewed in a bounded few in-session
 passes) or hides authored design / a substantial grounding surface / a need for cross-session tracking — re-examine
 it against floors 1–3 to tell which.
@@ -1332,15 +1332,15 @@ than editing the shared artifact in parallel (parallel edits on an in-flight art
 cross-branch conflict). The check is **advisory and judgment-based** — it records a caveat, never a hard
 block; when no in-flight work unit owns the target, the Errand proceeds unchanged.
 
-**Coordination write-backs ride; incidental foreign edits route.** A cross-cutting edit that your *own* work
+**Coordination write-backs ride; incidental foreign edits route.** A cross-cutting edit that your _own_ work
 unit's spec scoped in — propagating a decision you are shipping into the downstream artifact it shifts — is a
-*coordination write-back*: it rides your WU's PR, not this matrix. It qualifies on three counts: it is (1)
-scoped into your WU's spec, (2) a mechanical propagation of *your* decision, and (3) recorded into the foreign
-artifact's own record-of-record. It *routes* instead — Errand or capture — when it is an unrelated fix that
-merely shares a file (the rider anti-pattern) or requires *foreign design authoring*, a decision that belongs to
+_coordination write-back_: it rides your WU's PR, not this matrix. It qualifies on three counts: it is (1)
+scoped into your WU's spec, (2) a mechanical propagation of _your_ decision, and (3) recorded into the foreign
+artifact's own record-of-record. It _routes_ instead — Errand or capture — when it is an unrelated fix that
+merely shares a file (the rider anti-pattern) or requires _foreign design authoring_, a decision that belongs to
 the downstream work unit. This is the same concern-identity-not-file-identity test as the anti-rider rule
 ([DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing), here deciding WU-scope-vs-route rather than
-inline-vs-defer. Gating a *dormant* foreign edit more broadly is the project's concurrent-work discipline's
+inline-vs-defer. Gating a _dormant_ foreign edit more broadly is the project's concurrent-work discipline's
 concern, not this matrix's.
 
 ### Cheap-branch path
@@ -1360,7 +1360,7 @@ by an `active/` entry.
 
 ### The cut→occupy invariant
 
-Cutting a `chore/<slug>` branch and *occupying* it are **separate mechanics with a strict ordering** — the branch is
+Cutting a `chore/<slug>` branch and _occupying_ it are **separate mechanics with a strict ordering** — the branch is
 cut off the base, then occupied: an in-place switch of the main worktree when it is free (the default locus — see
 [§ Main-on-Main Pattern](#main-on-main-pattern)), or an ephemeral worktree when it is occupied or isolation is
 preferred. The invariant: **a cut is never left un-occupied.** A branch cut without an immediate occupy strands the

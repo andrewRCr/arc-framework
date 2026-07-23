@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed. **Flip trigger:** flips to *Accepted* at the kickoff of the `operational-state-docs` work unit
+Proposed. **Flip trigger:** flips to _Accepted_ at the kickoff of the `operational-state-docs` work unit
 (Decision §9) — "just before implementation," per the ADR lifecycle. That work unit carries the flip as an
 explicit first action; until then the model is decided-in-principle, not yet in build.
 
@@ -52,12 +52,12 @@ zod-schemas-in-code as the contract surface. This ADR ratifies and unifies that 
 The forces in tension:
 
 - **Human legibility vs. programmatic control.** These files must stay readable as raw markdown by humans
-  *and* behave as reliable data for the CLI.
+  _and_ behave as reliable data for the CLI.
 - **"Markdown is the source" vs. drift-proofing.** ARC has historically treated markdown as the canonical,
-  agent-readable form. That instinct is correct for workflow and authored content; it is the *cause* of the
+  agent-readable form. That instinct is correct for workflow and authored content; it is the _cause_ of the
   drift problem for operational state.
-- **Incremental validation vs. structural guarantee.** A schema that merely *validates* parsed markdown
-  catches drift; a model where markdown cannot disagree with the record *prevents* it.
+- **Incremental validation vs. structural guarantee.** A schema that merely _validates_ parsed markdown
+  catches drift; a model where markdown cannot disagree with the record _prevents_ it.
 
 Alternatives considered:
 
@@ -67,7 +67,7 @@ Alternatives considered:
 - **Option B — schema-as-contract (markdown canonical, code schema validates).** A code schema validates the
   parsed markdown and seeds scaffolds, with round-trip tests. Better — it gives a single definition and
   catches drift. But two source-of-truth mechanisms coexist in one class, parsing stays on the hot path for
-  `meta`, and drift is *caught by tests*, not made impossible.
+  `meta`, and drift is _caught by tests_, not made impossible.
 - **Option C (chosen) — structured records are the source of truth; markdown is a projection.** A code-owned
   record is canonical for every member; the `.md` is rendered/projected from it; structural drift becomes
   impossible rather than test-caught; storage lifts cleanly to the future backend.
@@ -77,8 +77,8 @@ Alternatives considered:
 We will define **managed operational-state documents** as a first-class document class and adopt a
 structured-record source-of-truth model for them.
 
-1. **The class is defined by failure domain, not by degree of structure.** A document is a *managed
-   operational-state document* when ARC's CLI/hooks read and write it as operational data, such that a
+1. **The class is defined by failure domain, not by degree of structure.** A document is a _managed
+   operational-state document_ when ARC's CLI/hooks read and write it as operational data, such that a
    structural violation breaks **CLI / session plumbing** — the ability to start and end sessions and keep
    operational state coherent (a hard failure). This is distinct from **authored artifacts** (`spec-*`,
    `draft-*`, `tasks-*`, PRDs, ADRs), where structural violation breaks **workflows** — the agent following a
@@ -86,10 +86,10 @@ structured-record source-of-truth model for them.
    operate). Neither class is adopter-customizable in structure; the distinction is what breaks.
     - **Members:** `meta-*`, `SESSION-NOTES`, `WORKING-MEMORY`, `USER-INBOX`, the backlog inboxes
       (`ATOMIC-INBOX`, `BACKLOG-INBOX`), `ROADMAP` / `STATUS.PROJECT`, and `STATUS.USER`.
-    - **Not members, but adjacent:** authored artifacts (above). And `arc-config.yml` is *adjacent, not
-      separate*: its key schema is code-owned and CLI-depended-on (renaming a key breaks operations — the §3
+    - **Not members, but adjacent:** authored artifacts (above). And `arc-config.yml` is _adjacent, not
+      separate_: its key schema is code-owned and CLI-depended-on (renaming a key breaks operations — the §3
       structure-vs-value split in its purest form), and `cli-substrate-adoption` already schema-validates it.
-      It is excluded only because it is *configuration, not operational state* — its **values are the
+      It is excluded only because it is _configuration, not operational state_ — its **values are the
       adopter's customization surface**, where a managed operational-state document carries machine/agent-set
       state with no adopter-customizable surface. The structural-ownership half of this ADR governs it
       equally; its model is owned by `cli-substrate-adoption` and `config-storage-architecture`, not here.
@@ -102,7 +102,7 @@ structured-record source-of-truth model for them.
 
 3. **Structure is owned by code; values are owned by humans/agents.** The schema owns the field set, the
    valid-value sets, defaults, and (for `meta`) the legal state transitions. The human or agent owns the
-   instance *value* (`**Priority:** P2` is theirs to set). "Not adopter-customizable" applies to the
+   instance _value_ (`**Priority:** P2` is theirs to set). "Not adopter-customizable" applies to the
    structure, never the value. `arc-config.yml` is this split in its purest form — keys locked by code,
    values the adopter's to set — which is why it is adjacent to this class rather than apart from it (§1).
 
@@ -137,7 +137,7 @@ structured-record source-of-truth model for them.
    structure is non-customizable, full stop; customization routes only through the blessed mechanisms (method
    overrides, extensions). `strategy-configurability-architecture`'s "File-customizable" wording is narrowed
    to "fill project content into a fixed structure," not "redesign the structure." The separate, larger
-   problem — that lifecycle *workflows* are rigidly coupled to *authored-artifact* template shapes with no
+   problem — that lifecycle _workflows_ are rigidly coupled to _authored-artifact_ template shapes with no
    configurable primitive — is explicitly **out of scope** here and captured as its own provisional work
    unit (`configurable-lifecycle-artifacts`).
 
@@ -147,7 +147,7 @@ structured-record source-of-truth model for them.
    tier without reshaping. Interim storage assignment per subtype (derived → tracked + regeneratable;
    agent-maintained-with-merge → notes-synced records; lifecycle-fielded → coordinated with
    `meta-file-tracking-model`; per-WU prose → notes-synced) is recorded here but the per-document storage
-   *mechanism* stays with the owning work units (see Coordination).
+   _mechanism_ stays with the owning work units (see Coordination).
 
 9. **Implementing the model spawns one new work unit.** No existing work unit owns the cross-cutting
    substrate the model needs. We create **`operational-state-docs`** ("Managed Operational-State Document
@@ -176,7 +176,7 @@ structured-record source-of-truth model for them.
   derived/mutated split and `strategy-storage-evolution`).
 - **Unblocks Worktree Foundation Task 5.2.** The meta-scaffolding question that triggered this ADR resolves:
   meta scaffolding becomes structured-record creation owned by `operational-state-docs`, so 5.2's primitive
-  keeps worktree + branch + marker and builds the model-aligned *interim* scaffold — an internal/bundled
+  keeps worktree + branch + marker and builds the model-aligned _interim_ scaffold — an internal/bundled
   template skeleton plus a code-owned `META_FIELDS` definition shared with `meta-reader` (the proto-schema),
   round-trip-tested — which `operational-state-docs` later generalizes into the full record→render engine.
   It does **not** read the adopter `.arc/` template copy as the source of truth. See Coordination.
@@ -213,12 +213,12 @@ units. The alignment edits below are the propagation set.
   engine, write primitive, `structural_contract` annotation + manifest wiring, round-trip harness,
   migration). Subsumes the `USER-INBOX` "structured-storage + routed-write" capture and
   `cli-substrate-adoption`'s "Complete-Migration" placeholder for managed-document surfaces. Created in
-  `backlog/planned/`; its kickoff (activation) flips this ADR to *Accepted* (see Status).
+  `backlog/planned/`; its kickoff (activation) flips this ADR to _Accepted_ (see Status).
 - **`configurable-lifecycle-artifacts` (new, provisional)** — captures the out-of-scope concern: lifecycle
   workflows are rigidly coupled to authored-artifact template shapes, with no configurable primitive bounding
   non-negotiable structure vs. swap-in slots. Rough shape only.
-- **`meta-file-tracking-model`** — demoted from `planned/` to `provisional/`. This ADR answers the *class*
-  question (meta is lifecycle-fielded; its structure is a code record) but not the meta-specific *storage*
+- **`meta-file-tracking-model`** — demoted from `planned/` to `provisional/`. This ADR answers the _class_
+  question (meta is lifecycle-fielded; its structure is a code record) but not the meta-specific _storage_
   question (active-phase tracked vs. notes-synced; the multi-maintainer coordination model), which remains
   its own PRD scope. The β-shaped slot is reserved, not ratified.
 - **`worktree-foundation` (active — the origin WU)** — Task 5.2's meta + SESSION-NOTES scaffolding is this

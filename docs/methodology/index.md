@@ -41,7 +41,7 @@ brings perspective, judgment, institutional context, and lived experience; the a
 speed, breadth of knowledge, and pattern recognition. Lengthen the interval between exchanges
 and you underutilize both.
 
-ARC formalizes this as the *review increment*: a bounded chunk of agent execution, scoped to a
+ARC formalizes this as the _review increment_: a bounded chunk of agent execution, scoped to a
 few files and a few minutes of work, with human review before the next begins. This is the
 fundamental unit of collaboration.
 

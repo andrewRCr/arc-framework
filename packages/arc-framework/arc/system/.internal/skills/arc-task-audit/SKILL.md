@@ -18,7 +18,7 @@ would earn its cost; run it only after an explicit user request or approval, nev
   earlier tasks reshaped the surface), and the remaining tasks need re-validation against current reality before
   proceeding.
 
-A finding that implicates the *design* rather than a task routes onward to the `arc-design-audit` door — this
+A finding that implicates the _design_ rather than a task routes onward to the `arc-design-audit` door — this
 audit checks tasks against code, not the design against its goal.
 
 **Two caller inputs:**

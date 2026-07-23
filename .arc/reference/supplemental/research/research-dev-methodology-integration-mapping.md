@@ -5,7 +5,7 @@
 and existing development methodologies\
 **Audience:** ARC development team planning integration guidance and adoption materials
 
-> **Disclaimer:** This document is *research input*, not validated design decisions.
+> **Disclaimer:** This document is _research input_, not validated design decisions.
 > The integration opportunities, fit assessments, and adoption prioritizations here
 > represent preliminary analysis grounded in the methodology landscape research. Actual
 > ARC integration strategy will be decided through the ADR process. Treat this as
@@ -78,7 +78,7 @@ Discovery Work Unit (Weekly)
 - Learning velocity: "validated learnings per week" rather than "code delivered"
 - ARC approval gates provide structure for validating learning quality
 
-**Value Proposition:** Dual-Track is about ensuring you build the *right* product while building it *right*. ARC's
+**Value Proposition:** Dual-Track is about ensuring you build the _right_ product while building it _right_. ARC's
 structured approval gates help validate "rightness" systematically rather than informally.
 
 **Adoption Path:**
