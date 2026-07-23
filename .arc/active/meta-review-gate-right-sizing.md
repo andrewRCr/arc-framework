@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft-design complete — draft settled through four adversarial passes + coherence re-read,
-  captured (`formalization-ready`)
+- **Last Completed:** create-spec complete — `spec-review-gate-right-sizing.md` finalized (`detailed`·RFC);
+  adversarial pass + spec-review folded, draft retired
 - **Next Task:** [none]
 - **Blockers:** [none]
 
