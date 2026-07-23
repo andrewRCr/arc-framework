@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "recovery-read-contract",
-  "origin": "description",
-  "intent": "bound the recovery read to the manifest and correct the ready-verdict phrasing",
-  "branch": "fix/recovery-read-contract",
-  "createdAt": "2026-07-23T23:33:45.566Z",
-  "returnBranch": "main"
-}
