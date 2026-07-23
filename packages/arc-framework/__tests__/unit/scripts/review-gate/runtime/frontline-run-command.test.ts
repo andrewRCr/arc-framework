@@ -8,6 +8,7 @@ import {
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "../../../../../src/scripts/review-gate/core/ports.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import { reduceReviewRouting } from "../../../../../src/scripts/review-gate/policy/routing.js";
 import { runFrontlineReviewCommand } from "../../../../../src/scripts/review-gate/runtime/frontline-run-command.js";
 
 const oid = (value: string): string => value.repeat(40);
@@ -28,6 +29,17 @@ const source = {
   executable: "reviewer",
   argv: ["--plain"],
 };
+const routingFacts = {
+  schemaVersion: 1,
+  changeSetState: "known",
+  contentKind: "code-bearing",
+  reviewRisk: "routine",
+  changeDeterminacy: "ordinary",
+  ownership: "self",
+  surfaceAuthority: "ordinary",
+  assurance: { workContext: "work-unit", workClass: "Light" },
+  activity: { selfReview: true, frontlineReview: true },
+} as const;
 const resolution = {
   schemaVersion: 1,
   mode: "review-frontline-resolve",
@@ -35,7 +47,10 @@ const resolution = {
   state: "ready",
   nextAction: "run-frontline",
   payload: {
-    routing: { decision: "review" },
+    routing: {
+      facts: routingFacts,
+      decision: reduceReviewRouting(routingFacts),
+    },
     frontlineReview: {
       schemaVersion: 1,
       semanticsVersion: "frontline-review/v1",

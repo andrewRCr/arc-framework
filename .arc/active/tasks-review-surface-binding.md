@@ -513,6 +513,50 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
 
 ## **Phase 8:** Verification
 
+### `[ ]` **8.R Close verification gaps**
+
+- _Goal:_ The public review protocol satisfies its strict authority, concurrency, exact-target, timeout, cleanup,
+  reachability, and composed-system verification contracts without adding machinery beyond those guarantees.
+
+- _Context:_ Implementer verification and the first fresh adversarial verification pass found concrete
+  spec-conformance gaps. The remediation keeps each concern independently reviewable and reruns verification only
+  after every gap is closed.
+
+    - `[x]` **8.R.a Enforce caller authority and typed command envelopes**
+        - Local preparation now rejects derived routing keys while preserving conservative normalization for malformed
+          caller-owned values; frontline and local-ready envelopes plus generated JSON schema carry complete strict
+          routing, semantic, request, and reviewer-payload contracts
+
+    - `[ ]` **8.R.b Self-heal expected concurrent publication conflicts**
+        - Reload and retry only the shared receipt-ledger and frontline operation/outcome writes whose optimistic
+          versions can race; retain conflict refusal for genuinely divergent records
+        - Add forcing tests for concurrent exact replay, unrelated receipt publication, and frontline publication
+
+    - `[ ]` **8.R.c Make frontline failure outcomes truthful and reachable**
+        - Preserve the detached exact-head execution boundary while mapping target mismatch, source binding,
+          unsupported capability, rejected authorization, and invalid output through their specified typed outcomes
+        - Keep local-operator tamper resistance and write-prevention outside scope
+
+    - `[ ]` **8.R.d Bound executable resolution and provider execution**
+        - Carry the existing deadline and abort signal through executable lookup, version interrogation, and provider
+          launch; prove a hung interrogation returns `timed-out`
+
+    - `[ ]` **8.R.e Close the completed-source cleanup lifecycle**
+        - Release the materialization and reachability pin after durable receipt publication, and make sweep recovery
+          close crash residue without adding a second completion authority
+        - Prove successful, orphaned, expired, and concurrently live operations retain or release the exact resources
+          their lifecycle requires
+
+    - `[ ]` **8.R.f Wire reduction through its production port**
+        - Give `ReviewReductionPort` a production implementation and consumer while preserving read-only reduction
+          semantics and opaque storage references
+
+    - `[ ]` **8.R.g Prove the composed public protocol and recovery matrix**
+        - Exercise the built `arc review` verbs or their production launchers through complete local and frontline
+          flows, including clean, findings, disposition, reduction, and crash re-entry
+        - Cover pruned-object corruption, branch deletion plus Git maintenance, physical sweep release, concurrent
+          sweep safety, and every explicitly required recovery result
+
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
 
 ---

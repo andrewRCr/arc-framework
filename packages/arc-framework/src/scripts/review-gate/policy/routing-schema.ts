@@ -103,6 +103,15 @@ export const ReviewRoutingFactsSchema = z.strictObject({
 });
 export type ReviewRoutingFacts = z.infer<typeof ReviewRoutingFactsSchema>;
 
+export const LocalReviewRoutingInputSchema = z.strictObject({
+  contentKind: z.unknown().optional(),
+  reviewRisk: z.unknown().optional(),
+  changeDeterminacy: z.unknown().optional(),
+  ownership: z.unknown().optional(),
+  surfaceAuthority: z.unknown().optional(),
+});
+export type LocalReviewRoutingInput = z.infer<typeof LocalReviewRoutingInputSchema>;
+
 export const ReviewRoutingDecisionSchema = z.strictObject({
   schemaVersion: z.literal(1),
   authorSelfReview: ReviewObligationSchema,
@@ -118,6 +127,12 @@ export const ReviewRoutingDecisionSchema = z.strictObject({
   message: "standard-review obligation and retrigger treatment are incongruent",
 });
 export type ReviewRoutingDecision = z.infer<typeof ReviewRoutingDecisionSchema>;
+
+export const ReviewRoutingProjectionSchema = z.strictObject({
+  facts: ReviewRoutingFactsSchema,
+  decision: ReviewRoutingDecisionSchema,
+});
+export type ReviewRoutingProjection = z.infer<typeof ReviewRoutingProjectionSchema>;
 
 /** Register topology-neutral routing records with a caller-owned registry. */
 export function registerReviewRoutingSchemas(registry: KernelRegistry): KernelRegistry {

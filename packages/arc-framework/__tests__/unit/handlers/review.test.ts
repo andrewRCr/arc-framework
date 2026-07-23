@@ -10,6 +10,7 @@ import {
   handleReviewRespond,
 } from "../../../src/handlers/review.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
+import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
 
 describe("handleReviewFrontlineResolve", () => {
   it("emits the shared invalid-input error envelope for malformed input", async () => {
@@ -111,6 +112,37 @@ describe("handleReviewLocalPrepare", () => {
       "{\"schemaVersion\":1,\"diagnostics\":[],\"mode\":\"review-local-prepare\","
       + "\"state\":\"exempt\",\"nextAction\":\"none\",\"payload\":{}}\n",
     );
+  });
+
+  it("emits typed invalid-input when a caller supplies derived local routing authority", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewLocalPrepare("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({
+        schemaVersion: 1,
+        evaluatorIdentity: "reviewer",
+        routingFacts: {
+          contentKind: "code-bearing",
+          reviewRisk: "routine",
+          changeDeterminacy: "ordinary",
+          ownership: "self",
+          surfaceAuthority: "ordinary",
+          changeSetState: "known",
+        },
+      }),
+      prepare: async (request) => LocalPrepareRequestSchema.parse(request),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      mode: "review-local-prepare",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
   });
 
   it("emits a typed invalid-input envelope for repository preconditions", async () => {

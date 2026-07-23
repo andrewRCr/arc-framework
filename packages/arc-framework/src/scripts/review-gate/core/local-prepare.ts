@@ -13,6 +13,10 @@ import type {
   LocalReviewSourceStore,
   ReviewOperationStateStore,
 } from "./ports.js";
+import {
+  LocalReviewSourcePayloadSchema,
+  type LocalReviewSourcePayload,
+} from "./local-review-payload.js";
 
 export interface LocalReviewPreparation {
   persistedVersion: number;
@@ -22,27 +26,18 @@ export interface LocalReviewPreparation {
   reviewRoot: string;
 }
 
-/** Immutable source coordinates delivered to a local evaluator. */
-export interface LocalReviewSourcePayload {
-  reviewRoot: string;
-  diffBaseSha: string;
-  headSha: string;
-  sourceRef: string;
-  sourceDigest: string;
-}
-
 /** Project only immutable source coordinates into the evaluator payload. */
 export function createLocalReviewSourcePayload(
   admission: LocalReviewAdmission,
   preparation: LocalReviewPreparation,
 ): LocalReviewSourcePayload {
-  return {
+  return LocalReviewSourcePayloadSchema.parse({
     reviewRoot: preparation.reviewRoot,
     diffBaseSha: admission.target.diffBaseSha,
     headSha: admission.target.headSha,
     sourceRef: preparation.sourceRef,
     sourceDigest: preparation.sourceDigest,
-  };
+  });
 }
 
 /**

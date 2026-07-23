@@ -11,6 +11,12 @@ import {
   ReviewCommandErrorEnvelopeSchema,
   type ReviewCommandMode,
 } from "../../../../../src/scripts/review-gate/core/review-command-envelope.js";
+import {
+  projectLocalReviewGuidance,
+} from "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
+import {
+  reduceReviewRouting,
+} from "../../../../../src/scripts/review-gate/policy/routing.js";
 
 const digest = `sha256:${"a".repeat(64)}`;
 const target = {
@@ -26,6 +32,81 @@ const target = {
   targetId: digest,
 } as const;
 const header = (mode: ReviewCommandMode) => ({ schemaVersion: 1 as const, mode, diagnostics: [] });
+const routingFacts = {
+  schemaVersion: 1,
+  changeSetState: "known",
+  contentKind: "code-bearing",
+  reviewRisk: "routine",
+  changeDeterminacy: "ordinary",
+  ownership: "self",
+  surfaceAuthority: "ordinary",
+  assurance: { workContext: "work-unit", workClass: "Light" },
+  activity: { selfReview: true, frontlineReview: true },
+} as const;
+const routing = { facts: routingFacts, decision: reduceReviewRouting(routingFacts) };
+const source = {
+  sourceId: "review-command",
+  kind: "command",
+  executable: "reviewer",
+  argv: ["--mode", "frontline"],
+} as const;
+const skippedFrontlineReview = {
+  schemaVersion: 1,
+  semanticsVersion: "frontline-review/v1",
+  action: "skip",
+  reasons: ["frontline-policy-skip"],
+  source: null,
+  maxPasses: 0,
+  promptText: null,
+} as const;
+const unboundFrontlineReview = {
+  schemaVersion: 1,
+  semanticsVersion: "frontline-review/v1",
+  action: "offer",
+  reasons: ["frontline-policy-offer", "source-unbound"],
+  source: null,
+  maxPasses: 2,
+  promptText: "Bind a frontline source.",
+} as const;
+const offeredFrontlineReview = {
+  ...unboundFrontlineReview,
+  reasons: ["frontline-policy-offer", "source-project"],
+  source,
+} as const;
+const readyFrontlineReview = {
+  ...offeredFrontlineReview,
+  action: "attempt",
+  reasons: ["frontline-policy-attempt", "source-project"],
+} as const;
+const guidance = projectLocalReviewGuidance();
+const request = {
+  schemaVersion: 2,
+  semanticsVersion: "review-gate/v2",
+  repositoryId: target.repositoryId,
+  targetId: target.targetId,
+  requirementId: digest,
+  carrier: {
+    kind: "local-change-set",
+    adapterId: "git-local",
+    changeRequestId: null,
+  },
+  authorIdentity: "author-1",
+  evaluatorIdentity: "evaluator-1",
+  generation: 0,
+  requestMechanism: "local-attestation",
+  requestId: digest,
+} as const;
+const reviewerPayload = {
+  schemaVersion: 1,
+  reviewRoot: "/tmp/review-root",
+  diffBaseSha: target.diffBaseSha,
+  headSha: target.headSha,
+  sourceRef: "source/1",
+  sourceDigest: digest,
+  guidance: guidance.projection,
+  guidanceDigest: guidance.guidanceDigest,
+  reviewerInstructions: guidance.reviewerInstructions,
+} as const;
 const localResult = {
   status: "partial" as const,
   result: "clean" as const,
@@ -46,20 +127,23 @@ describe("review command envelopes", () => {
   it.each([
     [FrontlineResolveEnvelopeSchema, {
       ...header("review-frontline-resolve"),
-      state: "skipped", nextAction: "none", payload: { routing: {}, frontlineReview: {} },
+      state: "skipped", nextAction: "none",
+      payload: { routing, frontlineReview: skippedFrontlineReview },
     }],
     [FrontlineResolveEnvelopeSchema, {
       ...header("review-frontline-resolve"),
-      state: "offered", nextAction: "bind-source", payload: { routing: {}, frontlineReview: {} },
+      state: "offered", nextAction: "bind-source",
+      payload: { routing, frontlineReview: unboundFrontlineReview },
     }],
     [FrontlineResolveEnvelopeSchema, {
       ...header("review-frontline-resolve"),
-      state: "offered", nextAction: "obtain-authorization", payload: { routing: {}, frontlineReview: {} },
+      state: "offered", nextAction: "obtain-authorization",
+      payload: { routing, frontlineReview: offeredFrontlineReview },
     }],
     [FrontlineResolveEnvelopeSchema, {
       ...header("review-frontline-resolve"),
       state: "ready", nextAction: "run-frontline",
-      payload: { routing: {}, frontlineReview: {}, pass: 1, maxPasses: 2 },
+      payload: { routing, frontlineReview: readyFrontlineReview, pass: 1, maxPasses: 2 },
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),
@@ -87,8 +171,8 @@ describe("review command envelopes", () => {
       ...header("review-local-prepare"),
       state: "ready", nextAction: "launch-review",
       payload: {
-        operationId: "local-1", persistedVersion: 1, target, request: {},
-        reviewerPayload: {}, sourceRef: "source/1", sourceDigest: digest,
+        operationId: "local-1", persistedVersion: 1, target, request,
+        reviewerPayload, sourceRef: "source/1", sourceDigest: digest,
       },
     }],
     [LocalPrepareEnvelopeSchema, {
@@ -127,7 +211,59 @@ describe("review command envelopes", () => {
       ...header("review-frontline-resolve"),
       state: "ready",
       nextAction: "bind-source",
-      payload: { routing: {}, frontlineReview: {}, pass: 1, maxPasses: 2 },
+      payload: { routing, frontlineReview: readyFrontlineReview, pass: 1, maxPasses: 2 },
+    })).toThrow();
+  });
+
+  it("rejects an untyped frontline routing payload", () => {
+    expect(() => FrontlineResolveEnvelopeSchema.parse({
+      ...header("review-frontline-resolve"),
+      state: "skipped",
+      nextAction: "none",
+      payload: { routing: {}, frontlineReview: skippedFrontlineReview },
+    })).toThrow();
+  });
+
+  it("rejects an untyped frontline semantic payload", () => {
+    expect(() => FrontlineResolveEnvelopeSchema.parse({
+      ...header("review-frontline-resolve"),
+      state: "skipped",
+      nextAction: "none",
+      payload: { routing, frontlineReview: {} },
+    })).toThrow();
+  });
+
+  it("rejects an untyped local review request", () => {
+    expect(() => LocalPrepareEnvelopeSchema.parse({
+      ...header("review-local-prepare"),
+      state: "ready",
+      nextAction: "launch-review",
+      payload: {
+        operationId: "local-1",
+        persistedVersion: 1,
+        target,
+        request: {},
+        reviewerPayload,
+        sourceRef: "source/1",
+        sourceDigest: digest,
+      },
+    })).toThrow();
+  });
+
+  it("rejects an untyped local reviewer payload", () => {
+    expect(() => LocalPrepareEnvelopeSchema.parse({
+      ...header("review-local-prepare"),
+      state: "ready",
+      nextAction: "launch-review",
+      payload: {
+        operationId: "local-1",
+        persistedVersion: 1,
+        target,
+        request,
+        reviewerPayload: {},
+        sourceRef: "source/1",
+        sourceDigest: digest,
+      },
     })).toThrow();
   });
 
@@ -140,8 +276,8 @@ describe("review command envelopes", () => {
         operationId: "local-1",
         persistedVersion: 1,
         target,
-        request: {},
-        reviewerPayload: {},
+        request,
+        reviewerPayload,
         sourceRef: "source/1",
         sourceDigest: digest,
         reviewAugmentation: { rubricId: "security-audit/v1", dimensions: [] },

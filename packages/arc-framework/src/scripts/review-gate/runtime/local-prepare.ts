@@ -7,6 +7,7 @@ import type { LocalReviewPolicyBindingResolution } from "../policy/local-review-
 import type { LocalReviewGuidance } from "../policy/local-review-guidance.js";
 import type { ReviewMethodActivity, ReviewAssuranceInput } from "../policy/assurance-schema.js";
 import { resolveReviewRouting } from "../policy/routing.js";
+import { LocalReviewRoutingInputSchema } from "../policy/routing-schema.js";
 import { projectStandardReviewObligation } from "../policy/standard-review-projection.js";
 import { createReviewRequirement } from "../core/gate-contract-v2.js";
 import {
@@ -41,7 +42,7 @@ const DEFAULT_LOCAL_REVIEW_FRESHNESS_MS = 24 * 60 * 60 * 1_000;
 export const LocalPrepareRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   evaluatorIdentity: ReviewIdentifierSchema,
-  routingFacts: z.unknown(),
+  routingFacts: LocalReviewRoutingInputSchema,
   freshnessMs: z.number().int().positive().optional(),
 });
 export type LocalPrepareRequest = z.infer<typeof LocalPrepareRequestSchema>;
@@ -79,12 +80,6 @@ function diagnostics(messages: readonly string[]) {
   return messages.map((message) => ({ code: "local-prepare", message }));
 }
 
-function routingRecord(input: unknown): Record<string, unknown> {
-  return typeof input === "object" && input !== null && !Array.isArray(input)
-    ? input as Record<string, unknown>
-    : {};
-}
-
 /** Derive, admit, publish, and prove one immutable local review operation. */
 export async function prepareLocalReview(
   requestInput: unknown,
@@ -108,7 +103,7 @@ export async function prepareLocalReview(
   }
   const routing = resolveReviewRouting({
     schemaVersion: 1,
-    ...routingRecord(request.routingFacts),
+    ...request.routingFacts,
     changeSetState: "known",
     assurance: assurance.assurance,
     activity: assurance.activity,

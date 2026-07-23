@@ -125,6 +125,23 @@ describe("kernel schema artifact generation", () => {
       .toEqual({ $ref: "review-severity.schema.json" });
     expect(firstBundle.schemas["review-routing-facts"]?.properties?.activity)
       .toEqual({ $ref: "review-method-activity.schema.json" });
+    const frontlineEnvelope = JSON.stringify(
+      firstBundle.schemas["review-frontline-resolve-envelope"],
+    );
+    const localPrepareEnvelope = JSON.stringify(
+      firstBundle.schemas["review-local-prepare-envelope"],
+    );
+    expect(frontlineEnvelope).toContain('"$ref":"review-routing-facts.schema.json"');
+    expect(frontlineEnvelope).toContain('"frontlineReview":{"type":"object"');
+    expect(frontlineEnvelope).toContain(
+      '"required":["schemaVersion","semanticsVersion","action","reasons","source","maxPasses","promptText"]',
+    );
+    expect(localPrepareEnvelope).toContain('"request":{"$ref":"review-request.schema.json"}');
+    expect(localPrepareEnvelope).toContain('"reviewerPayload":{"type":"object"');
+    expect(localPrepareEnvelope).toContain(
+      '"required":["schemaVersion","reviewRoot","diffBaseSha","headSha","sourceRef","sourceDigest",'
+      + '"guidance","guidanceDigest","reviewerInstructions"]',
+    );
     expect(firstBundle.schemas["work-unit-review-assurance"]?.properties?.reviewRubric)
       .toEqual({ $ref: "review-rubric-overlay-resolution.schema.json" });
     expect(serializeKernelSchemaBundle(projectKernelSchemas(second)))

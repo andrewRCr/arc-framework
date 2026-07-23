@@ -12,11 +12,17 @@ import {
   FrontlineUnavailableRetryReasonSchema,
 } from "../policy/frontline-outcome.js";
 import { FrontlineFollowUpAdviceSchema } from "../policy/frontline-follow-up.js";
+import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
+import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
 import { ReviewReductionProjectionSchema } from "./advisory-records.js";
 import { NormalizedReviewFindingSchema } from "./finding-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
-import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
+import {
+  ReviewRequestV2Schema,
+  ReviewTargetSchema,
+} from "./gate-contract-v2-schema.js";
+import { LocalReviewerPayloadSchema } from "./local-review-payload.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -109,8 +115,8 @@ function envelopeVariant<
 }
 
 const FrontlineResolveBasePayload = {
-  routing: z.unknown(),
-  frontlineReview: z.unknown(),
+  routing: ReviewRoutingProjectionSchema,
+  frontlineReview: FrontlineSemanticRecordSchema,
 };
 export const FrontlineResolveEnvelopeSchema = z.union([
   envelopeVariant(
@@ -202,8 +208,8 @@ export const LocalPrepareEnvelopeSchema = z.union([
     z.strictObject({
       ...OperationPayloadShape,
       target: ReviewTargetSchema,
-      request: z.unknown(),
-      reviewerPayload: z.unknown(),
+      request: ReviewRequestV2Schema,
+      reviewerPayload: LocalReviewerPayloadSchema,
       sourceRef: DurableReferenceSchema,
       sourceDigest: CanonicalDigestSchema,
     }),
