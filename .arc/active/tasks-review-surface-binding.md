@@ -218,10 +218,10 @@ validation are test-first; the Commander wiring is test-after.
         - Added a locked, schema-validated repository UUID record under the Git common directory; a real-Git
           integration test proves mint-once resolution across sibling worktrees and checkout relocation
 
-    - `[ ]` **4.1.b Target derivation and preconditions**
-        - resolve `branch.base` → `refs/heads/<base>` + HEAD as commits, merge-base `diffBaseSha`, resolve trees
-        - Build `test-first`: each precondition refusal → `invalid-input`; clean derivation; coordinates moving between
-          derive and re-read before publish → `stale-target`
+    - `[x]` **4.1.b Target derivation and preconditions**
+        - Derives the configured local base and `HEAD` as commits, computes the merge base and exact trees, and refuses
+          unborn, unresolved-base, dirty, or non-commit repositories as `invalid-input`
+        - Re-derives the canonical target before publication and returns the attempted/current pair as `stale-target`
 
     - `[ ]` **4.1.c Vehicle / author / evaluator / runtime resolution**
         - WU meta owner (active identity must match) or Errand identity; evaluator differs from author; attesting
