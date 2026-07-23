@@ -18,6 +18,17 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Use solution proportionality to prove transitive method loading**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during
+  `solution-proportionality` draft-design adversarial review.
+- _Concern:_ `design-audit` semantically consumes `assess-design-proportionality`, but the load contract reads
+  only workflow declarations; method frontmatter cannot declare dependencies, and the standalone design-audit
+  skill loads only its named method.
+- _Fold-in:_ use this pair as the regression case for transitive knowledge/method declarations and a deduplicated,
+  CLI-computable closure across workflow and skill entries. Remove compatibility declarations only after the
+  substrate ships; keep direct declarations where an artifact invokes proportionality itself.
+
 ### `[ ]` **Consider `checkdoc-*` as a named artifact family**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-architecture`), housekeep drain (2026-07-18);

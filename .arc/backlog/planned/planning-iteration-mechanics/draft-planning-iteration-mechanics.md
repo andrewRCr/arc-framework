@@ -19,6 +19,19 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Fix adversarial-review convergence and make cap exhaustion report**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during `wu-rename`
+  create-spec finalization.
+- _Concern:_ the current exit test asks whether primary-confirmed findings remain open after their repairs land,
+  so a pass that found several majors can immediately read as converged. Reaching the pass cap can then end the
+  loop silently even when another pass is still likely to find material issues.
+- _Fold-in:_ judge what the pass found and explicitly ask whether another pass is likely to find anything
+  material. Treat the cap as a cost ceiling that always reports: when not converged, recommend the additional
+  pass and let the author accept or decline. Include repair-introduced defects as evidence against convergence.
+  `wu-rename` required three passes despite a Heavy cap of two; pass two found a repair-introduced blocker and
+  pass three found an original blocker missed by both earlier passes.
+
 ### `[ ]` **Collapse `create-spec` finalization into one scope-stating interlock**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during a planning-stage gate

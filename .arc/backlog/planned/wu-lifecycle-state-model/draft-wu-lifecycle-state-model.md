@@ -16,6 +16,16 @@
 > _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
 > _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
+### `[ ]` **Advance `Last Completed` at planning-stage finalize**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during `wu-rename`
+  create-spec finalization.
+- _Concern:_ after `arc finalize create-spec`, `Current Workflow` advanced to `generate-tasks` while
+  `Last Completed` still named `draft-design`. Handoff eventually repairs the field, but a crash or session end
+  between finalize and handoff leaves the tracked meta internally inconsistent.
+- _Fold-in:_ make each planning-stage finalize advance `Last Completed` through the field model alongside the
+  `Class` write and stage advance, instead of leaving it handoff-owned.
+
 ### `[ ]` **Own placement-as-record: directory layout is projection of lifecycle state**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-07-18);
