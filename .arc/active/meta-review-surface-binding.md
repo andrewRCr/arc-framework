@@ -13,13 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 3 complete — production method activation, typed rubric binding, and fail-closed
-  effective-guidance composition
-- **Next Task:** Task 4.1.a — Repository identity record (line ~217)
+- **Last Completed:** Phase 7 complete — module reachability closure and public review-verb workflow reconciliation
+- **Next Task:** Task 8.1 — Complete verification (line ~516)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1.a test-first — mint and resolve the shared repository identity across sibling
-  worktrees and checkout relocation
+- **Next Action:** Begin Task 8.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
