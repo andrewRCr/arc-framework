@@ -59,10 +59,10 @@ describe("retired review architecture sweep", () => {
 
   it("preserves the public rubric identity while excluding superseded disposition labels", async () => {
     const [independent, triage] = await Promise.all([
-      readFile(resolve(repositoryRoot, "packages/arc-framework/arc/system/methods/independent-analysis.md"), "utf8"),
+      readFile(resolve(repositoryRoot, "packages/arc-framework/arc/system/methods/standard-review.md"), "utf8"),
       readFile(resolve(repositoryRoot, "packages/arc-framework/arc/system/methods/review-triage.md"), "utf8"),
     ]);
-    expect(independent).toContain("independent-analysis/v1");
+    expect(independent).toContain("standard-review/v1");
     expect(triage).toContain("`fix | defer | reject`");
     expect(triage).not.toMatch(/FIX NOW|MINOR FIX|SILENT FIX/u);
   });

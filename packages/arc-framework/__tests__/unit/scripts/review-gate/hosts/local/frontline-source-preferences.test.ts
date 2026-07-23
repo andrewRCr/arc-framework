@@ -4,24 +4,24 @@ import { createLocalFrontlineSourcePreferenceReader } from "../../../../../../sr
 
 describe("local frontline source preferences", () => {
   it("reads the private developer key and tracked project default without mutation", async () => {
-    const exec = vi.fn().mockResolvedValue({ stdout: "personal-reviewer\n" });
-    const readFile = vi.fn().mockResolvedValue("review.frontline_source: project-reviewer\n");
+    const exec = vi.fn().mockResolvedValue({ stdout: "personal-reviewer\nfallback-reviewer\n" });
+    const readFile = vi.fn().mockResolvedValue("review.frontline_sources: [project-reviewer, fallback-reviewer]\n");
     const reader = createLocalFrontlineSourcePreferenceReader({ cwd: "/repo", exec, readFile });
 
-    await expect(reader.readDeveloperSourceId()).resolves.toBe("personal-reviewer");
-    await expect(reader.readProjectSourceId()).resolves.toBe("project-reviewer");
-    expect(exec).toHaveBeenCalledWith("git", ["config", "--get", "arc.frontlineSource"]);
+    await expect(reader.readDeveloperSourceIds()).resolves.toEqual(["personal-reviewer", "fallback-reviewer"]);
+    await expect(reader.readProjectSourceIds()).resolves.toEqual(["project-reviewer", "fallback-reviewer"]);
+    expect(exec).toHaveBeenCalledWith("git", ["config", "--get-all", "arc.frontlineSources"]);
     expect(readFile.mock.calls[0]?.[0]).toMatch(/\.arc\/system\/arc-config\.yml$/u);
   });
 
-  it("normalizes missing or empty preferences to null", async () => {
+  it("normalizes missing or empty preferences to empty lists", async () => {
     const reader = createLocalFrontlineSourcePreferenceReader({
       cwd: "/repo",
       exec: vi.fn().mockRejectedValue(new Error("unset")),
-      readFile: vi.fn().mockResolvedValue("review.frontline_source:\n"),
+      readFile: vi.fn().mockResolvedValue("review.frontline_sources: []\n"),
     });
 
-    await expect(reader.readDeveloperSourceId()).resolves.toBeNull();
-    await expect(reader.readProjectSourceId()).resolves.toBeNull();
+    await expect(reader.readDeveloperSourceIds()).resolves.toEqual([]);
+    await expect(reader.readProjectSourceIds()).resolves.toEqual([]);
   });
 });

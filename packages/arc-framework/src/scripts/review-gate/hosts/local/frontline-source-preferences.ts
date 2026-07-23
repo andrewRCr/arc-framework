@@ -4,12 +4,22 @@ import { join } from "node:path";
 
 import { ARC_CONFIG_SUFFIX } from "../../../../lib/constants.js";
 import { parseArcConfig } from "../../../../lib/config/index.js";
-import { gitConfigGet, type GitExec } from "../../../../lib/git/index.js";
+import type { GitExec } from "../../../../lib/git/index.js";
 import { materializeArcPath, resolveArcPath } from "../../../../lib/layout/index.js";
 import type { FrontlineSourcePreferenceReader } from "../../policy/frontline-source.js";
 
-export const FRONTLINE_SOURCE_GIT_CONFIG_KEY = "arc.frontlineSource";
-export const FRONTLINE_SOURCE_YAML_KEY = "review.frontline_source";
+export const FRONTLINE_SOURCE_GIT_CONFIG_KEY = "arc.frontlineSources";
+export const FRONTLINE_SOURCE_YAML_KEY = "review.frontline_sources";
+
+function parseSourceIds(value: string | undefined): readonly string[] {
+  if (value === undefined || value.trim() === "") return [];
+  const trimmed = value.trim();
+  const list = trimmed.startsWith("[") && trimmed.endsWith("]")
+    ? trimmed.slice(1, -1)
+    : trimmed;
+  if (list.trim() === "") return [];
+  return list.split(",").map((sourceId) => sourceId.trim()).filter((sourceId) => sourceId !== "");
+}
 
 /** Bind the provider-neutral preference port to local git config and tracked ARC config. */
 export function createLocalFrontlineSourcePreferenceReader(input: {
@@ -18,18 +28,22 @@ export function createLocalFrontlineSourcePreferenceReader(input: {
   readFile: (path: string) => Promise<string>;
 }): FrontlineSourcePreferenceReader {
   return {
-    async readDeveloperSourceId(): Promise<string | null> {
-      const value = await gitConfigGet(input.exec, FRONTLINE_SOURCE_GIT_CONFIG_KEY);
-      return value === undefined || value === "" ? null : value;
+    async readDeveloperSourceIds(): Promise<readonly string[]> {
+      try {
+        const result = await input.exec("git", ["config", "--get-all", FRONTLINE_SOURCE_GIT_CONFIG_KEY]);
+        return result.stdout.split(/\r?\n/u).flatMap((value) => parseSourceIds(value));
+      } catch {
+        return [];
+      }
     },
-    async readProjectSourceId(): Promise<string | null> {
+    async readProjectSourceIds(): Promise<readonly string[]> {
       try {
         const arcRoot = materializeArcPath(input.cwd, resolveArcPath({ kind: "arc-root" }));
         const path = join(arcRoot, ...ARC_CONFIG_SUFFIX);
         const value = parseArcConfig(await input.readFile(path))[FRONTLINE_SOURCE_YAML_KEY];
-        return value === undefined || value === "" ? null : value;
+        return parseSourceIds(value);
       } catch {
-        return null;
+        return [];
       }
     },
   };

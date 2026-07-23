@@ -1,4 +1,4 @@
-/** Zod authority for the logical independent-analysis delivery contract. */
+/** Zod authority for the logical standard-review delivery contract. */
 
 import { z } from "zod";
 
@@ -30,7 +30,7 @@ export const ReviewRubricIdentitySchema = z.strictObject({
 });
 export type ReviewRubricIdentity = z.infer<typeof ReviewRubricIdentitySchema>;
 
-export const IndependentAnalysisIdentityFieldsSchema = z.strictObject({
+export const StandardReviewIdentityFieldsSchema = z.strictObject({
   coverage: z.strictObject({
     scope: z.string().min(1),
     targetBinding: z.string().min(1),
@@ -51,20 +51,20 @@ export const IndependentAnalysisIdentityFieldsSchema = z.strictObject({
     nonCleanResults: SortedUniqueStringsSchema,
   }).readonly(),
 });
-export type IndependentAnalysisIdentityFields = z.infer<typeof IndependentAnalysisIdentityFieldsSchema>;
+export type StandardReviewIdentityFields = z.infer<typeof StandardReviewIdentityFieldsSchema>;
 
-export const IndependentAnalysisContractSchema = z.strictObject({
-  version: z.string().regex(/^independent-analysis\/v[1-9][0-9]*$/u),
-  ...IndependentAnalysisIdentityFieldsSchema.shape,
+export const StandardReviewContractSchema = z.strictObject({
+  version: z.string().regex(/^standard-review\/v[1-9][0-9]*$/u),
+  ...StandardReviewIdentityFieldsSchema.shape,
 });
-export type IndependentAnalysisContract = z.infer<typeof IndependentAnalysisContractSchema>;
+export type StandardReviewContract = z.infer<typeof StandardReviewContractSchema>;
 
-export const IndependentAnalysisRubricDigestPreimageSchema = z.strictObject({
-  domain: z.literal("arc.independent-analysis.rubric-digest/v1"),
-  ...IndependentAnalysisContractSchema.shape,
+export const StandardReviewRubricDigestPreimageSchema = z.strictObject({
+  domain: z.literal("arc.standard-review.rubric-digest/v1"),
+  ...StandardReviewContractSchema.shape,
 }).readonly();
-export type IndependentAnalysisRubricDigestPreimage = z.infer<
-  typeof IndependentAnalysisRubricDigestPreimageSchema
+export type StandardReviewRubricDigestPreimage = z.infer<
+  typeof StandardReviewRubricDigestPreimageSchema
 >;
 
 export const ReviewGuidanceDigestPreimageSchema = z.strictObject({
@@ -72,20 +72,20 @@ export const ReviewGuidanceDigestPreimageSchema = z.strictObject({
   schemaVersion: z.literal(2),
   semanticsVersion: z.literal("review-gate/v2"),
   carrierId: z.string().min(1),
-  baseline: IndependentAnalysisContractSchema,
+  baseline: StandardReviewContractSchema,
   projectAugmentation: SortedUniqueGuidanceEntriesSchema,
 }).readonly();
 export type ReviewGuidanceDigestPreimage = z.infer<typeof ReviewGuidanceDigestPreimageSchema>;
 
-/** Register the logical independent-analysis contract with a caller-owned registry. */
-export function registerIndependentAnalysisSchema(registry: KernelRegistry): KernelRegistry {
-  registry.register(IndependentAnalysisRubricDigestPreimageSchema, {
-    id: "independent-analysis-rubric-digest-preimage",
+/** Register the logical standard-review contract with a caller-owned registry. */
+export function registerStandardReviewSchema(registry: KernelRegistry): KernelRegistry {
+  registry.register(StandardReviewRubricDigestPreimageSchema, {
+    id: "standard-review-rubric-digest-preimage",
     version: 1,
     migrationPosture: "strict-current",
   });
-  registry.register(IndependentAnalysisContractSchema, {
-    id: "independent-analysis-contract",
+  registry.register(StandardReviewContractSchema, {
+    id: "standard-review-contract",
     version: 1,
     migrationPosture: "strict-current",
   });

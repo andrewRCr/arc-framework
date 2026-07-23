@@ -202,16 +202,16 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
-  it("separates frontline advice from satisfying independent analysis", async () => {
+  it("separates frontline advice from satisfying standard review", async () => {
     for (const base of [packageArc, projectArc]) {
       const frontline = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
-      const independent = await readFile(resolve(base, "system/methods/independent-analysis.md"), "utf8");
+      const independent = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
       expect(frontline).toContain("active: false");
       expect(frontline).toContain("advisory pre-publication");
       expect(frontline).toContain("cannot satisfy");
       expect(frontline).toContain("adversarial-review");
       expect(frontline).toContain("implementation-audit");
-      expect(independent).toContain("independent-analysis/v1");
+      expect(independent).toContain("standard-review/v1");
       expect(independent).toContain("complete exact requested change set");
       expect(independent).toContain("non-author evaluator");
       expect(independent).toContain("all five rubric dimensions");
@@ -230,7 +230,7 @@ describe("PR-open lifecycle extensions", () => {
       );
       const selfReview = await readFile(resolve(base, "system/methods/self-review.md"), "utf8");
       const frontline = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
-      const independent = await readFile(resolve(base, "system/methods/independent-analysis.md"), "utf8");
+      const independent = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
       const guidance = `${brief}\n${strategy}\n${selfReview}\n${frontline}\n${independent}`
         .replace(/\s+/gu, " ");
 
@@ -251,7 +251,7 @@ describe("PR-open lifecycle extensions", () => {
 
   it("documents the native reviewer-guidance adapter boundary", async () => {
     for (const base of [packageArc, projectArc]) {
-      const method = await readFile(resolve(base, "system/methods/independent-analysis.md"), "utf8");
+      const method = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
       const strategy = await readFile(
         resolve(base, "reference/strategies/arc/strategy-configurability-architecture.md"),
         "utf8",
@@ -277,7 +277,7 @@ describe("PR-open lifecycle extensions", () => {
       expect(normalized).toContain("only an authorized adapter may attest a completed exact target");
       expect(method).toContain("implementation-audit");
       expect(method).toContain("frontline-review");
-      expect(method).toContain("independent-analysis");
+      expect(method).toContain("standard-review");
     }
   });
 
@@ -357,9 +357,9 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
-  it("coordinates source-neutral independent analysis for work units and errands", async () => {
+  it("coordinates source-neutral standard review for work units and errands", async () => {
     const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
-    for (const method of ["adversarial-review", "independent-analysis", "implementation-audit", "review-response"]) {
+    for (const method of ["adversarial-review", "standard-review", "implementation-audit", "review-response"]) {
       expect(workflow).toContain(`- ${method}`);
     }
     expect(workflow).toContain("`local | hosted | both`");
@@ -376,7 +376,7 @@ describe("PR-open lifecycle extensions", () => {
     ]) {
       for (const base of [packageArc, projectArc]) {
         const caller = await readFile(resolve(base, relative), "utf8");
-        expect(caller).toContain("source-neutral independent-analysis cycle");
+        expect(caller).toContain("source-neutral standard-review cycle");
         expect(caller).toContain("`local | hosted | both`");
       }
     }

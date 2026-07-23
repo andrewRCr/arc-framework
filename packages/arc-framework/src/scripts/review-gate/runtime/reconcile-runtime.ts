@@ -49,7 +49,7 @@ import {
   resolveSelfHostingDecision,
   type SelfHostingDecision,
 } from "../policy/self-hosting/decision.js";
-import { qualifyIndependentAnalysisSource } from "../policy/self-hosting/qualification.js";
+import { qualifyStandardReviewSource } from "../policy/self-hosting/qualification.js";
 import type { ReviewRoutingResolution } from "../policy/routing.js";
 import type { SelfHostingPolicy, SourceQualificationDeclaration } from "../policy/self-hosting/schema.js";
 import type { ContextMode } from "./rollout.js";
@@ -321,7 +321,7 @@ function qualifiedDurableSources(
   return policy.qualifications.filter((declaration) => declaration.transport === "durable-record"
     && requirement.acceptableSources.some((accepted) => accepted.sourceKind === declaration.sourceKind
       && (accepted.qualifier === undefined || accepted.qualifier === declaration.qualifier))
-    && qualifyIndependentAnalysisSource(declaration, requirement.rubricVersion).qualified);
+    && qualifyStandardReviewSource(declaration, requirement.rubricVersion).qualified);
 }
 
 /** Production reconcile runtime bound to one pull request's live host state. */

@@ -16,71 +16,62 @@ these identity names. This phase plus the Phase 7 workflow edits are the shared-
 `review-gate-right-sizing`. Not test-first: a mechanical rename whose regression guard is the existing suite staying
 green under the new names.
 
-### `[ ]` **1.1 Rename the `standard-review` code identity and modules**
+### `[x]` **1.1 Rename the `standard-review` code identity and modules**
 
 - _Goal:_ The `standard-review` role name replaces `independent-analysis` across every code identity — the obligation
   field/type `standardReview`, the method/rubric identity `standard-review/v1`, and the `policy/standard-review*.ts`
   modules — with the full suite green under the new names and no behavior change.
 
-- _Approach:_ Clean forward rename (no legacy alias, no migration). The reference set is the grep for
-  `independent-analysis` / `independentAnalysis` / `independent_analysis` across `src/`, plus the hand-maintained
-  `init-recipe.json` manifest at the package root (Task 1.2.c).
+    - `[x]` **1.1.a Rename the five `policy/independent-analysis*.ts` modules and their tests**
+        - Renamed the five policy modules and three matching unit-test modules to `standard-review*`.
 
-    - `[ ]` **1.1.a Rename the five `policy/independent-analysis*.ts` modules and their tests**
-        - `git mv` `independent-analysis.ts`, `-schema.ts`, `-guidance.ts`, `-projection.ts`, `-projection-schema.ts`
-          → `standard-review*.ts`, and the matching `__tests__/unit/scripts/review-gate/policy/*` files
+    - `[x]` **1.1.b Rename the obligation field/type, identity string, and constants across the core surface**
+        - Renamed the obligation field/type, rubric identity, schema IDs, symbols, prose identities, and their dependent
+          golden digests across production code and tests.
 
-    - `[ ]` **1.1.b Rename the obligation field/type, identity string, and constants across the core surface**
-        - `independentAnalysis` → `standardReview` and `independent-analysis/v1` → `standard-review/v1` in `core/*`
-          (`contracts.ts`, `gate-contract-v2*.ts`, `identity.ts`, `local-carrier.ts`, `projection.ts`,
-          `register-review-schemas.ts`), `policy/routing*.ts`, `policy/project-promotion-schema.ts`,
-          `policy/self-hosting/*` (`decision.ts`, `guidance.ts`, `qualification.ts`, `schema.ts`),
-          `runtime/local-attestation.ts`, `runtime/qualification-contract.ts`, `providers/codex/*`, `src/lib/classification.ts`
-        - rename the identity constants `INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY` (`independent-analysis.ts`) and
-          `INDEPENDENT_ANALYSIS_RUBRIC_VERSION` (`self-hosting/qualification.ts`) → the `STANDARD_REVIEW_*` forms
+    - `[x]` **1.1.c Update imports and re-verify green**
+        - Repointed every TypeScript import and symbol reference to the renamed modules and identities.
 
-    - `[ ]` **1.1.c Update imports and re-verify green**
-        - Repoint every import path and symbol reference to the renamed modules; `npm run typecheck:all` + `npm test` green
+- _Outcome:_ The complete code surface now exposes only the clean-forward `standard-review` identity, including
+  regenerated domain-separated rubric, policy, request, receipt, and guidance fixtures.
 
-### `[ ]` **1.2 Rename the method/rubric doc and its cross-references**
+### `[x]` **1.2 Rename the method/rubric doc and its cross-references**
 
 - _Goal:_ The shipped method/rubric document and every methodology cross-reference name `standard-review`, so the
   renamed identity resolves with no dangling reference.
 
-- _Context:_ Package-source-first under the two-copy discipline — edit `packages/arc-framework/arc/system/methods/`
-  and project into `.arc/`.
+    - `[x]` **1.2.a `git mv` the method file and update its own identity**
+        - Renamed the packaged and self-hosted method to `standard-review.md` and updated its identity and rubric digest.
 
-    - `[ ]` **1.2.a `git mv` the method file and update its own identity**
-        - `independent-analysis.md` → `standard-review.md` in both package source and `.arc/`; fix frontmatter/self-identity
+    - `[x]` **1.2.b Update methodology cross-references (identity only)**
+        - Updated the method registry, related methods, strategies, workflow identity references, hosted guidance, and
+          public customization docs without performing the deferred invocation-prose rewrite.
 
-    - `[ ]` **1.2.b Update methodology cross-references (identity only)**
-        - `system/methods/README.md`, `adversarial-review.md`, `frontline-review.md`, and the _identity_ references in
-          `integrate-work-unit.md` / `run-errand.md` (their invocation-prose rewrite is Task 7.5),
-          `strategy-configurability-architecture.md`, `strategy-session-operations.md`
+    - `[x]` **1.2.c Update the shipped `init-recipe.json` manifest**
+        - Replaced and alphabetized the method entry in the shipped recipe and self-hosting manifest.
 
-    - `[ ]` **1.2.c Update the shipped `init-recipe.json` manifest**
-        - the `include_files` entry `system/methods/independent-analysis.md` → `standard-review.md`; the entry moves
-          to preserve alphabetical order (`__tests__/integration/framework-sync.test.ts` cross-checks the manifest)
+    - `[x]` **1.2.d Markdown lint green**
+        - Reprojected package-source tables and normalized the renamed method references in both framework copies.
 
-    - `[ ]` **1.2.d Markdown lint green** — `npm run -s lint:md` across both copies
+- _Outcome:_ Packaged installs, self-hosting guidance, manifests, and durable methodology references resolve the
+  renamed method with no live cross-surface reference to the retired identity.
 
-### `[ ]` **1.3 Convert singular `review.frontline_source` to ordered `review.frontline_sources`**
+### `[x]` **1.3 Convert singular `review.frontline_source` to ordered `review.frontline_sources`**
 
 - _Goal:_ The frontline-source config accepts an ordered list (`review.frontline_sources` / `arc.frontlineSources`)
   and the resolver reads it in order, so the sibling's driver can own ordered fallback; a single-source config
   resolves identically to today.
 
-- _Approach:_ Shape change on the live-closure frontline surface only — the ordered-fallback _dispatch_ is the
-  sibling's driver, not built here. Scope is the config key `review.frontline_source` and its read path; the
-  `FrontlineSourceRegistry` domain concept and other `frontlineSource` uses are unchanged.
+    - `[x]` **1.3.a Rename the config key to a list**
+        - Renamed the project and developer keys, represented project defaults as inline ordered lists, and taught config
+          validation to validate every list entry.
 
-    - `[ ]` **1.3.a Rename the config key to a list**
-        - `review.frontline_source` → `review.frontline_sources` and `arc.frontlineSources` in `arc/system/arc-config.yml`,
-          `src/commands/config/types.ts`, `validate-config.sh`, `src/lib/config/status-reader.ts`
+    - `[x]` **1.3.b Update the resolver to read the ordered list**
+        - The preference port and local adapter now read ordered developer/project lists and select the first registered
+          source in tier order while retaining diagnostics for rejected earlier entries.
 
-    - `[ ]` **1.3.b Update the resolver to read the ordered list**
-        - `policy/frontline-source.ts`, `policy/frontline-command.ts`, `hosts/local/frontline-source-preferences.ts`,
-          `src/handlers/review.ts`; preserve single-source behavior; extend affected tests; config validation + suite green
+- _Outcome:_ A one-entry list preserves prior selection behavior, while both configuration tiers can now carry
+  deterministic ordered source preferences for the sibling driver's fallback policy.
 
 ---
 

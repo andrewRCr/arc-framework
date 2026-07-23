@@ -16,8 +16,8 @@ const routineCode = {
 };
 
 const preferences = {
-  readDeveloperSourceId: vi.fn().mockResolvedValue(null),
-  readProjectSourceId: vi.fn().mockResolvedValue(null),
+  readDeveloperSourceIds: vi.fn().mockResolvedValue([]),
+  readProjectSourceIds: vi.fn().mockResolvedValue([]),
 };
 
 describe("frontline workflow command", () => {

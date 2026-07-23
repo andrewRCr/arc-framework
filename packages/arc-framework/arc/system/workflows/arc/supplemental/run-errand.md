@@ -6,7 +6,7 @@ arc:
     - assess-parallel-fit
     - commit-footer
     - frontline-review
-    - independent-analysis
+    - standard-review
     - implementation-audit
     - review-triage
     - review-response
@@ -160,7 +160,7 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    an empty result. Classify the complete result:
 
    | Result                                                           | Action                                       |
-   |------------------------------------------------------------------|----------------------------------------------|
+   | ---------------------------------------------------------------- | -------------------------------------------- |
    | No match                                                         | Enter the creation arm below                 |
    | One open match                                                   | Reuse its `hostRef`; do not create or reopen |
    | One merged match at the current head                             | Skip review/merge and enter Complete cleanup |
@@ -193,7 +193,7 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    coordination and both hooks share this exact-head contract. After any head-changing action, recompose
    `openedChangeRequest` from the canonical current head before re-entry.
 
-   Invoke the active project review coordinator's source-neutral independent-analysis cycle with the exact target,
+   Invoke the active project review coordinator's source-neutral standard-review cycle with the exact target,
    effective routed obligation, and explicit project channel `local | hosted | both`. The coordinator selects and
    normalizes the admitted carrier, reduces its result, and sends findings through [`review-response`][review-response].
    If the selected source is unavailable, partial, or failed, only a required obligation blocks; recommended work

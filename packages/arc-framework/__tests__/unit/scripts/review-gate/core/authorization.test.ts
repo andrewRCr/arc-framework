@@ -9,7 +9,7 @@ import {
 const scope = {
   changeSetId: "a".repeat(64),
   policyVersion: "b".repeat(64),
-  rubricVersion: "independent-analysis/v1",
+  rubricVersion: "standard-review/v1",
 };
 
 const requireCommand: ReviewCommand = {

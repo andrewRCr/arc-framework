@@ -5,9 +5,9 @@ import {
   type CodexGuidanceObjectReader,
 } from "../../../../../../src/scripts/review-gate/providers/codex/guidance.js";
 import {
-  INDEPENDENT_ANALYSIS_BASELINE_CONTRACT,
-  INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
-} from "../../../../../../src/scripts/review-gate/policy/independent-analysis.js";
+  STANDARD_REVIEW_BASELINE_CONTRACT,
+  STANDARD_REVIEW_RUBRIC_IDENTITY,
+} from "../../../../../../src/scripts/review-gate/policy/standard-review.js";
 import {
   SELF_HOSTING_REVIEW_GUIDANCE_BLOCK,
 } from "../../../../../../src/scripts/review-gate/policy/self-hosting/guidance.js";
@@ -42,13 +42,13 @@ describe("Codex exact-head review guidance", () => {
     expect(result).toMatchObject({
       qualified: true,
       headSha: HEAD,
-      rubricVersion: "independent-analysis/v1",
+      rubricVersion: "standard-review/v1",
       targets: ["packages/a.ts", "packages/old.ts"],
       guidancePaths: ["AGENTS.md"],
-      baseline: INDEPENDENT_ANALYSIS_BASELINE_CONTRACT,
+      baseline: STANDARD_REVIEW_BASELINE_CONTRACT,
       projectAugmentation: [{ path: "AGENTS.md", content: ROOT }],
-      rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
-      guidanceDigest: "sha256:4aab092a870f198348e8b6d3b585ceabd3b68326427384ef8db91c42a63c876d",
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
+      guidanceDigest: "sha256:2870b060bd1bf7686f0833f3f33c1d3171b0912186897d46a32d907aed1dac46",
       digest: expect.stringMatching(/^[a-f0-9]{64}$/u),
     });
   });

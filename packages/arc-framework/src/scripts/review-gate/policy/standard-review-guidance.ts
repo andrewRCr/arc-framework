@@ -1,28 +1,28 @@
-/** Content-only reviewer guidance projected from the independent-analysis standard. */
+/** Content-only reviewer guidance projected from the standard-review standard. */
 
 import { z } from "zod";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
 import {
-  INDEPENDENT_ANALYSIS_BASELINE_CONTRACT,
-  INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
-} from "./independent-analysis.js";
+  STANDARD_REVIEW_BASELINE_CONTRACT,
+  STANDARD_REVIEW_RUBRIC_IDENTITY,
+} from "./standard-review.js";
 
 const SafeIdentifierSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\/v[1-9][0-9]*)?$/u);
 const SingleLineSchema = z.string().trim().min(1).refine((value) => !/[\r\n]/u.test(value), {
   message: "guidance text must be one non-empty line",
 });
 
-export const IndependentAnalysisProjectDimensionSchema = z.strictObject({
+export const StandardReviewProjectDimensionSchema = z.strictObject({
   id: SafeIdentifierSchema,
   title: SingleLineSchema,
   instruction: SingleLineSchema,
 }).readonly();
-export type IndependentAnalysisProjectDimension = z.infer<
-  typeof IndependentAnalysisProjectDimensionSchema
+export type StandardReviewProjectDimension = z.infer<
+  typeof StandardReviewProjectDimensionSchema
 >;
 
-const SortedUniqueProjectDimensionsSchema = z.array(IndependentAnalysisProjectDimensionSchema)
+const SortedUniqueProjectDimensionsSchema = z.array(StandardReviewProjectDimensionSchema)
   .min(1)
   .refine((dimensions) => {
     const ids = dimensions.map((dimension) => dimension.id);
@@ -34,12 +34,12 @@ const SortedUniqueProjectDimensionsSchema = z.array(IndependentAnalysisProjectDi
   }, { message: "project dimensions must be sorted and unique by id" })
   .readonly();
 
-export const IndependentAnalysisProjectAugmentationSchema = z.strictObject({
+export const StandardReviewProjectAugmentationSchema = z.strictObject({
   rubricId: SafeIdentifierSchema,
   dimensions: SortedUniqueProjectDimensionsSchema,
 }).readonly();
-export type IndependentAnalysisProjectAugmentation = z.infer<
-  typeof IndependentAnalysisProjectAugmentationSchema
+export type StandardReviewProjectAugmentation = z.infer<
+  typeof StandardReviewProjectAugmentationSchema
 >;
 
 const GuidanceItemShape = {
@@ -53,10 +53,10 @@ const GuidanceDimensionSchema = z.strictObject({
   origin: z.enum(["baseline", "project"]),
 }).readonly();
 
-export const IndependentAnalysisGuidanceProjectionSchema = z.strictObject({
+export const StandardReviewGuidanceProjectionSchema = z.strictObject({
   schemaVersion: z.literal(1),
-  semanticsVersion: z.literal("independent-analysis-guidance/v1"),
-  rubricVersion: z.literal("independent-analysis/v1"),
+  semanticsVersion: z.literal("standard-review-guidance/v1"),
+  rubricVersion: z.literal("standard-review/v1"),
   rubricDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
   coverageInstructions: z.array(z.string().min(1)).min(1).readonly(),
   evaluatorInstructions: z.array(z.string().min(1)).min(1).readonly(),
@@ -66,10 +66,10 @@ export const IndependentAnalysisGuidanceProjectionSchema = z.strictObject({
   ).readonly(),
   findingRequirements: z.array(GuidanceItemSchema).min(1).readonly(),
   cleanInstructions: z.array(z.string().min(1)).min(1).readonly(),
-  projectAugmentation: IndependentAnalysisProjectAugmentationSchema.nullable(),
+  projectAugmentation: StandardReviewProjectAugmentationSchema.nullable(),
 }).readonly();
-export type IndependentAnalysisGuidanceProjection = z.infer<
-  typeof IndependentAnalysisGuidanceProjectionSchema
+export type StandardReviewGuidanceProjection = z.infer<
+  typeof StandardReviewGuidanceProjectionSchema
 >;
 
 const DIMENSION_GUIDANCE: Readonly<Record<string, { title: string; instruction: string }>> = {
@@ -119,18 +119,18 @@ function mappedGuidance(
   guidance: Readonly<Record<string, { title: string; instruction: string }>>,
 ): { id: string; title: string; instruction: string } {
   const item = guidance[id];
-  if (item === undefined) throw new Error(`no reviewer guidance registered for independent-analysis field: ${id}`);
+  if (item === undefined) throw new Error(`no reviewer guidance registered for standard-review field: ${id}`);
   return { id, ...item };
 }
 
 /** Project the registered typed standard and optional additive project rubric into reviewer content. */
-export function projectIndependentAnalysisGuidance(
+export function projectStandardReviewGuidance(
   augmentationInput?: unknown,
-): IndependentAnalysisGuidanceProjection {
+): StandardReviewGuidanceProjection {
   const projectAugmentation = augmentationInput === undefined
     ? null
-    : IndependentAnalysisProjectAugmentationSchema.parse(augmentationInput);
-  const baselineDimensions = INDEPENDENT_ANALYSIS_BASELINE_CONTRACT.rubric.dimensions.map((id) => ({
+    : StandardReviewProjectAugmentationSchema.parse(augmentationInput);
+  const baselineDimensions = STANDARD_REVIEW_BASELINE_CONTRACT.rubric.dimensions.map((id) => ({
     ...mappedGuidance(id, DIMENSION_GUIDANCE),
     origin: "baseline" as const,
   }));
@@ -139,11 +139,11 @@ export function projectIndependentAnalysisGuidance(
     origin: "project" as const,
   })) ?? [];
 
-  return IndependentAnalysisGuidanceProjectionSchema.parse({
+  return StandardReviewGuidanceProjectionSchema.parse({
     schemaVersion: 1,
-    semanticsVersion: "independent-analysis-guidance/v1",
-    rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-    rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+    semanticsVersion: "standard-review-guidance/v1",
+    rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+    rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
     coverageInstructions: [
       "Review the complete exact requested change set, not a sample or only the latest fix.",
       "Bind the review to the exact requested target.",
@@ -153,7 +153,7 @@ export function projectIndependentAnalysisGuidance(
       "Do not provide author conclusions, preferred fixes, self-verification claims, or suspected weak spots.",
     ],
     dimensions: [...baselineDimensions, ...projectDimensions],
-    findingRequirements: INDEPENDENT_ANALYSIS_BASELINE_CONTRACT.findingFloor
+    findingRequirements: STANDARD_REVIEW_BASELINE_CONTRACT.findingFloor
       .map((id) => mappedGuidance(id, FINDING_GUIDANCE)),
     cleanInstructions: [
       "Return clean only after the complete requested change set and every rubric dimension were considered.",
@@ -164,13 +164,13 @@ export function projectIndependentAnalysisGuidance(
 }
 
 /** Reject stale, weakened, or hand-authored guidance that is not the exact typed projection. */
-export function validateIndependentAnalysisGuidanceProjection(
+export function validateStandardReviewGuidanceProjection(
   input: unknown,
-): IndependentAnalysisGuidanceProjection {
-  const projection = IndependentAnalysisGuidanceProjectionSchema.parse(input);
-  const expected = projectIndependentAnalysisGuidance(projection.projectAugmentation ?? undefined);
+): StandardReviewGuidanceProjection {
+  const projection = StandardReviewGuidanceProjectionSchema.parse(input);
+  const expected = projectStandardReviewGuidance(projection.projectAugmentation ?? undefined);
   if (canonicalize(projection) !== canonicalize(expected)) {
-    throw new Error("guidance projection does not match the typed independent-analysis source");
+    throw new Error("guidance projection does not match the typed standard-review source");
   }
   return projection;
 }
@@ -184,8 +184,8 @@ function instructionItems(items: readonly string[]): string {
 }
 
 /** Render content-only instructions suitable for a provider-native review carrier. */
-export function renderIndependentAnalysisReviewerInstructions(augmentationInput?: unknown): string {
-  const projection = projectIndependentAnalysisGuidance(augmentationInput);
+export function renderStandardReviewReviewerInstructions(augmentationInput?: unknown): string {
+  const projection = projectStandardReviewGuidance(augmentationInput);
   const sections = [
     `Rubric: \`${projection.rubricVersion}\` / \`${projection.rubricDigest}\``,
     "### Coverage and evaluator boundary",
@@ -201,18 +201,18 @@ export function renderIndependentAnalysisReviewerInstructions(augmentationInput?
 }
 
 /** Render the package-neutral checklist carried by human and instruction-surface adapters. */
-export function renderIndependentAnalysisHumanChecklist(
+export function renderStandardReviewHumanChecklist(
   augmentationInput?: unknown,
   headingLevel = 1,
 ): string {
-  const projection = projectIndependentAnalysisGuidance(augmentationInput);
+  const projection = projectStandardReviewGuidance(augmentationInput);
   if (!Number.isInteger(headingLevel) || headingLevel < 1 || headingLevel > 5) {
     throw new Error("checklist heading level must be an integer from 1 through 5");
   }
   const heading = "#".repeat(headingLevel);
   const subheading = "#".repeat(headingLevel + 1);
   const sections = [
-    `${heading} Independent Analysis Checklist`,
+    `${heading} Standard Review Checklist`,
     `Rubric: \`${projection.rubricVersion}\` / \`${projection.rubricDigest}\``,
     `${subheading} Coverage and evaluator boundary`,
     checklistItems([...projection.coverageInstructions, ...projection.evaluatorInstructions]),

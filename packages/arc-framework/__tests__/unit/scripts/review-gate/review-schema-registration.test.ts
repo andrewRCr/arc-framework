@@ -33,9 +33,9 @@ const reviewIdentities = [
   "fix-authorization-preimage",
   "frontline-run-state",
   "local-disposition-terminal",
-  "independent-analysis-contract",
-  "independent-analysis-obligation-projection",
-  "independent-analysis-rubric-digest-preimage",
+  "standard-review-contract",
+  "standard-review-obligation-projection",
+  "standard-review-rubric-digest-preimage",
   "project-routing-promotion",
   "provider-native-conversation-closure",
   "proposed-disposition-set",
@@ -85,7 +85,7 @@ describe("review schema registration", () => {
     expect(registry.meta("review-requirement")?.version).toBe(2);
     expect(registry.meta("review-receipt")?.version).toBe(2);
     expect(registry.meta("review-receipt-ledger")?.version).toBe(2);
-    expect(registry.meta("independent-analysis-rubric-digest-preimage")?.version).toBe(1);
+    expect(registry.meta("standard-review-rubric-digest-preimage")?.version).toBe(1);
     expect(registry.meta("review-guidance-digest-preimage")?.version).toBe(2);
     expect(registry.meta("review-policy-version-preimage")?.version).toBe(2);
     expect(registry.meta("review-lifecycle-tail-proof")?.version).toBe(2);

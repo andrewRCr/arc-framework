@@ -7,7 +7,7 @@ import {
 import { createLocalChangeSetCarrier } from "../../../../../src/scripts/review-gate/core/local-carrier.js";
 import type { ForwardReviewReceiptStore } from "../../../../../src/scripts/review-gate/core/ports.js";
 import { attestLocalReviewResult } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
-import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../../../../../src/scripts/review-gate/policy/independent-analysis.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../../../../src/scripts/review-gate/policy/standard-review.js";
 
 const objectId = (character: string): string => character.repeat(40);
 
@@ -28,12 +28,12 @@ function fixture() {
     projection: {
       obligation: "required",
       reasons: ["sensitive-change-set"],
-      rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-      rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
       retrigger: "full-final",
       count: 1,
     },
-    acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
     initialAdmission: "automatic",
   });
   if (requirement === null) throw new Error("expected requirement");

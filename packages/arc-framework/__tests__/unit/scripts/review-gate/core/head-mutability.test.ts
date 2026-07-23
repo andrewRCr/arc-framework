@@ -25,7 +25,7 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     changeSetId: "c".repeat(64),
     policyVersion: "d".repeat(64),
     semanticsVersion: "review-gate/v1",
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     requirementId: "analysis",
     sourceIdentity: "provider-1",
     coverage: "full",
@@ -340,20 +340,20 @@ describe("request flights and exact-head mutability", () => {
     expect(variants.map((candidate) => parseReviewReceipt(candidate))).toEqual(variants);
     expect(variants.map(({ idempotencyKey, receiptHash }) => [idempotencyKey, receiptHash])).toEqual([
       [
-        "4a1233fecadaf9c3fb669e6088db9e965138b7ad41f995a961020390eafd5645",
-        "e2d6962d2291e03afd5dd39725bd16d74d52464d7f81fafd73daa5f27bff61ff",
+        "23e69dfc33e1b151465cf0d7e0903616e50e3c3c2941d8a22bacc9e9c54fedcf",
+        "d374cf5339247a49ee045abe0039cb0c7612813b46f64f39d1d3c0159e083ab0",
       ],
       [
-        "e29880de30b30b65cff8958a287553cc549e938c2e6e4b46ec475b7442e715fc",
-        "ee814aac512dea09e5c3532a2b238d71fed69bfa744f9f66e1feb980d52f1e1c",
+        "73f74c0052bffa49a3f2fb830dc83e8688575d81dfc847023abb0bcc288298e6",
+        "f8bf592a1bc22d05f8dee8297e112babece831512ce0161a89d792db459baf3a",
       ],
       [
-        "0dc1828e4be80424490b0ca4f843c57e720bcc7553715c63939f492e1935ba67",
-        "8baac677c5a4ac001f74737a65b8ba3845a8757be35a16adc485e96b13e9cde4",
+        "1deb3e056065594becdc7081da49f68850984ccc9a26f8a01683dbdbd167a4aa",
+        "cb293fecc382488a1b797795902a8c38626a90a4f879a5b4479284aa4d178098",
       ],
       [
-        "4a401d409dbc34bfec3fd0c2dbfab3acd60285d02200de6f1cb3fbc81615585c",
-        "72cd0d51dbfe6f8272097ffb8f7d72407804cf931ef182c3b0cc69adb3f3a877",
+        "6e27a71a899cbf6b2b9081f8883a21ea261941d860b63fb59fa72df8f830b5a0",
+        "a82c51e1d5ee448239ae12b7545ecabf8c13f728cd8a6ae6bc76d5a7b5f665e0",
       ],
     ]);
     expect(() => parseReviewReceipt({

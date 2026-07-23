@@ -1,36 +1,36 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  projectIndependentAnalysisObligation,
-} from "../../../../../src/scripts/review-gate/policy/independent-analysis-projection.js";
+  projectStandardReviewObligation,
+} from "../../../../../src/scripts/review-gate/policy/standard-review-projection.js";
 import {
-  INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
-} from "../../../../../src/scripts/review-gate/policy/independent-analysis.js";
+  STANDARD_REVIEW_RUBRIC_IDENTITY,
+} from "../../../../../src/scripts/review-gate/policy/standard-review.js";
 import type { ReviewRoutingDecision } from "../../../../../src/scripts/review-gate/policy/routing-schema.js";
 
-const rubric = INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY;
+const rubric = STANDARD_REVIEW_RUBRIC_IDENTITY;
 
 const decision = (
-  independentAnalysis: ReviewRoutingDecision["independentAnalysis"],
+  standardReview: ReviewRoutingDecision["standardReview"],
   retrigger: ReviewRoutingDecision["retrigger"],
 ): ReviewRoutingDecision => ({
   schemaVersion: 1,
   authorSelfReview: "required",
   frontlineAction: "attempt",
-  independentAnalysis,
+  standardReview,
   retrigger,
   assuranceMode: "terminal-aggregate",
-  reasons: [independentAnalysis === "exempt" ? "auto-eligible-planning" : "sensitive-change-set"],
+  reasons: [standardReview === "exempt" ? "auto-eligible-planning" : "sensitive-change-set"],
 });
 
-describe("independent-analysis obligation projection", () => {
+describe("standard-review obligation projection", () => {
   it("emits one topology-neutral logical obligation from one routing decision", () => {
-    const projection = projectIndependentAnalysisObligation(decision("required", "full-final"));
+    const projection = projectStandardReviewObligation(decision("required", "full-final"));
 
     expect(projection).toEqual({
       obligation: "required",
       reasons: ["sensitive-change-set"],
-      rubricVersion: "independent-analysis/v1",
+      rubricVersion: "standard-review/v1",
       rubricDigest: rubric.digest,
       retrigger: "full-final",
       count: 1,
@@ -46,12 +46,12 @@ describe("independent-analysis obligation projection", () => {
   });
 
   it("keeps exemption explicit without producing target-bound requirement data", () => {
-    const projection = projectIndependentAnalysisObligation(decision("exempt", "none"), rubric);
+    const projection = projectStandardReviewObligation(decision("exempt", "none"), rubric);
 
     expect(projection).toEqual({
       obligation: "exempt",
       reasons: ["auto-eligible-planning"],
-      rubricVersion: "independent-analysis/v1",
+      rubricVersion: "standard-review/v1",
       rubricDigest: rubric.digest,
       retrigger: "none",
       count: 1,
@@ -61,7 +61,7 @@ describe("independent-analysis obligation projection", () => {
   });
 
   it("returns immutable policy output without self-review or frontline fields", () => {
-    const projection = projectIndependentAnalysisObligation(decision("recommended", "incremental"), rubric);
+    const projection = projectStandardReviewObligation(decision("recommended", "incremental"), rubric);
 
     expect(Object.isFrozen(projection)).toBe(true);
     expect(Object.isFrozen(projection.reasons)).toBe(true);
@@ -71,13 +71,13 @@ describe("independent-analysis obligation projection", () => {
 
   it("preserves one projection per deliverable without accepting topology facts", () => {
     const deliverables = [
-      projectIndependentAnalysisObligation(decision("required", "full-final"), rubric),
-      projectIndependentAnalysisObligation(decision("required", "full-final"), rubric),
+      projectStandardReviewObligation(decision("required", "full-final"), rubric),
+      projectStandardReviewObligation(decision("required", "full-final"), rubric),
     ];
 
     expect(deliverables).toHaveLength(2);
     expect(deliverables[0]).not.toBe(deliverables[1]);
-    expect(() => projectIndependentAnalysisObligation({
+    expect(() => projectStandardReviewObligation({
       ...decision("required", "full-final"),
       pullRequestCount: 2,
     } as ReviewRoutingDecision, rubric)).toThrow();

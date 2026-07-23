@@ -179,7 +179,7 @@ export interface ProviderReviewDisposition {
   evidenceRef: string;
 }
 
-/** Lossless native-review observation; never independent-analysis evidence. */
+/** Lossless native-review observation; never standard-review evidence. */
 export interface NativeReviewObservation {
   nativeReview: {
     requestedChanges: boolean;

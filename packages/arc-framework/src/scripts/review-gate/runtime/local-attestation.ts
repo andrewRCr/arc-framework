@@ -1,4 +1,4 @@
-/** Exact-head attestation entrypoint for normalized local independent-analysis results. */
+/** Exact-head attestation entrypoint for normalized local standard-review results. */
 
 import { z } from "zod";
 

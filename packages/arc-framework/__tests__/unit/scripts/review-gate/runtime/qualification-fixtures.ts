@@ -35,7 +35,7 @@ export function legacyV1QualificationScope(): QualificationScope {
     parserVersion: "1",
     parserDigest: "d".repeat(64),
     providerParserVersions: { coderabbit: "coderabbit-evidence/v1", codex: "codex-evidence/v1" },
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     guidanceDigests: { codex: "e".repeat(64) },
     sourceIdentities: { coderabbit: "coderabbit-pr", codex: "codex-pr" },
     providerAppIds: { coderabbit: null, codex: "1144995" },

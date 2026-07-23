@@ -46,12 +46,12 @@ function contract(options: {
     projection: {
       obligation: "required",
       reasons: ["sensitive-change-set"],
-      rubricVersion: "independent-analysis/v1",
-      rubricDigest: canonicalDigest({ rubric: "independent-analysis/v1" }),
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "standard-review/v1" }),
       retrigger: options.retrigger ?? "incremental",
       count: 1,
     },
-    acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
     initialAdmission: "automatic",
   });
   if (requirement === null) throw new Error("expected review requirement");
@@ -130,7 +130,7 @@ describe("cross-layer lifecycle and migration proof", () => {
       packagedErrand.indexOf("### Ship — full protection"),
       packagedErrand.indexOf("### Ship — partial protection"),
     );
-    expect(errandPublication).toMatch(/exact aggregate review target[\s\S]*source-neutral independent-analysis cycle/u);
+    expect(errandPublication).toMatch(/exact aggregate review target[\s\S]*source-neutral standard-review cycle/u);
     expect(errandPublication).toMatch(/`vehicle: errand`[\s\S]*outside WU composition-product requirements/u);
     expect(errandPublication).toMatch(/--match-head-commit \{approved-head-sha\}/u);
     expect(errandPublication).toMatch(/Never invent WU meta or task-list state/u);

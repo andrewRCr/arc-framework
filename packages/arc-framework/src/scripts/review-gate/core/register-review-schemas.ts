@@ -8,8 +8,8 @@ import { registerFixAuthorizationSchemas } from "./fix-authorization-records.js"
 import { registerDispositionRecordSchemas } from "./disposition-records.js";
 import { registerReviewResponseSchemas } from "./response-plan-schema.js";
 import { registerReviewOperationStateSchemas } from "./operation-state-schema.js";
-import { registerIndependentAnalysisProjectionSchema } from "../policy/independent-analysis-projection-schema.js";
-import { registerIndependentAnalysisSchema } from "../policy/independent-analysis-schema.js";
+import { registerStandardReviewProjectionSchema } from "../policy/standard-review-projection-schema.js";
+import { registerStandardReviewSchema } from "../policy/standard-review-schema.js";
 import { registerProjectRoutingPromotionSchema } from "../policy/project-promotion-schema.js";
 import { registerReviewAssuranceSchemas } from "../policy/assurance-schema.js";
 import { registerReviewRoutingSchemas } from "../policy/routing-schema.js";
@@ -38,7 +38,7 @@ export function registerReviewDomainSchemas(registry: KernelRegistry): KernelReg
   registerReviewAssuranceSchemas(registry);
   registerReviewRoutingSchemas(registry);
   registerProjectRoutingPromotionSchema(registry);
-  registerIndependentAnalysisSchema(registry);
-  registerIndependentAnalysisProjectionSchema(registry);
+  registerStandardReviewSchema(registry);
+  registerStandardReviewProjectionSchema(registry);
   return registry;
 }

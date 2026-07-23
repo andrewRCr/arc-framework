@@ -33,7 +33,7 @@ const fixTarget = createReviewTarget({
 });
 const request: ReviewRequest = {
   schemaVersion: 1, repositoryId: "1", changeRequestId: "7", changeSetId: "c".repeat(64),
-  policyVersion: "d".repeat(64), semanticsVersion: "review-gate/v1", rubricVersion: "independent-analysis/v1",
+  policyVersion: "d".repeat(64), semanticsVersion: "review-gate/v1", rubricVersion: "standard-review/v1",
   requirementId: "analysis", sourceIdentity: "coderabbit-pr", coverage: "full", coverageFromSha: "0".repeat(40),
   coverageThroughSha: OLD, generation: 0, actorIdentity: "302312524", requestMechanism: "automatic",
   requiredActorIdentity: "302312524", requestCommand: null,
@@ -52,7 +52,7 @@ function evidence(findings: Evidence["findings"] = []): Evidence {
 const dispositionState = approveDispositionState({
   proposed: proposeDispositionSet(createDispositionSet({
     schemaVersion: 2, semanticsVersion: "review-gate/v2", targetId: oldTarget.targetId,
-    policyVersion: canonicalDigest({ policy: "review" }), rubricVersion: "independent-analysis/v1",
+    policyVersion: canonicalDigest({ policy: "review" }), rubricVersion: "standard-review/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }), proposedBy: "author-1",
     findings: [{
       findingId: "f-1", sourceIdentity: "coderabbit-pr", locus: "src/a.ts:1",

@@ -107,15 +107,15 @@ export const ReviewRoutingDecisionSchema = z.strictObject({
   schemaVersion: z.literal(1),
   authorSelfReview: ReviewObligationSchema,
   frontlineAction: FrontlineActionSchema,
-  independentAnalysis: ReviewObligationSchema,
+  standardReview: ReviewObligationSchema,
   retrigger: ReviewRetriggerSchema,
   assuranceMode: AssuranceModeSchema,
   reasons: z.array(ReviewRoutingReasonSchema).min(1),
 }).refine((decision) => (
-  (decision.independentAnalysis === "exempt" && decision.retrigger === "none")
-  || (decision.independentAnalysis !== "exempt" && decision.retrigger !== "none")
+  (decision.standardReview === "exempt" && decision.retrigger === "none")
+  || (decision.standardReview !== "exempt" && decision.retrigger !== "none")
 ), {
-  message: "independent-analysis obligation and retrigger treatment are incongruent",
+  message: "standard-review obligation and retrigger treatment are incongruent",
 });
 export type ReviewRoutingDecision = z.infer<typeof ReviewRoutingDecisionSchema>;
 

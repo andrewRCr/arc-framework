@@ -40,7 +40,7 @@ const suspension = {
   sourceIdentity: "codex-pr",
   generation: 1,
   policyVersion: digest("policy"),
-  rubricVersion: "independent-analysis/v1",
+  rubricVersion: "standard-review/v1",
   rubricDigest: digest("rubric"),
   deadlineAt: "2026-07-20T21:00:00Z",
   wakeupToken: digest("wakeup"),

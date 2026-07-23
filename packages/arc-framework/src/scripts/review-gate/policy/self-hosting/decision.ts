@@ -47,7 +47,7 @@ export function resolveSelfHostingDecision(input: SelfHostingDecisionInput): Sel
   const routing = ReviewRoutingDecisionSchema.parse(input.routing);
   const policyVersion = computePolicyVersion({ policy });
   const reasons = [...routing.reasons];
-  const disposition = routing.independentAnalysis;
+  const disposition = routing.standardReview;
   const lane = disposition === "exempt" ? "auto" : "reviewed";
   const requirements: ReviewRequirement[] = disposition === "exempt"
     ? []

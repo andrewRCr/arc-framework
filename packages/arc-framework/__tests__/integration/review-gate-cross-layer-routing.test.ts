@@ -9,8 +9,8 @@ import {
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createLocalChangeSetCarrier } from "../../src/scripts/review-gate/core/local-carrier.js";
 import type { ForwardReviewReceiptStore } from "../../src/scripts/review-gate/core/ports.js";
-import { projectIndependentAnalysisObligation } from "../../src/scripts/review-gate/policy/independent-analysis-projection.js";
-import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/independent-analysis.js";
+import { projectStandardReviewObligation } from "../../src/scripts/review-gate/policy/standard-review-projection.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { reduceReviewRouting } from "../../src/scripts/review-gate/policy/routing.js";
 import type { ReviewRoutingFacts } from "../../src/scripts/review-gate/policy/routing-schema.js";
 import { SELF_HOSTING_POLICY } from "../../src/scripts/review-gate/policy/self-hosting/schema.js";
@@ -43,7 +43,7 @@ describe("cross-layer routing to gate proof", () => {
       "required", "skip", "incremental"],
   ] as const)("routes %s without source-capacity input", (_name, overrides, obligation, frontlineAction, retrigger) => {
     expect(reduceReviewRouting({ ...routineCode, ...overrides })).toMatchObject({
-      independentAnalysis: obligation,
+      standardReview: obligation,
       frontlineAction,
       retrigger,
     });
@@ -64,8 +64,8 @@ describe("cross-layer routing to gate proof", () => {
     });
     const requirement = createReviewRequirement({
       target,
-      projection: projectIndependentAnalysisObligation(routing),
-      acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+      projection: projectStandardReviewObligation(routing),
+      acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
       initialAdmission: "checkpoint",
     });
     if (requirement === null) throw new Error("local route unexpectedly exempt");
@@ -173,8 +173,8 @@ describe("cross-layer routing to gate proof", () => {
     });
     const requirement = createReviewRequirement({
       target,
-      projection: projectIndependentAnalysisObligation(routing),
-      acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+      projection: projectStandardReviewObligation(routing),
+      acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
       initialAdmission: "automatic",
     });
     if (requirement === null) throw new Error("hosted route unexpectedly exempt");
@@ -218,13 +218,13 @@ describe("cross-layer routing to gate proof", () => {
       version: "project-security/v1",
       digest: `sha256:${"e".repeat(64)}`,
     };
-    const projected = projectIndependentAnalysisObligation(routing, overlay);
+    const projected = projectStandardReviewObligation(routing, overlay);
 
     expect(projected).toMatchObject({
       rubricVersion: overlay.version,
       rubricDigest: overlay.digest,
       obligation: "required",
     });
-    expect(projected.rubricDigest).not.toBe(INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest);
+    expect(projected.rubricDigest).not.toBe(STANDARD_REVIEW_RUBRIC_IDENTITY.digest);
   });
 });

@@ -1,13 +1,13 @@
-/** Repository bindings for typed independent-analysis guidance carriers. */
+/** Repository bindings for typed standard-review guidance carriers. */
 
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
-import { ReviewGuidanceDigestPreimageSchema } from "../independent-analysis-schema.js";
+import { ReviewGuidanceDigestPreimageSchema } from "../standard-review-schema.js";
 import {
-  projectIndependentAnalysisGuidance,
-  renderIndependentAnalysisHumanChecklist,
-  renderIndependentAnalysisReviewerInstructions,
-} from "../independent-analysis-guidance.js";
-import { INDEPENDENT_ANALYSIS_BASELINE_CONTRACT } from "../independent-analysis.js";
+  projectStandardReviewGuidance,
+  renderStandardReviewHumanChecklist,
+  renderStandardReviewReviewerInstructions,
+} from "../standard-review-guidance.js";
+import { STANDARD_REVIEW_BASELINE_CONTRACT } from "../standard-review.js";
 
 export const SELF_HOSTING_REVIEW_AUGMENTATION = {
   rubricId: "self-hosting-review/v1",
@@ -18,7 +18,7 @@ export const SELF_HOSTING_REVIEW_AUGMENTATION = {
   }],
 } as const;
 
-export const SELF_HOSTING_REVIEWER_INSTRUCTIONS = renderIndependentAnalysisReviewerInstructions(
+export const SELF_HOSTING_REVIEWER_INSTRUCTIONS = renderStandardReviewReviewerInstructions(
   SELF_HOSTING_REVIEW_AUGMENTATION,
 ).trimEnd();
 
@@ -29,7 +29,7 @@ export const SELF_HOSTING_REVIEW_GUIDANCE_BLOCK = [
   SELF_HOSTING_REVIEWER_INSTRUCTIONS,
   SELF_HOSTING_REVIEW_GUIDANCE_END,
 ].join("\n");
-export const SELF_HOSTING_REVIEW_CHECKLIST = renderIndependentAnalysisHumanChecklist(
+export const SELF_HOSTING_REVIEW_CHECKLIST = renderStandardReviewHumanChecklist(
   SELF_HOSTING_REVIEW_AUGMENTATION,
   3,
 ).trimEnd();
@@ -89,13 +89,13 @@ export function admitSelfHostingGuidanceCarrier(
   if (payloads[0] !== expectedPayload) {
     return { carrierId, admitted: false, guidanceDigest: null, reason: "managed-guidance-stale" };
   }
-  const projection = projectIndependentAnalysisGuidance(SELF_HOSTING_REVIEW_AUGMENTATION);
+  const projection = projectStandardReviewGuidance(SELF_HOSTING_REVIEW_AUGMENTATION);
   const preimage = ReviewGuidanceDigestPreimageSchema.parse({
     domain: "arc.review-guidance.digest/v2",
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     carrierId,
-    baseline: INDEPENDENT_ANALYSIS_BASELINE_CONTRACT,
+    baseline: STANDARD_REVIEW_BASELINE_CONTRACT,
     projectAugmentation: [{
       path: projection.projectAugmentation?.rubricId ?? "none",
       content: canonicalize(projection.projectAugmentation),

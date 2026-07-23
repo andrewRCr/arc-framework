@@ -11,8 +11,8 @@ const ownerModules = [
   "scripts/review-gate/core/gate-contract-v2-schema.ts",
   "scripts/review-gate/core/review-primitives.ts",
   "scripts/review-gate/policy/assurance-schema.ts",
-  "scripts/review-gate/policy/independent-analysis-projection-schema.ts",
-  "scripts/review-gate/policy/independent-analysis-schema.ts",
+  "scripts/review-gate/policy/standard-review-projection-schema.ts",
+  "scripts/review-gate/policy/standard-review-schema.ts",
   "scripts/review-gate/policy/project-promotion-schema.ts",
   "scripts/review-gate/policy/routing-schema.ts",
 ];

@@ -1,5 +1,5 @@
 ---
-name: independent-analysis
+name: standard-review
 description: Satisfying standard for non-author review of one complete exact change set
 related:
   - adversarial-review
@@ -8,7 +8,7 @@ related:
 override-active: false
 ---
 
-# Method: independent-analysis
+# Method: standard-review
 
 > - **When:** A review obligation requires satisfying non-author analysis
 >
@@ -16,13 +16,13 @@ override-active: false
 >   project context, applies the bound rubric, and returns a result eligible for exact-target attestation only when
 >   the standard below is complete. The activity grants no mutation, disposition, or closure authority.
 
-## independent-analysis.override
+## standard-review.override
 
 [No override configured]
 
-## independent-analysis.default
+## standard-review.default
 
-The baseline version is `independent-analysis/v1`. Its semantic identity is owned by the registered typed contract
+The baseline version is `standard-review/v1`. Its semantic identity is owned by the registered typed contract
 and derived digest; editorial guidance in this method is not a second identity authority.
 
 - **Coverage:** Review the complete exact requested change set, not a sample or only the latest fix.

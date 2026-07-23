@@ -18,15 +18,15 @@ const registry = new FrontlineSourceRegistry([
 ]);
 
 function preferences(input: {
-  developer?: string | null;
-  project?: string | null;
+  developer?: readonly string[];
+  project?: readonly string[];
 }): FrontlineSourcePreferenceReader & {
-  readDeveloperSourceId: ReturnType<typeof vi.fn>;
-  readProjectSourceId: ReturnType<typeof vi.fn>;
+  readDeveloperSourceIds: ReturnType<typeof vi.fn>;
+  readProjectSourceIds: ReturnType<typeof vi.fn>;
 } {
   return {
-    readDeveloperSourceId: vi.fn().mockResolvedValue(input.developer ?? null),
-    readProjectSourceId: vi.fn().mockResolvedValue(input.project ?? null),
+    readDeveloperSourceIds: vi.fn().mockResolvedValue(input.developer ?? []),
+    readProjectSourceIds: vi.fn().mockResolvedValue(input.project ?? []),
   };
 }
 
@@ -63,22 +63,22 @@ describe("FrontlineSourceRegistry", () => {
 
 describe("resolveFrontlineSource", () => {
   it("uses invocation, then developer, then project preference precedence", async () => {
-    const invocationPreferences = preferences({ developer: "fresh-agent", project: "fresh-agent" });
+    const invocationPreferences = preferences({ developer: ["fresh-agent"], project: ["fresh-agent"] });
     await expect(resolveFrontlineSource({
       invocationSourceId: "review-cli",
       preferences: invocationPreferences,
       registry,
     })).resolves.toMatchObject({ sourceTier: "invocation", source: { sourceId: "review-cli" } });
-    expect(invocationPreferences.readDeveloperSourceId).not.toHaveBeenCalled();
-    expect(invocationPreferences.readProjectSourceId).not.toHaveBeenCalled();
+    expect(invocationPreferences.readDeveloperSourceIds).not.toHaveBeenCalled();
+    expect(invocationPreferences.readProjectSourceIds).not.toHaveBeenCalled();
 
     await expect(resolveFrontlineSource({
-      preferences: preferences({ developer: "fresh-agent", project: "review-cli" }),
+      preferences: preferences({ developer: ["fresh-agent"], project: ["review-cli"] }),
       registry,
     })).resolves.toMatchObject({ sourceTier: "developer", source: { sourceId: "fresh-agent" } });
 
     await expect(resolveFrontlineSource({
-      preferences: preferences({ project: "review-cli" }),
+      preferences: preferences({ project: ["review-cli"] }),
       registry,
     })).resolves.toMatchObject({ sourceTier: "project", source: { sourceId: "review-cli" } });
   });
@@ -95,7 +95,7 @@ describe("resolveFrontlineSource", () => {
     ["malformed", "bad source", "malformed-source-id"],
     ["unregistered", "missing-source", "unregistered-source-id"],
   ])("diagnoses %s invocation IDs and resolves unbound", async (_case, sourceId, code) => {
-    const reader = preferences({ developer: "fresh-agent", project: "review-cli" });
+    const reader = preferences({ developer: ["fresh-agent"], project: ["review-cli"] });
     const result = await resolveFrontlineSource({ invocationSourceId: sourceId, preferences: reader, registry });
 
     expect(result).toEqual({
@@ -103,12 +103,12 @@ describe("resolveFrontlineSource", () => {
       sourceTier: "unbound",
       diagnostics: [{ code, tier: "invocation", sourceId }],
     });
-    expect(reader.readDeveloperSourceId).not.toHaveBeenCalled();
+    expect(reader.readDeveloperSourceIds).not.toHaveBeenCalled();
   });
 
   it("diagnoses invalid stored preferences while continuing the fallback chain", async () => {
     const result = await resolveFrontlineSource({
-      preferences: preferences({ developer: "bad source", project: "missing-source" }),
+      preferences: preferences({ developer: ["bad source"], project: ["missing-source"] }),
       registry,
     });
 
@@ -122,11 +122,31 @@ describe("resolveFrontlineSource", () => {
     });
   });
 
+  it("selects the first registered source from each ordered preference list", async () => {
+    const result = await resolveFrontlineSource({
+      preferences: preferences({
+        developer: ["missing-source", "fresh-agent", "review-cli"],
+        project: ["review-cli"],
+      }),
+      registry,
+    });
+
+    expect(result).toEqual({
+      source: registry.resolve("fresh-agent"),
+      sourceTier: "developer",
+      diagnostics: [{
+        code: "unregistered-source-id",
+        tier: "developer",
+        sourceId: "missing-source",
+      }],
+    });
+  });
+
   it("keeps preference read failure visible while using a lower tier", async () => {
     const result = await resolveFrontlineSource({
       preferences: {
-        readDeveloperSourceId: vi.fn().mockRejectedValue(new Error("storage unavailable")),
-        readProjectSourceId: vi.fn().mockResolvedValue("review-cli"),
+        readDeveloperSourceIds: vi.fn().mockRejectedValue(new Error("storage unavailable")),
+        readProjectSourceIds: vi.fn().mockResolvedValue(["review-cli"]),
       },
       registry,
     });

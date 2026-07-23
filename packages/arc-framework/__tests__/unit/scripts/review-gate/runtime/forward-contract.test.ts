@@ -9,8 +9,8 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
-  INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
-} from "../../../../../src/scripts/review-gate/policy/independent-analysis.js";
+  STANDARD_REVIEW_RUBRIC_IDENTITY,
+} from "../../../../../src/scripts/review-gate/policy/standard-review.js";
 import { createForwardLifecycleTailProof } from "../../../../../src/scripts/review-gate/core/lifecycle-tail.js";
 import {
   projectForwardReviewContract,
@@ -43,12 +43,12 @@ function contract(options: {
     projection: {
       obligation: "required",
       reasons: ["sensitive-change-set"],
-      rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-      rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
       retrigger: options.retrigger ?? "full-final",
       count: 1,
     },
-    acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
     initialAdmission: "automatic",
   });
   if (requirement === null) throw new Error("expected requirement");
@@ -116,7 +116,7 @@ describe("forward review contract projection", () => {
     const records = contract({ carrier });
     expect(projectForwardReviewContract({ ...records, channel }).projection).toMatchObject({
       conclusion,
-      ...(conclusion === "failure" ? { blockers: [{ code: "independent-analysis:unqualified" }] } : {}),
+      ...(conclusion === "failure" ? { blockers: [{ code: "standard-review:unqualified" }] } : {}),
     });
   });
 
@@ -379,7 +379,7 @@ describe("forward review contract projection", () => {
     });
     expect(projectForwardReviewContract({ ...records, receipt: unavailable }).projection).toMatchObject({
       conclusion: "failure",
-      blockers: [{ code: "independent-analysis:unavailable" }],
+      blockers: [{ code: "standard-review:unavailable" }],
     });
   });
 

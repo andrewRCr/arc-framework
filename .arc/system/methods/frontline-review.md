@@ -1,6 +1,6 @@
 ---
 name: frontline-review
-description: Advisory pre-publication review that shapes a change before independent analysis
+description: Advisory pre-publication review that shapes a change before standard review
 related:
   - adversarial-review
   - implementation-audit
@@ -15,7 +15,7 @@ override-active: false
 >
 > - **Contract:** Run an advisory pre-publication review from fresh context using `adversarial-review` with the
 >   effective `implementation-audit` rubric. Return grounded findings to the author-side response cycle. Frontline
->   review cannot satisfy an independent-analysis obligation, produce satisfying evidence, or authorize mutation.
+>   review cannot satisfy an standard-review obligation, produce satisfying evidence, or authorize mutation.
 >   As agent-side ergonomics, it does not structurally enforce merge safety.
 
 ## frontline-review.override
@@ -33,4 +33,4 @@ result only after considering the complete target across every effective rubric 
 
 The pass is advisory regardless of its outcome. Return its report without editing the target, approving
 dispositions, closing conversations, or attesting review evidence. The caller owns whether to invoke this method,
-which review source carries it, and what downstream independent-analysis obligation remains.
+which review source carries it, and what downstream standard-review obligation remains.

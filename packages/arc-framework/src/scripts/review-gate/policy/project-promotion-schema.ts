@@ -13,13 +13,13 @@ export const ProjectRoutingPromotionSchema = z.strictObject({
   policyId: PolicyIdSchema,
   authorSelfReview: z.enum(["recommended", "required"]).optional(),
   frontlineAction: z.enum(["offer", "attempt"]).optional(),
-  independentAnalysis: z.enum(["recommended", "required"]).optional(),
+  standardReview: z.enum(["recommended", "required"]).optional(),
   retrigger: z.enum(["incremental", "full-final"]).optional(),
   reasons: z.array(ProjectRoutingReasonSchema).min(1),
 }).refine((promotion) => (
   promotion.authorSelfReview !== undefined
   || promotion.frontlineAction !== undefined
-  || promotion.independentAnalysis !== undefined
+  || promotion.standardReview !== undefined
   || promotion.retrigger !== undefined
 ), {
   message: "a project promotion must promote at least one routing result",

@@ -19,7 +19,7 @@ import {
   importLocalReviewReceipt,
   LocalForwardReviewReceiptStore,
 } from "../../src/scripts/review-gate/hosts/local/receipt-store.js";
-import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/independent-analysis.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { attestLocalReviewResult } from "../../src/scripts/review-gate/runtime/local-attestation.js";
 import { projectForwardReviewContract } from "../../src/scripts/review-gate/runtime/forward-contract.js";
 
@@ -54,12 +54,12 @@ async function fixture() {
     projection: {
       obligation: "required",
       reasons: ["sensitive-change-set"],
-      rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-      rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
       retrigger: "full-final",
       count: 1,
     },
-    acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
     initialAdmission: "automatic",
   });
   if (requirement === null) throw new Error("expected requirement");

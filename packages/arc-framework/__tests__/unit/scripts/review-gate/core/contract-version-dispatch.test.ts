@@ -22,7 +22,7 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createReceipt } from "../../../../../src/scripts/review-gate/core/request-key.js";
-import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../../../../../src/scripts/review-gate/policy/independent-analysis.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../../../../src/scripts/review-gate/policy/standard-review.js";
 
 const bareDigest = (character: string): string => character.repeat(64);
 const objectId = (character: string): string => character.repeat(40);
@@ -41,14 +41,14 @@ function legacy() {
   };
   const requirement: ReviewRequirement = {
     schemaVersion: 1,
-    id: "independent-analysis",
-    kind: "independent-analysis",
+    id: "standard-review",
+    kind: "standard-review",
     obligation: "required",
-    acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
     count: 1,
     initialAdmission: "automatic",
     policyVersion: bareDigest("e"),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     reasons: ["reviewed-sensitive"],
     changeSetId: target.changeSetId,
     headSha: target.headSha,
@@ -102,12 +102,12 @@ function forward() {
     projection: {
       obligation: "required",
       reasons: ["sensitive-change-set"],
-      rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-      rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
       retrigger: "full-final",
       count: 1,
     },
-    acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
     initialAdmission: "automatic",
   });
   if (requirement === null) throw new Error("expected requirement");

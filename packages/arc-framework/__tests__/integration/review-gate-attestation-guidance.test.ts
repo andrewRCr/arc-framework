@@ -17,7 +17,7 @@ describe("provider-neutral attestation guidance", () => {
     for (const mechanism of ["Codex CLI", "Claude Code", "CodeRabbit CLI", "qualified human"]) {
       expect(content).toMatch(new RegExp(`\\| ${mechanism}\\s+\\|`, "u"));
     }
-    expect(content).toContain("independent-analysis/v1");
+    expect(content).toContain("standard-review/v1");
     expect(content).toContain("full current change set");
     expect(content).not.toMatch(/codex review|claude review|coderabbit review/iu);
     expect(content).toContain(SELF_HOSTING_REVIEW_CHECKLIST_BLOCK);

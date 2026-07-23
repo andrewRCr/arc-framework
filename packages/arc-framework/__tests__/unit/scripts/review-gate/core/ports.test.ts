@@ -126,11 +126,11 @@ describe("review adapter ports", () => {
       currentHeadSha: "a".repeat(40),
       reviewed: {
         baseRef: "main", diffBaseSha: "b".repeat(40), policyVersion: "c".repeat(64),
-        rubricVersion: "independent-analysis/v1", sourceIdentity: "agent-1",
+        rubricVersion: "standard-review/v1", sourceIdentity: "agent-1",
       },
       current: {
         baseRef: "main", diffBaseSha: "b".repeat(40), policyVersion: "c".repeat(64),
-        rubricVersion: "independent-analysis/v1", sourceIdentity: "agent-1",
+        rubricVersion: "standard-review/v1", sourceIdentity: "agent-1",
       },
     })).resolves.toBeNull();
     await expect(provider.readCapacity("agent-9")).resolves.toBe(capacity);

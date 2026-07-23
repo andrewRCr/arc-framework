@@ -1,18 +1,18 @@
-/** Canonical identity for the independent-analysis delivery standard. */
+/** Canonical identity for the standard-review delivery standard. */
 
 import { canonicalDigest, canonicalize } from "../../../lib/kernel/index.js";
 
 import {
-  IndependentAnalysisContractSchema,
-  IndependentAnalysisRubricDigestPreimageSchema,
+  StandardReviewContractSchema,
+  StandardReviewRubricDigestPreimageSchema,
   ReviewRubricIdentitySchema,
-  type IndependentAnalysisContract,
+  type StandardReviewContract,
   type ReviewRubricIdentity,
-} from "./independent-analysis-schema.js";
+} from "./standard-review-schema.js";
 
 /** Typed baseline whose semantic fields determine the satisfying review standard. */
-export const INDEPENDENT_ANALYSIS_BASELINE_CONTRACT = Object.freeze(IndependentAnalysisContractSchema.parse({
-  version: "independent-analysis/v1",
+export const STANDARD_REVIEW_BASELINE_CONTRACT = Object.freeze(StandardReviewContractSchema.parse({
+  version: "standard-review/v1",
   coverage: {
     scope: "complete-requested-change-set",
     targetBinding: "exact-review-target",
@@ -51,15 +51,15 @@ export const INDEPENDENT_ANALYSIS_BASELINE_CONTRACT = Object.freeze(IndependentA
 }));
 
 /** Derive the standard version and rubric digest solely from its registered semantic preimage. */
-export function deriveIndependentAnalysisRubricIdentity(input: unknown): ReviewRubricIdentity {
-  const contract = IndependentAnalysisContractSchema.parse(input);
-  if (contract.version === INDEPENDENT_ANALYSIS_BASELINE_CONTRACT.version
+export function deriveStandardReviewRubricIdentity(input: unknown): ReviewRubricIdentity {
+  const contract = StandardReviewContractSchema.parse(input);
+  if (contract.version === STANDARD_REVIEW_BASELINE_CONTRACT.version
     && canonicalize(identityFields(contract))
-      !== canonicalize(identityFields(INDEPENDENT_ANALYSIS_BASELINE_CONTRACT))) {
-    throw new Error("independent-analysis semantic changes require a version change");
+      !== canonicalize(identityFields(STANDARD_REVIEW_BASELINE_CONTRACT))) {
+    throw new Error("standard-review semantic changes require a version change");
   }
-  const preimage = IndependentAnalysisRubricDigestPreimageSchema.parse({
-    domain: "arc.independent-analysis.rubric-digest/v1",
+  const preimage = StandardReviewRubricDigestPreimageSchema.parse({
+    domain: "arc.standard-review.rubric-digest/v1",
     ...contract,
   });
   return ReviewRubricIdentitySchema.parse({
@@ -68,7 +68,7 @@ export function deriveIndependentAnalysisRubricIdentity(input: unknown): ReviewR
   });
 }
 
-function identityFields(contract: IndependentAnalysisContract): Omit<IndependentAnalysisContract, "version"> {
+function identityFields(contract: StandardReviewContract): Omit<StandardReviewContract, "version"> {
   return {
     coverage: contract.coverage,
     evaluatorBoundary: contract.evaluatorBoundary,
@@ -79,20 +79,20 @@ function identityFields(contract: IndependentAnalysisContract): Omit<Independent
 }
 
 /** Require a semantic contract change to advance the explicit standard version. */
-export function validateIndependentAnalysisContractEvolution(
+export function validateStandardReviewContractEvolution(
   previousInput: unknown,
   nextInput: unknown,
 ): ReviewRubricIdentity {
-  const previous = IndependentAnalysisContractSchema.parse(previousInput);
-  const next = IndependentAnalysisContractSchema.parse(nextInput);
+  const previous = StandardReviewContractSchema.parse(previousInput);
+  const next = StandardReviewContractSchema.parse(nextInput);
   if (canonicalize(identityFields(previous)) !== canonicalize(identityFields(next))
     && previous.version === next.version) {
-    throw new Error("independent-analysis semantic changes require a version change");
+    throw new Error("standard-review semantic changes require a version change");
   }
-  return deriveIndependentAnalysisRubricIdentity(next);
+  return deriveStandardReviewRubricIdentity(next);
 }
 
 /** Canonical identity consumed by obligation, requirement, and carrier projections. */
-export const INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY = Object.freeze(
-  deriveIndependentAnalysisRubricIdentity(INDEPENDENT_ANALYSIS_BASELINE_CONTRACT),
+export const STANDARD_REVIEW_RUBRIC_IDENTITY = Object.freeze(
+  deriveStandardReviewRubricIdentity(STANDARD_REVIEW_BASELINE_CONTRACT),
 );

@@ -6,7 +6,7 @@ arc:
     - adversarial-review
     - self-review
     - frontline-review
-    - independent-analysis
+    - standard-review
     - implementation-audit
     - review-triage
     - review-response
@@ -111,7 +111,7 @@ action rereads live state, reject it unless operation, target/request, generatio
 current suspension; duplicate current wakeups are harmless canonical rereads.
 
 | Resolver and PR state                         | Demonstrably already ran             | Resume at                                                          |
-|-----------------------------------------------|--------------------------------------|--------------------------------------------------------------------|
+| --------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------ |
 | `integrating`; no PR open                     | transition                           | Step 2 (local preflight → creation path)                           |
 | `integrating`; PR open, not merged            | transition, PR open                  | Step 4 (`post-pr-open` → review iteration), then candidate tail    |
 | `shipped` in `completed`; PR open, not merged | transition, PR open, candidate sweep | Step 13 (validate products, then final settlement)                 |
@@ -197,7 +197,7 @@ both the newly-created path and every open-PR re-entry; actions derive current c
 Review coordination and every hook invocation share this exact-head contract. If a review action changes the head,
 recompose `openedChangeRequest` from the canonical current head before re-entry; never carry the prior head forward.
 
-Invoke the active project review coordinator's source-neutral independent-analysis cycle with the exact target,
+Invoke the active project review coordinator's source-neutral standard-review cycle with the exact target,
 effective routed obligation, and explicit project channel `local | hosted | both`. The coordinator selects and
 normalizes the admitted carrier, reduces its result, and sends findings through [`review-response`][review-response].
 If the selected source is unavailable, partial, or failed, only a required obligation blocks; recommended work stays
