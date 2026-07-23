@@ -16,6 +16,18 @@
 > _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
 > _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
+### `[ ]` **`decomposition-hardening` rename-move marker is an operational projection to re-vocabulary later**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during
+  `decomposition-hardening` create-spec finalization.
+- _Concern:_ DH area 3 adds a session-init sweep surface for "worktree path lags renamed identity" as an
+  **operational stamped marker** (derived projection reusing husk-stamp mechanics), minting **no** lifecycle-state
+  term — because this WU owns that vocabulary and is unsettled. When this model settles, it may fold the marker
+  into a named terminal state **without schema churn**.
+- _Fold-in:_ treat the shipped rename-move marker as a candidate to absorb into the state model at settle time
+  (same boundary posture as the pending-teardown husk formalization already buffered here). See
+  `spec-decomposition-hardening.md` area 3.
+
 ### `[ ]` **Advance `Last Completed` at planning-stage finalize**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during `wu-rename`
