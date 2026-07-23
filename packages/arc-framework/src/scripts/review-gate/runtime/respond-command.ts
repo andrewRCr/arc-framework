@@ -10,9 +10,15 @@ import {
 } from "../core/advisory-records.js";
 import {
   ApprovedDispositionSetSchema,
+  type DispositionReportItem,
+  type ProposedDispositionSet,
   type ApprovedDispositionSet,
 } from "../core/disposition-records.js";
-import { validateDispositionState } from "../core/dispositions.js";
+import {
+  createDispositionSet,
+  proposeDispositionSet,
+  validateDispositionState,
+} from "../core/dispositions.js";
 import { validateReviewReceipt } from "../core/gate-contract-v2.js";
 import {
   type ReviewReceiptV2,
@@ -44,11 +50,37 @@ const RespondSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("frontline"), outcomeRef: z.string().trim().min(1) }),
 ]);
 
-export const RespondRequestSchema = z.strictObject({
+const AuthorDispositionSchema = z.strictObject({
+  findingId: z.string().trim().min(1).max(512),
+  sourceVerification: z.enum(["verified", "not-supported"]),
+  verificationRefs: z.array(z.string().trim().min(1)).min(1),
+  disposition: z.enum(["fix", "defer", "reject"]),
+  rationale: z.string().trim().min(1).max(4096),
+  recommendation: z.string().trim().min(1).max(4096),
+  openQuestions: z.array(z.string().trim().min(1).max(4096)),
+});
+
+const RespondProposalRequestSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  source: z.strictObject({
+    kind: z.literal("attested-local"),
+    receiptRef: z.string().trim().min(1),
+  }),
+  proposal: z.strictObject({
+    findings: z.array(AuthorDispositionSchema).min(1),
+  }),
+});
+
+const RespondApprovedRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   source: RespondSourceSchema,
   dispositions: ApprovedDispositionSetSchema,
 });
+
+export const RespondRequestSchema = z.union([
+  RespondProposalRequestSchema,
+  RespondApprovedRequestSchema,
+]);
 
 interface ResponseActors {
   approverIdentity: string;
@@ -133,6 +165,55 @@ function validateFindings(
         && item.nit === finding.nit;
     })) {
     throw new RespondCommandError("invalid-input", "approved dispositions do not match the selected review source");
+  }
+}
+
+function prepareDispositionProposal(
+  request: z.infer<typeof RespondProposalRequestSchema>,
+  source: ResolvedResponseSource,
+): ProposedDispositionSet {
+  if (source.policyVersion === undefined
+    || source.rubricVersion === undefined
+    || source.rubricDigest === undefined) {
+    throw new RespondCommandError("corrupt-state", "local response source lacks disposition context");
+  }
+  if (request.proposal.findings.length !== source.findings.length) {
+    throw new RespondCommandError("invalid-input", "proposal must disposition every selected-source finding");
+  }
+  const decisions = new Map(request.proposal.findings.map((finding) => [finding.findingId, finding]));
+  if (decisions.size !== request.proposal.findings.length) {
+    throw new RespondCommandError("invalid-input", "proposal contains duplicate finding identities");
+  }
+  const findings: DispositionReportItem[] = source.findings.map((finding) => {
+    const decision = decisions.get(finding.findingId);
+    if (decision === undefined) {
+      throw new RespondCommandError("invalid-input", "proposal must disposition every selected-source finding");
+    }
+    return {
+      ...decision,
+      sourceIdentity: source.sourceIdentity,
+      locus: finding.locus,
+      severity: finding.severity,
+      ...(finding.nit === true ? { nit: true as const } : {}),
+      gating: finding.severity === "minor" ? "record-only" : "blocking",
+    };
+  });
+  try {
+    return proposeDispositionSet(createDispositionSet({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      targetId: source.target.targetId,
+      policyVersion: source.policyVersion,
+      rubricVersion: source.rubricVersion,
+      rubricDigest: source.rubricDigest,
+      proposedBy: source.actors.proposerIdentity,
+      findings,
+    }));
+  } catch (error) {
+    throw new RespondCommandError(
+      "invalid-input",
+      error instanceof Error ? error.message : "invalid disposition proposal",
+    );
   }
 }
 
@@ -250,17 +331,6 @@ export async function respondToReviewCommand(
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const request = RespondRequestSchema.parse(requestInput);
-  let dispositions: ApprovedDispositionSet;
-  try {
-    const validated = validateDispositionState(request.dispositions);
-    if (validated.state !== "approved") throw new Error("respond requires approved dispositions");
-    dispositions = validated;
-  } catch (error) {
-    throw new RespondCommandError(
-      "invalid-input",
-      error instanceof Error ? error.message : "invalid approved dispositions",
-    );
-  }
   let source: ResolvedResponseSource;
   try {
     source = request.source.kind === "attested-local"
@@ -277,8 +347,6 @@ export async function respondToReviewCommand(
       error instanceof Error ? error.message : "review response source cannot be validated",
     );
   }
-  validateActors(dispositions, source.actors);
-  validateFindings(dispositions, source);
   const confirmation = await dependencies.confirmTarget(source.target);
   if (confirmation.state === "stale-target") {
     return RespondEnvelopeSchema.parse({
@@ -294,6 +362,32 @@ export async function respondToReviewCommand(
       },
     });
   }
+  if ("proposal" in request) {
+    return RespondEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-respond",
+      diagnostics: [],
+      state: "awaiting-approval",
+      nextAction: "obtain-approval",
+      payload: {
+        operationId: source.operationId,
+        proposal: prepareDispositionProposal(request, source),
+      },
+    });
+  }
+  let dispositions: ApprovedDispositionSet;
+  try {
+    const validated = validateDispositionState(request.dispositions);
+    if (validated.state !== "approved") throw new Error("respond requires approved dispositions");
+    dispositions = validated;
+  } catch (error) {
+    throw new RespondCommandError(
+      "invalid-input",
+      error instanceof Error ? error.message : "invalid approved dispositions",
+    );
+  }
+  validateActors(dispositions, source.actors);
+  validateFindings(dispositions, source);
   const plan = projectApprovedResponse(source, dispositions);
   if (plan.state !== "ready-to-fix" && plan.state !== "ready-to-close") {
     throw new RespondCommandError("corrupt-state", `approved response produced unsupported state '${plan.state}'`);

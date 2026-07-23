@@ -869,7 +869,7 @@ localReviewCmd
 
 reviewCmd
   .command("respond")
-  .description("Persist one approved source-bound review disposition set as JSON")
+  .description("Prepare or persist one source-bound review disposition set as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewRespond(input));

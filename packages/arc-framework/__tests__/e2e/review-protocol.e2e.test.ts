@@ -1,10 +1,8 @@
-import { createHash } from "node:crypto";
 import { delimiter, join } from "node:path";
 import {
   access,
   chmod,
   mkdir,
-  readdir,
   readFile,
   writeFile,
 } from "node:fs/promises";
@@ -54,20 +52,25 @@ interface ReviewEnvelope {
   payload: unknown;
 }
 
-interface LocalOperationRecord {
-  state: {
+interface ProposedDispositionState {
+  schemaVersion: 2;
+  semanticsVersion: "review-gate/v2";
+  state: "proposed";
+  dispositionSet: {
+    schemaVersion: 2;
+    semanticsVersion: "review-gate/v2";
+    targetId: string;
     policyVersion: string;
-    requirement: {
-      rubricVersion: string;
-      rubricDigest: string;
-    };
-    request: {
-      evaluatorIdentity: string;
-    };
-    attestation: {
-      runtimeIdentity: string;
-    };
+    rubricVersion: string;
+    rubricDigest: string;
+    proposedBy: string;
+    findings: unknown[];
+    dispositionSetId: string;
   };
+}
+
+interface AwaitingApprovalPayload {
+  proposal: ProposedDispositionState;
 }
 
 interface ReductionFindingsPayload {
@@ -94,29 +97,6 @@ function envelope(result: RunResult): ReviewEnvelope {
 
 async function invoke(root: string, command: string[], request: unknown): Promise<ReviewEnvelope> {
   return envelope(await runArcWithStdin(command, root, `${JSON.stringify(request)}\n`));
-}
-
-function canonicalize(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map((item) => canonicalize(item)).join(",")}]`;
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record).sort().map((key) => (
-    `${JSON.stringify(key)}:${canonicalize(record[key])}`
-  )).join(",")}}`;
-}
-
-function digest(value: unknown): string {
-  return `sha256:${createHash("sha256").update(canonicalize(value), "utf8").digest("hex")}`;
-}
-
-async function readLocalOperation(root: string): Promise<LocalOperationRecord> {
-  const common = await git(root, ["rev-parse", "--git-common-dir"]);
-  const directory = join(root, common, "arc", "review-gate", "operations");
-  const names = await readdir(directory);
-  expect(names).toHaveLength(1);
-  const name = names[0];
-  if (name === undefined) throw new Error("review operation record is unavailable");
-  return JSON.parse(await readFile(join(directory, name), "utf8")) as LocalOperationRecord;
 }
 
 async function fixture(): Promise<string> {
@@ -189,46 +169,35 @@ function localResult(
   };
 }
 
-async function approvedRejection(root: string, prepared: LocalPreparePayload) {
-  const operation = (await readLocalOperation(root)).state;
-  const finding = localResult(prepared, "findings").findings[0];
-  if (finding === undefined) throw new Error("finding fixture is unavailable");
-  const fields = {
-    schemaVersion: 2 as const,
-    semanticsVersion: "review-gate/v2" as const,
-    targetId: prepared.target.targetId,
-    policyVersion: operation.policyVersion,
-    rubricVersion: operation.requirement.rubricVersion,
-    rubricDigest: operation.requirement.rubricDigest,
-    proposedBy: operation.attestation.runtimeIdentity,
-    findings: [{
-      findingId: finding.findingId,
-      sourceIdentity: operation.request.evaluatorIdentity,
-      locus: finding.locus,
-      sourceVerification: "verified",
-      verificationRefs: ["source:reviewed.txt:1"],
-      severity: finding.severity,
-      disposition: "reject",
-      gating: "blocking",
-      rationale: "The reviewed source supports recording this disposition.",
-      recommendation: "Record the rejected finding.",
-      openQuestions: [],
-    }],
-  };
-  const dispositionSetId = digest({
-    domain: "arc.review-gate.disposition-set/v2",
-    ...fields,
+async function approvedRejection(
+  root: string,
+  source: ReductionFindingsPayload["responseSource"],
+) {
+  const prepared = await invoke(root, ["review", "respond", "-"], {
+    schemaVersion: 1,
+    source,
+    proposal: {
+      findings: [{
+        findingId: "finding-1",
+        sourceVerification: "verified",
+        verificationRefs: ["source:reviewed.txt:1"],
+        disposition: "reject",
+        rationale: "The reviewed source supports recording this disposition.",
+        recommendation: "Record the rejected finding.",
+        openQuestions: [],
+      }],
+    },
   });
+  expect(prepared).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
+  const proposal = (prepared.payload as AwaitingApprovalPayload).proposal;
   return {
-    schemaVersion: 2,
-    semanticsVersion: "review-gate/v2",
-    state: "approved",
-    dispositionSet: { ...fields, dispositionSetId },
+    ...proposal,
+    state: "approved" as const,
     approval: {
-      schemaVersion: 2,
-      semanticsVersion: "review-gate/v2",
-      targetId: prepared.target.targetId,
-      dispositionSetId,
+      schemaVersion: 2 as const,
+      semanticsVersion: "review-gate/v2" as const,
+      targetId: proposal.dispositionSet.targetId,
+      dispositionSetId: proposal.dispositionSet.dispositionSetId,
       approvedBy: "test-user",
       approvedAt: "2026-07-23T21:00:00Z",
     },
@@ -282,7 +251,7 @@ describe("built review protocol", () => {
     const request = {
       schemaVersion: 1,
       source: responseSource,
-      dispositions: await approvedRejection(root, prepared),
+      dispositions: await approvedRejection(root, responseSource),
     };
     await expect(invoke(root, ["review", "respond", "-"], request))
       .resolves.toMatchObject({ state: "settled", nextAction: "reduce" });

@@ -175,15 +175,18 @@ Dispatch attestation by its typed action: run `arc review reduce -` on `attested
 `stale-target / prepare-current-target`; rerun the review on `expired / rerun-review` or
 `not-attestable / rerun-review`. After an interruption, invoke `arc review local resume -` with the operation ID and
 follow its returned action rather than reconstructing state. On `respond-to-findings / respond`, run
-[`review-response`][review-response] and persist the approved receipt-bound dispositions with
-`arc review respond -`.
+[`review-response`][review-response], then pass the receipt reference and author-owned finding decisions to
+`arc review respond -`. On `awaiting-approval / obtain-approval`, present the returned canonical proposal; after
+exact approval, resubmit that proposal as the approved disposition state.
 
-Dispatch `respond` by its typed pair: on `ready-to-fix / apply-fix`, apply only the approved fix set, run Tier 1
-quality gates, commit through the applicable interlock, push through the workflow-wide push contract, then recompose
-the exact target and restart the selected review lane; on `settled / reduce` or `already-settled / reduce`, invoke
-`arc review reduce -`; on `stale-target / prepare-current-target`, recompose the target. Dispatch `reduce` the same
-way: route `findings / respond` through [`review-response`][review-response] and `respond`; continue on
-`settled / none` or `advisory-complete / none`; invoke the returned retry command on `retryable / retry`; recompose on
+Dispatch `respond` by its typed pair: on `awaiting-approval / obtain-approval`, follow the approval step above; on
+`ready-to-fix / apply-fix`, apply only the approved fix set, run Tier 1 quality gates, commit through the applicable
+interlock, push through the workflow-wide push contract, then recompose the exact target and restart the selected
+review lane; on `settled / reduce` or `already-settled / reduce`, invoke `arc review reduce -`; on
+`stale-target / prepare-current-target`, recompose the exact target and restart the selected review lane. Dispatch
+`reduce` the same way: route
+`findings / respond` through [`review-response`][review-response] and `respond`; continue on `settled / none` or
+`advisory-complete / none`; invoke the returned retry command on `retryable / retry`; recompose on
 `stale-target / prepare-current-target`.
 
 Any command error envelope, including `invalid-input`, stops the lane and carries no dispatchable state. Never treat

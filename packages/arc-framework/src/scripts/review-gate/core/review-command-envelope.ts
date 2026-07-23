@@ -16,6 +16,7 @@ import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
 import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
 import { ReviewReductionProjectionSchema } from "./advisory-records.js";
 import { NormalizedReviewFindingSchema } from "./finding-records.js";
+import { ProposedDispositionSetSchema } from "./disposition-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import {
@@ -283,6 +284,15 @@ const DispositionPayloadSchema = z.strictObject({
   frontlineFollowUp: FrontlineFollowUpAdviceSchema.optional(),
 });
 export const RespondEnvelopeSchema = z.union([
+  envelopeVariant(
+    "review-respond",
+    "awaiting-approval",
+    "obtain-approval",
+    z.strictObject({
+      operationId: IdentifierSchema,
+      proposal: ProposedDispositionSetSchema,
+    }),
+  ),
   envelopeVariant(
     "review-respond",
     "ready-to-fix",

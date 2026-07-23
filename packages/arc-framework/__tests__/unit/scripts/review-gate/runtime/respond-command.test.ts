@@ -241,6 +241,71 @@ function localRequest(
 }
 
 describe("review response command", () => {
+  it("constructs a source-bound proposal from author-owned finding decisions", async () => {
+    const records = fixture();
+    const earlierFinding = {
+      findingId: "finding-0",
+      severity: "major" as const,
+      locus: "src/earlier.ts:3",
+      evidenceUrlOrId: "review:finding-0",
+    };
+    records.receipt.findings.push(earlierFinding);
+
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          disposition: "fix",
+          rationale: "The selected source supports this disposition.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }, {
+          findingId: earlierFinding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/earlier.ts:3"],
+          disposition: "fix",
+          rationale: "The selected source supports this disposition.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }, dependencies(records))).resolves.toMatchObject({
+      state: "awaiting-approval",
+      nextAction: "obtain-approval",
+      payload: {
+        operationId: records.operation.operationId,
+        proposal: {
+          state: "proposed",
+          dispositionSet: {
+            targetId: records.target.targetId,
+            policyVersion: records.operation.policyVersion,
+            rubricVersion: records.operation.requirement.rubricVersion,
+            rubricDigest: records.operation.requirement.rubricDigest,
+            proposedBy: records.authority.runtimeIdentity,
+            findings: [{
+              findingId: earlierFinding.findingId,
+              sourceIdentity: records.authority.evaluatorIdentity,
+              locus: earlierFinding.locus,
+              severity: earlierFinding.severity,
+              gating: "blocking",
+            }, {
+              findingId: records.finding.findingId,
+              sourceIdentity: records.authority.evaluatorIdentity,
+              locus: records.finding.locus,
+              severity: records.finding.severity,
+              gating: "blocking",
+            }],
+            dispositionSetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+          },
+        },
+      },
+    });
+  });
+
   it("reloads local receipt and source authority and returns a validated fix authorization", async () => {
     const records = fixture();
     await expect(respondToReviewCommand(localRequest(records), dependencies(records))).resolves.toMatchObject({

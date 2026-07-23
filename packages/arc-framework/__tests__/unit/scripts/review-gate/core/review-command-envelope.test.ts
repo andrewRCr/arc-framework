@@ -12,6 +12,10 @@ import {
   type ReviewCommandMode,
 } from "../../../../../src/scripts/review-gate/core/review-command-envelope.js";
 import {
+  createDispositionSet,
+  proposeDispositionSet,
+} from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import {
   projectLocalReviewGuidance,
 } from "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import {
@@ -122,6 +126,28 @@ const localResult = {
   applicabilityId: null,
   findings: [],
 };
+const dispositionProposal = proposeDispositionSet(createDispositionSet({
+  schemaVersion: 2,
+  semanticsVersion: "review-gate/v2",
+  targetId: target.targetId,
+  policyVersion: digest,
+  rubricVersion: "standard-review/v1",
+  rubricDigest: digest,
+  proposedBy: "arc-cli/0.1.0",
+  findings: [{
+    findingId: "finding-1",
+    sourceIdentity: "evaluator-1",
+    locus: "src/index.ts:1",
+    sourceVerification: "verified",
+    verificationRefs: ["source:src/index.ts:1"],
+    severity: "major",
+    disposition: "fix",
+    gating: "blocking",
+    rationale: "The source supports this finding.",
+    recommendation: "Apply the fix.",
+    openQuestions: [],
+  }],
+}));
 
 describe("review command envelopes", () => {
   it.each([
@@ -183,6 +209,11 @@ describe("review command envelopes", () => {
       ...header("review-local-prepare"),
       state: "stale-target", nextAction: "prepare-current-target",
       payload: { attemptedTarget: target, currentTarget: target },
+    }],
+    [RespondEnvelopeSchema, {
+      ...header("review-respond"),
+      state: "awaiting-approval", nextAction: "obtain-approval",
+      payload: { operationId: "local-1", proposal: dispositionProposal },
     }],
     [RespondEnvelopeSchema, {
       ...header("review-respond"),

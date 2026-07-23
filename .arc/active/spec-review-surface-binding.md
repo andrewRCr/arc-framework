@@ -136,10 +136,11 @@ Responsibility divides as follows:
    trusted boundary, validates the exact target, rubric, and delivered-guidance digest, and appends the advisory
    local receipt. It records that a review ran against the exact reviewed bytes; it appends no downstream-satisfying
    guidance-evidence pair (D8). It returns the reduction transition.
-5. **Respond.** After the existing review-response checkpoint has presented the complete source-verified report and
-   obtained approval, `arc review respond` accepts that strict `ApprovedDispositionSet` against either the
-   attested-local receipt or one durable frontline outcome, then appends the approved dispositions as one advisory
-   disposition record (D9).
+5. **Respond.** For an attested-local receipt, `arc review respond` first combines author-owned finding decisions
+   with the source-owned receipt context and returns the canonical proposed disposition set. After the existing
+   review-response checkpoint presents that exact proposal and obtains approval, `respond` accepts the strict
+   `ApprovedDispositionSet` against the receipt and appends it as one advisory disposition record. A frontline
+   response continues to accept the strict approved set against its durable outcome (D9).
 6. **Reduce.** `arc review reduce` is the invocable composition over the shipped requirement, qualification,
    response, and projection reducers. It is read-only.
 7. **Resume.** `arc review local resume` reads the durable operation record plus current repository facts and emits
@@ -161,12 +162,12 @@ schema, and reference projections derive from those types; the vocabulary below 
 hand-maintained runtime schema.
 
 | Command             | Legal `state -> nextAction` pairs                                                                                                                                                       |
-|---------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `frontline resolve` | `skipped -> none`; `offered -> bind-source` when no source resolved; `offered -> obtain-authorization` when a source resolved; `ready -> run-frontline`                                 |
 | `frontline run`     | `clean -> none`; `findings -> respond`; `unavailable -> retry \| operator-repair`; `timed-out -> retry`; `stale-target -> prepare-current-target`; `failed -> retry \| operator-repair` |
 | `local prepare`     | `exempt -> none`; `ready -> launch-review`; `unavailable -> operator-repair`; `stale-target -> prepare-current-target`                                                                  |
 | `local attest`      | `attested-current -> reduce`; `stale-target -> prepare-current-target`; `expired -> rerun-review`; `not-attestable -> rerun-review`                                                     |
-| `respond`           | `ready-to-fix -> apply-fix`; `settled -> reduce`; `already-settled -> reduce`; `stale-target -> prepare-current-target`                                                                 |
+| `respond`           | `awaiting-approval -> obtain-approval`; `ready-to-fix -> apply-fix`; `settled -> reduce`; `already-settled -> reduce`; `stale-target -> prepare-current-target`                         |
 | `reduce`            | `findings -> respond`; `settled -> none`; `advisory-complete -> none`; `retryable -> retry`; `stale-target -> prepare-current-target`                                                   |
 | `local resume`      | `suspended -> wait`; `review-complete -> reduce`; `respond-to-findings -> respond`; `stale-target -> prepare-current-target`; `expired -> rerun-review`                                 |
 
@@ -220,15 +221,15 @@ Callers never provide compare-and-swap expected versions. Each mutating handler 
 performs its internal version-checked write, and returns `persistedVersion` on success when an operation or ledger
 record exists.
 
-| Command             | Caller-supplied request fields                                                                                                                                                   |
-|---------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `frontline resolve` | `schemaVersion`, `changeSet`, `invocation`, optional `maxPasses`; effect-free                                                                                                    |
-| `frontline run`     | `schemaVersion`, exact `target` from the project / host adapter, the complete `ready` resolution returned by resolve (which carries the authorized `pass`), optional `timeoutMs` |
-| `local prepare`     | `schemaVersion`, `evaluatorIdentity`, the five caller-owned `routingFacts` fields, optional `freshnessMs`                                                                        |
-| `local attest`      | `schemaVersion`, `operationId`, normalized `result`                                                                                                                              |
-| `respond`           | `schemaVersion`, discriminated `source`, strict `dispositions`; source is either `{ kind: attested-local, receiptRef }` or `{ kind: frontline, outcomeRef }`                     |
-| `reduce`            | `schemaVersion`, `operationId`                                                                                                                                                   |
-| `local resume`      | `schemaVersion`, `operationId`                                                                                                                                                   |
+| Command             | Caller-supplied request fields                                                                                                                                                                |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frontline resolve` | `schemaVersion`, `changeSet`, `invocation`, optional `maxPasses`; effect-free                                                                                                                 |
+| `frontline run`     | `schemaVersion`, exact `target` from the project / host adapter, the complete `ready` resolution returned by resolve (which carries the authorized `pass`), optional `timeoutMs`              |
+| `local prepare`     | `schemaVersion`, `evaluatorIdentity`, the five caller-owned `routingFacts` fields, optional `freshnessMs`                                                                                     |
+| `local attest`      | `schemaVersion`, `operationId`, normalized `result`                                                                                                                                           |
+| `respond`           | `schemaVersion`, discriminated `source`, then either attested-local author-owned `proposal.findings` or strict approved `dispositions`; approved source is local receipt or frontline outcome |
+| `reduce`            | `schemaVersion`, `operationId`                                                                                                                                                                |
+| `local resume`      | `schemaVersion`, `operationId`                                                                                                                                                                |
 
 Everything not listed is derived or reloaded internally. `local prepare` derives repository, target, vehicle,
 author, policy, rubric, runtime, immutable source, and operation identities, and applies the framework default when
@@ -303,8 +304,9 @@ non-ready variants never fabricate operations, evidence references, or targets t
   reference, and `receiptRecorded: true`. `stale-target` is a strict sub-union: pre-append carries
   `receiptRecorded: false` and no receipt reference; post-append carries `receiptRecorded: true` and the exact
   receipt reference. `expired` and `not-attestable` carry the operation / version and no receipt reference.
-- `respond` always returns the source review `operationId`. `ready-to-fix` returns the disposition-record reference
-  and validated `FixAuthorization`; `settled` and `already-settled` return the disposition-record reference.
+- `respond` always returns the source review `operationId`. `awaiting-approval` returns the canonical proposed
+  disposition set without a durable write. `ready-to-fix` returns the disposition-record reference and validated
+  `FixAuthorization`; `settled` and `already-settled` return the disposition-record reference.
 - Every `reduce` variant returns `operationId`, the loaded `persistedVersion`, and full current target. Local
   advisory variants (`settled`, `advisory-complete`, `findings`) return the advisory reduction projection over the
   local receipt and disposition status; `findings` also returns the exact response source references. A frontline
@@ -527,6 +529,12 @@ is a durable trace of the human disposition, never proof a downstream gate consu
 approval validation; `reduce` reads it to conclude settlement. The shipped disposition, approval, and
 fix-authorization contracts are consumed as-is; no parallel authority store or settlement-batch machinery is added.
 
+For attested-local findings, the first `respond` call accepts only author-owned decision fields keyed by finding
+identity. It reloads the receipt and operation, derives the target, policy, rubric, proposer, evaluator, locus,
+severity, and gating fields, canonicalizes the complete set with the shipped constructor, and returns the strict
+proposal without appending. The approved call must return that exact proposal with the active identity's approval.
+Callers never reproduce canonical ordering, hashing, or private operation fields.
+
 `respond` requires its approver to be the active local identity and its proposer to be the composing runtime
 identity — both derived at the trusted boundary by the same mechanism as the attesting runtime, never caller text —
 so the shipped distinct-actor check structurally encodes the agent-proposes / human-approves shape. It revalidates
@@ -696,7 +704,7 @@ claims several of these modules rested on.
 **Consume — this design wires it (14 modules).**
 
 | Module                                 | Wired by                                                |
-|----------------------------------------|---------------------------------------------------------|
+| -------------------------------------- | ------------------------------------------------------- |
 | `hosts/local/receipt-store.ts`         | local receipt append (D8)                               |
 | `hosts/local/operation-state-store.ts` | operation publication and reload (D6)                   |
 | `hosts/local/git-common-state.ts`      | identity record, sweep lock (D4, D5)                    |
@@ -720,7 +728,7 @@ only after that cut — **except** D7 here consumes `StandardReviewProjectAugmen
 jointly at build so neither WU deletes a module the other still consumes:
 
 | Module                               | Leaning (confirm at build)                                                                                              |
-|--------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | `policy/standard-review-guidance.ts` | **Consume** — D7's rubric binding parses its `StandardReviewProjectAugmentation`                                        |
 | `policy/standard-review.ts`          | **Consumer-test** — consume if the obligation projection (`standard-review-projection.ts`) imports it; retire otherwise |
 
@@ -729,7 +737,7 @@ that cohort retires there, so they are deleted on that WU's side rather than kep
 and coordinated — whichever branch lands first removes them:
 
 | Module                                | Was claimed by                                                                               |
-|---------------------------------------|----------------------------------------------------------------------------------------------|
+| ------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `providers/coderabbit/config.ts`      | provider qualification (retired) — deleted with the hosted provider surfaces                 |
 | `runtime/qualification-activation.ts` | activation-diff compilation (retired) — deleted with the qualification / promotion machinery |
 | `runtime/operations.ts`               | closed launcher inventory over the ten `run-*.ts` — deleted once those launchers are gone    |
@@ -742,7 +750,7 @@ cluster because `review-gate-right-sizing` retires the github-adapter WU that wa
 § D4 hands the disposition here); the consumer test now returns delete.
 
 | Module                                    | Reason                                                                                    |
-|-------------------------------------------|-------------------------------------------------------------------------------------------|
+| ----------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `runtime/review-reentry.ts`               | superseded design                                                                         |
 | `runtime/review-reentry-fallback.ts`      | superseded design                                                                         |
 | `runtime/review-wakeup-capability.ts`     | superseded design                                                                         |

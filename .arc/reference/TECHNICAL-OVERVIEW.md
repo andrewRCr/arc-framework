@@ -137,8 +137,9 @@ operations compose one advisory review protocol:
 - **Delegated local review** — `local prepare` derives and materializes an immutable change set, `local attest`
   validates the evaluator result against that source, and `local resume` reconstructs the next action from durable
   operation state.
-- **Disposition and reduction** — `respond` persists an approved, source-bound disposition set, while `reduce`
-  projects the current advisory result without turning it into merge authority.
+- **Disposition and reduction** — for attested local findings, `respond` first derives a canonical source-bound
+  proposal from author-owned decisions, then persists that exact proposal after approval; `reduce` projects the
+  current advisory result without turning it into merge authority.
 
 The same source tree still contains repository-only hosted-controller launchers and GitHub/provider adapters invoked
 by self-hosting scripts and Actions rather than the public command tree. That machinery remains separate from the
