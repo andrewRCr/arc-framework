@@ -83,7 +83,7 @@ import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
-import { handleReviewFrontlineResolve } from "./handlers/review.js";
+import { handleReviewFrontlineResolve, handleReviewHostedRequest } from "./handlers/review.js";
 import {
   handleCheckCommitMessage,
   type HandleCheckCommitMessageOptions,
@@ -820,6 +820,17 @@ frontlineCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewFrontlineResolve(input));
+
+const hostedCmd = reviewCmd
+  .command("hosted")
+  .description("Hosted pull-request review operations");
+
+hostedCmd
+  .command("request")
+  .description("Request one hosted pull-request review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewHostedRequest(input));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

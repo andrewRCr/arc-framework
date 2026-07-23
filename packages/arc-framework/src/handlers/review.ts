@@ -8,6 +8,10 @@ import { createLocalFrontlineSourcePreferenceReader } from "../scripts/review-ga
 import { resolveFrontlineCommand } from "../scripts/review-gate/policy/frontline-command.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
+import {
+  requestHostedReview,
+  type HostedReviewAdapter,
+} from "../scripts/review-gate/hosted/request.js";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -15,6 +19,21 @@ async function readStdin(): Promise<string> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks).toString("utf8");
+}
+
+async function readJsonSource(source: string): Promise<unknown> {
+  const text = source === "-" ? await readStdin() : await readFile(source, "utf8");
+  return JSON.parse(text) as unknown;
+}
+
+function emitReviewError(mode: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stdout.write(`${JSON.stringify({
+    schemaVersion: 1,
+    mode,
+    error: { code: "invalid-request", message },
+  })}\n`);
+  process.exitCode = 1;
 }
 
 /**
@@ -27,8 +46,7 @@ export async function handleReviewFrontlineResolve(source: string): Promise<void
   try {
     const root = resolveArcRoot(process.cwd());
     if (root === null) throw new Error("Not inside an ARC project.");
-    const text = source === "-" ? await readStdin() : await readFile(source, "utf8");
-    const request: unknown = JSON.parse(text);
+    const request = await readJsonSource(source);
     const result = await resolveFrontlineCommand(request, {
       preferences: createLocalFrontlineSourcePreferenceReader({
         cwd: root,
@@ -39,12 +57,26 @@ export async function handleReviewFrontlineResolve(source: string): Promise<void
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    process.stdout.write(`${JSON.stringify({
-      schemaVersion: 1,
-      mode: "review-frontline-resolve",
-      error: { code: "invalid-request", message },
-    })}\n`);
-    process.exitCode = 1;
+    emitReviewError("review-frontline-resolve", error);
+  }
+}
+
+/**
+ * Request one hosted pull-request review and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param dependencies - Built-in hosted adapters supplied by the CLI composition root.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleReviewHostedRequest(
+  source: string,
+  dependencies: { adapters: readonly HostedReviewAdapter[] } = { adapters: [] },
+): Promise<void> {
+  try {
+    const request = await readJsonSource(source);
+    const result = await requestHostedReview(request, dependencies);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    emitReviewError("review-hosted-request", error);
   }
 }

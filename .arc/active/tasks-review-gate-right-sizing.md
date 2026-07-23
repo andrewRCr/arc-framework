@@ -14,19 +14,11 @@ shadow runtime that currently contains their reusable pieces.
 - _Goal:_ Every mechanical hosted-review action has one strict, resumable JSON contract whose returned
   `state -> nextAction` pair is sufficient to drive the next step without prose interpreting provider state.
 
-    - `[ ]` **1.1.a Define and register the hosted-request contract**
+    - `[x]` **1.1.a Define and register the hosted-request contract**
 
-        - Create the lean hosted contract under `packages/arc-framework/src/scripts/review-gate/hosted/`, then
-          register `arc review hosted request` through `src/handlers/review.ts` and `src/cli.ts` with a versioned
-          request envelope and exactly one command-specific result envelope.
-        - Return a self-contained request handle bound to repository, pull request, exact head, provider, and the
-          durable GitHub request artifact. Keep validation, identity, and provider dispatch inside the CLI; use the
-          host artifact for resumption rather than introducing a local ledger or operation store.
-        - Build `test-first` (one behavior at a time):
-            - a valid request returns a deterministic `state` and `nextAction`;
-            - malformed, unsupported-version, and unavailable-source inputs return typed failures;
-            - one invocation emits exactly one JSON envelope and the documented exit status;
-            - the returned handle round-trips without depending on controller or receipt state.
+        - Added the strict hosted request envelope, self-contained GitHub-artifact handle, typed safe-unavailability
+          and ambiguous-delivery outcomes, and the public `arc review hosted request` handler/CLI surface without
+          introducing controller, receipt, or local operation state.
 
     - `[ ]` **1.1.b Re-home bounded hosted-review observation behind the await verb**
 
