@@ -22,6 +22,7 @@ import type {
   ApprovedDispositionRecordStore,
   FrontlineOutcomeStore,
   LocalReviewSourceStore,
+  ReviewReductionPort,
   ReviewOperationStateStore,
 } from "../core/ports.js";
 import { renderForwardGateProjection } from "../core/projection.js";
@@ -40,13 +41,17 @@ interface LocalReceiptEntry {
   durableEvidenceRef: string;
 }
 
-export interface ReduceCommandDependencies {
+export interface ReviewReductionAdapterDependencies {
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   outcomeStore: FrontlineOutcomeStore;
   dispositionStore: ApprovedDispositionRecordStore;
   readReceiptEntries(targetId: string): Promise<LocalReceiptEntry[]>;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
+}
+
+export interface ReduceCommandDependencies {
+  reductionPort: ReviewReductionPort;
 }
 
 /** Stable failure for reduction inputs whose durable chain cannot be proven. */
@@ -144,7 +149,7 @@ function responsePlan(input: {
 async function reduceLocal(
   operationId: string,
   persisted: Awaited<ReturnType<ReviewOperationStateStore["readOperation"]>>,
-  dependencies: ReduceCommandDependencies,
+  dependencies: ReviewReductionAdapterDependencies,
 ) {
   if (persisted.state === null || persisted.state.kind !== "local-review") {
     throw new ReduceCommandError("local review operation is unavailable");
@@ -294,7 +299,7 @@ async function reduceLocal(
 async function reduceFrontline(
   operationId: string,
   persisted: Awaited<ReturnType<ReviewOperationStateStore["readOperation"]>>,
-  dependencies: ReduceCommandDependencies,
+  dependencies: ReviewReductionAdapterDependencies,
 ) {
   if (persisted.state === null || persisted.state.kind !== "frontline-run") {
     throw new ReduceCommandError("frontline review operation is unavailable");
@@ -434,25 +439,45 @@ async function reduceFrontline(
   });
 }
 
-/** Resolve one operation's lane and reduce its exact durable records without mutation. */
+/** Production reduction over exact durable records without mutation. */
+export class DurableReviewReductionPort implements ReviewReductionPort {
+  readonly #dependencies: ReviewReductionAdapterDependencies;
+
+  constructor(dependencies: ReviewReductionAdapterDependencies) {
+    this.#dependencies = dependencies;
+  }
+
+  async reduce(operationId: string): Promise<z.infer<typeof ReduceEnvelopeSchema>> {
+    let persisted;
+    try {
+      persisted = await this.#dependencies.operationStore.readOperation(operationId);
+      if (persisted.state === null || persisted.state.operationId !== operationId) {
+        throw new ReduceCommandError("review operation is unavailable");
+      }
+      if (persisted.state.kind === "local-review") {
+        return await reduceLocal(operationId, persisted, this.#dependencies);
+      }
+      if (persisted.state.kind === "frontline-run") {
+        return await reduceFrontline(operationId, persisted, this.#dependencies);
+      }
+      throw new ReduceCommandError("operation kind is not reducible");
+    } catch (error) {
+      if (error instanceof ReduceCommandError) throw error;
+      throw new ReduceCommandError(
+        error instanceof Error ? error.message : "review reduction cannot validate durable state",
+      );
+    }
+  }
+}
+
+/** Validate one reduction request and dispatch it through the configured read-only port. */
 export async function reduceReviewCommand(
   requestInput: unknown,
   dependencies: ReduceCommandDependencies,
 ): Promise<z.infer<typeof ReduceEnvelopeSchema>> {
   const request = ReduceRequestSchema.parse(requestInput);
-  let persisted;
   try {
-    persisted = await dependencies.operationStore.readOperation(request.operationId);
-    if (persisted.state === null || persisted.state.operationId !== request.operationId) {
-      throw new ReduceCommandError("review operation is unavailable");
-    }
-    if (persisted.state.kind === "local-review") {
-      return await reduceLocal(request.operationId, persisted, dependencies);
-    }
-    if (persisted.state.kind === "frontline-run") {
-      return await reduceFrontline(request.operationId, persisted, dependencies);
-    }
-    throw new ReduceCommandError("operation kind is not reducible");
+    return await dependencies.reductionPort.reduce(request.operationId);
   } catch (error) {
     if (error instanceof ReduceCommandError) throw error;
     throw new ReduceCommandError(

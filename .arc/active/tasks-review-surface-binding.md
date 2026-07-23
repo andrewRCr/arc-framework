@@ -545,9 +545,10 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
           completion from the receipt store to recover interrupted release while retaining live sources and reaping
           orphaned or expired ones
 
-    - `[ ]` **8.R.f Wire reduction through its production port**
-        - Give `ReviewReductionPort` a production implementation and consumer while preserving read-only reduction
-          semantics and opaque storage references
+    - `[x]` **8.R.f Wire reduction through its production port**
+        - Production composition now constructs the durable `ReviewReductionPort`; the validated command consumes
+          its complete typed result while the adapter remains read-only and passes storage references through as
+          opaque values
 
     - `[ ]` **8.R.g Prove the composed public protocol and recovery matrix**
         - Exercise the built `arc review` verbs or their production launchers through complete local and frontline

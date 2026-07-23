@@ -26,11 +26,14 @@ import type {
   FrontlineRunState,
   LocalReviewState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import { ReduceEnvelopeSchema } from "../../../../../src/scripts/review-gate/core/review-command-envelope.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import {
+  DurableReviewReductionPort,
   reduceReviewCommand,
   type ReduceCommandDependencies,
+  type ReviewReductionAdapterDependencies,
 } from "../../../../../src/scripts/review-gate/runtime/reduce-command.js";
 import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
 
@@ -205,7 +208,7 @@ function localDependencies(
   const publishOperation = vi.fn();
   const appendOutcome = vi.fn();
   const appendDispositionRecord = vi.fn();
-  const dependencies: ReduceCommandDependencies = {
+  const adapterDependencies: ReviewReductionAdapterDependencies = {
     operationStore: {
       readOperation: async () => ({ version: 1, state: records.operation }),
       publishOperation,
@@ -228,7 +231,16 @@ function localDependencies(
     }],
     confirmTarget: async (target) => ({ state: "current", target }),
   };
-  return { dependencies, publishOperation, appendOutcome, appendDispositionRecord };
+  const dependencies = {
+    reductionPort: new DurableReviewReductionPort(adapterDependencies),
+  };
+  return {
+    dependencies,
+    adapterDependencies,
+    publishOperation,
+    appendOutcome,
+    appendDispositionRecord,
+  };
 }
 
 function changedTarget(target: ReviewTarget): ReviewTarget {
@@ -244,6 +256,42 @@ function changedTarget(target: ReviewTarget): ReviewTarget {
     headTree: objectId("f"),
   });
 }
+
+describe("review reduction command boundary", () => {
+  it("dispatches a validated operation through the reduction port", async () => {
+    const records = localFixture();
+    const projected = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-advisory/v1" as const,
+      operationId: records.operation.operationId,
+      persistedVersion: 1,
+      currentTarget: records.target,
+      state: "advisory-complete" as const,
+      nextAction: "none" as const,
+    };
+    const expected = ReduceEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-reduce",
+      diagnostics: [],
+      state: "advisory-complete",
+      nextAction: "none",
+      payload: {
+        operationId: records.operation.operationId,
+        persistedVersion: 1,
+        currentTarget: records.target,
+        projection: projected,
+      },
+    });
+    const dependencies: ReduceCommandDependencies = {
+      reductionPort: { reduce: async () => expected },
+    };
+
+    await expect(reduceReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+    }, dependencies)).resolves.toEqual(expected);
+  });
+});
 
 describe("review reduction command: attested local", () => {
   it("maps clean, undispositioned findings, and completely dispositioned findings", async () => {
@@ -298,8 +346,8 @@ describe("review reduction command: attested local", () => {
     const records = localFixture();
     const setup = localDependencies(records);
     const readReceiptEntries = vi.fn();
-    setup.dependencies.readReceiptEntries = readReceiptEntries;
-    setup.dependencies.confirmTarget = async () => ({
+    setup.adapterDependencies.readReceiptEntries = readReceiptEntries;
+    setup.adapterDependencies.confirmTarget = async () => ({
       state: "stale-target",
       attemptedTarget: records.target,
       currentTarget: changedTarget(records.target),
@@ -317,7 +365,7 @@ describe("review reduction command: attested local", () => {
   it("rejects source and disposition reference mismatches as corrupt state", async () => {
     const records = localFixture("findings");
     const sourceMismatch = localDependencies(records);
-    sourceMismatch.dependencies.sourceStore.readSource = async () => ({
+    sourceMismatch.adapterDependencies.sourceStore.readSource = async () => ({
       ...records.source,
       sourceDigest: digest("tampered-source"),
     });
@@ -452,7 +500,7 @@ function frontlineDependencies(
   const publishOperation = vi.fn();
   const appendOutcome = vi.fn();
   const appendDispositionRecord = vi.fn();
-  const dependencies: ReduceCommandDependencies = {
+  const adapterDependencies: ReviewReductionAdapterDependencies = {
     operationStore: {
       readOperation: async () => ({ version: 2, state: records.state }),
       publishOperation,
@@ -472,7 +520,16 @@ function frontlineDependencies(
     readReceiptEntries: vi.fn(),
     confirmTarget: async (target) => ({ state: "current", target }),
   };
-  return { dependencies, publishOperation, appendOutcome, appendDispositionRecord };
+  const dependencies = {
+    reductionPort: new DurableReviewReductionPort(adapterDependencies),
+  };
+  return {
+    dependencies,
+    adapterDependencies,
+    publishOperation,
+    appendOutcome,
+    appendDispositionRecord,
+  };
 }
 
 describe("review reduction command: frontline", () => {
@@ -522,7 +579,7 @@ describe("review reduction command: frontline", () => {
   it("returns stale-target and performs no writes", async () => {
     const records = frontlineFixture("clean");
     const setup = frontlineDependencies(records);
-    setup.dependencies.confirmTarget = async () => ({
+    setup.adapterDependencies.confirmTarget = async () => ({
       state: "stale-target",
       attemptedTarget: records.target,
       currentTarget: changedTarget(records.target),
@@ -539,7 +596,7 @@ describe("review reduction command: frontline", () => {
   it("rejects a missing or digest-mismatched outcome behind a terminal claim", async () => {
     const records = frontlineFixture("clean");
     const missing = frontlineDependencies(records);
-    missing.dependencies.outcomeStore.readOutcome = async () => ({
+    missing.adapterDependencies.outcomeStore.readOutcome = async () => ({
       version: 0,
       record: null,
       outcomeRef: null,

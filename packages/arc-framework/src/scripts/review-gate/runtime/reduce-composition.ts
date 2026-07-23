@@ -9,7 +9,11 @@ import {
 } from "../hosts/local/git-common-state.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
-import type { ReduceCommandDependencies } from "./reduce-command.js";
+import {
+  DurableReviewReductionPort,
+  type ReduceCommandDependencies,
+  type ReviewReductionAdapterDependencies,
+} from "./reduce-command.js";
 
 /** Bind reduction to repository-common read stores and trusted target confirmation. */
 export function createReduceDependencies(input: {
@@ -24,7 +28,7 @@ export function createReduceDependencies(input: {
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };
-  return {
+  const dependencies: ReviewReductionAdapterDependencies = {
     operationStore: prepare.operationStore,
     sourceStore: prepare.sourceStore,
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),
@@ -32,4 +36,5 @@ export function createReduceDependencies(input: {
     readReceiptEntries: async (targetId) => (await receipts()).readReceiptEntries(targetId),
     confirmTarget: (target) => prepare.confirmTarget(target),
   };
+  return { reductionPort: new DurableReviewReductionPort(dependencies) };
 }

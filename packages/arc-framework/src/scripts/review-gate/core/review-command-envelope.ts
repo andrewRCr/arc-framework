@@ -367,6 +367,7 @@ export const ReduceEnvelopeSchema = z.union([
     }),
   ),
 ]);
+export type ReviewReduceEnvelope = z.infer<typeof ReduceEnvelopeSchema>;
 
 const ResumeBasePayload = {
   ...CurrentOperationPayloadShape,

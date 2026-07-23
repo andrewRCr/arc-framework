@@ -18,8 +18,8 @@ import type { LocalReviewSource } from "./local-review-source.js";
 import type {
   ApprovedDispositionRecord,
   FrontlineOutcomeRecord,
-  ReviewReductionProjection,
 } from "./advisory-records.js";
+import type { ReviewReduceEnvelope } from "./review-command-envelope.js";
 import type {
   GateProjection,
   ReceiptEnvelope,
@@ -310,7 +310,7 @@ export interface FrontlineOutcomeStore {
 
 /** Read-only reduction boundary over durable advisory review records. */
 export interface ReviewReductionPort {
-  reduce(operationId: string): Promise<ReviewReductionProjection>;
+  reduce(operationId: string): Promise<ReviewReduceEnvelope>;
 }
 
 /** Forward provider boundary carrying exact v2 request identity without provider finding normalization. */
