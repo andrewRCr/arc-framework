@@ -6,6 +6,7 @@ import { ZodError } from "zod";
 import { gitExec } from "../lib/io-context.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import {
+  FrontlineRunEnvelopeSchema,
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
   LocalResumeEnvelopeSchema,
@@ -20,6 +21,8 @@ import {
 import { resolveFrontlineCommand } from "../scripts/review-gate/policy/frontline-command.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
+import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
+import { runFrontlineReviewCommand } from "../scripts/review-gate/runtime/frontline-run-command.js";
 import { createLocalPrepareDependencies } from "../scripts/review-gate/runtime/local-prepare-composition.js";
 import { prepareLocalReview } from "../scripts/review-gate/runtime/local-prepare.js";
 import { createLocalAttestDependencies } from "../scripts/review-gate/runtime/local-attest-composition.js";
@@ -64,6 +67,53 @@ export async function handleReviewFrontlineResolve(source: string): Promise<void
       error: { code: "invalid-request", message },
     })}\n`);
     process.exitCode = 1;
+  }
+}
+
+export interface ReviewFrontlineRunHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  run(request: unknown, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultFrontlineRunDependencies(): ReviewFrontlineRunHandlerDependencies {
+  return {
+    resolveRoot: resolveArcRoot,
+    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    run: (request, root) => runFrontlineReviewCommand(
+      request,
+      createFrontlineRunDependencies({ exec: gitExec, cwd: root }),
+    ),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
+/**
+ * Execute one exact-target frontline review and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleReviewFrontlineRun(
+  source: string,
+  overrides: Partial<ReviewFrontlineRunHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultFrontlineRunDependencies(), ...overrides };
+  try {
+    const root = dependencies.resolveRoot(process.cwd());
+    if (root === null) throw new Error("Not inside an ARC project.");
+    const request: unknown = JSON.parse(await dependencies.readText(source));
+    const result = FrontlineRunEnvelopeSchema.parse(await dependencies.run(request, root));
+    dependencies.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    dependencies.write(`${JSON.stringify(reviewCommandError("review-frontline-run", error))}\n`);
+    dependencies.setExitCode(1);
   }
 }
 

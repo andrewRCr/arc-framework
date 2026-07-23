@@ -8,6 +8,7 @@ import {
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "../../../../../src/scripts/review-gate/core/ports.js";
 import {
+  executeFrontlineRun,
   persistFrontlineRunPending,
   persistFrontlineRunOutcome,
   resolveFrontlineRun,
@@ -61,6 +62,52 @@ function binding(overrides: Partial<Parameters<typeof resolveFrontlineRun>[1]> =
 }
 
 describe("frontline operation continuity", () => {
+  it("records pending before execution and the durable outcome before terminal operation state", async () => {
+    const store = memoryStore();
+    const order: string[] = [];
+    const outcome = normalizeFrontlineOutcome({
+      providerResult: { kind: "clean" },
+      source,
+      target: target("c"),
+      pass: 1,
+      maxPasses: 2,
+    });
+    const outcomeStore = {
+      readOutcome: async () => ({ version: 0, record: null, outcomeRef: null }),
+      appendOutcome: async () => {
+        order.push("outcome");
+        return { version: 1, outcomeRef: "outcomes/operation.json" };
+      },
+    };
+    const publish = store.publishOperation;
+    store.publishOperation = async (state, expectedVersion) => {
+      order.push(state.kind === "frontline-run" && state.outcome === "pending" ? "pending" : "terminal");
+      return publish(state, expectedVersion);
+    };
+
+    await expect(executeFrontlineRun({
+      operationStore: store,
+      outcomeStore,
+      execute: async () => {
+        order.push("execute");
+        return {
+          outcome,
+          executableIdentity: {
+            digest: canonicalDigest({ executable: "reviewer" }),
+            qualifiedVersion: "reviewer/1.0.0",
+          },
+        };
+      },
+      now: () => "2026-07-23T19:00:00Z",
+    }, binding())).resolves.toMatchObject({
+      persistedVersion: 2,
+      target: target("c"),
+      outcomeRef: "outcomes/operation.json",
+      outcomeDigest: expect.stringMatching(/^sha256:/u),
+    });
+    expect(order).toEqual(["pending", "execute", "outcome", "terminal"]);
+  });
+
   it("reuses a durable outcome for an unchanged target, source, policy, and generation", async () => {
     const store = memoryStore();
     const first = await resolveFrontlineRun(store, binding());

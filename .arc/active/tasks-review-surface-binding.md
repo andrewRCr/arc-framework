@@ -299,39 +299,35 @@ the two CodeRabbit adapter gaps, bound execution by an explicit timeout, and giv
 explicit state/action projection. Execution binding, normalization, and timeout logic are test-first; wiring is
 test-after.
 
-### `[ ]` **5.1 `arc review frontline run` — pending publication, exact-head execution, durable outcome**
+### `[x]` **5.1 `arc review frontline run` — pending publication, exact-head execution, durable outcome**
 
 - _Goal:_ `frontline run` consumes one complete `ready` resolution plus the exact adapter-supplied target, revalidates
   the source, publishes the pending operation, prepares the exact-head checkout, resolves/interrogates/launches the
   executable, and durably records the full normalized outcome before advancing operation state.
 
-- _Context:_ § D3 — `frontline run` is the one verb accepting a caller `target`; it re-derives the coordinates from the
-  exact-head checkout and refuses on mismatch. `pass` comes from the `ready` resolution, never a request field.
+    - `[x]` **5.1.a Run choreography** (`policy/frontline-operation.ts`)
+        - Published pending before the carrier effect, appended the digest-bound outcome before the terminal operation
+          state, and returned the full durable operation, target, and outcome coordinates.
 
-    - `[ ]` **5.1.a Run choreography** (`policy/frontline-operation.ts`)
-        - Build `test-first`: pending published before the carrier effect; outcome recorded before operation advance;
-          every terminal returns `operationId` / `persistedVersion` / full `target` / `outcomeRef` + digest
+    - `[x]` **5.1.b Frontline target authority**
+        - Validated the caller target, independently re-derived it inside an ephemeral detached checkout using the
+          repository-common identity, refused mismatches, and accepted pass only from the ready resolution.
 
-    - `[ ]` **5.1.b Frontline target authority**
-        - Build `test-first`: caller `target` validated then re-derived from the exact-head checkout; a mismatch refuses;
-          `pass` taken from the `ready` resolution, not a request field
+    - `[x]` **5.1.c Wire the `arc review frontline run` handler and command** — test-after
+        - Added the production composition, strict file/stdin handler, and public `review frontline run` command.
 
-    - `[ ]` **5.1.c Wire the `arc review frontline run` handler and command** — test-after
+- _Outcome:_ Frontline execution now crosses one durable transaction boundary from pending publication through an
+  immutable target checkout and append-only outcome record to terminal operation state.
 
-### `[ ]` **5.2 CodeRabbit adapter — exact-head binding, executable-that-ran identity, `stale-head` normalization**
+### `[x]` **5.2 CodeRabbit adapter — exact-head binding, executable-that-ran identity, `stale-head` normalization**
 
 - _Goal:_ The CodeRabbit adapter binds both `diffBaseSha` and `headSha` (an immutable exact-head checkout, not a
   twice-observed mutable ref), records the digest + qualified version of the executable that actually ran, and
   normalizes its `stale-head` result to `stale-target` (retaining the provider-level result name).
 
-- _Note:_ `providers/coderabbit/frontline-execution.ts`, `frontline-agent.ts`; the structured `--agent` parser already
-  emits normalized findings and outcomes.
-
-    - Build `test-first` (one behavior at a time):
-        - execution binds to the exact-head checkout; a moved-and-returned ref is not accepted as proof
-        - the executable is resolved once, interrogated for its version, and the same artifact launched; digest + version
-          recorded from what ran
-        - `stale-head` normalizes to `stale-target` (not `failed`)
+- _Outcome:_ CodeRabbit runs from the detached target checkout against the exact diff base; its PATH entry is resolved
+  once, and the same canonical artifact is hashed, versioned, and launched. Provider `stale-head` remains preserved
+  while its provider-neutral outcome is `stale-target`.
 
 ### `[ ]` **5.3 Bounded provider execution — timeout, abort signal, adapter-failure mapping**
 

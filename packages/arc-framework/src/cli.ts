@@ -86,6 +86,7 @@ import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
   handleReviewFrontlineResolve,
+  handleReviewFrontlineRun,
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
@@ -831,6 +832,13 @@ frontlineCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewFrontlineResolve(input));
+
+frontlineCmd
+  .command("run")
+  .description("Execute one exact-target frontline review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewFrontlineRun(input));
 
 const localReviewCmd = reviewCmd
   .command("local")

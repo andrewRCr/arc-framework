@@ -11,7 +11,7 @@ import type { GitExec } from "../../../../lib/git/exec.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "../../../../lib/user-sync/notes-lock.js";
 import { resolveGitCommonDir } from "../../../../lib/user-sync/repo-shared-paths.js";
 
-export type ReviewStateNamespace = "evidence" | "identity" | "operations" | "sources";
+export type ReviewStateNamespace = "evidence" | "identity" | "operations" | "outcomes" | "sources";
 
 const RepositoryIdentityRecordSchema = z.strictObject({
   schemaVersion: z.literal(1),

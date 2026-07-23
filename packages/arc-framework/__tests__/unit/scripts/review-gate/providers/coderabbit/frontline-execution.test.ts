@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
 import { createReviewTarget } from "../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   CODERABBIT_FRONTLINE_REGISTRATION,
@@ -27,27 +28,38 @@ const cleanOutput = [
     reviewedFiles: ["src/index.ts"],
   }),
 ].join("\n");
+const executableIdentity = {
+  path: "/opt/review-tools/coderabbit",
+  digest: canonicalDigest({ executable: "coderabbit" }),
+  qualifiedVersion: "coderabbit/0.6.5",
+};
 
 describe("CodeRabbit frontline execution", () => {
-  it("binds the project source to structured agent argv and the exact diff base", async () => {
+  it("runs the resolved executable once inside the immutable exact-head checkout", async () => {
     const run = vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout: cleanOutput, stderr: "" });
-    const readHead = vi.fn().mockResolvedValue(target.headSha);
+    const resolveExecutable = vi.fn().mockResolvedValue(executableIdentity);
 
     await expect(executeCodeRabbitFrontline({
       source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
       target,
       pass: 1,
       maxPasses: 2,
-      cliVersion: "0.6.5",
-    }, { run, readHead })).resolves.toMatchObject({
-      outcome: "clean",
-      source: { sourceId: "coderabbit-cli", executable: "coderabbit" },
-      target: { targetId: target.targetId },
+      reviewRoot: "/tmp/exact-head",
+    }, { run, resolveExecutable })).resolves.toMatchObject({
+      outcome: {
+        outcome: "clean",
+        source: { sourceId: "coderabbit-cli", executable: "coderabbit" },
+        target: { targetId: target.targetId },
+      },
+      executableIdentity: {
+        digest: executableIdentity.digest,
+        qualifiedVersion: executableIdentity.qualifiedVersion,
+      },
     });
-    expect(run).toHaveBeenCalledWith("coderabbit", [
+    expect(resolveExecutable).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledWith(executableIdentity.path, [
       "review", "--agent", "--type", "committed", "--base-commit", target.diffBaseSha,
-    ]);
-    expect(readHead).toHaveBeenCalledTimes(2);
+    ], { cwd: "/tmp/exact-head" });
   });
 
   it("preserves structured findings for author-side triage", async () => {
@@ -73,18 +85,20 @@ describe("CodeRabbit frontline execution", () => {
       target,
       pass: 1,
       maxPasses: 2,
-      cliVersion: "0.6.5",
+      reviewRoot: "/tmp/exact-head",
     }, {
       run: vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout, stderr: "" }),
-      readHead: vi.fn().mockResolvedValue(target.headSha),
+      resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
     })).resolves.toMatchObject({
-      outcome: "findings",
-      findings: [{
-        findingId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
-        severity: "major",
-        locus: finding.fileName,
-        evidenceUrlOrId: finding.codegenInstructions,
-      }],
+      outcome: {
+        outcome: "findings",
+        findings: [{
+          findingId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+          severity: "major",
+          locus: finding.fileName,
+          evidenceUrlOrId: finding.codegenInstructions,
+        }],
+      },
     });
   });
 
@@ -94,13 +108,15 @@ describe("CodeRabbit frontline execution", () => {
       target,
       pass: 1,
       maxPasses: 2,
-      cliVersion: "0.6.5",
+      reviewRoot: "/tmp/exact-head",
     }, {
       run: vi.fn().mockResolvedValue({ exitCode: 1, signal: null, stdout: "", stderr: "rate limit exceeded" }),
-      readHead: vi.fn().mockResolvedValue(target.headSha),
+      resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
     });
 
-    expect(result).toMatchObject({ outcome: "unavailable", reason: { class: "rate-limited" } });
+    expect(result).toMatchObject({
+      outcome: { outcome: "unavailable", reason: { class: "rate-limited" } },
+    });
     expect(CODERABBIT_FRONTLINE_REGISTRATION.sourceId).toBe("coderabbit-cli");
     expect(CODERABBIT_FRONTLINE_REGISTRATION.sourceId).not.toBe("coderabbit-pr");
   });

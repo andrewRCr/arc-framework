@@ -1,11 +1,61 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  handleReviewFrontlineRun,
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
 } from "../../../src/handlers/review.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
+
+describe("handleReviewFrontlineRun", () => {
+  it("reads one request and emits one validated durable run envelope", async () => {
+    const write = vi.fn();
+    const run = vi.fn(async () => ({
+      schemaVersion: 1,
+      mode: "review-frontline-run",
+      diagnostics: [],
+      state: "clean",
+      nextAction: "none",
+      payload: {
+        operationId: "frontline-operation",
+        persistedVersion: 2,
+        target: {
+          schemaVersion: 2,
+          semanticsVersion: "review-gate/v2",
+          kind: "change-set",
+          repositoryId: "repo-1",
+          baseRef: "main",
+          diffBaseSha: "a".repeat(40),
+          diffBaseTree: "b".repeat(40),
+          headSha: "c".repeat(40),
+          headTree: "d".repeat(40),
+          targetId: `sha256:${"e".repeat(64)}`,
+        },
+        outcomeRef: "git-common:review-gate/outcomes/run.json#1",
+        outcomeDigest: `sha256:${"f".repeat(64)}`,
+      },
+    }));
+
+    await handleReviewFrontlineRun("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => "{\"schemaVersion\":1}",
+      run,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(run).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-frontline-run",
+      state: "clean",
+      payload: {
+        operationId: "frontline-operation",
+        persistedVersion: 2,
+      },
+    });
+  });
+});
 
 describe("handleReviewLocalPrepare", () => {
   it("reads one request and emits one validated success envelope", async () => {

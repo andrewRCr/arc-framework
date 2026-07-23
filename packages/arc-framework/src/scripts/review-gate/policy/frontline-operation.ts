@@ -3,13 +3,20 @@
 import { z } from "zod";
 
 import { canonicalDigest, canonicalize } from "../../../lib/kernel/index.js";
+import {
+  createFrontlineOutcomeRecord,
+  type FrontlineExecutableIdentity,
+} from "../core/advisory-records.js";
 import { validateReviewTarget } from "../core/gate-contract-v2.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import {
   FrontlineRunStateSchema,
   type FrontlineRunState,
 } from "../core/operation-state-schema.js";
-import type { ReviewOperationStateStore } from "../core/ports.js";
+import type {
+  FrontlineOutcomeStore,
+  ReviewOperationStateStore,
+} from "../core/ports.js";
 import {
   FrontlineExecutionOutcomeSchema,
   type FrontlineExecutionOutcome,
@@ -170,4 +177,66 @@ export async function persistFrontlineRunOutcome(
   const state = createFrontlineRunState(binding, input.updatedAt, outcome.outcome, outcome.pass);
   const published = await store.publishOperation(state, GenerationSchema.parse(input.expectedVersion));
   return { version: published.version, state };
+}
+
+export interface FrontlineRunExecutionDependencies {
+  operationStore: ReviewOperationStateStore;
+  outcomeStore: FrontlineOutcomeStore;
+  execute(): Promise<{
+    outcome: FrontlineExecutionOutcome;
+    executableIdentity: FrontlineExecutableIdentity | null;
+  }>;
+  now(): string;
+}
+
+/** Publish pending, execute, durably record the result, then publish terminal operation state. */
+export async function executeFrontlineRun(
+  dependencies: FrontlineRunExecutionDependencies,
+  input: FrontlineRunBindingInput,
+): Promise<{
+  operationId: string;
+  persistedVersion: number;
+  target: ReviewTarget;
+  outcomeRef: string;
+  outcomeDigest: string;
+  executableIdentity: FrontlineExecutableIdentity | null;
+  outcome: FrontlineExecutionOutcome;
+}> {
+  const resolution = await resolveFrontlineRun(dependencies.operationStore, input);
+  if (resolution.action !== "execute") {
+    throw new Error(`frontline operation cannot execute from ${resolution.action}`);
+  }
+  const pending = await persistFrontlineRunPending(dependencies.operationStore, {
+    ...input,
+    updatedAt: dependencies.now(),
+    expectedVersion: resolution.expectedVersion,
+  });
+  const executed = await dependencies.execute();
+  const outcome = FrontlineExecutionOutcomeSchema.parse(executed.outcome);
+  const record = createFrontlineOutcomeRecord({
+    schemaVersion: 1,
+    semanticsVersion: "review-advisory/v1",
+    repositoryId: input.target.repositoryId,
+    operationId: resolution.operationId,
+    sourceIdentity: input.source.sourceId,
+    executableIdentity: executed.executableIdentity,
+    outcome,
+  });
+  const currentOutcome = await dependencies.outcomeStore.readOutcome(resolution.operationId);
+  const appended = await dependencies.outcomeStore.appendOutcome(record, currentOutcome.version);
+  const terminal = await persistFrontlineRunOutcome(dependencies.operationStore, {
+    ...input,
+    outcome,
+    updatedAt: dependencies.now(),
+    expectedVersion: pending.version,
+  });
+  return {
+    operationId: resolution.operationId,
+    persistedVersion: terminal.version,
+    target: input.target,
+    outcomeRef: appended.outcomeRef,
+    outcomeDigest: record.outcomeDigest,
+    executableIdentity: record.executableIdentity,
+    outcome,
+  };
 }

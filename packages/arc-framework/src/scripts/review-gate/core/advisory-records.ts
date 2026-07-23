@@ -60,6 +60,7 @@ export const FrontlineExecutableIdentitySchema = z.strictObject({
   digest: ReviewCanonicalDigestSchema,
   qualifiedVersion: ReviewIdentifierSchema,
 });
+export type FrontlineExecutableIdentity = z.infer<typeof FrontlineExecutableIdentitySchema>;
 
 export const FrontlineOutcomeDigestPreimageSchema = z.strictObject({
   domain: z.literal("arc.frontline.outcome-digest/v1"),

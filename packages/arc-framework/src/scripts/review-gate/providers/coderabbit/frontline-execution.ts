@@ -1,6 +1,7 @@
 /** Exact-target local CodeRabbit frontline execution adapter. */
 
 import type { ReviewTarget } from "../../core/gate-contract-v2-schema.js";
+import type { FrontlineExecutableIdentity } from "../../core/advisory-records.js";
 import { normalizeFrontlineOutcome, type FrontlineExecutionOutcome } from "../../policy/frontline-outcome.js";
 import type {
   FrontlineSourceDescriptor,
@@ -24,23 +25,34 @@ interface CodeRabbitProcessResult {
   stderr: string;
 }
 
+interface ResolvedCodeRabbitExecutable extends FrontlineExecutableIdentity {
+  path: string;
+}
+
 /**
  * Execute the pinned structured adapter against one exact diff base and normalize its truthful outcome.
  *
- * @param input - Resolved CodeRabbit source, exact target, pass, and observed CLI version.
- * @param dependencies - Direct process and current-HEAD ports.
- * @returns A provider-neutral exact-target frontline outcome.
+ * @param input - Resolved CodeRabbit source, exact target, pass, and immutable checkout.
+ * @param dependencies - Executable resolution and direct process ports.
+ * @returns The normalized outcome plus the identity of the executable that produced it.
  */
 export async function executeCodeRabbitFrontline(input: {
   source: FrontlineSourceDescriptor;
   target: ReviewTarget;
   pass: 1 | 2;
   maxPasses: 1 | 2;
-  cliVersion: string;
+  reviewRoot: string;
 }, dependencies: {
-  run(command: string, argv: readonly string[]): Promise<CodeRabbitProcessResult>;
-  readHead(): Promise<string>;
-}): Promise<FrontlineExecutionOutcome> {
+  resolveExecutable(command: string): Promise<ResolvedCodeRabbitExecutable>;
+  run(
+    command: string,
+    argv: readonly string[],
+    options: { cwd: string },
+  ): Promise<CodeRabbitProcessResult>;
+}): Promise<{
+  outcome: FrontlineExecutionOutcome;
+  executableIdentity: FrontlineExecutableIdentity;
+}> {
   const expected = CODERABBIT_FRONTLINE_REGISTRATION.descriptor;
   if (input.source.sourceId !== CODERABBIT_FRONTLINE_REGISTRATION.sourceId
     || input.source.kind !== "command"
@@ -50,29 +62,37 @@ export async function executeCodeRabbitFrontline(input: {
     throw new Error("invalid CodeRabbit frontline source binding");
   }
 
-  const before = await dependencies.readHead();
+  const executable = await dependencies.resolveExecutable(input.source.executable);
   let processResult: CodeRabbitProcessResult;
   try {
-    processResult = await dependencies.run(input.source.executable, [
+    processResult = await dependencies.run(executable.path, [
       ...input.source.argv,
       "--base-commit",
       input.target.diffBaseSha,
-    ]);
+    ], { cwd: input.reviewRoot });
   } catch {
     processResult = { exitCode: null, signal: "process-error", stdout: "", stderr: "" };
   }
-  const after = await dependencies.readHead();
+  const cliVersion = executable.qualifiedVersion.includes("/")
+    ? executable.qualifiedVersion.slice(executable.qualifiedVersion.lastIndexOf("/") + 1)
+    : executable.qualifiedVersion;
   const providerResult = parseCodeRabbitAgentResult({
-    cliVersion: input.cliVersion,
+    cliVersion,
     ...processResult,
     expectedHead: input.target.headSha,
-    observedHead: before === input.target.headSha ? after : before,
+    observedHead: input.target.headSha,
   });
-  return normalizeFrontlineOutcome({
-    providerResult,
-    source: input.source,
-    target: input.target,
-    pass: input.pass,
-    maxPasses: input.maxPasses,
-  });
+  return {
+    outcome: normalizeFrontlineOutcome({
+      providerResult,
+      source: input.source,
+      target: input.target,
+      pass: input.pass,
+      maxPasses: input.maxPasses,
+    }),
+    executableIdentity: {
+      digest: executable.digest,
+      qualifiedVersion: executable.qualifiedVersion,
+    },
+  };
 }
