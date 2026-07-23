@@ -130,7 +130,7 @@ describe("cross-layer lifecycle and migration proof", () => {
       packagedErrand.indexOf("### Ship — full protection"),
       packagedErrand.indexOf("### Ship — partial protection"),
     );
-    expect(errandPublication).toMatch(/exact aggregate review target[\s\S]*source-neutral standard-review cycle/u);
+    expect(errandPublication).toMatch(/exact aggregate review target[\s\S]*public `arc review` protocol/u);
     expect(errandPublication).toMatch(/`vehicle: errand`[\s\S]*outside WU composition-product requirements/u);
     expect(errandPublication).toMatch(/--match-head-commit \{approved-head-sha\}/u);
     expect(errandPublication).toMatch(/Never invent WU meta or task-list state/u);

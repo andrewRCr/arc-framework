@@ -266,6 +266,40 @@ describe("review response command", () => {
     await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({ state: "already-settled" });
   });
 
+  it("returns stale-target before appending dispositions when the reviewed target moved", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const appendDispositionRecord = vi.fn();
+    const currentTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: records.target.repositoryId,
+      baseRef: records.target.baseRef,
+      diffBaseSha: records.target.diffBaseSha,
+      diffBaseTree: records.target.diffBaseTree,
+      headSha: objectId("e"),
+      headTree: objectId("f"),
+    });
+    deps.confirmTarget = async () => ({
+      state: "stale-target",
+      attemptedTarget: records.target,
+      currentTarget,
+    });
+    deps.dispositionStore.appendDispositionRecord = appendDispositionRecord;
+
+    await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
+      state: "stale-target",
+      nextAction: "prepare-current-target",
+      payload: {
+        operationId: records.operation.operationId,
+        attemptedTarget: records.target,
+        currentTarget,
+      },
+    });
+    expect(appendDispositionRecord).not.toHaveBeenCalled();
+  });
+
   it("refuses actor identities that do not come from the trusted boundary", async () => {
     const records = fixture();
     const request = localRequest(records);

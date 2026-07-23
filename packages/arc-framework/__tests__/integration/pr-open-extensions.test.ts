@@ -382,7 +382,8 @@ describe("PR-open lifecycle extensions", () => {
     ]) {
       for (const base of [packageArc, projectArc]) {
         const caller = await readFile(resolve(base, relative), "utf8");
-        expect(caller).toContain("source-neutral standard-review cycle");
+        expect(caller).toContain("public `arc review` protocol");
+        expect(caller).toContain("local and frontline transitions only through those commands");
         expect(caller).toContain("`local | hosted | both`");
       }
     }

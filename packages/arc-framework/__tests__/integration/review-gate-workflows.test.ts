@@ -475,22 +475,24 @@ describe("trusted review-gate workflows", () => {
       expect(packaged).toContain("`settled / reduce`");
       expect(packaged).toContain("`retryable / retry`");
       expect(packaged).toContain("invalid-input");
+      expect(packaged).toMatch(/Re-enter the public `arc review` protocol/iu);
+      expect(packaged).toMatch(/local and frontline transitions only through those commands/iu);
       expect(packaged).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
+      expect(packaged).not.toMatch(/source-neutral standard-review cycle/u);
       expect(packaged).not.toMatch(/CodeRabbit|coderabbit|billing|credits?|quota|--agent|--plain/iu);
     }
   });
 
-  it("routes Errand review through the shared vehicle-neutral cycle", async () => {
+  it("routes Errand review and re-entry through the public command protocol", async () => {
     const [packaged, project] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
       readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
     ]);
     expect(project).toBe(packaged);
     expect(packaged).toMatch(/atomic determinacy[\s\S]*routing fact/iu);
-    expect(packaged).toMatch(/source-neutral standard-review cycle[\s\S]*review-response/u);
-    expect(packaged).toContain("vehicle-neutral response-state store");
-    expect(packaged).toMatch(/review-suspension[\s\S]*`vehicle: errand`/u);
-    expect(packaged).toMatch(/promoted watcher[\s\S]*bounded schedule[\s\S]*explicit human re-entry/u);
+    expect(packaged).toMatch(/Re-enter the public `arc review` protocol[\s\S]*review-response/iu);
+    expect(packaged).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
+    expect(packaged).not.toMatch(/vehicle-neutral response-state store|review-suspension|promoted watcher/u);
     expect(packaged).toMatch(/merge lane[\s\S]*downstream presentation/u);
     expect(packaged).toMatch(/never invent[\s\S]*WU meta[\s\S]*task-list state/iu);
   });
@@ -551,7 +553,8 @@ describe("trusted review-gate workflows", () => {
     expect(openPr).toMatch(/unavailable, partial, or failed[\s\S]*required obligation blocks/iu);
     expect(openPr).toMatch(/recommended work[\s\S]*visible and non-blocking/iu);
     expect(openPr).toMatch(/recompose and repeat[\s\S]*approved fix changes the target/iu);
-    expect(openPr).toMatch(/review-suspension[\s\S]*promoted watcher[\s\S]*bounded schedule[\s\S]*human re-entry/u);
+    expect(openPr).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
+    expect(openPr).not.toMatch(/review-suspension|promoted watcher|bounded schedule/u);
   });
 
   it("covers Errand merge lanes and already-merged cleanup", async () => {

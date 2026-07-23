@@ -225,11 +225,13 @@ both the newly-created path and every open-PR re-entry; actions derive current c
 Review coordination and every hook invocation share this exact-head contract. If a review action changes the head,
 recompose `openedChangeRequest` from the canonical current head before re-entry; never carry the prior head forward.
 
-Invoke the active project review coordinator's source-neutral standard-review cycle with the exact target,
-effective routed obligation, and explicit project channel `local | hosted | both`. The coordinator selects and
-normalizes the admitted carrier, reduces its result, and sends findings through [`review-response`][review-response].
-If the selected source is unavailable, partial, or failed, only a required obligation blocks; recommended work stays
-visible and non-blocking. Recompose and repeat the cycle after any approved fix changes the target.
+Re-enter the public `arc review` protocol from Step 3 with the exact target, effective routed obligation, and
+explicit project channel `local | hosted | both`. An active project review coordinator may select a source and
+supply hosted-only adapter actions, but it drives local and frontline transitions only through those commands.
+Follow the returned typed state/action through reduction and send findings through
+[`review-response`][review-response]. If the selected source is unavailable, partial, or failed, only a required
+obligation blocks; recommended work stays visible and non-blocking. Recompose and repeat the protocol after any
+approved fix changes the target.
 
 Process any reviewer findings per the [`review-triage` method][review-triage]; commit fixes per the
 [`commit-footer` method][commit-footer]. Re-run Tier 1 quality gates on modified files after each review-driven
@@ -249,12 +251,12 @@ pass, or an unattested result does not establish it.
 
 ### 6) Confirm review coordination
 
-Confirm the source-neutral open-PR review cycle has reduced the routed WU obligation to `review-settled`. This is not
-the final-head checkpoint; base freshness belongs only to Step 13, after candidate composition.
+Confirm the public open-PR review protocol has reduced the routed WU obligation to `review-settled`. This is not the
+final-head checkpoint; base freshness belongs only to Step 13, after candidate composition.
 
-Only that cycle's settled reduction establishes `review-settled`. Any pre-composition direction to merge once review
-settles authorizes autonomous advance through candidate assembly to the final integration interlock; it is not
-prospective merge authority over the candidate's not-yet-known head.
+Only that protocol's settled reduction establishes `review-settled`. Any pre-composition direction to merge once
+review settles authorizes autonomous advance through candidate assembly to the final integration interlock; it is
+not prospective merge authority over the candidate's not-yet-known head.
 
 After settlement, clean the WU content:
 

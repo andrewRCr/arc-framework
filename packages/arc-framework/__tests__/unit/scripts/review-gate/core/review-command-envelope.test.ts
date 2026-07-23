@@ -189,6 +189,11 @@ describe("review command envelopes", () => {
       state: "settled", nextAction: "reduce",
       payload: { operationId: "local-1", dispositionRecordRef: "disposition/1" },
     }],
+    [RespondEnvelopeSchema, {
+      ...header("review-respond"),
+      state: "stale-target", nextAction: "prepare-current-target",
+      payload: { operationId: "local-1", attemptedTarget: target, currentTarget: target },
+    }],
     [ReduceEnvelopeSchema, {
       ...header("review-reduce"),
       state: "retryable", nextAction: "retry",

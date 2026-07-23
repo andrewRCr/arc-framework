@@ -219,21 +219,23 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    coordination and both hooks share this exact-head contract. After any head-changing action, recompose
    `openedChangeRequest` from the canonical current head before re-entry.
 
-   Invoke the active project review coordinator's source-neutral standard-review cycle with the exact target,
-   effective routed obligation, and explicit project channel `local | hosted | both`. The coordinator selects and
-   normalizes the admitted carrier, reduces its result, and sends findings through [`review-response`][review-response].
-   If the selected source is unavailable, partial, or failed, only a required obligation blocks; recommended work
-   stays visible and non-blocking. Recompose and repeat the cycle after any approved fix changes the target.
+   Re-enter the public `arc review` protocol with the exact target, effective routed obligation, and explicit project
+   channel `local | hosted | both`. An active project review coordinator may select a source and supply hosted-only
+   adapter actions, but it drives local and frontline transitions only through those commands. Follow the returned
+   typed state/action through reduction and send findings through [`review-response`][review-response]. If the
+   selected source is unavailable, partial, or failed, only a required obligation blocks; recommended work stays
+   visible and non-blocking. Recompose and repeat the protocol after any approved fix changes the target.
 
-   When the cycle suspends, publish the strict `review-suspension` through the vehicle-neutral response-state store
-   with `vehicle: errand`, exact target/request, source/policy, deadline, generation, and wakeup token. Re-entry reads
-   current host/provider state and follows the shared promoted watcher → bounded schedule → explicit human re-entry
-   hierarchy. Never invent WU meta or task-list state from absent or malformed WU state; the Errand branch, PR, and
-   operation record are sufficient continuity.
+   On interruption, follow the last typed `state` / `nextAction` and retain the returned operation ID. Resume a
+   suspended local operation with `arc review local resume -`, and re-invoke the owning idempotent verb for frontline,
+   response, or reduction work. Hosted-only waits remain behind the active project coordinator. Never publish or
+   reconstruct review state from workflow prose. Never invent WU meta or task-list state from absent or malformed WU
+   state; the Errand branch, PR, and public operation references are sufficient continuity.
 
-   After the shared cycle settles, classify the merge lane by what the Errand touched ([§ Auto-Merge Lane][auto-lane]):
-   code uses the **reviewed-lane**; pure planning or doc grooming may use the **auto-merge-lane**. This merge lane is
-   downstream presentation only and cannot change routing, response, or evidence authority.
+   After the public protocol settles, classify the merge lane by what the Errand touched
+   ([§ Auto-Merge Lane][auto-lane]): code uses the **reviewed-lane**; pure planning or doc grooming may use the
+   **auto-merge-lane**. This merge lane is downstream presentation only and cannot change routing, response, or
+   evidence authority.
 
 5. **Settle the final head.** Establish `vehicle: errand` from the strict Errand record, branch, and exact PR. That
    vehicle is explicitly outside WU composition-product requirements. Never infer the exemption from absent or
