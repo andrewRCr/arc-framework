@@ -105,6 +105,39 @@ describe("immutable local review materialization", () => {
     })).rejects.toMatchObject({ code: "corrupt-state", reason: "pin-target-mismatch" });
   });
 
+  it("retains and recreates the exact source after branch deletion and Git maintenance", async () => {
+    const records = await fixture();
+    await ensureLocalReviewSourceMaterialized({ exec, source: records.source });
+    await git(records.root, "worktree", "remove", records.source.materializationRef);
+    await git(records.root, "switch", "main");
+    await git(records.root, "branch", "-D", "feature");
+    await git(records.root, "reflog", "expire", "--expire=now", "--all");
+    await git(records.root, "gc", "--prune=now");
+
+    expect(await git(records.root, "cat-file", "-e", `${records.target.headSha}^{commit}`)).toBe("");
+    const restored = await ensureLocalReviewSourceMaterialized({ exec, source: records.source });
+    expect(restored.reviewRoot).toBe(records.source.materializationRef);
+    expect(await git(restored.reviewRoot, "rev-parse", "HEAD")).toBe(records.target.headSha);
+    expect(await git(restored.reviewRoot, "status", "--porcelain=v2")).toBe("");
+  });
+
+  it("reports corrupt state when an unpinned exact source has been pruned", async () => {
+    const records = await fixture();
+    await git(records.root, "switch", "main");
+    await git(records.root, "branch", "-D", "feature");
+    await git(records.root, "reflog", "expire", "--expire=now", "--all");
+    await git(records.root, "gc", "--prune=now");
+
+    await expect(git(records.root, "cat-file", "-e", `${records.target.headSha}^{commit}`)).rejects.toThrow();
+    await expect(ensureLocalReviewSourceMaterialized({
+      exec,
+      source: records.source,
+    })).rejects.toMatchObject({
+      code: "corrupt-state",
+      reason: `missing-object:${records.target.headSha}`,
+    });
+  });
+
   it("distinguishes an intact materialization from a released one without restoring it", async () => {
     const records = await fixture();
     await ensureLocalReviewSourceMaterialized({ exec, source: records.source });

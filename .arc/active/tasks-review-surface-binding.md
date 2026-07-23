@@ -513,14 +513,10 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.R Close verification gaps**
+### `[x]` **8.R Close verification gaps**
 
 - _Goal:_ The public review protocol satisfies its strict authority, concurrency, exact-target, timeout, cleanup,
   reachability, and composed-system verification contracts without adding machinery beyond those guarantees.
-
-- _Context:_ Implementer verification and the first fresh adversarial verification pass found concrete
-  spec-conformance gaps. The remediation keeps each concern independently reviewable and reruns verification only
-  after every gap is closed.
 
     - `[x]` **8.R.a Enforce caller authority and typed command envelopes**
         - Local preparation now rejects derived routing keys while preserving conservative normalization for malformed
@@ -550,11 +546,15 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
           its complete typed result while the adapter remains read-only and passes storage references through as
           opaque values
 
-    - `[ ]` **8.R.g Prove the composed public protocol and recovery matrix**
-        - Exercise the built `arc review` verbs or their production launchers through complete local and frontline
-          flows, including clean, findings, disposition, reduction, and crash re-entry
-        - Cover pruned-object corruption, branch deletion plus Git maintenance, physical sweep release, concurrent
-          sweep safety, and every explicitly required recovery result
+    - `[x]` **8.R.g Prove the composed public protocol and recovery matrix**
+        - Built-CLI tests now complete clean and findings-bearing local flows through resume, attestation, approved
+          disposition replay, and reduction, and execute an exact-head frontline provider through durable re-entry
+        - Integration tests prove pinned restoration after branch deletion and Git pruning, typed corruption for a
+          pruned unpinned source, physical completed/expired release, and serialized concurrent sweeps
+
+- _Outcome:_ The public protocol now enforces its typed authority and exact-target contracts through production
+  ports, bounds and durably classifies frontline execution, self-heals expected concurrency, releases completed or
+  expired sources, and is exercised through built commands across its complete advisory and recovery matrix.
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
 
