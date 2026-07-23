@@ -96,7 +96,7 @@ test-first (contract tests: legal-pair round-trips, impossible-field rejection �
 - _Context:_ Common header is `schemaVersion` + `mode` + typed `diagnostics`; success envelopes add a
   state-discriminated payload; error envelopes carry no `state`/`nextAction`/payload and exit 1.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - each command's legal `state -> nextAction` pairs parse and an illegal pair is rejected (the § D2 table)
         - `frontline run: unavailable`/`failed` reason-class discriminants map to `retry` vs `operator-repair` exactly
         - `local attest: not-attestable` fires on a non-terminal status or a `complete` status with a null verdict
@@ -113,7 +113,7 @@ test-first (contract tests: legal-pair round-trips, impossible-field rejection �
   `targetId`, `requestId`, `policyVersion`, policy-binding digest, admitted runtime kind, `sourceRef`, `sourceDigest`,
   cleanup TTL) — written once at admission, never advanced.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - the `local-review` variant round-trips and rejects extra/missing fields (`strictObject`)
         - `FrontlineRunState.outcome` accepts `timed-out` / `stale-target`
         - `ReviewOperationStateSchema` discriminates all three variants on `kind`
@@ -126,7 +126,7 @@ test-first (contract tests: legal-pair round-trips, impossible-field rejection �
 
 - _Note:_ Owned by the provider-neutral outcome schema (`policy/frontline-outcome.ts`); adapters map into it.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - `timed-out` carries an execution-timeout reason; `stale-target` carries an observed-vs-expected head mismatch
         - `unavailable` reason classes: `rate-limited | transient-unavailable | source-unbound | capability-unsupported`
         - `failed` reason classes: `transient-transport | process-failure | signal-termination |
@@ -139,7 +139,7 @@ test-first (contract tests: legal-pair round-trips, impossible-field rejection �
   object format, `diffBaseSha`/`headSha`, `diffBaseTree`/`headTree`, opaque `reachabilityRef`/`materializationRef`,
   and a domain-separated `sourceDigest` over the semantic fields only.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - the digest excludes `sourceDigest` itself and both operational locators (no recursive preimage, no ref-name dependence)
         - two descriptors over the same Git range with different locators share a `sourceDigest`
         - `semanticsVersion: git-object-range/v1` is fixed
@@ -150,7 +150,7 @@ test-first (contract tests: legal-pair round-trips, impossible-field rejection �
   `ReviewReductionProjectionV1` — consuming the shipped disposition/approval/fix-authorization contracts as-is, with
   no parallel authority store.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - `ApprovedDispositionRecordV1` binds the operation, a discriminated source ref (receipt+source **or**
           frontline-outcome), the full `ApprovedDispositionSet`, and a nullable `FixAuthorization`; round-trips
         - `FrontlineOutcomeRecordV1` executable identity (digest + qualified version) is present **iff** an executable
@@ -198,7 +198,7 @@ surfaced on the public result. All test-first (business logic + parsing/validati
   `ReviewMethodActivityResolution`; the production adapter reads the registered `self-review` and `frontline-review`
   method files.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - a project override of activation is reflected in the resolution
         - package-default activation is preserved when no project declaration exists
         - a malformed project declaration returns a diagnostic on the public result (not a throw)
@@ -213,7 +213,7 @@ surfaced on the public result. All test-first (business logic + parsing/validati
   (post-rename) — this task wires their parse into the production port and the method-frontmatter loader rather than
   defining them, confirming that module's D14 Consume disposition.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - a valid `review-augmentation` frontmatter parses into `StandardReviewProjectAugmentation` with sorted unique dimensions
         - `rubricId` must version the named method identity as `<identity>/vN`; a mismatch refuses
         - a command payload cannot supply an augmentation
@@ -225,7 +225,7 @@ surfaced on the public result. All test-first (business logic + parsing/validati
   structured field, ambiguous lookup, or identity mismatch refuses the review request with a diagnostic, while an
   absent meta field uses the baseline unchanged.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - a resolved overlay augments the baseline deterministically (baseline `rubricVersion` + `rubricDigest` unchanged)
         - each refusal condition (missing / malformed / ambiguous / mismatch) returns a diagnostic
         - an absent `Review Rubric` field leaves the baseline unchanged
@@ -286,7 +286,7 @@ validation are test-first; the Commander wiring is test-after.
 
 - **Additional Context:** `spec-review-surface-binding.md` § D5 (publish-first ordering, proof-failure outcomes)
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - publication precedes pin creation; a failure between publication and pin leaves a recoverable operation, not an
           unreachable ref
         - each pre-launch proof failure has its defined outcome — idempotent restore-in-place vs `corrupt-state` (pin to
@@ -303,7 +303,7 @@ validation are test-first; the Commander wiring is test-after.
   absent) and terminally-expired (record present but cleanup-TTL-expired with no complete receipt) — so no abandoned
   pin blocks Git maintenance, and it never reaps a live unexpired operation's pin.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - a true orphan pin (no operation record) is reaped
         - an expired operation whose `operationId` is no longer derivable (HEAD moved) is reaped with its materialization
         - a live unexpired operation's pin is never reaped by a concurrent sweep
@@ -320,7 +320,7 @@ validation are test-first; the Commander wiring is test-after.
   driver selects it. `local prepare: unavailable` fires only when a present composition adapter's declared binding fails
   to parse or names an unregistered source; a no-adapter project takes the package default and never reaches it.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - `guidanceDigest` is computed over the delivered projection; baseline `rubricVersion` + `rubricDigest` unchanged
           by augmentation
         - the default binding permits `{ sourceKind: agent, qualifier: standard-review/v1 }` + `local-attestation`; a
@@ -340,7 +340,7 @@ validation are test-first; the Commander wiring is test-after.
 
 - **Additional Context:** `spec-review-surface-binding.md` § D12 (attest staleness sub-union, expiry semantics)
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - a non-terminal or null-verdict-`complete` result is `not-attestable` and appends nothing
         - the result must echo `sourceDigest`; a result for different bytes is rejected regardless of matching identifiers
         - live unchanged target → `attested-current` + receipt ref; changed after append → `stale-target`
@@ -358,13 +358,13 @@ validation are test-first; the Commander wiring is test-after.
   action, re-acquiring a lost `operationId` via the identical-retry derivation and completing an interrupted idempotent
   transition — deliberately not a read-only `status`.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - re-running `local prepare` from the same working tree returns the same `operationId` (the re-acquisition path)
         - `suspended -> wait` / `review-complete -> reduce` / `respond-to-findings -> respond` / `stale-target` / `expired`
           map from durable state + current facts
         - a lost checkout is recreated from the pinned objects; an absent pin whose objects remain is restored idempotently
 
-    - `[ ]` **Wire the `arc review local resume` handler and command** — test-after
+    - `[ ]` **4.6.a Wire the `arc review local resume` handler and command** — test-after
 
 ---
 
@@ -403,7 +403,7 @@ test-after.
 - _Note:_ `providers/coderabbit/frontline-execution.ts`, `frontline-agent.ts`; the structured `--agent` parser already
   emits normalized findings and outcomes.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - execution binds to the exact-head checkout; a moved-and-returned ref is not accepted as proof
         - the executable is resolved once, interrogated for its version, and the same artifact launched; digest + version
           recorded from what ran
@@ -415,7 +415,7 @@ test-after.
   new config axis); the runner passes remaining time + an abort signal and kills the spawned process on expiry, typing
   the result `timed-out`; unknown thrown errors map to the closed adapter-failure class.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - a hung provider is terminated at the timeout and returns `timed-out` (never normalized clean/findings)
         - an unknown thrown error maps to the adapter-failure class rather than an unbounded wait
         - remaining time and an abort signal are passed to the adapter
@@ -431,7 +431,7 @@ test-after.
   (`FrontlineSemanticRecord` carries only `maxPasses` today), derived per § D11 — pass 1 on a fresh resolution; the
   follow-up resolver authorizes pass 2 at the changed head.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - `skipped -> none`; `offered -> bind-source` (no source) / `obtain-authorization` (source resolved);
           `ready -> run-frontline`
         - the `ready` variant carries the authorized `pass` and effective allowance
@@ -444,7 +444,7 @@ test-after.
   reused at unchanged coordinates, while every non-review terminal admits a fresh operation at an advanced generation
   with the same pass number.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - re-entry to a concluded operation returns the same durable outcome reference
         - a review-concluding outcome is reused at unchanged coordinates
         - a non-review terminal (`timed-out` / `unavailable` / `failed`) admits a new generation, same pass number;
@@ -469,7 +469,7 @@ shipped forward reducers over both lanes. Test-first (validation + reduction log
 - _Context:_ Approver = active local identity; proposer = composing runtime identity — both derived at the trusted
   boundary, so the shipped distinct-actor check structurally encodes agent-proposes / human-approves.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - source-discriminated authority: attested-local reloads receipt + immutable source; frontline reloads the exact
           outcome and rejects any non-findings outcome
         - `approver != proposer` enforced from trusted-boundary identities (never caller text)
@@ -486,7 +486,7 @@ shipped forward reducers over both lanes. Test-first (validation + reduction log
   at its own head, with `resolveFrontlineFollowUp` semantics surfaced as advice in `respond` / `reduce` output — never a
   durable fix ledger or fix-phase verb.
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - nothing carries across a fix — re-entry is `local prepare` / `frontline resolve` at the new head
         - for a frontline source, follow-up worthwhileness surfaces as advisory text in `respond` / `reduce`, not a durable
           binding chain (`policy/frontline-follow-up.ts`)
@@ -499,7 +499,7 @@ shipped forward reducers over both lanes. Test-first (validation + reduction log
 
 - **Additional Context:** `spec-review-surface-binding.md` § D10 (per-source reduction mapping)
 
-    - `[ ]` **Build `test-first` (one behavior at a time):**
+    - Build `test-first` (one behavior at a time):
         - attested-local: clean receipt → `advisory-complete`; findings without a complete disposition → `findings` + refs;
           with a complete disposition → `settled`; a `failed`/`unavailable` receipt → `retryable`; changed target → `stale-target`
         - frontline: undispositioned findings → `findings`; clean/dispositioned/`pass-cap-exhausted` → `advisory-complete`;
@@ -545,14 +545,14 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
 - _Goal:_ The two boundary `policy/standard-review*.ts` modules are dispositioned under the consumer test, and the three
   gate-cohort modules are left to `review-gate-right-sizing`'s cut under append-only merge-order coordination.
 
-    - `[ ]` **7.2.a** Confirm `policy/standard-review-guidance.ts` is consumed by Task 3.2 → keep
+    - `[ ]` **7.2.a Confirm `policy/standard-review-guidance.ts` is consumed by Task 3.2 → keep**
 
-    - `[ ]` **7.2.b** Consumer-test `policy/standard-review.ts` — **keep**: `standard-review-projection.ts` (a
+    - `[ ]` **7.2.b Consumer-test `policy/standard-review.ts`** — **keep**: `standard-review-projection.ts` (a
       consume-set module) imports its `STANDARD_REVIEW_RUBRIC_IDENTITY`, so it is transitively consumed
 
-    - `[ ]` **7.2.c** Verify `providers/coderabbit/config.ts`, `runtime/qualification-activation.ts`, and
-      `runtime/operations.ts` are unconsumed by this WU; leave for the sibling's cut (whichever branch lands first
-      removes them)
+    - `[ ]` **7.2.c Verify the gate-cohort modules remain unconsumed** — confirm `providers/coderabbit/config.ts`,
+      `runtime/qualification-activation.ts`, and `runtime/operations.ts` are unconsumed by this WU; leave for the
+      sibling's cut (whichever branch lands first removes them)
 
 - _Note:_ Joint-confirm at build with `review-gate-right-sizing` § D4.
 
