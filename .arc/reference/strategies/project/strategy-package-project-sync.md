@@ -225,7 +225,7 @@ Configurable sets. The self-hosting configuration currently resolves 86 Framewor
 membership: external PM adds its setup workflow, arc-in-git adds four planning files, and team mode adds the team
 coordination strategy.
 
-*`DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not counted.*
+_`DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not counted._
 
 ---
 

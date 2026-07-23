@@ -27,9 +27,9 @@ gaps that block it — each tagged by kind, so the caller can route without re-j
 ### The bar
 
 1. **All settle-able design is settled.** Test it by divergence: where two competent engineers handed this draft
-   would build materially different things, a *design* decision is still open and belongs here. Where they would
+   would build materially different things, a _design_ decision is still open and belongs here. Where they would
    each make the same local call without a second thought — variable names, internal structure, a tactical choice —
-   that is an *implementation detail*, and leaving it open is fine. Open design decision → not ready.
+   that is an _implementation detail_, and leaving it open is fine. Open design decision → not ready.
 2. **A stateable success signal exists.** The author can name a concrete outcome or behavior that will show the
    work succeeded — the seed of the spec's success criteria. An aspiration too vague to observe ("make it
    cleaner") does not count.

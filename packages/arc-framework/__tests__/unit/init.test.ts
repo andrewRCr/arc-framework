@@ -265,13 +265,19 @@ describe("resolveFileList — actual recipe", () => {
     expect(files).toContain(TEAM_COORD);
   });
 
-  it("ships the scalable authoring method and workflow files", () => {
+  it("ships every planning method required by the installed authoring workflows", () => {
     const files = resolveFileList(actualRecipe, {
       "pm.mode": "none", "tools": "", "team.mode": "false",
     });
     expect(files).toContain("system/methods/classify-work-unit.md");
+    expect(files).toContain("system/methods/assess-cohort-fit.md");
+    expect(files).toContain("system/methods/assess-design-proportionality.md");
+    expect(files).toContain("system/methods/assess-draft-readiness.md");
+    expect(files).toContain("system/methods/adversarial-review.md");
+    expect(files).toContain("system/methods/design-audit.md");
     expect(files).toContain("system/methods/resolve-planning-depth.md");
     expect(files).toContain("system/methods/spec-review.md");
+    expect(files).toContain("system/methods/task-audit.md");
     expect(files).toContain("system/extensions/pre-spec-finalization-review.md");
     expect(files).toContain("system/workflows/arc/draft-design.md");
   });
@@ -288,10 +294,16 @@ describe("classifyFile", () => {
 
   it("classifies Configurable files", () => {
     expect(classifyFile("system/arc-config.yml")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-design-proportionality.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-cohort-fit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-draft-readiness.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/adversarial-review.md")).toBe("Configurable");
     expect(classifyFile("system/methods/classify-work-unit.md")).toBe("Configurable");
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/design-audit.md")).toBe("Configurable");
     expect(classifyFile("system/methods/resolve-planning-depth.md")).toBe("Configurable");
     expect(classifyFile("system/methods/spec-review.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/task-audit.md")).toBe("Configurable");
     expect(classifyFile("system/extensions/post-task-quality.md")).toBe("Configurable");
     expect(classifyFile("system/extensions/pre-spec-finalization-review.md")).toBe("Configurable");
     expect(classifyFile("system/rules/DEV-RULES.PROJECT.md")).toBe("Configurable");
@@ -305,7 +317,7 @@ describe("classifyFile", () => {
     expect(classifyFile("reference/briefs/AGENT-BRIEF.ARC.md")).toBe("Framework");
     expect(classifyFile("system/workflows/arc/process-task-loop.template.md")).toBe("Framework");
     // Per-file methods/extensions directory READMEs fall through to Framework —
-    // only the 8 methods + 8 extensions themselves are adopter-customizable.
+    // only the method and extension files themselves are adopter-customizable.
     expect(classifyFile("system/methods/README.md")).toBe("Framework");
     expect(classifyFile("system/extensions/README.md")).toBe("Framework");
   });

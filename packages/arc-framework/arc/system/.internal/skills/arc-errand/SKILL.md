@@ -8,7 +8,7 @@ disable-model-invocation: false
 
 The warm, in-session entrypoint for running an **errand** — a single out-of-work-unit concern handled
 now, from the session you are already in. It is the counterpart to `arc-session --errand`, which starts
-a *fresh* session for an errand: same lifecycle, different starting point. This skill assumes session
+a _fresh_ session for an errand: same lifecycle, different starting point. This skill assumes session
 context is already established — it does **not** run session-init.
 
 1. Confirm you are resolving an out-of-WU concern now.

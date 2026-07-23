@@ -12,35 +12,35 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Remove the dead Lite-layout (`status.md` / `ActiveLayout`) active-meta residue**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: scalable-core`), housekeep drain (2026-06-17); captured
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: scalable-core`), housekeep drain (2026-06-17); captured
   during `release-ceremony-commits` design audit — surfaced as the source of the audit null-collision (2026-06-17).
-- *Concern:* the active-meta reader still carries a two-layout model — `lite` (`.arc/active/status.md`, a single
+- _Concern:_ the active-meta reader still carries a two-layout model — `lite` (`.arc/active/status.md`, a single
   nameless WU) vs `full` (`.arc/active/meta-{name}.md`). Lite is **dead code**: a remnant of the ditched "Lite
   mode" design (superseded by ADR-020's principle-anchored scalable core, which scales by depth/footprint). No
   `status-*` file exists anymore (it became `meta-*`); nothing produces the lite layout, so the branch is
   unreachable.
-- *Blast radius:* ~29 references across 8 source files (`lib/active/meta-reader.ts`,
+- _Blast radius:_ ~29 references across 8 source files (`lib/active/meta-reader.ts`,
   `lib/work-unit/lifecycle-guards.ts`, `lib/release/audit-log.ts`, `lib/release/wu-resolution.ts`,
   `lib/release/types.ts`, `commands/active/types.ts`, `commands/active.ts`, `commands/active/status.ts`) + ~6 test
   files; `ActiveLayout` threads through the active-meta subsystem (session-init, `arc active status`, release
   wrappers). A careful removal with full test re-run, not a one-liner.
-- *Approach:* drop `LITE_FILENAME` / lite detection in `meta-reader.ts`, collapse `ActiveLayout` to the single
+- _Approach:_ drop `LITE_FILENAME` / lite detection in `meta-reader.ts`, collapse `ActiveLayout` to the single
   full layout (or remove the type), simplify `parseNameFromPath` (every candidate is `meta-{name}.md`), and let
   `toAuditWorkUnit` return null only for the genuine zero-candidate case. Confirm against this WU's validated seam
   inventory — may already be enumerated there; if so, this capture just confirms it.
-- *Downstream:* resolves `release-ceremony-commits`'s audit null-collision (zero-candidate accept currently shares
+- _Downstream:_ resolves `release-ceremony-commits`'s audit null-collision (zero-candidate accept currently shares
   `wu: null` with a nameless lite WU) — once lite is gone, null unambiguously means "no active WU."
 
 ### `[ ]` **Configuration-transition machinery from the dissolved Lite↔Full switch design**
 
-- *Routed from:* `local-mode` re-scope groom (2026-07-03); full detail in `draft-arc-modes.md` prior to that
+- _Routed from:_ `local-mode` re-scope groom (2026-07-03); full detail in `draft-arc-modes.md` prior to that
   re-scope (git history) § Graduation / Downgrade Paths.
-- *Concern:* this WU's owned `arc reconfigure` slice currently designs one edge (toggle-pipeline-off with staged
+- _Concern:_ this WU's owned `arc reconfigure` slice currently designs one edge (toggle-pipeline-off with staged
   content). The dissolved Lite↔Full switch already worked the general problem and its machinery transfers intact:
   **(1) orphan taxonomy** — Category A manifest-tracked files the new configuration excludes (change-plan +
   existing removal UX handles free), Category B off-manifest runtime user artifacts (filesystem walk, reported
@@ -54,10 +54,10 @@
 
 ### `[ ]` **Recipe / prompt / config-template mechanism bundle (designed for Lite, needed by the reform)**
 
-- *Routed from:* `local-mode` re-scope groom (2026-07-03); full detail in `draft-arc-modes.md` pre-re-scope
+- _Routed from:_ `local-mode` re-scope groom (2026-07-03); full detail in `draft-arc-modes.md` pre-re-scope
   (git history) §§ Installation Type Recipe Mechanism, Prompt Orchestration and Recipe Authority, Lite Config
   Template Mechanism, Configuration Identity.
-- *Concern:* three fully-specified, axis-agnostic mechanisms with code-verified landscapes back this WU's owned
+- _Concern:_ three fully-specified, axis-agnostic mechanisms with code-verified landscapes back this WU's owned
   recipe/config/validation slice; none are recorded in ADR-020 or this draft: **(1) symmetric-additive recipe
   bucketing** — per-axis additive buckets, no subtraction/precedence/two-recipes (rejections documented), whole-file
   gating only for files with no cross-axis content, within-file gating otherwise, no combinatorial pair buckets;
@@ -70,15 +70,15 @@
   inside stripped blocks can't be overridden back in). Plus the consumer read-path doctrine (axis fields live in
   the manifest only; hooks branch on already-resolved downstream keys; workflows/agents never see an axis at
   runtime) and the manifest-vs-config placement reasoning for install-shape axes.
-- *Caveat:* landscapes read 2026-04; re-verify against the current CLI before reuse. One undesigned seam: ADR-020
+- _Caveat:_ landscapes read 2026-04; re-verify against the current CLI before reuse. One undesigned seam: ADR-020
   §8's walkthrough is agent-led while this machinery is CLI prompts — non-interactive (`--yes` / CI) paths need
   the CLI mechanism regardless; the interactive split between walkthrough and CLI prompting is nobody's design yet.
 
 ### `[ ]` **Guided-init inputs from the dissolved Lite design (floor, patterns, evidence)**
 
-- *Routed from:* `local-mode` re-scope groom (2026-07-03); full detail in `draft-arc-modes.md` pre-re-scope
+- _Routed from:_ `local-mode` re-scope groom (2026-07-03); full detail in `draft-arc-modes.md` pre-re-scope
   (git history) §§ Lite Initial Setup, Mode Fit Communication, Research Findings, Quick-Start / On-Ramp Angle.
-- *Concern:* inputs for this WU's owned init-workflow reshape: **(1) the minimum-viable-init floor** — the
+- _Concern:_ inputs for this WU's owned init-workflow reshape: **(1) the minimum-viable-init floor** — the
   load-bearing set the opt-down endpoint must still guarantee (agent config, identity, the session-loaded project
   docs) plus the deliberately-absent list; **(2) agent-led in-workflow opt-in** as the mechanism for optional
   artifacts (install-time prompt and CLI flag both rejected on discoverability/ceremony grounds); **(3) the
@@ -93,33 +93,33 @@
   argued from informed consent and never weighed the adoption-funnel case for presenting the minimal region as
   the recommended start for solo/trial adopters. Surface it deliberately at the walkthrough design (intersects
   `cold-start-init-polish`).
-- *Also:* the dissolved design committed to a strategy-content audit sweep (config-coupled in-doc surfaces —
+- _Also:_ the dissolved design committed to a strategy-content audit sweep (config-coupled in-doc surfaces —
   tables, example blocks — across all framework strategies; 3-of-4 drift hit rate when last run) and a
   settings-applicability inventory (which keys exist/force/shift per toggle state). Both exceed this draft's
   two-doc prose sweep; adopt or consciously reject at integration.
 
 ### `[ ]` **Review coupling-audit finding: PM mode schema reform**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: scalable-core`), housekeep drain (2026-07-18); captured
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: scalable-core`), housekeep drain (2026-07-18); captured
   during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
-- *Concern:* replacing the `pm.mode` enum crosses 71 files and is an abstraction and compatibility-boundary
+- _Concern:_ replacing the `pm.mode` enum crosses 71 files and is an abstraction and compatibility-boundary
   problem rather than a rename cascade.
-- *Approach:* at grooming, settle the boolean key name and central-access boundary, then use the ranked inventory
+- _Approach:_ at grooming, settle the boolean key name and central-access boundary, then use the ranked inventory
   as the migration and verification matrix.
-- *Packet:* `packet-171d37a721a6cda7aef7dbd7`; content digest
+- _Packet:_ `packet-171d37a721a6cda7aef7dbd7`; content digest
   `8f89da49e293c5d845f22a324a7d17613df6de823bcd9aa625c0de5f89024107`.
-- *Evidence:* `pm-mode-key`; `scan-result.json#class-pm-mode-key`.
+- _Evidence:_ `pm-mode-key`; `scan-result.json#class-pm-mode-key`.
 
 ---
 
 ## Problem / Motivation
 
 ARC accumulated a mode/config surface — `pm.mode` (none / arc-in-git / external), Lite/Full, Local,
-`team.mode` — that presents *the same underlying work* as discrete, mutually exclusive shapes. The 11
+`team.mode` — that presents _the same underlying work_ as discrete, mutually exclusive shapes. The 11
 principles already define the right architecture: a non-negotiable principle core plus replaceable
 conventions, with scaling carve-outs written into the principles themselves. The modes reified continuous
 convention-scaling into siloed shapes. The cost lands on both audiences: adopters face a confusing
-matrix and a Lite mode that is a *different* mental model rather than a smaller one; maintainers carry
+matrix and a Lite mode that is a _different_ mental model rather than a smaller one; maintainers carry
 duplicated conditional logic and a config surface that resists change.
 
 The thesis: **one coherent core that scales up and down, over siloed modes plus a config matrix.** See
@@ -166,14 +166,14 @@ mode-orthogonal. Concrete seams:
   `validate-config.sh` enum + known-keys, the single 3-way init prompt; no `pm.tracker` / `archive.preserve`
   keys. `init-recipe.json` installs backlog **xor** the tracker-setup workflow on the one enum (the
   module-on+tracker blocker).
-- **Workflow:** `session-init.md` Step 5 (next-work discovery) reads `backlog/ROADMAP.md` *unconditionally*
+- **Workflow:** `session-init.md` Step 5 (next-work discovery) reads `backlog/ROADMAP.md` _unconditionally_
   — the one lifecycle step missing the guard every sibling has; `archive-work-unit.md` Step 3 sweeps to
-  `completed/` *unconditionally* (no `archive.preserve` delete-path; sweep is hardcoded, and `completed/`
+  `completed/` _unconditionally_ (no `archive.preserve` delete-path; sweep is hardcoded, and `completed/`
   isn't even scaffolded under `none` yet archive `mkdir -p`s into it); `03_configure-external-integration.md`
   body is mode-agnostic but gated to `external`; `deactivate-work-unit.md` external arm says "the external
   tracker" (singular).
 - **Prose:** DEV-RULES.ARC capture-routing table frames arc-in-git vs. "other modes" as exhaustive (no row
-  routes deferred work to a tracker *while* a backlog exists); `strategy-planning-module.md` explicit "PM
+  routes deferred work to a tracker _while_ a backlog exists); `strategy-planning-module.md` explicit "PM
   without external tools" XOR; `arc-config.yml` "where PM lives" singular framing.
 - **Already-clean (inherited base):** lifecycle workflows already gate backlog behavior with explicit
   none/external skip-arms; the `arc status --session-init` composite probe and `arc active status` never
@@ -183,7 +183,7 @@ mode-orthogonal. Concrete seams:
   multi-WU-aware end-to-end.
 - **Team is config-orthogonal but conceptually load-bearing:** `team.mode` gates nothing at runtime today
   (its sole effect is flipping the `notes_push` default at init); team coordination is pure out-of-band
-  prose convention — which *confirms* the thesis's central assumption is current reality, and confirms it is
+  prose convention — which _confirms_ the thesis's central assumption is current reality, and confirms it is
   unenforced (the concurrency boundary in ADR-020 §7).
 
 ## Open questions

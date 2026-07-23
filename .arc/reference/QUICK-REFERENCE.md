@@ -51,6 +51,9 @@ npm run -s lint:md:file -- "path/to/file.md"
 # Auto-fix specific file
 npm run -s lint:md:fix:file -- "path/to/file.md"
 
+# Certify the exact staged candidate (normally run by pre-commit)
+npm run -s lint:md:staged
+
 # Lint specific directory
 npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 ```
@@ -60,20 +63,18 @@ npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 - Without `--no-globs`, markdownlint-cli2 processes config globs **in addition to** specified files
 - Use `--no-globs` when checking/fixing individual files to avoid processing entire workspace
 - If local dependencies are unavailable, use fallback: `npx --yes markdownlint-cli2 ...`
-- `markdownlint-cli2 --fix` does NOT fix MD060 (table alignment) — use `markdown-table-prettify` instead:
+- `markdownlint-cli2 --fix` does not fix MD060 (table alignment). Use the repository's explicit table formatter:
 
 ```bash
-# Fix table formatting (MD060 violations)
-npx --yes markdown-table-prettify < input.md > output.md
-# Or use VS Code extension: "Markdown Table Prettifier"
+# Fix table formatting without rewriting surrounding prose
+npm run format:tables -- "path/to/file.md"
 ```
 
 ### Prettier (Markdown Formatting)
 
-Use `prettier` for bulk line-length wrapping (MD013). It's markdown-aware — won't
-break inside links, emphasis, or code spans. **Not recommended for MD060** (table
-alignment) — use `markdown-table-prettify` instead, which fixes tables without
-reformatting surrounding prose.
+Use `prettier` for bulk line-length wrapping (MD013). It's markdown-aware — won't break inside links, emphasis, or
+code spans. Do not use it for MD060 table alignment; use `npm run format:tables -- <file>` so only validated table
+ranges change.
 
 ```bash
 # Format a file (prose wrap at 120 chars, matching markdownlint config)
@@ -246,8 +247,8 @@ npx arc update
 ### Lifecycle Verbs
 
 The complete work-unit lifecycle command set — the full verb index. The `work-unit-lifecycle/` workflow files
-cover only the judgment-bearing subset, so a verb with no workflow file (`demote`, `teardown`, `stub`) is by
-design, not a missing ceremony.
+cover only the judgment-bearing subset, so a verb with no workflow file (`demote`, `rename`, `teardown`, `stub`) is
+by design, not a missing ceremony.
 
 ```bash
 # Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, dep-edges
@@ -259,6 +260,9 @@ arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <re
 # Start an existing work unit on plan/<name>; --new explicitly creates an absent name.
 # Spawns a worktree; --here uses the current checkout (init-work-unit.md).
 arc start [name] [--new] [--here] [--from <pointer-or-blurb>]
+
+# Rename a WU and its applicable branch, notes, remote, marker, and worktree identities — no ceremony
+arc rename <slug> <new-slug>
 
 # Promote a provisional stub to planned, requires a resolved Class (promote-work-unit.md)
 arc promote <slug>

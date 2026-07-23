@@ -12,7 +12,7 @@ import { readdir, stat, writeFile, rename, unlink, mkdir } from "node:fs/promise
 import { randomBytes } from "node:crypto";
 
 /**
- * Write text to a file atomically using temp-file-then-rename.
+ * Write text or bytes to a file atomically using temp-file-then-rename.
  *
  * Creates a unique `.tmp` sibling in the same directory as the target, writes
  * the serialized content there, then renames over the target. On POSIX systems
@@ -26,15 +26,15 @@ import { randomBytes } from "node:crypto";
  * between two valid records.
  *
  * @param targetPath - Absolute path to the file
- * @param content - Complete text content to write
+ * @param content - Complete text or byte content to write
  */
-export async function atomicWriteFile(targetPath: string, content: string): Promise<void> {
+export async function atomicWriteFile(targetPath: string, content: string | Uint8Array): Promise<void> {
   const dir = dirname(targetPath);
   await mkdir(dir, { recursive: true });
   const tmpPath = join(dir, `.${basename(targetPath)}.${randomBytes(8).toString("hex")}.tmp`);
 
   try {
-    await writeFile(tmpPath, content, "utf-8");
+    await writeFile(tmpPath, content, typeof content === "string" ? "utf-8" : undefined);
     await rename(tmpPath, targetPath);
   } catch (err) {
     // Clean up temp file if it was created before the failure

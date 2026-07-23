@@ -7,14 +7,14 @@ Accepted
 ## Context
 
 [ADR-016][adr-016] established the interlock vocabulary (`commit_interlock`, `push_interlock`, `sync_interlock`)
-governing *when* the agent decides to release a commit, push, or sync. Each configurable interlock had two values:
+governing _when_ the agent decides to release a commit, push, or sync. Each configurable interlock had two values:
 `manual` (no agent autofire; user invocation only) and `on-{primary}` (`on-task-approval` for commit, `on-sync` for
 push, `on-handoff` for sync — autofire on the named primary trigger).
 
 [ADR-017][adr-017] then defined the release-wrapper trust model: under opt-in, the wrapper becomes the
 per-invocation trust boundary; the wrapper validates interlock state and either invokes git or refuses with one of
-codes 10–14 plus an audit-log entry. ADR-017 covers *whether* the defense-in-depth trade-off applies and what trust
-contract holds. It does not say *how* the wrapper translates a configured interlock value into an authorize/refuse
+codes 10–14 plus an audit-log entry. ADR-017 covers _whether_ the defense-in-depth trade-off applies and what trust
+contract holds. It does not say _how_ the wrapper translates a configured interlock value into an authorize/refuse
 decision, and it leaves two design questions open from the foundation work.
 
 **Value extension.** The two-value enum covers the primary release event for each interlock, but workflow evolution
@@ -28,9 +28,9 @@ makes documentation grow with each new trigger, and forces forward-compat to lan
 migrations rather than a stable reserved value.
 
 **Authorization model.** Once a configured interlock value is resolved, the wrapper has to decide whether the
-particular invocation matches the configured permission. Two routes exist. *Runtime-context detection* would have
+particular invocation matches the configured permission. Two routes exist. _Runtime-context detection_ would have
 the wrapper distinguish "this commit is for task-work" from "this commit is for a ceremony" at invocation time —
-by reading caller hints, inspecting workflow state, or inferring intent from active-WU context. *Scope-coverage*
+by reading caller hints, inspecting workflow state, or inferring intent from active-WU context. _Scope-coverage_
 would have the wrapper carry a fixed scope per command and check whether the configured permission's trigger set
 overlaps that scope. Runtime-context detection requires the wrapper to encode workflow knowledge it doesn't
 otherwise need; scope-coverage operates on values alone.
@@ -38,22 +38,22 @@ otherwise need; scope-coverage operates on values alone.
 **UX framing.** A separate framing question surfaced in parallel: how should adopters mentally model the wrapper's
 authorize/refuse behavior? Two framings competed.
 
-- *Permission-grant framing.* "Configuring `on-task-approval` grants the agent permission to commit." The
+- _Permission-grant framing._ "Configuring `on-task-approval` grants the agent permission to commit." The
   wrapper's authorize/refuse outcome reads as "wrapper allows/denies the commit." Code 11 reads as "permission
   denied."
-- *Prompt-vs-bypass framing.* "Configuring `on-task-approval` permits the agent to bypass the harness's
+- _Prompt-vs-bypass framing._ "Configuring `on-task-approval` permits the agent to bypass the harness's
   per-invocation prompt for task-work commits." Raw `git commit` remains the harness-prompt path for any
   invocation outside configured scope. Code 11 reads as "wrong tool — use raw `git` for this invocation, or
   escalate the permission only if intentional."
 
 Permission-grant framing reads cleanly in isolation but conflicts with the [ADR-017][adr-017] trust contract. ADR-017
-establishes that the wrapper's validation is *unconditional* — validation and audit logging fire regardless of
-`arc.release.enabled` — and that the flag is *observability and routing substrate, not a wrapper kill-switch*.
+establishes that the wrapper's validation is _unconditional_ — validation and audit logging fire regardless of
+`arc.release.enabled` — and that the flag is _observability and routing substrate, not a wrapper kill-switch_.
 Permission-grant framing implies the wrapper's authorize outcome controls whether the commit happens, but the
 harness-prompt path runs independently of the wrapper: the user can always raw-`git`-commit, with or without opt-in.
 Permission-grant framing also implies the flag is a kill-switch ("turn off permission to commit"), which contradicts
-the ADR-017 line. Prompt-vs-bypass framing aligns: configuration controls *which paths the user permits the agent to
-bypass-prompt on*, and raw `git` remains the harness-prompt fallback for any invocation outside the configured
+the ADR-017 line. Prompt-vs-bypass framing aligns: configuration controls _which paths the user permits the agent to
+bypass-prompt on_, and raw `git` remains the harness-prompt fallback for any invocation outside the configured
 bypass scope.
 
 ## Decision
@@ -62,7 +62,7 @@ Adopt the following authorization model for the release wrappers, layered on the
 
 **The three configurable interlocks share a uniform three-value permissiveness ladder.** `commit_interlock`,
 `push_interlock`, and `sync_interlock` each take values from `manual < on-{primary}` < `on-workflow`. Values
-capture *trigger sets*, not single triggers — `manual` is the ∅ trigger set, `on-{primary}` is the established
+capture _trigger sets_, not single triggers — `manual` is the ∅ trigger set, `on-{primary}` is the established
 singleton trigger set, and `on-workflow` is the superset capturing any agent-mediated workflow event.
 
 | Interlock          | `manual` | `on-{primary}`     | `on-workflow`                           |
@@ -117,7 +117,7 @@ the path. Outside scope, raw `git` is the canonical alternative — the harness 
 **Authorization is two-layered.** Layer 1 is the mechanical wrapper check (scope-coverage; refuse code 11 on
 mismatch). Layer 2 is agent judgment within authorized scope: even when the wrapper would authorize, agent contract
 codified in [DEV-RULES.ARC][dev-rules-arc] and workflow docs decides whether the wrapper or raw `git` is appropriate
-for *this* specific invocation. Layer 1 is defensive backstop; in normal use the agent's tool selection prevents
+for _this_ specific invocation. Layer 1 is defensive backstop; in normal use the agent's tool selection prevents
 code 11 from firing. Layer 2 is judgment-grained and not wrapper-enforced — its violations surface via behavior
 drift, audit-log forensics, and user feedback, not via runtime refusal.
 
@@ -175,21 +175,21 @@ secondary because it requires the user to deliberately widen permission, which i
 
 ### Risks
 
-- *Layer-2 drift under `on-workflow`.* Once `on-workflow` is set, both task-work and ceremony commits authorize at
+- _Layer-2 drift under `on-workflow`._ Once `on-workflow` is set, both task-work and ceremony commits authorize at
   the wrapper boundary. If agents adopt the wrapper for invocations the codified workflow does not call for (e.g.,
   `arc release commit` for ad-hoc commits the user invoked manually), the audit log captures the misuse but no
   real-time signal fires. Mitigation: keep the audit log queryable, surface forensic patterns in ergonomics-WU
   adopter docs, re-evaluate if dogfooding shows recurring drift.
-- *Trigger-set framing misread as single-trigger names.* If documentation drifts toward "configure
+- _Trigger-set framing misread as single-trigger names._ If documentation drifts toward "configure
   `on-task-approval` to autofire on task-approval" without naming the trigger-set framing, the adopter mental model
   loses the values-as-sets property — and `on-workflow` becomes opaque (which workflow? which trigger?).
   Mitigation: this ADR is the canonical framing; downstream documentation references it rather than inventing
   parallel framing.
-- *Future workflows expanding the workflow trigger set silently.* `on-workflow` authorizes any agent-mediated
+- _Future workflows expanding the workflow trigger set silently._ `on-workflow` authorizes any agent-mediated
   workflow event; new workflows landing in subsequent WUs join the trigger set without an adopter-visible config
   change. Mitigation: each WU adding workflow-mediated wrapper invocations must call out the addition explicitly in
   its release notes / docs surface so adopters who set `on-workflow` see the new event surface.
-- *Code 11 fatigue.* If agent contracts permit too many wrapper-eligible invocations under tight scopes, code 11
+- _Code 11 fatigue._ If agent contracts permit too many wrapper-eligible invocations under tight scopes, code 11
   fires often and adopters may set `on-workflow` reflexively to silence it rather than as a deliberate permission
   widening. Mitigation: the agent's contract is the load-bearing layer-2 surface; codify raw-`git`-vs-wrapper
   selection in [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline so layer-2 carries the judgment correctly and
@@ -197,21 +197,21 @@ secondary because it requires the user to deliberately widen permission, which i
 
 ### Alternatives Considered
 
-- *Per-axis specific values.* Add `commit_interlock: on-ceremony`, `push_interlock: on-integrate`,
+- _Per-axis specific values._ Add `commit_interlock: on-ceremony`, `push_interlock: on-integrate`,
   `sync_interlock: on-worktree-create` etc. as workflow events surface. Rejected — fragments the interlock
   vocabulary along axis-specific lines, requires schema-axis evolution per workflow event, and forces forward-compat
   through CLI/yaml/git-config migrations rather than a stable reserved value. The trigger-set superset captures the
   same authorization with one uniform value.
-- *Runtime-context detection in the wrapper.* Have the wrapper read caller hints, inspect workflow state, or infer
+- _Runtime-context detection in the wrapper._ Have the wrapper read caller hints, inspect workflow state, or infer
   intent from active-WU context to distinguish task-work from ceremony at invocation time. Rejected — encodes
   workflow knowledge in the wrapper that workflows already carry; couples the wrapper to workflow shape; produces
   a larger surface to test (per-context branches across the refusal cascade); and the decoupling buys nothing the
   layer-2 contract does not already provide.
-- *Single-trigger values only (no `on-workflow`).* Keep the existing two-value enum and require workflows to invoke
+- _Single-trigger values only (no `on-workflow`)._ Keep the existing two-value enum and require workflows to invoke
   wrappers with explicit per-event opt-in flags. Rejected — pushes the trigger-set decision into every workflow
   rather than centralizing it in config, breaks the symmetric-ladder framing across axes, and duplicates per-event
   opt-in surface in workflow code.
-- *Permission-grant UX framing.* Document the wrapper as granting commit permission; code 11 as "permission
+- _Permission-grant UX framing._ Document the wrapper as granting commit permission; code 11 as "permission
   denied." Rejected — conflicts with the [ADR-017][adr-017] trust contract (validation is unconditional; the flag
   is observability, not a kill-switch) and obscures the harness-prompt fallback path. Adopters who internalize
   "permission denied" framing reach for config escalation as the primary remediation; the prompt-vs-bypass framing

@@ -19,6 +19,16 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Collapse `create-spec` finalization into one scope-stating interlock**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during a planning-stage gate
+  discussion.
+- _Concern:_ `create-spec` asks for two approvals with no state change between them; Gate 1 releases no fire site,
+  while sibling planning workflows use one terminal gate beside the same advisory-review pattern.
+- _Approach:_ decide the gate shape once alongside generate-tasks and planning-closeout work. Prefer one prompt
+  whose wording names draft retirement, meta update, and commit; if two gates remain, codify the irreversibility
+  principle and apply it consistently across the planning pipeline.
+
 ### `[ ]` **Appetite/continuation tripwire for Heavy/Novel WUs + the low-leverage-completion smell**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: goal-aware-direction`, split at drain), housekeep drain

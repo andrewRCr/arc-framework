@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `fe340acff`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `725c7e950`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -16,22 +16,23 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | State         | Work unit                | Priority | Owner  | Depends on | Cohort                 |
 | ------------- | ------------------------ | -------- | ------ | ---------- | ---------------------- |
 | `Planning`    | cohortless-decomposition | P1       | andrew | —          | —                      |
+| `Planning`    | decomposition-doctrine   | P1       | andrew | —          | —                      |
+| `Planning`    | review-chunking          | P1       | andrew | —          | —                      |
+| `Active`      | review-gate-right-sizing | P1       | andrew | —          | —                      |
+| `Planning`    | review-surface-binding   | P1       | andrew | —          | —                      |
 | `Active`      | session-locus-model      | P1       | andrew | —          | —                      |
 | `Integrating` | cli-command-inputs       | P2       | andrew | —          | cli-substrate-adoption |
 | `Active`      | cli-validation-surfaces  | P2       | andrew | —          | cli-substrate-adoption |
-| `Active`      | markdown-formatting      | P3       | andrew | —          | —                      |
 
 ## Ready
 
 | Work unit                             | Priority | Owner  | Depends on | Cohort                     |
 | ------------------------------------- | -------- | ------ | ---------- | -------------------------- |
 | interlock-release-refinement          | P1       | andrew | —          | approval-flow-refinement   |
-| decomposition-doctrine                | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | pr-decomposition                      | P1       | andrew | —          | —                          |
 | recovery-hardening                    | P1       | andrew | —          | —                          |
 | review-gate-enforcement-qualification | P1       | andrew | —          | —                          |
-| review-surface-binding                | P1       | andrew | —          | —                          |
 | roadmap-tooling                       | P1       | andrew | —          | —                          |
 | stub-mint-to-launch                   | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model              | P1       | andrew | —          | —                          |
@@ -39,6 +40,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | loadset-composition                   | P2       | andrew | —          | agent-context-optimization |
 | commit-increments                     | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization                | P2       | andrew | —          | architecture-remediation   |
+| method-conventions                    | P2       | andrew | —          | doc-conventions            |
 | naming-conventions                    | P2       | andrew | —          | doc-conventions            |
 | cross-wu-coordination                 | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine         | P2       | andrew | —          | —                          |
@@ -90,6 +92,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                         | Priority | Owner  | Depends on                                  | Cohort                     |
 | --------------------------------- | -------- | ------ | ------------------------------------------- | -------------------------- |
+| chunked-delivery                  | P1       | andrew | pr-decomposition                            | —                          |
 | review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification       | —                          |
 | unit-scoped-review                | P2       | andrew | commit-increments                           | approval-flow-refinement   |
 | cli-substrate-complete-migration  | P2       | andrew | cli-validation-surfaces, cli-command-inputs | cli-substrate-adoption     |

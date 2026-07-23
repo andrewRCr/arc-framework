@@ -34,7 +34,7 @@ strictly to apply them based on context.
     The specification is what makes work directed rather than reactive. Decomposition may be
     refined iteratively, but it always precedes the work it governs.
 
-*Conventions:* The specific document hierarchy (PRDs, task lists), file naming and locations,
+_Conventions:_ The specific document hierarchy (PRDs, task lists), file naming and locations,
 template formats, and the constitutional document set.
 
 ### P2 — Human-agent co-development
@@ -49,7 +49,7 @@ directly editing code, they contribute context, judgment, and course correction 
 increment. The human takes professional ownership of the work: their name is in the commit author
 field, and they bear responsibility for the output.
 
-The bounded chunk of autonomous execution between human review points — the *review increment* —
+The bounded chunk of autonomous execution between human review points — the _review increment_ —
 must be kept small enough to maintain this collaboration. Per-task or per-task-grouping is the
 right range: small enough for meaningful feedback, large enough for productive autonomous
 execution. Per-edit review destroys momentum; per-phase review loses the methodology's value.
@@ -61,7 +61,7 @@ execution. Per-edit review destroys momentum; per-phase review loses the methodo
     prompting — it's the mechanism through which human judgment and agent capabilities actually
     combine, not just alternate.
 
-*Conventions:* The task list system provides the default review boundary structure. The specific
+_Conventions:_ The task list system provides the default review boundary structure. The specific
 tracking mechanism, completion protocol steps, review granularity, and deferred review scope are
 configurable.
 
@@ -86,7 +86,7 @@ work at a time, with the sustained focus that makes co-development effective.
     the human involvement that co-development requires is single-threaded by nature, and
     interaction frequency between developer and agent benefits from sustained attention.
 
-*Conventions:* The enforcement mechanism (one checkbox plus mandatory stop after each task) is
+_Conventions:_ The enforcement mechanism (one checkbox plus mandatory stop after each task) is
 covered under P2's review increment. P3 provides the justification for keeping review increments
 small and sequential.
 
@@ -111,7 +111,7 @@ specific gates, tools, or strictness level.
     the mechanical issues (lint failures, type errors, test regressions) that compound silently.
     Together they form a complete feedback system.
 
-*Conventions:* Zero-tolerance policy, specific tier definitions (Tier 1/2/3), specific tools, when
+_Conventions:_ Zero-tolerance policy, specific tier definitions (Tier 1/2/3), specific tools, when
 each tier runs, and the verification phase structure. The "leave it cleaner" rule (issues found in
 files being modified must be addressed) is convention; the requirement to capture discovered work
 rather than ignore it is closer to methodology. Issue triage (fix-vs-defer decision tree) is a
@@ -144,7 +144,7 @@ boundaries.
     state is unresolvable). The specific ordering (git > task list > WORK-STATUS >
     SESSION-NOTES) and artifact set are convention.
 
-*Conventions:* WORK-STATUS.md + SESSION-NOTES.md, session initialization and handoff ceremonies,
+_Conventions:_ WORK-STATUS.md + SESSION-NOTES.md, session initialization and handoff ceremonies,
 specific context quality thresholds, what triggers session end, the context loading tier model,
 and the trust hierarchy for conflict resolution. Alternative mechanisms that satisfy the
 structured/human-controlled/transparent/predictable criteria are valid.
@@ -170,7 +170,7 @@ to PR descriptions. Either way, the thread from change to intent must be followa
     we actually built" is lost. Future maintenance, onboarding, and decision review all depend
     on being able to follow the thread.
 
-*Conventions:* Conventional commit format, context footer format, atomic commit granularity,
+_Conventions:_ Conventional commit format, context footer format, atomic commit granularity,
 branch naming conventions, platform-specific tooling (GitHub CLI, PR workflows).
 
 ### P7 — Granular task tracking
@@ -189,7 +189,7 @@ the right granularity.
     progress becomes subjective ("I think we're about 60% done") rather than observable
     ("4 of 7 tasks complete, all passing quality gates").
 
-*Conventions:* Markdown checkboxes in task list files, task list naming and formatting, specific
+_Conventions:_ Markdown checkboxes in task list files, task list naming and formatting, specific
 granularity guidelines, and work categories. Teams using external trackers (Jira, Linear, GitHub
 Issues) or different categorization schemes can satisfy the principle through those tools.
 
@@ -215,7 +215,7 @@ not universal compatibility.
     emerges. Agent-agnostic design means the methodology investment is durable regardless of
     which tools a team uses.
 
-*Conventions:* The hub-spoke file architecture — shared entry points (AGENT-BRIEFING.ARC.md,
+_Conventions:_ The hub-spoke file architecture — shared entry points (AGENT-BRIEFING.ARC.md,
 AGENT-BRIEFING.PROJECT.md) with agent-specific supplements (CLAUDE.ARC.md, GEMINI.ARC.md). The
 specific file naming, workflow abstractions, and what lives in shared docs versus agent-specific
 files are all convention.
@@ -237,7 +237,7 @@ throughout the framework.
     minimal context) is hard for humans to review and maintain. The dual-audience requirement
     forces a middle ground that serves both.
 
-*Conventions:* Specific formatting rules, template layouts, collaborative voice in documentation,
+_Conventions:_ Specific formatting rules, template layouts, collaborative voice in documentation,
 reference-style links.
 
 ### P10 — Codified improvement
@@ -254,7 +254,7 @@ starting fresh.
     institutional knowledge across sessions, and the framework itself improves through the same
     mechanism (ARC is developed using ARC).
 
-*Conventions:* The specific evolution path (working notes → strategy documents → constitutional
+_Conventions:_ The specific evolution path (working notes → strategy documents → constitutional
 docs), archival processes, where patterns live.
 
 ### P11 — Shared-context co-development
@@ -269,7 +269,7 @@ the agent is doing, intervene at any point, and contribute directly to the same 
     collaboration is replaced by review. Shared context means both parties have access to the
     same state during work — not just at commit time.
 
-*Conventions:* Local CLI with filesystem access is ARC's primary design target. The specific
+_Conventions:_ Local CLI with filesystem access is ARC's primary design target. The specific
 mechanism (terminal, editor, remote session) is convention; the shared context and mutual
 visibility requirement is not.
 

@@ -89,7 +89,7 @@ table-stakes redundancy. If no manual verification was performed, omit the secti
 <!-- -->
 
 > **Follow-Up Work** — Add when items are deferred from this PR with forward pointers (issues,
-> draft-docs, atomic-inbox entries). Distinct from Out of Scope: these *will* happen, captured here
+> draft-docs, atomic-inbox entries). Distinct from Out of Scope: these _will_ happen, captured here
 > as forward commitments. Omit if no deferrals.
 >
 > ```markdown

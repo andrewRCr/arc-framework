@@ -97,7 +97,7 @@ in ARC's routing model) — the cleanup ceremony slots into existing infrastruct
   `arc user save` creates a fresh note on the new head; content isn't lost — just the SHA-pinned connection to the
   dropped commits. Acceptable degradation; documented in the workflow.
 - **Force-push as ceremonial act.** ARC's existing commit-discipline permits `--force-with-lease` on feature
-  branches with explicit user request. The cleanup ceremony is the *codified* form: explicit user approval gate,
+  branches with explicit user request. The cleanup ceremony is the _codified_ form: explicit user approval gate,
   `--force-with-lease` always, never `--force`. Distinct from ad-hoc force-pushes.
 - **"Ceremony" vs. "noise" boundary.** Initial pattern-rules cover the obvious cases. Spec work calibrates the
   boundary further — particularly the `chore(planning):` prefix's semantics and whether `draft-*` micro-edits get

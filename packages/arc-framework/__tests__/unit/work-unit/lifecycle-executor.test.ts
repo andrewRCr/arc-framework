@@ -183,14 +183,18 @@ function buildSpies(opts: SpyOptions = {}): Spies {
     reconcileWorktree: async (op) => {
       calls.push(`leg:worktree:${op.mutation}`);
       guardThrow("reconcileWorktree");
-      return op.mutation === "spawn"
-        ? {
-            mutation: "spawn",
-            worktreePath: "/wt",
-            branch: "feat/x",
-            ...(opts.worktreeNotice === undefined ? {} : { postCreateNotice: opts.worktreeNotice }),
-          }
-        : { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };
+      if (op.mutation === "spawn") {
+        return {
+          mutation: "spawn",
+          worktreePath: "/wt",
+          branch: "feat/x",
+          ...(opts.worktreeNotice === undefined ? {} : { postCreateNotice: opts.worktreeNotice }),
+        };
+      }
+      if (op.mutation === "teardown") {
+        return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };
+      }
+      return { mutation: "move", from: op.from, to: op.to, locusHopped: false };
     },
     scaffoldOrRemove: opts.withScaffoldOrRemove
       ? async (params) => {

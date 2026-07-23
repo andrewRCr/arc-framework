@@ -37,7 +37,7 @@ Context: status-work-organization-reform.md (handoff)
 
 The staged change IS the meta-file diff, which carries the actual narrative (Last
 Completed advancement, Next Task pointer, Next Action prose). But the commit
-*message* surfaces none of that — readers either visit the diff or learn nothing.
+_message_ surfaces none of that — readers either visit the diff or learn nothing.
 
 Empirical posture on the WOR branch: ~1-in-5 commits is `chore(status): handoff`.
 That ratio inverts in low-tempo weeks where the only commits ARE handoffs. In a
@@ -122,7 +122,7 @@ specific work, footer parenthetical = lifecycle action).
 become genuinely informative at git-log scan level. Hosting-UI surfaces show
 field-delta in commit body. Doesn't change the meta-file lifecycle model.
 
-**Cons.** Commit *count* unchanged — N handoff commits per WU still land. Improves
+**Cons.** Commit _count_ unchanged — N handoff commits per WU still land. Improves
 content quality, doesn't address the structural question. If the underlying model
 is wrong, α is paint over the problem.
 
@@ -205,7 +205,7 @@ simplification benefit while paying β's resolver-complexity cost.
 - Structurally cleanest — addresses the friction at its source rather than masking it.
 - Builds on R65/R65a infrastructure rather than fighting it.
 - Eliminates a constitutional rule (Status-file timing) rather than adding one.
-- Archive-phase content (the high-durability class) gets a *better* tracked surface
+- Archive-phase content (the high-durability class) gets a _better_ tracked surface
   under β than today, not a worse one — one substantive snapshot per WU vs. accreted
   per-session commits.
 
@@ -298,7 +298,7 @@ WF's layout choice; WF may inform β's resolver semantics if it lands first.
 ## Sibling / Adjacent Work Units
 
 - **plan-handoff-optimization.md** — overlapping concern. Handoff-optimization
-  targets agent-reasoning load + double-probe cost in the *existing* tracked-meta
+  targets agent-reasoning load + double-probe cost in the _existing_ tracked-meta
   workflow. β subsumes much of that scope (no probe-2 needed when no commit fires;
   status-field-delta machinery becomes archive-promote machinery). If β lands first,
   handoff-optimization's scope shrinks substantially. If handoff-optimization lands
@@ -349,8 +349,8 @@ pattern as a PRD-time decision rather than a plan-time one.
 
 ## Coordination — ADR-022
 
-Demoted to `provisional/` by ADR-022, which answers the *class* question — the WU meta file is a
+Demoted to `provisional/` by ADR-022, which answers the _class_ question — the WU meta file is a
 lifecycle-fielded managed operational-state document whose structure is a code-owned record, not a template.
-This WU's residual scope is the meta-specific *storage* question (active-phase tracked vs. notes-synced; the
+This WU's residual scope is the meta-specific _storage_ question (active-phase tracked vs. notes-synced; the
 multi-maintainer coordination model) — the β-shaped slot ADR-022 reserves but does **not** ratify. Do not
 assume β lands. See `adr-022-managed-operational-state-documents.md` § Coordination.

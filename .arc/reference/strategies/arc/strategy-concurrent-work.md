@@ -111,6 +111,18 @@ method's job — invoked wherever a new work unit is weighed (activation, errand
 frames _when and why_ to parallelize; the method carries _how_ to read a given candidate. Consult it rather than
 re-deriving the call.
 
+**Stabilize an owned contract before fanning out its consumers.** When one work unit owns an interface, schema, or
+other contract that siblings consume, settle and land that contract first — or publish one explicitly agreed
+version that every consumer targets — then parallelize the implementations behind it. A moving contract is a shared
+surface, not a parallelism opportunity: serialize it or coordinate one owner rather than letting several work units
+make competing contract decisions.
+
+**A clean textual merge is not compatibility proof.** Git reports a textual conflict when it cannot reconcile the
+same lines; a semantic conflict is the quieter case where branches merge cleanly but embody incompatible behavioral
+assumptions. Strict type checking turns many interface-shape mismatches into loud integration failures, but it cannot
+prove that the combined behavior is sound. Treat shared assumptions and integration coverage as part of the overlap
+read even when the predicted file diff is disjoint.
+
 ### What concurrency is for: harvesting the interval
 
 Concurrency in ARC is about a _developer's_ attention, not an agent's — an agent stays scoped to the one increment
@@ -158,13 +170,17 @@ a platform **"Update branch"** action is exactly that merge. So "periodic rebase
 shared branch the same job is a merge. There is no contradiction with append-only: append-only is precisely what
 forbids the rewrite that rebasing a pushed branch would require, and it points you at the merge instead.
 
-**How often: periodic vs. end-of-flight.** The default is to leave the branch alone and reconcile once at
-integration — don't bring the base in unless you need to. A branch that lives **more than about two days** is the
-case where you usually do: the base moves enough that one end-of-flight reconciliation gets painful, so catch up
-periodically (merge the base in, or rebase while still private) to keep each integration a small, cheap delta. The
-two-day mark is a guideline — a fast-moving base shortens it, a quiet one stretches it. Periodic catch-up on a
-shared branch costs extra merge commits in the history, which the sanctioned cleanup at integration can squash
-away.
+**How often: actual drift, not calendar age.** The default is to leave the branch alone and reconcile once at
+integration — don't bring the base in unless you need to. Short-lived branches and frequent integration reduce
+risk, but elapsed days are only a proxy: a quiet base creates little drift, while several contract or shared-surface
+merges can make a same-day branch stale. Catch up when the base has changes the branch needs, when integration
+evidence flags material drift, or when repeated reconciliation is already showing that the work was not genuinely
+disjoint. Periodic catch-up on a shared branch costs extra merge commits, which the sanctioned cleanup at
+integration can squash away.
+
+When open-design Heavy work is what keeps a branch alive, first ask whether the design should decompose into a
+stable contract plus dependent work units. Forcing every branch through arbitrary age-based refreshes treats the
+symptom; stabilizing the dependency boundary is the stronger concurrency control.
 
 For repeated reconciliation either way, enable **`git rerere`** (reuse recorded resolution) so a conflict resolved
 once is replayed automatically the next time instead of re-litigated.
@@ -320,8 +336,9 @@ savings:
 - **Rebase/merge count from upstream churn exceeds roughly three.** A branch that has had to absorb its base more
   than a few times mid-flight is fighting a moving target — the churn signals the surfaces are more entangled than
   the disjoint-domain assumption held.
-- **Semantic drift between the branches.** The two work units have begun making incompatible assumptions — not
-  textual conflicts git can flag, but divergent designs whose incompatibility only surfaces at integration.
+- **Semantic conflict or drift between the branches.** The work units have begun making incompatible assumptions
+  that Git can merge textually; type checking may expose an interface mismatch, but behavioral incompatibility can
+  remain until integration tests or review exercise the combined result.
 
 **Recovery:** merge the further-along work unit, abandon the other's branch, and redo it as a single unified work
 unit on top of the merged result. One coherent work unit is cheaper than two that keep colliding. The abandoned

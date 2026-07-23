@@ -29,10 +29,11 @@ For ARC methodology rules (commit discipline, task execution, session management
 
 1. **Markdown Linting**: Zero violations
     - Command: `npm run -s lint:md`
+    - Exact staged candidate: `npm run -s lint:md:staged` (normally run by pre-commit)
     - Auto-fix: `npm run -s lint:md:fix`
-    - Table alignment (`MD060`): `lint:md:fix` does **not** realign table columns — fix the affected file with
-      `npx --yes markdown-table-formatter <file>` (explicit single file; never argless — it cwd-globs `**/*.md`
-      and can rewrite unrelated tables). Interim until `markdown-formatting` ships a scoped `format:tables`.
+    - Table alignment (`MD060`): `lint:md:fix` does **not** realign table columns — use
+      `npm run format:tables -- <file> [<file> ...]`. The command requires explicit tracked Markdown paths and
+      applies source-first Framework projection without rewriting surrounding prose.
     - Config: `.markdownlint-cli2.jsonc`
 
 2. **Code Linting**: Zero violations
@@ -118,7 +119,7 @@ Apply standard software engineering principles:
 
 ### Workflow prose economy
 
-When authoring or editing a workflow, write for the agent *executing* it, not a reader evaluating the
+When authoring or editing a workflow, write for the agent _executing_ it, not a reader evaluating the
 design. Judge each line by one test: **does a session executing this need it to act correctly?** Keep
 procedure and load-bearing constraints — the rule, the format, when to skip; cut author-facing justification
 — "what this is / isn't" framing, why-a-rule-exists rationale, and restatements an adjacent inline hint

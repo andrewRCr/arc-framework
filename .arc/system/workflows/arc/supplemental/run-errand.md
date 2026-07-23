@@ -26,8 +26,8 @@ adopted from session-init's discovery arm), or from a [`drain-inbox`][drain-inbo
 errand-vs-work-unit boundary, see [§ Errand Work Class][errand-class].
 
 **Typically one review increment, often one commit** — but neither bounds the character: a determinate sweep may
-land in several commits, and a large one may be reviewed in a bounded few **in-session** passes (an *extended
-errand*), each its own gate. No task list, no `process-task-loop`. The phases — Launch → Execute → Integrate — are
+land in several commits, and a large one may be reviewed in a bounded few **in-session** passes (an _extended
+errand_), each its own gate. No task list, no `process-task-loop`. The phases — Launch → Execute → Integrate — are
 **re-enterable**: pausing is `commit WIP + push`; a paused errand resumes from its pushed branch and originating
 capture, with no SESSION-NOTES.
 
@@ -39,8 +39,8 @@ never executes from an unrelated work unit's branch.
 1. **Classify — errand vs. work unit.** Confirm the work is a single **self-evident** concern that fits one
    session. The work-unit tell is **spec-worthiness**: design worth recording, or a determinate concern large
    enough to need a durable cross-session plan — route those through [`init-work-unit`][init-work-unit]. A
-   determinate sweep stays an errand however many commits, or in-session passes, it takes. (Scope that *crosses a
-   floor* mid-execution is handled by Execute's promote primer.) See [§ Errand Work Class][errand-class] for the
+   determinate sweep stays an errand however many commits, or in-session passes, it takes. (Scope that _crosses a
+   floor_ mid-execution is handled by Execute's promote primer.) See [§ Errand Work Class][errand-class] for the
    boundary.
 
 2. **Check for foreign overlap — apply [`assess-parallel-fit`][assess-parallel-fit] (overlap read only).** Run the
@@ -77,11 +77,11 @@ is **reviewed once at its gate**, and is committed only **after** approval — n
 **Most errands are one pass.** Make the change, run the project's Tier 1 quality gates on what you touched, gate,
 and commit.
 
-**Extended errand (the exception).** A *determinate* concern too large to review in one window may be staged into
+**Extended errand (the exception).** A _determinate_ concern too large to review in one window may be staged into
 a **bounded few in-session passes** — but only when it crosses **neither floor** (no design to author, no durable
 cross-session plan). Propose the split and get approval first ("this is ~N passes — gate at each?"); then run each
 pass as its own increment, tracked in-session only, never a task list. Staging review for ergonomics is not a
-work-unit signal; needing a *durable plan* is.
+work-unit signal; needing a _durable plan_ is.
 
 **Spec-worthy → promote.** If the work crosses a floor mid-execution — it needs design authored, or a durable
 cross-session plan — stop and promote via the [Promote Errand path][promote-errand-to-wu] (`arc errand promote

@@ -293,8 +293,8 @@ methodology maturation work unit. `strategy-backlog-organization.md` → `strate
 under those new names.
 
 **Amendment (2026-04-09):** Formalize the **mirror-structure principle** for personal workspace
-organization. The `user/{identity}/` directory is a personal workspace with a *defined framework
-read contract*: ARC reads from specific paths and manages their lifecycle, while everything else
+organization. The `user/{identity}/` directory is a personal workspace with a _defined framework
+read contract_: ARC reads from specific paths and manages their lifecycle, while everything else
 under the directory is the developer's to organize freely.
 
 **Framework read contract** (the paths ARC loads and manages):
