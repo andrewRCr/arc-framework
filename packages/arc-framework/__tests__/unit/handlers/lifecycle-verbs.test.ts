@@ -12,11 +12,14 @@ const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
 const mockNote = vi.fn();
 const mockIoExec = vi.fn();
+const mockSpinnerStart = vi.fn();
+const mockSpinnerStop = vi.fn();
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
   note: (...a: unknown[]) => mockNote(...a),
   log: { error: (...a: unknown[]) => mockLogError(...a), info: (...a: unknown[]) => mockLogInfo(...a) },
+  spinner: () => ({ start: (...a: unknown[]) => mockSpinnerStart(...a), stop: (...a: unknown[]) => mockSpinnerStop(...a) }),
 }));
 
 vi.mock("../../../src/handlers/shared.js", () => ({
@@ -470,6 +473,10 @@ describe("handleMaterialize", () => {
       repo: "myrepo",
       spawningIdentity: "andrew",
     });
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Fetching origin/feat/foo...");
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Fetch complete.");
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Spawning materialize worktree...");
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Worktree ready.");
   });
 
   it("dispatches an in-place materialize under `--here` after fetching the remote ref", async () => {
@@ -486,6 +493,8 @@ describe("handleMaterialize", () => {
       branch: "feat/foo",
       inPlace: true,
     });
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Materializing in place...");
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Materialize complete.");
   });
 
   it("refuses when the requested slug is not a remote-only materialize candidate", async () => {
@@ -496,6 +505,7 @@ describe("handleMaterialize", () => {
     expect(mockRunMaterialize).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
+    expect(mockSpinnerStart).not.toHaveBeenCalled();
   });
 });
 
