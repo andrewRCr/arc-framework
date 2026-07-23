@@ -37,20 +37,11 @@ shadow runtime that currently contains their reusable pieces.
 - _Goal:_ Both hosted providers remain independently selectable production paths, and a typed availability failure
   from the preferred source moves automatically to the next configured source without weakening real failures.
 
-    - `[ ]` **1.2.a Re-home the CodeRabbit hosted path behind the new verbs**
+    - `[x]` **1.2.a Re-home the CodeRabbit hosted path behind the new verbs**
 
-        - Ground the salvage boundary across `providers/coderabbit/{adapter,github-trigger,github-observation,
-          locators}.ts`; move reusable request, locator, and observation behavior into the lean hosted adapter
-          contract while leaving receipt and evidence qualification behind.
-        - Register `coderabbit-pr` with its request command and immutable provider identities in the built-in
-          hosted registry; issue requests through the developer-authenticated `gh` boundary rather than App auth.
-        - Preserve the live `frontline-execution.ts` and `frontline-agent.ts` closure unchanged, and do not pull
-          `frontline-plain.ts` into the hosted replacement.
-        - Build `test-first` (one behavior at a time):
-            - request, observation, and normalized finding identity survive the re-home;
-            - rate limiting and transient provider failures retain the distinct `rate-limited` and
-              `transient-unavailable` outcomes;
-            - provider-specific malformed or terminal failures do not masquerade as availability failures.
+        - Re-homed CodeRabbit request and exact-head observation behind the lean hosted contracts and a shared
+          developer-authenticated `gh api` port, retaining immutable provider identity, normalized finding loci,
+          and distinct rate-limit/transient/terminal outcomes without receipt qualification or frontline changes.
 
     - `[ ]` **1.2.b Re-home the Codex hosted path behind the same contract**
 
