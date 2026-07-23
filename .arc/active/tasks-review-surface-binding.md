@@ -223,10 +223,10 @@ validation are test-first; the Commander wiring is test-after.
           unborn, unresolved-base, dirty, or non-commit repositories as `invalid-input`
         - Re-derives the canonical target before publication and returns the attempted/current pair as `stale-target`
 
-    - `[ ]` **4.1.c Vehicle / author / evaluator / runtime resolution**
-        - WU meta owner (active identity must match) or Errand identity; evaluator differs from author; attesting
-          runtime from the installed binding
-        - Build `test-first`: WU vs Errand author; `evaluator == author` rejected; runtime derived, never caller-supplied
+    - `[x]` **4.1.c Vehicle / author / evaluator / runtime resolution**
+        - Resolves the WU owner (requiring the active identity to match) or Errand author from live ARC context,
+          rejects self-review, and derives the attesting runtime through the installed-runtime boundary
+        - The evaluator remains the only caller-selected actor; runtime identity never enters the request input
 
     - `[ ]` **4.1.d Deterministic operation identity and identical-retry predicate**
         - identity a pure function of derived `targetId` / requirement / actor bindings / request mechanism
