@@ -8,19 +8,18 @@
 - **Depends On:** review-architecture
 
 - **Origin:** [internal]
-- **Design:** `draft-review-surface-binding.md`
+- **Design:** `spec-review-surface-binding.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
-- **Last Completed:** Spec authored and carried through the create-spec review gate — three adversarial passes,
-  31 findings verified against source and applied
+- **Current Workflow:** `generate-tasks`
+- **Last Completed:** create-spec finalized — spec re-groomed against the settled `review-gate-right-sizing`
+  verdict (evidence-grade tier shed; obligation change-shaped, review-source model + `standard-review` rename
+  coordinated), verified across three adversarial passes, draft retired
 - **Next Task:** [none]
-- **Blockers:** Held pending `review-gate-right-sizing` — the spec's evidence model and its recovery machinery
-  depend on a program target state no single member can settle. Do not finalize or generate tasks until it lands.
+- **Blockers:** [none]
 
-- **Next Action:** Await `review-gate-right-sizing`; then re-read `spec-review-surface-binding.md` against its
-  verdict and re-confirm the review gate before finalize
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
