@@ -413,24 +413,26 @@ consumer test is decidable; the module hand-off, the doc § edit, and the workfl
 merge-order-coordinated with `review-gate-right-sizing`. The workflow rewrite (7.5) is the second half of the
 shared-surface boundary returned to the sibling. Module deletion and prose are test-after; the reachability walk is a check.
 
-### `[ ]` **7.1 Retire the superseded re-entry cluster and orphaned schema/ports**
+### `[x]` **7.1 Retire the superseded re-entry cluster and orphaned schema/ports**
 
 - _Goal:_ The six no-consumer/no-claim modules and `core/review-reentry-schema.ts` are deleted with their tests, along
   with the now-orphaned `reconstructReviewSuspensionState` and the four wakeup port interfaces, leaving no unconsumed
   capability seam.
 
-    - `[ ]` **7.1.a Delete the retire-set modules and tests**
-        - `runtime/review-reentry.ts`, `review-reentry-fallback.ts`, `review-wakeup-capability.ts`,
-          `providers/coderabbit/frontline-plain.ts`, `core/contract-version-dispatch.ts`, `core/forward-evidence-eligibility.ts`,
-          `core/review-reentry-schema.ts`; drop the `review-reentry-result` schema registration
+    - `[x]` **7.1.a Delete the retire-set modules and tests**
+        - Deleted the seven re-entry, wakeup, plain-output, legacy-dispatch, eligibility, and schema modules; removed
+          their six dedicated test files and retire-only sections from surviving cross-layer and schema tests.
 
-    - `[ ]` **7.1.b Remove orphaned symbols**
-        - `reconstructReviewSuspensionState` and its sole consumer `CanonicalReviewSuspensionFactsSchema` (both in
-          `hosts/local/operation-state-store.ts`; retain the store module)
-        - the four `core/ports.ts` wakeup interfaces: `ReviewWakeupRequest`, `ReviewWakeupCapability`,
-          `ReviewScheduledWakeupRequest`, `ReviewScheduledWakeupCapability`
+    - `[x]` **7.1.b Remove orphaned symbols**
+        - Removed suspension reconstruction and its canonical-facts schema while retaining the operation store; removed
+          the four unbound wakeup and scheduled-wakeup port interfaces.
 
-    - `[ ]` **7.1.c Typecheck + full suite green** — no dangling imports after removal
+    - `[x]` **7.1.c Typecheck + full suite green**
+        - Confirmed the retire-set vocabulary has no remaining production or test references and the surviving
+          mixed-purpose tests retain their unrelated coverage.
+
+- _Outcome:_ The dormant re-entry capability cluster, its schema registration, legacy receipt-dispatch bridge, and
+  unbound wakeup ports are gone without changing the live operation store or current review command surface.
 
 ### `[ ]` **7.2 Boundary-module consumer test and gate-cohort hand-off**
 

@@ -45,7 +45,6 @@ describe("retired review architecture sweep", () => {
     await expect(matchingFiles([
       "packages/arc-framework/src/scripts/review-gate",
     ], /review-gate\/v1/u)).resolves.toEqual([
-      "packages/arc-framework/src/scripts/review-gate/core/contract-version-dispatch.ts",
       "packages/arc-framework/src/scripts/review-gate/core/execution.ts",
     ]);
 

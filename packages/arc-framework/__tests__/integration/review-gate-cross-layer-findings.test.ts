@@ -7,8 +7,6 @@ import {
   proposeDispositionSet,
 } from "../../src/scripts/review-gate/core/dispositions.js";
 import { createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
-import type { ReviewSuspensionState } from "../../src/scripts/review-gate/core/operation-state-schema.js";
-import type { ReviewOperationStateStore } from "../../src/scripts/review-gate/core/ports.js";
 import { projectReviewResponse } from "../../src/scripts/review-gate/core/response-plan.js";
 import {
   PACKAGE_DEFAULT_SEVERITY_GATING_POLICY,
@@ -20,12 +18,6 @@ import {
   createLocalDispositionTerminalV2,
   createProviderNativeConversationClosureV2,
 } from "../../src/scripts/review-gate/runtime/finding-settlement.js";
-import {
-  armReviewWakeupFallback,
-  humanReentryForTerminalWait,
-  validateScheduledReviewWakeup,
-} from "../../src/scripts/review-gate/runtime/review-reentry-fallback.js";
-import { resolveReviewReentry } from "../../src/scripts/review-gate/runtime/review-reentry.js";
 
 const objectId = (character: string): string => character.repeat(40);
 const digest = (value: string): string => canonicalDigest({ value });
@@ -114,34 +106,7 @@ function responseInput(dispositionState: ReturnType<typeof approved> | null) {
   };
 }
 
-const suspension: ReviewSuspensionState = {
-  schemaVersion: 1,
-  semanticsVersion: "review-operation/v1",
-  operationId: "suspension-review-1",
-  updatedAt: "2026-07-20T20:00:00Z",
-  kind: "review-suspension",
-  vehicle: { kind: "work-unit", identity: "review-architecture" },
-  repositoryId: "repo-1",
-  changeRequestId: "pull/42",
-  targetId: reviewedTarget.targetId,
-  requestId: digest("request"),
-  sourceIdentity: "codex-pr",
-  generation: 1,
-  policyVersion: digest("policy"),
-  rubricVersion: "standard-review/v1",
-  rubricDigest: digest("rubric"),
-  deadlineAt: "2026-07-20T21:00:00Z",
-  wakeupToken: digest("wakeup"),
-};
-
-function memoryStore(): ReviewOperationStateStore {
-  return {
-    readOperation: async () => ({ version: 1, state: suspension }),
-    publishOperation: async () => ({ version: 2 }),
-  };
-}
-
-describe("cross-layer finding response and review re-entry", () => {
+describe("cross-layer finding response and frontline follow-up", () => {
   it("carries approved fix, defer, and reject decisions across a mixed-severity local response", () => {
     const fixState = approved(["fix", "defer", "reject"]);
     expect(projectReviewResponse(responseInput(fixState))).toMatchObject({
@@ -248,51 +213,6 @@ describe("cross-layer finding response and review re-entry", () => {
     })).toMatchObject({
       terminalSettlementAllowed: false,
       blockers: ["native-requested-changes", "unresolved-required-conversations"],
-    });
-  });
-
-  it("preserves suspension until scheduled or human re-entry and rejects stale or timed-out state", async () => {
-    const suspended = await resolveReviewReentry(memoryStore(), {
-      suspension,
-      observedAt: "2026-07-20T20:30:00Z",
-    }, { observe: async () => ({ currentTarget: reviewedTarget, reviewState: "pending", responseInput: null }) });
-    expect(suspended).toMatchObject({ state: "suspended", targetId: reviewedTarget.targetId });
-
-    await expect(armReviewWakeupFallback({
-      schedule: async () => ({ status: "scheduled", wakeupRef: "harness:wakeup-1" }),
-    }, suspension, "2026-07-20T20:45:00Z")).resolves.toEqual({
-      kind: "scheduled",
-      scheduledFor: "2026-07-20T20:45:00Z",
-      wakeupRef: "harness:wakeup-1",
-    });
-    await expect(armReviewWakeupFallback(null, suspension, "2026-07-20T20:45:00Z"))
-      .resolves.toMatchObject({ kind: "human", reason: "scheduled-wakeup-unavailable" });
-
-    const invocation = {
-      operationId: suspension.operationId,
-      targetId: suspension.targetId,
-      requestId: suspension.requestId,
-      generation: suspension.generation,
-      wakeupToken: suspension.wakeupToken,
-    };
-    expect(validateScheduledReviewWakeup(invocation, suspension)).toEqual({ current: true });
-    expect(validateScheduledReviewWakeup({ ...invocation, generation: 2 }, suspension))
-      .toEqual({ current: false, reason: "stale-wakeup" });
-
-    const stale = await resolveReviewReentry(memoryStore(), {
-      suspension,
-      observedAt: "2026-07-20T20:30:00Z",
-    }, { observe: async () => ({ currentTarget: changedTarget, reviewState: "clean", responseInput: null }) });
-    expect(stale).toMatchObject({ state: "stale-target", targetId: changedTarget.targetId });
-
-    const timedOut = await resolveReviewReentry(memoryStore(), {
-      suspension,
-      observedAt: suspension.deadlineAt,
-    }, { observe: async () => ({ currentTarget: reviewedTarget, reviewState: "pending", responseInput: null }) });
-    expect(timedOut).toMatchObject({ state: "timed-out" });
-    expect(humanReentryForTerminalWait(timedOut, suspension)).toMatchObject({
-      kind: "human",
-      reason: "review-timed-out",
     });
   });
 

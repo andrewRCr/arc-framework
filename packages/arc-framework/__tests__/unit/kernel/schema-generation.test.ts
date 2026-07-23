@@ -95,7 +95,6 @@ describe("kernel schema artifact generation", () => {
       "review-receipt-ledger",
       "review-reduce-envelope",
       "review-reduction-projection",
-      "review-reentry-result",
       "review-request",
       "review-request-id-preimage",
       "review-requirement",

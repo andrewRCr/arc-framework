@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyForwardEvidenceEligibility } from "../../src/scripts/review-gate/core/forward-evidence-eligibility.js";
 import {
   createReviewReceipt,
   createReviewRequest,
@@ -128,12 +127,6 @@ describe("cross-layer routing to gate proof", () => {
       expectedLedgerVersion: 0,
     });
 
-    expect(classifyForwardEvidenceEligibility({
-      target,
-      requirement,
-      request: carrier.request,
-      receipt,
-    })).toMatchObject({ eligible: true, version: 2 });
     expect(projectForwardReviewContract({
       channel: "local",
       target,

@@ -19,7 +19,6 @@ const ownerModules = [
 const permittedLegacyValidatorFiles = [
   "scripts/review-gate/core/attestations.ts",
   "scripts/review-gate/core/commands.ts",
-  "scripts/review-gate/core/contract-version-dispatch.ts",
   "scripts/review-gate/core/contracts.ts",
   "scripts/review-gate/core/evidence.ts",
   "scripts/review-gate/core/execution.ts",
