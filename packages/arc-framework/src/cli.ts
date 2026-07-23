@@ -87,6 +87,7 @@ import {
   handleReviewFrontlineResolve,
   handleReviewHostedAwait,
   handleReviewHostedRequest,
+  handleReviewHostedSettle,
 } from "./handlers/review.js";
 import {
   handleCheckCommitMessage,
@@ -842,6 +843,13 @@ hostedCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewHostedAwait(input));
+
+hostedCmd
+  .command("settle")
+  .description("Reply to and resolve one hosted review finding as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewHostedSettle(input));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

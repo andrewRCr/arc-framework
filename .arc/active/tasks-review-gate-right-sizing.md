@@ -9,7 +9,7 @@
 _Purpose:_ Establish the uniform standard-review driver and surviving hosted-PR source paths before deleting the
 shadow runtime that currently contains their reusable pieces.
 
-### `[ ]` **1.1 Establish hosted request, await, and thread-settlement verbs**
+### `[x]` **1.1 Establish hosted request, await, and thread-settlement verbs**
 
 - _Goal:_ Every mechanical hosted-review action has one strict, resumable JSON contract whose returned
   `state -> nextAction` pair is sufficient to drive the next step without prose interpreting provider state.
@@ -26,17 +26,11 @@ shadow runtime that currently contains their reusable pieces.
           terminal normalization, safe read-side unavailability, and resumable timeout results that preserve the
           durable request handle across repeated calls.
 
-    - `[ ]` **1.1.c Re-home direct thread replies and resolution behind the settlement verb**
+    - `[x]` **1.1.c Re-home direct thread replies and resolution behind the settlement verb**
 
-        - Re-home direct replies, exact actor/head checks, canonical confirmation, and thread resolution from
-          `runtime/settlement-runtime.ts`, `runtime/gh-action-port.ts`, and `hosts/github/settlement.ts` without the
-          receipt-backed closure sequences in `runtime/finding-settlement.ts`.
-        - Return missing or deleted comment state as one explicit typed settlement outcome; do not retain the
-          relay-specific deleted-comment polling behavior.
-        - Build `test-first` (one behavior at a time):
-            - defer and reject dispositions reply to the originating thread rather than a null relation;
-            - resolution targets the requested live thread and reports already-settled state idempotently;
-            - missing or deleted comment state returns one explicit typed outcome.
+        - Added `arc review hosted settle` with exact actor/head validation, direct replies at the originating
+          comment, canonical reply and thread-resolution confirmation, idempotent already-settled handling, and
+          explicit missing-thread/comment outcomes without receipt or relay state.
 
 ### `[ ]` **1.2 Re-home both hosted adapters behind deterministic ordered failover**
 

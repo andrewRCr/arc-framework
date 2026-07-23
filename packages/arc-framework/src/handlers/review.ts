@@ -16,6 +16,10 @@ import {
   awaitHostedReview,
   type HostedReviewObserver,
 } from "../scripts/review-gate/hosted/await.js";
+import {
+  settleHostedFinding,
+  type HostedSettlementPort,
+} from "../scripts/review-gate/hosted/settle.js";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -108,5 +112,26 @@ export async function handleReviewHostedAwait(
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
     emitReviewError("review-hosted-await", error);
+  }
+}
+
+/**
+ * Settle one hosted finding and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param dependencies - Developer-authenticated GitHub mutation port.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleReviewHostedSettle(
+  source: string,
+  dependencies?: { port: HostedSettlementPort },
+): Promise<void> {
+  try {
+    if (dependencies === undefined) throw new Error("Hosted settlement source is unavailable.");
+    const request = await readJsonSource(source);
+    const result = await settleHostedFinding(request, dependencies);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    emitReviewError("review-hosted-settle", error);
   }
 }
