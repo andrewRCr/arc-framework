@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Draft formalization-ready — final forks settled + two-pass adversarial review converged
+- **Last Completed:** create-spec complete — spec finalized (detailed · RFC); adversarial pass converged, draft retired
 - **Next Task:** [none]
 - **Blockers:** [none]
 
