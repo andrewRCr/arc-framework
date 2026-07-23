@@ -10,7 +10,102 @@ import {
   handleReviewRespond,
 } from "../../../src/handlers/review.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
+import { reduceReviewRouting } from "../../../src/scripts/review-gate/policy/routing.js";
 import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
+
+const target = {
+  schemaVersion: 2 as const,
+  semanticsVersion: "review-gate/v2" as const,
+  kind: "change-set" as const,
+  repositoryId: "repo-1",
+  baseRef: "main",
+  diffBaseSha: "a".repeat(40),
+  diffBaseTree: "b".repeat(40),
+  headSha: "c".repeat(40),
+  headTree: "d".repeat(40),
+  targetId: `sha256:${"e".repeat(64)}`,
+};
+const routingFacts = {
+  schemaVersion: 1 as const,
+  changeSetState: "known" as const,
+  contentKind: "code-bearing" as const,
+  reviewRisk: "routine" as const,
+  changeDeterminacy: "ordinary" as const,
+  ownership: "self" as const,
+  surfaceAuthority: "ordinary" as const,
+  assurance: { workContext: "work-unit" as const, workClass: "Light" as const },
+  activity: { selfReview: true, frontlineReview: true },
+};
+const frontlineRunRequest = {
+  schemaVersion: 1,
+  target,
+  resolution: {
+    schemaVersion: 1,
+    mode: "review-frontline-resolve",
+    diagnostics: [],
+    state: "ready",
+    nextAction: "run-frontline",
+    payload: {
+      routing: {
+        facts: routingFacts,
+        decision: reduceReviewRouting(routingFacts),
+      },
+      frontlineReview: {
+        schemaVersion: 1,
+        semanticsVersion: "frontline-review/v1",
+        action: "attempt",
+        reasons: ["routine-code"],
+        source: {
+          sourceId: "review-cli",
+          kind: "command",
+          executable: "reviewer",
+          argv: ["--plain"],
+        },
+        maxPasses: 2,
+        promptText: "Review the aggregate candidate.",
+      },
+      pass: 1,
+      maxPasses: 2,
+    },
+  },
+};
+const localAttestRequest = {
+  schemaVersion: 1,
+  operationId: "local-operation",
+  result: {
+    status: "complete",
+    result: "clean",
+    targetId: target.targetId,
+    headSha: target.headSha,
+    headTree: target.headTree,
+    rubricVersion: "standard-review/v1",
+    rubricDigest: `sha256:${"f".repeat(64)}`,
+    sourceDigest: `sha256:${"1".repeat(64)}`,
+    guidanceDigest: `sha256:${"2".repeat(64)}`,
+    evaluatorIdentity: "reviewer",
+    reviewRunId: "run-1",
+    applicabilityId: null,
+    findings: [],
+  },
+};
+const respondProposalRequest = {
+  schemaVersion: 1,
+  source: {
+    kind: "attested-local",
+    receiptRef: "arc-review-source:v1:attested-local:operation:receipt",
+  },
+  proposal: {
+    findings: [{
+      findingId: "finding-1",
+      sourceVerification: "verified",
+      verificationRefs: ["source:src/index.ts:1"],
+      disposition: "reject",
+      rationale: "The source does not support the finding.",
+      recommendation: "Record the rejection.",
+      openQuestions: [],
+    }],
+  },
+};
 
 describe("handleReviewFrontlineResolve", () => {
   it("emits the shared invalid-input error envelope for malformed input", async () => {
@@ -65,7 +160,7 @@ describe("handleReviewFrontlineRun", () => {
 
     await handleReviewFrontlineRun("-", {
       resolveRoot: () => "/repo",
-      readText: async () => "{\"schemaVersion\":1}",
+      readText: async () => JSON.stringify(frontlineRunRequest),
       run,
       write,
       setExitCode: vi.fn(),
@@ -151,7 +246,17 @@ describe("handleReviewLocalPrepare", () => {
 
     await handleReviewLocalPrepare("request.json", {
       resolveRoot: () => "/repo",
-      readText: async () => "{}",
+      readText: async () => JSON.stringify({
+        schemaVersion: 1,
+        evaluatorIdentity: "reviewer",
+        routingFacts: {
+          contentKind: "code-bearing",
+          reviewRisk: "routine",
+          changeDeterminacy: "ordinary",
+          ownership: "self",
+          surfaceAuthority: "ordinary",
+        },
+      }),
       prepare: async () => {
         throw new LocalTargetDerivationError("dirty-worktree");
       },
@@ -193,7 +298,7 @@ describe("handleReviewLocalAttest", () => {
 
     await handleReviewLocalAttest("-", {
       resolveRoot: () => "/repo",
-      readText: async () => "{\"schemaVersion\":1}",
+      readText: async () => JSON.stringify(localAttestRequest),
       attest,
       write,
       setExitCode: vi.fn(),
@@ -209,6 +314,60 @@ describe("handleReviewLocalAttest", () => {
 });
 
 describe("handleReviewLocalResume", () => {
+  it("rejects malformed requests before entering the command runtime", async () => {
+    const write = vi.fn();
+    const resume = vi.fn();
+
+    await handleReviewLocalResume("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => "{\"schemaVersion\":1}",
+      resume,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(resume).not.toHaveBeenCalled();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "invalid-input" },
+    });
+  });
+
+  it("reports malformed durable operation state as corrupt-state", async () => {
+    const write = vi.fn();
+
+    await handleReviewLocalResume("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => "{\"schemaVersion\":1,\"operationId\":\"local-operation\"}",
+      resume: async () => {
+        throw Object.assign(new Error("malformed operation state"), {
+          code: "malformed-operation-state",
+        });
+      },
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "corrupt-state", message: "malformed operation state" },
+    });
+  });
+
+  it("reports an invalid command success envelope as an internal failure", async () => {
+    const write = vi.fn();
+
+    await handleReviewLocalResume("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => "{\"schemaVersion\":1,\"operationId\":\"local-operation\"}",
+      resume: async () => ({ state: "not-a-real-state" }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "unexpected-failure" },
+    });
+  });
+
   it("reads one request and emits one validated resume envelope", async () => {
     const write = vi.fn();
     const target = {
@@ -274,7 +433,7 @@ describe("handleReviewRespond", () => {
 
     await handleReviewRespond("-", {
       resolveRoot: () => "/repo",
-      readText: async () => "{\"schemaVersion\":1}",
+      readText: async () => JSON.stringify(respondProposalRequest),
       respond,
       write,
       setExitCode: vi.fn(),
