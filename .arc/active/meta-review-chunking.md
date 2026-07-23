@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Captured formalization-ready draft (`draft-design`); 3 adversarial passes converged
+- **Last Completed:** Finalized `spec-review-chunking.md` (`create-spec`); 2 adversarial passes converged
 - **Next Task:** [none]
 - **Blockers:** [none]
 
