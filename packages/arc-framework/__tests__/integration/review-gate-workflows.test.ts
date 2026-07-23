@@ -479,6 +479,7 @@ describe("trusted review-gate workflows", () => {
       expect(packaged).toMatch(/local and frontline transitions only through those commands/iu);
       expect(packaged).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
       expect(packaged).not.toMatch(/source-neutral standard-review cycle/u);
+      expect(packaged).not.toMatch(/review-suspension|promoted watcher|scheduled wakeup/iu);
       expect(packaged).not.toMatch(/CodeRabbit|coderabbit|billing|credits?|quota|--agent|--plain/iu);
     }
   });

@@ -93,22 +93,13 @@ every pre-PR / PR-open step that already ran** — re-enter at the first incompl
 point from observable state — PR open vs. merged, plus worktree/branch presence — never by redoing a completed
 step:
 
-When review is suspended, read its versioned `review-suspension` operation record before selecting a review action.
-If the record is absent on this machine, reconstruct it only from canonical vehicle, request, exact-target, source,
-policy/rubric, deadline, and wakeup-token facts, then publish with expected version zero. Refuse a version conflict.
-The re-entry check re-reads current host/provider state and derives any `review-response` plan and resume text afresh;
-the meta's narrative `Next Action` and persisted controller conclusions are never operational authority.
-
-After persisting a suspension, prefer an injected promoted watcher capability when one is explicitly available. Arm
-it with the exact operation, target/request, generation, deadline, and wakeup-deduplication token. An absent capability
-selects the ordinary fallback path; do not probe, invoke, await, or infer it from controller or workflow modules.
-
-On fallback, arm a harness-native scheduled wakeup only when that capability is injected and its run time is no later
-than the suspension deadline. Otherwise leave the vehicle in `Integrating` and state the exact human resume condition:
-which source state change or deadline should trigger re-entry, and which WU or Errand integration to resume. A bounded
-wait timeout or failed/unavailable provider result enters this same explicit human-reentry path. Before any scheduled
-action rereads live state, reject it unless operation, target/request, generation, and wakeup token still match the
-current suspension; duplicate current wakeups are harmless canonical rereads.
+On interruption, re-enter local and frontline review only through the public protocol in Step 3. Retain the returned
+operation ID and follow the last typed `state` / `nextAction`: resume a local operation with
+`arc review local resume -`, and re-invoke the owning idempotent verb for frontline, response, or reduction work.
+Hosted-only waits remain behind the active project coordinator, which re-reads canonical host/provider state.
+Never publish or reconstruct review state from workflow prose; the meta's narrative `Next Action` and persisted
+controller conclusions are not operational authority. When no public action can advance yet, leave the vehicle in
+`Integrating` and state the exact source change or deadline that should trigger human re-entry.
 
 | Resolver and PR state                         | Demonstrably already ran             | Resume at                                                          |
 | --------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------ |
