@@ -17,6 +17,7 @@ import {
 import {
   createLocalReviewAdmission,
   resolveLocalReviewAdmission,
+  type LocalReviewAdmissionResolution,
 } from "../core/local-operation.js";
 import {
   createLocalReviewSourcePayload,
@@ -35,6 +36,10 @@ import type {
   LocalReviewSourceStore,
   ReviewOperationStateStore,
 } from "../core/ports.js";
+import {
+  isReviewVersionConflict,
+  REVIEW_VERSION_RETRY_ATTEMPTS,
+} from "../core/version-conflict.js";
 import type { LocalReviewPolicyBinding } from "../policy/local-review-policy.js";
 
 const DEFAULT_LOCAL_REVIEW_FRESHNESS_MS = 24 * 60 * 60 * 1_000;
@@ -160,50 +165,66 @@ export async function prepareLocalReview(
       },
     });
   }
-  const existingVerification: {
-    value?: { source: LocalReviewSource; reviewRoot: string };
-  } = {};
-  const resolution = await resolveLocalReviewAdmission(admissionInput, {
-    store: dependencies.operationStore,
-    verifyExisting: async (state) => {
-      const source = await dependencies.sourceStore.readSource(state.sourceRef);
-      if (source === null
-        || source.sourceDigest !== state.sourceDigest
-        || source.targetId !== state.targetId) {
-        throw new Error("local review source reference mismatch");
-      }
-      const materialized = await dependencies.materialize(source);
-      existingVerification.value = { source, reviewRoot: materialized.reviewRoot };
-    },
-  });
-  let preparation: LocalReviewPreparation;
-  if (resolution.state === "existing") {
-    const verified = existingVerification.value;
-    if (verified === undefined) throw new Error("existing local review was not verified");
-    preparation = {
-      persistedVersion: resolution.persistedVersion,
-      state: resolution.persistedState,
-      sourceRef: resolution.persistedState.sourceRef,
-      sourceDigest: verified.source.sourceDigest,
-      reviewRoot: verified.reviewRoot,
-    };
-  } else {
+  let settled: {
+    resolution: LocalReviewAdmissionResolution;
+    preparation: LocalReviewPreparation;
+  } | null = null;
+  for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
+    const existingVerification: {
+      value?: { source: LocalReviewSource; reviewRoot: string };
+    } = {};
+    const resolution = await resolveLocalReviewAdmission(admissionInput, {
+      store: dependencies.operationStore,
+      verifyExisting: async (state) => {
+        const source = await dependencies.sourceStore.readSource(state.sourceRef);
+        if (source === null
+          || source.sourceDigest !== state.sourceDigest
+          || source.targetId !== state.targetId) {
+          throw new Error("local review source reference mismatch");
+        }
+        const materialized = await dependencies.materialize(source);
+        existingVerification.value = { source, reviewRoot: materialized.reviewRoot };
+      },
+    });
+    if (resolution.state === "existing") {
+      const verified = existingVerification.value;
+      if (verified === undefined) throw new Error("existing local review was not verified");
+      settled = {
+        resolution,
+        preparation: {
+          persistedVersion: resolution.persistedVersion,
+          state: resolution.persistedState,
+          sourceRef: resolution.persistedState.sourceRef,
+          sourceDigest: verified.source.sourceDigest,
+          reviewRoot: verified.reviewRoot,
+        },
+      };
+      break;
+    }
     const source = LocalReviewSourceSchema.parse(
       await dependencies.describeSource(resolution.operationId, target),
     );
-    preparation = await publishLocalReviewPreparation(
-      createLocalReviewAdmission(admissionInput),
-      source,
-      {
-        sourceStore: dependencies.sourceStore,
-        operationStore: dependencies.operationStore,
-        materialize: (candidate) => dependencies.materialize(candidate),
-        now: () => dependencies.now(),
-        cleanupTtlMs: request.freshnessMs ?? DEFAULT_LOCAL_REVIEW_FRESHNESS_MS,
-        guidanceDigest: assurance.guidance.guidanceDigest,
-      },
-    );
+    try {
+      const preparation = await publishLocalReviewPreparation(
+        createLocalReviewAdmission(admissionInput),
+        source,
+        {
+          sourceStore: dependencies.sourceStore,
+          operationStore: dependencies.operationStore,
+          materialize: (candidate) => dependencies.materialize(candidate),
+          now: () => dependencies.now(),
+          cleanupTtlMs: request.freshnessMs ?? DEFAULT_LOCAL_REVIEW_FRESHNESS_MS,
+          guidanceDigest: assurance.guidance.guidanceDigest,
+        },
+      );
+      settled = { resolution, preparation };
+      break;
+    } catch (error) {
+      if (!isReviewVersionConflict(error)) throw error;
+    }
   }
+  if (settled === null) throw new Error("local review preparation exceeded version-conflict retry attempts");
+  const { resolution, preparation } = settled;
   const sourcePayload = createLocalReviewSourcePayload(resolution, preparation);
   return LocalPrepareEnvelopeSchema.parse({
     schemaVersion: 1,
