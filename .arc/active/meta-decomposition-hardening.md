@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Draft rescoped to the transform substrate; areas 1/2/4 + abandon-delta settled
+- **Last Completed:** Draft formalization-ready — final forks settled + two-pass adversarial review converged
 - **Next Task:** [none]
 - **Blockers:** [none]
 
