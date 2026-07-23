@@ -188,6 +188,11 @@ export async function persistFrontlineRunOutcome(
 export interface FrontlineRunExecutionDependencies {
   operationStore: ReviewOperationStateStore;
   outcomeStore: FrontlineOutcomeStore;
+  withOperationLock<T>(
+    operationId: string,
+    maxWaitMs: number,
+    action: () => Promise<T>,
+  ): Promise<T>;
   execute(): Promise<{
     outcome: FrontlineExecutionOutcome;
     executableIdentity: FrontlineExecutableIdentity | null;
@@ -198,6 +203,7 @@ export interface FrontlineRunExecutionDependencies {
 export interface FrontlineRunExecutionInput extends FrontlineRunBindingInput {
   pass: 1 | 2;
   maxPasses: 1 | 2;
+  lockWaitMs: number;
 }
 
 /** Stable corruption failure for a completion claim without its exact durable outcome. */
@@ -353,74 +359,77 @@ export async function executeFrontlineRun(
   dependencies: FrontlineRunExecutionDependencies,
   input: FrontlineRunExecutionInput,
 ): Promise<FrontlineRunTerminal> {
-  generationLoop:
   for (let generation = input.generation; Number.isSafeInteger(generation); generation += 1) {
     const attempt = { ...input, generation };
-    for (let retry = 0; retry < REVIEW_VERSION_RETRY_ATTEMPTS; retry += 1) {
-      try {
-        const resolution = await resolveFrontlineRun(dependencies.operationStore, attempt);
-        if (resolution.action === "blocked") {
-          throw new FrontlineOperationCorruptStateError(
-            `frontline operation '${resolution.operationId}' has a conflicting identity`,
-          );
-        }
-        if (resolution.action === "execute") {
-          if (resolution.invalidatedBy.length > 0) continue generationLoop;
-          return await executeAndPersistFrontlineRun(
-            dependencies,
-            attempt,
-            resolution.operationId,
-            resolution.expectedVersion,
-            true,
-          );
-        }
-
-        const persisted = await readBoundOutcome(
-          dependencies.outcomeStore,
-          attempt,
-          resolution.operationId,
-          resolution.state.outcome !== "pending",
-        );
-        if (resolution.state.outcome === "pending") {
-          if (persisted === null) {
+    const operationId = bindFrontlineRun(attempt).operationId;
+    const terminal = await dependencies.withOperationLock(operationId, input.lockWaitMs, async () => {
+      for (let retry = 0; retry < REVIEW_VERSION_RETRY_ATTEMPTS; retry += 1) {
+        try {
+          const resolution = await resolveFrontlineRun(dependencies.operationStore, attempt);
+          if (resolution.action === "blocked") {
+            throw new FrontlineOperationCorruptStateError(
+              `frontline operation '${resolution.operationId}' has a conflicting identity`,
+            );
+          }
+          if (resolution.action === "execute") {
+            if (resolution.invalidatedBy.length > 0) return null;
             return await executeAndPersistFrontlineRun(
               dependencies,
               attempt,
               resolution.operationId,
-              resolution.version,
-              false,
+              resolution.expectedVersion,
+              true,
             );
           }
-          const recovered = await persistFrontlineRunOutcome(dependencies.operationStore, {
-            ...attempt,
-            outcome: persisted.record.outcome,
-            updatedAt: dependencies.now(),
-            expectedVersion: resolution.version,
-          });
-          return terminalFromRecord(recovered.version, attempt.target, persisted);
-        }
-        if (persisted === null) {
-          throw new FrontlineOperationCorruptStateError(
-            `frontline operation '${resolution.operationId}' claims completion without an outcome`,
+
+          const persisted = await readBoundOutcome(
+            dependencies.outcomeStore,
+            attempt,
+            resolution.operationId,
+            resolution.state.outcome !== "pending",
           );
+          if (resolution.state.outcome === "pending") {
+            if (persisted === null) {
+              return await executeAndPersistFrontlineRun(
+                dependencies,
+                attempt,
+                resolution.operationId,
+                resolution.version,
+                false,
+              );
+            }
+            const recovered = await persistFrontlineRunOutcome(dependencies.operationStore, {
+              ...attempt,
+              outcome: persisted.record.outcome,
+              updatedAt: dependencies.now(),
+              expectedVersion: resolution.version,
+            });
+            return terminalFromRecord(recovered.version, attempt.target, persisted);
+          }
+          if (persisted === null) {
+            throw new FrontlineOperationCorruptStateError(
+              `frontline operation '${resolution.operationId}' claims completion without an outcome`,
+            );
+          }
+          if (
+            resolution.state.outcome !== persisted.record.outcome.outcome
+            || resolution.state.passCount !== persisted.record.outcome.pass
+          ) {
+            throw new FrontlineOperationCorruptStateError(
+              `frontline operation '${resolution.operationId}' does not match its outcome`,
+            );
+          }
+          if (admitsFreshGeneration(persisted.record.outcome)) return null;
+          return terminalFromRecord(resolution.version, attempt.target, persisted);
+        } catch (error) {
+          if (!isReviewVersionConflict(error)) throw error;
         }
-        if (
-          resolution.state.outcome !== persisted.record.outcome.outcome
-          || resolution.state.passCount !== persisted.record.outcome.pass
-        ) {
-          throw new FrontlineOperationCorruptStateError(
-            `frontline operation '${resolution.operationId}' does not match its outcome`,
-          );
-        }
-        if (admitsFreshGeneration(persisted.record.outcome)) continue generationLoop;
-        return terminalFromRecord(resolution.version, attempt.target, persisted);
-      } catch (error) {
-        if (!isReviewVersionConflict(error)) throw error;
       }
-    }
-    throw new Error(
-      `frontline operation generation ${generation} exceeded version-conflict retry attempts`,
-    );
+      throw new Error(
+        `frontline operation generation ${generation} exceeded version-conflict retry attempts`,
+      );
+    });
+    if (terminal !== null) return terminal;
   }
   throw new Error("frontline operation generation exhausted");
 }

@@ -9,6 +9,7 @@ import {
 } from "../hosts/local/frontline-materialization.js";
 import {
   RepositoryGitCommonStatePublisher,
+  withRepositoryReviewOperationLock,
 } from "../hosts/local/git-common-state.js";
 import {
   LocalReviewOperationStateStore,
@@ -45,6 +46,13 @@ export function createFrontlineRunDependencies(input: {
   return {
     operationStore: new LocalReviewOperationStateStore(publisher),
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),
+    withOperationLock: (operationId, maxWaitMs, action) => withRepositoryReviewOperationLock(
+      input.exec,
+      input.cwd,
+      operationId,
+      maxWaitMs,
+      action,
+    ),
     confirmSource: (source) => {
       const registered = registry.resolve(source.sourceId);
       return Promise.resolve(registered);

@@ -31,8 +31,12 @@ import {
   type FrontlineSourceDescriptor,
 } from "../policy/frontline-source.js";
 import {
+  DEFAULT_FRONTLINE_TIMEOUT_MS,
   executeBoundedFrontlineCarrier,
 } from "./frontline-execution-boundary.js";
+
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+const OPERATION_LOCK_COMPLETION_MARGIN_MS = 30_000;
 
 export const FrontlineRunRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -44,6 +48,11 @@ export const FrontlineRunRequestSchema = z.strictObject({
 export interface FrontlineRunCommandDependencies {
   operationStore: ReviewOperationStateStore;
   outcomeStore: FrontlineOutcomeStore;
+  withOperationLock<T>(
+    operationId: string,
+    maxWaitMs: number,
+    action: () => Promise<T>,
+  ): Promise<T>;
   confirmSource(source: FrontlineSourceDescriptor): Promise<FrontlineSourceDescriptor | null>;
   prepareExecutionTarget(target: ReviewTarget): Promise<{
     target: ReviewTarget;
@@ -165,6 +174,11 @@ export async function runFrontlineReviewCommand(
     terminal = await executeFrontlineRun({
       operationStore: dependencies.operationStore,
       outcomeStore: dependencies.outcomeStore,
+      withOperationLock: (operationId, maxWaitMs, action) => dependencies.withOperationLock(
+        operationId,
+        maxWaitMs,
+        action,
+      ),
       execute,
       now: () => dependencies.now(),
     }, {
@@ -173,6 +187,10 @@ export async function runFrontlineReviewCommand(
       generation: 0,
       pass: readyPayload.pass,
       maxPasses: readyPayload.maxPasses,
+      lockWaitMs: Math.min(
+        MAX_TIMER_DELAY_MS,
+        (request.timeoutMs ?? DEFAULT_FRONTLINE_TIMEOUT_MS) + OPERATION_LOCK_COMPLETION_MARGIN_MS,
+      ),
       policyVersion: canonicalDigest({
         routing: readyPayload.routing,
         frontlineReview: semantic,

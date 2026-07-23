@@ -103,8 +103,15 @@ function executionBinding(overrides: Partial<ReturnType<typeof binding>> = {}) {
     ...binding(overrides),
     pass: 1 as const,
     maxPasses: 2 as const,
+    lockWaitMs: 30_000,
   };
 }
+
+const passThroughOperationLock = <T>(
+  _operationId: string,
+  _maxWaitMs: number,
+  action: () => Promise<T>,
+): Promise<T> => action();
 
 const executableIdentity = {
   digest: canonicalDigest({ executable: "reviewer" }),
@@ -177,6 +184,7 @@ describe("frontline operation continuity", () => {
     await expect(executeFrontlineRun({
       operationStore: store,
       outcomeStore,
+      withOperationLock: passThroughOperationLock,
       execute: async () => {
         order.push("execute");
         return {
@@ -218,6 +226,7 @@ describe("frontline operation continuity", () => {
     await expect(executeFrontlineRun({
       operationStore,
       outcomeStore,
+      withOperationLock: passThroughOperationLock,
       execute,
       now: () => "2026-07-23T19:00:00Z",
     }, executionBinding())).resolves.toMatchObject({
@@ -258,6 +267,7 @@ describe("frontline operation continuity", () => {
     await expect(executeFrontlineRun({
       operationStore,
       outcomeStore,
+      withOperationLock: passThroughOperationLock,
       execute,
       now: () => "2026-07-23T19:00:00Z",
     }, executionBinding())).resolves.toMatchObject({
@@ -293,6 +303,7 @@ describe("frontline operation continuity", () => {
     await expect(executeFrontlineRun({
       operationStore,
       outcomeStore,
+      withOperationLock: passThroughOperationLock,
       execute,
       now: () => "2026-07-23T19:01:00Z",
     }, executionBinding())).resolves.toMatchObject({
@@ -334,6 +345,7 @@ describe("frontline operation continuity", () => {
     await expect(executeFrontlineRun({
       operationStore,
       outcomeStore,
+      withOperationLock: passThroughOperationLock,
       execute: vi.fn(),
       now: () => "2026-07-23T19:01:00Z",
     }, executionBinding())).rejects.toMatchObject({ code: "corrupt-state" });
@@ -357,6 +369,7 @@ describe("frontline operation continuity", () => {
     await expect(executeFrontlineRun({
       operationStore,
       outcomeStore,
+      withOperationLock: passThroughOperationLock,
       execute,
       now: () => "2026-07-23T19:01:00Z",
     }, executionBinding())).resolves.toMatchObject({
@@ -365,6 +378,69 @@ describe("frontline operation continuity", () => {
       outcome: { outcome: "clean", pass: 1 },
     });
     expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it("serializes overlapping callers so the carrier executes once", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    let markStarted: (() => void) | undefined;
+    let releaseExecution: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      releaseExecution = resolve;
+    });
+    const execute = vi.fn(async () => {
+      if (execute.mock.calls.length === 1) {
+        markStarted?.();
+        await blocked;
+      }
+      return {
+        outcome: normalizedOutcome("clean"),
+        executableIdentity,
+      };
+    });
+    let lockTail = Promise.resolve();
+    const withOperationLock = async <T>(
+      _operationId: string,
+      _maxWaitMs: number,
+      action: () => Promise<T>,
+    ): Promise<T> => {
+      const predecessor = lockTail;
+      let releaseLock: (() => void) | undefined;
+      lockTail = new Promise<void>((resolve) => {
+        releaseLock = resolve;
+      });
+      await predecessor;
+      try {
+        return await action();
+      } finally {
+        releaseLock?.();
+      }
+    };
+    const dependencies = {
+      operationStore,
+      outcomeStore,
+      execute,
+      withOperationLock,
+      now: () => "2026-07-23T19:01:00Z",
+    };
+
+    const first = executeFrontlineRun(dependencies, executionBinding());
+    await started;
+    const second = executeFrontlineRun(dependencies, executionBinding());
+    await Promise.resolve();
+    expect(execute).toHaveBeenCalledOnce();
+    releaseExecution?.();
+
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(execute).toHaveBeenCalledOnce();
+    expect(secondResult).toMatchObject({
+      operationId: firstResult.operationId,
+      outcomeRef: firstResult.outcomeRef,
+      outcome: { outcome: "clean" },
+    });
   });
 
   it.each(["clean", "findings", "pass-cap-exhausted"] as const)(
@@ -378,6 +454,7 @@ describe("frontline operation continuity", () => {
       const first = await executeFrontlineRun({
         operationStore,
         outcomeStore,
+        withOperationLock: passThroughOperationLock,
         execute: async () => ({
           outcome,
           executableIdentity: outcomeName === "pass-cap-exhausted" ? null : executableIdentity,
@@ -389,6 +466,7 @@ describe("frontline operation continuity", () => {
       await expect(executeFrontlineRun({
         operationStore,
         outcomeStore,
+        withOperationLock: passThroughOperationLock,
         execute,
         now: () => "2026-07-23T19:01:00Z",
       }, executionBinding())).resolves.toMatchObject({
@@ -413,6 +491,7 @@ describe("frontline operation continuity", () => {
     const first = await executeFrontlineRun({
       operationStore,
       outcomeStore,
+      withOperationLock: passThroughOperationLock,
       execute: async () => ({
         outcome: normalizedOutcome(outcomeName, reason),
         executableIdentity: reason.class === "capability-unsupported" ? null : executableIdentity,
@@ -427,6 +506,7 @@ describe("frontline operation continuity", () => {
     const retry = await executeFrontlineRun({
       operationStore,
       outcomeStore,
+      withOperationLock: passThroughOperationLock,
       execute,
       now: () => "2026-07-23T19:01:00Z",
     }, executionBinding());

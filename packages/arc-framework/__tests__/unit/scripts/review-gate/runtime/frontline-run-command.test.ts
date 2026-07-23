@@ -82,6 +82,11 @@ const resolution = {
 function memoryStores(): {
   operationStore: ReviewOperationStateStore;
   outcomeStore: FrontlineOutcomeStore;
+  withOperationLock<T>(
+    operationId: string,
+    maxWaitMs: number,
+    action: () => Promise<T>,
+  ): Promise<T>;
 } {
   const operations = new Map<string, { version: number; state: ReviewOperationState }>();
   const outcomes = new Map<string, {
@@ -90,6 +95,11 @@ function memoryStores(): {
     outcomeRef: string;
   }>();
   return {
+    withOperationLock: <T>(
+      _operationId: string,
+      _maxWaitMs: number,
+      action: () => Promise<T>,
+    ) => action(),
     operationStore: {
       readOperation: async (operationId) => operations.get(operationId) ?? { version: 0, state: null },
       publishOperation: async (state, expectedVersion) => {

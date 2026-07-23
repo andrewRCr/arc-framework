@@ -290,7 +290,7 @@ describe("built review protocol", () => {
     ])).rejects.toThrow();
   });
 
-  it("executes and re-enters an exact-head frontline review through public verbs", async () => {
+  it("serializes overlapping exact-head frontline reviews through public verbs", async () => {
     const root = await fixture();
     const prepared = await prepareLocal(root);
     const bin = join(root, ".git", "provider-bin");
@@ -304,6 +304,7 @@ describe("built review protocol", () => {
       "  exit 0",
       "fi",
       "printf 'run\\n' >> \"$COUNT_FILE\"",
+      "sleep 1",
       "printf '%s\\n' '{\"type\":\"complete\",\"status\":\"review_completed\",\"findings\":0,"
         + "\"reviewedFiles\":[\"reviewed.txt\"]}'",
       "",
@@ -336,19 +337,23 @@ describe("built review protocol", () => {
       resolution: resolved,
       timeoutMs: 5_000,
     };
-    const first = envelope(await runArcWithStdin(
-      ["review", "frontline", "run", "-"],
-      root,
-      `${JSON.stringify(runRequest)}\n`,
-      { env: environment },
-    ));
+    const [firstResult, secondResult] = await Promise.all([
+      runArcWithStdin(
+        ["review", "frontline", "run", "-"],
+        root,
+        `${JSON.stringify(runRequest)}\n`,
+        { env: environment },
+      ),
+      runArcWithStdin(
+        ["review", "frontline", "run", "-"],
+        root,
+        `${JSON.stringify(runRequest)}\n`,
+        { env: environment },
+      ),
+    ]);
+    const first = envelope(firstResult);
     expect(first).toMatchObject({ state: "clean", nextAction: "none" });
-    const second = envelope(await runArcWithStdin(
-      ["review", "frontline", "run", "-"],
-      root,
-      `${JSON.stringify(runRequest)}\n`,
-      { env: environment },
-    ));
+    const second = envelope(secondResult);
     expect(second).toMatchObject({ state: "clean", nextAction: "none" });
     expect((await readFile(countFile, "utf8")).trim().split("\n")).toHaveLength(1);
 

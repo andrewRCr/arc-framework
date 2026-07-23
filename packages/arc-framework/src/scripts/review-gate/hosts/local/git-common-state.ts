@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { atomicWriteFile } from "../../../../lib/fs.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
+import { canonicalDigest } from "../../../../lib/kernel/index.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "../../../../lib/user-sync/notes-lock.js";
 import { resolveGitCommonDir } from "../../../../lib/user-sync/repo-shared-paths.js";
 
@@ -92,6 +93,28 @@ export async function withRepositoryReviewSweepLock<T>(
   const root = join(await resolveGitCommonDir(exec, cwd), "arc", "review-gate");
   await mkdir(root, { recursive: true, mode: 0o700 });
   const lock = await acquireAdvisoryLock(join(root, ".sweep.lock"));
+  try {
+    return await action();
+  } finally {
+    await releaseAdvisoryLock(lock);
+  }
+}
+
+/** Serialize one provider-effectful frontline operation across repository-local callers. */
+export async function withRepositoryReviewOperationLock<T>(
+  exec: GitExec,
+  cwd: string,
+  operationId: string,
+  maxWaitMs: number,
+  action: () => Promise<T>,
+): Promise<T> {
+  const root = join(await resolveGitCommonDir(exec, cwd), "arc", "review-gate", "operation-locks");
+  await mkdir(root, { recursive: true, mode: 0o700 });
+  const lockId = canonicalDigest({
+    domain: "arc.review-gate.operation-lock/v1",
+    operationId,
+  }).slice("sha256:".length);
+  const lock = await acquireAdvisoryLock(join(root, `${lockId}.lock`), { maxWaitMs });
   try {
     return await action();
   } finally {
