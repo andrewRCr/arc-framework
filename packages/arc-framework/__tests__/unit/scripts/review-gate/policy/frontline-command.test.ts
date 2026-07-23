@@ -15,10 +15,10 @@ const routineCode = {
   activity: { selfReview: true, frontlineReview: false },
 };
 
-const preferences = {
-  readDeveloperSourceIds: vi.fn().mockResolvedValue([]),
+const preferences = (sourceIds: readonly string[] = []) => ({
+  readDeveloperSourceIds: vi.fn().mockResolvedValue(sourceIds),
   readProjectSourceIds: vi.fn().mockResolvedValue([]),
-};
+});
 
 describe("frontline workflow command", () => {
   it("accepts explicit change-set facts and a force invocation without executing a source", async () => {
@@ -31,21 +31,70 @@ describe("frontline workflow command", () => {
       schemaVersion: 1,
       changeSet: routineCode,
       invocation: { mode: "force", sourceId: "review-command" },
-    }, { preferences, registry })).resolves.toMatchObject({
+    }, { preferences: preferences(), registry })).resolves.toMatchObject({
       schemaVersion: 1,
       mode: "review-frontline-resolve",
-      routing: { facts: { activity: { frontlineReview: false } } },
-      frontlineReview: {
-        action: "attempt",
-        reasons: ["routine-code", "frontline-inactive", "frontline-policy-skip", "invocation-force", "source-invocation"],
-        source: {
-          sourceId: "review-command",
-          kind: "command",
-          executable: "reviewer",
-          argv: ["--mode", "frontline"],
+      diagnostics: [],
+      state: "ready",
+      nextAction: "run-frontline",
+      payload: {
+        routing: { facts: { activity: { frontlineReview: false } } },
+        frontlineReview: {
+          action: "attempt",
+          reasons: [
+            "routine-code",
+            "frontline-inactive",
+            "frontline-policy-skip",
+            "invocation-force",
+            "source-invocation",
+          ],
+          source: {
+            sourceId: "review-command",
+            kind: "command",
+            executable: "reviewer",
+            argv: ["--mode", "frontline"],
+          },
         },
+        pass: 1,
+        maxPasses: 2,
       },
-      diagnostics: { routing: [], source: [] },
+    });
+  });
+
+  it("projects skipped and both offered actions from the resolved semantic state", async () => {
+    const registry = new FrontlineSourceRegistry([{
+      sourceId: "review-command",
+      descriptor: { kind: "command", executable: "reviewer", argv: ["--mode", "frontline"] },
+    }]);
+    const activeAtomic = {
+      ...routineCode,
+      changeDeterminacy: "atomic",
+      activity: { ...routineCode.activity, frontlineReview: true },
+    };
+
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      changeSet: routineCode,
+      invocation: { mode: "inherit" },
+    }, { preferences: preferences(), registry })).resolves.toMatchObject({
+      state: "skipped",
+      nextAction: "none",
+    });
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      changeSet: activeAtomic,
+      invocation: { mode: "inherit" },
+    }, { preferences: preferences(), registry })).resolves.toMatchObject({
+      state: "offered",
+      nextAction: "bind-source",
+    });
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      changeSet: activeAtomic,
+      invocation: { mode: "inherit" },
+    }, { preferences: preferences(["review-command"]), registry })).resolves.toMatchObject({
+      state: "offered",
+      nextAction: "obtain-authorization",
     });
   });
 
@@ -54,21 +103,21 @@ describe("frontline workflow command", () => {
       schemaVersion: 1,
       changeSet: { contentKind: "surprise" },
       invocation: { mode: "inherit" },
-    }, { preferences, registry: new FrontlineSourceRegistry([]) });
+    }, { preferences: preferences(), registry: new FrontlineSourceRegistry([]) });
 
-    expect(result.routing.facts.changeSetState).toBe("unknown");
-    expect(result.frontlineReview).toMatchObject({
+    expect(result.payload.routing).toMatchObject({ facts: { changeSetState: "unknown" } });
+    expect(result.payload.frontlineReview).toMatchObject({
       action: "offer",
       reasons: expect.arrayContaining(["unknown-change-set", "frontline-policy-attempt", "source-unbound"]),
     });
-    expect(result.diagnostics.routing.length).toBeGreaterThan(0);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 
   it("requires invocation input and rejects shell-shaped registry data at the registry boundary", async () => {
     await expect(resolveFrontlineCommand({
       schemaVersion: 1,
       changeSet: routineCode,
-    }, { preferences, registry: new FrontlineSourceRegistry([]) })).rejects.toThrow();
+    }, { preferences: preferences(), registry: new FrontlineSourceRegistry([]) })).rejects.toThrow();
     expect(() => new FrontlineSourceRegistry([{
       sourceId: "unsafe",
       descriptor: { kind: "command", executable: "reviewer; rm", argv: [] },

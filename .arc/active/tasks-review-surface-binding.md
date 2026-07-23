@@ -339,22 +339,15 @@ test-after.
   adapter to the direct process runner, whose expiry terminates the child and wins over late clean output. Unknown
   process failures persist as the closed `unexpected-adapter-failure` outcome.
 
-### `[ ]` **5.4 `frontline resolve` state/action projection and `invalid-input` rename**
+### `[x]` **5.4 `frontline resolve` state/action projection and `invalid-input` rename**
 
 - _Goal:_ The shipped `frontline resolve` gains its explicit `state`/`nextAction` projection (per the § D2 table)
   without operation/persistence padding, and its error code is renamed `invalid-request` → `invalid-input` so one
   strict union covers all seven verbs.
 
-- _Note:_ `src/handlers/review.ts:46` currently emits `invalid-request`; resolver in `policy/frontline-command.ts`. The
-  old code's consumers are rewritten in Task 7.5 (SC 11). The `ready` variant's authorized `pass` is a net-new field
-  (`FrontlineSemanticRecord` carries only `maxPasses` today), derived per § D11 — pass 1 on a fresh resolution; the
-  follow-up resolver authorizes pass 2 at the changed head.
-
-    - Build `test-first` (one behavior at a time):
-        - `skipped -> none`; `offered -> bind-source` (no source) / `obtain-authorization` (source resolved);
-          `ready -> run-frontline`
-        - the `ready` variant carries the authorized `pass` and effective allowance
-        - the error envelope emits `invalid-input`
+- _Outcome:_ The effect-free resolver now emits only the four legal state/action variants with routing and semantic
+  data in the success payload; fresh ready results authorize pass 1 with the effective allowance. Malformed input
+  uses the shared strict `invalid-input` error envelope.
 
 ### `[ ]` **5.5 Frontline outcome recovery and reuse discrimination**
 

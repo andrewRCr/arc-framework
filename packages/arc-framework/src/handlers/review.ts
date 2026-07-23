@@ -6,6 +6,7 @@ import { ZodError } from "zod";
 import { gitExec } from "../lib/io-context.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import {
+  FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
@@ -38,35 +39,54 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-/**
- * Resolve one explicit frontline request and emit exactly one JSON envelope.
- *
- * @param source - JSON request file, or `-` for standard input.
- * @returns Resolves after stdout and exit status are assigned.
- */
-export async function handleReviewFrontlineResolve(source: string): Promise<void> {
-  try {
-    const root = resolveArcRoot(process.cwd());
-    if (root === null) throw new Error("Not inside an ARC project.");
-    const text = source === "-" ? await readStdin() : await readFile(source, "utf8");
-    const request: unknown = JSON.parse(text);
-    const result = await resolveFrontlineCommand(request, {
+export interface ReviewFrontlineResolveHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  resolve(request: unknown, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
+  return {
+    resolveRoot: resolveArcRoot,
+    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    resolve: (request, root) => resolveFrontlineCommand(request, {
       preferences: createLocalFrontlineSourcePreferenceReader({
         cwd: root,
         exec: gitExec,
         readFile: (path) => readFile(path, "utf8"),
       }),
       registry: new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]),
-    });
-    process.stdout.write(`${JSON.stringify(result)}\n`);
+    }),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
+/**
+ * Resolve one explicit frontline request and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleReviewFrontlineResolve(
+  source: string,
+  overrides: Partial<ReviewFrontlineResolveHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultFrontlineResolveDependencies(), ...overrides };
+  try {
+    const root = dependencies.resolveRoot(process.cwd());
+    if (root === null) throw new Error("Not inside an ARC project.");
+    const request: unknown = JSON.parse(await dependencies.readText(source));
+    const result = FrontlineResolveEnvelopeSchema.parse(await dependencies.resolve(request, root));
+    dependencies.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    process.stdout.write(`${JSON.stringify({
-      schemaVersion: 1,
-      mode: "review-frontline-resolve",
-      error: { code: "invalid-request", message },
-    })}\n`);
-    process.exitCode = 1;
+    dependencies.write(`${JSON.stringify(reviewCommandError("review-frontline-resolve", error))}\n`);
+    dependencies.setExitCode(1);
   }
 }
 

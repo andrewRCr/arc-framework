@@ -1,12 +1,35 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
 } from "../../../src/handlers/review.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
+
+describe("handleReviewFrontlineResolve", () => {
+  it("emits the shared invalid-input error envelope for malformed input", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewFrontlineResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => "{",
+      resolve: vi.fn(),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      mode: "review-frontline-resolve",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+});
 
 describe("handleReviewFrontlineRun", () => {
   it("reads one request and emits one validated durable run envelope", async () => {
