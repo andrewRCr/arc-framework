@@ -228,10 +228,11 @@ validation are test-first; the Commander wiring is test-after.
           rejects self-review, and derives the attesting runtime through the installed-runtime boundary
         - The evaluator remains the only caller-selected actor; runtime identity never enters the request input
 
-    - `[ ]` **4.1.d Deterministic operation identity and identical-retry predicate**
-        - identity a pure function of derived `targetId` / requirement / actor bindings / request mechanism
-        - Build `test-first`: identity determinism; identical retry returns the same `operationId` and re-verifies rather
-          than rebuilds; any keyed-fact difference admits a new operation
+    - `[x]` **4.1.d Deterministic operation identity and identical-retry predicate**
+        - Derives the request and `operationId` from the exact target, requirement, actor bindings, policy binding, and
+          request mechanism; identical facts reproduce byte-identical admission records
+        - An identical retry returns and re-verifies the persisted operation without publishing or rebuilding, while
+          any keyed-fact difference derives a new operation identity
 
     - `[ ]` **4.1.e Wire the `arc review local prepare` handler and command** — test-after (envelope in/out; `handleReviewLocalPrepare`)
 
