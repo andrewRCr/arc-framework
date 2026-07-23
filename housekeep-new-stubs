@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "housekeep-new-stubs",
+  "origin": "description",
+  "intent": "Scaffold confirmed USER-INBOX work-unit homes",
+  "branch": "chore/housekeep-new-stubs",
+  "createdAt": "2026-07-23T18:49:00.180Z",
+  "returnBranch": "main"
+}
