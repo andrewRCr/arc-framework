@@ -136,4 +136,23 @@ describe("local review source sweep", () => {
     expect(release).toHaveBeenCalledOnce();
     expect(release).toHaveBeenCalledWith("completed");
   });
+
+  it("never reaps a live unexpired source during concurrent sweeps", async () => {
+    const live = state("live", "2026-07-23T16:59:30Z");
+    const release = vi.fn(async () => undefined);
+    const dependencies = {
+      listOperationIds: async () => ["live"],
+      readOperation: async () => ({ version: 1, state: live }),
+      readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+      release,
+      now: () => "2026-07-23T17:00:00Z",
+    };
+
+    await expect(Promise.all([
+      sweepLocalReviewSources(dependencies),
+      sweepLocalReviewSources(dependencies),
+    ])).resolves.toEqual([{ reaped: [] }, { reaped: [] }]);
+
+    expect(release).not.toHaveBeenCalled();
+  });
 });
