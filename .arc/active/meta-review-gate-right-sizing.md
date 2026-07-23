@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-review-gate-right-sizing.md`
+- **Design:** `spec-review-gate-right-sizing.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** draft-design complete — draft settled through four adversarial passes + coherence re-read,
   captured (`formalization-ready`)
 - **Next Task:** [none]
