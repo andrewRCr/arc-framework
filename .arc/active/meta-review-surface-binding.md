@@ -13,13 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks finalized — 8-phase task list (adversarial pass folded 5 findings); base
-  reconciled with `main`; WU activated to `feat/review-surface-binding`
-- **Next Task:** Task 1.1 — Rename the `standard-review` code identity and modules (line ~19)
+- **Last Completed:** Phase 3 complete — production method activation, typed rubric binding, and fail-closed
+  effective-guidance composition
+- **Next Task:** Task 4.1.a — Repository identity record (line ~217)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 1 execution — Task 1.1, the coordinated live-closure rename; integrate before
-  `review-gate-right-sizing` consumes the renamed surface
+- **Next Action:** Begin Task 4.1.a test-first — mint and resolve the shared repository identity across sibling
+  worktrees and checkout relocation
 
 - **PR URL:** [none]
 - **Completed:** [none]
