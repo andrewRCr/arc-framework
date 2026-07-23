@@ -55,14 +55,27 @@ describe("runErrandStalenessSweep", () => {
     expect(result.stale).toEqual([]);
   });
 
-  it("retains Date.parse normalization for regex-shaped impossible dates", () => {
+  it.each(["2026-02-30", "2025-02-29", "2026-04-31", "2026-13-01", "2026-00-01"])(
+    "skips an impossible calendar date (%s)",
+    (created) => {
+      const result = runErrandStalenessSweep({
+        entries: [entry("invalid-date", created)],
+        thresholdDays: 3,
+        now: NOW,
+      });
+
+      expect(result.stale).toEqual([]);
+    },
+  );
+
+  it("accepts a valid leap day", () => {
     const result = runErrandStalenessSweep({
-      entries: [entry("legacy title", "2026-02-30")],
+      entries: [entry("leap-day", "2024-02-29")],
       thresholdDays: 3,
-      now: NOW,
+      now: "2024-03-05T12:00:00.000Z",
     });
 
-    expect(result.stale).toEqual([{ slug: "legacy title", created: "2026-02-30", ageDays: 84 }]);
+    expect(result.stale).toEqual([{ slug: "leap-day", created: "2024-02-29", ageDays: 5 }]);
   });
 
   it("returns no stale entries when there are no candidates", () => {
@@ -81,10 +94,10 @@ describe("ErrandStalenessSweepResultSchema", () => {
     ).toEqual({ stale: [{ slug: "Fix the release docs", created: "2026-05-18", ageDays: 7 }] });
   });
 
-  it("accepts an impossible date that the producer normalizes through Date.parse", () => {
+  it("rejects an impossible calendar date", () => {
     expect(
       StaleErrandReportSchema.safeParse({ slug: "legacy title", created: "2026-02-30", ageDays: 84 }).success,
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it.each([
