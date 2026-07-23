@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec complete — `spec-review-gate-right-sizing.md` finalized (`detailed`·RFC);
-  adversarial pass + spec-review folded, draft retired
+- **Last Completed:** Planning finalized and activated; public PR review record correction folded into the
+  implementation design and task list
 - **Next Task:** Begin Task 1.1 — Establish hosted request, await, and thread-settlement verbs
 - **Blockers:** [none]
 
