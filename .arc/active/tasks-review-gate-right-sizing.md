@@ -60,8 +60,10 @@ shadow runtime that currently contains their reusable pieces.
 - _Goal:_ Configuration selects one source per review role and bounds its cycles, while an installation with no
   standard source reaches a clean no-op despite the change-shaped obligation.
 
-- _Note:_ RSB owns the coordinated live-closure rename and plural frontline resolver. Begin this task only after
-  that increment is integrated and reconciled into the branch; consume it without recreating or editing it here.
+- _Note:_ RSB Tasks 1.1–1.3 own the coordinated live-closure rename and plural frontline resolver. They are its
+  first implementation increment, but ARC delivers the WU through one final merge: begin this task only after the
+  full RSB WU is integrated and reconciled into the branch; consume the landed contract without recreating or
+  editing it here.
 
     - `[ ]` **1.3.a Add typed ordered-source and pass-ceiling settings**
 
@@ -88,6 +90,12 @@ shadow runtime that currently contains their reusable pieces.
           obligation projection, then resolve frontline and standard source order, source capability/eligibility,
           current pass counts, terminal state, precomposed disposition/pass-ceiling surfaces, and the next allowed
           action in CLI code.
+        - Accept the caller's selected scope mode (`whole-target` or `chunked`) before source resolution, defaulting
+          an omitted selection to `whole-target`. In chunked mode admit only local curated-scope carriers;
+          whole-target retains ordinary configured eligibility and provider-specific capability filtering.
+        - Count one complete chunk series as one logical lane pass and reject a prior scope selection after its exact
+          target moves. Keep review-chunking thresholds advisory and independent of provider capability; this driver
+          neither measures the target nor turns a generic threshold into a hosted-provider limit.
         - Treat each ordered list as fallback, never fan-out: one source completes a pass. Fall through without
           consuming a pass only on `rate-limited` or `transient-unavailable`; partial, ambiguous, malformed,
           timed-out, stale-target, capability-unsupported, source-unbound, and other terminal outcomes stop with
@@ -110,6 +118,9 @@ shadow runtime that currently contains their reusable pieces.
             - a configured list with no source able to satisfy the target returns `unavailable`;
             - frontline activation is independent of standard opt-out, and each role selects exactly one source
               per pass within its own ceiling;
+            - omitted and explicit whole-target selections preserve ordinary eligibility, while chunked selection
+              admits only local curated-scope carriers;
+            - a complete chunk series consumes one pass, and target movement invalidates its prior selection;
             - `delegated-agent` and each hosted-PR source can independently satisfy a standard pass;
             - only the two safe availability outcomes fall through, consume no pass, and preserve attempt history;
               non-fall-through outcomes never invoke the next source;
@@ -319,9 +330,11 @@ integration callers, leaving judgment only at disposition and convergence.
   candidate boundaries, and only the reviewed final candidate head can receive combined release/integration
   authorization.
 
-- _Note:_ RSB integrates its standard-review/local/frontline rewrite first. Reconcile this branch with that landed
-  contract, then append this WU's hosted-PR and guard segment to the current package-source workflow without
-  replacing RSB-owned behavior; project the composed result to `.arc/`.
+- _Note:_ RSB Task 7.5 integrates its standard-review/local/frontline rewrite first. Reconcile this branch with that
+  landed contract, then append this WU's hosted-PR and guard segment to the current package-source workflow without
+  replacing RSB-owned behavior; project the composed result to `.arc/`. Thread a review-chunking scope selection
+  into the driver when its preflight is available; otherwise preserve the driver's whole-target default rather than
+  implementing thresholds or measurement here.
 
     - `[ ]` **3.1.a Insert the typed review-driver entry and mechanical action loop**
 
@@ -412,8 +425,9 @@ integration callers, leaving judgment only at disposition and convergence.
 - _Goal:_ Errands consume the same review obligation without letting merge-lane presentation rewrite policy;
   reviewed heads use exact-head clearance and planning heads retain their native trusted CI stamp and auto-merge.
 
-- _Note:_ This is the second shared surface with RSB; after its first integration is reconciled, append this WU's
-  hosted-PR and guard behavior to the current package-source `run-errand.md` and project the composed result.
+- _Note:_ This is the second shared surface with RSB Task 7.5; after RSB's integration is reconciled, append this
+  WU's hosted-PR and guard behavior to the current package-source `run-errand.md` and project the composed result.
+  Reuse the same selected-scope input and whole-target default without duplicating review-chunking preflight policy.
 
     - `[ ]` **3.2.a Add the shared typed segment at the Errand review boundary**
 
@@ -477,8 +491,8 @@ no consumer, and make every surviving description match the smaller operating mo
   re-homed hosted-PR/guard code; all unconsumed shadow machinery and subject-bound tests are absent.
 
 - _Note:_ The spec's D4 partition is authoritative. Preserve RSB-owned state as found: do not mutate its D14
-  consume-set, re-entry retirement cluster, `runtime/local-attestation.ts`, standard-review boundary modules, or
-  the live closure after its coordinated first increment; never restore re-entry modules RSB has already removed.
+  consume-set, Task 7.1 retirement set, `runtime/local-attestation.ts`, Task 7.2 standard-review boundary modules,
+  or the live closure after Tasks 1.1–1.3; never restore modules RSB has already removed.
 
     - `[ ]` **4.1.a Freeze the post-salvage keep/delete inventory against imports**
 
@@ -503,8 +517,8 @@ no consumer, and make every surviving description match the smaller operating mo
           `frontline-execution.ts` and `frontline-agent.ts`.
         - Preserve `providers/coderabbit/config.ts` and `runtime/qualification-activation.ts` while their retiring
           WU claims remain live; Task 5.2.d - `tasks-review-gate-right-sizing.md` removes them only after those
-          claims are authoritatively abandoned. Leave RSB-owned `core/contract-version-dispatch.ts` and
-          `core/forward-evidence-eligibility.ts` untouched.
+          claims are authoritatively abandoned. RSB Task 7.1 removes `core/contract-version-dispatch.ts` and
+          `core/forward-evidence-eligibility.ts`; preserve their landed absence and never recreate them.
 
     - `[ ]` **4.1.d Prove the surviving import and schema graph is closed**
 
@@ -549,9 +563,9 @@ no consumer, and make every surviving description match the smaller operating mo
 - _Goal:_ The project-owned architecture narrative describes the executable CLI loop and deliberate commit-status
   lock, with no controller/App story or claim of autonomous host-side review authority.
 
-- _Note:_ `.arc/reference/TECHNICAL-OVERVIEW.md` § 2 is a Scaffolded, project-owned surface shared with RSB's D15
-  correction; preserve whichever accurate CLI-boundary wording has already landed and compose the post-cut model
-  onto it. Do not project it from the generic package template.
+- _Note:_ `.arc/reference/TECHNICAL-OVERVIEW.md` § 2 is a Scaffolded, project-owned surface shared with RSB Task 7.4
+  (D15); preserve whichever accurate CLI-boundary wording has already landed and compose the post-cut model onto it.
+  Do not project it from the generic package template.
 
     - `[ ]` **4.3.a Rewrite the self-hosting review-gate overview**
 
