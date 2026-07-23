@@ -26,6 +26,8 @@ vi.mock("@clack/prompts", () => ({
   note: (...args: unknown[]) => mockNote(...args),
   confirm: (opts: unknown) => mockConfirm(opts),
   isCancel: (val: unknown) => mockIsCancel(val),
+  // Progress feedback on slow start legs — no-op in unit tests.
+  spinner: () => ({ start: vi.fn(), stop: vi.fn() }),
 }));
 
 const mockResolveStartDispatch = vi.fn();
