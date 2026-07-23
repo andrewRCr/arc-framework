@@ -12,7 +12,12 @@ import { sweepLocalReviewSources } from "../../../../../src/scripts/review-gate/
 const digest = (value: string): string => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
 
-function state(operationId: string, updatedAt: string, cleanupTtlMs = 60_000): LocalReviewState {
+function state(
+  operationId: string,
+  updatedAt: string,
+  cleanupTtlMs = 60_000,
+  head = "c",
+): LocalReviewState {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -21,8 +26,8 @@ function state(operationId: string, updatedAt: string, cleanupTtlMs = 60_000): L
     baseRef: "main",
     diffBaseSha: objectId("a"),
     diffBaseTree: objectId("b"),
-    headSha: objectId("c"),
-    headTree: objectId("d"),
+    headSha: objectId(head),
+    headTree: objectId(head),
   });
   const requirement = createReviewRequirement({
     target,
@@ -107,12 +112,12 @@ describe("local review source sweep", () => {
     expect(release).toHaveBeenCalledTimes(2);
   });
 
-  it("never reaps a live operation or an expired operation with a complete receipt", async () => {
+  it("retains a live operation and reaps completed crash residue", async () => {
     const live = state("live", "2026-07-23T16:59:30Z");
-    const completed = state("completed", "2026-07-23T16:00:00Z");
+    const completed = state("completed", "2026-07-23T16:00:00Z", 60_000, "d");
     const release = vi.fn(async () => undefined);
 
-    await sweepLocalReviewSources({
+    await expect(sweepLocalReviewSources({
       listOperationIds: async () => ["live", "completed"],
       readOperation: async (operationId) => ({
         version: 1,
@@ -124,8 +129,11 @@ describe("local review source sweep", () => {
       }),
       release,
       now: () => "2026-07-23T17:00:00Z",
+    })).resolves.toEqual({
+      reaped: [{ operationId: "completed", reason: "completed" }],
     });
 
-    expect(release).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledOnce();
+    expect(release).toHaveBeenCalledWith("completed");
   });
 });

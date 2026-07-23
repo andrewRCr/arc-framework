@@ -83,6 +83,22 @@ export class RepositoryGitCommonStatePublisher implements GitCommonStatePublishe
   }
 }
 
+/** Serialize local review source release across concurrent prepare, attest, and resume commands. */
+export async function withRepositoryReviewSweepLock<T>(
+  exec: GitExec,
+  cwd: string,
+  action: () => Promise<T>,
+): Promise<T> {
+  const root = join(await resolveGitCommonDir(exec, cwd), "arc", "review-gate");
+  await mkdir(root, { recursive: true, mode: 0o700 });
+  const lock = await acquireAdvisoryLock(join(root, ".sweep.lock"));
+  try {
+    return await action();
+  } finally {
+    await releaseAdvisoryLock(lock);
+  }
+}
+
 /**
  * Resolves the stable identity of one local repository, minting it on first use.
  *

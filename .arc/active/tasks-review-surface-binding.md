@@ -540,11 +540,10 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
         - The frontline deadline now shrinks across executable lookup, version interrogation, and provider launch;
           abort-aware races convert hung interrogation or execution to durable `timed-out` outcomes
 
-    - `[ ]` **8.R.e Close the completed-source cleanup lifecycle**
-        - Release the materialization and reachability pin after durable receipt publication, and make sweep recovery
-          close crash residue without adding a second completion authority
-        - Prove successful, orphaned, expired, and concurrently live operations retain or release the exact resources
-          their lifecycle requires
+    - `[x]` **8.R.e Close the completed-source cleanup lifecycle**
+        - Durable receipt publication now releases the exact checkout and pin immediately; the serialized sweep derives
+          completion from the receipt store to recover interrupted release while retaining live sources and reaping
+          orphaned or expired ones
 
     - `[ ]` **8.R.f Wire reduction through its production port**
         - Give `ReviewReductionPort` a production implementation and consumer while preserving read-only reduction

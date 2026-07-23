@@ -21,11 +21,11 @@ export interface LocalSourceSweepDependencies {
 export interface LocalSourceSweepResult {
   reaped: Array<{
     operationId: string;
-    reason: "orphan" | "terminally-expired";
+    reason: "orphan" | "completed" | "terminally-expired";
   }>;
 }
 
-/** Reap only absent-record pins or expired local operations without a complete receipt. */
+/** Reap absent-record pins, completed operations, or expired operations without a receipt. */
 export async function sweepLocalReviewSources(
   dependencies: LocalSourceSweepDependencies,
 ): Promise<LocalSourceSweepResult> {
@@ -41,13 +41,17 @@ export async function sweepLocalReviewSources(
     }
     if (persisted.state.kind !== "local-review") continue;
     const state = persisted.state;
-    const updatedAt = Date.parse(state.updatedAt);
-    if (!Number.isFinite(updatedAt) || now < updatedAt + state.cleanupTtlMs) continue;
     const ledger = await dependencies.readReceipts(state.targetId);
     const receiptComplete = ledger.receipts.some(
       (receipt) => receipt.requestId === state.requestId,
     );
-    if (receiptComplete) continue;
+    if (receiptComplete) {
+      await dependencies.release(operationId);
+      reaped.push({ operationId, reason: "completed" });
+      continue;
+    }
+    const updatedAt = Date.parse(state.updatedAt);
+    if (!Number.isFinite(updatedAt) || now < updatedAt + state.cleanupTtlMs) continue;
     await dependencies.release(operationId);
     reaped.push({ operationId, reason: "terminally-expired" });
   }

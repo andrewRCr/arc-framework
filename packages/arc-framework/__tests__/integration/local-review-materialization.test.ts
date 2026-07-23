@@ -12,6 +12,9 @@ import {
   inspectLocalReviewSourceMaterialization,
   LocalReviewMaterializationError,
 } from "../../src/scripts/review-gate/hosts/local/review-materialization.js";
+import {
+  RepositoryLocalReviewSourceSweepAdapter,
+} from "../../src/scripts/review-gate/hosts/local/source-sweep.js";
 
 const roots: string[] = [];
 const exec = createExecaGitExec();
@@ -118,5 +121,26 @@ describe("immutable local review materialization", () => {
       exec,
       source: records.source,
     })).resolves.toBe("absent");
+  });
+
+  it("idempotently releases the exact checkout and reachability pin under concurrent cleanup", async () => {
+    const records = await fixture();
+    await ensureLocalReviewSourceMaterialized({ exec, source: records.source });
+    const operationId = records.source.reachabilityRef.split("/").at(-1);
+    if (operationId === undefined) throw new Error("missing operation identity");
+    const sweep = new RepositoryLocalReviewSourceSweepAdapter(exec, records.root);
+
+    await Promise.all([
+      sweep.release(operationId),
+      sweep.release(operationId),
+    ]);
+
+    await expect(inspectLocalReviewSourceMaterialization({
+      exec,
+      source: records.source,
+    })).resolves.toBe("absent");
+    await expect(git(records.root, "show-ref", "--verify", records.source.reachabilityRef)).rejects.toThrow();
+    await expect(readFile(join(records.source.materializationRef, "tracked.txt"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
   });
 });

@@ -43,6 +43,7 @@ export interface LocalAttestDependencies {
   inspectMaterialization(source: NonNullable<Awaited<ReturnType<LocalReviewSourceStore["readSource"]>>>): Promise<
     "materialized" | "absent"
   >;
+  releaseMaterialization(operationId: string): Promise<void>;
 }
 
 /** Stable request or durable-state failure at the local attestation boundary. */
@@ -167,6 +168,7 @@ export async function attestLocalReviewCommand(
       receipt,
       ledger.ledgerVersion,
     );
+    await dependencies.releaseMaterialization(request.operationId);
     const current = await dependencies.confirmTarget(state.target);
     if (current.state === "stale-target") {
       return LocalAttestEnvelopeSchema.parse({
@@ -236,6 +238,7 @@ export async function attestLocalReviewCommand(
     receipt,
     ledger.ledgerVersion,
   );
+  await dependencies.releaseMaterialization(request.operationId);
   const afterAppend = await dependencies.confirmTarget(state.target);
   if (afterAppend.state === "stale-target") {
     return LocalAttestEnvelopeSchema.parse({

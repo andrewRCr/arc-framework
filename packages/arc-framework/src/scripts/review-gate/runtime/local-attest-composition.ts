@@ -8,6 +8,9 @@ import {
 import {
   inspectLocalReviewSourceMaterialization,
 } from "../hosts/local/review-materialization.js";
+import {
+  RepositoryLocalReviewSourceSweepAdapter,
+} from "../hosts/local/source-sweep.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import type { ForwardReviewReceiptStore } from "../core/ports.js";
 import { LocalAttestCommandError, type LocalAttestDependencies } from "./local-attest-command.js";
@@ -20,6 +23,7 @@ export function createLocalAttestDependencies(input: {
 }): LocalAttestDependencies {
   const prepare = createLocalPrepareDependencies(input);
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const sweepAdapter = new RepositoryLocalReviewSourceSweepAdapter(input.exec, input.cwd);
   let receiptStore: Promise<ForwardReviewReceiptStore> | null = null;
   const receipts = async () => {
     receiptStore ??= resolveRepositoryIdentity(publisher)
@@ -56,5 +60,6 @@ export function createLocalAttestDependencies(input: {
       exec: input.exec,
       source,
     }),
+    releaseMaterialization: (operationId) => sweepAdapter.release(operationId),
   };
 }

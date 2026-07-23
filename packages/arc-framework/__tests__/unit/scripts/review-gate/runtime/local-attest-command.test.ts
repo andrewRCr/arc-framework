@@ -30,6 +30,7 @@ const targetInput = (target: LocalReviewState["target"]) => ({
   headSha: target.headSha,
   headTree: target.headTree,
 });
+const releaseMaterialization = async (): Promise<void> => undefined;
 
 function fixture() {
   const target = createReviewTarget({
@@ -146,6 +147,7 @@ describe("local attest command", () => {
       resolveGuidanceDigest: vi.fn(),
       confirmTarget: vi.fn(),
       inspectMaterialization: vi.fn(),
+      releaseMaterialization,
     })).resolves.toMatchObject({
       state: "not-attestable",
       nextAction: "rerun-review",
@@ -188,6 +190,7 @@ describe("local attest command", () => {
       resolveGuidanceDigest: async () => records.operation.guidanceDigest,
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
     })).rejects.toThrow(/source/iu);
     expect(appendReceipt).not.toHaveBeenCalled();
   });
@@ -217,6 +220,7 @@ describe("local attest command", () => {
       resolveGuidanceDigest: async () => records.operation.guidanceDigest,
       confirmTarget: vi.fn(),
       inspectMaterialization: async () => "absent",
+      releaseMaterialization,
     })).resolves.toMatchObject({
       state: "expired",
       nextAction: "rerun-review",
@@ -262,6 +266,7 @@ describe("local attest command", () => {
         currentTarget,
       }),
       inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
     })).resolves.toMatchObject({
       state: "stale-target",
       nextAction: "prepare-current-target",
@@ -276,10 +281,17 @@ describe("local attest command", () => {
 
   it("appends once and returns attested-current when the target remains unchanged", async () => {
     const records = fixture();
-    const appendReceipt = vi.fn(async () => ({
-      ledgerVersion: 1,
-      durableEvidenceRef: "receipt.json#1",
-    }));
+    const order: string[] = [];
+    const appendReceipt = vi.fn(async () => {
+      order.push("receipt");
+      return {
+        ledgerVersion: 1,
+        durableEvidenceRef: "receipt.json#1",
+      };
+    });
+    const releaseMaterialization = vi.fn(async () => {
+      order.push("release");
+    });
 
     await expect(attestLocalReviewCommand({
       schemaVersion: 1,
@@ -302,6 +314,7 @@ describe("local attest command", () => {
       resolveGuidanceDigest: async () => records.operation.guidanceDigest,
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
     })).resolves.toMatchObject({
       state: "attested-current",
       nextAction: "reduce",
@@ -313,6 +326,8 @@ describe("local attest command", () => {
       },
     });
     expect(appendReceipt).toHaveBeenCalledOnce();
+    expect(releaseMaterialization).toHaveBeenCalledWith(records.operation.operationId);
+    expect(order).toEqual(["receipt", "release"]);
   });
 
   it("reloads and retries after an unrelated concurrent receipt publication", async () => {
@@ -348,6 +363,7 @@ describe("local attest command", () => {
       resolveGuidanceDigest: async () => records.operation.guidanceDigest,
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
     })).resolves.toMatchObject({
       state: "attested-current",
       payload: {
@@ -404,6 +420,7 @@ describe("local attest command", () => {
       resolveGuidanceDigest: async () => records.operation.guidanceDigest,
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
     })).rejects.toMatchObject({ code: "corrupt-state" });
     expect(appendReceipt).toHaveBeenCalledOnce();
   });
@@ -448,6 +465,7 @@ describe("local attest command", () => {
       resolveGuidanceDigest: async () => records.operation.guidanceDigest,
       confirmTarget,
       inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
     })).resolves.toMatchObject({
       state: "stale-target",
       nextAction: "prepare-current-target",
@@ -483,6 +501,7 @@ describe("local attest command", () => {
       durableEvidenceRef: "receipt.json#1",
     }));
     const inspectMaterialization = vi.fn();
+    const releaseMaterialization = vi.fn();
 
     await expect(attestLocalReviewCommand({
       schemaVersion: 1,
@@ -505,6 +524,7 @@ describe("local attest command", () => {
       resolveGuidanceDigest: async () => records.operation.guidanceDigest,
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization,
+      releaseMaterialization,
     })).resolves.toMatchObject({
       state: "attested-current",
       payload: {
@@ -513,6 +533,7 @@ describe("local attest command", () => {
       },
     });
     expect(appendReceipt).toHaveBeenCalledWith(receipt, 1);
+    expect(releaseMaterialization).toHaveBeenCalledWith(records.operation.operationId);
     expect(inspectMaterialization).not.toHaveBeenCalled();
   });
 });
