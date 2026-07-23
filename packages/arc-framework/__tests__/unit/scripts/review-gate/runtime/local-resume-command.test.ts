@@ -14,11 +14,17 @@ import {
 import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import type { LocalReviewState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { resumeLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-resume-command.js";
 import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
 
 const digest = (value: string): string => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
+const receiptRef = (operationId: string, durableRef: string) => bindReviewSourceReference({
+  kind: "attested-local",
+  operationId,
+  durableRef,
+});
 
 function fixture() {
   const target = createReviewTarget({
@@ -293,7 +299,7 @@ describe("local resume command", () => {
         operationId: records.operation.operationId,
         persistedVersion: 1,
         currentTarget: records.operation.target,
-        receiptRef: "receipts-v2.json#1",
+        receiptRef: receiptRef(records.operation.operationId, "receipts-v2.json#1"),
       },
     });
     expect(appendReceipt).toHaveBeenCalledWith(records.receipt, 1);
@@ -370,13 +376,13 @@ describe("local resume command", () => {
         operationId: records.operation.operationId,
         persistedVersion: 1,
         currentTarget: records.operation.target,
-        receiptRef: "receipts-v2.json#1",
+        receiptRef: receiptRef(records.operation.operationId, "receipts-v2.json#1"),
         responsePlan: {
           schemaVersion: 1,
           target: records.operation.target,
           source: {
             kind: "attested-local",
-            receiptRef: "receipts-v2.json#1",
+            receiptRef: receiptRef(records.operation.operationId, "receipts-v2.json#1"),
           },
           findings: [finding],
         },
@@ -453,7 +459,7 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
       source: {
         kind: "attested-local",
-        receiptRef: "receipts-v2.json#1",
+        receiptRef: receiptRef(records.operation.operationId, "receipts-v2.json#1"),
         localSourceRef: records.operation.sourceRef,
       },
       approvedDisposition,
@@ -494,7 +500,7 @@ describe("local resume command", () => {
         operationId: records.operation.operationId,
         persistedVersion: 1,
         currentTarget: records.operation.target,
-        receiptRef: "receipts-v2.json#1",
+        receiptRef: receiptRef(records.operation.operationId, "receipts-v2.json#1"),
       },
     });
   });

@@ -16,6 +16,7 @@ import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
 } from "../core/review-command-envelope.js";
+import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   executeFrontlineRun,
   type FrontlineRunExecutionDependencies,
@@ -155,7 +156,11 @@ export async function runFrontlineReviewCommand(
       operationId: terminal.operationId,
       persistedVersion: terminal.persistedVersion,
       target: terminal.target,
-      outcomeRef: terminal.outcomeRef,
+      outcomeRef: bindReviewSourceReference({
+        kind: "frontline",
+        operationId: terminal.operationId,
+        durableRef: terminal.outcomeRef,
+      }),
       outcomeDigest: terminal.outcomeDigest,
       ...(terminal.executableIdentity === null
         ? {}

@@ -368,25 +368,16 @@ _Purpose:_ Close the review loop — `respond` binds source-discriminated approv
 agent-proposes / human-approves shape and drives the re-review-at-new-head fix path; read-only `reduce` composes the
 shipped forward reducers over both lanes. Test-first (validation + reduction logic).
 
-### `[ ]` **6.1 `arc review respond` — source-discriminated approved dispositions**
+### `[x]` **6.1 `arc review respond` — source-discriminated approved dispositions**
 
 - _Goal:_ After the universal response checkpoint presents the source-verified report and obtains approval, `respond`
   accepts a strict `ApprovedDispositionSet` against either the attested-local receipt or one durable frontline outcome,
   revalidates every finding against the selected source, and appends one `ApprovedDispositionRecordV1` — idempotent on
   identical replay, conflict-refused on a divergent set.
 
-- _Context:_ Approver = active local identity; proposer = composing runtime identity — both derived at the trusted
-  boundary, so the shipped distinct-actor check structurally encodes agent-proposes / human-approves.
-
-    - Build `test-first` (one behavior at a time):
-        - source-discriminated authority: attested-local reloads receipt + immutable source; frontline reloads the exact
-          outcome and rejects any non-findings outcome
-        - `approver != proposer` enforced from trusted-boundary identities (never caller text)
-        - identical replay is idempotent; a different record for the same disposition set is a conflict
-        - `ready-to-fix` returns the record ref + validated `FixAuthorization`; `settled` / `already-settled` return
-          the record ref
-
-- _Note:_ `core/response-plan.ts` universal checkpoint; append via the disposition-record store (Task 2.6.a).
+- _Outcome:_ The public command reloads an operation-bound exact receipt/source or frontline outcome, revalidates every
+  disposition and trusted actor through the universal response checkpoint, and appends one idempotent advisory record.
+  Fix responses return the validated authorization; non-fix and replay responses return their durable record reference.
 
 ### `[ ]` **6.2 The fix path and frontline follow-up advice**
 

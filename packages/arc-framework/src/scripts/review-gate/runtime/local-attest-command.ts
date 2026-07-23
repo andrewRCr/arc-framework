@@ -7,6 +7,7 @@ import {
   ReviewIdentifierSchema,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
+import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   NormalizedLocalReviewResultSchema,
 } from "../core/local-review-result.js";
@@ -56,6 +57,11 @@ export async function attestLocalReviewCommand(
   dependencies: LocalAttestDependencies,
 ): Promise<z.infer<typeof LocalAttestEnvelopeSchema>> {
   const request = LocalAttestRequestSchema.parse(requestInput);
+  const receiptReference = (durableRef: string) => bindReviewSourceReference({
+    kind: "attested-local",
+    operationId: request.operationId,
+    durableRef,
+  });
   const persisted = await dependencies.operationStore.readOperation(request.operationId);
   if (persisted.state === null
     || persisted.state.kind !== "local-review"
@@ -139,7 +145,7 @@ export async function attestLocalReviewCommand(
           operationId: request.operationId,
           persistedVersion: persisted.version,
           receiptRecorded: true,
-          receiptRef: replay.durableEvidenceRef,
+          receiptRef: receiptReference(replay.durableEvidenceRef),
           attemptedTarget: current.attemptedTarget,
           currentTarget: current.currentTarget,
         },
@@ -156,7 +162,7 @@ export async function attestLocalReviewCommand(
         persistedVersion: persisted.version,
         target: state.target,
         sourceRef: state.sourceRef,
-        receiptRef: replay.durableEvidenceRef,
+        receiptRef: receiptReference(replay.durableEvidenceRef),
         receiptRecorded: true,
       },
     });
@@ -204,7 +210,7 @@ export async function attestLocalReviewCommand(
         operationId: request.operationId,
         persistedVersion: persisted.version,
         receiptRecorded: true,
-        receiptRef: appended.durableEvidenceRef,
+        receiptRef: receiptReference(appended.durableEvidenceRef),
         attemptedTarget: afterAppend.attemptedTarget,
         currentTarget: afterAppend.currentTarget,
       },
@@ -221,7 +227,7 @@ export async function attestLocalReviewCommand(
       persistedVersion: persisted.version,
       target: state.target,
       sourceRef: state.sourceRef,
-      receiptRef: appended.durableEvidenceRef,
+      receiptRef: receiptReference(appended.durableEvidenceRef),
       receiptRecorded: true,
     },
   });

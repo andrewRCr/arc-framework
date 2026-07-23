@@ -134,7 +134,7 @@ describe("frontline run command", () => {
       payload: {
         persistedVersion: 2,
         target: reviewTarget,
-        outcomeRef: "outcomes/run.json",
+        outcomeRef: expect.stringMatching(/^arc-review-source:v1:frontline:/u),
         outcomeDigest: expect.stringMatching(/^sha256:/u),
       },
     });

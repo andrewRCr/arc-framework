@@ -11,6 +11,7 @@ import {
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
   LocalResumeEnvelopeSchema,
+  RespondEnvelopeSchema,
   ReviewCommandErrorEnvelopeSchema,
   type ReviewCommandMode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
@@ -30,6 +31,8 @@ import { createLocalAttestDependencies } from "../scripts/review-gate/runtime/lo
 import { attestLocalReviewCommand } from "../scripts/review-gate/runtime/local-attest-command.js";
 import { createLocalResumeDependencies } from "../scripts/review-gate/runtime/local-resume-composition.js";
 import { resumeLocalReviewCommand } from "../scripts/review-gate/runtime/local-resume-command.js";
+import { createRespondDependencies } from "../scripts/review-gate/runtime/respond-composition.js";
+import { respondToReviewCommand } from "../scripts/review-gate/runtime/respond-command.js";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -314,6 +317,47 @@ export async function handleReviewLocalResume(
     dependencies.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
     dependencies.write(`${JSON.stringify(reviewCommandError("review-local-resume", error))}\n`);
+    dependencies.setExitCode(1);
+  }
+}
+
+export interface ReviewRespondHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  respond(request: unknown, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultRespondDependencies(): ReviewRespondHandlerDependencies {
+  return {
+    resolveRoot: resolveArcRoot,
+    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    respond: (request, root) => respondToReviewCommand(
+      request,
+      createRespondDependencies({ exec: gitExec, cwd: root }),
+    ),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
+/** Validate and persist one source-bound approved disposition set. */
+export async function handleReviewRespond(
+  source: string,
+  overrides: Partial<ReviewRespondHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultRespondDependencies(), ...overrides };
+  try {
+    const root = dependencies.resolveRoot(process.cwd());
+    if (root === null) throw new Error("Not inside an ARC project.");
+    const request: unknown = JSON.parse(await dependencies.readText(source));
+    const result = RespondEnvelopeSchema.parse(await dependencies.respond(request, root));
+    dependencies.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    dependencies.write(`${JSON.stringify(reviewCommandError("review-respond", error))}\n`);
     dependencies.setExitCode(1);
   }
 }

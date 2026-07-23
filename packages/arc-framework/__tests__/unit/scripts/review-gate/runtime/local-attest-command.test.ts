@@ -8,11 +8,17 @@ import {
 import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import type { LocalReviewState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { attestLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
 import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
 
 const digest = (value: string): string => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
+const receiptRef = (operationId: string, durableRef: string) => bindReviewSourceReference({
+  kind: "attested-local",
+  operationId,
+  durableRef,
+});
 const targetInput = (target: LocalReviewState["target"]) => ({
   schemaVersion: target.schemaVersion,
   semanticsVersion: target.semanticsVersion,
@@ -300,7 +306,7 @@ describe("local attest command", () => {
       state: "attested-current",
       nextAction: "reduce",
       payload: {
-        receiptRef: "receipt.json#1",
+        receiptRef: receiptRef(records.operation.operationId, "receipt.json#1"),
         receiptRecorded: true,
         target: records.operation.target,
         sourceRef: records.operation.sourceRef,
@@ -354,7 +360,7 @@ describe("local attest command", () => {
       nextAction: "prepare-current-target",
       payload: {
         receiptRecorded: true,
-        receiptRef: "receipt.json#1",
+        receiptRef: receiptRef(records.operation.operationId, "receipt.json#1"),
         attemptedTarget: records.operation.target,
         currentTarget,
       },
@@ -408,7 +414,10 @@ describe("local attest command", () => {
       inspectMaterialization,
     })).resolves.toMatchObject({
       state: "attested-current",
-      payload: { receiptRef: "receipt.json#1", receiptRecorded: true },
+      payload: {
+        receiptRef: receiptRef(records.operation.operationId, "receipt.json#1"),
+        receiptRecorded: true,
+      },
     });
     expect(appendReceipt).toHaveBeenCalledWith(receipt, 1);
     expect(inspectMaterialization).not.toHaveBeenCalled();

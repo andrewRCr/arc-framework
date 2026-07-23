@@ -90,6 +90,7 @@ import {
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
+  handleReviewRespond,
 } from "./handlers/review.js";
 import {
   handleCheckCommitMessage,
@@ -864,6 +865,13 @@ localReviewCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewLocalResume(input));
+
+reviewCmd
+  .command("respond")
+  .description("Persist one approved source-bound review disposition set as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewRespond(input));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

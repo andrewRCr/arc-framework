@@ -6,6 +6,7 @@ import {
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
+  handleReviewRespond,
 } from "../../../src/handlers/review.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
 
@@ -219,6 +220,38 @@ describe("handleReviewLocalResume", () => {
         operationId: "local-operation",
         currentTarget: target,
       },
+    });
+  });
+});
+
+describe("handleReviewRespond", () => {
+  it("reads one approved set and emits one validated response envelope", async () => {
+    const write = vi.fn();
+    const respond = vi.fn(async () => ({
+      schemaVersion: 1,
+      mode: "review-respond",
+      diagnostics: [],
+      state: "settled",
+      nextAction: "reduce",
+      payload: {
+        operationId: "local-operation",
+        dispositionRecordRef: "git-common:review-gate/evidence/disposition.json",
+      },
+    }));
+
+    await handleReviewRespond("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => "{\"schemaVersion\":1}",
+      respond,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(respond).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-respond",
+      state: "settled",
+      payload: { operationId: "local-operation" },
     });
   });
 });

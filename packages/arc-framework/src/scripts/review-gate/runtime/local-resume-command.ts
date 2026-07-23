@@ -11,6 +11,7 @@ import {
   ReviewIdentifierSchema,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
+import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import type {
   ApprovedDispositionRecordStore,
   ForwardReviewReceiptStore,
@@ -62,6 +63,11 @@ export async function resumeLocalReviewCommand(
     throw new LocalResumeCommandError("local review operation is unavailable");
   }
   const state = persisted.state;
+  const receiptReference = (durableRef: string) => bindReviewSourceReference({
+    kind: "attested-local",
+    operationId: state.operationId,
+    durableRef,
+  });
   const confirmation = await dependencies.confirmTarget(state.target);
   if (confirmation.state === "stale-target") {
     return LocalResumeEnvelopeSchema.parse({
@@ -139,7 +145,7 @@ export async function resumeLocalReviewCommand(
         operationId: state.operationId,
         persistedVersion: persisted.version,
         currentTarget: state.target,
-        receiptRef: replay.durableEvidenceRef,
+        receiptRef: receiptReference(replay.durableEvidenceRef),
       },
     });
   }
@@ -155,13 +161,13 @@ export async function resumeLocalReviewCommand(
         operationId: state.operationId,
         persistedVersion: persisted.version,
         currentTarget: state.target,
-        receiptRef: replay.durableEvidenceRef,
+        receiptRef: receiptReference(replay.durableEvidenceRef),
         responsePlan: {
           schemaVersion: 1,
           target: state.target,
           source: {
             kind: "attested-local",
-            receiptRef: replay.durableEvidenceRef,
+            receiptRef: receiptReference(replay.durableEvidenceRef),
           },
           findings: receipt.findings,
         },
@@ -185,7 +191,7 @@ export async function resumeLocalReviewCommand(
   if (approved.repositoryId !== state.repositoryId
     || approved.operationId !== state.operationId
     || approved.source.kind !== "attested-local"
-    || approved.source.receiptRef !== replay.durableEvidenceRef
+    || approved.source.receiptRef !== receiptReference(replay.durableEvidenceRef)
     || approved.source.localSourceRef !== state.sourceRef
     || approvedSet.targetId !== state.targetId
     || approvedSet.policyVersion !== state.policyVersion
@@ -204,7 +210,7 @@ export async function resumeLocalReviewCommand(
       operationId: state.operationId,
       persistedVersion: persisted.version,
       currentTarget: state.target,
-      receiptRef: replay.durableEvidenceRef,
+      receiptRef: receiptReference(replay.durableEvidenceRef),
     },
   });
 }

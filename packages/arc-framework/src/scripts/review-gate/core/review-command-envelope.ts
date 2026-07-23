@@ -12,6 +12,7 @@ import {
   FrontlineUnavailableRetryReasonSchema,
 } from "../policy/frontline-outcome.js";
 import { NormalizedReviewFindingSchema } from "./finding-records.js";
+import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 
@@ -279,7 +280,7 @@ export const RespondEnvelopeSchema = z.union([
     "apply-fix",
     z.strictObject({
       ...DispositionPayloadSchema.shape,
-      fixAuthorization: z.unknown(),
+      fixAuthorization: FixAuthorizationSchema,
     }),
   ),
   envelopeVariant("review-respond", "settled", "reduce", DispositionPayloadSchema),
