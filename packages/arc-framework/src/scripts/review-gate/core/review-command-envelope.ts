@@ -11,6 +11,7 @@ import {
   FrontlineUnavailableRepairReasonSchema,
   FrontlineUnavailableRetryReasonSchema,
 } from "../policy/frontline-outcome.js";
+import { FrontlineFollowUpAdviceSchema } from "../policy/frontline-follow-up.js";
 import { NormalizedReviewFindingSchema } from "./finding-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
@@ -272,6 +273,7 @@ export const LocalAttestEnvelopeSchema = z.union([
 const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
+  frontlineFollowUp: FrontlineFollowUpAdviceSchema.optional(),
 });
 export const RespondEnvelopeSchema = z.union([
   envelopeVariant(
@@ -281,6 +283,7 @@ export const RespondEnvelopeSchema = z.union([
     z.strictObject({
       ...DispositionPayloadSchema.shape,
       fixAuthorization: FixAuthorizationSchema,
+      reentryCommand: z.enum(["local-prepare", "frontline-resolve"]),
     }),
   ),
   envelopeVariant("review-respond", "settled", "reduce", DispositionPayloadSchema),

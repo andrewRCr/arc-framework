@@ -253,6 +253,7 @@ describe("review response command", () => {
           oldTargetId: records.target.targetId,
           authorizedFindingIds: ["finding-1"],
         },
+        reentryCommand: "local-prepare",
       },
     });
   });
@@ -339,7 +340,15 @@ describe("review response command", () => {
       dispositions,
     }, deps)).resolves.toMatchObject({
       state: "ready-to-fix",
-      payload: { operationId: record.operationId },
+      payload: {
+        operationId: record.operationId,
+        reentryCommand: "frontline-resolve",
+        frontlineFollowUp: {
+          action: "follow-up-after-fix",
+          pass: 2,
+          nextCommand: "frontline-resolve",
+        },
+      },
     });
 
     const clean = createFrontlineOutcomeRecord({

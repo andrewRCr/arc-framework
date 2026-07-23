@@ -30,6 +30,9 @@ import {
 } from "../core/review-source-reference.js";
 import { projectReviewResponse } from "../core/response-plan.js";
 import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
+import {
+  projectFrontlineFollowUpAdvice,
+} from "../policy/frontline-follow-up.js";
 import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
 
 const RespondSourceSchema = z.discriminatedUnion("kind", [
@@ -81,6 +84,7 @@ interface ResolvedResponseSource {
   rubricVersion?: string;
   rubricDigest?: string;
   actors: ResponseActors;
+  frontlineOutcome?: FrontlineExecutionOutcome;
 }
 
 function parseSourceReference(
@@ -197,6 +201,7 @@ async function resolveFrontlineSource(
     sourceIdentity: record.sourceIdentity,
     source: { kind: "frontline", outcomeRef: request.outcomeRef },
     actors: await dependencies.resolveFrontlineActors(),
+    frontlineOutcome: record.outcome,
   };
 }
 
@@ -293,6 +298,12 @@ export async function respondToReviewCommand(
   }
   const appended = await dependencies.dispositionStore.appendDispositionRecord(record);
   const alreadySettled = existing !== null;
+  const frontlineFollowUp = source.frontlineOutcome === undefined
+    ? undefined
+    : projectFrontlineFollowUpAdvice({
+        outcome: source.frontlineOutcome,
+        dispositionState: dispositions,
+      });
   return RespondEnvelopeSchema.parse({
     schemaVersion: 1,
     mode: "review-respond",
@@ -303,6 +314,14 @@ export async function respondToReviewCommand(
       operationId: source.operationId,
       dispositionRecordRef: appended.dispositionRecordRef,
       ...(plan.fixAuthorization === null ? {} : { fixAuthorization: plan.fixAuthorization }),
+      ...(plan.fixAuthorization === null
+        ? {}
+        : {
+            reentryCommand: source.source.kind === "attested-local"
+              ? "local-prepare"
+              : "frontline-resolve",
+          }),
+      ...(frontlineFollowUp === undefined ? {} : { frontlineFollowUp }),
     },
   });
 }

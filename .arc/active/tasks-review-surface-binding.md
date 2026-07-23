@@ -379,17 +379,16 @@ shipped forward reducers over both lanes. Test-first (validation + reduction log
   disposition and trusted actor through the universal response checkpoint, and appends one idempotent advisory record.
   Fix responses return the validated authorization; non-fix and replay responses return their durable record reference.
 
-### `[ ]` **6.2 The fix path and frontline follow-up advice**
+### `[x]` **6.2 The fix path and frontline follow-up advice**
 
 - _Goal:_ An approved fix is applied by the agent under the ordinary review-increment + commit interlock, producing a
   new head; the disposition record closes the old target's response obligation and the fixed change earns its own review
   at its own head, with `resolveFrontlineFollowUp` semantics surfaced as advice in `respond` / `reduce` output — never a
   durable fix ledger or fix-phase verb.
 
-    - Build `test-first` (one behavior at a time):
-        - nothing carries across a fix — re-entry is `local prepare` / `frontline resolve` at the new head
-        - for a frontline source, follow-up worthwhileness surfaces as advisory text in `respond` / `reduce`, not a durable
-          binding chain (`policy/frontline-follow-up.ts`)
+- _Outcome:_ A fix authorization now names only the old target and directs fresh-head re-entry through `local prepare`
+  or `frontline resolve`; no fix ledger or carried operation is introduced. Frontline responses project material-fix
+  and pass-cap eligibility as non-durable follow-up advice, sharing the resolver's policy.
 
 ### `[ ]` **6.3 `arc review reduce` — invocable reduction over both lanes**
 
