@@ -11,6 +11,7 @@ import {
   FrontlineUnavailableRepairReasonSchema,
   FrontlineUnavailableRetryReasonSchema,
 } from "../policy/frontline-outcome.js";
+import { NormalizedReviewFindingSchema } from "./finding-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 
@@ -348,6 +349,15 @@ export const ReduceEnvelopeSchema = z.union([
 const ResumeBasePayload = {
   ...CurrentOperationPayloadShape,
 };
+export const LocalResumeResponsePlanSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  target: ReviewTargetSchema,
+  source: z.strictObject({
+    kind: z.literal("attested-local"),
+    receiptRef: DurableReferenceSchema,
+  }),
+  findings: z.array(NormalizedReviewFindingSchema).min(1),
+});
 export const LocalResumeEnvelopeSchema = z.union([
   envelopeVariant(
     "review-local-resume",
@@ -368,7 +378,7 @@ export const LocalResumeEnvelopeSchema = z.union([
     z.strictObject({
       ...ResumeBasePayload,
       receiptRef: DurableReferenceSchema,
-      responsePlan: z.unknown(),
+      responsePlan: LocalResumeResponsePlanSchema,
     }),
   ),
   envelopeVariant(

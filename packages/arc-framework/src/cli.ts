@@ -88,6 +88,7 @@ import {
   handleReviewFrontlineResolve,
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
+  handleReviewLocalResume,
 } from "./handlers/review.js";
 import {
   handleCheckCommitMessage,
@@ -848,6 +849,13 @@ localReviewCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewLocalAttest(input));
+
+localReviewCmd
+  .command("resume")
+  .description("Resume one durable local review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewLocalResume(input));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

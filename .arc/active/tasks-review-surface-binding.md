@@ -276,19 +276,19 @@ validation are test-first; the Commander wiring is test-after.
   materialization proof, idempotent exact-receipt replay, and strict pre/post-append stale outcomes. The public
   handler emits only registered attestation or typed error envelopes.
 
-### `[ ]` **4.6 `arc review local resume` — re-acquisition and idempotent continuation**
+### `[x]` **4.6 `arc review local resume` — re-acquisition and idempotent continuation**
 
 - _Goal:_ `local resume` reads the durable operation record plus current repository facts and emits the next typed
   action, re-acquiring a lost `operationId` via the identical-retry derivation and completing an interrupted idempotent
   transition — deliberately not a read-only `status`.
 
-    - Build `test-first` (one behavior at a time):
-        - re-running `local prepare` from the same working tree returns the same `operationId` (the re-acquisition path)
-        - `suspended -> wait` / `review-complete -> reduce` / `respond-to-findings -> respond` / `stale-target` / `expired`
-          map from durable state + current facts
-        - a lost checkout is recreated from the pinned objects; an absent pin whose objects remain is restored idempotently
+    - `[x]` **4.6.a Wire the `arc review local resume` handler and command**
+        - Registered the file/stdin handler and public command over the production Git-common operation, source, receipt,
+          disposition, target, sweep, and materialization adapters.
 
-    - `[ ]` **4.6.a Wire the `arc review local resume` handler and command** — test-after
+- _Outcome:_ Resume now reconstructs the next action from immutable admission plus current durable stores, recovers
+  released checkout locators while the cleanup bound remains live, replays exact receipts to recover opaque references,
+  and distinguishes waiting, findings-response, complete, stale, and expired states without mutating operation phase.
 
 ---
 

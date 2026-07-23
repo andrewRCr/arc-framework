@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
+  handleReviewLocalResume,
 } from "../../../src/handlers/review.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
 
@@ -97,5 +98,54 @@ describe("handleReviewLocalAttest", () => {
       + "\"state\":\"expired\",\"nextAction\":\"rerun-review\","
       + "\"payload\":{\"operationId\":\"local-operation\",\"persistedVersion\":1}}\n",
     );
+  });
+});
+
+describe("handleReviewLocalResume", () => {
+  it("reads one request and emits one validated resume envelope", async () => {
+    const write = vi.fn();
+    const target = {
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      diffBaseTree: "b".repeat(40),
+      headSha: "c".repeat(40),
+      headTree: "d".repeat(40),
+      targetId: `sha256:${"e".repeat(64)}`,
+    };
+    const resume = vi.fn(async () => ({
+      schemaVersion: 1,
+      mode: "review-local-resume",
+      diagnostics: [],
+      state: "suspended",
+      nextAction: "wait",
+      payload: {
+        operationId: "local-operation",
+        persistedVersion: 1,
+        currentTarget: target,
+      },
+    }));
+
+    await handleReviewLocalResume("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => "{\"schemaVersion\":1,\"operationId\":\"local-operation\"}",
+      resume,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(resume).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-local-resume",
+      state: "suspended",
+      nextAction: "wait",
+      payload: {
+        operationId: "local-operation",
+        currentTarget: target,
+      },
+    });
   });
 });
