@@ -170,21 +170,15 @@ surfaced on the public result. All test-first (business logic + parsing/validati
   two managed method files; effective project/default activity and malformed-declaration diagnostics now travel
   together on the composed result.
 
-### `[ ]` **3.2 `ReviewRubricBindingPort` production adapter and `review-augmentation` parse**
+### `[x]` **3.2 `ReviewRubricBindingPort` production adapter and `review-augmentation` parse**
 
 - _Goal:_ The production rubric adapter resolves the `Review Rubric` meta identity through the canonical method-file
   loader and parses one optional strict `review-augmentation` frontmatter field into `StandardReviewProjectAugmentation`
   (`rubricId` + sorted unique typed dimensions), never parsing method prose, and never from a command payload.
 
-- _Note:_ `StandardReviewProjectAugmentation` and its schema already exist in `policy/standard-review-guidance.ts`
-  (post-rename) — this task wires their parse into the production port and the method-frontmatter loader rather than
-  defining them, confirming that module's D14 Consume disposition.
-
-    - Build `test-first` (one behavior at a time):
-        - a valid `review-augmentation` frontmatter parses into `StandardReviewProjectAugmentation` with sorted unique dimensions
-        - `rubricId` must version the named method identity as `<identity>/vN`; a mismatch refuses
-        - a command payload cannot supply an augmentation
-        - the field extends the existing method-frontmatter schema/loader (no new registry, config axis, or doc family)
+- _Outcome:_ Extended the canonical method-frontmatter loader with the structured field and added an exact-identity
+  local binding adapter that validates through `StandardReviewProjectAugmentationSchema`, canonicalizes dimension
+  order, rejects duplicates or mismatched versioned identities, and keeps command payloads and method prose inert.
 
 ### `[ ]` **3.3 Overlay application and refusal diagnostics**
 

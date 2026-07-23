@@ -116,6 +116,24 @@ describe("review command envelopes", () => {
     })).toThrow();
   });
 
+  it("rejects a caller-supplied rubric augmentation from a command payload", () => {
+    expect(() => LocalPrepareEnvelopeSchema.parse({
+      ...header("review-local-prepare"),
+      state: "ready",
+      nextAction: "launch-review",
+      payload: {
+        operationId: "local-1",
+        persistedVersion: 1,
+        target,
+        request: {},
+        reviewerPayload: {},
+        sourceRef: "source/1",
+        sourceDigest: digest,
+        reviewAugmentation: { rubricId: "security-audit/v1", dimensions: [] },
+      },
+    })).toThrow();
+  });
+
   it.each([
     ["rate-limited", "retry"],
     ["transient-unavailable", "retry"],

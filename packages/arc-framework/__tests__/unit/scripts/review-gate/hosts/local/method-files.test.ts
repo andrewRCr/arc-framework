@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createLocalReviewMethodFilePort } from "../../../../../../src/scripts/review-gate/hosts/local/method-files.js";
+import {
+  createLocalReviewMethodFilePort,
+  createLocalReviewRubricBindingPort,
+} from "../../../../../../src/scripts/review-gate/hosts/local/method-files.js";
 import { composeWorkUnitReviewAssurance } from "../../../../../../src/scripts/review-gate/policy/assurance.js";
 
 const method = (name: string, active: boolean): string => [
@@ -32,5 +35,35 @@ describe("local review method files", () => {
     );
 
     expect(result.assurance.activity).toEqual({ selfReview: false, frontlineReview: true });
+  });
+
+  it("resolves an exact rubric identity through the managed method directory", () => {
+    const content = [
+      "---",
+      "name: security-audit",
+      "description: Security-focused review",
+      "override-active: false",
+      "review-augmentation:",
+      "  rubricId: security-audit/v1",
+      "  dimensions:",
+      "    - id: authorization",
+      "      title: Authorization",
+      "      instruction: Verify explicit authority.",
+      "---",
+      "",
+    ].join("\n");
+    const port = createLocalReviewRubricBindingPort({
+      cwd: "/repo",
+      readDirectory: () => ["security-audit.md"],
+      readFile: () => content,
+    });
+
+    expect(port.resolveReviewRubricBinding("security-audit")).toMatchObject({
+      status: "resolved",
+      binding: {
+        identity: "security-audit",
+        augmentation: { rubricId: "security-audit/v1" },
+      },
+    });
   });
 });
