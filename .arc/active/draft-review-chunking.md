@@ -69,14 +69,15 @@
       cohesion: behavior rides with its tests. The mechanical guard is code-specific; for prose/doc change sets the
       closure _principle_ holds but the guard degrades to judgment. A chunk is an agent-curated file/hunk set applied
       by judgment today (see Invocation, below), so the doctrine is usable now, not gated on tooling.
-    - **Invocation: agent-applicable today; local-only mechanism; ergonomic automation is a bounded RSB add**
-      (settled 2026-07-22, refined pass 2). A chunk is an agent-curated file/hunk set reviewed by a **local**
+    - **Invocation: agent-applicable today; local-only mechanism; ergonomic automation is a deferred follow-on**
+      (settled 2026-07-22, refined pass 2; automation re-homed 2026-07-23). A chunk is an agent-curated
+      file/hunk set reviewed by a **local**
       reviewer (agent or CLI) — a hosted PR review is whole-PR and can't be scoped without splitting the PR
       (`chunked-delivery`'s topology change), so bounded chunking is local by construction. The doctrine is usable
       now (the field run is the _motivating failure_, not a demo). The automated path — per-chunk scoping + an
-      external-symbol annotation channel — is a candidate add `review-surface-binding` will size (a curated hunk
-      subset needs new source-semantics + target-identity beyond its whole-range `local prepare`, the same
-      target-algebra family as its Non-Goal 64), captured to USER-INBOX; not a hard dependency.
+      external-symbol annotation channel — is a deferred follow-on of this WU
+      (RSB deferred it, re-homed here), carved to the `chunk-scope-binding` planned stub — its real design is a
+      scope-aware receipt binding, not the parameter; not a hard dependency, started after this WU ships.
     - **Coverage** (settled 2026-07-22) — a completeness guard in the doctrine's guard tier, not a proof:
       `change-set − ⋃chunks = ∅` from `git diff`. An uncovered hunk is only unreviewed (nothing merges separately),
       so it is reported, never gated.
@@ -97,19 +98,21 @@
 - **Open (developer calls):** [none] — all settle-able decisions are settled; the invocation concrete-path and the
   `session-locus-model` reconcile are seam-deferred (other WUs'), not open items here.
 - **Next:** captured and advanced to `create-spec` — a fresh session resumes there off the handoff. Reconcile the
-  `session-locus-model` seam and route the doctrine + `chunk` to `chunked-delivery` at planning close; the
-  `review-surface-binding` chunk-scope ask is captured (USER-INBOX).
+  `session-locus-model` seam and route the doctrine + `chunk` to `chunked-delivery` at planning close; the automated
+  chunk-scope path is carved to the `chunk-scope-binding` planned stub (re-homed from RSB).
 - **Coordination seams (rechecked 2026-07-21; route at planning close):**
     - `chunked-delivery` (**sibling**, the other half of the cut) — depends on this WU for the boundary doctrine and
       the review-unit name (now `chunk`, settled 2026-07-22). Reserved seam: `deliverable` ⊂ `chunk` (a chunk given a
       merge boundary), `stack` = a dependency-ordering over a set of deliverables (not a unit). Author the doctrine
       and `chunk` here; the sibling finalizes the merge layer, never re-authoring these.
     - `review-surface-binding` (**coordination**, Planning — spec mostly settled) — owns the local `arc review`
-      verbs. Our chunk-scope + annotation is a candidate add RSB will size: a curated hunk subset needs new
+      verbs. RSB shipped its advisory local lane and **deferred** the automated per-chunk path, re-homing it here as the
+      `chunk-scope-binding` planned follow-on (started after this WU ships). Our chunk-scope + annotation needs new
       source-semantics + target-identity beyond its whole-range `local prepare` (D4) / `git-object-range` source
       (D5), the same target-algebra family its Non-Goal 64 fences off (that Non-Goal still cross-refs the old
       `pr-decomposition` slug — flag when routing). Orthogonal to the evidence-grade tier `review-gate-right-sizing`
-      is shedding. Captured to USER-INBOX (`WU_Target: review-surface-binding`); no parallel path built here.
+      is shedding. Its real design is a scope-aware receipt binding (RSB's `ReviewReceiptV2` is
+      scope-blind); no parallel path is built here.
     - `composable-workflows` / `workflow-eval-harness` (**forward-compat**, conform not scope-add) — a chunked-review
       procedure rides the compiled agenda model; the boundary-drawing judgment is a candidate eval. See
       § Forward-compat & seams.
@@ -302,14 +305,28 @@ the whole-PR diff and cannot be scoped to a closure-respecting chunk without spl
 change, which is `chunked-delivery`'s, not this WU's. So chunking is a **local review mechanism**; hosted bounded
 review is out of scope here by construction.
 
+**Where chunking attaches in the review pipeline.** Chunking is a property of a local, curated-scope review
+_invocation_, so it attaches wherever such an invocation runs and adds no review pass — it only reshapes the
+surface each existing pass sees. The integration pipeline has up to two passes: the advisory **frontline**
+pre-publication pass (opt-in, local, `implementation-audit`) and the **independent-analysis** pass (post-PR,
+obligation-bearing, channel `local | hosted | both`). When frontline is enabled it is the natural chunk carrier,
+and chunking it is free of receipt concerns — a frontline pass is advisory and never enters review receipts or
+gate reduction. The independent pass is chunked only on its **local** channel; its **hosted** channel stays
+whole-PR by construction (scoping it is `chunked-delivery`'s topology change). The frontline + independent
+two-pass is the existing design; chunking distributes each pass's surface per chunk rather than adding a pass.
+
 The field run is the _motivating failure_, not a demonstration: it used the path-scoped, rate-limited provider (one
 directory per pass, tests excluded) — the exact regime the doctrine corrects. The _automated_ ergonomic path —
-per-chunk scoping, an external-symbol annotation channel, type-check-before-triage — is a **candidate add
-`review-surface-binding` will size**: a curated hunk subset is neither the whole-range target its `local prepare`
+per-chunk scoping, an external-symbol annotation channel, type-check-before-triage — is a **deferred
+follow-on of this WU, carved out to the `chunk-scope-binding` planned stub** (re-homed 2026-07-23 after
+`review-surface-binding` shipped its local lane without it): a curated hunk subset is neither the
+whole-range target its `local prepare`
 (D4) derives nor the `git-object-range` its source (D5) binds, so it needs new source-semantics + target-identity —
-the same target-algebra family RSB currently fences off (Non-Goal 64, which still cross-refs the old
-`pr-decomposition` slug). Captured to the inbox for planning-close routing. It is an ergonomics upgrade the
-agent-driven path does not wait on, not a prerequisite.
+the same target-algebra family RSB fences off, and — the real design — a **scope-aware receipt binding**, since
+RSB's `ReviewReceiptV2` is scope-blind and its reduction reads every receipt per target, so two chunk scopes over
+one head cannot otherwise be told apart. This is the obligation-bearing local path only; frontline chunking, above,
+needs none of it. It is an ergonomics upgrade the agent-driven path does not wait on, not a prerequisite — started
+only after this WU ships.
 
 **Success signal.** The falsifiable observable is a **paired comparison — one reviewer, comparable granularity**: on
 a held-out oversized change set, closure-respecting boundaries yield **materially fewer declaration-split false
@@ -340,16 +357,17 @@ in typed contracts, judgment in minimal prose:
 - **Judgment stays prose.** Boundary-_drawing_ is irreducibly judgment (the Derivation model says so); its
   correctness instrument is eventually an **eval** (`workflow-eval-harness`, Principle 5). Aligned.
 - **Deterministic checks are verb-gaps, not permanent agent mechanics.** The seed, closure-leak, and coverage checks
-  are narrated as agent-run today, but their target home is compiled `arc review` verbs (Principles 1 & 3). Captured
-  to `review-surface-binding` as the verb owner; agent-run is the interim, not the design endpoint.
+  are narrated as agent-run today, but their target home is compiled `arc review` verbs (Principles 1 & 3). Their
+  compiled home rides the deferred `chunk-scope-binding` follow-on (RSB owns the `arc review` surface); agent-run is
+  the interim, not the design endpoint.
 - **No agent-interpreted control flow.** The seed → judgment → guard tiers are a _conceptual_ model, not a prose
   procedure the agent steps through (Principle 2). A chunked-review _procedure_, if authored, rides
   `composable-workflows`' compiled agenda (D3), never grown as prose control-flow.
 
 **Seam map.** _Owned here:_ the boundary doctrine (method) and the `chunk` concept. _Owed as forward seams_ — none a
 hard dependency, since the doctrine is agent-applicable today: `review-surface-binding` (the ergonomic per-chunk
-review verbs + annotation surface — captured to the inbox; a candidate add RSB will size, in the same target-algebra
-family as its Non-Goal 64); `composable-workflows` (any chunked-review procedure conforms to its agenda model);
+review verbs + annotation surface — deferred to the `chunk-scope-binding` follow-on,
+re-homed from RSB); `composable-workflows` (any chunked-review procedure conforms to its agenda model);
 `workflow-eval-harness` (the judgment layer as a candidate eval); the briefs' vocabulary (`chunk` as a Principle-7
 controlled term — the terminology cascade).
 
@@ -357,7 +375,8 @@ controlled term — the terminology cascade).
 
 **Medium.** Narrowed by the 2026-07-21 cut from the original week-plus estimate: the task-list model, spec form,
 integration ceremony, merge-topology mechanic, assurance core, and config axis all moved to `chunked-delivery`.
-What remains is the boundary doctrine (a methodology surface — closure rule, seam chunk, doc generality), the
-chunk-scope invocation add to `review-surface-binding`'s local core (captured, not built twice), and a coverage +
-seam-coverage check — across both the package source and the project instance. Only the ergonomic-automation add's
-sequencing depends on the `review-surface-binding` seam; the doctrine itself ships independently (agent-applied).
+What remains is the boundary doctrine (a methodology surface — closure rule, seam chunk, doc generality)
+and a coverage +
+seam-coverage check — across both the package source and the project instance.
+The automated per-chunk invocation path is not in this WU's scope — it is deferred to
+the `chunk-scope-binding` follow-on (started after this ships). The doctrine ships independently (agent-applied).

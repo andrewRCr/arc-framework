@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `76937ca3b`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `9fc10043e`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -17,7 +17,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ------------- | ------------------------ | -------- | ------ | ---------- | ---------------------- |
 | `Planning`    | cohortless-decomposition | P1       | andrew | —          | —                      |
 | `Planning`    | decomposition-doctrine   | P1       | andrew | —          | —                      |
-| `Planning`    | pr-decomposition         | P1       | andrew | —          | —                      |
 | `Planning`    | review-chunking          | P1       | andrew | —          | —                      |
 | `Planning`    | review-gate-right-sizing | P1       | andrew | —          | —                      |
 | `Planning`    | review-surface-binding   | P1       | andrew | —          | —                      |
@@ -68,6 +67,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | adr-accept-timing                     | P3       | andrew | —          | —                          |
 | arc-backend                           | P3       | andrew | —          | —                          |
 | arc-reinforce                         | P3       | andrew | —          | —                          |
+| chunk-scope-binding                   | P3       | andrew | —          | —                          |
 | cohort-cut-coherence                  | P3       | andrew | —          | —                          |
 | cold-start-init-polish                | P3       | andrew | —          | —                          |
 | contributor-path                      | P3       | andrew | —          | —                          |
