@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
-import type { LocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
 import {
   createLocalReviewSourcePayload,
   publishLocalReviewPreparation,
@@ -12,18 +16,31 @@ const digest = (value: string): string => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
 
 function fixture() {
-  const target = {
-    schemaVersion: 2 as const,
-    semanticsVersion: "review-gate/v2" as const,
-    kind: "change-set" as const,
+  const target = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
     repositoryId: "repo-1",
     baseRef: "main",
     diffBaseSha: objectId("a"),
     diffBaseTree: objectId("b"),
     headSha: objectId("c"),
     headTree: objectId("d"),
-    targetId: digest("target"),
-  };
+  });
+  const requirement = createReviewRequirement({
+    target,
+    projection: {
+      obligation: "recommended",
+      reasons: ["routine-code"],
+      rubricVersion: "standard-review/v1",
+      rubricDigest: digest("rubric"),
+      retrigger: "full-final",
+      count: 1,
+    },
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
+    initialAdmission: "checkpoint",
+  });
+  if (requirement === null) throw new Error("expected local requirement");
   const source = createLocalReviewSource({
     schemaVersion: 1,
     semanticsVersion: "git-object-range/v1",
@@ -37,17 +54,20 @@ function fixture() {
     reachabilityRef: "refs/arc/review/local/pin",
     materializationRef: "/tmp/review-root",
   });
-  const admission = {
-    operationId: `local-${"e".repeat(64)}`,
+  const admission = createLocalReviewAdmission({
     target,
-    requirement: { policyVersion: digest("policy") },
+    requirement,
     authority: {
       vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
+      authorIdentity: "author-1",
+      evaluatorIdentity: "evaluator-1",
       attestationRuntimeKind: "arc-cli",
+      runtimeIdentity: "arc-cli/0.1.0",
+      attestationMechanism: "local-attestation",
     },
     policyBindingDigest: digest("binding"),
-    carrier: { request: { requestId: digest("request") } },
-  } as LocalReviewAdmission;
+    requestMechanism: "local-attestation",
+  });
   return { target, source, admission };
 }
 
@@ -74,6 +94,7 @@ describe("local prepare publication ordering", () => {
       materialize,
       now: () => "2026-07-23T17:00:00Z",
       cleanupTtlMs: 60_000,
+      guidanceDigest: digest("guidance"),
     })).resolves.toMatchObject({
       persistedVersion: 1,
       sourceRef: "sources/source.json",
@@ -96,6 +117,7 @@ describe("local prepare publication ordering", () => {
       },
       now: () => "2026-07-23T17:00:00Z",
       cleanupTtlMs: 60_000,
+      guidanceDigest: digest("guidance"),
     })).rejects.toThrow(/pin creation interrupted/u);
     expect(publishOperation).toHaveBeenCalledOnce();
   });

@@ -62,6 +62,7 @@ export async function publishLocalReviewPreparation(
     materialize(source: LocalReviewSource): Promise<{ reviewRoot: string }>;
     now(): string;
     cleanupTtlMs: number;
+    guidanceDigest: string;
   },
 ): Promise<LocalReviewPreparation> {
   const source = LocalReviewSourceSchema.parse(sourceInput);
@@ -89,6 +90,11 @@ export async function publishLocalReviewPreparation(
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,
     sourceRef,
     sourceDigest: source.sourceDigest,
+    guidanceDigest: dependencies.guidanceDigest,
+    target: admission.target,
+    requirement: admission.requirement,
+    request: admission.carrier.request,
+    attestation: admission.carrier.attestation,
     cleanupTtlMs: dependencies.cleanupTtlMs,
   });
   const published = await dependencies.operationStore.publishOperation(state, 0);

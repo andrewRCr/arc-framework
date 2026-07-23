@@ -419,17 +419,19 @@ pruning.
 
 Add a third `local-review` variant carrying the operation envelope, vehicle, repository identity, `targetId`,
 `requestId`, policy version, the local policy binding digest, the admitted attestation runtime kind, `sourceRef`
-and `sourceDigest`, and a plain cleanup TTL (the bound on how long an abandoned pin survives before the sweep reaps
-it — not an evidence-admissibility window). Register it in the closed durable-record inventory alongside the
-existing variants.
+and `sourceDigest`, delivered `guidanceDigest`, the full immutable target / requirement / request / attestation
+snapshot, and a plain cleanup TTL (the bound on how long an abandoned pin survives before the sweep reaps it — not
+an evidence-admissibility window). The redundant scalar identities are cross-validated against the snapshot on
+every read. Register it in the closed durable-record inventory alongside the existing variants.
 
 **The `local-review` record is written once, at admission, and never advanced.** Every field above is fixed at
-admission; none is mutable afterward. Publication state is **derived, never stored**: whether the receipt and
-disposition records exist is read from their stores, and whether the source is materialized is read from the
-pin and detached checkout. `local attest` and `local resume` already re-read all of those on every entry (D5, D12),
-so a stored phase would duplicate derivable state and introduce a disagreement mode — a torn write between
-appending a record and advancing a phase would manufacture exactly the `corrupt-state` condition the recovery
-design exists to prevent. The stores and the pin are the authority.
+admission; none is mutable afterward. The complete admission snapshot is stored because its semantic identities are
+one-way digests and cannot reconstruct the records attestation must validate. Publication state is **derived, never
+stored**: whether the receipt and disposition records exist is read from their stores, and whether the source is
+materialized is read from the pin and detached checkout. `local attest` and `local resume` re-read all of those on
+every entry (D5, D12), so a stored phase would duplicate derivable state and introduce a disagreement mode — a torn
+write between appending a record and advancing a phase would manufacture exactly the `corrupt-state` condition the
+recovery design exists to prevent. The stores and the pin are the authority.
 
 Two consequences bind the rest of this spec, and the local lane's vocabulary follows them:
 

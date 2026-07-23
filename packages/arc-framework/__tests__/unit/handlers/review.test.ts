@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { handleReviewLocalPrepare } from "../../../src/handlers/review.js";
+import {
+  handleReviewLocalAttest,
+  handleReviewLocalPrepare,
+} from "../../../src/handlers/review.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
 
 describe("handleReviewLocalPrepare", () => {
@@ -62,5 +65,37 @@ describe("handleReviewLocalPrepare", () => {
       },
     });
     expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+});
+
+describe("handleReviewLocalAttest", () => {
+  it("reads one request and emits one validated attestation envelope", async () => {
+    const write = vi.fn();
+    const attest = vi.fn(async () => ({
+      schemaVersion: 1,
+      mode: "review-local-attest",
+      diagnostics: [],
+      state: "expired",
+      nextAction: "rerun-review",
+      payload: {
+        operationId: "local-operation",
+        persistedVersion: 1,
+      },
+    }));
+
+    await handleReviewLocalAttest("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => "{\"schemaVersion\":1}",
+      attest,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(attest).toHaveBeenCalledOnce();
+    expect(write).toHaveBeenCalledWith(
+      "{\"schemaVersion\":1,\"diagnostics\":[],\"mode\":\"review-local-attest\","
+      + "\"state\":\"expired\",\"nextAction\":\"rerun-review\","
+      + "\"payload\":{\"operationId\":\"local-operation\",\"persistedVersion\":1}}\n",
+    );
   });
 });

@@ -151,6 +151,39 @@ async function verifyCheckout(exec: GitExec, source: LocalReviewSource): Promise
 }
 
 /**
+ * Prove an existing materialization without repairing a released source.
+ *
+ * @param input - Git boundary and validated source descriptor.
+ * @returns `absent` when either owned locator was released, otherwise `materialized`.
+ */
+export async function inspectLocalReviewSourceMaterialization(input: {
+  exec: GitExec;
+  source: LocalReviewSource;
+}): Promise<"materialized" | "absent"> {
+  const source = LocalReviewSourceSchema.parse(input.source);
+  const cwd = dirname(dirname(dirname(dirname(source.materializationRef))));
+  let pinned: string;
+  try {
+    pinned = await git(input.exec, cwd, ["show-ref", "--verify", "--hash", source.reachabilityRef]);
+  } catch {
+    return "absent";
+  }
+  if (pinned !== source.headSha) throw new LocalReviewMaterializationError("pin-target-mismatch");
+  if (!await pathExists(source.materializationRef)) return "absent";
+  if (!await isGitWorktree(input.exec, source.materializationRef)) {
+    throw new LocalReviewMaterializationError("materialization-not-worktree");
+  }
+  await requireObjects(input.exec, source);
+  try {
+    await verifyCheckout(input.exec, source);
+  } catch (error) {
+    if (error instanceof LocalReviewMaterializationError) throw error;
+    throw new LocalReviewMaterializationError("materialization-unreadable");
+  }
+  return "materialized";
+}
+
+/**
  * Restores and proves the operation-owned pin and detached exact-head checkout.
  *
  * @param input - Git boundary and validated source descriptor.

@@ -112,6 +112,8 @@ describe("cross-layer routing to gate proof", () => {
         headTree: target.headTree,
         rubricVersion: requirement.rubricVersion,
         rubricDigest: requirement.rubricDigest,
+        sourceDigest: `sha256:${"1".repeat(64)}`,
+        guidanceDigest: `sha256:${"2".repeat(64)}`,
         evaluatorIdentity: carrier.request.evaluatorIdentity,
         reviewRunId: "local-run-1",
         applicabilityId: null,
@@ -120,6 +122,8 @@ describe("cross-layer routing to gate proof", () => {
       currentTarget: async () => target,
       runtimeIdentity: carrier.attestation.runtimeIdentity,
       attestationMechanism: carrier.attestation.mechanism,
+      sourceDigest: `sha256:${"1".repeat(64)}`,
+      guidanceDigest: `sha256:${"2".repeat(64)}`,
       store,
       expectedLedgerVersion: 0,
     });

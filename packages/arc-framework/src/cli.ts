@@ -86,6 +86,7 @@ import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
   handleReviewFrontlineResolve,
+  handleReviewLocalAttest,
   handleReviewLocalPrepare,
 } from "./handlers/review.js";
 import {
@@ -840,6 +841,13 @@ localReviewCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewLocalPrepare(input));
+
+localReviewCmd
+  .command("attest")
+  .description("Attest one normalized local review result as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewLocalAttest(input));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

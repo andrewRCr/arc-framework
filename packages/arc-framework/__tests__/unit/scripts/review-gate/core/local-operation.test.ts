@@ -78,6 +78,11 @@ describe("local review operation identity", () => {
       attestationRuntimeKind: admission.authority.attestationRuntimeKind,
       sourceRef: "review-source.json",
       sourceDigest: digest("source"),
+      guidanceDigest: digest("guidance"),
+      target: admission.target,
+      requirement: admission.requirement,
+      request: admission.carrier.request,
+      attestation: admission.carrier.attestation,
       cleanupTtlMs: 60_000,
     };
     const store: ReviewOperationStateStore = {

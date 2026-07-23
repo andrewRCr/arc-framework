@@ -1,9 +1,65 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createLocalChangeSetCarrier } from "../../../../../src/scripts/review-gate/core/local-carrier.js";
 import type { LocalReviewState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { sweepLocalReviewSources } from "../../../../../src/scripts/review-gate/core/local-source-sweep.js";
 
+const digest = (value: string): string => canonicalDigest({ value });
+const objectId = (character: string): string => character.repeat(40);
+
 function state(operationId: string, updatedAt: string, cleanupTtlMs = 60_000): LocalReviewState {
+  const target = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: objectId("a"),
+    diffBaseTree: objectId("b"),
+    headSha: objectId("c"),
+    headTree: objectId("d"),
+  });
+  const requirement = createReviewRequirement({
+    target,
+    projection: {
+      obligation: "recommended",
+      reasons: ["routine-code"],
+      rubricVersion: "standard-review/v1",
+      rubricDigest: digest("rubric"),
+      retrigger: "full-final",
+      count: 1,
+    },
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
+    initialAdmission: "checkpoint",
+  });
+  if (requirement === null) throw new Error("expected local requirement");
+  const carrier = createLocalChangeSetCarrier({
+    target,
+    requirementId: requirement.requirementId,
+    snapshot: {
+      state: "exact",
+      repositoryId: target.repositoryId,
+      baseRef: target.baseRef,
+      diffBaseSha: target.diffBaseSha,
+      diffBaseTree: target.diffBaseTree,
+      headSha: target.headSha,
+      headTree: target.headTree,
+    },
+    authorIdentity: "author-1",
+    evaluatorIdentity: "evaluator-1",
+    attestation: {
+      evaluatorIdentity: "evaluator-1",
+      runtimeIdentity: "arc-cli/0.1.0",
+      mechanism: "local-attestation",
+    },
+    generation: 0,
+    requestMechanism: "local-attestation",
+  });
   return {
     schemaVersion: 1,
     semanticsVersion: "review-operation/v1",
@@ -12,13 +68,18 @@ function state(operationId: string, updatedAt: string, cleanupTtlMs = 60_000): L
     updatedAt,
     vehicle: { kind: "work-unit", identity: "review-surface-binding" },
     repositoryId: "repo-1",
-    targetId: `sha256:${"a".repeat(64)}`,
-    requestId: `sha256:${"b".repeat(64)}`,
-    policyVersion: `sha256:${"c".repeat(64)}`,
-    policyBindingDigest: `sha256:${"d".repeat(64)}`,
+    targetId: target.targetId,
+    requestId: carrier.request.requestId,
+    policyVersion: requirement.policyVersion,
+    policyBindingDigest: digest("binding"),
     attestationRuntimeKind: "arc-cli",
     sourceRef: "source.json",
-    sourceDigest: `sha256:${"e".repeat(64)}`,
+    sourceDigest: digest("source"),
+    guidanceDigest: digest("guidance"),
+    target,
+    requirement,
+    request: carrier.request,
+    attestation: carrier.attestation,
     cleanupTtlMs,
   };
 }

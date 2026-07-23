@@ -26,6 +26,21 @@ const target = {
   targetId: digest,
 } as const;
 const header = (mode: ReviewCommandMode) => ({ schemaVersion: 1 as const, mode, diagnostics: [] });
+const localResult = {
+  status: "partial" as const,
+  result: "clean" as const,
+  targetId: digest,
+  headSha: target.headSha,
+  headTree: target.headTree,
+  rubricVersion: "standard-review/v1",
+  rubricDigest: digest,
+  sourceDigest: digest,
+  guidanceDigest: digest,
+  evaluatorIdentity: "evaluator-1",
+  reviewRunId: "run-1",
+  applicabilityId: null,
+  findings: [],
+};
 
 describe("review command envelopes", () => {
   it.each([
@@ -165,9 +180,9 @@ describe("review command envelopes", () => {
   });
 
   it.each([
-    { status: "running", verdict: null },
-    { status: "failed", verdict: "clean" },
-    { status: "complete", verdict: null },
+    localResult,
+    { ...localResult, status: "failed", result: null },
+    { ...localResult, status: "complete", result: null },
   ])("admits not-attestable only for non-terminal evidence %#", (result) => {
     expect(LocalAttestEnvelopeSchema.parse({
       ...header("review-local-attest"),
@@ -175,6 +190,19 @@ describe("review command envelopes", () => {
       nextAction: "rerun-review",
       payload: { operationId: "local-1", persistedVersion: 1, result },
     })).toMatchObject({ state: "not-attestable" });
+  });
+
+  it("rejects a complete terminal result from the not-attestable envelope", () => {
+    expect(() => LocalAttestEnvelopeSchema.parse({
+      ...header("review-local-attest"),
+      state: "not-attestable",
+      nextAction: "rerun-review",
+      payload: {
+        operationId: "local-1",
+        persistedVersion: 1,
+        result: { ...localResult, status: "complete" },
+      },
+    })).toThrow();
   });
 
   it("rejects success-only fields on every strict error variant", () => {

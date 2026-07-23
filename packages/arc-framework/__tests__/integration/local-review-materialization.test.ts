@@ -9,6 +9,7 @@ import { createReviewTarget } from "../../src/scripts/review-gate/core/gate-cont
 import {
   createLocalReviewSourceDescriptor,
   ensureLocalReviewSourceMaterialized,
+  inspectLocalReviewSourceMaterialization,
   LocalReviewMaterializationError,
 } from "../../src/scripts/review-gate/hosts/local/review-materialization.js";
 
@@ -99,5 +100,23 @@ describe("immutable local review materialization", () => {
       exec,
       source: records.source,
     })).rejects.toMatchObject({ code: "corrupt-state", reason: "pin-target-mismatch" });
+  });
+
+  it("distinguishes an intact materialization from a released one without restoring it", async () => {
+    const records = await fixture();
+    await ensureLocalReviewSourceMaterialized({ exec, source: records.source });
+
+    await expect(inspectLocalReviewSourceMaterialization({
+      exec,
+      source: records.source,
+    })).resolves.toBe("materialized");
+
+    await git(records.root, "worktree", "remove", records.source.materializationRef);
+    await git(records.root, "update-ref", "-d", records.source.reachabilityRef);
+
+    await expect(inspectLocalReviewSourceMaterialization({
+      exec,
+      source: records.source,
+    })).resolves.toBe("absent");
   });
 });

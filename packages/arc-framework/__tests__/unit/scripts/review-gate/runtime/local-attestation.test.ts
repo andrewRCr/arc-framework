@@ -75,6 +75,8 @@ function fixture() {
     headTree: target.headTree,
     rubricVersion: requirement.rubricVersion,
     rubricDigest: requirement.rubricDigest,
+    sourceDigest: `sha256:${"1".repeat(64)}`,
+    guidanceDigest: `sha256:${"2".repeat(64)}`,
     evaluatorIdentity: carrier.request.evaluatorIdentity,
     reviewRunId: "run-1",
     applicabilityId: null,
@@ -101,6 +103,8 @@ describe("local review attestation", () => {
       currentTarget: async () => records.target,
       runtimeIdentity: records.carrier.attestation.runtimeIdentity,
       attestationMechanism: records.carrier.attestation.mechanism,
+      sourceDigest: records.result.sourceDigest,
+      guidanceDigest: records.result.guidanceDigest,
       expectedLedgerVersion: 0,
     });
 
@@ -126,6 +130,8 @@ describe("local review attestation", () => {
       currentTarget: async () => stale,
       runtimeIdentity: records.carrier.attestation.runtimeIdentity,
       attestationMechanism: records.carrier.attestation.mechanism,
+      sourceDigest: records.result.sourceDigest,
+      guidanceDigest: records.result.guidanceDigest,
       expectedLedgerVersion: 0,
     })).rejects.toThrow(/current target/iu);
     expect(records.appendReceipt).not.toHaveBeenCalled();
@@ -143,6 +149,8 @@ describe("local review attestation", () => {
       currentTarget: async () => records.target,
       runtimeIdentity: records.carrier.attestation.runtimeIdentity,
       attestationMechanism: records.carrier.attestation.mechanism,
+      sourceDigest: records.result.sourceDigest,
+      guidanceDigest: records.result.guidanceDigest,
       expectedLedgerVersion: 0,
     })).rejects.toThrow(/not attestable/iu);
     expect(records.appendReceipt).not.toHaveBeenCalled();
@@ -155,6 +163,8 @@ describe("local review attestation", () => {
       currentTarget: async () => records.target,
       runtimeIdentity: records.carrier.attestation.runtimeIdentity,
       attestationMechanism: records.carrier.attestation.mechanism,
+      sourceDigest: records.result.sourceDigest,
+      guidanceDigest: records.result.guidanceDigest,
       expectedLedgerVersion: 0,
     };
     await expect(attestLocalReviewResult({
@@ -167,6 +177,28 @@ describe("local review attestation", () => {
     })).rejects.toThrow(/evaluator/iu);
     await expect(attestLocalReviewResult({ ...base, runtimeIdentity: "other-attestor" }))
       .rejects.toThrow(/attesting runtime/iu);
+    expect(records.appendReceipt).not.toHaveBeenCalled();
+  });
+
+  it("rejects a result for different source bytes or delivered guidance", async () => {
+    const records = fixture();
+    const base = {
+      ...records,
+      currentTarget: async () => records.target,
+      runtimeIdentity: records.carrier.attestation.runtimeIdentity,
+      attestationMechanism: records.carrier.attestation.mechanism,
+      sourceDigest: records.result.sourceDigest,
+      guidanceDigest: records.result.guidanceDigest,
+      expectedLedgerVersion: 0,
+    };
+    await expect(attestLocalReviewResult({
+      ...base,
+      result: { ...records.result, sourceDigest: `sha256:${"3".repeat(64)}` },
+    })).rejects.toThrow(/source/iu);
+    await expect(attestLocalReviewResult({
+      ...base,
+      result: { ...records.result, guidanceDigest: `sha256:${"4".repeat(64)}` },
+    })).rejects.toThrow(/guidance/iu);
     expect(records.appendReceipt).not.toHaveBeenCalled();
   });
 });

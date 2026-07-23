@@ -6,8 +6,10 @@ import { ZodError } from "zod";
 import { gitExec } from "../lib/io-context.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import {
+  LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
   ReviewCommandErrorEnvelopeSchema,
+  type ReviewCommandMode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
 import { createLocalFrontlineSourcePreferenceReader } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
 import {
@@ -19,6 +21,8 @@ import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import { createLocalPrepareDependencies } from "../scripts/review-gate/runtime/local-prepare-composition.js";
 import { prepareLocalReview } from "../scripts/review-gate/runtime/local-prepare.js";
+import { createLocalAttestDependencies } from "../scripts/review-gate/runtime/local-attest-composition.js";
+import { attestLocalReviewCommand } from "../scripts/review-gate/runtime/local-attest-command.js";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -98,7 +102,7 @@ function repositoryPrecondition(reason: LocalTargetInvalidReason) {
   }
 }
 
-function reviewCommandError(error: unknown) {
+function reviewCommandError(mode: ReviewCommandMode, error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   const code = error instanceof ZodError || error instanceof SyntaxError
     ? "invalid-input"
@@ -117,7 +121,7 @@ function reviewCommandError(error: unknown) {
     : [];
   return ReviewCommandErrorEnvelopeSchema.parse({
     schemaVersion: 1,
-    mode: "review-local-prepare",
+    mode,
     diagnostics,
     error: { code, message },
   });
@@ -142,7 +146,54 @@ export async function handleReviewLocalPrepare(
     const result = LocalPrepareEnvelopeSchema.parse(await dependencies.prepare(request, root));
     dependencies.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
-    dependencies.write(`${JSON.stringify(reviewCommandError(error))}\n`);
+    dependencies.write(`${JSON.stringify(reviewCommandError("review-local-prepare", error))}\n`);
+    dependencies.setExitCode(1);
+  }
+}
+
+export interface ReviewLocalAttestHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  attest(request: unknown, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultLocalAttestDependencies(): ReviewLocalAttestHandlerDependencies {
+  return {
+    resolveRoot: resolveArcRoot,
+    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    attest: (request, root) => attestLocalReviewCommand(
+      request,
+      createLocalAttestDependencies({ exec: gitExec, cwd: root }),
+    ),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
+/**
+ * Attest one normalized local review result and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleReviewLocalAttest(
+  source: string,
+  overrides: Partial<ReviewLocalAttestHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultLocalAttestDependencies(), ...overrides };
+  try {
+    const root = dependencies.resolveRoot(process.cwd());
+    if (root === null) throw new Error("Not inside an ARC project.");
+    const request: unknown = JSON.parse(await dependencies.readText(source));
+    const result = LocalAttestEnvelopeSchema.parse(await dependencies.attest(request, root));
+    dependencies.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    dependencies.write(`${JSON.stringify(reviewCommandError("review-local-attest", error))}\n`);
     dependencies.setExitCode(1);
   }
 }

@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createLocalChangeSetCarrier } from "../../../../../src/scripts/review-gate/core/local-carrier.js";
+import {
   FrontlineRunStateSchema,
   LocalReviewStateSchema,
   ReviewOperationStateSchema,
@@ -11,6 +16,55 @@ import {
 import type { ReviewOperationStateStore } from "../../../../../src/scripts/review-gate/core/ports.js";
 
 const digest = (value: string) => canonicalDigest({ value });
+const objectId = (character: string): string => character.repeat(40);
+
+const localTarget = createReviewTarget({
+  schemaVersion: 2,
+  semanticsVersion: "review-gate/v2",
+  kind: "change-set",
+  repositoryId: "repo-1",
+  baseRef: "main",
+  diffBaseSha: objectId("a"),
+  diffBaseTree: objectId("b"),
+  headSha: objectId("c"),
+  headTree: objectId("d"),
+});
+const localRequirement = createReviewRequirement({
+  target: localTarget,
+  projection: {
+    obligation: "recommended",
+    reasons: ["routine-code"],
+    rubricVersion: "standard-review/v1",
+    rubricDigest: digest("rubric"),
+    retrigger: "full-final",
+    count: 1,
+  },
+  acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
+  initialAdmission: "checkpoint",
+});
+if (localRequirement === null) throw new Error("expected local requirement");
+const localCarrier = createLocalChangeSetCarrier({
+  target: localTarget,
+  requirementId: localRequirement.requirementId,
+  snapshot: {
+    state: "exact",
+    repositoryId: localTarget.repositoryId,
+    baseRef: localTarget.baseRef,
+    diffBaseSha: localTarget.diffBaseSha,
+    diffBaseTree: localTarget.diffBaseTree,
+    headSha: localTarget.headSha,
+    headTree: localTarget.headTree,
+  },
+  authorIdentity: "author-1",
+  evaluatorIdentity: "evaluator-1",
+  attestation: {
+    evaluatorIdentity: "evaluator-1",
+    runtimeIdentity: "arc-cli/0.1.0",
+    mechanism: "local-attestation",
+  },
+  generation: 0,
+  requestMechanism: "local-attestation",
+});
 
 const frontline = {
   schemaVersion: 1 as const,
@@ -55,13 +109,18 @@ const localReview = {
   kind: "local-review" as const,
   vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
   repositoryId: "repo-1",
-  targetId: digest("target"),
-  requestId: digest("request"),
-  policyVersion: digest("policy"),
+  targetId: localTarget.targetId,
+  requestId: localCarrier.request.requestId,
+  policyVersion: localRequirement.policyVersion,
   policyBindingDigest: digest("binding"),
-  attestationRuntimeKind: "delegated-agent",
+  attestationRuntimeKind: "arc-cli",
   sourceRef: "refs/arc/review/local-1",
   sourceDigest: digest("source"),
+  guidanceDigest: digest("guidance"),
+  target: localTarget,
+  requirement: localRequirement,
+  request: localCarrier.request,
+  attestation: localCarrier.attestation,
   cleanupTtlMs: 86_400_000,
 };
 
@@ -70,6 +129,10 @@ describe("review operation state schemas", () => {
     expect(LocalReviewStateSchema.parse(localReview)).toEqual(localReview);
     expect(() => LocalReviewStateSchema.parse({ ...localReview, sourceRef: undefined })).toThrow();
     expect(() => LocalReviewStateSchema.parse({ ...localReview, phase: "ready" })).toThrow();
+    expect(() => LocalReviewStateSchema.parse({
+      ...localReview,
+      requestId: digest("different-request"),
+    })).toThrow(/request/iu);
   });
 
   it("accepts the new frontline terminal outcomes", () => {

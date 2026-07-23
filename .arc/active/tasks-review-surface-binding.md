@@ -265,29 +265,16 @@ validation are test-first; the Commander wiring is test-after.
   default permits the standard agent source with `local-attestation`; present malformed or unregistered adapters fail
   unavailable without fallback, while augmentation changes only `guidanceDigest`, not baseline rubric identity.
 
-### `[ ]` **4.5 `arc review local attest` — advisory receipt against reviewed bytes**
+### `[x]` **4.5 `arc review local attest` — advisory receipt against reviewed bytes**
 
 - _Goal:_ `local attest` accepts only the normalized result schema, re-derives runtime identity at the trusted
   boundary, re-verifies exact target / rubric / guidance-digest and the pin + detached checkout, and appends a single
   advisory `ReviewReceiptV2` — recording what was reviewed, appending no downstream-satisfying pair — returning the
   reduction transition.
 
-- _Context:_ Attestation is gated on the materialization, not the clock; an already-recorded exact receipt replays
-  idempotently; the `stale-target` result is a strict pre/post-append sub-union.
-
-- **Additional Context:** `spec-review-surface-binding.md` § D12 (attest staleness sub-union, expiry semantics)
-
-    - Build `test-first` (one behavior at a time):
-        - a non-terminal or null-verdict-`complete` result is `not-attestable` and appends nothing
-        - the result must echo `sourceDigest`; a result for different bytes is rejected regardless of matching identifiers
-        - live unchanged target → `attested-current` + receipt ref; changed after append → `stale-target`
-          (`receiptRecorded: true`, historical ref); reaped materialization, no receipt → `expired -> rerun-review`
-          (`receiptRecorded: false`)
-        - an already-recorded exact receipt replays identically (idempotent)
-
-- _Note:_ extend `runtime/local-attestation.ts` `NormalizedLocalReviewResultSchema` with `sourceDigest` and
-  `guidanceDigest` (net-new — it carries neither today) and add their attest re-verification; append via
-  `hosts/local/receipt-store.ts`; `ReviewReceiptV2` used as shipped.
+- _Outcome:_ Added the normalized source/guidance-bound result, write-once admission snapshot, non-repairing
+  materialization proof, idempotent exact-receipt replay, and strict pre/post-append stale outcomes. The public
+  handler emits only registered attestation or typed error envelopes.
 
 ### `[ ]` **4.6 `arc review local resume` — re-acquisition and idempotent continuation**
 

@@ -205,6 +205,7 @@ export async function prepareLocalReview(
         materialize: (candidate) => dependencies.materialize(candidate),
         now: () => dependencies.now(),
         cleanupTtlMs: request.freshnessMs ?? DEFAULT_LOCAL_REVIEW_FRESHNESS_MS,
+        guidanceDigest: assurance.guidance.guidanceDigest,
       },
     );
   }

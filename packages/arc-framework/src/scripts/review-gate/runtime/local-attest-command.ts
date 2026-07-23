@@ -1,0 +1,228 @@
+/** Command orchestration for one local advisory review attestation. */
+
+import { z } from "zod";
+
+import { canonicalize } from "../../../lib/kernel/index.js";
+import {
+  ReviewIdentifierSchema,
+  type ReviewTarget,
+} from "../core/gate-contract-v2-schema.js";
+import {
+  NormalizedLocalReviewResultSchema,
+} from "../core/local-review-result.js";
+import type { LocalReviewAuthority } from "../core/local-review-authority.js";
+import type { LocalReviewState } from "../core/operation-state-schema.js";
+import type {
+  ForwardReviewReceiptStore,
+  LocalReviewSourceStore,
+  ReviewOperationStateStore,
+} from "../core/ports.js";
+import { LocalAttestEnvelopeSchema } from "../core/review-command-envelope.js";
+import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
+import { createLocalReviewReceipt } from "./local-attestation.js";
+
+export const LocalAttestRequestSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  operationId: ReviewIdentifierSchema,
+  result: NormalizedLocalReviewResultSchema,
+});
+
+export interface LocalAttestDependencies {
+  operationStore: ReviewOperationStateStore;
+  sourceStore: LocalReviewSourceStore;
+  receiptStore: ForwardReviewReceiptStore;
+  resolveAuthority(evaluatorIdentity: string): Promise<LocalReviewAuthority>;
+  resolveGuidanceDigest(authority: LocalReviewAuthority, state: LocalReviewState): Promise<string>;
+  confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
+  inspectMaterialization(source: NonNullable<Awaited<ReturnType<LocalReviewSourceStore["readSource"]>>>): Promise<
+    "materialized" | "absent"
+  >;
+}
+
+/** Stable request or durable-state failure at the local attestation boundary. */
+export class LocalAttestCommandError extends Error {
+  constructor(
+    readonly code: "invalid-input" | "corrupt-state",
+    message: string,
+  ) {
+    super(message);
+    this.name = "LocalAttestCommandError";
+  }
+}
+
+/** Load one immutable operation and project non-attestable results without side effects. */
+export async function attestLocalReviewCommand(
+  requestInput: unknown,
+  dependencies: LocalAttestDependencies,
+): Promise<z.infer<typeof LocalAttestEnvelopeSchema>> {
+  const request = LocalAttestRequestSchema.parse(requestInput);
+  const persisted = await dependencies.operationStore.readOperation(request.operationId);
+  if (persisted.state === null
+    || persisted.state.kind !== "local-review"
+    || persisted.state.operationId !== request.operationId) {
+    throw new LocalAttestCommandError("corrupt-state", "local review operation is unavailable");
+  }
+  if (request.result.status !== "complete" || request.result.result === null) {
+    return LocalAttestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-attest",
+      diagnostics: [],
+      state: "not-attestable",
+      nextAction: "rerun-review",
+      payload: {
+        operationId: request.operationId,
+        persistedVersion: persisted.version,
+        result: request.result,
+      },
+    });
+  }
+  const state = persisted.state;
+  const source = await dependencies.sourceStore.readSource(state.sourceRef);
+  if (source === null
+    || source.sourceDigest !== state.sourceDigest
+    || source.repositoryId !== state.repositoryId
+    || source.targetId !== state.targetId) {
+    throw new LocalAttestCommandError("corrupt-state", "local review source snapshot mismatch");
+  }
+  if (request.result.sourceDigest !== state.sourceDigest) {
+    throw new LocalAttestCommandError("invalid-input", "local review result source digest mismatch");
+  }
+  const authority = await dependencies.resolveAuthority(state.request.evaluatorIdentity);
+  if (canonicalize(authority.vehicle) !== canonicalize(state.vehicle)
+    || authority.authorIdentity !== state.request.authorIdentity
+    || authority.evaluatorIdentity !== state.request.evaluatorIdentity
+    || authority.attestationRuntimeKind !== state.attestationRuntimeKind
+    || authority.runtimeIdentity !== state.attestation.runtimeIdentity
+    || authority.attestationMechanism !== state.attestation.mechanism) {
+    throw new LocalAttestCommandError("invalid-input", "local review attestation authority mismatch");
+  }
+  const guidanceDigest = await dependencies.resolveGuidanceDigest(authority, state);
+  if (guidanceDigest !== state.guidanceDigest) {
+    throw new LocalAttestCommandError("corrupt-state", "local review delivered guidance changed");
+  }
+  if (request.result.guidanceDigest !== guidanceDigest) {
+    throw new LocalAttestCommandError("invalid-input", "local review result guidance digest mismatch");
+  }
+  const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
+  const existing = ledger.receipts.find((receipt) => (
+    receipt.requestId === state.requestId
+    && receipt.reviewRunId === request.result.reviewRunId
+  ));
+  const receipt = createLocalReviewReceipt({
+    target: state.target,
+    requirement: state.requirement,
+    carrier: {
+      target: state.target,
+      request: state.request,
+      attestation: state.attestation,
+    },
+    result: request.result,
+    runtimeIdentity: authority.runtimeIdentity,
+    attestationMechanism: state.attestation.mechanism,
+    sourceDigest: state.sourceDigest,
+    guidanceDigest: state.guidanceDigest,
+  });
+  if (existing !== undefined) {
+    if (canonicalize(existing) !== canonicalize(receipt)) {
+      throw new LocalAttestCommandError("corrupt-state", "conflicting local review receipt replay");
+    }
+    const replay = await dependencies.receiptStore.appendReceipt(receipt, ledger.ledgerVersion);
+    const current = await dependencies.confirmTarget(state.target);
+    if (current.state === "stale-target") {
+      return LocalAttestEnvelopeSchema.parse({
+        schemaVersion: 1,
+        mode: "review-local-attest",
+        diagnostics: [],
+        state: "stale-target",
+        nextAction: "prepare-current-target",
+        payload: {
+          operationId: request.operationId,
+          persistedVersion: persisted.version,
+          receiptRecorded: true,
+          receiptRef: replay.durableEvidenceRef,
+          attemptedTarget: current.attemptedTarget,
+          currentTarget: current.currentTarget,
+        },
+      });
+    }
+    return LocalAttestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-attest",
+      diagnostics: [],
+      state: "attested-current",
+      nextAction: "reduce",
+      payload: {
+        operationId: request.operationId,
+        persistedVersion: persisted.version,
+        target: state.target,
+        sourceRef: state.sourceRef,
+        receiptRef: replay.durableEvidenceRef,
+        receiptRecorded: true,
+      },
+    });
+  }
+  if (await dependencies.inspectMaterialization(source) === "absent") {
+    return LocalAttestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-attest",
+      diagnostics: [],
+      state: "expired",
+      nextAction: "rerun-review",
+      payload: {
+        operationId: request.operationId,
+        persistedVersion: persisted.version,
+      },
+    });
+  }
+  const beforeAppend = await dependencies.confirmTarget(state.target);
+  if (beforeAppend.state === "stale-target") {
+    return LocalAttestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-attest",
+      diagnostics: [],
+      state: "stale-target",
+      nextAction: "prepare-current-target",
+      payload: {
+        operationId: request.operationId,
+        persistedVersion: persisted.version,
+        receiptRecorded: false,
+        attemptedTarget: beforeAppend.attemptedTarget,
+        currentTarget: beforeAppend.currentTarget,
+      },
+    });
+  }
+  const appended = await dependencies.receiptStore.appendReceipt(receipt, ledger.ledgerVersion);
+  const afterAppend = await dependencies.confirmTarget(state.target);
+  if (afterAppend.state === "stale-target") {
+    return LocalAttestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-attest",
+      diagnostics: [],
+      state: "stale-target",
+      nextAction: "prepare-current-target",
+      payload: {
+        operationId: request.operationId,
+        persistedVersion: persisted.version,
+        receiptRecorded: true,
+        receiptRef: appended.durableEvidenceRef,
+        attemptedTarget: afterAppend.attemptedTarget,
+        currentTarget: afterAppend.currentTarget,
+      },
+    });
+  }
+  return LocalAttestEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-local-attest",
+    diagnostics: [],
+    state: "attested-current",
+    nextAction: "reduce",
+    payload: {
+      operationId: request.operationId,
+      persistedVersion: persisted.version,
+      target: state.target,
+      sourceRef: state.sourceRef,
+      receiptRef: appended.durableEvidenceRef,
+      receiptRecorded: true,
+    },
+  });
+}

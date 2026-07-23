@@ -11,6 +11,7 @@ import {
   FrontlineUnavailableRepairReasonSchema,
   FrontlineUnavailableRetryReasonSchema,
 } from "../policy/frontline-outcome.js";
+import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
@@ -212,12 +213,8 @@ export const LocalPrepareEnvelopeSchema = z.union([
   ),
 ]);
 
-const AttestationResultSchema = z.strictObject({
-  status: z.string().trim().min(1),
-  verdict: z.string().trim().min(1).nullable(),
-});
-const NotAttestableResultSchema = AttestationResultSchema.refine(
-  (result) => result.status !== "complete" || result.verdict === null,
+const NotAttestableResultSchema = NormalizedLocalReviewResultSchema.refine(
+  (result) => result.status !== "complete" || result.result === null,
   { message: "complete results with a verdict are attestable" },
 );
 export const LocalAttestEnvelopeSchema = z.union([

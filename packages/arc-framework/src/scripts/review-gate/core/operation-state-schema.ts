@@ -3,6 +3,17 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import {
+  validateReviewRequest,
+  validateReviewRequirement,
+  validateReviewTarget,
+} from "./gate-contract-v2.js";
+import {
+  ReviewRequestV2Schema,
+  ReviewRequirementV2Schema,
+  ReviewTargetSchema,
+} from "./gate-contract-v2-schema.js";
+import { LocalAttestationBindingSchema } from "./local-carrier.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -69,7 +80,41 @@ export const LocalReviewStateSchema = z.strictObject({
   attestationRuntimeKind: IdentifierSchema,
   sourceRef: z.string().trim().min(1),
   sourceDigest: CanonicalDigestSchema,
+  guidanceDigest: CanonicalDigestSchema,
+  target: ReviewTargetSchema,
+  requirement: ReviewRequirementV2Schema,
+  request: ReviewRequestV2Schema,
+  attestation: LocalAttestationBindingSchema,
   cleanupTtlMs: z.number().int().positive(),
+}).superRefine((state, context) => {
+  try {
+    const target = validateReviewTarget(state.target);
+    const requirement = validateReviewRequirement(target, state.requirement);
+    const request = validateReviewRequest(target, state.request);
+    if (state.repositoryId !== target.repositoryId || state.targetId !== target.targetId) {
+      context.addIssue({ code: "custom", message: "operation target snapshot mismatch", path: ["target"] });
+    }
+    if (state.policyVersion !== requirement.policyVersion) {
+      context.addIssue({ code: "custom", message: "operation requirement snapshot mismatch", path: ["requirement"] });
+    }
+    if (state.requestId !== request.requestId
+      || request.requirementId !== requirement.requirementId) {
+      context.addIssue({ code: "custom", message: "operation request snapshot mismatch", path: ["request"] });
+    }
+    if (state.attestation.evaluatorIdentity !== request.evaluatorIdentity) {
+      context.addIssue({
+        code: "custom",
+        message: "operation attestation snapshot mismatch",
+        path: ["attestation"],
+      });
+    }
+  } catch (error) {
+    context.addIssue({
+      code: "custom",
+      message: error instanceof Error ? error.message : "invalid local admission snapshot",
+      path: ["target"],
+    });
+  }
 });
 export type LocalReviewState = z.infer<typeof LocalReviewStateSchema>;
 
