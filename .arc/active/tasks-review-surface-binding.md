@@ -255,23 +255,15 @@ validation are test-first; the Commander wiring is test-after.
 - _Outcome:_ Added a pin-enumerating sweep that releases only absent-record or TTL-expired/no-receipt operations.
   Live and receipt-complete operations remain protected; descriptor and receipt stores are untouched.
 
-### `[ ]` **4.4 Guidance delivery and the local policy binding**
+### `[x]` **4.4 Guidance delivery and the local policy binding**
 
 - _Goal:_ `local prepare` projects the exact effective guidance (baseline + resolved overlay), computes its
   `guidanceDigest`, and binds source/admission policy through a strict `LocalReviewPolicyBinding` with its own canonical
   digest, validating the selected evaluator/carrier against it.
 
-- _Context:_ The package default is opt-in — the local lane is one `delegated-agent` standard source, off until the
-  driver selects it. `local prepare: unavailable` fires only when a present composition adapter's declared binding fails
-  to parse or names an unregistered source; a no-adapter project takes the package default and never reaches it.
-
-    - Build `test-first` (one behavior at a time):
-        - `guidanceDigest` is computed over the delivered projection; baseline `rubricVersion` + `rubricDigest` unchanged
-          by augmentation
-        - the default binding permits `{ sourceKind: agent, qualifier: standard-review/v1 }` + `local-attestation`; a
-          stricter binding narrows it
-        - a present adapter with an unparseable/unregistered binding → `unavailable` (never a silent downgrade); no
-          adapter → package default
+- _Outcome:_ Added registered, digest-bound local policy records and exact delivered-guidance projection. The package
+  default permits the standard agent source with `local-attestation`; present malformed or unregistered adapters fail
+  unavailable without fallback, while augmentation changes only `guidanceDigest`, not baseline rubric identity.
 
 ### `[ ]` **4.5 `arc review local attest` — advisory receipt against reviewed bytes**
 
