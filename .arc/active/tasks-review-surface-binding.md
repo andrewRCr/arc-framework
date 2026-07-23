@@ -487,24 +487,27 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
 - _Outcome:_ The project-owned overview now describes the executable advisory CLI contract while leaving a clean
   merge-order seam for the sibling's later controller deletion and thin-guard architecture.
 
-### `[ ]` **7.5 `integrate-work-unit` / `run-errand` review-lane rewrite to verb invocations**
+### `[x]` **7.5 `integrate-work-unit` / `run-errand` review-lane rewrite to verb invocations**
 
 - _Goal:_ Both workflows reach the review lane exclusively through `arc review` verbs — no `ReviewOperationStateStore`
   or other library symbol, no `invalid-request` — with the local lane supplying only the five caller-owned routing
   facts (no `changeSetState`), authored as typed state/nextAction dispatch composable with the sibling's inline
   hosted-lane segment.
 
-- _Context:_ § D16 — package-source-first; the second half of the shared-surface boundary returned to the sibling.
-  Introduces no method/extension/config surface; the interlock structure of either workflow is unchanged.
+    - `[x]` **7.5.a Rewrite the frontline segment**
+        - Replaced hand-composed operation-state prose with typed `frontline resolve` / `frontline run` dispatch while
+          retaining the caller-composed routing facts and exact-target re-entry.
 
-    - `[ ]` **7.5.a Rewrite the frontline segment** — replace hand-composed operation-state prose with `arc review
-      frontline run`; keep the routing-fact record composed for `frontline resolve`
+    - `[x]` **7.5.b Rewrite the local segment**
+        - Routed delegated local review through `prepare` / `attest` / `resume` and universal `respond` / `reduce`,
+          with only the five caller-owned facts supplied to preparation and command errors stopping the lane.
 
-    - `[ ]` **7.5.b Rewrite the local segment** — `local prepare` (five caller-owned facts, no `changeSetState`) /
-      `attest` / `resume` + universal `respond` / `reduce`
+    - `[x]` **7.5.c Carry the `invalid-input` rename**
+        - Kept both package/project workflow pairs byte-identical and removed every
+          `ReviewOperationStateStore` / `invalid-request` reference from the shipped prose.
 
-    - `[ ]` **7.5.c Carry the `invalid-input` rename** — a grep for `ReviewOperationStateStore` / `invalid-request`
-      across both copies of shipped workflow prose returns nothing (SC 11)
+- _Outcome:_ The integration and Errand workflows now expose one provider-neutral, typed review loop entirely through
+  the seven public CLI verbs, leaving the sibling a source-selection-free seam for its hosted segment.
 
 ---
 

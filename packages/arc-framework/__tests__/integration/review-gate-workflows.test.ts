@@ -445,7 +445,7 @@ describe("trusted review-gate workflows", () => {
     expect(finalGate).toMatch(/archive moves[\s\S]*readiness regeneration[\s\S]*reconcile commits/u);
   });
 
-  it("keeps frontline publication operational, advisory, and provider-neutral", async () => {
+  it("routes frontline and local review through the public advisory command surface", async () => {
     const paths = [
       "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
       "system/workflows/arc/supplemental/run-errand.md",
@@ -456,9 +456,26 @@ describe("trusted review-gate workflows", () => {
         readRepositoryFile(`.arc/${path}`),
       ]);
       expect(project).toBe(packaged);
-      expect(packaged).toContain("ReviewOperationStateStore");
-      expect(packaged).toContain("advisory publication orientation");
-      expect(packaged).toContain("never enters review receipts or gate reduction");
+      for (const command of [
+        "arc review frontline resolve -",
+        "arc review frontline run -",
+        "arc review local prepare -",
+        "arc review local attest -",
+        "arc review local resume -",
+        "arc review respond -",
+        "arc review reduce -",
+      ]) {
+        expect(packaged).toContain(command);
+      }
+      expect(packaged).toMatch(
+        /For `local prepare`, supply only `contentKind`, `reviewRisk`,\s+`changeDeterminacy`, `ownership`, and `surfaceAuthority`/u,
+      );
+      expect(packaged).toContain("`respond-to-findings / respond`");
+      expect(packaged).toContain("`ready-to-fix / apply-fix`");
+      expect(packaged).toContain("`settled / reduce`");
+      expect(packaged).toContain("`retryable / retry`");
+      expect(packaged).toContain("invalid-input");
+      expect(packaged).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
       expect(packaged).not.toMatch(/CodeRabbit|coderabbit|billing|credits?|quota|--agent|--plain/iu);
     }
   });
@@ -515,9 +532,17 @@ describe("trusted review-gate workflows", () => {
       packaged.indexOf("Run `arc review frontline resolve -`"),
       packaged.indexOf("3. **Resolve the Errand PR**"),
     );
-    expect(frontline).toMatch(/normalized findings[\s\S]*approved fix set[\s\S]*Tier\s+1 quality gates/iu);
-    expect(frontline).toMatch(/recompose the exact target[\s\S]*resolve frontline routing again/iu);
-    expect(frontline).toMatch(/clean, unavailable, failed, and pass-cap outcomes[\s\S]*continue/iu);
+    expect(frontline).toContain("`findings / respond`");
+    expect(frontline).toContain("`arc review respond -`");
+    expect(frontline).toMatch(
+      /`ready-to-fix \/ apply-fix`[\s\S]*approved fix set[\s\S]*Tier\s+1\s+quality gates/iu,
+    );
+    expect(frontline).toMatch(
+      /`stale-target \/ prepare-current-target`[\s\S]*recompose\s+the\s+exact target[\s\S]*restart the selected review lane/iu,
+    );
+    expect(frontline).toMatch(
+      /`clean \/ none`[\s\S]*`unavailable \/ retry`[\s\S]*`timed-out \/ retry`[\s\S]*`failed \/ retry`/iu,
+    );
 
     const openPr = packaged.slice(
       packaged.indexOf("4. **Enter the open PR.**"),

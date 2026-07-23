@@ -95,11 +95,13 @@ describe("PR-open lifecycle extensions", () => {
 
     const frontlineCycle = workflow.slice(resolveFrontline, preOpen);
     expect(frontlineCycle).toContain("review-response");
-    expect(frontlineCycle).toContain("recompose the exact target");
-    expect(frontlineCycle).toContain("bounded follow-up");
-    expect(frontlineCycle).toContain("Reuse only an unchanged exact");
-    expect(frontlineCycle).toContain("Publish pending state before the carrier effect");
-    expect(frontlineCycle).toContain("never enters review receipts or gate reduction");
+    expect(frontlineCycle).toMatch(/recompose\s+the\s+exact target/u);
+    expect(frontlineCycle).toContain("arc review frontline run -");
+    expect(frontlineCycle).toContain("arc review local prepare -");
+    expect(frontlineCycle).toContain("arc review local attest -");
+    expect(frontlineCycle).toContain("arc review local resume -");
+    expect(frontlineCycle).toContain("typed `state` / `nextAction`");
+    expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
     expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("Tier 1 quality gates");
   });
 
@@ -123,9 +125,13 @@ describe("PR-open lifecycle extensions", () => {
     const frontlineCycle = workflow.slice(cycleStart, resolvePr);
     expect(frontlineCycle).toContain("review-response");
     expect(frontlineCycle).toContain("not a routing input");
-    expect(frontlineCycle).toContain("recompose the exact target");
-    expect(frontlineCycle).toContain("Reuse only an unchanged exact");
-    expect(frontlineCycle).toContain("Publish pending state before the carrier effect");
+    expect(frontlineCycle).toMatch(/recompose\s+the\s+exact target/u);
+    expect(frontlineCycle).toContain("arc review frontline run -");
+    expect(frontlineCycle).toContain("arc review local prepare -");
+    expect(frontlineCycle).toContain("arc review local attest -");
+    expect(frontlineCycle).toContain("arc review local resume -");
+    expect(frontlineCycle).toContain("typed `state` / `nextAction`");
+    expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
     expect(workflow.slice(partialProtection)).not.toContain("arc review frontline resolve -");
   });
 
