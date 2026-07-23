@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Reconciled with `main`; retitled `pr-decomposition` → `review-chunking` (`wu-rename` first use)
+- **Last Completed:** Captured formalization-ready draft (`draft-design`); 3 adversarial passes converged
 - **Next Task:** [none]
 - **Blockers:** [none]
 
