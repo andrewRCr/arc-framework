@@ -104,7 +104,10 @@ checkout-local view).
    **Decompose-time advisory:** the composed index already carries each dependent's `InFlightState`, so a dependent
    that is _mid-integration_ with a live edge to the retiring origin is surfaced at the Step-5 interlock for the human
    to coordinate — the transform does not silently proceed against it. (`Depends On` is a shrinking live-blocker list,
-   so a still-present edge to a `Planning` origin is a real blocker, not stale lineage.)
+   so a still-present edge to a `Planning` origin is a real blocker, not stale lineage.) The reconcile's incoming-edge
+   disposition set generalizes across the retirement verbs — `replace` (decompose → delivering members) and
+   **`abandoned`** (abandon → drop + surface, no replacement) — so `abandon` joins the same mechanism instead of
+   leaving dependents dangling with no record, as it does today.
 
    **Backend-forward.** The receipt + reconcile _is_ what a version-checked store write becomes: today it applies in
    the dependent's own git flow; under the materialized backing store it is the store's version-checked write applied
@@ -112,11 +115,15 @@ checkout-local view).
 
 2. **Cohort-less split shape** (old area 1). A first-class flat-sibling outcome — N siblings joined only by a
    dependency edge, no cohort node — across the three surfaces: an `assess-cohort-fit` verdict for it, a
-   `decompose-work-unit` arm that skips cohort-mint, and a **new typed cut-map field** (a `parentPosition` /
-   `shape` value) that lets `cohort` be omitted and places siblings flat rather than under a cohort dir. Today
-   `parseCutMap` _requires_ `cohort` for every non-`at-cap` position and `scaffoldCohortMembers` always nests under
-   a cohort dir — so the shape is inexpressible. Live instance: `roadmap-tooling`'s verdict. Adjacent rail to
-   `cohort-cut-coherence` (what a cohort absorbs on exit) — coordinate, don't fold.
+   `decompose-work-unit` arm that skips cohort-mint, and a schema change. **Schema shape settled 2026-07-23:** a
+   **new `parentPosition` value** (the cohort-_placement_ axis gains a no-cohort value) — **not** a new `shape`
+   (the orthogonal origin-disposition axis: a cohortless split can be symmetric _or_ extraction) and **not** a
+   boolean (the checkdoc anti-pattern). It omits `cohort` and places siblings flat rather than under a cohort dir,
+   disambiguating today's overloaded "cohort omitted" case (which currently means only at-cap → existing parent).
+   Today `parseCutMap` _requires_ `cohort` for every non-`at-cap` position and `scaffoldCohortMembers` always nests
+   under a cohort dir — so the shape is inexpressible. Value name (`cohortless` / `flat`) is spec polish. Live
+   instance: `roadmap-tooling`'s verdict. Adjacent rail to `cohort-cut-coherence` (what a cohort absorbs on exit) —
+   coordinate, don't fold.
 
 3. **Husk-consistent, self-healing transform terminal** (old area 4, widened). Make the transform's residue
    self-heal via the _same_ stamped-husk sweep the shipped-WU terminal uses, rather than a manual cleanup the human
@@ -132,12 +139,35 @@ checkout-local view).
    adjacent harness-integration residue, likely not ARC-substrate scope — flag, don't silently absorb.)
 
 4. **Shared-artifact regen & reference conservation** (promotes the ROADMAP-timing gap + the reference-sweep
-   policy). Render the in-transform ROADMAP from the **staged tracked-index projection** (deterministic, no
+   policy; reference policy settled 2026-07-23). Two halves.
+
+   **Regen timing.** Render the in-transform ROADMAP from the **staged tracked-index projection** (deterministic, no
    dependency on remote-ref timing), fixing `wu-rename`'s confirmed phantom-row _and_ `decompose`'s more-exposed
-   latent one in the shared `reconcile-roadmap` path. Settle the **reference-conservation policy** once for both the
-   retired-slug (`decompose`) and renamed-slug (`rename`) cases: which references the transform owns (backticked
-   artifact refs, `Depends On`, cohort headings) vs. author-owned prose / self-titles, and whether the boundary is
-   swept or documented as a known drain-time reconcile.
+   latent one in the shared `reconcile-roadmap` path.
+
+   **Reference conservation.** The machine-vs-author boundary is drawn at **mechanical 1:1-rewritability**, and it
+   falls differently per verb (`rename` is 1:1 old→new; `decompose` is 1:N-then-gone — an origin reference has no
+   single target). By reference kind:
+     - **Structured, unambiguous target** (`Depends On`, backticked artifact filenames, cohort headings):
+       machine-swept for `rename` (extend the existing sweep); for `decompose`, `Depends On` rides area 1's receipt
+       reconcile.
+     - **Self-title H1 / `--plan` anchor** (the WU's own identity): machine-swept for `rename` (closes the
+       capture-706 gap); N/A for `decompose` (origin artifacts removed).
+     - **Backticked ref to a gone origin artifact** (`decompose`): machine-detected as dangling but **surfaced**, not
+       auto-retargeted — no single member to point at.
+     - **Prose / narrative slug mention** (both verbs): **surfaced, never auto-rewritten** (ambiguous target +
+       false-positive risk on common-word slugs) — an advisory reconcile, not today's silent-stale.
+
+   This reuses area 1's receipt + surface machinery, split by mode: mechanical refs reconcile automatically, judgment
+   refs surface for the author. The reconcile spans **three loci**, one mechanism throughout — (1) tracked lifecycle
+   tiers (`active/`, `backlog/planned|provisional/`), swept in-transform (the existing principled file scope); (2)
+   other WU branches, recorded in the receipt and reconciled in that WU's own flow; (3) **user state** — `USER-INBOX`
+   / `WORKING-MEMORY` / `SESSION-NOTES` carry _live, load-bearing_ cross-WU coordination (`WU_Target:` captures,
+   ordering obligations) that does **not** regen, so it reconciles at the per-developer `session-init` locus (the
+   transform cannot sweep gitignored, per-machine state — the same locus wall, one level out): structured `WU_Target`
+   auto-reconciles in the owner's session-init under `rename` (surfaces under `decompose`), prose mentions surface.
+   **Genuinely out of scope:** `completed/` (inert history) and adopter-facing `system/`/`reference/` (WU slugs must
+   not appear there per Documentation Boundaries); `STATUS.USER` / `ROADMAP` stay out only because they regen.
 
 **Cross-cutting — cohort-fit re-gate at spec (not now).** Held honestly against our own rails: `assess-cohort-fit`
 is maturity-gated, and this widened design is still forming, so the cuts are not yet real → **iterate as one unit**.
@@ -197,11 +227,17 @@ shared CLI substrate_ (per-verb prose patches would violate them, independently 
   fail-closed reconcile lands here or in the merge-guard tier (`review-gate-right-sizing`) is the one remaining
   Area-1 fork — settle at spec. Degraded-read policy leans settled (record reachability + proceed; the CAS re-checks
   at finalize).
-- **Flat-sibling verdict/schema shape** (area 2) — new `parentPosition` value vs. new `shape`; settle at spec.
-- **Reference-conservation scope** (area 4) — the sweep-vs-document policy fork, shared with `rename`.
+- **Flat-sibling schema shape** (area 2) — **settled**: a new `parentPosition` value (cohort-placement axis), not a
+  new `shape` (origin-disposition axis) and not a boolean. Value name is spec polish.
+- **Reference-conservation policy** (area 4) — **settled** (the 1:1-rewritability boundary; machine-sweep /
+  detect-surface / surface by reference kind; three reconcile loci incl. per-developer user state). Residual is
+  spec-time tuning: the prose-mention surface's false-positive scoping, and the `WU_Target` auto-reconcile's config
+  gate.
 - **Rename worktree-move sweep surface** (area 3) — the exact new session-init sweep kind and its stamp/marker.
-- **abandon / park delta** — do they need explicit changes or inherit for free from the shared-substrate fixes?
-  Verify at spec; both share retirement authority + deferred teardown + `reconcile-roadmap`.
+- **abandon / park delta** — **settled**: `park` inherits for free (shares `reconcile-roadmap` + deferred teardown;
+  slug persists → no incoming-edge concern). `abandon` does **not** — it does zero incoming-edge handling today, so a
+  dependent of an abandoned WU dangles silently; bring it onto area 1's reconcile with the no-replacement `abandoned`
+  disposition (drop + surface).
 - **Rename-tier scope** — the active-WU identity rename (branch + worktree identity) vs. backlog-tier; area 3's
   in-place + deferred-move model is the leaning answer.
 
