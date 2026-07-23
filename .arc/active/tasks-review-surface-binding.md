@@ -531,10 +531,10 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
         - Local attestation and frontline execution now reload and retry bounded expected version conflicts at the
           handler boundary, converging exact publications while preserving divergent-record refusal
 
-    - `[ ]` **8.R.c Make frontline failure outcomes truthful and reachable**
-        - Preserve the detached exact-head execution boundary while mapping target mismatch, source binding,
-          unsupported capability, rejected authorization, and invalid output through their specified typed outcomes
-        - Keep local-operator tamper resistance and write-prevention outside scope
+    - `[x]` **8.R.c Make frontline failure outcomes truthful and reachable**
+        - Frontline execution now durably maps exact-head drift, stale source registration, missing executable
+          capability, rejected launch authorization, and invalid provider output to their closed public outcomes while
+          retaining the detached-checkout boundary
 
     - `[ ]` **8.R.d Bound executable resolution and provider execution**
         - Carry the existing deadline and abort signal through executable lookup, version interrogation, and provider

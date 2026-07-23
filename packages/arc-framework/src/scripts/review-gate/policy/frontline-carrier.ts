@@ -32,6 +32,21 @@ export interface FrontlineCarrierAdapters<Result = unknown> {
   }): Promise<FrontlineAdapterPreparation<Result>>;
 }
 
+export type FrontlineCarrierFailureClass =
+  | "transient-unavailable"
+  | "capability-unsupported"
+  | "invalid-output"
+  | "authorization-rejected";
+
+/** Map a non-ready carrier preparation to the closed public failure vocabulary. */
+export function classifyFrontlineCarrierFailure(
+  prepared: Exclude<FrontlineCarrierPreparation, { status: "ready" }>,
+): FrontlineCarrierFailureClass {
+  if (prepared.status === "needs-authorization") return "authorization-rejected";
+  if (prepared.reason.startsWith("unsupported-")) return "capability-unsupported";
+  return prepared.status === "invalid" ? "invalid-output" : "transient-unavailable";
+}
+
 function normalizePreparation<Result>(
   source: FrontlineSourceDescriptor,
   prepared: FrontlineAdapterPreparation<Result>,

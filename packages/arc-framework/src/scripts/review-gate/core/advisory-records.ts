@@ -101,6 +101,8 @@ export const FrontlineOutcomeRecordSchema = FrontlineOutcomeRecordObjectSchema.s
       path: ["outcomeDigest"],
     });
   }
+  // Staleness can be detected either before executable resolution or by a launched provider.
+  if (record.outcome.outcome === "stale-target") return;
   const launched = outcomeRequiredExecutable(record.outcome);
   if (launched !== (record.executableIdentity !== null)) {
     context.addIssue({

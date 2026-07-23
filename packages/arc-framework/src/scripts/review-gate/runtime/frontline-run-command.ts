@@ -22,10 +22,12 @@ import {
   type FrontlineRunExecutionDependencies,
 } from "../policy/frontline-operation.js";
 import {
+  normalizeFrontlineOutcome,
+} from "../policy/frontline-outcome.js";
+import {
   FrontlineSemanticRecordSchema,
 } from "../policy/frontline-semantic.js";
 import {
-  FrontlineSourceDescriptorSchema,
   type FrontlineSourceDescriptor,
 } from "../policy/frontline-source.js";
 import {
@@ -42,7 +44,7 @@ export const FrontlineRunRequestSchema = z.strictObject({
 export interface FrontlineRunCommandDependencies {
   operationStore: ReviewOperationStateStore;
   outcomeStore: FrontlineOutcomeStore;
-  confirmSource(source: FrontlineSourceDescriptor): Promise<FrontlineSourceDescriptor>;
+  confirmSource(source: FrontlineSourceDescriptor): Promise<FrontlineSourceDescriptor | null>;
   prepareExecutionTarget(target: ReviewTarget): Promise<{
     target: ReviewTarget;
     reviewRoot: string;
@@ -103,34 +105,64 @@ export async function runFrontlineReviewCommand(
   if (semantic.action !== "attempt" || semantic.source === null) {
     throw new Error("frontline ready resolution lacks an executable source");
   }
-  const source = FrontlineSourceDescriptorSchema.parse(await dependencies.confirmSource(semantic.source));
-  if (canonicalize(source) !== canonicalize(semantic.source)) {
-    throw new Error("frontline source registration changed");
-  }
   const target = validateReviewTarget(request.target);
   const prepared = await dependencies.prepareExecutionTarget(target);
   const executionTarget = validateReviewTarget(prepared.target);
-  if (canonicalize(executionTarget) !== canonicalize(target)) {
-    await prepared.release();
-    throw new Error("frontline execution target mismatch");
-  }
   let terminal;
   try {
+    let source = semantic.source;
+    let execute: FrontlineRunExecutionDependencies["execute"];
+    if (canonicalize(executionTarget) !== canonicalize(target)) {
+      if (executionTarget.headSha === target.headSha) {
+        throw new Error("frontline execution target coordinates mismatch");
+      }
+      execute = () => Promise.resolve({
+        outcome: normalizeFrontlineOutcome({
+          providerResult: {
+            kind: "stale-head",
+            expectedHeadSha: target.headSha,
+            observedHeadSha: executionTarget.headSha,
+          },
+          source,
+          target,
+          pass: readyPayload.pass,
+          maxPasses: readyPayload.maxPasses,
+        }),
+        executableIdentity: null,
+      });
+    } else {
+      const confirmed = await dependencies.confirmSource(semantic.source);
+      if (confirmed === null || canonicalize(confirmed) !== canonicalize(semantic.source)) {
+        execute = () => Promise.resolve({
+          outcome: normalizeFrontlineOutcome({
+            providerResult: { kind: "source-unbound" },
+            source,
+            target,
+            pass: readyPayload.pass,
+            maxPasses: readyPayload.maxPasses,
+          }),
+          executableIdentity: null,
+        });
+      } else {
+        source = confirmed;
+        execute = () => executeBoundedFrontlineCarrier({
+          timeoutMs: request.timeoutMs,
+          execute: ({ remainingMs, signal }) => dependencies.execute({
+            source,
+            target: executionTarget,
+            pass: readyPayload.pass,
+            maxPasses: readyPayload.maxPasses,
+            remainingMs,
+            signal,
+            reviewRoot: prepared.reviewRoot,
+          }),
+        });
+      }
+    }
     terminal = await executeFrontlineRun({
       operationStore: dependencies.operationStore,
       outcomeStore: dependencies.outcomeStore,
-      execute: () => executeBoundedFrontlineCarrier({
-        timeoutMs: request.timeoutMs,
-        execute: ({ remainingMs, signal }) => dependencies.execute({
-          source,
-          target: executionTarget,
-          pass: readyPayload.pass,
-          maxPasses: readyPayload.maxPasses,
-          remainingMs,
-          signal,
-          reviewRoot: prepared.reviewRoot,
-        }),
-      }),
+      execute,
       now: () => dependencies.now(),
     }, {
       target,

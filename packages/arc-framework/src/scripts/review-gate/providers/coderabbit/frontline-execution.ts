@@ -8,6 +8,9 @@ import type {
   FrontlineSourceRegistration,
 } from "../../policy/frontline-source.js";
 import { parseCodeRabbitAgentResult } from "./frontline-agent.js";
+import {
+  CodeRabbitExecutableUnavailableError,
+} from "./executable.js";
 import type { CodeRabbitProcessResult } from "./process.js";
 
 export const CODERABBIT_FRONTLINE_REGISTRATION: FrontlineSourceRegistration = {
@@ -21,6 +24,11 @@ export const CODERABBIT_FRONTLINE_REGISTRATION: FrontlineSourceRegistration = {
 
 interface ResolvedCodeRabbitExecutable extends FrontlineExecutableIdentity {
   path: string;
+}
+
+function systemErrorCode(error: unknown): string | null {
+  if (!(error instanceof Error) || !("code" in error)) return null;
+  return typeof error.code === "string" ? error.code : null;
 }
 
 /**
@@ -47,7 +55,7 @@ export async function executeCodeRabbitFrontline(input: {
   ): Promise<CodeRabbitProcessResult>;
 }): Promise<{
   outcome: FrontlineExecutionOutcome;
-  executableIdentity: FrontlineExecutableIdentity;
+  executableIdentity: FrontlineExecutableIdentity | null;
 }> {
   const expected = CODERABBIT_FRONTLINE_REGISTRATION.descriptor;
   if (input.source.sourceId !== CODERABBIT_FRONTLINE_REGISTRATION.sourceId
@@ -55,10 +63,34 @@ export async function executeCodeRabbitFrontline(input: {
     || expected.kind !== "command"
     || input.source.executable !== expected.executable
     || input.source.argv.join("\0") !== expected.argv.join("\0")) {
-    throw new Error("invalid CodeRabbit frontline source binding");
+    return {
+      outcome: normalizeFrontlineOutcome({
+        providerResult: { kind: "source-unbound" },
+        source: input.source,
+        target: input.target,
+        pass: input.pass,
+        maxPasses: input.maxPasses,
+      }),
+      executableIdentity: null,
+    };
   }
 
-  const executable = await dependencies.resolveExecutable(input.source.executable);
+  let executable: ResolvedCodeRabbitExecutable;
+  try {
+    executable = await dependencies.resolveExecutable(input.source.executable);
+  } catch (error) {
+    if (!(error instanceof CodeRabbitExecutableUnavailableError)) throw error;
+    return {
+      outcome: normalizeFrontlineOutcome({
+        providerResult: { kind: "capability-unsupported" },
+        source: input.source,
+        target: input.target,
+        pass: input.pass,
+        maxPasses: input.maxPasses,
+      }),
+      executableIdentity: null,
+    };
+  }
   let processResult: CodeRabbitProcessResult;
   try {
     processResult = await dependencies.run(executable.path, [
@@ -70,7 +102,19 @@ export async function executeCodeRabbitFrontline(input: {
       remainingMs: input.remainingMs,
       signal: input.signal,
     });
-  } catch {
+  } catch (error) {
+    if (["EACCES", "EPERM"].includes(systemErrorCode(error) ?? "")) {
+      return {
+        outcome: normalizeFrontlineOutcome({
+          providerResult: { kind: "authorization-rejected" },
+          source: input.source,
+          target: input.target,
+          pass: input.pass,
+          maxPasses: input.maxPasses,
+        }),
+        executableIdentity: null,
+      };
+    }
     processResult = {
       exitCode: null,
       signal: "process-error",

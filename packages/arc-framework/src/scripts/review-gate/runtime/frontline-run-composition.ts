@@ -14,8 +14,12 @@ import {
   LocalReviewOperationStateStore,
 } from "../hosts/local/operation-state-store.js";
 import {
+  classifyFrontlineCarrierFailure,
   prepareFrontlineCarrier,
 } from "../policy/frontline-carrier.js";
+import {
+  normalizeFrontlineOutcome,
+} from "../policy/frontline-outcome.js";
 import {
   FrontlineSourceRegistry,
 } from "../policy/frontline-source.js";
@@ -43,7 +47,6 @@ export function createFrontlineRunDependencies(input: {
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),
     confirmSource: (source) => {
       const registered = registry.resolve(source.sourceId);
-      if (registered === null) throw new Error(`unregistered frontline source: ${source.sourceId}`);
       return Promise.resolve(registered);
     },
     prepareExecutionTarget: (target) => prepareFrontlineTargetMaterialization({
@@ -75,7 +78,27 @@ export function createFrontlineRunDependencies(input: {
         ),
       });
       if (prepared.status !== "ready") {
-        throw new Error(`frontline carrier is not executable: ${prepared.status}`);
+        const failure = classifyFrontlineCarrierFailure(prepared);
+        const providerResult = failure === "authorization-rejected"
+          ? { kind: "authorization-rejected" as const }
+          : failure === "capability-unsupported"
+            ? { kind: "capability-unsupported" as const }
+            : failure === "invalid-output"
+              ? { kind: "malformed" as const }
+              : {
+                  kind: "unavailable" as const,
+                  reason: prepared.status === "unavailable" ? prepared.reason : "adapter-unavailable",
+                };
+        return {
+          outcome: normalizeFrontlineOutcome({
+            providerResult,
+            source: execution.source,
+            target: execution.target,
+            pass: execution.pass,
+            maxPasses: execution.maxPasses,
+          }),
+          executableIdentity: null,
+        };
       }
       return prepared.execute();
     },

@@ -27,6 +27,16 @@ export interface ResolvedCodeRabbitExecutable {
   qualifiedVersion: string;
 }
 
+/** Stable absence result for a configured executable that this runtime cannot launch. */
+export class CodeRabbitExecutableUnavailableError extends Error {
+  readonly code = "capability-unsupported" as const;
+
+  constructor(command: string) {
+    super(`frontline executable not found: ${command}`);
+    this.name = "CodeRabbitExecutableUnavailableError";
+  }
+}
+
 function executableNames(
   command: string,
   platform: NodeJS.Platform,
@@ -56,7 +66,7 @@ async function findExecutable(
       }
     }
   }
-  throw new Error(`frontline executable not found: ${command}`);
+  throw new CodeRabbitExecutableUnavailableError(command);
 }
 
 async function interrogateVersion(path: string): Promise<string> {

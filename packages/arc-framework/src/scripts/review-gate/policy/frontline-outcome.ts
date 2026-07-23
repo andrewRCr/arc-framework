@@ -70,6 +70,9 @@ const FrontlineProviderResultSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({ kind: z.literal("rate-limited") }),
   z.strictObject({ kind: z.literal("unavailable"), reason: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("source-unbound") }),
+  z.strictObject({ kind: z.literal("capability-unsupported") }),
+  z.strictObject({ kind: z.literal("authorization-rejected") }),
   z.strictObject({ kind: z.enum(["ambiguous", "partial", "malformed"]) }),
   z.strictObject({
     kind: z.literal("stale-head"),
@@ -179,6 +182,18 @@ export function normalizeFrontlineOutcome(input: {
     case "unavailable":
       return FrontlineExecutionOutcomeSchema.parse({
         ...base, outcome: "unavailable", findings: [], reason: { class: "transient-unavailable" },
+      });
+    case "source-unbound":
+      return FrontlineExecutionOutcomeSchema.parse({
+        ...base, outcome: "unavailable", findings: [], reason: { class: "source-unbound" },
+      });
+    case "capability-unsupported":
+      return FrontlineExecutionOutcomeSchema.parse({
+        ...base, outcome: "unavailable", findings: [], reason: { class: "capability-unsupported" },
+      });
+    case "authorization-rejected":
+      return FrontlineExecutionOutcomeSchema.parse({
+        ...base, outcome: "failed", findings: [], reason: { class: "authorization-rejected" },
       });
     case "ambiguous":
     case "partial":

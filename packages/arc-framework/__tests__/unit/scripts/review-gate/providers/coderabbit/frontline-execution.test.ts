@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
 import { createReviewTarget } from "../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
+  CodeRabbitExecutableUnavailableError,
+} from "../../../../../../src/scripts/review-gate/providers/coderabbit/executable.js";
+import {
   CODERABBIT_FRONTLINE_REGISTRATION,
   executeCodeRabbitFrontline,
 } from "../../../../../../src/scripts/review-gate/providers/coderabbit/frontline-execution.js";
@@ -35,6 +38,79 @@ const executableIdentity = {
 };
 
 describe("CodeRabbit frontline execution", () => {
+  it("returns source-unbound without resolving or launching a changed registration", async () => {
+    const resolveExecutable = vi.fn();
+    const run = vi.fn();
+
+    await expect(executeCodeRabbitFrontline({
+      source: {
+        sourceId: "coderabbit-cli",
+        kind: "command",
+        executable: "coderabbit",
+        argv: ["review", "--changed"],
+      },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
+    }, { run, resolveExecutable })).resolves.toMatchObject({
+      outcome: {
+        outcome: "unavailable",
+        reason: { class: "source-unbound" },
+      },
+      executableIdentity: null,
+    });
+    expect(resolveExecutable).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("returns capability-unsupported when the configured executable cannot be resolved", async () => {
+    const run = vi.fn();
+
+    await expect(executeCodeRabbitFrontline({
+      source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
+    }, {
+      run,
+      resolveExecutable: vi.fn().mockRejectedValue(new CodeRabbitExecutableUnavailableError("coderabbit")),
+    })).resolves.toMatchObject({
+      outcome: {
+        outcome: "unavailable",
+        reason: { class: "capability-unsupported" },
+      },
+      executableIdentity: null,
+    });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("returns authorization-rejected when the resolved executable cannot be launched", async () => {
+    await expect(executeCodeRabbitFrontline({
+      source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
+    }, {
+      run: vi.fn().mockRejectedValue(Object.assign(new Error("spawn EACCES"), { code: "EACCES" })),
+      resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+    })).resolves.toMatchObject({
+      outcome: {
+        outcome: "failed",
+        reason: { class: "authorization-rejected" },
+      },
+      executableIdentity: null,
+    });
+  });
+
   it("runs the resolved executable once inside the immutable exact-head checkout", async () => {
     const run = vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout: cleanOutput, stderr: "" });
     const resolveExecutable = vi.fn().mockResolvedValue(executableIdentity);
