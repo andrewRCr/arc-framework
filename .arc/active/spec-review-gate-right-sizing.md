@@ -200,6 +200,34 @@ combined convergence/release integration gate, A4/B3): an explicit line enumerat
 closing with an open-ended `Approve (or redirect)?`. This restyles only this review loop's surface; it does not
 touch ARC's other approval gates.
 
+**Public PR review record.** A reviewed WU or reviewed Errand publishes one concise `## Review` section in the PR
+body after final settlement. It is reader-facing disclosure, not evidence, attestation, or merge authority:
+
+```markdown
+## Review
+
+- **Local:** CodeRabbit CLI (1 pass); Claude Opus 4.8 (2 passes)
+- **Hosted PR:** Codex (1 review; see timeline)
+- **Triage:** @andrewRCr — 3 addressed · 1 deferred · 0 unresolved
+```
+
+`Local` aggregates CLI and delegated-agent reviews that do not have a native PR review record; `Hosted PR`
+aggregates reviews visible in the PR timeline. This is a record-location distinction, not a timing distinction, so
+the summary carries no pre-/post-PR qualifiers. Tools use their product identity; delegated reviewers use the
+exposed model identity. Both source lines remain present when any review ran, with `None` for an empty category; if
+no review ran because the configured review segment no-opped, omit the section.
+
+Triage counts distinct material findings across the PR's completed review passes by their final approved
+disposition, not fixes or raw comments: `addressed`, `declined`, `deferred`, and `unresolved`, omitting zero-valued
+categories except the integration-readiness signal `0 unresolved`. A cycle with no material finding reads
+`no material findings`. The `@handle` is the GitHub identity of the person who approved the final disposition set
+— normally the authenticated developer, but never inferred from PR authorship when another person supplied that
+approval. The final integration gate previews this record; after approval and the unchanged exact-head mechanical
+checks, the workflow updates the PR body immediately before merge. A later head mutation makes the record stale
+and requires replacement after re-convergence. The workflow composes the counts from the review outputs and
+dispositions it already handled; no receipt, fix-carry ledger, model registry, new state/schema, or `arc-cleared`
+validation is introduced.
+
 **A4 — Convergence is proposed, not asked.** Convergence is weak-signal — only minor / nitpick findings remaining,
 the same materiality bar as the `adversarial-review` exit gate. Before candidate assembly, that condition reduces
 the implementation head to `review-settled` and permits the existing candidate tail; it grants no prospective
@@ -643,9 +671,11 @@ guard gets: readiness-check unit tests (the single CLI definition), a born-locke
 planning-lane-exempt vs reviewed-lane-locked assertion, raw-diff rename/copy/type/mode and fork/cross-repository
 cases, and PR-head-as-data assertions covering symlink/non-regular/out-of-root rejection and no head-code
 execution. Setup coverage proves the packaged template installs with an exact manifest-matched CLI version and
-shares the self-hosting workflow's trust/status contract. Deletion review is reference-and-test checking: after
-the cut, a reachability re-walk from every production entry point shows no dangling import into deleted modules,
-and the deleted tests are gone with their subjects.
+shares the self-hosting workflow's trust/status contract. Workflow/template fixtures cover local-only, hosted-only,
+mixed, clean, disposition-bearing, and no-review PR records, including exact reviewer identity, human triage
+attribution, review-cycle accounting, and refresh after a head change. Deletion review is reference-and-test
+checking: after the cut, a reachability re-walk from every production entry point shows no dangling import into
+deleted modules, and the deleted tests are gone with their subjects.
 
 **Migration and rollout.** The branch-protection edit that adds the required `arc-cleared` context is the one
 breaking host-config change. Do not arm it on this WU's PR: the pinned `repository_dispatch` workflow does not
@@ -659,7 +689,10 @@ a protection edit, and a page of docs), all off by default: frontline and standa
 guard needs setup (§ C3). A default install's integration is unchanged — the inline loop no-ops when no standard
 source is configured, and `01_verify-and-configure.md` § Optional surfaces the choices. Nothing is represented as
 autonomous host-side merge authority; the human disposition moment and the human-held unlock remain the trust
-chain. The review controller / App narrative leaves TECHNICAL-OVERVIEW because the machinery leaves the repository.
+chain. Reviewed PRs gain a concise public review record that distinguishes local from hosted-PR activity, names
+the actual tools/models and human triage approver, and summarizes final finding dispositions without exposing ARC
+role vocabulary. The review controller / App narrative leaves TECHNICAL-OVERVIEW because the machinery leaves the
+repository.
 
 **Audience boundaries.** This spec, the WU notes, and the self-hosting TECHNICAL-OVERVIEW edit are
 internal-dev-facing. The choreography verbs' help text, setup workflow, lifecycle workflow edits, and two shipped
@@ -714,7 +747,11 @@ proof; exact default-branch guard activation is the durably-routed immediate pos
 11. **Configurable/opt-in for any install.** A default ARC install (no frontline sources, no standard sources,
     guard not set up) completes a WU integration end-to-end with the standard-review segment cleanly skipped even
     when `standardReview` is non-exempt — proving the driver-owned opt-out and graceful degradation.
-12. ADR-028 is superseded by a new accepted ADR that records the replacement authority model; its historical body
+12. Every reviewed WU and reviewed Errand PR publishes a final `## Review` record before merge: local and hosted-PR
+    activity are separately attributed by product/model and pass count, while the approving GitHub identity and
+    final material-finding dispositions make human triage visible. Empty review segments add no section, and the
+    record remains disclosure rather than clearance evidence.
+13. ADR-028 is superseded by a new accepted ADR that records the replacement authority model; its historical body
     and amendments remain intact.
 
 ## Open Questions

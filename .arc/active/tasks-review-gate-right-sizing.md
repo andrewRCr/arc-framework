@@ -417,7 +417,28 @@ integration callers, leaving judgment only at disposition and convergence.
           stop. Any failure, drift, or mutation invalidates approval and returns through review or the interlock.
           Informal assent outside the structured gate grants no clearance or integration authority.
 
-    - `[ ]` **3.1.d Prove the workflow driver across configured and empty source sets**
+    - `[ ]` **3.1.d Publish the final public PR review record**
+
+        - Extend the package-source `template-pull-request.md` and its projected copy with one content-gated
+          `## Review` section. Replace the current blanket prohibition on local-review narration with the narrow
+          normalized record while continuing to reject informal self-review meta-narration.
+        - At the combined final gate, preview the exact record that approval will publish. After approval and the
+          unchanged exact-head mechanical checks, update the PR body immediately before merge; if the head changes,
+          treat the prior record as stale and replace it only after the new head converges.
+        - Render `Local` and `Hosted PR` source lines whenever any review ran, using `None` for an empty category.
+          Aggregate completed review activity by human-readable product or exposed model identity and pass/review
+          count, with no ARC role names or pre-/post-PR timing qualifiers. Omit the whole section when the review
+          loop ran no review.
+        - Render `Triage` with the GitHub identity that approved the final disposition set and counts of distinct
+          material findings across completed review passes by their final approved disposition: addressed,
+          declined, deferred, and unresolved. Omit zero-valued categories except `0 unresolved`; render
+          `no material findings` for a clean cycle. Default to the authenticated developer only when that person
+          supplied the approval, never mechanically to the PR author.
+        - Add template/workflow fixtures for local-only, hosted-only, mixed, clean, disposition-bearing, and
+          no-review records, plus refresh after head mutation. Keep this as PR disclosure: add no receipt, model
+          registry, fix-carry ledger, state/schema, public ARC verb, or `arc-cleared` validation.
+
+    - `[ ]` **3.1.e Prove the workflow driver across configured and empty source sets**
 
         - Extend integration/workflow tests with envelope fixtures for no standard source, frontline-only,
           delegated-agent standard review, hosted-PR standard review, safe ordered fallback, non-fall-through
@@ -446,6 +467,9 @@ integration callers, leaving judgment only at disposition and convergence.
 
         - Reuse the same CLI envelopes, disposition format, combined convergence/release gate, and pass-ceiling
           exception; do not fork a second policy or duplicate provider logic in workflow prose.
+        - Reuse the same final public PR review record, including local/hosted attribution, final finding counts,
+          human GitHub triage identity, content gating, and stale-head replacement; do not create an Errand-specific
+          summary vocabulary.
         - Preserve Errand-specific PR, cleanup, unattended planning-lane, and integration-interlock behavior around
           the inserted segment; on the reviewed lane, the combined gate occupies that integration interlock rather
           than preceding it as another stop.
@@ -749,6 +773,10 @@ activation ready for its immediate post-merge Errand.
 
 - `[ ]` Shipped lifecycle prose and the self-hosting technical overview describe only the typed CLI loop and thin
   merge guard.
+
+- `[ ]` Every reviewed WU and reviewed Errand PR publishes a final `## Review` section that separately attributes
+  local and hosted-PR activity, identifies the GitHub triage approver, summarizes final material-finding
+  dispositions, and remains disclosure rather than merge evidence; no-review PRs omit it.
 
 - `[ ]` Self-hosting enables its ordered frontline and standard sources, while a default installation with neither
   list configured still completes integration despite change-shaped `standardReview`; the merge guard remains
