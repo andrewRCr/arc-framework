@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "housekeep-dh-inbound-routes",
-  "origin": "description",
-  "intent": "Route decomposition-hardening cross-WU notes into existing stub inbound buffers",
-  "branch": "chore/housekeep-dh-inbound-routes",
-  "createdAt": "2026-07-23T20:21:29.918Z",
-  "returnBranch": "main"
-}
