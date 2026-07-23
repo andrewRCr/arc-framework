@@ -160,20 +160,15 @@ _Purpose:_ Wire production composition to the shipped method-activation resolver
 availability with an identity-keyed binding that parses a typed frontmatter overlay, with fail-closed diagnostics
 surfaced on the public result. All test-first (business logic + parsing/validation).
 
-### `[ ]` **3.1 Method-activation resolution in production composition**
+### `[x]` **3.1 Method-activation resolution in production composition**
 
 - _Goal:_ Production composition calls the shipped resolver (`resolveReviewMethodActivity`) for `self-review` and
   `frontline-review` instead of constructing literal booleans, preserving package-default fallback and surfacing
   activation diagnostics on the public result.
 
-- _Note:_ `policy/activity.ts` already exposes `bindReviewMethodActivity` / `resolveReviewMethodActivity` and
-  `ReviewMethodActivityResolution`; the production adapter reads the registered `self-review` and `frontline-review`
-  method files.
-
-    - Build `test-first` (one behavior at a time):
-        - a project override of activation is reflected in the resolution
-        - package-default activation is preserved when no project declaration exists
-        - a malformed project declaration returns a diagnostic on the public result (not a throw)
+- _Outcome:_ Added production assurance composition over the existing activity resolver and a local adapter for the
+  two managed method files; effective project/default activity and malformed-declaration diagnostics now travel
+  together on the composed result.
 
 ### `[ ]` **3.2 `ReviewRubricBindingPort` production adapter and `review-augmentation` parse**
 

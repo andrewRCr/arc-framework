@@ -8,13 +8,21 @@ import {
   type WorkUnitReviewAssurance,
 } from "./assurance-schema.js";
 import {
+  bindReviewMethodActivity,
   resolveReviewMethodActivity,
   type ReviewMethodActivityPort,
+  type ReviewMethodFilePort,
 } from "./activity.js";
 
 /** Identity-keyed rubric binding seam; method discovery stays in its adapter. */
 export interface ReviewRubricBindingPort {
   resolveReviewRubricBinding(identity: string): { identity: string } | null;
+}
+
+/** Production-composed assurance plus non-fatal method-declaration diagnostics. */
+export interface ComposedWorkUnitReviewAssurance {
+  readonly assurance: WorkUnitReviewAssurance;
+  readonly diagnostics: readonly string[];
 }
 
 /** Resolve WU review inputs without binding production method discovery. */
@@ -44,4 +52,17 @@ export function resolveWorkUnitReviewAssurance(
     assurance: { workContext: "work-unit", workClass },
     reviewRubric,
   });
+}
+
+/** Compose work-unit assurance from the registered review method files. */
+export function composeWorkUnitReviewAssurance(
+  meta: Pick<MetaRecord, "Class" | "Review Rubric">,
+  methodFiles: ReviewMethodFilePort,
+  rubricPort: ReviewRubricBindingPort,
+): ComposedWorkUnitReviewAssurance {
+  const activity = bindReviewMethodActivity(methodFiles);
+  return {
+    assurance: resolveWorkUnitReviewAssurance(meta, activity.activityPort, rubricPort),
+    diagnostics: activity.diagnostics,
+  };
 }
