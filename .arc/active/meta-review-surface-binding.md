@@ -13,10 +13,9 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec finalized — spec re-groomed against the settled `review-gate-right-sizing`
-  verdict (evidence-grade tier shed; obligation change-shaped, review-source model + `standard-review` rename
-  coordinated), verified across three adversarial passes, draft retired
-- **Next Task:** Begin Task 1.1 — Rename the standard-review code identity and modules
+- **Last Completed:** generate-tasks finalized — 8-phase task list (adversarial pass folded 5 findings); base
+  reconciled with `main`; WU activated to `feat/review-surface-binding`
+- **Next Task:** Task 1.1 — Rename the `standard-review` code identity and modules (line ~19)
 - **Blockers:** [none]
 
 - **Next Action:** Begin Phase 1 execution — Task 1.1, the coordinated live-closure rename; integrate before
