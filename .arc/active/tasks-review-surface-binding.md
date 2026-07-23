@@ -434,30 +434,39 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
 - _Outcome:_ The dormant re-entry capability cluster, its schema registration, legacy receipt-dispatch bridge, and
   unbound wakeup ports are gone without changing the live operation store or current review command surface.
 
-### `[ ]` **7.2 Boundary-module consumer test and gate-cohort hand-off**
+### `[x]` **7.2 Boundary-module consumer test and gate-cohort hand-off**
 
 - _Goal:_ The two boundary `policy/standard-review*.ts` modules are dispositioned under the consumer test, and the three
   gate-cohort modules are left to `review-gate-right-sizing`'s cut under append-only merge-order coordination.
 
-    - `[ ]` **7.2.a Confirm `policy/standard-review-guidance.ts` is consumed by Task 3.2 → keep**
+    - `[x]` **7.2.a Confirm `policy/standard-review-guidance.ts` is consumed by Task 3.2 → keep**
+        - Kept the guidance module: the production assurance, rubric-binding, assurance-schema, and local-guidance
+          paths consume its augmentation and baseline contracts.
 
-    - `[ ]` **7.2.b Consumer-test `policy/standard-review.ts`** — **keep**: `standard-review-projection.ts` (a
-      consume-set module) imports its `STANDARD_REVIEW_RUBRIC_IDENTITY`, so it is transitively consumed
+    - `[x]` **7.2.b Consumer-test `policy/standard-review.ts`**
+        - Kept the standard-review module: production obligation projection imports its rubric identity, while
+          local-guidance and provider paths consume its baseline contract.
 
-    - `[ ]` **7.2.c Verify the gate-cohort modules remain unconsumed** — confirm `providers/coderabbit/config.ts`,
-      `runtime/qualification-activation.ts`, and `runtime/operations.ts` are unconsumed by this WU; leave for the
-      sibling's cut (whichever branch lands first removes them)
+    - `[x]` **7.2.c Verify the gate-cohort modules remain unconsumed**
+        - Confirmed `providers/coderabbit/config.ts`, `runtime/qualification-activation.ts`, and
+          `runtime/operations.ts` have no production import from this WU and remain assigned to the sibling cut.
 
-- _Note:_ Joint-confirm at build with `review-gate-right-sizing` § D4.
+- _Outcome:_ Both boundary policy modules remain production-consumed, while all three gate-cohort modules retain a
+  clean no-production-consumer hand-off to the coordinated sibling cut.
 
-### `[ ]` **7.3 Reachability-walk re-run — every consume-set port has a production caller**
+### `[x]` **7.3 Reachability-walk re-run — every consume-set port has a production caller**
 
 - _Goal:_ A re-run of the reachability walk from every production entry point (the CLI, the `run-*.ts` launchers, and
   schema registration) shows no consume-set module without a production caller and no dormant module unclassified.
 
-    - `[ ]` **7.3.a Run and record the walk** — confirm the 14 consume-set modules are reachable and the retire/hand-off
-      sets are gone or pending; pre-existing forward-contract interfaces this WU neither delivers nor touches are out
-      of scope (Goal 6, SC 9)
+    - `[x]` **7.3.a Run and record the walk**
+        - Traced all 14 consume-set modules from the CLI, legacy launchers, or schema registration. Wired carrier
+          preparation into exact-target frontline execution, frontline findings through the response adapter, and
+          durable-inventory/version validation into schema composition; retire-set references remain absent and the
+          three gate-cohort modules retain no production consumer.
+
+- _Outcome:_ Every D14 consume-set module now has a substantive production caller, while the retire and coordinated
+  hand-off sets remain completely classified.
 
 ### `[ ]` **7.4 `TECHNICAL-OVERVIEW` § 2 reconciliation**
 

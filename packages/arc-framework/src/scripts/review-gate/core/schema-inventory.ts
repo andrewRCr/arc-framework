@@ -1,5 +1,7 @@
 /** Closed inventory of durable review records whose schemas are owned by later domain modules. */
 
+import type { KernelRegistry } from "../../../lib/kernel/index.js";
+
 export const REVIEW_DURABLE_RECORD_INVENTORY = [
   { id: "review-target", version: 2, owner: "gate-contract" },
   { id: "review-requirement", version: 2, owner: "gate-contract" },
@@ -24,3 +26,44 @@ export const REVIEW_DURABLE_RECORD_INVENTORY = [
 ] as const;
 
 export type ReviewDurableRecordIdentity = (typeof REVIEW_DURABLE_RECORD_INVENTORY)[number]["id"];
+
+const REGISTERED_SCHEMA_IDENTITIES: Partial<Record<ReviewDurableRecordIdentity, string>> = {
+  "normalized-finding": "normalized-review-finding",
+  "fix-consumption": "fix-authorization-consumption",
+};
+
+/**
+ * Fail closed when the durable-record inventory and registered schema authority diverge.
+ *
+ * @param registry - Fully composed review-domain schema registry.
+ */
+export function assertReviewDurableRecordInventory(registry: KernelRegistry): void {
+  for (const record of REVIEW_DURABLE_RECORD_INVENTORY) {
+    const schemaId = REGISTERED_SCHEMA_IDENTITIES[record.id] ?? record.id;
+    const registered = registry.meta(schemaId);
+    if (registered === undefined) {
+      throw new Error(`${record.id} inventory entry has no registered schema '${schemaId}'`);
+    }
+    if (registered.version !== record.version) {
+      throw new Error(
+        `${record.id} inventory version ${record.version} does not match registered version ${registered.version}`,
+      );
+    }
+    if ("variants" in record) {
+      for (const variant of record.variants) {
+        const variantSchemaId = `${variant}-state`;
+        const registeredVariant = registry.meta(variantSchemaId);
+        if (registeredVariant === undefined) {
+          throw new Error(`${record.id} variant '${variant}' has no registered schema '${variantSchemaId}'`);
+        }
+        if (registeredVariant.version !== record.version) {
+          const message = [
+            `${record.id} variant '${variant}' version ${record.version}`,
+            `does not match registered version ${registeredVariant.version}`,
+          ].join(" ");
+          throw new Error(message);
+        }
+      }
+    }
+  }
+}

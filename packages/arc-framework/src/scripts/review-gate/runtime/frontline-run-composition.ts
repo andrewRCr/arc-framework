@@ -14,6 +14,9 @@ import {
   LocalReviewOperationStateStore,
 } from "../hosts/local/operation-state-store.js";
 import {
+  prepareFrontlineCarrier,
+} from "../policy/frontline-carrier.js";
+import {
   FrontlineSourceRegistry,
 } from "../policy/frontline-source.js";
 import {
@@ -48,13 +51,33 @@ export function createFrontlineRunDependencies(input: {
       target,
     }),
     execute: async (execution) => {
-      if (execution.source.sourceId !== CODERABBIT_FRONTLINE_REGISTRATION.sourceId) {
-        throw new Error(`unsupported frontline source: ${execution.source.sourceId}`);
-      }
-      return executeCodeRabbitFrontline(execution, {
-        resolveExecutable: resolveCodeRabbitExecutable,
-        run: runCodeRabbitProcess,
+      const expected = CODERABBIT_FRONTLINE_REGISTRATION.descriptor;
+      const prepared = await prepareFrontlineCarrier(execution.source, {
+        prepareAgent: () => Promise.resolve({
+          status: "unavailable",
+          reason: "unsupported-agent-carrier",
+        }),
+        prepareCommand: ({ executable, argv }) => Promise.resolve(
+          expected.kind === "command"
+          && executable === expected.executable
+          && argv.join("\0") === expected.argv.join("\0")
+            ? {
+                status: "ready",
+                execute: () => executeCodeRabbitFrontline(execution, {
+                  resolveExecutable: resolveCodeRabbitExecutable,
+                  run: runCodeRabbitProcess,
+                }),
+              }
+            : {
+                status: "invalid",
+                reason: "unsupported-command-carrier",
+              },
+        ),
       });
+      if (prepared.status !== "ready") {
+        throw new Error(`frontline carrier is not executable: ${prepared.status}`);
+      }
+      return prepared.execute();
     },
     now: () => new Date().toISOString(),
   };

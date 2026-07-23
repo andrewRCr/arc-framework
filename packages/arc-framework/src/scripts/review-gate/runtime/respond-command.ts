@@ -29,7 +29,11 @@ import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
 import { projectReviewResponse } from "../core/response-plan.js";
+import type { ReviewResponseInput } from "../core/response-plan-schema.js";
 import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
+import {
+  projectFrontlineResponse,
+} from "../policy/frontline-response.js";
 import {
   projectFrontlineFollowUpAdvice,
 } from "../policy/frontline-follow-up.js";
@@ -206,9 +210,10 @@ async function resolveFrontlineSource(
 }
 
 function projectApprovedResponse(source: ResolvedResponseSource, dispositions: ApprovedDispositionSet) {
-  return projectReviewResponse({
-    currentTarget: source.target,
-    findings: source.findings,
+  const response: Omit<
+    ReviewResponseInput,
+    "currentTarget" | "findings" | "channel" | "conversations"
+  > = {
     routing: {
       schemaVersion: 1,
       authorSelfReview: "required",
@@ -224,9 +229,19 @@ function projectApprovedResponse(source: ResolvedResponseSource, dispositions: A
     verificationPassed: false,
     verificationRefs: [],
     capabilities: { approve: false, fix: true, persist: false, close: true, reroute: false },
-    channel: "local",
-    conversations: [],
-  });
+  };
+  return source.frontlineOutcome === undefined
+    ? projectReviewResponse({
+        ...response,
+        currentTarget: source.target,
+        findings: source.findings,
+        channel: "local",
+        conversations: [],
+      })
+    : projectFrontlineResponse({
+        ...response,
+        outcome: source.frontlineOutcome,
+      });
 }
 
 /** Validate one approved set against its durable source and append its advisory record. */

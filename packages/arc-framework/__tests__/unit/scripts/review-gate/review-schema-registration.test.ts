@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import {
   SchemaError,
@@ -10,6 +11,9 @@ import {
 import {
   registerReviewDomainSchemas,
 } from "../../../../src/scripts/review-gate/core/register-review-schemas.js";
+import {
+  assertReviewDurableRecordInventory,
+} from "../../../../src/scripts/review-gate/core/schema-inventory.js";
 
 const kernelIdentities = ["priority", "slug", "work-class", "work-unit-state"];
 const reviewIdentities = [
@@ -118,6 +122,18 @@ describe("review schema registration", () => {
     expect(() => registerReviewDomainSchemas(registry)).toThrowError(SchemaError);
     expect(createKernelRegistry().ids()).toEqual(kernelIdentities);
     expect(registry.ids()).toEqual([...reviewIdentities, ...kernelIdentities].sort());
+  });
+
+  it("rejects a durable-record inventory entry whose registered version diverges", () => {
+    const registry = createKernelRegistry();
+    registry.register(z.string(), {
+      id: "review-target",
+      version: 1,
+      migrationPosture: "strict-current",
+    });
+
+    expect(() => assertReviewDurableRecordInventory(registry))
+      .toThrow("review-target inventory version 2 does not match registered version 1");
   });
 
   it("keeps review imports and vocabulary out of kernel schema modules", () => {
