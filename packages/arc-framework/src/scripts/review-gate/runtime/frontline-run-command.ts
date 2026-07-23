@@ -113,16 +113,19 @@ export async function runFrontlineReviewCommand(
     let source = semantic.source;
     let execute: FrontlineRunExecutionDependencies["execute"];
     if (canonicalize(executionTarget) !== canonicalize(target)) {
-      if (executionTarget.headSha === target.headSha) {
-        throw new Error("frontline execution target coordinates mismatch");
-      }
       execute = () => Promise.resolve({
         outcome: normalizeFrontlineOutcome({
-          providerResult: {
-            kind: "stale-head",
-            expectedHeadSha: target.headSha,
-            observedHeadSha: executionTarget.headSha,
-          },
+          providerResult: executionTarget.headSha === target.headSha
+            ? {
+                kind: "stale-target",
+                attemptedTargetId: target.targetId,
+                currentTargetId: executionTarget.targetId,
+              }
+            : {
+                kind: "stale-head",
+                expectedHeadSha: target.headSha,
+                observedHeadSha: executionTarget.headSha,
+              },
           source,
           target,
           pass: readyPayload.pass,

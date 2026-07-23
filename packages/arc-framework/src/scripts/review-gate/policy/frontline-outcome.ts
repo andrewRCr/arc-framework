@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import {
+  ReviewCanonicalDigestSchema,
   ReviewTargetSchema,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
@@ -50,13 +51,24 @@ export const FrontlineTimedOutReasonSchema = z.strictObject({
   class: z.literal("execution-timeout"),
 });
 
-export const FrontlineStaleTargetReasonSchema = z.strictObject({
+export const FrontlineHeadMismatchReasonSchema = z.strictObject({
   class: z.literal("head-mismatch"),
   expectedHeadSha: GitObjectIdSchema,
   observedHeadSha: GitObjectIdSchema,
 }).refine((reason) => reason.expectedHeadSha !== reason.observedHeadSha, {
   message: "stale-target reason must describe different heads",
 });
+export const FrontlineTargetMismatchReasonSchema = z.strictObject({
+  class: z.literal("target-mismatch"),
+  attemptedTargetId: ReviewCanonicalDigestSchema,
+  currentTargetId: ReviewCanonicalDigestSchema,
+}).refine((reason) => reason.attemptedTargetId !== reason.currentTargetId, {
+  message: "stale-target reason must describe different targets",
+});
+export const FrontlineStaleTargetReasonSchema = z.union([
+  FrontlineHeadMismatchReasonSchema,
+  FrontlineTargetMismatchReasonSchema,
+]);
 
 export const FrontlinePassCapReasonSchema = z.strictObject({
   class: z.literal("pass-cap-exhausted"),
@@ -78,6 +90,11 @@ const FrontlineProviderResultSchema = z.discriminatedUnion("kind", [
     kind: z.literal("stale-head"),
     expectedHeadSha: GitObjectIdSchema,
     observedHeadSha: GitObjectIdSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("stale-target"),
+    attemptedTargetId: ReviewCanonicalDigestSchema,
+    currentTargetId: ReviewCanonicalDigestSchema,
   }),
   z.strictObject({ kind: z.literal("timed-out") }),
   z.strictObject({ kind: z.literal("failed"), reason: z.string().min(1) }),
@@ -210,6 +227,17 @@ export function normalizeFrontlineOutcome(input: {
           class: "head-mismatch",
           expectedHeadSha: providerResult.expectedHeadSha,
           observedHeadSha: providerResult.observedHeadSha,
+        },
+      });
+    case "stale-target":
+      return FrontlineExecutionOutcomeSchema.parse({
+        ...base,
+        outcome: "stale-target",
+        findings: [],
+        reason: {
+          class: "target-mismatch",
+          attemptedTargetId: providerResult.attemptedTargetId,
+          currentTargetId: providerResult.currentTargetId,
         },
       });
     case "timed-out":

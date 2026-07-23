@@ -26,6 +26,17 @@ const target = (head: string) => createReviewTarget({
   headSha: oid(head),
   headTree: oid(head),
 });
+const targetWithBase = (diffBase: string, head: string) => createReviewTarget({
+  schemaVersion: 2,
+  semanticsVersion: "review-gate/v2",
+  kind: "change-set",
+  repositoryId: "repo-1",
+  baseRef: "main",
+  diffBaseSha: oid(diffBase),
+  diffBaseTree: oid(diffBase),
+  headSha: oid(head),
+  headTree: oid(head),
+});
 const source = {
   sourceId: "review-cli",
   kind: "command" as const,
@@ -142,6 +153,44 @@ describe("frontline run command", () => {
           class: "head-mismatch",
           expectedHeadSha: oid("c"),
           observedHeadSha: oid("d"),
+        },
+      },
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("persists stale-target when the exact-head checkout re-derives a different diff base", async () => {
+    const attemptedTarget = targetWithBase("a", "c");
+    const currentTarget = targetWithBase("e", "c");
+    const stores = memoryStores();
+    const execute = vi.fn();
+    const release = vi.fn();
+
+    await expect(runFrontlineReviewCommand({
+      schemaVersion: 1,
+      target: attemptedTarget,
+      resolution,
+    }, {
+      confirmSource: async () => source,
+      prepareExecutionTarget: async () => ({
+        target: currentTarget,
+        reviewRoot: "/tmp/review",
+        release,
+      }),
+      execute,
+      ...stores,
+      now: () => "2026-07-23T19:00:00Z",
+    })).resolves.toMatchObject({
+      state: "stale-target",
+      nextAction: "prepare-current-target",
+      payload: {
+        persistedVersion: 2,
+        target: attemptedTarget,
+        reason: {
+          class: "target-mismatch",
+          attemptedTargetId: attemptedTarget.targetId,
+          currentTargetId: currentTarget.targetId,
         },
       },
     });
