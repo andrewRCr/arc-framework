@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** Draft rescoped to the transform substrate; areas 1/2/4 + abandon-delta settled
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Continue draft-design — settle the two coordinate-at-spec forks (area 3 rename sweep-marker;
+  area 1 integrate-time fail-closed), then assess formalization-readiness for create-spec.
 
 - **PR URL:** [none]
 - **Completed:** [none]
