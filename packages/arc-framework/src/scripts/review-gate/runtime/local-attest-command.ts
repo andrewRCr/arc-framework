@@ -5,6 +5,7 @@ import { z } from "zod";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import {
   ReviewIdentifierSchema,
+  type ReviewReceiptV2,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
@@ -19,6 +20,10 @@ import type {
   ReviewOperationStateStore,
 } from "../core/ports.js";
 import { LocalAttestEnvelopeSchema } from "../core/review-command-envelope.js";
+import {
+  isReviewVersionConflict,
+  REVIEW_VERSION_RETRY_ATTEMPTS,
+} from "../core/version-conflict.js";
 import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
 import { createLocalReviewReceipt } from "./local-attestation.js";
 
@@ -49,6 +54,31 @@ export class LocalAttestCommandError extends Error {
     super(message);
     this.name = "LocalAttestCommandError";
   }
+}
+
+async function appendReceiptWithRetry(
+  store: ForwardReviewReceiptStore,
+  receipt: ReviewReceiptV2,
+  initialLedgerVersion: number,
+): ReturnType<ForwardReviewReceiptStore["appendReceipt"]> {
+  let expectedLedgerVersion = initialLedgerVersion;
+  for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await store.appendReceipt(receipt, expectedLedgerVersion);
+    } catch (error) {
+      if (!isReviewVersionConflict(error)) throw error;
+    }
+    const reloaded = await store.readReceipts(receipt.targetId);
+    const replay = reloaded.receipts.find((candidate) => (
+      candidate.requestId === receipt.requestId
+      && candidate.reviewRunId === receipt.reviewRunId
+    ));
+    if (replay !== undefined && canonicalize(replay) !== canonicalize(receipt)) {
+      throw new LocalAttestCommandError("corrupt-state", "conflicting local review receipt replay");
+    }
+    expectedLedgerVersion = reloaded.ledgerVersion;
+  }
+  throw new Error("local review receipt publication exceeded retry attempts");
 }
 
 /** Load one immutable operation and project non-attestable results without side effects. */
@@ -132,7 +162,11 @@ export async function attestLocalReviewCommand(
     if (canonicalize(existing) !== canonicalize(receipt)) {
       throw new LocalAttestCommandError("corrupt-state", "conflicting local review receipt replay");
     }
-    const replay = await dependencies.receiptStore.appendReceipt(receipt, ledger.ledgerVersion);
+    const replay = await appendReceiptWithRetry(
+      dependencies.receiptStore,
+      receipt,
+      ledger.ledgerVersion,
+    );
     const current = await dependencies.confirmTarget(state.target);
     if (current.state === "stale-target") {
       return LocalAttestEnvelopeSchema.parse({
@@ -197,7 +231,11 @@ export async function attestLocalReviewCommand(
       },
     });
   }
-  const appended = await dependencies.receiptStore.appendReceipt(receipt, ledger.ledgerVersion);
+  const appended = await appendReceiptWithRetry(
+    dependencies.receiptStore,
+    receipt,
+    ledger.ledgerVersion,
+  );
   const afterAppend = await dependencies.confirmTarget(state.target);
   if (afterAppend.state === "stale-target") {
     return LocalAttestEnvelopeSchema.parse({

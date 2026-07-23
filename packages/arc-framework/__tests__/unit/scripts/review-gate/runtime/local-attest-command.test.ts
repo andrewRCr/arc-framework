@@ -315,6 +315,99 @@ describe("local attest command", () => {
     expect(appendReceipt).toHaveBeenCalledOnce();
   });
 
+  it("reloads and retries after an unrelated concurrent receipt publication", async () => {
+    const records = fixture();
+    const readReceipts = vi.fn()
+      .mockResolvedValueOnce({ ledgerVersion: 0, receipts: [] })
+      .mockResolvedValueOnce({ ledgerVersion: 1, receipts: [] });
+    const versionConflict = Object.assign(new Error("version-conflict"), {
+      code: "version-conflict",
+    });
+    const appendReceipt = vi.fn()
+      .mockRejectedValueOnce(versionConflict)
+      .mockResolvedValueOnce({
+        ledgerVersion: 2,
+        durableEvidenceRef: "receipt.json#2",
+      });
+
+    await expect(attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+      result: { ...records.result, status: "complete" },
+    }, {
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: records.operation }),
+        publishOperation: vi.fn(),
+      },
+      sourceStore: {
+        readSource: async () => records.source,
+        appendSource: vi.fn(),
+      },
+      receiptStore: { readReceipts, appendReceipt },
+      resolveAuthority: async () => records.admission.authority,
+      resolveGuidanceDigest: async () => records.operation.guidanceDigest,
+      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      inspectMaterialization: async () => "materialized",
+    })).resolves.toMatchObject({
+      state: "attested-current",
+      payload: {
+        receiptRecorded: true,
+        receiptRef: receiptRef(records.operation.operationId, "receipt.json#2"),
+      },
+    });
+    expect(appendReceipt).toHaveBeenNthCalledWith(1, expect.any(Object), 0);
+    expect(appendReceipt).toHaveBeenNthCalledWith(2, expect.any(Object), 1);
+  });
+
+  it("refuses a divergent receipt published during retry", async () => {
+    const records = fixture();
+    const result = { ...records.result, status: "complete" as const };
+    const receipt = createLocalReviewReceipt({
+      target: records.operation.target,
+      requirement: records.operation.requirement,
+      carrier: {
+        target: records.operation.target,
+        request: records.operation.request,
+        attestation: records.operation.attestation,
+      },
+      result,
+      runtimeIdentity: records.operation.attestation.runtimeIdentity,
+      attestationMechanism: records.operation.attestation.mechanism,
+      sourceDigest: records.operation.sourceDigest,
+      guidanceDigest: records.operation.guidanceDigest,
+    });
+    const readReceipts = vi.fn()
+      .mockResolvedValueOnce({ ledgerVersion: 0, receipts: [] })
+      .mockResolvedValueOnce({
+        ledgerVersion: 1,
+        receipts: [{ ...receipt, runtimeIdentity: "arc-cli/conflicting" }],
+      });
+    const appendReceipt = vi.fn().mockRejectedValue(
+      Object.assign(new Error("version-conflict"), { code: "version-conflict" }),
+    );
+
+    await expect(attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+      result,
+    }, {
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: records.operation }),
+        publishOperation: vi.fn(),
+      },
+      sourceStore: {
+        readSource: async () => records.source,
+        appendSource: vi.fn(),
+      },
+      receiptStore: { readReceipts, appendReceipt },
+      resolveAuthority: async () => records.admission.authority,
+      resolveGuidanceDigest: async () => records.operation.guidanceDigest,
+      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      inspectMaterialization: async () => "materialized",
+    })).rejects.toMatchObject({ code: "corrupt-state" });
+    expect(appendReceipt).toHaveBeenCalledOnce();
+  });
+
   it("retains the receipt and returns stale-target when the target changes after append", async () => {
     const records = fixture();
     const currentTarget = createReviewTarget({

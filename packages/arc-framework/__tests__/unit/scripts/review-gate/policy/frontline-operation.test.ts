@@ -197,6 +197,76 @@ describe("frontline operation continuity", () => {
     expect(order).toEqual(["pending", "execute", "outcome", "terminal"]);
   });
 
+  it("reloads the operation after a concurrent exact pending publication", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const publish = operationStore.publishOperation;
+    let injectConflict = true;
+    operationStore.publishOperation = async (state, expectedVersion) => {
+      if (state.kind === "frontline-run" && state.outcome === "pending" && injectConflict) {
+        injectConflict = false;
+        await publish(state, expectedVersion);
+        throw Object.assign(new Error("version-conflict"), { code: "version-conflict" });
+      }
+      return publish(state, expectedVersion);
+    };
+    const execute = vi.fn(async () => ({
+      outcome: normalizedOutcome("clean"),
+      executableIdentity,
+    }));
+
+    await expect(executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      execute,
+      now: () => "2026-07-23T19:00:00Z",
+    }, executionBinding())).resolves.toMatchObject({
+      persistedVersion: 2,
+      outcome: { outcome: "clean" },
+    });
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it("reloads exact outcome and terminal publications after concurrent conflicts", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const publish = operationStore.publishOperation;
+    const append = outcomeStore.appendOutcome;
+    let injectOutcomeConflict = true;
+    let injectTerminalConflict = true;
+    operationStore.publishOperation = async (state, expectedVersion) => {
+      if (state.kind === "frontline-run" && state.outcome !== "pending" && injectTerminalConflict) {
+        injectTerminalConflict = false;
+        await publish(state, expectedVersion);
+        throw Object.assign(new Error("version-conflict"), { code: "version-conflict" });
+      }
+      return publish(state, expectedVersion);
+    };
+    outcomeStore.appendOutcome = async (record, expectedVersion) => {
+      const appended = await append(record, expectedVersion);
+      if (injectOutcomeConflict) {
+        injectOutcomeConflict = false;
+        throw Object.assign(new Error("version-conflict"), { code: "version-conflict" });
+      }
+      return appended;
+    };
+    const execute = vi.fn(async () => ({
+      outcome: normalizedOutcome("clean"),
+      executableIdentity,
+    }));
+
+    await expect(executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      execute,
+      now: () => "2026-07-23T19:00:00Z",
+    }, executionBinding())).resolves.toMatchObject({
+      persistedVersion: 2,
+      outcome: { outcome: "clean" },
+    });
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
   it("repairs a published outcome by advancing pending state without re-executing the carrier", async () => {
     const operationStore = memoryStore();
     const outcomeStore = memoryOutcomeStore();

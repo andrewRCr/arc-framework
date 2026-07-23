@@ -527,10 +527,9 @@ shared-surface boundary returned to the sibling. Module deletion and prose are t
           caller-owned values; frontline and local-ready envelopes plus generated JSON schema carry complete strict
           routing, semantic, request, and reviewer-payload contracts
 
-    - `[ ]` **8.R.b Self-heal expected concurrent publication conflicts**
-        - Reload and retry only the shared receipt-ledger and frontline operation/outcome writes whose optimistic
-          versions can race; retain conflict refusal for genuinely divergent records
-        - Add forcing tests for concurrent exact replay, unrelated receipt publication, and frontline publication
+    - `[x]` **8.R.b Self-heal expected concurrent publication conflicts**
+        - Local attestation and frontline execution now reload and retry bounded expected version conflicts at the
+          handler boundary, converging exact publications while preserving divergent-record refusal
 
     - `[ ]` **8.R.c Make frontline failure outcomes truthful and reachable**
         - Preserve the detached exact-head execution boundary while mapping target mismatch, source binding,
