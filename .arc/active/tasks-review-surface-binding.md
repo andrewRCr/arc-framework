@@ -246,18 +246,14 @@ validation are test-first; the Commander wiring is test-after.
   Git ref plus repairable detached checkout. Exact-head/tree/range/ref/cleanliness proofs fail closed on mismatched
   bytes, while the evaluator payload exposes only immutable source coordinates.
 
-### `[ ]` **4.3 Source-store sweep — orphan and terminally-expired reaping**
+### `[x]` **4.3 Source-store sweep — orphan and terminally-expired reaping**
 
 - _Goal:_ A sweep run inline inside `local prepare` / `local resume` reaps two pin classes — orphan (operation record
   absent) and terminally-expired (record present but cleanup-TTL-expired with no complete receipt) — so no abandoned
   pin blocks Git maintenance, and it never reaps a live unexpired operation's pin.
 
-    - Build `test-first` (one behavior at a time):
-        - a true orphan pin (no operation record) is reaped
-        - an expired operation whose `operationId` is no longer derivable (HEAD moved) is reaped with its materialization
-        - a live unexpired operation's pin is never reaped by a concurrent sweep
-
-- _Note:_ No background process; the descriptor and receipt reference survive cleanup (SC 12).
+- _Outcome:_ Added a pin-enumerating sweep that releases only absent-record or TTL-expired/no-receipt operations.
+  Live and receipt-complete operations remain protected; descriptor and receipt stores are untouched.
 
 ### `[ ]` **4.4 Guidance delivery and the local policy binding**
 
