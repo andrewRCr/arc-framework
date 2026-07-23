@@ -180,16 +180,15 @@ surfaced on the public result. All test-first (business logic + parsing/validati
   local binding adapter that validates through `StandardReviewProjectAugmentationSchema`, canonicalizes dimension
   order, rejects duplicates or mismatched versioned identities, and keeps command payloads and method prose inert.
 
-### `[ ]` **3.3 Overlay application and refusal diagnostics**
+### `[x]` **3.3 Overlay application and refusal diagnostics**
 
 - _Goal:_ A resolved overlay augments the immutable baseline deterministically; a missing method, missing/malformed
   structured field, ambiguous lookup, or identity mismatch refuses the review request with a diagnostic, while an
   absent meta field uses the baseline unchanged.
 
-    - Build `test-first` (one behavior at a time):
-        - a resolved overlay augments the baseline deterministically (baseline `rubricVersion` + `rubricDigest` unchanged)
-        - each refusal condition (missing / malformed / ambiguous / mismatch) returns a diagnostic
-        - an absent `Review Rubric` field leaves the baseline unchanged
+- _Outcome:_ Production composition now returns the effective typed guidance for absent or resolved declarations and
+  a fail-closed refusal for unusable declared rubrics. Baseline identity and dimensions remain immutable while
+  missing, ambiguous, malformed, incomplete, and mismatched bindings surface stable diagnostics.
 
 ---
 

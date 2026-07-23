@@ -31,7 +31,7 @@ describe("local review method files", () => {
     const result = composeWorkUnitReviewAssurance(
       { Class: "Heavy", "Review Rubric": "[none]" },
       createLocalReviewMethodFilePort({ cwd: "/repo", readFile }),
-      { resolveReviewRubricBinding: () => null },
+      { resolveReviewRubricBinding: () => { throw new Error("must not resolve absence"); } },
     );
 
     expect(result.assurance.activity).toEqual({ selfReview: false, frontlineReview: true });

@@ -26,14 +26,18 @@ export interface ReviewRubricBindingPort {
   resolveReviewRubricBinding(identity: string): ReviewRubricBindingResolution;
 }
 
-export type ReviewRubricBindingUnavailableReason =
-  | "missing-method"
-  | "ambiguous-method"
-  | "malformed-method"
-  | "missing-augmentation"
-  | "malformed-augmentation"
-  | "identity-mismatch"
-  | "lookup-failed";
+export const ReviewRubricBindingUnavailableReasonSchema = z.enum([
+  "missing-method",
+  "ambiguous-method",
+  "malformed-method",
+  "missing-augmentation",
+  "malformed-augmentation",
+  "identity-mismatch",
+  "lookup-failed",
+]);
+export type ReviewRubricBindingUnavailableReason = z.infer<
+  typeof ReviewRubricBindingUnavailableReasonSchema
+>;
 
 /** Closed result of resolving a declared project rubric. */
 export type ReviewRubricBindingResolution =
@@ -101,7 +105,9 @@ export function resolveReviewRubricBinding(
 
   const augmentation = StandardReviewProjectAugmentationSchema.safeParse({
     rubricId: raw.data.rubricId,
-    dimensions: [...raw.data.dimensions].sort((left, right) => left.id.localeCompare(right.id)),
+    dimensions: [...raw.data.dimensions].sort((left, right) => (
+      left.id < right.id ? -1 : left.id > right.id ? 1 : 0
+    )),
   });
   if (!augmentation.success) return unavailable(identity, "malformed-augmentation");
   return {
