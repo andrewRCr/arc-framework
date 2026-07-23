@@ -8,6 +8,7 @@ import type {
   FrontlineSourceRegistration,
 } from "../../policy/frontline-source.js";
 import { parseCodeRabbitAgentResult } from "./frontline-agent.js";
+import type { CodeRabbitProcessResult } from "./process.js";
 
 export const CODERABBIT_FRONTLINE_REGISTRATION: FrontlineSourceRegistration = {
   sourceId: "coderabbit-cli",
@@ -17,13 +18,6 @@ export const CODERABBIT_FRONTLINE_REGISTRATION: FrontlineSourceRegistration = {
     argv: ["review", "--agent", "--type", "committed"],
   },
 };
-
-interface CodeRabbitProcessResult {
-  exitCode: number | null;
-  signal: string | null;
-  stdout: string;
-  stderr: string;
-}
 
 interface ResolvedCodeRabbitExecutable extends FrontlineExecutableIdentity {
   path: string;
@@ -42,12 +36,14 @@ export async function executeCodeRabbitFrontline(input: {
   pass: 1 | 2;
   maxPasses: 1 | 2;
   reviewRoot: string;
+  remainingMs: number;
+  signal: AbortSignal;
 }, dependencies: {
   resolveExecutable(command: string): Promise<ResolvedCodeRabbitExecutable>;
   run(
     command: string,
     argv: readonly string[],
-    options: { cwd: string },
+    options: { cwd: string; remainingMs: number; signal: AbortSignal },
   ): Promise<CodeRabbitProcessResult>;
 }): Promise<{
   outcome: FrontlineExecutionOutcome;
@@ -69,19 +65,31 @@ export async function executeCodeRabbitFrontline(input: {
       ...input.source.argv,
       "--base-commit",
       input.target.diffBaseSha,
-    ], { cwd: input.reviewRoot });
+    ], {
+      cwd: input.reviewRoot,
+      remainingMs: input.remainingMs,
+      signal: input.signal,
+    });
   } catch {
-    processResult = { exitCode: null, signal: "process-error", stdout: "", stderr: "" };
+    processResult = {
+      exitCode: null,
+      signal: "process-error",
+      stdout: "",
+      stderr: "",
+      canceled: input.signal.aborted,
+    };
   }
   const cliVersion = executable.qualifiedVersion.includes("/")
     ? executable.qualifiedVersion.slice(executable.qualifiedVersion.lastIndexOf("/") + 1)
     : executable.qualifiedVersion;
-  const providerResult = parseCodeRabbitAgentResult({
-    cliVersion,
-    ...processResult,
-    expectedHead: input.target.headSha,
-    observedHead: input.target.headSha,
-  });
+  const providerResult = input.signal.aborted
+    ? { kind: "timed-out" as const }
+    : parseCodeRabbitAgentResult({
+      cliVersion,
+      ...processResult,
+      expectedHead: input.target.headSha,
+      observedHead: input.target.headSha,
+    });
   return {
     outcome: normalizeFrontlineOutcome({
       providerResult,

@@ -142,6 +142,8 @@ describe("frontline run command", () => {
       pass: 2,
       maxPasses: 2,
       reviewRoot: "/tmp/review",
+      remainingMs: expect.any(Number),
+      signal: expect.any(AbortSignal),
     }));
   });
 });

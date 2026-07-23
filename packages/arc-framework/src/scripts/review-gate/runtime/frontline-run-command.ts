@@ -27,12 +27,15 @@ import {
   FrontlineSourceDescriptorSchema,
   type FrontlineSourceDescriptor,
 } from "../policy/frontline-source.js";
+import {
+  executeBoundedFrontlineCarrier,
+} from "./frontline-execution-boundary.js";
 
 export const FrontlineRunRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   target: ReviewTargetSchema,
   resolution: FrontlineResolveEnvelopeSchema,
-  timeoutMs: z.number().int().positive().optional(),
+  timeoutMs: z.number().int().positive().max(2_147_483_647).optional(),
 });
 
 export interface FrontlineRunCommandDependencies {
@@ -49,7 +52,8 @@ export interface FrontlineRunCommandDependencies {
     target: ReviewTarget;
     pass: 1 | 2;
     maxPasses: 1 | 2;
-    timeoutMs: number | undefined;
+    remainingMs: number;
+    signal: AbortSignal;
     reviewRoot: string;
   }): ReturnType<FrontlineRunExecutionDependencies["execute"]>;
   now(): string;
@@ -114,13 +118,17 @@ export async function runFrontlineReviewCommand(
     terminal = await executeFrontlineRun({
       operationStore: dependencies.operationStore,
       outcomeStore: dependencies.outcomeStore,
-      execute: () => dependencies.execute({
-        source,
-        target: executionTarget,
-        pass: readyPayload.pass,
-        maxPasses: readyPayload.maxPasses,
+      execute: () => executeBoundedFrontlineCarrier({
         timeoutMs: request.timeoutMs,
-        reviewRoot: prepared.reviewRoot,
+        execute: ({ remainingMs, signal }) => dependencies.execute({
+          source,
+          target: executionTarget,
+          pass: readyPayload.pass,
+          maxPasses: readyPayload.maxPasses,
+          remainingMs,
+          signal,
+          reviewRoot: prepared.reviewRoot,
+        }),
       }),
       now: () => dependencies.now(),
     }, {

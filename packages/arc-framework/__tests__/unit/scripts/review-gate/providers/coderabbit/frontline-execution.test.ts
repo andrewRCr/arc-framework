@@ -45,6 +45,8 @@ describe("CodeRabbit frontline execution", () => {
       pass: 1,
       maxPasses: 2,
       reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
     }, { run, resolveExecutable })).resolves.toMatchObject({
       outcome: {
         outcome: "clean",
@@ -59,7 +61,11 @@ describe("CodeRabbit frontline execution", () => {
     expect(resolveExecutable).toHaveBeenCalledOnce();
     expect(run).toHaveBeenCalledWith(executableIdentity.path, [
       "review", "--agent", "--type", "committed", "--base-commit", target.diffBaseSha,
-    ], { cwd: "/tmp/exact-head" });
+    ], {
+      cwd: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it("preserves structured findings for author-side triage", async () => {
@@ -86,6 +92,8 @@ describe("CodeRabbit frontline execution", () => {
       pass: 1,
       maxPasses: 2,
       reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
     }, {
       run: vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout, stderr: "" }),
       resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
@@ -109,6 +117,8 @@ describe("CodeRabbit frontline execution", () => {
       pass: 1,
       maxPasses: 2,
       reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
     }, {
       run: vi.fn().mockResolvedValue({ exitCode: 1, signal: null, stdout: "", stderr: "rate limit exceeded" }),
       resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
@@ -119,5 +129,54 @@ describe("CodeRabbit frontline execution", () => {
     });
     expect(CODERABBIT_FRONTLINE_REGISTRATION.sourceId).toBe("coderabbit-cli");
     expect(CODERABBIT_FRONTLINE_REGISTRATION.sourceId).not.toBe("coderabbit-pr");
+  });
+
+  it("maps an aborted provider process to timed-out and never accepts its clean output", async () => {
+    const controller = new AbortController();
+    const run = vi.fn(async (_command, _argv, options: { signal: AbortSignal }) => {
+      controller.abort();
+      expect(options.signal).toBe(controller.signal);
+      return { exitCode: 0, signal: null, stdout: cleanOutput, stderr: "", canceled: false };
+    });
+
+    await expect(executeCodeRabbitFrontline({
+      source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      reviewRoot: "/tmp/exact-head",
+      remainingMs: 25,
+      signal: controller.signal,
+    }, {
+      run,
+      resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+    })).resolves.toMatchObject({
+      outcome: {
+        outcome: "timed-out",
+        findings: [],
+        reason: { class: "execution-timeout" },
+      },
+    });
+  });
+
+  it("maps unknown process failures to the closed adapter-failure class", async () => {
+    await expect(executeCodeRabbitFrontline({
+      source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
+    }, {
+      run: vi.fn().mockRejectedValue(new Error("unknown provider failure")),
+      resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+    })).resolves.toMatchObject({
+      outcome: {
+        outcome: "failed",
+        findings: [],
+        reason: { class: "unexpected-adapter-failure" },
+      },
+    });
   });
 });

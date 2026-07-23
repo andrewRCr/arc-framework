@@ -329,16 +329,15 @@ test-after.
   once, and the same canonical artifact is hashed, versioned, and launched. Provider `stale-head` remains preserved
   while its provider-neutral outcome is `stale-target`.
 
-### `[ ]` **5.3 Bounded provider execution — timeout, abort signal, adapter-failure mapping**
+### `[x]` **5.3 Bounded provider execution — timeout, abort signal, adapter-failure mapping**
 
 - _Goal:_ Provider execution runs under a plain execution timeout (an operation input with a framework default — not a
   new config axis); the runner passes remaining time + an abort signal and kills the spawned process on expiry, typing
   the result `timed-out`; unknown thrown errors map to the closed adapter-failure class.
 
-    - Build `test-first` (one behavior at a time):
-        - a hung provider is terminated at the timeout and returns `timed-out` (never normalized clean/findings)
-        - an unknown thrown error maps to the adapter-failure class rather than an unbounded wait
-        - remaining time and an abort signal are passed to the adapter
+- _Outcome:_ A framework-default or request timeout now supplies remaining time and one abort signal through the
+  adapter to the direct process runner, whose expiry terminates the child and wins over late clean output. Unknown
+  process failures persist as the closed `unexpected-adapter-failure` outcome.
 
 ### `[ ]` **5.4 `frontline resolve` state/action projection and `invalid-input` rename**
 
