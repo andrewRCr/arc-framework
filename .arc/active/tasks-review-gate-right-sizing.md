@@ -32,7 +32,7 @@ shadow runtime that currently contains their reusable pieces.
           comment, canonical reply and thread-resolution confirmation, idempotent already-settled handling, and
           explicit missing-thread/comment outcomes without receipt or relay state.
 
-### `[ ]` **1.2 Re-home both hosted adapters behind deterministic ordered failover**
+### `[x]` **1.2 Re-home both hosted adapters behind deterministic ordered failover**
 
 - _Goal:_ Both hosted providers remain independently selectable production paths, and a typed availability failure
   from the preferred source moves automatically to the next configured source without weakening real failures.
@@ -49,23 +49,11 @@ shadow runtime that currently contains their reusable pieces.
           immutable App/bot identities through the common exact-head contract, and normalizes clean/findings and
           availability outcomes without carrying guidance-evidence qualification into the lean path.
 
-    - `[ ]` **1.2.c Make provider preference and fallback total**
+    - `[x]` **1.2.c Make provider preference and fallback total**
 
-        - Implement a new narrow fallback rule rather than reusing receipt-backed `core/provider-fallback.ts` or
-          `providers/router.ts`: advance only on a proven pre-effect `rate-limited` or `transient-unavailable`
-          outcome, mapping only read-side network failures and read-side retry exhaustion into the latter. Keep a
-          hosted observation timeout resumable pending rather than turning it into fallback.
-        - Treat a request-side transport failure, timeout, or retry exhaustion as ambiguous unless the adapter
-          proves no effect occurred. Stop on that ambiguity, malformed output, or terminal failure so a request
-          that may have taken effect is never replayed against the same or next provider.
-        - Return the attempted-provider history in the typed result so exhaustion is observable without asking the
-          operator which source to try.
-        - Build `test-first` (one behavior at a time):
-            - the preferred available provider wins;
-            - an unavailable preferred provider selects the next configured provider;
-            - a pre-effect read failure may fall through, while an observation timeout remains resumable pending;
-            - a request-write timeout or other ambiguous delivery stops the chain without a duplicate request;
-            - a terminal failure stops the chain, and an exhausted or unknown list fails explicitly.
+        - Added a narrow ordered selector that falls through only on `rate-limited` or `transient-unavailable`,
+          preserves pending observation, stops on ambiguous/terminal outcomes, consumes a pass only on completion,
+          and returns the full attempted-provider history for selected, exhausted, and invalid source lists.
 
 ### `[ ]` **1.3 Bind standard-review policy, ordered sources, pass ceilings, and opt-out**
 
