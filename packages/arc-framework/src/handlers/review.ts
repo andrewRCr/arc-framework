@@ -11,6 +11,7 @@ import {
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
   LocalResumeEnvelopeSchema,
+  ReduceEnvelopeSchema,
   RespondEnvelopeSchema,
   ReviewCommandErrorEnvelopeSchema,
   type ReviewCommandMode,
@@ -33,6 +34,8 @@ import { createLocalResumeDependencies } from "../scripts/review-gate/runtime/lo
 import { resumeLocalReviewCommand } from "../scripts/review-gate/runtime/local-resume-command.js";
 import { createRespondDependencies } from "../scripts/review-gate/runtime/respond-composition.js";
 import { respondToReviewCommand } from "../scripts/review-gate/runtime/respond-command.js";
+import { createReduceDependencies } from "../scripts/review-gate/runtime/reduce-composition.js";
+import { reduceReviewCommand } from "../scripts/review-gate/runtime/reduce-command.js";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -358,6 +361,47 @@ export async function handleReviewRespond(
     dependencies.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
     dependencies.write(`${JSON.stringify(reviewCommandError("review-respond", error))}\n`);
+    dependencies.setExitCode(1);
+  }
+}
+
+export interface ReviewReduceHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  reduce(request: unknown, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultReduceDependencies(): ReviewReduceHandlerDependencies {
+  return {
+    resolveRoot: resolveArcRoot,
+    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    reduce: (request, root) => reduceReviewCommand(
+      request,
+      createReduceDependencies({ exec: gitExec, cwd: root }),
+    ),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
+/** Reduce one durable review operation without advancing or appending state. */
+export async function handleReviewReduce(
+  source: string,
+  overrides: Partial<ReviewReduceHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultReduceDependencies(), ...overrides };
+  try {
+    const root = dependencies.resolveRoot(process.cwd());
+    if (root === null) throw new Error("Not inside an ARC project.");
+    const request: unknown = JSON.parse(await dependencies.readText(source));
+    const result = ReduceEnvelopeSchema.parse(await dependencies.reduce(request, root));
+    dependencies.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    dependencies.write(`${JSON.stringify(reviewCommandError("review-reduce", error))}\n`);
     dependencies.setExitCode(1);
   }
 }

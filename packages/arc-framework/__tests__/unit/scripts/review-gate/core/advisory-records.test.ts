@@ -174,5 +174,15 @@ describe("advisory review records", () => {
       ...projection,
       nextAction: "none",
     }).success).toBe(false);
+    expect(ReviewReductionProjectionSchema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      operationId: "operation-1",
+      persistedVersion: 2,
+      currentTarget: target,
+      state: "retryable",
+      nextAction: "retry",
+      retryCommand: "local-attest",
+    })).toMatchObject({ retryCommand: "local-attest" });
   });
 });

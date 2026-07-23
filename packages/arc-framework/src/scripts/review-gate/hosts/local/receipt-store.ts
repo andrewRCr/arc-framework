@@ -75,6 +75,20 @@ export class LocalForwardReviewReceiptStore implements ForwardReviewReceiptStore
     };
   }
 
+  /** Read target receipts with their stable global-ledger references. */
+  async readReceiptEntries(targetId: string): Promise<Array<{
+    receipt: ReviewReceiptV2;
+    durableEvidenceRef: string;
+  }>> {
+    const ledger = parseLedger(await this.publisher.read("evidence", RECEIPT_RECORD), this.repositoryId);
+    return ledger.receipts.flatMap((receipt, index) => receipt.targetId === targetId
+      ? [{
+          receipt,
+          durableEvidenceRef: `${RECEIPT_REFERENCE_PREFIX}${index + 1}`,
+        }]
+      : []);
+  }
+
   /** Resolve the exact receipt named by one store-issued durable reference. */
   async readReceiptReference(reference: string): Promise<ReviewReceiptV2 | null> {
     if (!reference.startsWith(RECEIPT_REFERENCE_PREFIX)) {

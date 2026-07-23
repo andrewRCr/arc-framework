@@ -12,6 +12,7 @@ import {
   FrontlineUnavailableRetryReasonSchema,
 } from "../policy/frontline-outcome.js";
 import { FrontlineFollowUpAdviceSchema } from "../policy/frontline-follow-up.js";
+import { ReviewReductionProjectionSchema } from "./advisory-records.js";
 import { NormalizedReviewFindingSchema } from "./finding-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
@@ -302,6 +303,16 @@ export const RespondEnvelopeSchema = z.union([
 const ReductionBasePayload = {
   ...CurrentOperationPayloadShape,
 };
+const ReductionResponseSourceSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("attested-local"),
+    receiptRef: DurableReferenceSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("frontline"),
+    outcomeRef: DurableReferenceSchema,
+  }),
+]);
 export const ReduceEnvelopeSchema = z.union([
   envelopeVariant(
     "review-reduce",
@@ -309,15 +320,15 @@ export const ReduceEnvelopeSchema = z.union([
     "respond",
     z.strictObject({
       ...ReductionBasePayload,
-      projection: z.unknown(),
-      responseSource: z.unknown(),
+      projection: ReviewReductionProjectionSchema,
+      responseSource: ReductionResponseSourceSchema,
     }),
   ),
   envelopeVariant(
     "review-reduce",
     "settled",
     "none",
-    z.strictObject({ ...ReductionBasePayload, projection: z.unknown() }),
+    z.strictObject({ ...ReductionBasePayload, projection: ReviewReductionProjectionSchema }),
   ),
   envelopeVariant(
     "review-reduce",
@@ -325,8 +336,9 @@ export const ReduceEnvelopeSchema = z.union([
     "none",
     z.strictObject({
       ...ReductionBasePayload,
-      projection: z.unknown(),
+      projection: ReviewReductionProjectionSchema,
       frontlineOutcomeRef: DurableReferenceSchema.optional(),
+      frontlineFollowUp: FrontlineFollowUpAdviceSchema.optional(),
     }),
   ),
   envelopeVariant(

@@ -6,6 +6,7 @@ import {
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
+  handleReviewReduce,
   handleReviewRespond,
 } from "../../../src/handlers/review.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
@@ -252,6 +253,61 @@ describe("handleReviewRespond", () => {
       mode: "review-respond",
       state: "settled",
       payload: { operationId: "local-operation" },
+    });
+  });
+});
+
+describe("handleReviewReduce", () => {
+  it("reads an operation request and emits one validated reduction envelope", async () => {
+    const write = vi.fn();
+    const target = {
+      schemaVersion: 2 as const,
+      semanticsVersion: "review-gate/v2" as const,
+      kind: "change-set" as const,
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      diffBaseTree: "b".repeat(40),
+      headSha: "c".repeat(40),
+      headTree: "d".repeat(40),
+      targetId: `sha256:${"e".repeat(64)}`,
+    };
+    const projection = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-advisory/v1" as const,
+      operationId: "local-operation",
+      persistedVersion: 1,
+      currentTarget: target,
+      state: "advisory-complete" as const,
+      nextAction: "none" as const,
+    };
+    const reduce = vi.fn(async () => ({
+      schemaVersion: 1,
+      mode: "review-reduce",
+      diagnostics: [],
+      state: "advisory-complete",
+      nextAction: "none",
+      payload: {
+        operationId: "local-operation",
+        persistedVersion: 1,
+        currentTarget: target,
+        projection,
+      },
+    }));
+
+    await handleReviewReduce("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => "{\"schemaVersion\":1,\"operationId\":\"local-operation\"}",
+      reduce,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(reduce).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-reduce",
+      state: "advisory-complete",
+      payload: { operationId: "local-operation", projection: { state: "advisory-complete" } },
     });
   });
 });

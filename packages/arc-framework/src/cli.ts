@@ -90,6 +90,7 @@ import {
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
+  handleReviewReduce,
   handleReviewRespond,
 } from "./handlers/review.js";
 import {
@@ -872,6 +873,13 @@ reviewCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewRespond(input));
+
+reviewCmd
+  .command("reduce")
+  .description("Reduce one durable review operation as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewReduce(input));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

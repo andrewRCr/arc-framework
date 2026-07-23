@@ -390,23 +390,16 @@ shipped forward reducers over both lanes. Test-first (validation + reduction log
   or `frontline resolve`; no fix ledger or carried operation is introduced. Frontline responses project material-fix
   and pass-cap eligibility as non-durable follow-up advice, sharing the resolver's policy.
 
-### `[ ]` **6.3 `arc review reduce` — invocable reduction over both lanes**
+### `[x]` **6.3 `arc review reduce` — invocable reduction over both lanes**
 
 - _Goal:_ `reduce` resolves its source from `operationId` and composes the shipped forward requirement / qualification /
   response / projection reducers read-only, mapping totally over both lanes to the § D10 states, with `corrupt-state` on
   missing/mismatched evidence — callers cannot supply a receipt, disposition record, target, or conclusion.
 
-- **Additional Context:** `spec-review-surface-binding.md` § D10 (per-source reduction mapping)
-
-    - Build `test-first` (one behavior at a time):
-        - attested-local: clean receipt → `advisory-complete`; findings without a complete disposition → `findings` + refs;
-          with a complete disposition → `settled`; a `failed`/`unavailable` receipt → `retryable`; changed target → `stale-target`
-        - frontline: undispositioned findings → `findings`; clean/dispositioned/`pass-cap-exhausted` → `advisory-complete`;
-          a non-review terminal → `retryable` (`frontline-run`); moved head → `stale-target`
-        - read-only: completes no pending append and advances no operation state
-        - a digest/reference mismatch is `corrupt-state`, never a reduction result
-
-- _Note:_ `core/reduction.ts` forward reducers.
+- _Outcome:_ The public read-only reducer now resolves either durable lane solely from `operationId`, revalidates the
+  complete source chain and approved response before projecting every terminal state, and fails closed when a
+  completion claim, digest, or exact reference cannot be proven. Frontline results also surface bounded follow-up
+  advice without advancing operation state.
 
 ---
 

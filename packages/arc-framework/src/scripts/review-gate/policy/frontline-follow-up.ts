@@ -27,13 +27,16 @@ export type FrontlineFollowUpAdvice = z.infer<typeof FrontlineFollowUpAdviceSche
 /** Project follow-up worthwhileness before a fix exists, without creating a durable chain. */
 export function projectFrontlineFollowUpAdvice(input: {
   outcome: unknown;
-  dispositionState: ApprovedDispositionSet;
+  dispositionState?: ApprovedDispositionSet | null;
 }): FrontlineFollowUpAdvice {
   const outcome = FrontlineExecutionOutcomeSchema.parse(input.outcome);
   if (outcome.outcome !== "findings") {
     return { action: "stop", reason: `outcome-${outcome.outcome}` };
   }
 
+  if (input.dispositionState === undefined || input.dispositionState === null) {
+    throw new Error("frontline findings follow-up requires approved dispositions");
+  }
   const dispositionState = validateDispositionState(input.dispositionState);
   if (dispositionState.state !== "approved") throw new Error("frontline follow-up requires approved dispositions");
   const { dispositionSet } = dispositionState;

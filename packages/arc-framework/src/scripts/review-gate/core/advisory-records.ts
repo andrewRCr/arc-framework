@@ -172,7 +172,7 @@ export const ReviewReductionProjectionSchema = z.discriminatedUnion("state", [
     ...ReductionBaseShape,
     state: z.literal("retryable"),
     nextAction: z.literal("retry"),
-    retryCommand: z.enum(["local-resume", "frontline-run"]),
+    retryCommand: z.enum(["local-attest", "frontline-run"]),
   }),
   z.strictObject({
     ...ReductionBaseShape,
