@@ -81,8 +81,14 @@ checkout-local view).
    check-doc directly (resolve against the WU-record abstraction, not a git-worktree enumeration the backend
    dissolves). **Degraded read:** the composed index is `unreachable`-degradable (remote read failed → local/tree
    truth only); record reachability in the receipt and **proceed conserving-against-the-reachable-set** rather than
-   hard-refusing — the finalization compare-and-set re-checks at finalize, so a transient network failure never
-   bricks the transform.
+   hard-refusing. Completeness is not forfeited: the receipt records the origin's retirement + replacement set
+   (consultable by _any_ dependent), and the write-side reconcile is **dependent-pull** (below) — each dependent
+   repoints against the receipt keyed on _its own_ `Depends On` edge when next touched, so a dependent invisible to a
+   degraded origin read is never silently dropped; it self-reconciles or surfaces on its own next touch. The
+   finalization compare-and-set is a **match / no-regression guard over the enumerated set** — it refuses if the
+   prepared repoints don't hold, or if a now-reachable read enlarges the inventory — not the completeness mechanism
+   for un-enumerated remote dependents. So a transient network failure never bricks the transform _and_ never
+   silently drops a dependent.
 
    **Write — a receipt-driven `Depends On` reconcile side-effect.** The hard constraint is branch isolation _plus
    review-atomicity_: the transform must not commit to a dependent's branch — both because it isn't the transform's
@@ -91,16 +97,38 @@ checkout-local view).
        decompose commit — today's Leg 3, unchanged.
      - **Branch-private dependents** (meta only on another branch): the transform **records the repoint mapping in
        the retirement receipt** (already carried as `incomingEdges.replacementTargets`) and does **not** touch their
-       branch. Each dependent's edges then **auto-reconcile against the receipt** the next time any ARC operation
-       touches its branch — `session-init` on that worktree, `activate`, `resume`, `integrate` — silently and
-       without authorization, generalizing the existing auto-discharge side-effect (`discharge-dep-edges`, which
-       already rewrites `Depends On` unprompted at activation). Owned-and-clean reconciles are invisible; a genuine
-       **conflict** (the edge changed incompatibly) surfaces as a version-checked reconcile.
+       branch. Each dependent's edges then **auto-reconcile against the receipt** — a **dependent-pull** reconcile
+       that reads the dependent's _own_ `Depends On` and repoints each edge whose target carries a retirement
+       receipt, generalizing the existing auto-discharge side-effect (`discharge-dep-edges`, which already rewrites a
+       WU's own `Depends On` unprompted at activation). That precedent supplies the own-edge _rewrite_; the
+       **receipt-discovery read** it needs — a subject-keyed "does this edge-target carry a retirement receipt?"
+       lookup, since the lifecycle index resolves a retired origin only to `nonexistent` — is **new machinery**, its
+       access-path kept abstract (storage check-doc Principle 2) and its concrete shape (receipt-dir enumerate /
+       maintained subject index / decompose-time push) coordinated with `retirement-record-relocation`. It
+       **applies and commits only at the write ceremonies that
+       touch the branch — `activate` / `resume` / `integrate`** — landing the meta rewrite in that ceremony's commit
+       (a dedicated `chore(arc):` write when it is the only change). **`session-init` is a detect-and-surface point,
+       not a silent-apply one:** a non-committing recon stage, it flags a pending reconcile (or conflict) for the
+       developer and defers the apply to the next write ceremony, never leaving an uncommitted meta edit to ride an
+       unrelated increment. (This defer is scoped to the **tracked, committed** `Depends On` edge, whose write must
+       ride a review increment; **gitignored per-developer user state** — area 4's `WU_Target` reconcile — carries no
+       commit and no increment, so it auto-applies at `session-init` without atomicity concern.) Owned-and-clean
+       reconciles are invisible at the apply ceremony; a genuine **conflict**
+       (the edge changed incompatibly, or an un-enumerated dependent whose target member is ambiguous) surfaces as a
+       version-checked reconcile.
 
-   One mechanism, three trigger points; `integrate` is the **fail-closed** one — a dependent whose receipt-recorded
-   repoint cannot complete (target member gone, or a real conflict) fails its own integration rather than merging a
-   dangling edge. This absorbs three earlier candidates (record-and-defer, the owned-dep convenience, a dangling-dep
-   merge-gate) into one reconcile fired at multiple triggers: no nudge-to-authorize, no bolt-on gate.
+   One mechanism, three apply ceremonies (`activate` / `resume` / `integrate`) plus the `session-init` detect point;
+   `integrate` is the **fail-closed** one — a dependent whose receipt-recorded repoint cannot complete (target member
+   gone, or a real conflict) fails its own integration rather than merging a dangling edge. This absorbs three earlier
+   candidates (record-and-defer, the owned-dep convenience, a dangling-dep merge-gate) into one reconcile fired at
+   multiple triggers: no nudge-to-authorize, no bolt-on gate.
+   **Enforcement locus (settled 2026-07-23):** the fail-closed leg lands _here_, not in `review-gate-right-sizing`'s
+   merge-guard — the integrate workflow's existing integration-interlock refuses to compose the candidate when an
+   incoming edge cannot reconcile, the established integration path failing closed rather than a competing gate.
+   RGRS's readiness check is a deliberately **closed request union** (`work-unit` / `errand`) that reads only the
+   integrating WU's own products and is explicitly _not a generalized readiness engine_, so a cross-receipt edge
+   reconcile has no socket there and would violate that containment. Any later host-side defense-in-depth rides
+   RGRS's existing `coherent project-readiness view` readiness product, never a new merge-guard sub-criterion.
    **Decompose-time advisory:** the composed index already carries each dependent's `InFlightState`, so a dependent
    that is _mid-integration_ with a live edge to the retiring origin is surfaced at the Step-5 interlock for the human
    to coordinate — the transform does not silently proceed against it. (`Depends On` is a shrinking live-blocker list,
@@ -133,9 +161,15 @@ checkout-local view).
    cut graph as a CLI slot, with a spawn-anchored launch **remedy** on a unique head (candidates surfaced, never
    auto-started) — not workflow prose orchestrating the sequence. **Rename facet:** the identity rename runs in
    place from any locus (branch / artifacts / remote / notes / marker — locus-safe); only the cosmetic worktree
-   directory move defers, stamped for a **new self-healing sweep surface** ("worktree path lags renamed identity →
-   `git worktree move` from outside"), mirroring the husk nudge — so `rename` stays invokable from the to-be-renamed
-   worktree, never primary-only. (Boundary question: the harness skills-dir registration going stale on rename is an
+   directory move defers — **unconditionally**, hoisted to an always-defer precondition (today the move defers only on
+   an OS-reported occupied-dir lock, so on POSIX a self-move slips through, relocates the live worktree, and strands
+   the running session; the fix mirrors `teardown`'s categorical refusal to operate on the worktree you're standing
+   in) — stamped for a **new self-healing sweep surface** ("worktree path lags renamed identity →
+   `git worktree move` from outside") that **reuses the shipped `stale-worktree-sweep` / husk-stamp mechanics** as an
+   _operational stamped marker_ (a derived projection), **not** a new lifecycle-state term — so it consumes no
+   unsettled `wu-lifecycle-state-model` vocabulary, and `rename` stays invokable from the to-be-renamed worktree,
+   never primary-only. (Sweep surface settled 2026-07-23; exact marker name/shape is spec-polish, patterned on the
+   existing husk stamp.) (Boundary question: the harness skills-dir registration going stale on rename is an
    adjacent harness-integration residue, likely not ARC-substrate scope — flag, don't silently absorb.)
 
 4. **Shared-artifact regen & reference conservation** (promotes the ROADMAP-timing gap + the reference-sweep
@@ -151,8 +185,11 @@ checkout-local view).
      - **Structured, unambiguous target** (`Depends On`, backticked artifact filenames, cohort headings):
        machine-swept for `rename` (extend the existing sweep); for `decompose`, `Depends On` rides area 1's receipt
        reconcile.
-     - **Self-title H1 / `--plan` anchor** (the WU's own identity): machine-swept for `rename` (closes the
-       capture-706 gap); N/A for `decompose` (origin artifacts removed).
+     - **Self-title H1 across every WU artifact + `--plan` anchor** (the WU's own identity): machine-swept for
+       `rename` symmetrically over _all_ `*-{wu-slug}` artifacts — the meta's `# Metadata:` is already rewritten;
+       extend it to `# Draft:` / `# Spec:` / `# Tasks:` / `# Notes:` / `# Research:` (any `# <Kind>: <slug>`) plus the
+       `--plan <slug>` resume-anchor, so structural identity is fully reconciled and no artifact lands self-titled with
+       the old slug (closes the capture-706 gap); N/A for `decompose` (origin artifacts removed).
      - **Backticked ref to a gone origin artifact** (`decompose`): machine-detected as dangling but **surfaced**, not
        auto-retargeted — no single member to point at.
      - **Prose / narrative slug mention** (both verbs): **surfaced, never auto-rewritten** (ambiguous target +
@@ -188,24 +225,37 @@ shared CLI substrate_ (per-verb prose patches would violate them, independently 
   emitted verbatim text is precomposed CLI-side (Principle 6), new arms land as **typed cut-map fields**, not prose
   conditionals (Principle 2); workflow prose invokes verbs, never narrates mechanics (Principle 3).
 - **Knowledge-evolution** — the substrate is now a genuine multi-consumer fan-in (four verbs), so consolidating its
-  shared vocabulary/guidance is on-model, not premature (Principle 6); new load-bearing terms (flat-sibling; the
-  terminal vocabulary) are defined once and coordinate with `wu-lifecycle-state-model` (Principle 7).
+  shared vocabulary/guidance is on-model, not premature (Principle 6); the one new load-bearing term (flat-sibling)
+  is defined once here, while area 3's rename sweep uses an **operational marker** (a derived projection) rather than
+  minting terminal vocabulary — coordinating with `wu-lifecycle-state-model`, which may re-vocabulary that marker
+  later without schema churn (Principle 7).
 
 ## Coordination
 
-- `wu-lifecycle-state-model` — owns husk/terminal-state and transition vocabulary; areas 3–4 consume its names,
-  never mint parallels.
+- `wu-lifecycle-state-model` — owns husk/terminal-state and transition vocabulary, **currently unsettled** (a
+  `planned` inbound buffer; its own draft leaves the shipped pending-teardown terminal condition open between a
+  named state, an annotation, or a derived projection). Area 3 therefore uses an **operational stamped marker** (a
+  derived projection reusing the shipped husk-stamp sweep), minting no lifecycle-state term; `wu-lifecycle-state-model`
+  may later re-vocabulary that marker into a named terminal state **without schema churn** — a right its own draft
+  reserves. areas 3–4 consume its names where they exist, never mint parallels.
 - `retirement-record-relocation` — owns the retirement-record store location; areas 1/3 read that store —
-  coordinate on the path, not just transition semantics.
+  coordinate on the path, including area 1's new subject-keyed **receipt-discovery read** (does a dependent's
+  edge-target carry a receipt — which the content-addressed store does not answer today), not just transition
+  semantics.
 - `lifecycle-transition-core` — owns the `discharge-dep-edges` reconcile side-effect area 1's edge-reconcile
   generalizes; extend it (auto-discharge + receipt-driven repoint as one `Depends On` reconcile), never mint a
   parallel mechanism.
-- `review-gate-right-sizing` — owns the merge-guard tier; area 1's `integrate`-time fail-closed reconcile coordinates
-  there rather than building a competing gate (the working-memory colliding-gate caution: the review-gate controller
-  is not operational, so do not wire against it — align on the merge-guard validation tier instead).
+- `review-gate-right-sizing` — owns the merge-guard tier. **Boundary settled 2026-07-23:** area 1's `integrate`-time
+  fail-closed reconcile lands _here_ (enforced at the integrate workflow's integration-interlock), **not** in RGRS's
+  guard — its readiness check is a deliberately closed `work-unit` / `errand` request union that reads only the
+  integrating WU's own products and is not a generalized readiness engine, so the cross-receipt reconcile has no
+  socket there and RGRS's union stays closed. Any later host-side backstop rides RGRS's existing `coherent
+  project-readiness view` product, never a new `arc-cleared` sub-criterion. This _is_ the alignment the
+  working-memory colliding-gate caution asks for — no competing gate, and no wiring against the not-yet-operational
+  controller.
 - **`wu-rename` follow-up captures are co-owned here, not separate errandry** — `USER-INBOX` items "phantom ROADMAP
-  row + prose-scope sweep" (area 4), "occupied-worktree move husk-consistent" (area 3), and "self-title rewrite to
-  draft/research artifacts" (area 4) are the same substrate concern; adopt them as this WU's evidence rather than
+  row + prose-scope sweep" (area 4), "occupied-worktree move husk-consistent" (area 3), and "self-title rewrite
+  across all WU artifacts" (area 4) are the same substrate concern; adopt them as this WU's evidence rather than
   fixing them per-verb.
 - `decomposition-doctrine` — the demand driver (more cuts, earlier); soft precedence pairing, no hard edge.
 - `pr-decomposition` — orthogonal axis (review-surface carving vs. concern splitting); keep the cut-map and chunk
@@ -222,18 +272,24 @@ shared CLI substrate_ (per-verb prose patches would violate them, independently 
 - **Class: Heavy** (re-confirm at spec). The widening did _not_ ratchet to Novel — nearly everything is composition
   of existing ARC patterns, and the check-docs supply the models (staged-index render, version-checked writes, husk
   reuse, the `lifecycle-index` abstraction). High-end Heavy: broad surface, multi-verb blast radius, real forks.
-- **Integrate-time fail-closed ownership** (area 1) — the write-side is **settled** (the receipt-driven reconcile
-  side-effect above); its `session-init` / `activate` trigger points are this WU's, but whether the `integrate`-time
-  fail-closed reconcile lands here or in the merge-guard tier (`review-gate-right-sizing`) is the one remaining
-  Area-1 fork — settle at spec. Degraded-read policy leans settled (record reachability + proceed; the CAS re-checks
-  at finalize).
+- **Integrate-time fail-closed ownership** (area 1) — **settled 2026-07-23**: the `integrate`-time fail-closed
+  reconcile lands _here_, enforced at the integrate workflow's integration-interlock, not in `review-gate-right-sizing`'s
+  merge-guard (its readiness check is a closed `work-unit` / `errand` union, not a generalized engine — no socket for a
+  cross-receipt reconcile; any later host-side backstop rides RGRS's existing readiness-view-coherence product). The
+  degraded-read + trigger mechanics are pinned too: the reconcile is **dependent-pull** (each dependent repoints
+  against the receipt by its own `Depends On` edge), so a degraded origin read never silently drops a dependent — it
+  self-reconciles or surfaces on its next touch; the finalize CAS is a match / no-regression guard over the enumerated
+  set; and `session-init` detects-and-surfaces while `activate` / `resume` / `integrate` apply-and-commit.
 - **Flat-sibling schema shape** (area 2) — **settled**: a new `parentPosition` value (cohort-placement axis), not a
   new `shape` (origin-disposition axis) and not a boolean. Value name is spec polish.
 - **Reference-conservation policy** (area 4) — **settled** (the 1:1-rewritability boundary; machine-sweep /
   detect-surface / surface by reference kind; three reconcile loci incl. per-developer user state). Residual is
   spec-time tuning: the prose-mention surface's false-positive scoping, and the `WU_Target` auto-reconcile's config
   gate.
-- **Rename worktree-move sweep surface** (area 3) — the exact new session-init sweep kind and its stamp/marker.
+- **Rename worktree-move sweep surface** (area 3) — **settled 2026-07-23**: a new session-init sweep surface reusing
+  the shipped `stale-worktree-sweep` / husk-stamp mechanics as an **operational stamped marker** (a derived
+  projection), minting no `wu-lifecycle-state-model` vocabulary; that WU may re-vocabulary it later without schema
+  churn. Residual is spec-polish — the exact marker name/shape, patterned on the existing husk stamp.
 - **abandon / park delta** — **settled**: `park` inherits for free (shares `reconcile-roadmap` + deferred teardown;
   slug persists → no incoming-edge concern). `abandon` does **not** — it does zero incoming-edge handling today, so a
   dependent of an abandoned WU dangles silently; bring it onto area 1's reconcile with the no-replacement `abandoned`
