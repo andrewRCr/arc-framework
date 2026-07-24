@@ -132,8 +132,8 @@ bounded. Some findings sit in two causes — the grouping drives the work, it is
 
 ### Disposition
 
-- **59 in scope** — Phase 9 below. Everything destructive, every named path that does not work, and every claim
-  the work unit makes about itself that is false.
+- **59 in scope** — Phase 7.E in `tasks-session-locus-model.md`. Everything destructive, every named path that
+  does not work, and every claim the work unit makes about itself that is false.
 - **6 carved** to a follow-on unit — the systematic generation-capability contract and its failure-injection test
   substrate: `L4-F2` (≡ `A-F2`), `L4-F4`, `A-F4`, `E4-F2`, `W1-F5`, and the whole-lifecycle portion of `P1-V1`.
 - **1 already resolved** — `R1-F5`, corrected by the handoff commit that follows the reviewed head.
@@ -144,7 +144,7 @@ and replay substrate needed to prove it. That is spec-worthy on its own terms, i
 today, and authoring it under merge pressure on a branch this size is the disproportion that produced this
 situation. The carved items are races between concurrent sessions whose consequence is a stolen lease, a stale
 receipt, or a lost marker generation; every member whose consequence is destroyed or stranded work stayed in
-scope, including `L2-F1`, `E2-F2`, `E3-F2`, `E4-F1`, and `E5-F1`. Each Phase 9 fix still carries targeted
+scope, including `L2-F1`, `E2-F2`, `E3-F2`, `E4-F1`, and `E5-F1`. Each Phase 7.E fix still carries targeted
 coverage for the path it touches — only the systematic injection matrix is carved.
 
 **Recorded risk of the carve:** the model ships with known non-destructive race windows between concurrent
@@ -152,7 +152,7 @@ sessions on the same machine. This is a stated position, not an oversight.
 
 ### Remediation shape
 
-The leaf partition is reusable as a delivery map, not only a review map. Each Phase 9 task decomposes into
+The leaf partition is reusable as a delivery map, not only a review map. Each Phase 7.E task decomposes into
 leaf-scoped subtasks at entry, so its re-review is a bounded delta against that leaf's preserved report rather
 than a fresh pass over the whole target. That keeps the post-fix review obligation proportional to the fix delta
 and closes the loop with the method this branch motivated.
