@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec complete — spec finalized (detailed · RFC); adversarial pass converged, draft retired
-- **Next Task:** Task 1.1 — Resolve lifecycle-transform inventories from composed project truth
+- **Last Completed:** Phase 2 complete — Task 2.5 routed every lifecycle transform through shared reconcile
+- **Next Task:** Task 3.1 — Extend the cut-map contract with the `cohortless` placement
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Resolve lifecycle-transform inventories from composed project truth
+- **Next Action:** Begin Task 3.1 — Extend the cut-map contract with the `cohortless` placement
 
 - **PR URL:** [none]
 - **Completed:** [none]
