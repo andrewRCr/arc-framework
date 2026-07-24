@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `47d985436`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `2463e0c20`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -16,7 +16,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | State         | Work unit                | Priority | Owner  | Depends on | Cohort                 |
 | ------------- | ------------------------ | -------- | ------ | ---------- | ---------------------- |
 | `Planning`    | decomposition-doctrine   | P1       | andrew | —          | —                      |
-| `Active`      | decomposition-hardening  | P1       | andrew | —          | —                      |
+| `Integrating` | decomposition-hardening  | P1       | andrew | —          | —                      |
 | `Active`      | review-gate-right-sizing | P1       | andrew | —          | —                      |
 | `Active`      | session-locus-model      | P1       | andrew | —          | —                      |
 | `Integrating` | cli-command-inputs       | P2       | andrew | —          | cli-substrate-adoption |
@@ -105,11 +105,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit                  | Priority | Owner  | Depends on                                                  | Cohort            |
-| -------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------- |
-| review-gate-github-adapter | P1       | andrew | review-gate-enforcement-promotion                           | —                 |
-| wu5-public-release         | P3       | andrew | docs-content-sweep                                          | release-readiness |
-| local-mode                 | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
+| Work unit          | Priority | Owner  | Depends on                                                  | Cohort            |
+| ------------------ | -------- | ------ | ----------------------------------------------------------- | ----------------- |
+| wu5-public-release | P3       | andrew | docs-content-sweep                                          | release-readiness |
+| local-mode         | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
 
 ---
 
