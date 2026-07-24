@@ -12,13 +12,13 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.D.a — Scope the recovery verdict to frame recoverability
-- **Next Task:** Task 8.1 — Complete verification (line ~1078)
-- **Blockers:** `review-chunking` must integrate before Phase 8 verification; it then reviews this WU's diff and
-  returns an analysis doc to triage here
+- **Last Completed:** Task 7.E.b.ii — Keep the execute-bound queue read from discarding its valid entries
+- **Next Task:** Task 7.E.b.i — Accept the unverifiable anchor the model represents (line ~1145)
+- **Blockers:** `review-chunking` must merge before this WU reconciles and merges — ordering obligation, not a
+  dependency; its review is executed and its findings are triaged into Phase 7.E
 
-- **Next Action:** Await `review-chunking`'s analysis of this branch at `0c5dd045a`, then triage its findings
-  before resuming Task 8.1
+- **Next Action:** Repair the session-envelope golden fixtures, then restore the held `s2f1-probe` stash to land
+  Task 7.E.b.i — SESSION-NOTES § Remaining Work carries the exact failure set and the redaction defect
 
 - **PR URL:** [none]
 - **Completed:** [none]
