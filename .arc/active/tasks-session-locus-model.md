@@ -1303,6 +1303,58 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   finalizing, promotion recovery binds to its source generation, and dirty-state recovery accepts only the exact
   transaction-produced state rather than arbitrary user index and worktree content.
 
+- _Shape:_ Subtasks are scoped to the **review's own leaf contexts** (`L2`, `L4`, `S2`, `E2`, `E3`, `E4`) rather
+  than one per finding, because that partition is the re-review unit — a fix increment's review is then a bounded
+  delta against that leaf's preserved report. Where a leaf carries more than one finding they are not assumed to
+  share a fix; each such leaf decomposes again at its own entry, as `7.E.b.v` did.
+
+- _Note:_ Two boundaries to hold while executing. **`L2-F1` must not grow into the carved contract** — its
+  correction boundary reads "carry an exact generation capability into every subject driver," which is the
+  systematic capability contract deliberately carved to a follow-on unit with `L4-F2`, `L4-F4`, `A-F4`, `E4-F2`,
+  `W1-F5`. Fix the abandon dispatch path here; do not author the general contract. **`L4-F3`'s evidence is a bare
+  reviewer claim** ("the reviewer claimed lock-live and lock-unknown proceed through spawned rollback") with no
+  cited mechanism, unlike every other finding in this task — verify against source before implementing; it may
+  not reproduce, as `S2S1-002` did not.
+
+    - `[ ]` **7.E.c.i Carry the selected generation into abandon dispatch** — L2-F1
+        - `resolveLocusGeneration` validates one selected row, then calls its subject driver with only the subject
+          kind, action, and reusable key; the ordinary lifecycle drivers are invoked by slug or grooming anchor
+          without the selected record, lease, claim, checkout, or proof generation. Key reuse between selection
+          and dispatch can therefore redirect abandonment onto a newer generation instead of refusing the race.
+
+    - `[ ]` **7.E.c.ii Stop rollback destroying state it has not proven it owns** — L4-F1, L4-F3
+        - `PrimaryCheckoutReceipt` omits the created branch name, so rollback proves only HEAD, derives the target
+          from the current branch, and force-deletes it — a concurrent checkout of another branch at the same
+          commit is destroyed. Separately, live and unknown record locks are claimed not to prevent spawned
+          rollback from removing a competing checkout. Two different failures of the same rule; verify the second
+          before assuming it exists.
+
+    - `[ ]` **7.E.c.iii Apply the occupancy veto before offering teardown** — S2-F2
+        - The retained-role path in `stale-worktree-sweep.ts` reduces an exact locus row to a name, then
+          classifies candidates on marker, clean-tree, merge, and user-surface predicates with no live, unknown,
+          or malformed occupancy veto — so session-init can offer teardown for a checkout a live session still
+          occupies, even where a later guarded remover would refuse.
+
+    - `[ ]` **7.E.c.iv Prove ownership before partial settlement mutates the inbox** — E2-F2
+        - `settleInbox` runs before record-lock acquisition and before `popOwnedLocusRole` verifies the exact live
+          anchor; the initial roster check proves only that some lease ID exists. A foreign session can close or
+          remove another active partial Errand's capture and then receive a generation refusal, leaving role and
+          capture state inconsistent.
+
+    - `[ ]` **7.E.c.v Validate the locked generation before leave and close mutate** — E3-F1, E3-F2
+        - Leave switches the primary checkout or removes the spawned worktree before `popOwnedLocusRole` performs
+          the first locked exact-generation validation, so a record or lease race mutates the newer generation's
+          checkout before returning refusal. Close then accepts merged host truth without proving occupancy
+          absence, deleting refs, inbox state, and identity — potentially a branch beneath a retained or live
+          checkout, erasing the identity recovery needs.
+
+    - `[ ]` **7.E.c.vi Bind promotion recovery to its source generation** — E4-F1, E4-F3
+        - Identity-absent promotion recovery matches on work-unit name, branch, generated meta, and a live lease,
+          and `exactTarget` accepts a work-unit row by name with no source slug or claim provenance, so a retired
+          or live Errand can recover through an unrelated same-name work unit and retire the wrong identity.
+          Dirty-state recovery separately accepts any porcelain status whose path equals the meta path, ignoring
+          its XY state, so user-created staged or modified meta state reads as promotion-owned evidence.
+
 ### `[ ]` **7.E.d Make post-mutation failure recoverable**
 
 - _Findings:_ L4-F5, E2-F1, W1-F1, W1-F2, W1-F3, P1-F1, P1-F2, L2-F2
