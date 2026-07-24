@@ -1,7 +1,16 @@
 /** Ordered composition for repository worktree Markdown checks. */
 
 import { spawn } from "node:child_process";
+import { realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+
+import { formatUnexpectedError } from "../lib/errors.js";
+import { gitExec } from "../lib/io-context.js";
+import {
+  findStagedMarkdownWorktreeDrift,
+  formatStagedMarkdownWorktreeDriftMessage,
+  resolveMarkdownRepositoryRoot,
+} from "../lib/markdown/index.js";
 
 const STAGES = ["lint:md:markdownlint", "lint:md:descriptors"] as const;
 
@@ -16,6 +25,26 @@ export async function runMarkdownLintComposition(
   return 0;
 }
 
+/**
+ * After a clean worktree composition, refuse a false-green when staged Markdown-gate
+ * paths still differ in the worktree (index is what pre-commit certifies).
+ */
+export async function enforceStagedMarkdownWorktreeAlignment(
+  cwd: string = process.cwd(),
+  write: (message: string) => void = (message) => { process.stderr.write(`${message}\n`); },
+): Promise<number> {
+  try {
+    const root = await resolveMarkdownRepositoryRoot({ cwd, exec: gitExec, realpath });
+    const drifted = await findStagedMarkdownWorktreeDrift({ root, exec: gitExec });
+    if (drifted.length === 0) return 0;
+    write(formatStagedMarkdownWorktreeDriftMessage(drifted));
+    return 1;
+  } catch (error) {
+    write(formatUnexpectedError(error));
+    return 1;
+  }
+}
+
 function runNpmStage(stage: typeof STAGES[number]): Promise<number> {
   const npmCli = process.env.npm_execpath;
   const command = npmCli === undefined ? "npm" : process.execPath;
@@ -27,9 +56,11 @@ function runNpmStage(stage: typeof STAGES[number]): Promise<number> {
   });
 }
 
-/** Run the public composed Markdown command. */
-export function main(): Promise<number> {
-  return runMarkdownLintComposition(runNpmStage);
+/** Run the public composed Markdown command, then refuse staged/worktree false-greens. */
+export async function main(): Promise<number> {
+  const exitCode = await runMarkdownLintComposition(runNpmStage);
+  if (exitCode !== 0) return exitCode;
+  return enforceStagedMarkdownWorktreeAlignment();
 }
 
 if (fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = await main();

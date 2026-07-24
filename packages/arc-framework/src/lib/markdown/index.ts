@@ -20,4 +20,5 @@ export * from "./selection.js";
 export * from "./staged-gate.js";
 export * from "./table-audit.js";
 export * from "./table-transform.js";
+export * from "./worktree-index-drift.js";
 export * from "./worktree-lint.js";
