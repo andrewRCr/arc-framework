@@ -365,15 +365,10 @@ activation ready for its immediate post-merge Errand.
   removed lifecycle identity has a finalized receipt, and the backlog and identity-global captures name only work
   that still exists.
 
-    - `[ ]` **5.2.a Supersede the App-owned evidence-gate decision**
+    - `[x]` **5.2.a Supersede the App-owned evidence-gate decision**
 
-        - Allocate the next unused ADR number at execution time and write the replacement decision: the configured
-          CLI review loop gives deterministic mechanics to the CLI, bounded applicability/review-strength judgment
-          to the operating agent, and mutation/integration authority to the human, while `arc-cleared` is a thin
-          deliberate lifecycle lock rather than evidence-grade merge truth.
-        - Change only ADR-028's status to `Superseded by ADR-…`; preserve its Decision, Consequences, and existing
-          amendments as the historical record. Link the new ADR back to ADR-028 and include the proportionality
-          rationale for declining the App/controller authority model.
+        - Accepted ADR-029 with the CLI/agent/human authority split and thin-lock posture; changed only ADR-028's
+          status so its App-gate decision and amendments remain intact as history.
 
     - `[ ]` **5.2.b Preflight and authorize the closed abandonment batch**
 
