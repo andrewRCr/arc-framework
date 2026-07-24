@@ -226,19 +226,19 @@ review obligations or authorize target mutation.
   change set completely.
 
     - `[x]` **5.1.a Select one held-out oversized change set**
-        - Fixed `session-locus-model` at an immutable 325-file / 1,412-hunk `ReviewTarget`, recorded both trees and
-          the canonical patch digest, and confirmed that both configured attention dimensions trip.
+        - Fixed the reconciled `cli-command-inputs` head at an immutable 97-file / 672-hunk `ReviewTarget`, recorded
+          both trees and the canonical patch digest, and confirmed that the configured line dimension trips.
 
     - `[x]` **5.1.b Draw comparable baseline and treatment scopes**
-        - Recorded six naive path scopes and six contract-cohesive scopes with complete per-scope file, line, and
+        - Recorded three naive path scopes and three contract-cohesive scopes with complete per-scope file, line, and
           hunk metrics, one fixed evaluator configuration, and explicit external/pre-existing treatment.
 
     - `[x]` **5.1.c Verify union coverage and define the identical arm protocol**
         - Proved exact non-overlapping union totals for both maps, assigned their seam surfaces, and fixed the
           bounded context→raw snapshot→seam→non-author aggregate protocol.
 
-- _Outcome:_ The two arms vary only their boundary map over one immutable target; both cover all 325 files, 42,448
-  changed lines, and 1,412 hunks with six scopes plus a dedicated seam.
+- _Outcome:_ The two arms vary only their boundary map over one immutable target; both cover all 97 files, 8,971
+  changed lines, and 672 hunks with three scopes plus a dedicated seam.
 
 ### `[ ]` **5.2 Run and record the controlled-evaluator comparison**
 

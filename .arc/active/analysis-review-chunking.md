@@ -30,9 +30,9 @@
 
 ### Fixed target and evaluator configuration
 
-The held-out target is `session-locus-model`, which did not participate in authoring the chunk doctrine. It is a
-mixed code, test, workflow, strategy, and work-unit-record change large enough to trip both configured attention
-thresholds.
+The held-out target is `cli-command-inputs`, which did not participate in authoring the chunk doctrine. It is a
+mixed declaration, handler, command, test, and work-unit-record change large enough to trip the configured line
+attention threshold.
 
 ```json
 {
@@ -41,17 +41,17 @@ thresholds.
   "kind": "change-set",
   "repositoryId": "40a11822-248f-4be0-ae17-c24dfb4ae35a",
   "baseRef": "main",
-  "diffBaseSha": "826427f21b44fe9d1ee38feb1096ca0254bebddd",
-  "diffBaseTree": "8f8dc2a0acf6a9fbc9230a9cf71934df16bbcf62",
-  "headSha": "f84f4c56814711559faaed8e0755da5a56b16940",
-  "headTree": "0c4c2cc71c2adc44ce76f94cfe63e31d9ee701b5",
-  "targetId": "sha256:dc5ef971f55d49a63dab10a67349f61b8fe2cb2af389f7ed94dd1bb266cdeb8d"
+  "diffBaseSha": "ebe446fe2506927ec88b944dd4a7b13feb4c048e",
+  "diffBaseTree": "5d32a6b812bb204ef3e0727ec66b3fb98c7d6545",
+  "headSha": "86a0d220dc87e01fed17308cddb13c5604d1a0b9",
+  "headTree": "51d83d5b758b3a7ccadcc5165c713c598de5e3f4",
+  "targetId": "sha256:9cc34418be17d81a1d46e207f8d1264a0239c51f1b3bc5f7834b3c3dbe70113e"
 }
 ```
 
-The immutable diff contains 325 files, 38,997 insertions, 3,451 deletions, 42,448 changed lines, and 1,412
+The immutable diff contains 97 files, 7,727 insertions, 1,244 deletions, 8,971 changed lines, and 672
 zero-context hunks. Its canonical zero-context patch digest is
-`sha256:b1e8ebf21e5dc83130efca65cacee46e162cb7153fe52762bdd339e6502ca5db`. These coordinates and digest identify
+`sha256:19127f27f152d1f9da9c8cdf842edb5ad6a3cf9da50561b78b710b59b34a0500`. These coordinates and digest identify
 the complete changed-hunk set; either tree moving invalidates the comparison.
 
 Both arms use fresh non-author local evaluator contexts at the same inherited primary capability with no model
@@ -63,36 +63,30 @@ exist.
 
 The baseline uses first-match path partitioning without moving declarations toward consumers.
 
-| Scope     | Exact path rule                                            |   Files |      Lines |     Hunks |
-| --------- | ---------------------------------------------------------- | ------: | ---------: | --------: |
-| B1        | `packages/arc-framework/src/lib/**`                        |     108 |     16,642 |       355 |
-| B2        | Remaining `packages/arc-framework/src/**`                  |      23 |      2,921 |       260 |
-| B3        | `packages/arc-framework/__tests__/unit/**`                 |     103 |     12,602 |       262 |
-| B4        | Remaining `packages/arc-framework/__tests__/**`            |      38 |      4,618 |       186 |
-| B5        | Package guidance, package metadata, root, and CI remainder |      24 |      1,354 |       173 |
-| B6        | `.arc/**`                                                  |      29 |      4,311 |       176 |
-| **Union** | **Every target path exactly once**                         | **325** | **42,448** | **1,412** |
+| Scope     | Exact path rule                           |  Files |     Lines |   Hunks |
+| --------- | ----------------------------------------- | -----: | --------: | ------: |
+| B1        | `packages/arc-framework/src/lib/**`       |     18 |     1,983 |      43 |
+| B2        | Remaining `packages/arc-framework/src/**` |     43 |     4,213 |     516 |
+| B3        | Tests, package metadata, and `.arc/**`    |     36 |     2,775 |     113 |
+| **Union** | **Every target path exactly once**        | **97** | **8,971** | **672** |
 
-Its seam owns source-to-test references, library-to-handler and CLI use, package-to-project projection, and the
-cross-directory locus/errand/work-unit/session contracts that the path split separates.
+Its seam owns source-to-test references, command-input declarations consumed by handlers and CLI registration,
+Git/work-unit adapters consumed by commands, and project-record claims about the implementation.
 
 ### Treatment map — contract-cohesive scopes
 
 The treatment uses ordered first-match predicates. Tests and operational guidance move with their governing
 contract; unchanged repository, platform, and library declarations are external or pre-existing.
 
-| Scope     | Contract closure                                                                          |   Files |      Lines |     Hunks |
-| --------- | ----------------------------------------------------------------------------------------- | ------: | ---------: | --------: |
-| T1        | Locus schemas, authority/state machinery, direct handlers/commands, fixtures, and tests   |      86 |     17,464 |        86 |
-| T2        | Errand identity/lifecycle, grooming, housekeep/inbox routing, workflows/skills, and tests |      75 |     13,180 |       415 |
-| T3        | Work-unit placement/lifecycle, worktree support, entry commands/workflows, and tests      |      71 |      4,313 |       435 |
-| T4        | Session init/recovery/handoff/status, compaction/envelope support, guidance, and tests    |      49 |      2,812 |       314 |
-| T5        | Shared CLI/handler adapters, cross-layer integration/e2e proofs, package metadata, and CI |      26 |      1,158 |        99 |
-| T6        | Remaining design, planning, strategy, and two-copy methodology record                     |      18 |      3,521 |        63 |
-| **Union** | **Every target path exactly once**                                                        | **325** | **42,448** | **1,412** |
+| Scope     | Contract closure                                                               |  Files |     Lines |   Hunks |
+| --------- | ------------------------------------------------------------------------------ | -----: | --------: | ------: |
+| T1        | Command-input declarations, resolution, inventory generation, and direct tests |     23 |     3,050 |      23 |
+| T2        | CLI registration, interaction consumers, prompts, handlers, and direct tests   |     40 |     3,779 |     456 |
+| T3        | Git/release/sync/work-unit adapters, cross-layer tests, and project records    |     34 |     2,142 |     193 |
+| **Union** | **Every target path exactly once**                                             | **97** | **8,971** | **672** |
 
-The treatment seam owns the shared locus facts consumed by T2–T4, errand-to-work-unit transitions, placement and
-session recovery/status behavior, T5's cross-contract composition, and runtime-to-methodology/two-copy coherence.
+The treatment seam owns declaration-to-registration identity, interaction-context propagation into handlers,
+repository capability discovery, Git executor behavior shared by T2 and T3, and record-to-runtime coherence.
 
 ### Coverage and identical arm protocol
 
