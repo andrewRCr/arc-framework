@@ -49,6 +49,7 @@ export type RunRenameResult =
       shape: RenameSubjectShape;
       trackedCommit: "created" | "existing";
       pendingIntegration: boolean;
+      advisories: readonly string[];
       remote?: RenameRemoteBranchResult;
       marker?: WorktreeMarkerReadResult["kind"] | "renamed" | "foreign";
       worktree?: RenameWorktreeMoveResolution | ReconcileWorktreeResult;
@@ -61,6 +62,7 @@ export interface RunRenameContext {
   retirement: RenameRetirementContext;
   preflight(params: { sourceSlug: string; targetSlug: string }): Promise<RenamePlan>;
   mutateTracked(plan: RenamePlan): Promise<void>;
+  regenerateReadiness(plan: RenamePlan): Promise<string | undefined>;
   commitTracked(plan: RenamePlan, receipt: RetirementReceipt): Promise<void>;
   withStubBranch<T>(plan: RenamePlan, operation: () => Promise<T>): Promise<T>;
   renameLocalBranch(plan: RenamePlan): Promise<void>;
@@ -93,10 +95,12 @@ export async function runRename(
     return { status: "rejected", reason: errorMessage(error) };
   }
 
+  let advisories: string[] = [];
   const runTracked = async (): Promise<"created" | "existing"> => {
     if (plan.resuming) return "existing";
     const tracked = await runTrackedRename(ctx, plan);
     if (tracked.status === "rejected") throw new RenameTrackedRefusal(tracked.reason);
+    advisories = [...tracked.advisories];
     return "created";
   };
 
@@ -115,6 +119,7 @@ export async function runRename(
       shape: plan.shape,
       trackedCommit,
       pendingIntegration: true,
+      advisories,
     };
   }
 
@@ -141,6 +146,7 @@ export async function runRename(
       shape: plan.shape,
       trackedCommit,
       pendingIntegration: false,
+      advisories,
       remote,
       ...(marker === undefined ? {} : { marker }),
       ...(worktree === undefined ? {} : { worktree }),
@@ -155,7 +161,7 @@ class RenameTrackedRefusal extends Error {}
 async function runTrackedRename(
   ctx: RunRenameContext,
   plan: RenamePlan,
-): Promise<{ status: "ok" } | { status: "rejected"; reason: string }> {
+): Promise<{ status: "ok"; advisories: readonly string[] } | { status: "rejected"; reason: string }> {
   let source: RenameTransitionSourceEvidence;
   try {
     source = await ctx.retirement.captureSource({
@@ -177,9 +183,11 @@ async function runTrackedRename(
 
   let patch: readonly PatchOperation[];
   let artifactDigest: RetirementReceipt["source"]["artifactDigest"];
+  let readinessAdvisory: string | undefined;
   try {
     await ctx.mutateTracked(plan);
     await ctx.retirement.stageTransition(source);
+    readinessAdvisory = await ctx.regenerateReadiness(plan);
     [patch, artifactDigest] = await Promise.all([
       ctx.retirement.readTransitionPatch(source),
       ctx.retirement.readResultArtifactDigest(source),
@@ -197,14 +205,15 @@ async function runTrackedRename(
   }
 
   const id = receiptId({
-    schemaVersion: 1,
+    schemaVersion: 2,
     subject: source.scope.subject,
     transition: "rename",
     sourceBranch: source.scope.source.branch,
     sourceHead: source.scope.source.head,
   });
   const receipt: RetirementReceipt = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    inventoryRead: "not-applicable",
     receiptId: id,
     subject: source.scope.subject,
     transition: "rename",
@@ -239,7 +248,10 @@ async function runTrackedRename(
         + (rollback.status === "rolled-back" ? "" : `; ${rollback.diagnostic}`),
     };
   }
-  return { status: "ok" };
+  return {
+    status: "ok",
+    advisories: readinessAdvisory === undefined ? [] : [readinessAdvisory],
+  };
 }
 
 function errorMessage(error: unknown): string {

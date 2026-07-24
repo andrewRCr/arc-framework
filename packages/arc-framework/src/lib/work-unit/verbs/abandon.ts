@@ -38,6 +38,7 @@ import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js
 import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
 import { DISCARD_RESULT, receiptId } from "../../canonical/receipt-id.js";
+import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
 import { buildLifecycleIndex } from "../lifecycle-index.js";
 import {
   executeTransition,
@@ -74,6 +75,8 @@ export interface AbandonContext {
   executor: Omit<ExecuteTransitionContext, "scaffoldOrRemove">;
   fs: AbandonFs;
   retirement: AbandonRetirementContext;
+  /** Remote-aware lifecycle truth; omitted only by tree-compatible library callers. */
+  composed?: ComposedLifecycleIndexResult;
 }
 
 /** Source evidence captured before an abandon removes its artifact group. */
@@ -171,19 +174,40 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
   const { name, confirmed } = params;
   const { executor, fs, retirement } = ctx;
 
-  const index = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
+  const index = ctx.composed?.index
+    ?? await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
   const state = resolveSlugState(index, name);
   const entry = index.get(name);
-  const meta = entry === undefined ? null : await readMeta(executor, entry.path);
+  const writablePath = ctx.composed === undefined
+    ? entry?.path
+    : ctx.composed.recordsBySlug.get(name)?.writablePath;
+  const meta = writablePath === undefined ? null : await readMeta(executor, writablePath);
 
-  const inputs: TransitionInputs = { confirmed };
+  const sourceBranch = meta?.Branch;
+  const inputs: TransitionInputs = {
+    confirmed,
+    ...(sourceBranch === null || sourceBranch === undefined || sourceBranch === "[none]"
+      ? {}
+      : { supersededSource: { slug: name, branch: sourceBranch } }),
+  };
 
   if (IN_VERB_BRANCH_DELETE.has(state) && meta !== null) {
     inputs.branchOp = { mutation: "delete", branch: meta.Branch ?? "[none]" };
   }
 
-  const scaffoldOrRemove = buildRemoveRunner(executor.cwd, fs);
-  if (confirmed !== true || entry === undefined || !validFromStates("abandon").includes(state)) {
+  const scaffoldOrRemove = buildRemoveRunner(executor.cwd, fs, executor.stageMeta);
+  if (
+    confirmed !== true
+    || entry === undefined
+    || writablePath === undefined
+    || !validFromStates("abandon").includes(state)
+  ) {
+    if (confirmed === true && entry !== undefined && writablePath === undefined) {
+      return {
+        status: "rejected",
+        reason: `Cannot abandon \`${name}\`: composed lifecycle truth does not grant current-checkout write authority.`,
+      };
+    }
     const outcome = await executeTransition(
       { ...executor, scaffoldOrRemove },
       { verb: "abandon", slug: name, inputs },
@@ -196,7 +220,7 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
   try {
     source = await retirement.captureSource({
       name,
-      sourceDir: posix.dirname(entry.path),
+      sourceDir: posix.dirname(writablePath),
       expectedBranch: STARTED.has(state) ? meta?.Branch ?? null : null,
     });
   } catch (err) {
@@ -257,9 +281,10 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
     };
   }
   const receipt: RetirementReceipt = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    inventoryRead: "not-applicable",
     receiptId: receiptId({
-      schemaVersion: 1,
+      schemaVersion: 2,
       subject: source.scope.subject,
       transition: "abandon",
       sourceBranch: source.scope.source.branch,
@@ -342,7 +367,11 @@ async function readMeta(
  * from the source directory, then drop the directory itself when it is a per-WU
  * backlog subdir (basename === slug) — never the shared flat `active/` tier.
  */
-function buildRemoveRunner(cwd: string, fs: AbandonFs): ArtifactRunner {
+function buildRemoveRunner(
+  cwd: string,
+  fs: AbandonFs,
+  stagePath?: (path: string) => Promise<void>,
+): ArtifactRunner {
   return async ({ disposition, slug, fromDir }) => {
     if (disposition !== "remove") {
       throw new Error(`abandon removes artifacts; received a \`${disposition}\` disposition.`);
@@ -352,7 +381,10 @@ function buildRemoveRunner(cwd: string, fs: AbandonFs): ArtifactRunner {
     const absDir = join(cwd, fromDir);
     const matcher = artifactMatcher(slug);
     const names = (await fs.readdir(absDir)).filter((n) => matcher.test(n)).sort();
-    for (const n of names) await fs.rm(join(absDir, n));
+    for (const n of names) {
+      await fs.rm(join(absDir, n));
+      await stagePath?.(posix.join(fromDir, n));
+    }
 
     if (basename(fromDir) === slug) {
       try {

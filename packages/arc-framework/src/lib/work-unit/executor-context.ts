@@ -47,7 +47,7 @@ import {
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import { getCurrentBranch, type GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
-import { renderTrackedProjectReadinessViewResult } from "../status/project-roadmap-render.js";
+import { renderRoadmapFromIndexViewResult } from "../status/roadmap-regeneration-assert.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
@@ -263,17 +263,19 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates, exec }),
 
     sideEffects: {
-      "reconcile-roadmap": ({ slug, from, to }) =>
+      "reconcile-roadmap": ({ slug, from, to, inputs }) =>
         reconcileRoadmap(
           {
             composeView: async () => {
               const currentBranch = await getCurrentBranch(exec);
-              const result = await renderTrackedProjectReadinessViewResult({
+              const { result } = await renderRoadmapFromIndexViewResult({
                 cwd,
                 exec,
-                fs: indexFs,
                 ...(baseBranch !== undefined ? { baseBranch } : {}),
                 currentBranch,
+                ...(inputs.supersededSource === undefined
+                  ? {}
+                  : { superseded: inputs.supersededSource }),
               });
               return {
                 content: result.markdown,

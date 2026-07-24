@@ -13,8 +13,10 @@ import { receiptId } from "../lib/canonical/receipt-id.js";
 import { readGitBlobBytes } from "../lib/io-context.js";
 import {
   decodeRetirementRecordKey,
+  LEGACY_RETIREMENT_RECORD_NAMESPACE,
   RETIREMENT_RECORD_NAMESPACE,
 } from "../lib/work-unit/retirement-record-store.js";
+import { parseDecomposePreparationRecord } from "../lib/work-unit/decompose-preparation.js";
 import { parseRetirementReceipt } from "../lib/work-unit/retirement-receipt-codec.js";
 import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
 
@@ -58,6 +60,10 @@ function escapeRegExp(value: string): string {
 
 const RECORD_PATTERN = new RegExp(
   `^${escapeRegExp(RETIREMENT_RECORD_NAMESPACE)}/(sha256-[0-9a-f]{64})\\.json$`,
+  "u",
+);
+const LEGACY_RECORD_PATTERN = new RegExp(
+  `^${escapeRegExp(LEGACY_RETIREMENT_RECORD_NAMESPACE)}/(sha256-[0-9a-f]{64})\\.json$`,
   "u",
 );
 const ACTIVE_META_PATTERN = /^\.arc\/active\/meta-([^/]+)\.md$/u;
@@ -222,9 +228,67 @@ function novelMergeChanges(input: DecomposeCommitGateInput): readonly StagedPath
   });
 }
 
+function migrationChanges(
+  changes: readonly StagedPathChange[],
+  input: DecomposeCommitGateInput,
+): { ignored: Set<string>; errors: string[] } {
+  const ignored = new Set<string>();
+  const errors: string[] = [];
+  for (const legacy of changes.filter((change) => change.path.startsWith(`${LEGACY_RETIREMENT_RECORD_NAMESPACE}/`))) {
+    const match = LEGACY_RECORD_PATTERN.exec(legacy.path);
+    if (legacy.status !== "D" || match?.[1] === undefined) {
+      errors.push(`legacy retirement namespace admits removals only: ${legacy.path}`);
+      continue;
+    }
+    ignored.add(legacy.path);
+    const canonicalPath = `${RETIREMENT_RECORD_NAMESPACE}/${match[1]}.json`;
+    const canonical = changes.find((change) => change.path === canonicalPath);
+    if (canonical === undefined) continue;
+    if (canonical.status !== "A") {
+      errors.push(`retirement record migration must add the canonical path: ${canonicalPath}`);
+      continue;
+    }
+    const id = decodeRetirementRecordKey(match[1]);
+    const legacyBytes = input.readHeadBytes(legacy.path);
+    const canonicalBytes = input.readIndexBytes(canonicalPath);
+    if (
+      legacyBytes === null
+      || canonicalBytes === null
+      || input.readHeadBytes(canonicalPath) !== null
+      || !bytesEqual(legacyBytes, canonicalBytes)
+    ) {
+      errors.push(`retirement record migration must preserve identical bytes: ${match[1]}`);
+      continue;
+    }
+    let content: string;
+    try {
+      content = new TextDecoder("utf-8", { fatal: true }).decode(canonicalBytes);
+    } catch {
+      errors.push(`retirement record migration is not valid UTF-8: ${match[1]}`);
+      continue;
+    }
+    const receipt = parseRetirementReceipt(content);
+    const preparation = parseDecomposePreparationRecord(content, id);
+    if (
+      (receipt === null || receipt.receiptId !== id)
+      && preparation === null
+    ) {
+      errors.push(`retirement record migration has an invalid deterministic identity: ${match[1]}`);
+      continue;
+    }
+    ignored.add(canonicalPath);
+  }
+  return { ignored, errors };
+}
+
 /** Validate the staged decompose record and exact non-record patch. */
 export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): string[] {
-  const changes = novelMergeChanges(input);
+  const candidateChanges = novelMergeChanges(input);
+  const migration = migrationChanges(candidateChanges, input);
+  if (migration.errors.length > 0) return migration.errors;
+  const changes = candidateChanges.filter((change) =>
+    !migration.ignored.has(change.path)
+    && !change.path.startsWith(`${LEGACY_RETIREMENT_RECORD_NAMESPACE}/`));
   const errors: string[] = [];
   const recordChanges = changes.filter((change) => RECORD_PATTERN.test(change.path));
   if (input.mergeInProgress === true && recordChanges.length > 0) {
@@ -281,7 +345,7 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
     errors.push("decompose retirement record already exists or was amended");
     return errors;
   }
-  if (record.schemaVersion !== 1) {
+  if (record.schemaVersion !== 1 && record.schemaVersion !== 2) {
     return ["decompose retirement record is not a finalized decompose receipt"];
   }
   const match = RECORD_PATTERN.exec(recordChange.path);

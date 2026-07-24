@@ -241,7 +241,7 @@ describe("arc rename", () => {
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("main");
     const receiptPaths = (await git(fixture.repo, [
       "ls-tree", "-r", "--name-only", "chore/rename-old-name-to-new-name", "--",
-      ".arc/.internal/retirement-receipts",
+      ".arc/system/.internal/retirement-receipts",
     ])).split("\n").filter(Boolean);
     expect(receiptPaths).toHaveLength(1);
     const receipt = JSON.parse(await git(fixture.repo, [
@@ -280,6 +280,28 @@ describe("arc rename", () => {
     );
     expect(await hasUserWorkspace(fixture.repo, "old-name")).toBe(false);
     expect(await hasUserWorkspace(fixture.repo, "new-name")).toBe(true);
+  }, 30_000);
+
+  it("renames from reachable tree truth when the composed oracle cannot reach origin", async () => {
+    const fixture = await createFixture();
+    cleanupPaths.push(fixture.remote, fixture.repo);
+    const stubbed = await runArcNoTty([
+      "stub", "old-name", "--commitment", "planned", "--priority", "P2", "--class", "Light",
+      "--cohort", COHORT,
+    ], fixture.repo);
+    expect(stubbed.exitCode).toBe(0);
+    const oldArtifactDir = join(".arc", "backlog", "planned", COHORT, "old-name");
+    const newArtifactDir = join(".arc", "backlog", "planned", COHORT, "new-name");
+    await seedTrackedSweep(fixture.repo, oldArtifactDir, "old-name");
+    await git(fixture.repo, ["add", "."]);
+    await git(fixture.repo, ["commit", "-m", "chore(test): add offline rename source"]);
+    await git(fixture.repo, ["remote", "set-url", "origin", join(fixture.repo, "missing-origin.git")]);
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
+    await git(fixture.repo, ["switch", "chore/rename-old-name-to-new-name"]);
+    await expectTrackedSweep(fixture.repo, oldArtifactDir, newArtifactDir, "old-name", "new-name");
   }, 30_000);
 
   it("self-renames a spawned worktree, marker, notes workspace, and remote branch", async () => {

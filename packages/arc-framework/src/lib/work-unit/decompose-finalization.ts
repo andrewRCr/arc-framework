@@ -12,6 +12,7 @@ import { resolveRetirementRecordRelativePath } from "./retirement-record-store.j
 import type {
   DecomposePreparationLocator,
   DecomposePreparationRecord,
+  InventoryRead,
   RetirementReceipt,
   TeardownAuthorizationRefusal,
 } from "./retirement-authority.js";
@@ -27,6 +28,7 @@ export interface DecomposeFinalizationProjection {
   stagedPaths: readonly string[];
   transitionPatch: readonly PatchOperation[];
   targets: readonly DecomposeFinalTarget[];
+  inventoryRead: Exclude<InventoryRead, "not-applicable">;
 }
 
 export interface DecomposeFinalizationContext {
@@ -60,6 +62,16 @@ function sorted(values: readonly string[]): string[] {
 
 function sameSet(left: readonly string[], right: readonly string[]): boolean {
   return equal(sorted(left), sorted(right));
+}
+
+function inventoryQualityDoesNotRegress(
+  record: DecomposePreparationRecord,
+  current: Exclude<InventoryRead, "not-applicable">,
+): boolean {
+  if (record.schemaVersion === 1) return true;
+  if (record.inventoryRead === "reachable") return current === "reachable";
+  if (record.inventoryRead === "degraded") return current === "degraded" || current === "reachable";
+  return current === "tree-only" || current === "reachable";
 }
 
 async function sourceTargetsResolve(
@@ -130,9 +142,12 @@ export async function finalizeDecomposeRetirement(
     if (stored === null) return { status: "refused", reason: "evidence-missing" };
     const record = parseDecomposePreparationRecord(stored, locator.receiptId);
     if (record === null || !equal(record.locator, locator)) {
-      return { status: "refused", reason: "evidence-mismatch" };
+      return { status: "refused", reason: "evidence-mismatch", diagnostic: "prepared locator changed" };
     }
     const projection = await ctx.readProjection(record);
+    if (!inventoryQualityDoesNotRegress(record, projection.inventoryRead)) {
+      return { status: "refused", reason: "authority-conflict" };
+    }
     const digests = decomposeInventoryDigests(projection.inventories);
     if (
       projection.sourceArtifactDigest !== record.sourceArtifactDigest
@@ -147,20 +162,21 @@ export async function finalizeDecomposeRetirement(
 
     const recordPath = resolveRetirementRecordRelativePath(locator.receiptId);
     if (!projection.stagedPaths.includes(recordPath)) {
-      return { status: "refused", reason: "evidence-mismatch" };
+      return { status: "refused", reason: "evidence-mismatch", diagnostic: "prepared record is not staged" };
     }
     const nonRecordStaged = projection.stagedPaths.filter((path) => path !== recordPath);
     if (nonRecordStaged.some((path) => !record.allowedPaths.includes(path))) {
-      return { status: "refused", reason: "evidence-mismatch" };
+      return { status: "refused", reason: "evidence-mismatch", diagnostic: "a staged path is outside preparation" };
     }
     const patchPaths = projection.transitionPatch.map((operation) => operation.path);
-    if (!sameSet(nonRecordStaged, patchPaths)) return { status: "refused", reason: "evidence-mismatch" };
+    if (!sameSet(nonRecordStaged, patchPaths)) {
+      return { status: "refused", reason: "evidence-mismatch", diagnostic: "staged patch paths do not match" };
+    }
 
     const targets = projection.targets
       .map((target) => ({ path: target.path, artifactDigest: artifactGroupDigest(target.entries) }))
       .sort((left, right) => Buffer.compare(Buffer.from(left.path), Buffer.from(right.path)));
-    const receipt: RetirementReceipt = {
-      schemaVersion: 1,
+    const receiptBase = {
       receiptId: locator.receiptId,
       subject: locator.scope.subject,
       transition: "decompose",
@@ -182,7 +198,10 @@ export async function finalizeDecomposeRetirement(
         outgoingEdgeInventoryDigest: record.outgoingEdgeInventoryDigest,
         targets,
       },
-    };
+    } as const;
+    const receipt: RetirementReceipt = record.schemaVersion === 1
+      ? { ...receiptBase, schemaVersion: 1 }
+      : { ...receiptBase, schemaVersion: 2, inventoryRead: record.inventoryRead };
     await ctx.replaceAndStageRecord(locator.receiptId, stored, canonicalize(receipt), projection.stagedPaths);
     return {
       status: "recorded",

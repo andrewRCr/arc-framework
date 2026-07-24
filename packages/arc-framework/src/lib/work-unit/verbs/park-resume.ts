@@ -52,6 +52,7 @@ import { resolveArcPath } from "../../layout/index.js";
 import type { WriteFileFn } from "../../template/files.js";
 import type { LifecyclePosition } from "../lifecycle-state.js";
 import { buildLifecycleIndex } from "../lifecycle-index.js";
+import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
 import {
   executeTransition,
   type EncodingLeg,
@@ -119,6 +120,8 @@ export interface ParkContext {
   executor: ExecuteTransitionContext;
   fs: ParkResumeFs;
   planningRetirement?: ParkPlanningRetirementContext;
+  /** Remote-aware lifecycle truth; omitted only by tree-compatible library callers. */
+  composed?: ComposedLifecycleIndexResult;
 }
 
 /** Source/result paths captured before a park-at-Planning relocation. */
@@ -393,9 +396,10 @@ async function parkPlanning(
     };
   }
   const receipt: RetirementReceipt = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    inventoryRead: "not-applicable",
     receiptId: receiptId({
-      schemaVersion: 1,
+      schemaVersion: 2,
       subject: source.scope.subject,
       transition: "park-planning",
       sourceBranch: source.scope.source.branch,
@@ -520,6 +524,7 @@ async function parkActive(
   try {
     await ctx.fs.mkdir(join(ctx.executor.cwd, toDir), { recursive: true });
     await ctx.fs.writeFile(join(ctx.executor.cwd, metaPath), pointerRecord);
+    await ctx.executor.stageMeta?.(metaPath);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     return {
@@ -597,12 +602,21 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     };
   }
 
-  const index = await buildLifecycleIndex({ cwd: ctx.executor.cwd, fs: ctx.executor.indexFs });
+  const index = ctx.composed?.index
+    ?? await buildLifecycleIndex({ cwd: ctx.executor.cwd, fs: ctx.executor.indexFs });
   const entry = index.get(name);
   if (entry === undefined || entry.location !== "planned") {
     return { status: "rejected", reason: `\`${name}\` is not a parked WU — nothing to resume.` };
   }
-  const sourceMetaPath = entry.path;
+  const sourceMetaPath = ctx.composed === undefined
+    ? entry.path
+    : ctx.composed.recordsBySlug.get(name)?.writablePath;
+  if (sourceMetaPath === undefined) {
+    return {
+      status: "rejected",
+      reason: `Cannot resume \`${name}\`: composed lifecycle truth does not grant current-checkout write authority.`,
+    };
+  }
   const parkedSubdir = sourceMetaPath.slice(0, sourceMetaPath.lastIndexOf("/"));
   let record: Record<MetaFieldName, string | null>;
   try {
@@ -642,7 +656,21 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
         },
   };
 
-  const outcome = await executeTransition(ctx.executor, { verb: "resume", slug: name, inputs });
+  const roadmapHandler = ctx.executor.sideEffects?.["reconcile-roadmap"];
+  const deferredRoadmap: Array<Parameters<NonNullable<typeof roadmapHandler>>[0]> = [];
+  const transitionExecutor = roadmapHandler === undefined
+    ? ctx.executor
+    : {
+        ...ctx.executor,
+        sideEffects: {
+          ...ctx.executor.sideEffects,
+          "reconcile-roadmap": (effectCtx: Parameters<typeof roadmapHandler>[0]) => {
+            deferredRoadmap.push(effectCtx);
+            return Promise.resolve(undefined);
+          },
+        },
+      };
+  const outcome = await executeTransition(transitionExecutor, { verb: "resume", slug: name, inputs });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
   // Remove the tracked-branch pointer-record and prune the emptied parked dir.
@@ -654,6 +682,7 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   // leaves a half-applied resume (a stale pointer-record), so report it as such.
   try {
     await ctx.fs.rm(join(ctx.executor.cwd, sourceMetaPath));
+    await ctx.executor.stageMeta?.(sourceMetaPath);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     return {
@@ -668,9 +697,18 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     // Best-effort prune — a non-empty or already-gone dir is left as-is.
   }
 
+  const advisories = [...outcome.advisories];
+  for (const effectCtx of deferredRoadmap) {
+    const advisory = await roadmapHandler?.(effectCtx);
+    if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+  }
+  const completedOutcome = advisories.length === outcome.advisories.length
+    ? outcome
+    : { ...outcome, advisories };
+
   return {
     status: "resumed",
-    outcome,
+    outcome: completedOutcome,
     metaPath: resolveArcPath({
       kind: "work-unit-artifact",
       placement: { kind: "active", scope: { kind: "project" } },

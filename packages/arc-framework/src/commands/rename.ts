@@ -7,8 +7,7 @@ import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import type { UserIOContext } from "./user.js";
 import { runUserRenameWorkspace } from "./user.js";
 import { listArcFiles } from "../lib/fs.js";
-import { boundedGitInvocation, getCurrentBranch } from "../lib/git/exec.js";
-import { DEFAULT_NETWORK_TIMEOUT_MS } from "../lib/git/remote-ref-reader.js";
+import { getCurrentBranch } from "../lib/git/exec.js";
 import {
   renameWorktreeOwnershipMarker,
   type WorktreeSubject,
@@ -17,7 +16,7 @@ import {
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
 } from "../lib/git/worktree-roster.js";
-import { renderTrackedProjectReadinessViewResult } from "../lib/status/project-roadmap-render.js";
+import { renderRoadmapFromIndexViewResult } from "../lib/status/roadmap-regeneration-assert.js";
 import {
   resolveComposedLifecycleIndex,
 } from "../lib/work-unit/composed-lifecycle-index.js";
@@ -56,6 +55,7 @@ import {
   type RunRenameContext,
   type RunRenameResult,
 } from "../lib/work-unit/verbs/rename.js";
+import { reconcileRoadmap } from "../lib/work-unit/side-effects/readiness-regen.js";
 
 /** Production dependencies resolved by the CLI handler. */
 export interface RenameCommandContext {
@@ -79,14 +79,6 @@ export async function runRenameCommand(
     retirement: command.retirement,
     preflight: async (request) => {
       const names = validateRenameRequest(request.sourceSlug, request.targetSlug);
-      const fetched = await boundedGitInvocation(
-        exec,
-        ["fetch", "--prune", "origin", "+refs/heads/*:refs/remotes/origin/*"],
-        DEFAULT_NETWORK_TIMEOUT_MS,
-      );
-      if (fetched.outcome !== "ok") {
-        throw new Error("cannot refresh remote work-unit truth before rename");
-      }
       const currentBranch = await getCurrentBranch(exec);
       const composed = await resolveComposedLifecycleIndex({
         cwd: command.cwd,
@@ -104,15 +96,26 @@ export async function runRenameCommand(
         resolvedSlug: subject.resolvedSlug,
         targetSlug: names.newSlug,
       });
+      const writablePath = composed.recordsBySlug.get(subject.resolvedSlug)?.writablePath;
+      if (writablePath === undefined) {
+        throw new Error(`cannot rename ${subject.resolvedSlug} without current-checkout write authority`);
+      }
+      const writableSubject = { ...subject, entry: { ...subject.entry, path: writablePath } };
 
-      const metaPath = resolve(command.cwd, subject.entry.path);
+      const metaPath = resolve(command.cwd, writableSubject.entry.path);
       const meta = parseMetaRecord(await readFile(metaPath, "utf8"));
       const branch = normalizedBranch(meta.Branch);
-      const shape = await resolveSubjectShape(command, subject.entry, branch, subject.resolvedSlug, composed);
+      const shape = await resolveSubjectShape(
+        command,
+        writableSubject.entry,
+        branch,
+        writableSubject.resolvedSlug,
+        composed,
+      );
       const dirty = (await exec("git", ["status", "--porcelain"], { cwd: command.cwd })).stdout.trim() !== "";
       assertRenameSubjectPreconditions({
         subject: { kind: "work-unit", name: subject.resolvedSlug } satisfies WorktreeSubject,
-        entry: subject.entry,
+        entry: writableSubject.entry,
         dirty,
         prUrl: meta["PR URL"] ?? undefined,
       });
@@ -121,9 +124,9 @@ export async function runRenameCommand(
       const oldRemoteOid = branches.oldBranch === null
         ? null
         : await readRemoteBranchOid(exec, "origin", branches.oldBranch);
-      const dirs = renameDirectories(subject.entry, names.oldSlug, names.newSlug, subject.resuming);
-      if (!subject.resuming) {
-        const cohortDocRelativePath = await cohortDocumentPath(command.cwd, subject.entry, lifecycleFs);
+      const dirs = renameDirectories(writableSubject.entry, names.oldSlug, names.newSlug, writableSubject.resuming);
+      if (!writableSubject.resuming) {
+        const cohortDocRelativePath = await cohortDocumentPath(command.cwd, writableSubject.entry, lifecycleFs);
         referencePlan = await planRenameReferences({
           arcRoot: ".arc",
           sourceSlug: names.oldSlug,
@@ -173,8 +176,38 @@ export async function runRenameCommand(
         rewriteRenamedMeta(await readFile(absoluteMeta, "utf8"), plan.sourceSlug, plan.targetSlug),
         "utf8",
       );
-      await regenerateRoadmap(command, lifecycleFs);
     },
+    regenerateReadiness: async (plan) => await reconcileRoadmap(
+      {
+        composeView: async () => {
+          const currentBranch = await getCurrentBranch(command.io.exec);
+          const { result } = await renderRoadmapFromIndexViewResult({
+            cwd: command.cwd,
+            exec: command.io.exec,
+            baseBranch: command.baseBranch,
+            currentBranch,
+            ...(plan.oldBranch === null
+              ? {}
+              : { superseded: { slug: plan.sourceSlug, branch: plan.oldBranch } }),
+          });
+          return {
+            content: result.markdown,
+            advisories: result.warnings.map((warning) => warning.rendered),
+          };
+        },
+        mkdir: command.io.mkdir,
+        writeFile: command.io.writeFile,
+        stageFile: async (path) => {
+          await command.io.exec("git", ["add", path], { cwd: command.cwd });
+        },
+      },
+      {
+        cwd: command.cwd,
+        slug: plan.sourceSlug,
+        from: null,
+        to: null,
+      },
+    ),
     commitTracked: async (plan) => {
       await exec("git", [
         "commit",
@@ -346,20 +379,6 @@ function isSourceArtifactPath(path: string, sourceDir: string, sourceSlug: strin
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-}
-
-async function regenerateRoadmap(command: RenameCommandContext, fs: LifecycleIndexFs): Promise<void> {
-  const currentBranch = await getCurrentBranch(command.io.exec);
-  const view = await renderTrackedProjectReadinessViewResult({
-    cwd: command.cwd,
-    exec: command.io.exec,
-    fs,
-    baseBranch: command.baseBranch,
-    currentBranch,
-  });
-  const path = resolve(command.cwd, ".arc/backlog/ROADMAP.md");
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, view.markdown.endsWith("\n") ? view.markdown : `${view.markdown}\n`, "utf8");
 }
 
 function renameCommitSubject(sourceSlug: string, targetSlug: string): string {

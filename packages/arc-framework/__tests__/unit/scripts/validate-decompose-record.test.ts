@@ -4,7 +4,11 @@ import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canoni
 import { contentDigest, patchDigest } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
 import { receiptId as deriveReceiptId } from "../../../src/lib/canonical/receipt-id.js";
-import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/retirement-record-store.js";
+import {
+  LEGACY_RETIREMENT_RECORD_NAMESPACE,
+  RETIREMENT_RECORD_NAMESPACE,
+  resolveRetirementRecordRelativePath,
+} from "../../../src/lib/work-unit/retirement-record-store.js";
 import {
   parseStagedPathChanges,
   validateDecomposeCommitGate,
@@ -386,7 +390,7 @@ describe("validateDecomposeCommitGate", () => {
     const abandon = abandonReceipt("origin");
     const canonicalPath = resolveRetirementRecordRelativePath(abandon.receiptId);
     const spoofedPath = canonicalPath.replace(
-      ".arc/.internal/retirement-receipts/",
+      `${RETIREMENT_RECORD_NAMESPACE}/`,
       "xarc/yinternal/retirement-receipts/",
     );
     expect(validateDecomposeCommitGate({
@@ -426,6 +430,39 @@ describe("validateDecomposeCommitGate", () => {
     ).toContainEqual(expect.stringMatching(/amended|already exists/i));
     expect(validate([{ status: "A", path: recordPath }])).toContainEqual(expect.stringMatching(/patch.*mismatch/i));
   });
+
+  it("admits an authenticated byte-identical move out of the legacy namespace", () => {
+    const migrated = abandonReceipt("migrated");
+    const canonicalPath = resolveRetirementRecordRelativePath(migrated.receiptId);
+    const legacyPath = canonicalPath.replace(RETIREMENT_RECORD_NAMESPACE, LEGACY_RETIREMENT_RECORD_NAMESPACE);
+    const recordBytes = bytes(canonicalize(migrated));
+    expect(validateDecomposeCommitGate({
+      changes: [
+        { status: "D", path: legacyPath },
+        { status: "A", path: canonicalPath },
+      ],
+      readIndexBytes: (path) => path === canonicalPath ? recordBytes : null,
+      readHeadBytes: (path) => path === legacyPath ? recordBytes : null,
+    })).toEqual([]);
+  });
+
+  it("rejects writes into the legacy namespace and divergent migration bytes", () => {
+    const legacyPath = recordPath.replace(RETIREMENT_RECORD_NAMESPACE, LEGACY_RETIREMENT_RECORD_NAMESPACE);
+    const recordBytes = bytes(canonicalize(receipt));
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "A", path: legacyPath }],
+      readIndexBytes: (path) => path === legacyPath ? recordBytes : null,
+      readHeadBytes: () => null,
+    })).toContainEqual(expect.stringMatching(/removals only/iu));
+    expect(validateDecomposeCommitGate({
+      changes: [
+        { status: "D", path: legacyPath },
+        { status: "A", path: recordPath },
+      ],
+      readIndexBytes: (path) => path === recordPath ? bytes("changed") : null,
+      readHeadBytes: (path) => path === legacyPath ? recordBytes : null,
+    })).toContainEqual(expect.stringMatching(/identical bytes/iu));
+  });
 });
 
 describe("parseStagedPathChanges", () => {
@@ -437,7 +474,7 @@ describe("parseStagedPathChanges", () => {
   });
 
   it.each([
-    ["type change", "T\0.arc/.internal/retirement-receipts/record.json\0"],
+    ["type change", `T\0${LEGACY_RETIREMENT_RECORD_NAMESPACE}/record.json\0`],
     ["unknown status", "X\0path.md\0"],
     ["missing path", "A\0"],
     ["missing terminator", "A\0path.md"],

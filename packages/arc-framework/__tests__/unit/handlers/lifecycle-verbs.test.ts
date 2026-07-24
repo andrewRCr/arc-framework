@@ -77,6 +77,11 @@ vi.mock("../../../src/lib/active/meta-reader.js", () => ({
 
 vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({ buildLifecycleIndex: async () => new Map() }));
 
+const mockResolveComposedLifecycleIndex = vi.fn();
+vi.mock("../../../src/lib/work-unit/composed-lifecycle-index.js", () => ({
+  resolveComposedLifecycleIndex: (...args: unknown[]) => mockResolveComposedLifecycleIndex(...args),
+}));
+
 const mockRunStub = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/stub.js", () => ({ runStub: (...a: unknown[]) => mockRunStub(...a) }));
 
@@ -234,7 +239,7 @@ beforeEach(() => {
   mockLandParkPlanningTransition.mockResolvedValue({
     status: "landed",
     commit: "abc123",
-    receiptPath: ".arc/.internal/retirement-receipts/receipt.json",
+    receiptPath: ".arc/system/.internal/retirement-receipts/receipt.json",
     plannedPaths: [".arc/backlog/planned/foo/meta-foo.md"],
   });
   mockRunResume.mockResolvedValue({ status: "resumed", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
@@ -242,6 +247,15 @@ beforeEach(() => {
   mockRunActivate.mockResolvedValue({ status: "activated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunDeactivate.mockResolvedValue({ status: "deactivated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunAbandon.mockResolvedValue({ status: "abandoned", outcome: okOutcome });
+  mockResolveComposedLifecycleIndex.mockResolvedValue({
+    index: new Map(),
+    recordsBySlug: new Map(),
+    qualityFacts: { warnings: [], resultMarks: [], bySlug: new Map() },
+    worktreePathBySlug: new Map(),
+    liveRefs: {},
+    reachable: true,
+    readQuality: "reachable",
+  });
   mockResolveSlugState.mockReturnValue("active");
   mockPlanAbandon.mockReturnValue({ legal: true, lines: ["Artifacts: remove the work unit's artifact set"] });
   mockRunIntegrate.mockResolvedValue({ status: "integrated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });

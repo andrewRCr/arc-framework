@@ -32,6 +32,7 @@ import {
   type DecomposeSourceArtifact,
 } from "./decompose-inventory.js";
 import { replaceDependencySlot } from "./decompose-sweep.js";
+import { enumerateGitRetirementRecords } from "./git-retirement-record-enumeration.js";
 import { buildLifecycleIndexFromMetas, type LifecycleIndex } from "./lifecycle-index.js";
 import { resolveSlugState } from "./lifecycle-resolver.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
@@ -51,8 +52,9 @@ import {
   validateReceiptMatrix,
   worktreeSubjectsEqual,
 } from "./retirement-authority.js";
-import { parseRetirementReceipt } from "./retirement-receipt-codec.js";
-import { resolveRetirementRecordRelativePath } from "./retirement-record-store.js";
+import {
+  resolveHistoricalRetirementRecordPaths,
+} from "./retirement-record-store.js";
 import { validateRetirementReceiptRelation } from "./retirement-relation.js";
 
 /** Exact committed-blob reader used for canonical content digests. */
@@ -140,16 +142,9 @@ export async function validateGitRetirementReceiptEvidence(
       : null;
     if (input.evidence.transition === "decompose" && decomposeResultHead === null) return false;
     const recordRef = input.evidence.transition === "decompose" ? baseRef : input.retiringHead;
-    const content = await readTextAt(
-      exec,
-      recordRef,
-      resolveRetirementRecordRelativePath(input.evidence.receiptId),
-    );
-    if (content === null) return false;
-    const receipt = parseRetirementReceipt(content);
+    const receipt = await readEnumeratedReceipt(exec, recordRef, input.evidence.receiptId);
     if (
       receipt === null
-      || receipt.receiptId !== input.evidence.receiptId
       || receipt.transition !== input.evidence.transition
       || !worktreeSubjectsEqual(receipt.subject, input.subject)
       || receipt.source.branch !== input.branch
@@ -181,11 +176,9 @@ function createRelationContext(
 ): Parameters<typeof validateRetirementReceiptRelation>[0] {
   return {
     readCommitParents: (commit: string) => readCommitParents(exec, commit),
-    readRecord: (commit: string, id: CanonicalDigest) => readTextAt(
-      exec,
-      commit,
-      resolveRetirementRecordRelativePath(id),
-    ),
+    readRecord: async (commit: string, id: CanonicalDigest) => (
+      await readHistoricalRecord(exec, commit, id)
+    )?.content ?? null,
     readPatchOperations: (
       parent: string,
       commit: string,
@@ -216,28 +209,54 @@ async function readReceiptCandidates(
   }
 
   const candidates: RetirementReceiptCandidate[] = [];
+  const enumerations = new Map<string, ReturnType<typeof enumerateGitRetirementRecords>>();
   for (const lookup of lookups) {
-    const id = receiptId({
-      schemaVersion: 1,
-      subject: request.subject,
-      transition: lookup.transition,
-      sourceBranch: request.branch,
-      sourceHead: lookup.sourceHead,
-    });
-    const content = await readTextAt(exec, lookup.ref, resolveRetirementRecordRelativePath(id));
-    if (content === null) continue;
-    const receipt = parseRetirementReceipt(content);
-    if (receipt === null || receipt.transition !== lookup.transition) continue;
-    const decomposeResultHead = lookup.transition === "decompose"
-      ? await resolveReachableReceiptIntroduction(exec, baseRef, id)
-      : null;
-    if (lookup.transition === "decompose" && decomposeResultHead === null) continue;
-    candidates.push({
-      receipt,
-      resultHead: lookup.transition === "abandon" ? request.head : decomposeResultHead ?? baseRef,
-    });
+    for (const schemaVersion of [1, 2] as const) {
+      const id = receiptId({
+        schemaVersion,
+        subject: request.subject,
+        transition: lookup.transition,
+        sourceBranch: request.branch,
+        sourceHead: lookup.sourceHead,
+      });
+      const enumeration = await (
+        enumerations.get(lookup.ref)
+        ?? (() => {
+          const pending = enumerateGitRetirementRecords(exec, lookup.ref);
+          enumerations.set(lookup.ref, pending);
+          return pending;
+        })()
+      );
+      if (enumeration.status !== "valid") {
+        throw new Error(`retirement record enumeration failed: ${enumeration.status}`);
+      }
+      const record = enumeration.records.find((candidate) => candidate.id === id);
+      const receipt = record?.record.kind === "receipt" ? record.record.value : null;
+      if (receipt === null || receipt.transition !== lookup.transition) continue;
+      const decomposeResultHead = lookup.transition === "decompose"
+        ? await resolveReachableReceiptIntroduction(exec, baseRef, id)
+        : null;
+      if (lookup.transition === "decompose" && decomposeResultHead === null) continue;
+      candidates.push({
+        receipt,
+        resultHead: lookup.transition === "abandon" ? request.head : decomposeResultHead ?? baseRef,
+      });
+    }
   }
   return candidates;
+}
+
+async function readEnumeratedReceipt(
+  exec: GitExec,
+  ref: string,
+  id: CanonicalDigest,
+): Promise<RetirementReceipt | null> {
+  const enumeration = await enumerateGitRetirementRecords(exec, ref);
+  if (enumeration.status !== "valid") {
+    throw new Error(`retirement record enumeration failed: ${enumeration.status}`);
+  }
+  const record = enumeration.records.find((candidate) => candidate.id === id);
+  return record?.record.kind === "receipt" ? record.record.value : null;
 }
 
 /** Resolve the sole commit reachable from `tip` that introduced this immutable record path. */
@@ -246,7 +265,6 @@ async function resolveReachableReceiptIntroduction(
   tip: string,
   id: CanonicalDigest,
 ): Promise<string | null> {
-  const path = resolveRetirementRecordRelativePath(id);
   let commits: string[];
   try {
     const { stdout } = await exec("git", [
@@ -256,14 +274,14 @@ async function resolveReachableReceiptIntroduction(
       "--no-renames",
       tip,
       "--",
-      path,
+      ...resolveHistoricalRetirementRecordPaths(id),
     ]);
     commits = stdout.split("\n").map((value) => value.trim()).filter(Boolean);
   } catch {
     return null;
   }
-  if (commits.length !== 1) return null;
-  const introducedAt = commits[0];
+  if (commits.length === 0) return null;
+  const introducedAt = commits.at(-1);
   if (introducedAt === undefined) return null;
   try {
     await exec("git", ["merge-base", "--is-ancestor", introducedAt, tip]);
@@ -292,11 +310,8 @@ async function validateReceiptResult(
             const artifacts = entry === undefined
               ? []
               : await readArtifactGroup(exec, head, posix.dirname(entry.path), entry.slug, readBlob);
-            const record = await readBytesAt(
-              head,
-              validateManagedPath(resolveRetirementRecordRelativePath(candidate.receiptId)),
-              readBlob,
-            );
+            const stored = await readHistoricalRecord(exec, head, candidate.receiptId);
+            const record = stored === null ? null : new TextEncoder().encode(stored.content);
             return {
               lifecycle: candidate.subject.kind === "work-unit"
                 ? resolveSlugState(index, candidate.subject.name)
@@ -619,13 +634,13 @@ async function readPatchOperations(
   ]);
   const fields = stdout.split("\0").filter(Boolean);
   if (fields.length % 2 !== 0) throw new Error("malformed Git name-status output");
-  const excluded = resolveRetirementRecordRelativePath(excludedReceiptId);
+  const excluded = new Set(resolveHistoricalRetirementRecordPaths(excludedReceiptId));
   const operations: PatchOperation[] = [];
   for (let index = 0; index < fields.length; index += 2) {
     const status = fields[index];
     const rawPath = fields[index + 1];
     if (status === undefined || rawPath === undefined) throw new Error("malformed Git name-status output");
-    if (rawPath === excluded) continue;
+    if (excluded.has(rawPath)) continue;
     const path = validateManagedPath(rawPath);
     if (status === "D") operations.push(deleteOperation(path));
     else if (status === "A" || status === "M") {
@@ -675,6 +690,26 @@ async function readTextAt(exec: GitExec, ref: string, path: string): Promise<str
   } catch {
     return null;
   }
+}
+
+async function readHistoricalRecord(
+  exec: GitExec,
+  ref: string,
+  id: CanonicalDigest,
+): Promise<{ content: string; path: string } | null> {
+  const records = (await Promise.all(
+    resolveHistoricalRetirementRecordPaths(id).map(async (path) => ({
+      path,
+      content: await readTextAt(exec, ref, path),
+    })),
+  )).filter((record): record is { path: string; content: string } => record.content !== null);
+  if (records.length === 0) return null;
+  const [first] = records;
+  if (first === undefined) return null;
+  if (records.some((record) => record.content !== first.content)) {
+    throw new Error(`conflicting retirement records for ${id}`);
+  }
+  return first;
 }
 
 async function requireTextAt(exec: GitExec, ref: string, path: ManagedPath): Promise<string> {

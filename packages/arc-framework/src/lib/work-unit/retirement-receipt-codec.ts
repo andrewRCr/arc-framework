@@ -26,6 +26,7 @@ const RECEIPT_KEYS = [
   "authorization",
   "result",
 ] as const;
+const RECEIPT_V2_KEYS = [...RECEIPT_KEYS, "inventoryRead"] as const;
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -174,8 +175,16 @@ function parseResult(value: unknown): RetirementReceipt["result"] | null {
 export function parseRetirementReceipt(content: string): RetirementReceipt | null {
   try {
     const parsed: unknown = JSON.parse(content);
-    if (canonicalize(parsed) !== content || !isObject(parsed) || !hasExactKeys(parsed, RECEIPT_KEYS)) return null;
-    if (parsed.schemaVersion !== 1 || !isCanonicalDigest(parsed.receiptId)) return null;
+    if (canonicalize(parsed) !== content || !isObject(parsed)) return null;
+    const schemaVersion = parsed.schemaVersion;
+    if ((schemaVersion !== 1 && schemaVersion !== 2)
+      || !hasExactKeys(parsed, schemaVersion === 1 ? RECEIPT_KEYS : RECEIPT_V2_KEYS)
+      || !isCanonicalDigest(parsed.receiptId)
+      || (schemaVersion === 2
+        && parsed.inventoryRead !== "not-applicable"
+        && parsed.inventoryRead !== "tree-only"
+        && parsed.inventoryRead !== "reachable"
+        && parsed.inventoryRead !== "degraded")) return null;
     const subject = parseSubject(parsed.subject);
     const source = parseSource(parsed.source);
     const projection = parseProjection(parsed.retiringProjection);
@@ -193,15 +202,14 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
     }
     const transition: RetirementTransition = parsed.transition;
     const expectedReceiptId = receiptId({
-      schemaVersion: 1,
+      schemaVersion,
       subject,
       transition,
       sourceBranch: source.branch,
       sourceHead: source.head,
     });
     if (parsed.receiptId !== expectedReceiptId) return null;
-    const receipt: RetirementReceipt = {
-      schemaVersion: 1,
+    const common = {
       receiptId: parsed.receiptId,
       subject,
       transition,
@@ -210,7 +218,14 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
       retiringProjection: projection,
       authorization: parsed.authorization,
       result,
-    };
+    } as const;
+    const receipt: RetirementReceipt = schemaVersion === 1
+      ? { ...common, schemaVersion: 1 }
+      : {
+          ...common,
+          schemaVersion: 2,
+          inventoryRead: parsed.inventoryRead as "not-applicable" | "tree-only" | "reachable" | "degraded",
+        };
     const expectedLifecycle = transition === "park-planning" ? "planned" : "nonexistent";
     const expectedProjection = transition === "decompose" ? "unchanged" : "direct-transition";
     if (

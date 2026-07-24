@@ -104,6 +104,10 @@ function buildContext(options: {
       calls.push("mutate");
       fail("mutate");
     },
+    regenerateReadiness: async () => {
+      calls.push("roadmap");
+      return options.failAt === "roadmap-advisory" ? "ROADMAP regen failed" : undefined;
+    },
     commitTracked: async () => {
       calls.push("commit");
       fail("commit");
@@ -159,7 +163,7 @@ describe("runRename", () => {
     await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
       .resolves.toMatchObject({ status: "renamed", shape: "spawned", trackedCommit: "created" });
     expect(calls).toEqual([
-      "preflight", "capture", "snapshot", "mutate", "stage", "patch", "artifact-digest", "record", "commit",
+      "preflight", "capture", "snapshot", "mutate", "stage", "roadmap", "patch", "artifact-digest", "record", "commit",
       "branch", "notes", "remote", "marker", "resolve-worktree", "move-worktree",
     ]);
   });
@@ -174,6 +178,17 @@ describe("runRename", () => {
     expect(calls).toContain("remote");
     expect(calls).not.toContain("marker");
     expect(calls).not.toContain("resolve-worktree");
+  });
+
+  it("retains a ROADMAP failure advisory without rolling back the tracked rename", async () => {
+    const { ctx, calls } = buildContext({ failAt: "roadmap-advisory" });
+
+    await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
+      .resolves.toMatchObject({
+        status: "renamed",
+        advisories: ["ROADMAP regen failed"],
+      });
+    expect(calls).not.toContain("rollback-transition");
   });
 
   it("runs the tracked phase on a stub branch and no identity legs", async () => {

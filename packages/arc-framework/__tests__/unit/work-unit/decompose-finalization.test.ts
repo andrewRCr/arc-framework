@@ -99,6 +99,7 @@ const record: DecomposePreparationRecord = {
   cutMapDigest,
 };
 const projection: DecomposeFinalizationProjection = {
+  inventoryRead: "reachable",
   sourceArtifactDigest: record.sourceArtifactDigest,
   inventories,
   stagedPaths: [recordPath, targetPath],
@@ -106,12 +107,53 @@ const projection: DecomposeFinalizationProjection = {
   targets: [{ path: ".arc/backlog/planned/origin/member-a", entries: [{ path: targetPath, state: "present", contentDigest: digest("intro") }] }],
 };
 
-function context(overrides: Partial<DecomposeFinalizationContext> = {}) {
+function v2Fixture(inventoryRead: "tree-only" | "reachable" | "degraded") {
+  const v2ReceiptId = receiptId({
+    schemaVersion: 2,
+    subject: scope.subject,
+    transition: "decompose",
+    sourceBranch: scope.source.branch,
+    sourceHead: scope.source.head,
+  });
+  const v2Locator: DecomposePreparationLocator = {
+    ...locator,
+    receiptId: v2ReceiptId,
+    preparationId: preparationId({
+      receiptId: v2ReceiptId,
+      baseHead: scope.resultProjection.head,
+      ...inventoryDigests,
+      cutMapDigest,
+    }),
+  };
+  const v2Record: DecomposePreparationRecord = {
+    ...record,
+    schemaVersion: 2,
+    inventoryRead,
+    locator: v2Locator,
+  };
+  return {
+    locator: v2Locator,
+    record: v2Record,
+    projection: {
+      ...projection,
+      inventoryRead,
+      stagedPaths: [resolveRetirementRecordRelativePath(v2ReceiptId), targetPath],
+    },
+  };
+}
+
+function context(
+  overrides: Partial<DecomposeFinalizationContext> = {},
+  fixture: { record: DecomposePreparationRecord; projection: DecomposeFinalizationProjection } = {
+    record,
+    projection,
+  },
+) {
   const replacements: string[] = [];
   const ctx: DecomposeFinalizationContext = {
     readAuthoritySnapshot: async () => ({ authorityVersion: "prepared-version", recordState: "prepared-decompose" }),
-    readRecord: async () => canonicalize(record),
-    readProjection: async () => projection,
+    readRecord: async () => canonicalize(fixture.record),
+    readProjection: async () => fixture.projection,
     readTargetArtifact: async () => bytes("intro"),
     readDependsOn: async (slug) => {
       if (slug === "consumer") return ["other", "member-a"];
@@ -119,8 +161,8 @@ function context(overrides: Partial<DecomposeFinalizationContext> = {}) {
       return [];
     },
     replaceAndStageRecord: async (_id, expected, next, stagedPaths) => {
-      expect(expected).toBe(canonicalize(record));
-      expect(stagedPaths).toEqual(projection.stagedPaths);
+      expect(expected).toBe(canonicalize(fixture.record));
+      expect(stagedPaths).toEqual(fixture.projection.stagedPaths);
       replacements.push(next);
     },
     ...overrides,
@@ -211,5 +253,50 @@ describe("finalizeDecomposeRetirement", () => {
     );
 
     expect(result).toMatchObject({ status: "refused", reason: "authority-unavailable" });
+  });
+
+  it("preserves degraded preparation quality when the reachable inventory is unchanged", async () => {
+    const fixture = v2Fixture("degraded");
+    const h = context({}, fixture);
+
+    const result = await finalizeDecomposeRetirement(h.ctx, fixture.locator, "prepared-version");
+
+    expect(result).toMatchObject({
+      status: "recorded",
+      receipt: { schemaVersion: 2, inventoryRead: "degraded" },
+    });
+  });
+
+  it("refuses reachable-to-degraded quality regression before replacing the preparation", async () => {
+    const fixture = v2Fixture("reachable");
+    const h = context({
+      readProjection: async () => ({ ...fixture.projection, inventoryRead: "degraded" }),
+    }, fixture);
+
+    const result = await finalizeDecomposeRetirement(h.ctx, fixture.locator, "prepared-version");
+
+    expect(result).toMatchObject({ status: "refused", reason: "authority-conflict" });
+    expect(h.replacements).toEqual([]);
+  });
+
+  it("refuses a newly enlarged reachable inventory before replacing the preparation", async () => {
+    const fixture = v2Fixture("reachable");
+    const h = context({
+      readProjection: async () => ({
+        ...fixture.projection,
+        inventories: {
+          ...fixture.projection.inventories,
+          incomingEdgeInventory: [
+            ...fixture.projection.inventories.incomingEdgeInventory,
+            { dependent: "new-consumer", currentTargets: ["origin"] },
+          ],
+        },
+      }),
+    }, fixture);
+
+    const result = await finalizeDecomposeRetirement(h.ctx, fixture.locator, "prepared-version");
+
+    expect(result).toMatchObject({ status: "refused", reason: "authority-conflict" });
+    expect(h.replacements).toEqual([]);
   });
 });

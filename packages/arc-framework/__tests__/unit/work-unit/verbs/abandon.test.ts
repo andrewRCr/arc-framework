@@ -22,7 +22,12 @@ import type {
   ExecuteTransitionContext,
   SideEffectHandler,
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
-import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
+import type { ComposedLifecycleIndexResult } from "../../../../src/lib/work-unit/composed-lifecycle-index.js";
+import {
+  buildLifecycleIndex,
+  type DirEntry,
+  type LifecycleIndexFs,
+} from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
 import {
   validateReceiptMatrix,
@@ -219,6 +224,18 @@ const PROVISIONAL: MetaSpec = { slug: "foo", tier: "backlog/provisional", subdir
 const PARKED: MetaSpec = { slug: "foo", tier: "backlog/planned", subdir: "foo", state: "Active", branch: "feat/foo" };
 const INTEGRATING: MetaSpec = { slug: "foo", tier: "active", subdir: "", state: "Integrating", branch: "feat/foo" };
 
+async function composedWithoutWriteAuthority(ctx: AbandonContext): Promise<ComposedLifecycleIndexResult> {
+  return {
+    index: await buildLifecycleIndex({ cwd: CWD, fs: ctx.executor.indexFs }),
+    recordsBySlug: new Map(),
+    qualityFacts: { warnings: [], resultMarks: [], bySlug: new Map() },
+    worktreePathBySlug: new Map(),
+    liveRefs: {},
+    reachable: true,
+    readQuality: "reachable",
+  };
+}
+
 describe("runAbandon — the confirmation gate", () => {
   it("refuses without an explicit --yes, removing nothing", async () => {
     const { ctx, calls, removed } = buildCtx([ACTIVE]);
@@ -230,6 +247,23 @@ describe("runAbandon — the confirmation gate", () => {
     expect(result.reason).toMatch(/confirm|--yes|refus/i);
     expect(removed).toEqual([]);
     expect(calls.some((c) => c.startsWith("branch:") || c.startsWith("worktree:"))).toBe(false);
+  });
+});
+
+describe("runAbandon — composed write authority", () => {
+  it("refuses a divergent subject before reading or removing checkout files", async () => {
+    const { ctx, calls, removed } = buildCtx([ACTIVE]);
+    ctx.composed = await composedWithoutWriteAuthority(ctx);
+    ctx.executor.indexFs.readFile = () => Promise.reject(new Error("filesystem read must not occur"));
+
+    const result = await runAbandon(ctx, BASE);
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "Cannot abandon `foo`: composed lifecycle truth does not grant current-checkout write authority.",
+    });
+    expect(calls).toEqual([]);
+    expect(removed).toEqual([]);
   });
 });
 

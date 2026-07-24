@@ -23,6 +23,7 @@ import { resolveRetirementRecordRelativePath } from "./retirement-record-store.j
 import { isSlugSafe } from "./slug.js";
 import type {
   DecomposePreparationRecord,
+  InventoryRead,
   PreparedDecomposeRetirement,
   RetirementAuthorityScope,
   TeardownAuthorizationRefusal,
@@ -32,6 +33,7 @@ export interface DecomposePreparationProjection {
   sourceArtifactDigest: CanonicalDigest;
   inventories: DecomposeInventories;
   allowedPaths: readonly ManagedPath[];
+  inventoryRead: Exclude<InventoryRead, "not-applicable">;
 }
 
 export interface DecomposePreparationContext {
@@ -178,8 +180,9 @@ export function parseDecomposePreparationRecord(
 ): DecomposePreparationRecord | null {
   try {
     const parsed: unknown = JSON.parse(content);
-    if (canonicalize(parsed) !== content || !isObject(parsed)
-      || !hasExactKeys(parsed, [
+    if (canonicalize(parsed) !== content || !isObject(parsed)) return null;
+    const schemaVersion = parsed.schemaVersion;
+    const expectedKeys = [
         "kind",
         "schemaVersion",
         "locator",
@@ -193,8 +196,14 @@ export function parseDecomposePreparationRecord(
         "incomingEdgeInventoryDigest",
         "outgoingEdgeInventoryDigest",
         "cutMapDigest",
-      ])
-      || parsed.kind !== "prepared-decompose" || parsed.schemaVersion !== 1
+        ...(schemaVersion === 2 ? ["inventoryRead"] : []),
+      ];
+    if (!hasExactKeys(parsed, expectedKeys)
+      || parsed.kind !== "prepared-decompose" || (schemaVersion !== 1 && schemaVersion !== 2)
+      || (schemaVersion === 2
+        && parsed.inventoryRead !== "tree-only"
+        && parsed.inventoryRead !== "reachable"
+        && parsed.inventoryRead !== "degraded")
       || !isObject(parsed.locator) || !hasExactKeys(parsed.locator, ["receiptId", "preparationId", "scope"])
       || !isCanonicalDigest(parsed.locator.receiptId) || !isCanonicalDigest(parsed.locator.preparationId)
       || (expectedReceiptId !== undefined && parsed.locator.receiptId !== expectedReceiptId)
@@ -221,7 +230,7 @@ export function parseDecomposePreparationRecord(
     const inventoryDigests = decomposeInventoryDigests(inventories);
     const cutMapDigest = canonicalDigest(allocationResult.params);
     const deterministicReceiptId = receiptId({
-      schemaVersion: 1,
+      schemaVersion,
       subject: scope.subject,
       transition: "decompose",
       sourceBranch: scope.source.branch,
@@ -241,9 +250,8 @@ export function parseDecomposePreparationRecord(
       || parsed.cutMapDigest !== cutMapDigest) {
       return null;
     }
-    return {
+    const common = {
       kind: "prepared-decompose",
-      schemaVersion: 1,
       locator: {
         receiptId: deterministicReceiptId,
         preparationId: deterministicPreparationId,
@@ -255,7 +263,14 @@ export function parseDecomposePreparationRecord(
       sourceArtifactDigest: parsed.sourceArtifactDigest,
       ...inventoryDigests,
       cutMapDigest,
-    };
+    } as const;
+    return schemaVersion === 1
+      ? { ...common, schemaVersion: 1 }
+      : {
+          ...common,
+          schemaVersion: 2,
+          inventoryRead: parsed.inventoryRead as Exclude<InventoryRead, "not-applicable">,
+        };
   } catch {
     return null;
   }
@@ -289,7 +304,7 @@ export async function prepareDecomposeRetirement(
     const cutMapDigest = canonicalDigest(allocation);
     const inventoryDigests = decomposeInventoryDigests(projection.inventories);
     const deterministicReceiptId = receiptId({
-      schemaVersion: 1,
+      schemaVersion: 2,
       subject: scope.subject,
       transition: "decompose",
       sourceBranch: scope.source.branch,
@@ -308,7 +323,8 @@ export async function prepareDecomposeRetirement(
     };
     const record: DecomposePreparationRecord = {
       kind: "prepared-decompose",
-      schemaVersion: 1,
+      schemaVersion: 2,
+      inventoryRead: projection.inventoryRead,
       locator,
       allocation,
       sourceInventory: projection.inventories.sourceInventory,

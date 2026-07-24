@@ -19,7 +19,7 @@
  * @module
  */
 
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { canonicalize } from "../../canonical/canonical-json.js";
@@ -35,6 +35,7 @@ import type {
 } from "../decompose-cut-map.js";
 import { newMemberDependencies } from "../decompose-cut-map.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
+import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
 import {
   executeTransition,
   type ArtifactRunner,
@@ -240,6 +241,8 @@ export interface RunDecomposeContext {
   fs: CohortMemberScaffoldFs;
   /** Artifact-removal seam for the origin teardown. */
   removeFs: DecomposeRemoveFs;
+  /** Remote-aware inventory shared with preparation; omitted preserves tree-only library calls. */
+  composed?: ComposedLifecycleIndexResult;
 }
 
 /** The operational inputs a `runDecompose` supplies beyond the cut-map. */
@@ -357,12 +360,22 @@ export async function runDecompose(
   const { cut } = params;
   const originSlug = cut.origin.slug;
 
-  const index = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
+  const index = ctx.composed?.index
+    ?? await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
   const originEntry = index.get(originSlug);
   if (originEntry === undefined) {
     return { status: "rejected", reason: `decompose origin "${originSlug}" is absent from the lifecycle index.` };
   }
-  const originRecord = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, originEntry.path)));
+  const originPath = ctx.composed === undefined
+    ? originEntry.path
+    : ctx.composed.recordsBySlug.get(originSlug)?.writablePath;
+  if (originPath === undefined) {
+    return {
+      status: "rejected",
+      reason: `decompose origin "${originSlug}" has no current-checkout write authority.`,
+    };
+  }
+  const originRecord = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, originPath)));
 
   // The resolved member-enrolment cohort: the cut-map's cohort for the standalone
   // / in-cohort arms; the origin's existing cohort for the at-cap lateral fan-out
@@ -392,6 +405,10 @@ export async function runDecompose(
       outgoingEdges: cut.outgoingEdges,
     },
   );
+  for (const member of members) {
+    await executor.stageMeta?.(member.metaPath);
+    await executor.stageMeta?.(member.draftPath);
+  }
 
   const originRetired = cut.shape !== "extraction";
   // A started (`Planning`-phase, `active`-location) origin owns a branch + worktree
@@ -407,7 +424,7 @@ export async function runDecompose(
     repointed = await sweepIncomingEdges(ctx, index, originSlug, cut.incomingEdges);
 
     // Leg 2 — origin artifact retirement via the reserved edge; its render side-effect fires Leg 4.
-    const outcome = await tearDownOrigin(ctx, originSlug);
+    const outcome = await tearDownOrigin(ctx, originSlug, originRecord.Branch);
     if (outcome.status !== "ok") {
       return { status: "rejected", reason: outcome.message };
     }
@@ -446,13 +463,17 @@ async function sweepIncomingEdges(
   for (const edge of incomingEdges) {
     const entry = index.get(edge.dependent);
     if (entry === undefined) continue;
-    const abs = join(executor.cwd, entry.path);
+    const writablePath = ctx.composed === undefined
+      ? entry.path
+      : ctx.composed.recordsBySlug.get(edge.dependent)?.writablePath;
+    if (writablePath === undefined) continue;
+    const abs = join(executor.cwd, writablePath);
     const before = await executor.indexFs.readFile(abs);
     const replacements = edge.disposition.kind === "replace" ? edge.disposition.replacementTargets : [];
     const after = repointDependsOn(before, originSlug, replacements);
     if (after === before) continue;
     await ctx.fs.writeFile(abs, after);
-    if (executor.stageMeta !== undefined) await executor.stageMeta(entry.path);
+    if (executor.stageMeta !== undefined) await executor.stageMeta(writablePath);
     repointed.push({ dependent: edge.dependent, to: replacements });
   }
   return repointed;
@@ -470,10 +491,20 @@ async function sweepIncomingEdges(
 async function tearDownOrigin(
   ctx: RunDecomposeContext,
   originSlug: string,
+  sourceBranch: string | null,
 ): Promise<TransitionOutcome> {
   const { executor } = ctx;
-  const scaffoldOrRemove = buildOriginRemoveRunner(executor.cwd, ctx.removeFs);
-  return executeTransition({ ...executor, scaffoldOrRemove }, { verb: "decompose", slug: originSlug, inputs: {} });
+  const scaffoldOrRemove = buildOriginRemoveRunner(executor.cwd, ctx.removeFs, executor.stageMeta);
+  return executeTransition(
+    { ...executor, scaffoldOrRemove },
+    {
+      verb: "decompose",
+      slug: originSlug,
+      inputs: sourceBranch === null || sourceBranch === "[none]"
+        ? {}
+        : { supersededSource: { slug: originSlug, branch: sourceBranch } },
+    },
+  );
 }
 
 /**
@@ -482,7 +513,11 @@ async function tearDownOrigin(
  * backlog subdir(s) via the shared {@link pruneEmptyBacklogSource} (a no-op for a
  * flat `active/` origin, which has no per-WU subdir to drop).
  */
-function buildOriginRemoveRunner(cwd: string, removeFs: DecomposeRemoveFs): ArtifactRunner {
+function buildOriginRemoveRunner(
+  cwd: string,
+  removeFs: DecomposeRemoveFs,
+  stagePath?: (path: string) => Promise<void>,
+): ArtifactRunner {
   return async ({ disposition, slug, fromDir }) => {
     if (disposition !== "remove") {
       throw new Error(`decompose retires the origin via removal; received a \`${disposition}\` disposition.`);
@@ -492,7 +527,10 @@ function buildOriginRemoveRunner(cwd: string, removeFs: DecomposeRemoveFs): Arti
     const absDir = join(cwd, fromDir);
     const matcher = artifactMatcher(slug);
     const names = (await removeFs.readdir(absDir)).filter((n) => matcher.test(n)).sort();
-    for (const n of names) await removeFs.rm(join(absDir, n));
+    for (const n of names) {
+      await removeFs.rm(join(absDir, n));
+      await stagePath?.(posix.join(fromDir, n));
+    }
 
     await pruneEmptyBacklogSource(removeFs, absDir);
   };

@@ -4,8 +4,8 @@
  * A transition is a table lookup plus mechanical application: resolve the slug's
  * current `(phase, location)` from the index, look up the legal edge for
  * `(verb, from)`, validate the edge's guards, fire its `encodingUpdates` mutator
- * legs in a recoverable order, fire its declared side-effects, apply its
- * soft-field disposition, and surface an ephemeral next-step suggestion. There is
+ * legs in a recoverable order, fire non-ROADMAP side-effects, apply and stage its
+ * final meta projection, render ROADMAP, and surface an ephemeral next-step suggestion. There is
  * **no bespoke per-verb code**: the {@link TRANSITIONS} table is the source of
  * truth, and everything verb-specific — the leg operands, the soft-field `input`
  * values, the suggestion text — is *supplied* by the caller as {@link
@@ -15,7 +15,7 @@
  *
  * The single filesystem touch is at entry — {@link buildLifecycleIndex} — after
  * which the lookup and guard validation run pure over the built index. The four
- * encoding mutators and the side-effects reach the executor **pre-bound** (their
+ * encoding mutators and side-effects reach the executor **pre-bound** (their
  * own git / fs seams already closed over) as injected runners on
  * {@link ExecuteTransitionContext}, so the orchestration stays decoupled from any
  * one mutator's I/O and the whole flow is unit-testable with spies. The CLI layer
@@ -83,6 +83,8 @@ export interface TransitionInputs {
   prWithdrawMode?: "close" | "draft";
   /** Explicit confirmation for a destructive cascade — the `confirmation` guard input (`abandon`). */
   confirmed?: boolean;
+  /** Exact retiring ref candidate suppressed after the complete staged transition exists. */
+  supersededSource?: { slug: string; branch: string };
   /**
    * Override for the `worktree-occupancy` guard's placement test. Fresh worktree
    * spawns normally infer this from `worktreeOp.createBranch`, but remote
@@ -445,12 +447,12 @@ export function softFieldsApply(record: TransitionRecord): boolean {
 
 /**
  * Execute one lifecycle transition: resolve, look up the legal edge, validate
- * guards + required inputs, fire the encoding legs, fire side-effects, apply the
- * soft-field disposition, and return the outcome (carrying the ephemeral
- * suggestion). Rejections, a mid-bundle encoding failure (`encoding-failed`,
- * retry-whole), and a post-side-effect finalize-write failure (`finalize-failed`,
- * forward-only) are reported as discriminated outcomes rather than thrown, so the
- * CLI surfaces them uniformly.
+ * guards + required inputs, fire the encoding legs and non-ROADMAP side-effects,
+ * apply and stage the final meta projection, render ROADMAP, and return the
+ * outcome (carrying the ephemeral suggestion). Rejections, a mid-bundle encoding
+ * failure (`encoding-failed`, retry-whole), and a post-side-effect finalize-write
+ * failure (`finalize-failed`, forward-only) are reported as discriminated outcomes
+ * rather than thrown, so the CLI surfaces them uniformly.
  *
  * @param ctx - The injected seams (pre-bound mutators, guard validators, side-effect handlers).
  * @param params - The verb, the target slug, and the caller-supplied inputs.
@@ -510,9 +512,12 @@ export async function executeTransition(
     legsFired.push(leg);
   }
 
-  // 6. Fire declared side-effects — only now that the encoding succeeded.
+  // 6. Fire declared non-ROADMAP side-effects once the encoding succeeded.
+  // ROADMAP waits until the final meta writes are staged so it renders the exact
+  // tracked snapshot the ceremony will commit.
   const sideEffectsFired: SideEffectId[] = [];
   for (const id of record.sideEffects) {
+    if (id === "reconcile-roadmap") continue;
     const handler = ctx.sideEffects?.[id];
     // Presence was validated in step 4; the guard here narrows the type.
     if (handler === undefined) continue;
@@ -563,6 +568,18 @@ export async function executeTransition(
       failedWrite,
       message: err instanceof Error ? err.message : String(err),
     };
+  }
+
+  // 8.75 Render ROADMAP from the now-complete staged transition. The production
+  // adapter degrades render/write failures to advisories, preserving the
+  // transition's forward-recoverable boundary.
+  if (record.sideEffects.includes("reconcile-roadmap")) {
+    const handler = ctx.sideEffects?.["reconcile-roadmap"];
+    if (handler !== undefined) {
+      const advisory = await handler({ cwd: ctx.cwd, slug, from: record.from, to: record.to, inputs });
+      if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+      sideEffectsFired.push("reconcile-roadmap");
+    }
   }
 
   // 9. Surface the ephemeral suggestion (advisory; never persisted).

@@ -28,6 +28,7 @@ import { buildLifecycleIndex, type LifecycleIndex } from "./lifecycle-index.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import { resolveRetirementRecordPath } from "./retirement-record-store.js";
 import type { RetirementAuthorityScope } from "./retirement-authority.js";
+import type { InventoryRead } from "./retirement-authority.js";
 
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
@@ -36,6 +37,7 @@ export interface PreparationBinding {
   sourceArtifactDigest: CanonicalDigest;
   inventories: DecomposeInventories;
   allowedPaths: ManagedPath[];
+  inventoryRead: Exclude<InventoryRead, "not-applicable">;
 }
 
 function compareBytes(left: string, right: string): number {
@@ -200,6 +202,7 @@ function deriveAllowedPaths(
   allocation: DecomposeAllocationMap,
   sourcePaths: readonly ManagedPath[],
   placementCohort: string,
+  writablePathBySlug?: ReadonlyMap<string, string>,
 ): ManagedPath[] {
   const allowed = new Set<ManagedPath>([...sourcePaths, ROADMAP_PATH]);
   const entries = new Map(allocation.entries.map((entry) => [entry.destinationId, entry]));
@@ -230,7 +233,10 @@ function deriveAllowedPaths(
   }
   for (const edge of allocation.incomingEdges) {
     const dependent = index.get(edge.dependent);
-    if (dependent !== undefined) allowed.add(validateManagedPath(dependent.path));
+    const writable = writablePathBySlug === undefined
+      ? dependent?.path
+      : writablePathBySlug.get(edge.dependent);
+    if (writable !== undefined) allowed.add(validateManagedPath(writable));
   }
   const existingRecipients = new Set(allocation.entries.flatMap((entry) => (
     entry.kind === "existing-home" && entry.target.kind === "work-unit" ? [entry.target.slug] : []
@@ -250,14 +256,21 @@ export async function bindDecomposePreparation(
   deps: InRepoDecomposeRetirementDeps,
   allocation: DecomposeAllocationMap,
 ): Promise<PreparationBinding> {
-  const index = await buildLifecycleIndex({ cwd: deps.cwd, fs: deps.lifecycleFs });
+  const index = deps.composed?.index
+    ?? await buildLifecycleIndex({ cwd: deps.cwd, fs: deps.lifecycleFs });
   const origin = index.get(allocation.origin.slug);
   if (origin === undefined) throw new Error(`decompose origin \`${allocation.origin.slug}\` is absent`);
+  const originPath = deps.composed === undefined
+    ? origin.path
+    : deps.composed.recordsBySlug.get(allocation.origin.slug)?.writablePath;
+  if (originPath === undefined) {
+    throw new Error(`decompose origin \`${allocation.origin.slug}\` has no current-checkout write authority`);
+  }
   const occupiedMember = allocation.entries.find((entry) => entry.kind === "new-member" && index.has(entry.slug));
   if (occupiedMember?.kind === "new-member") {
     throw new Error(`decompose member \`${occupiedMember.slug}\` already exists`);
   }
-  const originRecord = parseMetaRecord(await deps.readFile(join(deps.cwd, origin.path)));
+  const originRecord = parseMetaRecord(await deps.readFile(join(deps.cwd, originPath)));
   const resultBranch = await getCurrentBranch(deps.exec);
   if (resultBranch === null) throw new Error("decompose requires an attached result branch");
   const sourceBranch = originRecord.Branch === null || originRecord.Branch === "[none]"
@@ -267,7 +280,7 @@ export async function bindDecomposePreparation(
     resolveRef(deps, sourceBranch),
     resolveRef(deps, resultBranch),
   ]);
-  const artifacts = await readSourceArtifacts(deps, sourceHead, posix.dirname(origin.path), allocation.origin.slug);
+  const artifacts = await readSourceArtifacts(deps, sourceHead, posix.dirname(originPath), allocation.origin.slug);
   const inventory = deriveDecomposeInventories({
     originSlug: allocation.origin.slug,
     sourceArtifacts: artifacts,
@@ -290,7 +303,13 @@ export async function bindDecomposePreparation(
       allocation,
       artifacts.map((artifact) => artifact.path),
       placementCohort,
+      deps.composed === undefined
+        ? undefined
+        : new Map([...deps.composed.recordsBySlug].flatMap(([slug, record]) => (
+            record.writablePath === undefined ? [] : [[slug, record.writablePath] as const]
+          ))),
     ),
+    inventoryRead: deps.composed?.readQuality ?? "tree-only",
   };
 }
 

@@ -51,6 +51,7 @@ const allocation: DecomposeAllocationMap = {
 };
 
 const projection: DecomposePreparationProjection = {
+  inventoryRead: "reachable",
   sourceArtifactDigest: digest("source-artifacts"),
   inventories: {
     sourceInventory: [
@@ -131,7 +132,8 @@ describe("prepareDecomposeRetirement", () => {
     expect(result.preparation.authorityVersion).toBe("version-prepared");
     expect(result.preparation.record).toMatchObject({
       kind: "prepared-decompose",
-      schemaVersion: 1,
+      schemaVersion: 2,
+      inventoryRead: "reachable",
       allocation,
       sourceInventory: projection.inventories.sourceInventory,
       incomingEdgeInventory: projection.inventories.incomingEdgeInventory,
@@ -307,7 +309,7 @@ describe("prepareDecomposeRetirement", () => {
       reason: "authority-unavailable",
     });
     const id = receiptId({
-      schemaVersion: 1,
+      schemaVersion: 2,
       subject: scope.subject,
       transition: "decompose",
       sourceBranch: scope.source.branch,

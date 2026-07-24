@@ -11,7 +11,10 @@ import { join } from "node:path";
 import { isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 
 /** Repository-relative namespace owned by the in-repo authority adapter. */
-export const RETIREMENT_RECORD_NAMESPACE = ".arc/.internal/retirement-receipts";
+export const RETIREMENT_RECORD_NAMESPACE = ".arc/system/.internal/retirement-receipts";
+
+/** Read-only namespace used by historical commits created before canonical storage. */
+export const LEGACY_RETIREMENT_RECORD_NAMESPACE = ".arc/.internal/retirement-receipts";
 
 /** Filesystem-safe bijective spelling of a canonical digest. */
 export type RetirementRecordKey = `sha256-${string}`;
@@ -66,6 +69,11 @@ export function resolveRetirementRecordPath(cwd: string, receiptId: CanonicalDig
   return join(cwd, resolveRetirementRecordRelativePath(receiptId));
 }
 
+/** Resolve one historical record path for migration-only current-tree handling. */
+export function resolveLegacyRetirementRecordPath(cwd: string, receiptId: CanonicalDigest): string {
+  return join(cwd, resolveLegacyRetirementRecordRelativePath(receiptId));
+}
+
 /**
  * Resolve the repository-relative path staged with a retirement transition.
  *
@@ -74,6 +82,19 @@ export function resolveRetirementRecordPath(cwd: string, receiptId: CanonicalDig
  */
 export function resolveRetirementRecordRelativePath(receiptId: CanonicalDigest): string {
   return `${RETIREMENT_RECORD_NAMESPACE}/${encodeRetirementRecordKey(receiptId)}.json`;
+}
+
+/** Resolve the historical repository-relative path without creating its namespace. */
+export function resolveLegacyRetirementRecordRelativePath(receiptId: CanonicalDigest): string {
+  return `${LEGACY_RETIREMENT_RECORD_NAMESPACE}/${encodeRetirementRecordKey(receiptId)}.json`;
+}
+
+/** Canonical-first record paths used only for committed-history reads. */
+export function resolveHistoricalRetirementRecordPaths(receiptId: CanonicalDigest): readonly [string, string] {
+  return [
+    resolveRetirementRecordRelativePath(receiptId),
+    resolveLegacyRetirementRecordRelativePath(receiptId),
+  ];
 }
 
 /**
@@ -92,7 +113,8 @@ export async function writeRetirementRecord(
 ): Promise<void> {
   for (const path of [
     join(cwd, ".arc"),
-    join(cwd, ".arc", ".internal"),
+    join(cwd, ".arc", "system"),
+    join(cwd, ".arc", "system", ".internal"),
     join(cwd, RETIREMENT_RECORD_NAMESPACE),
   ]) {
     await ensureRealDirectory(path, fs);

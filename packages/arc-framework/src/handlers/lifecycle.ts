@@ -31,7 +31,7 @@ import {
   type MetaFieldName,
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { boundedFetch, type GitExec } from "../lib/git/exec.js";
+import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { isCanonicalDigest } from "../lib/canonical/canonical-json.js";
 import { createUserIOContext, prepareGitRefVerification, readGitBlobBytes } from "../lib/io-context.js";
 import { SlugSchema } from "../lib/kernel/index.js";
@@ -48,6 +48,10 @@ import { resolveWriteContext, type WriteContext } from "../lib/git/write-context
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
+import {
+  resolveComposedLifecycleIndex,
+  type ComposedLifecycleIndexResult,
+} from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugState } from "../lib/work-unit/lifecycle-resolver.js";
 import {
   DISPATCH_MODE,
@@ -218,6 +222,25 @@ async function buildExecutor(
   return { executor, settings };
 }
 
+/** Resolve the remote-aware lifecycle truth shared by destructive transform handlers. */
+async function resolveTransformComposition(
+  base: VerbBase,
+  settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
+): Promise<ComposedLifecycleIndexResult> {
+  const currentBranch = await getCurrentBranch(base.io.exec);
+  return await resolveComposedLifecycleIndex({
+    cwd: base.cwd,
+    fs: lifecycleFs,
+    oracle: {
+      exec: base.io.exec,
+      baseBranch: settings["branch.base"],
+      localOnly: false,
+      expandLiveOnly: true,
+    },
+    ...(currentBranch === null ? {} : { prospective: { currentBranch } }),
+  });
+}
+
 /** Bind the shared in-repository direct-transition retirement boundaries. */
 function directRetirementDeps(base: VerbBase): InRepoDirectRetirementDeps {
   return {
@@ -325,6 +348,8 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
     refuse("`arc decompose <origin> --cut-map <file>` requires the origin work-unit name.");
     return;
   }
+  const { executor, settings } = await buildExecutor(base);
+  const composed = await resolveTransformComposition(base, settings);
   const driver = createInRepoDecomposeRetirementDriver({
     cwd: base.cwd,
     exec: base.io.exec,
@@ -333,6 +358,7 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
     readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
     createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
     removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
+    composed,
   });
   const finalizeId = opts.finalize?.trim();
   if (finalizeId !== undefined && finalizeId !== "") {
@@ -385,9 +411,9 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
     return;
   }
 
-  const { executor } = await buildExecutor(base);
   const decomposeContext = {
     executor,
+    composed,
     fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile },
     removeFs: { readdir: (path: string) => readdir(path), rm: (path: string) => rm(path), rmdir: (path: string) => rmdir(path) },
   };
@@ -446,6 +472,7 @@ export async function handleRename(sourceSlug: string, targetSlug: string): Prom
     refuse(result.reason);
     return;
   }
+  for (const advisory of result.advisories) p.log.warn(advisory);
   const lines = [
     `Work unit: ${sourceSlug} → ${targetSlug}`,
     `Shape:     ${result.shape}`,
@@ -811,7 +838,8 @@ export async function handleResume(slug: string | undefined, opts: ResumeOptions
   if (target === null) return;
 
   const { executor, settings } = await buildExecutor(base);
-  const ctx = { executor, fs: parkResumeFsSeam(base) };
+  const composed = await resolveTransformComposition(base, settings);
+  const ctx = { executor, fs: parkResumeFsSeam(base), composed };
 
   // In place (`--here`): no fresh worktree, so the spawn config (location
   // template / repo) isn't needed — the preserved branch is checked out here.
@@ -1150,10 +1178,21 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
   // Resolve the source state to compose a truthful impact plan — the cascade legs
   // vary by cell (a backlog stub removes only artifacts; a started WU also tears
   // down its branch and worktree; a parked WU deletes its branch but has none).
-  const index = await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs });
+  const { executor, settings } = await buildExecutor(base);
+  const composed = await resolveTransformComposition(base, settings);
+  const index = composed.index;
   const state = resolveSlugState(index, target);
   const entry = index.get(target);
-  const branch = entry === undefined ? null : parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).Branch;
+  const writablePath = composed.recordsBySlug.get(target)?.writablePath;
+  if (entry !== undefined && writablePath === undefined) {
+    refuse(
+      `Cannot abandon \`${target}\`: composed lifecycle truth does not grant current-checkout write authority.`,
+    );
+    return;
+  }
+  const branch = writablePath === undefined
+    ? null
+    : parseMetaRecord(await base.io.readFile(join(base.cwd, writablePath))).Branch;
 
   const plan = planAbandon(state, branch, target);
   if (!plan.legal) {
@@ -1173,13 +1212,13 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
     return;
   }
 
-  const { executor } = await buildExecutor(base);
   const retirement = createInRepoAbandonRetirementContext(directRetirementDeps(base));
   const result = await runAbandon(
     {
       executor,
       fs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
       retirement,
+      composed,
     },
     { name: target, confirmed: true },
   );

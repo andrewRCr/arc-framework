@@ -105,6 +105,27 @@ describe("parseRetirementReceipt", () => {
     }
   });
 
+  it("accepts exact v2 receipts with required inventory quality and versioned identity", () => {
+    const v1 = receiptFor();
+    const v2: RetirementReceipt = {
+      ...v1,
+      schemaVersion: 2,
+      inventoryRead: "not-applicable",
+      receiptId: receiptId({
+        schemaVersion: 2,
+        subject: v1.subject,
+        transition: v1.transition,
+        sourceBranch: v1.source.branch,
+        sourceHead: v1.source.head,
+      }),
+    };
+
+    expect(parseRetirementReceipt(contentOf(v2))).toEqual(v2);
+    const missingQuality = candidate(v2);
+    delete missingQuality.inventoryRead;
+    expect(parseRetirementReceipt(canonicalize(missingQuality))).toBeNull();
+  });
+
   it.each([
     ["malformed JSON", "{"],
     ["a JSON primitive", "null"],
@@ -123,7 +144,7 @@ describe("parseRetirementReceipt", () => {
     expect(parseRetirementReceipt(canonicalize(missing))).toBeNull();
 
     const wrongVersion = candidate(receiptFor());
-    wrongVersion.schemaVersion = 2;
+    wrongVersion.schemaVersion = 3;
     expect(parseRetirementReceipt(canonicalize(wrongVersion))).toBeNull();
   });
 

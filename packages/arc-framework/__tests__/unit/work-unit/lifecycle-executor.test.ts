@@ -630,9 +630,9 @@ describe("executeTransition — post-side-effect finalize failure", () => {
 
     expect(outcome.status).toBe("finalize-failed");
     if (outcome.status !== "finalize-failed") return;
-    // integrate's declared side-effects all fired before the failing write.
+    // ROADMAP is deliberately deferred until after the final writes and therefore
+    // has not fired when a soft-field write fails.
     expect(outcome.sideEffectsFired).toEqual([
-      "reconcile-roadmap",
       "reconcile-status-user",
       "user-workspace",
     ]);
@@ -700,12 +700,13 @@ describe("executeTransition — post-side-effect finalize failure", () => {
 
 describe("executeTransition — side-effects after encoding", () => {
   it("fires declared side-effects after the legs, surfacing advisories", async () => {
-    const { ctx, calls } = buildSpies({
-      metas: [ACTIVE_META],
-      sideEffects: {
-        "reconcile-roadmap": () => "ROADMAP regen pending: `demo`.",
-      },
-    });
+    const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
+    if (ctx.sideEffects !== undefined) {
+      ctx.sideEffects["reconcile-roadmap"] = () => {
+        calls.push("side:reconcile-roadmap");
+        return "ROADMAP regen pending: `demo`.";
+      };
+    }
 
     const outcome = await executeTransition(ctx, {
       verb: "integrate",
@@ -716,15 +717,18 @@ describe("executeTransition — side-effects after encoding", () => {
     expect(outcome.status).toBe("ok");
     if (outcome.status !== "ok") return;
     expect(outcome.sideEffectsFired).toEqual([
-      "reconcile-roadmap",
       "reconcile-status-user",
       "user-workspace",
+      "reconcile-roadmap",
     ]);
     expect(outcome.advisories).toEqual(["ROADMAP regen pending: `demo`."]);
     // Every leg precedes every side-effect.
     const lastLeg = calls.map((c) => c.startsWith("leg:")).lastIndexOf(true);
     const firstSide = calls.findIndex((c) => c.startsWith("side:"));
     expect(lastLeg).toBeLessThan(firstSide);
+    expect(calls.indexOf("side:reconcile-roadmap")).toBeGreaterThan(
+      calls.findIndex((call) => call.startsWith("stage:")),
+    );
   });
 
   it("rejects before mutation when a declared side-effect has no handler", async () => {

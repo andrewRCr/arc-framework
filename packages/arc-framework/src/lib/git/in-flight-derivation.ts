@@ -264,6 +264,7 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
         timeoutMs: options.timeoutMs,
         remote,
         expandLiveOnly: options.expandLiveOnly ?? false,
+        errandBranches: new Set(errandSlugByBranch.keys()),
       })
     : await resolveSuppliedBranchInputs({ exec, branches, reachable: options.reachable ?? true, remote });
   const { worktreeResult, worktreePaths, branchSet, localBranches, localBranchesComplete } = input;
@@ -441,6 +442,7 @@ async function resolveAgreedInputs(input: {
   timeoutMs?: number;
   remote: string;
   expandLiveOnly: boolean;
+  errandBranches: ReadonlySet<string>;
 }): Promise<InputResolution> {
   const firstRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const firstWorktree = await resolveWorktreePathsByBranchResult(input.exec);
@@ -458,6 +460,7 @@ async function resolveAgreedInputs(input: {
     remote: input.remote,
     timeoutMs: input.timeoutMs,
     enabled: input.expandLiveOnly,
+    excludedBranches: input.errandBranches,
   });
   const firstBranchSet = withExpandedBranches(localFirstBranchSet, expansion.refs, input.remote);
 
@@ -511,15 +514,16 @@ async function expandLiveOnlyCandidates(input: {
   remote: string;
   timeoutMs?: number;
   enabled: boolean;
+  excludedBranches: ReadonlySet<string>;
 }): Promise<LiveOnlyExpansionResult> {
   if (!input.enabled || !input.branchSet.reachable) return { refs: {}, failed: false };
-  const localBranches = new Set(Object.keys(input.localRefs.remoteTracking));
   const refs: RefTipMap = {};
   let failed = false;
   for (const [qualifiedRef, sha] of Object.entries(input.branchSet.liveRefs)) {
     const prefix = `${input.remote}/`;
     const branch = qualifiedRef.startsWith(prefix) ? qualifiedRef.slice(prefix.length) : qualifiedRef;
-    if (localBranches.has(branch)) continue;
+    if (input.excludedBranches.has(branch)) continue;
+    if (input.localRefs.remoteTracking[branch] === sha) continue;
     const ok = await fetchRefBounded({
       exec: input.exec,
       remote: input.remote,

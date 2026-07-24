@@ -25,7 +25,12 @@ import type {
   ExecuteTransitionContext,
   SideEffectHandler,
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
-import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
+import type { ComposedLifecycleIndexResult } from "../../../../src/lib/work-unit/composed-lifecycle-index.js";
+import {
+  buildLifecycleIndex,
+  type DirEntry,
+  type LifecycleIndexFs,
+} from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
 import {
   validateReceiptMatrix,
@@ -561,6 +566,30 @@ describe("runPark — guards park-from-Integrating", () => {
 });
 
 describe("runResume — the inverse", () => {
+  it("refuses a divergent parked subject before reading or removing checkout files", async () => {
+    const { ctx, calls, removals } = buildCtx([PARKED]);
+    const composed: ComposedLifecycleIndexResult = {
+      index: await buildLifecycleIndex({ cwd: CWD, fs: ctx.executor.indexFs }),
+      recordsBySlug: new Map(),
+      qualityFacts: { warnings: [], resultMarks: [], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: true,
+      readQuality: "reachable",
+    };
+    ctx.composed = composed;
+    ctx.executor.indexFs.readFile = () => Promise.reject(new Error("filesystem read must not occur"));
+
+    const result = await runResume(ctx, BASE_RESUME);
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "Cannot resume `foo`: composed lifecycle truth does not grant current-checkout write authority.",
+    });
+    expect(calls).toEqual([]);
+    expect(removals).toEqual([]);
+  });
+
   it("re-attaches the preserved branch and removes the pointer-record (no relocate)", async () => {
     const { ctx, calls, removals } = buildCtx([PARKED]);
 

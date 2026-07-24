@@ -9,162 +9,89 @@
 _Purpose:_ Establish the shared source-of-truth and evidence boundaries before any transform or lifecycle ceremony
 consumes them.
 
-### `[ ]` **1.1 Resolve lifecycle-transform inventories from composed project truth**
+### `[x]` **1.1 Resolve lifecycle-transform inventories from composed project truth**
 
 - _Goal:_ Every transform plans against the same cross-worktree and remote-aware lifecycle records as the project
   readiness view, while an unreachable remote degrades to reachable truth instead of blocking the operation.
 
 - **Additional Context:** `notes-decomposition-hardening.md` § Implementation & coordination seams
 
-    - `[ ]` **1.1.a Thread the existing composed result through transform drivers**
-        - Use `ComposedLifecycleIndexResult` from
-          `packages/arc-framework/src/lib/work-unit/composed-lifecycle-index.ts` as the shared input: it already
-          carries the lifecycle index, per-slug quality, reachability, live refs, and worktree locations. Add only
-          the narrow resolver/dependency seams needed to pass that result, `baseBranch`, and oracle inputs through
-          retirement preparation and finalization; do not add another projection or git-ref/worktree scan.
-        - Retain the selected semantic record plus its current-tree candidate. Compare the complete normalized
-          project-readiness payload — slug, location, state, owner, priority, cohort, `Depends On`, and scheduling —
-          and derive current-checkout `writablePath` only on exact agreement. Ref-only, linked-worktree,
-          remote-only, and divergent candidates inform inventory but never become filesystem paths or write
-          authority.
+    - `[x]` **1.1.a Thread the existing composed result through transform drivers**
+        - Extended `ComposedLifecycleIndexResult` with selected/current-tree records, complete normalized semantic
+          comparison, exact current-checkout `writablePath`, and closed tree-only/reachable/degraded read quality.
 
-    - `[ ]` **1.1.b Replace the remaining checkout-local transform reads**
-        - Move decompose preparation/revalidation/finalization plus abandon and the relevant park/resume lifecycle
-          reads off direct `buildLifecycleIndex()` calls. Preserve rename's existing composed preflight as the
-          parity anchor and carry its resolved quality into retirement evidence rather than reimplementing it.
-          Remove rename's preceding mandatory fetch-and-throw gate: the composed oracle owns bounded refresh, and
-          fetch failure must flow into its `degraded` quality instead of refusing the rename.
-        - Require `writablePath` for the transform subject before reading or mutating its artifact group or meta.
-          Refuse a remote-only or divergent subject instead of joining a ref-qualified `LifecycleIndexEntry.path`
-          to the checkout root.
-        - Keep tree-only calls byte-compatible when no oracle is requested; composed transform entry points request
-          remote-aware truth and distinguish a degraded remote from a deliberately tree-only read.
+    - `[x]` **1.1.b Replace the remaining checkout-local transform reads**
+        - Routed decompose, abandon, resume, and rename through one remote-aware composition; transform subjects now
+          require exact write authority, while failed bounded refresh degrades to reachable tree/local truth.
 
-    - `[ ]` **1.1.c Prove cross-worktree, remote-only, and degraded inventory behavior**
-        - Extend the composed-index and transform inventory tests with a dependent visible only from a second linked
-          worktree, a remote-only dependent, and an unreachable remote that retains local/tree records.
-        - Build `test-first` (one behavior at a time):
-            - every reachable dependent appears exactly once with its source location and edge set
-            - only complete semantic agreement grants the exact current-tree writable path
-            - ref-only, linked-worktree, remote-only, or divergent dependent candidates have no write authority
-            - remote-only and divergent transform subjects refuse before filesystem reads or writes
-            - degraded reads carry an explicit reachability fact and do not reject the transform
-            - rename proceeds from reachable local/tree truth when its composed-oracle refresh cannot reach origin
-            - tree-only and fully reachable reads retain existing lifecycle-state resolution
+    - `[x]` **1.1.c Prove cross-worktree, remote-only, and degraded inventory behavior**
+        - Covered linked-worktree and remote-only inventory, divergent and remote-only subject refusal, explicit
+          unreachable quality, stale-live refresh, offline rename, and unchanged tree-only resolution.
 
-### `[ ]` **1.2 Carry degraded-read reachability and no-regression evidence through retirement finalization**
+- _Outcome:_ Lifecycle transforms now plan from the readiness view's composed truth without granting filesystem
+  authority to ref-qualified or divergent records; remote loss reduces completeness but does not erase reachable
+  evidence.
+
+### `[x]` **1.2 Carry degraded-read reachability and no-regression evidence through retirement finalization**
 
 - _Goal:_ Preparation and finalization can prove which composed inventory was reachable, reject regression within
   that set, and detect a newly enlarged reachable set before the transform becomes authoritative.
 
-    - `[ ]` **1.2.a Bind composed-read quality into preparation and receipts**
-        - Add required v2 receipt field
-          `inventoryRead: "not-applicable" | "tree-only" | "reachable" | "degraded"` and bind the applicable
-          composed-read value through decompose preparation/finalization and every direct receipt producer.
-          Generic non-WU retirement uses `not-applicable`; transform reads never collapse tree-only into degraded.
-        - Advance the durable `prepared-decompose` envelope to exact schema v2 with required prepare-time
-          `inventoryRead`; derive its locator receipt ID with receipt schema v2. New prepare calls write v2, and
-          finalize compares its fresh read with the persisted value rather than replacing it.
-        - Retain exact v1 decoding for existing canonical records, without adding a field during decode or changing
-          their receipt identity. Exact v1 preparations remain decodable/finalizable through their unchanged v1
-          receipt identity. The subject-query projection introduced in Phase 2 maps absent v1 read quality to
-          `unknown`; all new producers write exact v2 records and derive IDs with schema version 2. Update every
-          receipt-ID derivation and candidate reader—not only the codecs and producers—to resolve the applicable
-          v1/v2 identities without treating valid v2 evidence as missing.
+    - `[x]` **1.2.a Bind composed-read quality into preparation and receipts**
+        - Added exact v2 preparation/receipt envelopes with required `inventoryRead`, updated all producers and
+          candidate IDs, and retained byte-exact v1 decode/finalize identity.
 
-    - `[ ]` **1.2.b Enforce match/no-regression finalization**
-        - Re-resolve the current composed lifecycle result during finalization and derive fresh source/edge
-          inventories instead of projecting the stored preparation inventories back as current truth.
-        - Compare the fresh set with the prepared evidence: reject changed authored repoints, missing prepared
-          members, a reachable-to-degraded regression, and a newly reachable enlargement. An unchanged
-          degraded-to-degraded set may finalize without claiming completeness for invisible dependents, which
-          reconcile or surface an explicit unmapped conflict from their own branch.
+    - `[x]` **1.2.b Enforce match/no-regression finalization**
+        - Finalization re-derives composed source and edge inventories, preserves prepare-time quality, and rejects
+          missing or enlarged membership, authored repoints, and reachable-to-degraded regression.
 
-    - `[ ]` **1.2.c Cover interrupted, degraded, and enlarged-set outcomes**
-        - Build `test-first` (one behavior at a time):
-            - a degraded preparation records its quality and can finalize against the unchanged reachable set
-            - a reachable preparation refuses when finalization can only establish degraded truth
-            - a newly visible dependent refuses finalization until the cut/repoint evidence is refreshed
-            - a changed prepared repoint or inventory member refuses without leaving staged receipt residue
-            - prepare, process restart, and finalize preserve the exact prepare-time `inventoryRead`
-            - canonical v1/v2 round-trips preserve their exact keys and identities; unknown versions fail closed
+    - `[x]` **1.2.c Cover interrupted, degraded, and enlarged-set outcomes**
+        - Covered degraded stability, quality regression, newly visible members, restart preservation, staged
+          residue refusal, exact v1/v2 round trips, and unknown-version closure.
 
-### `[ ]` **1.3 Relocate retirement records into the canonical internal namespace**
+- _Outcome:_ Retirement evidence now distinguishes incomplete reachability from tree-only reads and can prove that
+  the final authoritative transition did not silently weaken or enlarge the prepared inventory.
+
+### `[x]` **1.3 Relocate retirement records into the canonical internal namespace**
 
 - _Goal:_ Retirement evidence is written beneath the established system-internal namespace, existing evidence
   remains usable, and no operation can recreate a root-level `.arc/.internal/`.
 
-    - `[ ]` **1.3.a Move the store contract and retain historical-read compatibility**
-        - Make `.arc/system/.internal/retirement-receipts/` the sole writer namespace in
-          `packages/arc-framework/src/lib/work-unit/retirement-record-store.ts`. Keep the domain query
-          storage-agnostic; its in-repo adapter enumerates the canonical namespace and may read the legacy
-          `.arc/.internal/retirement-receipts/` namespace only from historical refs.
-        - Deduplicate byte-identical records with the same receipt ID and surface divergent duplicates as an
-          ambiguity/conflict; never create the legacy directory during reads or writes.
-        - Validate every reachable filename/digest/content triple before subject projection. Because corrupt bytes
-          have no trustworthy subject, one malformed, unknown-version, digest-mismatched, symlinked, or otherwise
-          undecodable entry returns global `namespace-corrupt` for every subject query.
-        - Route teardown authorization, receipt-relation reads, result validation, and introduction-history lookup
-          through the same canonical-plus-historical resolver so no consumer retains a hard-coded legacy path.
+    - `[x]` **1.3.a Move the store contract and retain historical-read compatibility**
+        - Made the system-internal namespace writer-only, unified canonical/current plus legacy/history reads, and
+          added path-free global enumeration with exact deduplication, version conflict, and corruption outcomes.
 
-    - `[ ]` **1.3.b Migrate current receipts and in-flight v1 preparation**
-        - Move the existing decompose, rename, and absorbed-stub abandon receipt files byte-for-byte into
-          `.arc/system/.internal/retirement-receipts/`, preserving filenames, canonical JSON, receipt IDs, and
-          teardown/discovery behavior. Treat each authenticated byte-identical legacy-delete/canonical-add pair as
-          storage-only relocation outside retirement transition-patch validation. The resulting tracked tree
-          contains no `.arc/.internal/`.
-        - Add a one-time current-index compatibility path for an exact v1 `prepared-decompose` record already staged
-          in the legacy namespace. Authenticate it at the computed v1 receipt ID, relocate its bytes unchanged,
-          stage canonical addition plus legacy removal outside the transition patch, and then revalidate/finalize
-          through the unchanged v1 identity. Byte-identical dual presence deduplicates; divergence refuses.
+    - `[x]` **1.3.b Migrate current receipts and in-flight v1 preparation**
+        - Moved all tracked receipts byte-for-byte and added authenticated relocation/finalization for an exact
+          staged legacy v1 preparation without changing its receipt or preparation identity.
 
-    - `[ ]` **1.3.c Guard the namespace and prove compatibility**
-        - Extend the retirement-record commit validator/pre-commit surface to admit only removal from
-          `.arc/.internal/**`. Reject every addition, modification, type change, copy, or rename into the legacy
-          namespace while admitting the canonical namespace and legacy reads from older refs.
-        - Build `test-first` (one behavior at a time):
-            - every new transition writes and validates only the canonical namespace
-            - the repository's migration-only commit admits each authenticated byte-identical relocation without
-              revalidating the old receipt against the storage-move patch
-            - current migrated v1 receipts still authorize and project their original transitions
-            - a staged legacy v1 preparation survives process restart, relocates, finalizes, and passes the commit
-              gate without changing bytes, receipt identity, or transition-patch evidence
-            - a historical legacy-only record remains discoverable without materializing the old directory
-            - canonical/legacy duplicate and conflict cases resolve deterministically or fail closed
-            - valid-plus-corrupt namespaces fail every subject query as `namespace-corrupt`, regardless of whether
-              the valid record matches the requested subject
-            - canonical current-tree and historical legacy Git-mode/symlink entries both make enumeration globally
-              `namespace-corrupt`
+    - `[x]` **1.3.c Guard the namespace and prove compatibility**
+        - The commit validator now permits only authenticated migration removal from the legacy namespace; codec,
+          Git-mode, duplicate/conflict, corrupt-neighbor, symlink, process-restart, and real-hook cases fail closed.
 
-### `[ ]` **1.4 Render lifecycle projections from the staged tracked-index state**
+- _Outcome:_ Current writers and tracked evidence use only `.arc/system/.internal/retirement-receipts/`, while
+  historical v1 authority remains usable and one corrupt reachable entry invalidates the complete namespace before
+  any subject projection.
+
+### `[x]` **1.4 Render lifecycle projections from the staged tracked-index state**
 
 - _Goal:_ A lifecycle ceremony renders `ROADMAP.md` from the state it is committing, so live or remote remnants of
   the retiring identity cannot reintroduce a phantom row.
 
-    - `[ ]` **1.4.a Stage the complete transition before index-backed composition**
-        - Use the existing `renderRoadmapFromIndexViewResult()` primitive, never the worktree-backed renderer, after
-          every project-view input for the intended transition is staged.
-        - In the lifecycle executor, defer only `reconcile-roadmap` until branch/current-workflow/soft-field writes
-          and final meta staging complete. In direct-retirement drivers, split regen from tracked mutation, stage
-          source/result/additional paths first, then render/write/stage ROADMAP before receipt recording. Preserve
-          advisory failure and rollback boundaries.
+    - `[x]` **1.4.a Stage the complete transition before index-backed composition**
+        - Reordered executor and direct-retirement flows so every tracked mutation and final meta write is staged
+          before the shared index-backed renderer runs, with receipt recording and rollback boundaries preserved.
 
-    - `[ ]` **1.4.b Bind the superseded source identity into prospective ROADMAP composition**
-        - Preserve the existing same-slug prospective precedence in `project-view.ts`, then extend its input with
-          the transition's explicitly superseded `{ slug, branch }`. This lets staged absence or a renamed slug
-          suppress only the retiring oracle candidate; absence alone is not treated as authoritative.
-        - Thread the source identity through the shared `reconcile-roadmap` side effect and replace rename's
-          verb-local renderer/write with that shared advisory adapter. Preserve unrelated oracle candidates and
-          all degradation advisories.
+    - `[x]` **1.4.b Bind the superseded source identity into prospective ROADMAP composition**
+        - Added exact `{ slug, branch }` supersession to prospective composition and threaded it through the shared
+          advisory adapter; rename now uses that path while unrelated oracle candidates remain visible.
 
-    - `[ ]` **1.4.c Prove deterministic regen across retirement verbs**
-        - Cover rename while `origin/plan/<old-slug>` still exists and decompose while its origin branch remains
-          deferred for cleanup; both renders exclude the retired row and include the staged replacement records.
-        - Build `test-first` (one behavior at a time):
-            - normal create/move transitions retain current ROADMAP output
-            - staged removal wins over stale local and remote membership
-            - deliberately divergent worktree and index inputs prove the render reads the complete staged snapshot
-            - render/write failures remain recoverable advisories and never roll back the lifecycle mutation
+    - `[x]` **1.4.c Prove deterministic regen across retirement verbs**
+        - Covered staged removal over stale refs, renamed and decomposed replacement rows, index/worktree
+          divergence, normal transition parity, post-stage ordering, and advisory-only renderer failures.
+
+- _Outcome:_ Lifecycle ROADMAP output now represents the complete tracked-index candidate being committed; a
+  retiring local or remote identity cannot reappear after staged rename, decompose, abandon, park, or resume state.
 
 ## **Phase 2:** Receipt-driven dependent reconciliation
 

@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { contentDigest } from "../../../src/lib/canonical/content-digest.js";
 import {
+  LEGACY_RETIREMENT_RECORD_NAMESPACE,
   RETIREMENT_RECORD_NAMESPACE,
   decodeRetirementRecordKey,
   encodeRetirementRecordKey,
   resolveRetirementRecordPath,
+  resolveHistoricalRetirementRecordPaths,
   writeRetirementRecord,
   type RetirementRecordFs,
 } from "../../../src/lib/work-unit/retirement-record-store.js";
@@ -42,6 +44,10 @@ describe("retirement record key codec", () => {
     expect(resolveRetirementRecordPath("/repo", digest)).toBe(
       `/repo/${RETIREMENT_RECORD_NAMESPACE}/sha256-${hex}.json`,
     );
+    expect(resolveHistoricalRetirementRecordPaths(digest)).toEqual([
+      `${RETIREMENT_RECORD_NAMESPACE}/sha256-${hex}.json`,
+      `${LEGACY_RETIREMENT_RECORD_NAMESPACE}/sha256-${hex}.json`,
+    ]);
   });
 });
 
@@ -80,8 +86,8 @@ describe("retirement record namespace", () => {
   it("rejects a symlinked namespace parent before writing", async () => {
     const fs: RetirementRecordFs = {
       lstat: vi.fn().mockImplementation(async (path: string) => ({
-        isDirectory: () => path !== "/repo/.arc/.internal",
-        isSymbolicLink: () => path === "/repo/.arc/.internal",
+        isDirectory: () => path !== "/repo/.arc/system/.internal",
+        isSymbolicLink: () => path === "/repo/.arc/system/.internal",
       })),
       mkdir: vi.fn().mockResolvedValue(undefined),
       writeFile: vi.fn().mockResolvedValue(undefined),
