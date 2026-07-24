@@ -437,9 +437,10 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
   }
   if (preparation !== null) await driver.stagePreparedResult(preparation.preparation);
 
-  const { members, repointed, origin: disposition, teardown } = result.result;
+  const { placement, members, repointed, origin: disposition, teardown } = result.result;
   const lines = [
     `Origin:     ${originArg} (${disposition})`,
+    `Placement:  ${placement.summary}`,
     `Members:    ${members.map((m) => m.slug).join(", ")}`,
     `Re-pointed: ${repointed.length === 0 ? "none" : repointed.map((r) => r.dependent).join(", ")}`,
   ];

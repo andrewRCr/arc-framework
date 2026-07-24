@@ -19,6 +19,14 @@ export type DecomposeMemberPlacementResult =
   | { status: "resolved"; placement: DecomposeMemberPlacement }
   | { status: "refused"; reason: string };
 
+/** CLI-owned workflow projection of the resolved placement. */
+export interface DecomposePlacementProjection {
+  kind: ParentPosition;
+  cohort: string | null;
+  coordination: "mint" | "existing" | "none";
+  summary: string;
+}
+
 function cohortSegments(value: string): Slug[] | null {
   const segments = value.split("/");
   const parsed = segments.map((segment) => SlugSchema.safeParse(segment));
@@ -63,5 +71,41 @@ export function resolveDecomposeMemberPlacement(
   return {
     status: "resolved",
     placement: { kind: "backlog", commitment: "planned", cohort: segments },
+  };
+}
+
+/**
+ * Precompose workflow-facing placement language from the resolved address.
+ *
+ * @param kind - Validated placement discriminator.
+ * @param placement - Canonical planned member placement.
+ * @returns Typed coordination disposition and user-facing summary.
+ */
+export function projectDecomposePlacement(
+  kind: ParentPosition,
+  placement: DecomposeMemberPlacement,
+): DecomposePlacementProjection {
+  const cohort = placement.cohort.length === 0 ? null : placement.cohort.join("/");
+  if (kind === "cohortless") {
+    return {
+      kind,
+      cohort: null,
+      coordination: "none",
+      summary: "flat planned siblings (no cohort)",
+    };
+  }
+  if (kind === "at-cap") {
+    return {
+      kind,
+      cohort,
+      coordination: "existing",
+      summary: `existing cohort \`${cohort ?? "[none]"}\``,
+    };
+  }
+  return {
+    kind,
+    cohort,
+    coordination: "mint",
+    summary: `${kind === "in-cohort" ? "new sub-cohort" : "new cohort"} \`${cohort ?? "[none]"}\``,
   };
 }

@@ -35,8 +35,10 @@ import type {
 } from "../decompose-cut-map.js";
 import { newMemberDependencies } from "../decompose-cut-map.js";
 import {
+  projectDecomposePlacement,
   resolveDecomposeMemberPlacement,
   type DecomposeMemberPlacement,
+  type DecomposePlacementProjection,
 } from "../decompose-placement.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
 import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
@@ -289,6 +291,8 @@ export interface OriginTeardown {
 
 /** The structured account a `runDecompose` returns — the substrate the workflow renders into the allocation map. */
 export interface DecomposeResult {
+  /** CLI-owned placement and coordination projection for workflow dispatch. */
+  placement: DecomposePlacementProjection;
   /** The members scaffolded, in cut order. */
   members: ScaffoldedMember[];
   /** The incoming edges re-pointed off the retired origin (empty on the extraction shape). */
@@ -444,7 +448,13 @@ export async function runDecompose(
 
   return {
     status: "decomposed",
-    result: { members, repointed, origin: originRetired ? "retired" : "survived", teardown },
+    result: {
+      placement: projectDecomposePlacement(cut.parentPosition, memberPlacement.placement),
+      members,
+      repointed,
+      origin: originRetired ? "retired" : "survived",
+      teardown,
+    },
   };
 }
 

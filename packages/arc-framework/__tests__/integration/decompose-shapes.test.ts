@@ -195,6 +195,11 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(result.status).toBe("decomposed");
     if (result.status !== "decomposed") return;
     expect(result.result.origin).toBe("retired");
+    expect(result.result.placement).toMatchObject({
+      kind: "standalone",
+      coordination: "mint",
+      summary: "new cohort `mono`",
+    });
 
     // Members scaffolded with both skeletons under the new cohort.
     expect(await pathExists(join(repo, ".arc/backlog/planned/mono/alpha/meta-alpha.md"))).toBe(true);
@@ -275,6 +280,12 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
 
     expect(result.status).toBe("decomposed");
     if (result.status !== "decomposed") return;
+    expect(result.result.placement).toEqual({
+      kind: "cohortless",
+      cohort: null,
+      coordination: "none",
+      summary: "flat planned siblings (no cohort)",
+    });
     await driver.stagePreparedResult(prepared.preparation);
     const finalized = await driver.finalize("roadmap-tooling", prepared.preparation.locator.receiptId);
     expect(finalized.status).toBe("recorded");
@@ -423,8 +434,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
       schemaVersion: 2,
       origin: { slug: "mono", phase: "Planning", location: "active" },
       shape: "heterogeneous-home",
-      parentPosition: "standalone",
-      cohort: "mono",
+      parentPosition: "cohortless",
       entries: [
         newMember("alpha"),
         {
@@ -459,6 +469,9 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(prepared.status).toBe("prepared");
     if (prepared.status !== "prepared") return;
     expect(prepared.preparation.record.allowedPaths).toContain(".arc/active/meta-home.md");
+    expect(prepared.preparation.record.allowedPaths).toContain(
+      ".arc/backlog/planned/alpha/meta-alpha.md",
+    );
   });
 
   it("refuses a new-member slug already present in the lifecycle index", async () => {
@@ -519,6 +532,46 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(alpha["Depends On"]).toContain("mono");
   });
 
+  it("in-cohort extraction projects the declared sub-cohort without moving the active origin", async () => {
+    await writeWu(repo, ".arc/active", "mono", {
+      State: "Active",
+      Branch: "feat/mono",
+      Cohort: "parent",
+    });
+    await commitAll(repo, "in-cohort active origin");
+
+    const cut: DecomposeParams = {
+      schemaVersion: 2,
+      origin: { slug: "mono", phase: "Active", location: "active" },
+      shape: "extraction",
+      parentPosition: "in-cohort",
+      cohort: "parent/sub",
+      entries: [
+        newMember("alpha"),
+        { kind: "surviving-origin", destinationId: "mono", slug: "mono", disposition: "keep-active" },
+      ],
+      internalEdges: [],
+      sourceAllocations: [],
+      incomingEdges: [],
+      outgoingEdges: [{ prerequisite: "mono", disposition: { kind: "targets", targets: ["alpha"] } }],
+    };
+
+    const result = await runDecompose(decomposeCtx(repo), { cut });
+
+    expect(result.status).toBe("decomposed");
+    if (result.status !== "decomposed") return;
+    expect(result.result.placement).toMatchObject({
+      kind: "in-cohort",
+      cohort: "parent/sub",
+      coordination: "mint",
+    });
+    expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(true);
+    expect(await pathExists(join(
+      repo,
+      ".arc/backlog/planned/parent/sub/alpha/meta-alpha.md",
+    ))).toBe(true);
+  });
+
   it("backlog-stub-source: retires a planned stub in place (artifacts removed, no branch), prunes the emptied subdir", async () => {
     // The origin is a planned stub at the cap (cohort `parent/sub`); its members fan
     // out laterally as siblings, so retiring it leaves an emptied own-subdir to prune.
@@ -542,6 +595,11 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(result.status).toBe("decomposed");
     if (result.status !== "decomposed") return;
     expect(result.result.origin).toBe("retired");
+    expect(result.result.placement).toMatchObject({
+      kind: "at-cap",
+      cohort: "parent/sub",
+      coordination: "existing",
+    });
 
     // Members fan out as siblings under the origin's existing cohort.
     expect(await pathExists(join(repo, ".arc/backlog/planned/parent/sub/alpha/meta-alpha.md"))).toBe(true);

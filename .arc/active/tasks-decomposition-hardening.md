@@ -269,36 +269,29 @@ origin-disposition shape.
 - _Outcome:_ One typed placement now governs cohort-backed, at-cap, and cohortless filesystem behavior from
   initial scaffold through receipt-backed finalization.
 
-### `[ ]` **3.3 Align cohort-fit guidance and prove the full decomposition-shape matrix**
+### `[x]` **3.3 Align cohort-fit guidance and prove the full decomposition-shape matrix**
 
 - _Goal:_ Planning can emit the new placement value unambiguously, and every parent-position/non-symmetric arm
   remains executable under the shared transform substrate.
 
-- **Additional Context:** `strategy-procedure-evolution.md` § Forward-Compat Principles
+    - `[x]` **3.3.a Update the canonical `assess-cohort-fit` contract**
+        - The package-source method and project copy now return controlled placement fields and constrain
+          `cohortless` to destination-owned conservation.
 
-- _Note:_ See `notes-decomposition-hardening.md` § Cohortless placement invariants.
+    - `[x]` **3.3.b Align the transform workflow with the typed placement**
+        - The CLI now returns typed coordination disposition plus precomposed placement language; the synced
+          workflow dispatches authoring, verification, paths, and result prose on that projection.
 
-    - `[ ]` **3.3.a Update the canonical `assess-cohort-fit` contract**
-        - Edit the package-source method first and sync `.arc/`; add `parentPosition` plus conditional `cohort` to
-          the affirmative cut-map result and name `cohortless` as the flat-sibling placement.
-        - Retain the orthogonality/guard-rail decision: choose `cohortless` only when every conserved source has a
-          destination-owned home; ownerless shared coordination selects a cohort-backed placement.
+    - `[x]` **3.3.c Confirm every placement arm**
+        - Resolver, scaffold, command-output, and real-repository coverage exercise top-level cohort, sub-cohort,
+          at-cap lateral fan-out, and flat cohortless placement.
 
-    - `[ ]` **3.3.b Align the transform workflow with the typed placement**
-        - Update package-source adopter-facing surfaces and their project copies so the method, untrusted schema,
-          and `decompose` workflow consume one controlled placement term. Keep chunk/review-surface vocabulary out.
-        - Dispatch on the CLI-computed placement for coordination authoring, structural verification, path/result
-          wording, PR/commit prose, and the terminal message. The cohortless arm skips cohort-document authoring,
-          verifies flat placement plus `Cohort: [none]`, and never derives paths in workflow prose.
+    - `[x]` **3.3.d Confirm every non-symmetric transform shape**
+        - The compatibility matrix covers Active extraction, backlog-stub source, and heterogeneous homes,
+          including in-cohort and cohortless combinations alongside the symmetric prepared/finalized path.
 
-    - `[ ]` **3.3.c Confirm every placement arm**
-        - Exercise `standalone`, `in-cohort`, `at-cap`, and `cohortless`, including sub-cohort and lateral-fan-out
-          layouts.
-
-    - `[ ]` **3.3.d Confirm every non-symmetric transform shape**
-        - Exercise extraction (including Active origin), backlog-stub source, and heterogeneous home with the
-          expanded placement axis, including cohortless combinations where the allocation constraints permit
-          them. Test-after is appropriate for this compatibility matrix after the parser/scaffold slices are green.
+- _Outcome:_ Planning guidance, the untrusted contract, CLI result, workflow dispatch, and executable shape matrix
+  now share one controlled placement vocabulary with no prose-side path derivation.
 
 ## **Phase 4:** Husk-consistent transform terminals
 

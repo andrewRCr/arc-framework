@@ -270,6 +270,12 @@ beforeEach(() => {
   mockRunDecompose.mockResolvedValue({
     status: "decomposed",
     result: {
+      placement: {
+        kind: "cohortless",
+        cohort: null,
+        coordination: "none",
+        summary: "flat planned siblings (no cohort)",
+      },
       members: [{ slug: "alpha" }, { slug: "beta" }],
       repointed: [],
       origin: "retired",
@@ -279,6 +285,12 @@ beforeEach(() => {
   mockRunPreparedDecompose.mockResolvedValue({
     status: "decomposed",
     result: {
+      placement: {
+        kind: "cohortless",
+        cohort: null,
+        coordination: "none",
+        summary: "flat planned siblings (no cohort)",
+      },
       members: [{ slug: "alpha" }, { slug: "beta" }],
       repointed: [],
       origin: "retired",
@@ -353,6 +365,10 @@ describe("handleDecompose", () => {
     );
     const params = mockRunPreparedDecompose.mock.calls[0]?.[1];
     expect(params).toMatchObject({ cut: { origin: { slug: "mono" } } });
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringContaining("Placement:  flat planned siblings (no cohort)"),
+      "Decomposed",
+    );
   });
 
   it("finalizes one canonical receipt without rereading the scratch cut-map", async () => {
