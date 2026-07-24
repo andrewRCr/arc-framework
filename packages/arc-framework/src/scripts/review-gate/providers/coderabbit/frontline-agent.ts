@@ -11,6 +11,7 @@ export type CodeRabbitAgentProviderResult =
   | { kind: "clean" }
   | { kind: "findings"; findings: NormalizedReviewFinding[] }
   | { kind: "rate-limited" }
+  | { kind: "capability-unsupported" }
   | { kind: "stale-head"; expectedHeadSha: string; observedHeadSha: string }
   | { kind: "ambiguous" }
   | { kind: "partial" }
@@ -34,6 +35,39 @@ interface AgentCompleteEvent {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStructuredFileCapRefusal(input: {
+  exitCode: number | null;
+  signal: string | null;
+  stdout: string;
+}): boolean {
+  if (input.exitCode === 0 || input.exitCode === null || input.signal !== null) return false;
+  const lines = input.stdout.split(/\r?\n/u).filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return false;
+  const events: Record<string, unknown>[] = [];
+  for (const line of lines) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      return false;
+    }
+    if (!isRecord(parsed)) return false;
+    events.push(parsed);
+  }
+  const error = events.at(-1);
+  return error?.type === "error"
+    && error.errorType === "review"
+    && error.code === "too_many_files"
+    && error.recoverable === false
+    && error.retryable === false
+    && Number.isSafeInteger(error.actualFiles)
+    && Number(error.actualFiles) > 0
+    && Number.isSafeInteger(error.maxFiles)
+    && Number(error.maxFiles) > 0
+    && events.slice(0, -1).every((event) =>
+      event.type === "review_context" || event.type === "status" || event.type === "heartbeat");
 }
 
 function parseFindingEvent(event: Record<string, unknown>): AgentFindingEvent | null {
@@ -104,7 +138,6 @@ export function parseCodeRabbitAgentResult(input: {
   expectedHead: string;
   observedHead: string;
 }): CodeRabbitAgentProviderResult {
-  if (input.cliVersion !== CODERABBIT_AGENT_CLI_VERSION) return { kind: "malformed" };
   if (input.observedHead !== input.expectedHead) {
     return {
       kind: "stale-head",
@@ -112,6 +145,8 @@ export function parseCodeRabbitAgentResult(input: {
       observedHeadSha: input.observedHead,
     };
   }
+  if (isStructuredFileCapRefusal(input)) return { kind: "capability-unsupported" };
+  if (input.cliVersion !== CODERABBIT_AGENT_CLI_VERSION) return { kind: "malformed" };
   if (/rate limit(?:ed| exceeded)?/iu.test(`${input.stdout}\n${input.stderr}`)) {
     return { kind: "rate-limited" };
   }
