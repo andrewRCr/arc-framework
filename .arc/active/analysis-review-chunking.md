@@ -2793,3 +2793,43 @@ verdict: changes-requested
 Primary adjudication upheld B-F1: the recovery arm demonstrably passes `null` to the only source of `originEntry`,
 and both tests omit the field on the identity-absent replay. B-D1 remains a duplicate of E5 rather than inflating
 the packet. Root B passes reviewability and adds one distinct seam-owned finding.
+
+### Root C work-unit/session-lifecycle seam
+
+The fresh root-C evaluator consumed bounded W1, W2, S1, and S2 summaries plus the preserved S2↔S1 pilot result. It
+inspected only the remaining placement, lifecycle, and recovery edges, completed every dimension without overload
+or malformed scope, and found no new defect:
+
+```yaml
+scope: root-C-work-unit-session-lifecycle
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+newFindings: []
+duplicates:
+  - duplicateOf: W2 in-place resume attaches locus before deferred checkout
+    stableLocus: >
+      packages/arc-framework/src/lib/work-unit/mutators/reconcile-work-unit-worktree.ts — line 339;
+      packages/arc-framework/src/lib/work-unit/verbs/park-resume.ts — line 625
+  - duplicateOf: S1 absent current-version seed locus acts as wildcard for a newly live generation
+    stableLocus: >
+      packages/arc-framework/src/lib/compaction-seed/schema.ts — line 97;
+      packages/arc-framework/src/lib/recover/audit.ts — lines 310-319
+  - duplicateOf: S2 recovery masks worktree-identity failure as primary
+    stableLocus: packages/arc-framework/src/commands/status/run.ts — lines 87 and 516-524
+withstood:
+  - Fresh linked-worktree placement publishes its marker before proof-bearing locus reconciliation.
+  - Null-lease idle-WU selection is exact-path and rejects duplicate, non-WU, non-idle, and diagnostic rows.
+  - Target-lock teardown revalidates head, record bytes, lease/liveness, subject, and local predicates.
+  - Branch-gone and remote-only edges add no defect beyond supplied status/recovery findings.
+  - Rename/move failures reduce to the supplied W1 findings.
+  - A present seed hint compares session-home, active path, record, lease, and parent IDs exactly.
+verdict: clean-no-new-seam-findings
+```
+
+Primary adjudication retained all three outputs as duplicates of already source-verified findings. Root C passes
+reviewability and, crucially, consumed the pilot S2↔S1 result without reconstructing that child body or inflating
+the finding set.
