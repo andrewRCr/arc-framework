@@ -11,13 +11,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
 const mockNote = vi.fn();
+const mockSelect = vi.fn();
 const mockIoExec = vi.fn();
+const mockCreateUserIOContext = vi.fn();
 const mockSpinnerStart = vi.fn();
 const mockSpinnerStop = vi.fn();
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
   note: (...a: unknown[]) => mockNote(...a),
+  select: (...a: unknown[]) => mockSelect(...a),
+  isCancel: () => false,
   log: { error: (...a: unknown[]) => mockLogError(...a), info: (...a: unknown[]) => mockLogInfo(...a) },
   spinner: () => ({ start: (...a: unknown[]) => mockSpinnerStart(...a), stop: (...a: unknown[]) => mockSpinnerStop(...a) }),
 }));
@@ -29,12 +33,15 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 }));
 
 vi.mock("../../../src/lib/io-context.js", () => ({
-  createUserIOContext: () => ({
-    exec: mockIoExec,
-    readFile: vi.fn(async () => "meta"),
-    writeFile: vi.fn(),
-    mkdir: vi.fn(),
-  }),
+  createUserIOContext: (...args: unknown[]) => {
+    mockCreateUserIOContext(...args);
+    return {
+      exec: mockIoExec,
+      readFile: vi.fn(async () => "meta"),
+      writeFile: vi.fn(),
+      mkdir: vi.fn(),
+    };
+  },
   prepareGitRefVerification: vi.fn(),
   readGitBlobBytes: vi.fn(),
 }));
@@ -75,7 +82,10 @@ vi.mock("../../../src/lib/active/meta-reader.js", () => ({
   readActiveMetaCandidates: async () => ({ candidates: [{ filename: "meta-foo.md" }] }),
 }));
 
-vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({ buildLifecycleIndex: async () => new Map() }));
+const mockBuildLifecycleIndex = vi.fn();
+vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
+  buildLifecycleIndex: (...a: unknown[]) => mockBuildLifecycleIndex(...a),
+}));
 
 const mockRunStub = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/stub.js", () => ({ runStub: (...a: unknown[]) => mockRunStub(...a) }));
@@ -224,6 +234,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.exitCode = undefined;
   mockRunStub.mockResolvedValue({ status: "scaffolded", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
+  mockBuildLifecycleIndex.mockResolvedValue(new Map([
+    ["foo", { name: "foo", location: "provisional", path: ".arc/backlog/provisional/foo/meta-foo.md" }],
+  ]));
   mockRunPromote.mockResolvedValue({ status: "moved", outcome: okOutcome, metaPath: ".arc/backlog/planned/foo/meta-foo.md" });
   mockRunDemote.mockResolvedValue({ status: "moved", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
   mockRunPark.mockResolvedValue({
@@ -313,15 +326,24 @@ describe("handleStub", () => {
     });
   });
 
-  it("narrows an invalid commitment to undefined (runStub then refuses)", async () => {
+  it("rejects an invalid commitment before dispatch", async () => {
     await handleStub("foo", { commitment: "bogus", priority: "P1" });
-    expect(mockRunStub.mock.calls[0]?.[1]).toMatchObject({ commitment: undefined });
+    expect(mockRunStub).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
   });
 
   it("refuses without a name and never dispatches", async () => {
     await handleStub(undefined, { commitment: "provisional", priority: "P1" });
     expect(mockRunStub).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses an absent name before eliciting handler-level inputs", async () => {
+    await handleStub(undefined, {});
+
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockRunStub).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });
@@ -397,9 +419,9 @@ describe("handleDecompose", () => {
 
 describe("handlePromote / handleDemote", () => {
   it("promote dispatches runPromote for the slug", async () => {
-    await handlePromote("foo");
+    await handlePromote("foo", { class: "Novel" });
     expect(mockRunPromote).toHaveBeenCalledTimes(1);
-    expect(mockRunPromote.mock.calls[0]?.[1]).toEqual({ name: "foo" });
+    expect(mockRunPromote.mock.calls[0]?.[1]).toEqual({ name: "foo", class: "Novel" });
   });
 
   it("demote dispatches runDemote for the slug", async () => {
@@ -495,6 +517,26 @@ describe("handleMaterialize", () => {
     });
     expect(mockSpinnerStart).toHaveBeenCalledWith("Materializing in place...");
     expect(mockSpinnerStop).toHaveBeenCalledWith("Materialize complete.");
+  });
+
+  it("propagates forbidden subprocess interaction to the network boundary", async () => {
+    const subprocess = {
+      terminalPrompts: "forbidden" as const,
+      presenters: "forbidden" as const,
+      ambientStdin: "closed" as const,
+    };
+
+    await handleMaterialize("foo", {}, {
+      interaction: "forbidden",
+      terminal: "non-interactive",
+      confirmation: "ask",
+      machineReadable: false,
+      promptInput: process.stdin,
+      promptOutput: process.stdout,
+      subprocess,
+    });
+
+    expect(mockCreateUserIOContext).toHaveBeenCalledWith(subprocess);
   });
 
   it("refuses when the requested slug is not a remote-only materialize candidate", async () => {

@@ -42,6 +42,7 @@ vi.mock("../../../src/lib/errand/index.js", () => ({
 
 vi.mock("../../../src/lib/io-context.js", () => ({
   gitExec: (...args: unknown[]) => mockGitExec(...args),
+  createGitExec: () => mockGitExec,
   createUserIOContext: () => ({ exec: mockGitExec }),
 }));
 

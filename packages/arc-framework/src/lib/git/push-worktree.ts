@@ -32,7 +32,8 @@
 import { execa } from "execa";
 
 import type { GitExec } from "./exec.js";
-import { MAX_GIT_OUTPUT_BYTES } from "./process-executor.js";
+import { environmentForGitCwd, MAX_GIT_OUTPUT_BYTES } from "./process-executor.js";
+import type { InteractionContext } from "../command-input/interaction-context.js";
 import { type GitProcessError, normalizeGitRejection } from "./process-error.js";
 
 export interface PushWorktreeSpawnArgs {
@@ -45,6 +46,7 @@ export interface PushWorktreeSpawnArgs {
    * regardless of `process.cwd()` drift.
    */
   cwd?: string;
+  interaction?: InteractionContext["subprocess"];
 }
 
 export interface PushWorktreeSpawnResult {
@@ -82,6 +84,8 @@ export interface PushWorktreeBranchOptions {
   inheritStdio?: boolean;
   /** Test-injectable override for the `inheritStdio: true` spawn impl. */
   spawnPush?: PushWorktreeSpawn;
+  /** Per-invocation terminal and ambient-stdin policy. */
+  interaction?: InteractionContext["subprocess"];
 }
 
 /**
@@ -108,7 +112,7 @@ export async function pushWorktreeBranch(
 
   if (inheritStdio) {
     const spawnPush = options.spawnPush ?? defaultSpawnPush;
-    const result = await spawnPush({ branch, args, cwd });
+    const result = await spawnPush({ branch, args, cwd, interaction: options.interaction });
     if (result.exitCode === 0) {
       return { status: "success", stdout: "", stderr: result.stderr };
     }
@@ -121,9 +125,13 @@ export async function pushWorktreeBranch(
   }
 
   try {
-    const { stdout, stderr } = cwd === undefined
-      ? await exec("git", ["push", "origin", branch, ...args])
-      : await exec("git", ["push", "origin", branch, ...args], { cwd });
+    const invocation = ["push", "origin", branch, ...args];
+    const { stdout, stderr } = cwd === undefined && options.interaction === undefined
+      ? await exec("git", invocation)
+      : await exec("git", invocation, {
+          ...(cwd === undefined ? {} : { cwd }),
+          ...(options.interaction === undefined ? {} : { interaction: options.interaction }),
+        });
     return { status: "success", stdout, stderr: stderr ?? "" };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
@@ -138,11 +146,23 @@ export async function pushWorktreeBranch(
   }
 }
 
-const defaultSpawnPush: PushWorktreeSpawn = async ({ branch, args, cwd }) => {
+const defaultSpawnPush: PushWorktreeSpawn = async ({ branch, args, cwd, interaction }) => {
   const invocation = ["push", "origin", branch, ...args];
+  const forbidden = interaction?.terminalPrompts === "forbidden";
+  const env = forbidden
+    ? {
+        ...(environmentForGitCwd(cwd) ?? process.env),
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_EDITOR: "true",
+        GIT_PAGER: "cat",
+        PAGER: "cat",
+      }
+    : environmentForGitCwd(cwd);
   const result = await execa("git", invocation, {
     cwd,
-    stdin: "inherit",
+    env,
+    extendEnv: false,
+    stdin: interaction?.ambientStdin === "closed" ? "ignore" : "inherit",
     stdout: "inherit",
     stderr: ["inherit", "pipe"],
     reject: false,

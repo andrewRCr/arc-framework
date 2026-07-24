@@ -26,6 +26,10 @@ export interface JoinPromptOptions {
   currentRole?: "maintainer" | "contributor";
   /** Current tools (for reconfigure — used as default selection). */
   currentTools?: string[];
+  /** Adapter-resolved role; skips the role prompt when present. */
+  suppliedRole?: "maintainer" | "contributor";
+  /** Adapter-resolved tools; skips the tools prompt when present. */
+  suppliedTools?: readonly string[];
 }
 
 /**
@@ -42,7 +46,9 @@ export async function runJoinPrompts(
   try {
     // 1. Role selection — skip if --contributor flag was passed
     let role: string;
-    if (options?.contributor) {
+    if (options?.suppliedRole !== undefined) {
+      role = options.suppliedRole;
+    } else if (options?.contributor) {
       role = "contributor";
       p.log.info("Role: contributor (via --contributor flag)");
     } else {
@@ -60,7 +66,9 @@ export async function runJoinPrompts(
     }
 
     // 2. Tools selection (shared prompt, with current values as defaults for reconfigure)
-    const tools = await promptTools(sentinel, options?.currentTools);
+    const tools = options?.suppliedTools === undefined
+      ? await promptTools(sentinel, options?.currentTools)
+      : [...options.suppliedTools];
 
     return {
       role: role as "maintainer" | "contributor",

@@ -19,6 +19,7 @@ import { readdir, rm, rmdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import * as p from "@clack/prompts";
+import { z } from "zod";
 
 import {
   buildCreateNewCeremonyCommitMessage,
@@ -40,8 +41,14 @@ import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
-import { SlugSchema } from "../lib/kernel/index.js";
+import { SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../lib/command-input/interaction-context.js";
 import { ensureDir } from "../lib/template/files.js";
 import { renderTrackedProjectReadinessViewResult } from "../lib/status/project-roadmap-render.js";
 import type { ProjectReadinessWarning } from "../lib/status/project-view.js";
@@ -56,7 +63,6 @@ import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { runResume } from "../lib/work-unit/verbs/park-resume.js";
 import {
   isHandledError,
-  isNonInteractiveEnvironment,
   requireArcProjectRoot,
   resolveCurrentBranchName,
   resolveUserIdentity,
@@ -86,9 +92,63 @@ export interface StartOptions {
   yes?: boolean;
 }
 
-/** Whether to skip the interactive confirm — explicit `--yes` or a non-TTY environment. */
-function skipConfirm(opts: StartOptions): boolean {
-  return Boolean(opts.yes) || isNonInteractiveEnvironment();
+/** Syntax-owned input for the polymorphic start adapter. */
+export const StartCommandInputSchema = z.object({
+  name: SlugSchema.optional(),
+  here: z.boolean().optional(),
+  from: z.string().min(1).optional(),
+  class: WorkClassSchema.optional(),
+  new: z.boolean().optional(),
+  yes: z.boolean().optional(),
+}).strict();
+
+/** Registry contribution owned by the start command. */
+export const startCommandInputRegistration = {
+  commandPath: "start",
+  schema: StartCommandInputSchema,
+  schemaFields: {
+    "operand.name": "name",
+    "option.here": "here",
+    "option.from": "from",
+    "option.class": "class",
+    "option.new": "new",
+    "option.yes": "yes",
+  },
+} satisfies CommandInputRegistration;
+
+/** Command-owned interaction and safety policies for start. */
+export const startCommandInputPolicyDeclarations = [{
+  commandPath: "start",
+  aliases: [],
+  sites: [
+    declareInteractionSite(
+      { file: "handlers/start.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
+      {
+        acquisition: "courtesy-confirmation",
+        schemaOwnership: "none",
+        cancellation: "stop",
+        automation: { noInput: "proceed", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+        mutationBoundary: "start dispatch",
+        subprocess: "none",
+      },
+    ),
+    {
+      id: "safety.indeterminate-lifecycle",
+      source: { file: "handlers/start.ts", symbol: "handleStart" },
+      origin: "declaration",
+      acquisition: "interactive-only-override",
+      schemaOwnership: "none",
+      cancellation: "stop",
+      automation: { noInput: "refuse", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "start lifecycle safety gate",
+      subprocess: "none",
+    },
+  ],
+}] satisfies readonly CommandInputDeclaration[];
+
+/** Whether courtesy confirmation is unavailable for this invocation. */
+function skipConfirm(context: InteractionContext, courtesyAccepted = false): boolean {
+  return context.interaction === "forbidden" || courtesyAccepted;
 }
 
 /** Ask the operator to confirm; returns `true` to proceed, `false` to abort. */
@@ -125,8 +185,26 @@ async function withStartProgress<T>(
 export async function handleStart(
   name: string | undefined,
   opts: StartOptions,
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: false,
+    yes: opts.yes === true ? "compatibility" : "absent",
+  });
   p.intro("arc start");
+
+  const normalizedName = name?.trim();
+  const parsed = StartCommandInputSchema.safeParse({
+    ...(normalizedName === undefined || normalizedName === "" ? {} : { name: normalizedName }),
+    ...opts,
+  });
+  if (!parsed.success) {
+    p.log.error(z.prettifyError(parsed.error));
+    process.exitCode = 1;
+    return;
+  }
+  const input = parsed.data;
 
   let identity: string;
   try {
@@ -136,15 +214,17 @@ export async function handleStart(
     throw err;
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
   // `--here` with no name: there is no slug to resolve a state against, so this
   // is unambiguously a cold-start, deriving the WU name from the current branch.
-  const wuName = name?.trim();
-  if (opts.here && !wuName) {
-    await coldStart(name, opts, { io, cwd, identity });
+  const wuName = input.name;
+  if (input.here && !wuName) {
+    await coldStart(name, input, {
+      io, cwd, identity, interaction: context, courtesyAccepted: input.yes === true,
+    });
     return;
   }
 
@@ -185,10 +265,19 @@ export async function handleStart(
       expandLiveOnly: true,
     },
   });
-  const dispatch = resolveStartDispatch(composed.index, wuName, { create: opts.new === true });
-  let armOptions = opts;
+  const dispatch = resolveStartDispatch(composed.index, wuName, { create: input.new === true });
+  if (input.from !== undefined && dispatch.arm !== "create-new") {
+    p.log.error("--from is only valid when starting a new work unit.");
+    process.exitCode = 1;
+    return;
+  }
+  if (input.class !== undefined && dispatch.arm !== "graduate") {
+    p.log.error("--class is only valid when graduating a backlog stub.");
+    process.exitCode = 1;
+    return;
+  }
   const mintsBranch = dispatch.arm === "create-new" || dispatch.arm === "graduate";
-  const explicitHereColdStart = opts.here === true && dispatch.arm === "create-new";
+  const explicitHereColdStart = input.here === true && dispatch.arm === "create-new";
   if (
     mintsBranch
     && !explicitHereColdStart
@@ -197,7 +286,7 @@ export async function handleStart(
     const reason =
       `Cannot safely start \`${wuName}\`: live lifecycle truth is indeterminate. ` +
       `Retry with a reachable origin or inspect \`arc status ${wuName} --fetch\` before starting.`;
-    if (skipConfirm(opts)) {
+    if (skipConfirm(context)) {
       p.log.error(reason);
       process.exitCode = 1;
       return;
@@ -206,7 +295,6 @@ export async function handleStart(
       p.log.info("Start cancelled.");
       return;
     }
-    armOptions = { ...opts, yes: true };
   }
 
   // `--here` is the in-place opt-out, orthogonal to the resolved state: a
@@ -218,7 +306,11 @@ export async function handleStart(
       process.exitCode = 1;
       return;
     case "create-new":
-      if (opts.here) await coldStart(name, armOptions, { io, cwd, identity });
+      if (input.here) {
+        await coldStart(name, input, {
+          io, cwd, identity, interaction: context, courtesyAccepted: input.yes === true,
+        });
+      }
       else {
         const provenance = await resolveStartBaseProvenance(
           io.exec,
@@ -226,14 +318,18 @@ export async function handleStart(
           refreshedBase,
           baseRef,
         );
-        await createNew(wuName, armOptions, { io, cwd, identity }, provenance);
+        await createNew(wuName, {
+          io, cwd, identity, interaction: context, courtesyAccepted: input.yes === true,
+        }, provenance);
       }
       return;
     case "graduate":
-      await graduate(wuName, armOptions, {
+      await graduate(wuName, input, {
         io,
         cwd,
         identity,
+        interaction: context,
+        courtesyAccepted: input.yes === true,
         baseRef,
         baseBranch: settings["branch.base"],
         refreshedBase,
@@ -242,7 +338,9 @@ export async function handleStart(
       });
       return;
     case "resume":
-      await resume(wuName, armOptions, { io, cwd, identity });
+      await resume(wuName, input, {
+        io, cwd, identity, interaction: context, courtesyAccepted: input.yes === true,
+      });
       return;
     // `cold-start` is reached only via `--here`, handled above.
   }
@@ -253,6 +351,8 @@ interface ArmContext {
   io: ReturnType<typeof createUserIOContext>;
   cwd: string;
   identity: string;
+  interaction: InteractionContext;
+  courtesyAccepted: boolean;
 }
 
 interface StartBaseProvenance {
@@ -323,11 +423,10 @@ async function resolveSpawnConfig(
 /** Create-new arm — spawn a fresh worktree on a new `plan/<name>` branch. */
 async function createNew(
   wuName: string,
-  opts: StartOptions,
   ctx: ArmContext,
   provenance: StartBaseProvenance,
 ): Promise<void> {
-  if (!skipConfirm(opts)) {
+  if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
     if (!(
       await confirmStep(
         `Spawn a new worktree for work unit "${wuName}" on plan/${wuName}, then commit and push the start ceremony?`,
@@ -489,7 +588,7 @@ async function graduate(
   // side-effect. The branch is cut off current HEAD in this checkout.
   if (opts.here) {
     const { settings } = await readConfigSettings(ctx.cwd);
-    if (!skipConfirm(opts)) {
+    if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
       if (!(await confirmStep(`Graduate "${wuName}" onto a new plan/${wuName} branch in this worktree (no spawn)?`))) {
         p.log.info("Graduate cancelled.");
         return;
@@ -534,7 +633,7 @@ async function graduate(
     ctx.baseRef,
   );
 
-  if (!skipConfirm(opts)) {
+  if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
     if (!(
       await confirmStep(
         `Graduate "${wuName}" into a spawned plan/${wuName} worktree, then commit and push the start ceremony?`,
@@ -645,7 +744,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
   // only `team.mode` for the executor's status side-effect.
   if (opts.here) {
     const { settings } = await readConfigSettings(ctx.cwd);
-    if (!skipConfirm(opts)) {
+    if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
       if (!(await confirmStep(`Resume parked work unit "${wuName}" — re-attach its branch in this worktree (no spawn)?`))) {
         p.log.info("Resume cancelled.");
         return;
@@ -689,7 +788,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
   const config = await resolveSpawnConfig(ctx);
   if (config === null) return;
 
-  if (!skipConfirm(opts)) {
+  if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
     if (!(await confirmStep(`Resume parked work unit "${wuName}" — re-attach its branch in a fresh worktree?`))) {
       p.log.info("Resume cancelled.");
       return;
@@ -761,7 +860,7 @@ async function coldStart(
 
   // The arc-session skill confirms the gathered context before invoking, so its
   // non-interactive (no-TTY) call skips this prompt; a direct human run still gets it.
-  if (!skipConfirm(opts)) {
+  if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
     const previewName = deriveColdStartWuName(name, branch) ?? "(name from branch)";
     const prompt = onProtectedBase
       ? `Protected base '${branch}' — cut plan/${previewName} and cold-start "${previewName}" onto it?`

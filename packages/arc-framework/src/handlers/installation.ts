@@ -22,10 +22,27 @@ import { normalizeGitRejection } from "../lib/git/process-error.js";
 import { runWithSpinner, isHandledError, requireArcProjectRoot } from "./shared.js";
 import { createSyncOutput } from "../lib/sync-output.js";
 import { readChangelog, filterChangelogRange, buildChangelogDisplay } from "../lib/changelog.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+
+/** Terminal-process policy owned by the update adapter. */
+export const installationCommandInputPolicyDeclarations = [{
+  commandPath: "update", aliases: [], sites: [declareInteractionSite(
+    { file: "handlers/installation.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
+    {
+      acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "disable-terminal-input", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "update subprocess boundary", subprocess: "terminal-prompts",
+    },
+  )],
+}] satisfies readonly CommandInputDeclaration[];
 
 // --- Update ---
 
-export async function handleUpdate(options: { quiet?: boolean } = {}): Promise<void> {
+export async function handleUpdate(
+  options: { quiet?: boolean } = {},
+  interaction?: InteractionContext,
+): Promise<void> {
   p.intro("arc update");
 
   const output = createSyncOutput(false);
@@ -38,7 +55,7 @@ export async function handleUpdate(options: { quiet?: boolean } = {}): Promise<v
     const result = await runWithSpinner(
       output,
       "Updating ARC framework files...",
-      () => runUpdate({ cwd, io: createIOContext(), templateDir, recipe }),
+      () => runUpdate({ cwd, io: createIOContext(interaction?.subprocess), templateDir, recipe }),
       "Update complete.",
     );
 
