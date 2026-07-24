@@ -9,51 +9,28 @@
 _Purpose:_ Establish the review-unit contract and precise terminology before runtime selection or review-pipeline
 consumers depend on them.
 
-### `[ ]` **1.1 Author and distribute the `review-chunking` method**
+### `[x]` **1.1 Author and distribute the `review-chunking` method**
 
 - _Goal:_ Reviewers have one shipped, configurable method that defines well-formed review chunks and preserves both
   local defect detection and whole-concern coherence.
 
-- **Additional Context:** `analysis-review-chunking.md` § First-run field evidence
+    - `[x]` **1.1.a Write the standalone review doctrine in the package source**
+        - Added the configurable `review-chunking` method with dependency closure, test/prose cohesion,
+          seed→judgment→guard derivation, union coverage, seam review, explicit external referents, and a
+          delivery-neutral downstream seam.
 
-- _Note:_ Execution precondition: before starting this task, verify the branch contains
-  `review-surface-binding`'s coordinated `standard-review` rename. If it does not, stop and reconcile onto a mainline
-  containing that increment; then use `standard-review` in related metadata and dependency inventories with no
-  compatibility alias.
+    - `[x]` **1.1.b Register, declare, and project the configurable method**
+        - Registered the method for installation and Configurable updates, declared the integration workflow trigger,
+          projected the exact project copy and manifest hash, and updated dependency/inventory totals to 125
+          self-hosting files.
 
-    - `[ ]` **1.1.a Write the standalone review doctrine in the package source**
-        - Add `packages/arc-framework/arc/system/methods/review-chunking.md` with normal method frontmatter and
-          `.override` / `.default` sections.
-        - Set `override-active: false`, omit `active`, and declare the live frontline/standard-review relationships.
-          Threshold configuration controls automatic consideration; explicit callers can always apply the method.
-        - Define consumer→declaration dependency closure, explicit external/pre-existing referents, test cohesion,
-          contract-cohesion boundaries, the doc/prose analog, union-completeness, and the seam chunk.
-        - Keep the method review-only and delivery-neutral. Reserve the downstream delivery seam without making the
-          contract serve or describe merge topology.
-        - Express seed → judgment → guard as a judgment model, not agent-interpreted control flow or a clustering
-          engine.
+    - `[x]` **1.1.c Prove installation, update, trigger, and two-copy behavior**
+        - Extended unit, integration, update, E2E, and framework-sync inventories; the live trigger audit and focused
+          installation/update suites prove declaration coverage, classification, fresh install, idempotence, and
+          package/instance equality.
 
-    - `[ ]` **1.1.b Register, declare, and project the configurable method**
-        - Add the method to `packages/arc-framework/init-recipe.json`,
-          `packages/arc-framework/src/lib/classification.ts`, and the dependency inventories in both
-          `system/methods/README.md` copies.
-        - Update `.arc/reference/strategies/project/strategy-package-project-sync.md` so its Configurable inventory
-          count, method list, and derived self-hosting installed-file total include `review-chunking` (`125` after
-          the addition).
-        - Declare `review-chunking` in the package and project `integrate-work-unit.md` frontmatter in the same
-          increment so `audit-method-triggers.ts` never observes an undeclared packaged method. Keep this as a
-          declaration-only attachment; automatic lifecycle consumption belongs to `review-gate-right-sizing`.
-        - Project the method to `.arc/system/methods/review-chunking.md` and update its exact self-hosting manifest
-          entry/hash using the repository's existing manifest conventions.
-
-    - `[ ]` **1.1.c Prove installation, update, trigger, and two-copy behavior**
-        - Extend the method inventories in `__tests__/unit/init.test.ts`, `__tests__/integration/init.test.ts`,
-          `__tests__/integration/update.test.ts`, `__tests__/e2e/init.e2e.test.ts`, and
-          `__tests__/integration/framework-sync.test.ts` where their existing list-driven fixtures require it.
-        - Run `npm run lint:arc:triggers` against the live corpus to prove the integration declaration resolves;
-          change `audit-method-triggers.test.ts` only if audit behavior itself changes.
-        - Cover `Configurable` classification, fresh installation, update stability, and package/instance equality
-          without introducing a review-runtime model.
+- _Outcome:_ ARC now ships one review-only boundary doctrine that is immediately usable by explicit callers while
+  preserving the existing review roles and leaving automatic lifecycle consumption to its owning work unit.
 
 ### `[ ]` **1.2 Define the `chunk` vocabulary and delivery-neutral seam**
 

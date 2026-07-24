@@ -151,6 +151,7 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/frontline-review.md",
       "system/methods/standard-review.md",
       "system/methods/implementation-audit.md",
+      "system/methods/review-chunking.md",
       "system/methods/review-response.md",
       "system/methods/review-triage.md",
       "system/extensions/README.md",
