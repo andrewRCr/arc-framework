@@ -265,7 +265,7 @@ the comparison; it tests whether recursive leaf chunks and hierarchical seams re
   in either arm. It remains inconclusive on the primary hypothesis while motivating a separately classified
   residual-attention stress test.
 
-### `[ ]` **5.R Stress-test recursive boundedness on `session-locus-model`**
+### `[x]` **5.R Stress-test recursive boundedness on `session-locus-model`**
 
 - _Goal:_ A pathological monolith can be decomposed into reviewable leaf chunks and hierarchical seams without
   reconstructing the monolith during aggregation.
@@ -290,15 +290,21 @@ the comparison; it tests whether recursive leaf chunks and hierarchical seams re
           files completed with two advisory findings and materially higher latency, without entering completeness
           accounting.
 
-    - `[ ]` **5.R.d Run the remaining leaf and hierarchical seam reviews**
-        - Fan out only after the pilot passes, using the same evaluator capability and rubric for every bounded
-          context; preserve raw leaf, local-seam, domain-seam, and top-level-seam reports independently.
+    - `[x]` **5.R.d Run the remaining leaf and hierarchical seam reviews**
+        - Completed the other 16 exact-manifest leaves, four bounded root seams, and one summary-only top seam with
+          no partiality or overload; excluded and successfully retried one malformed W1 scope.
+        - Preserved every authoritative report plus three usable CodeRabbit `--agent` shadows and one no-change
+          setup skip, keeping the four CLI invocations outside completeness accounting.
 
-    - `[ ]` **5.R.e Aggregate and preserve the reusable advisory packet**
-        - Build bounded domain summaries and one fresh non-author aggregate without supplying every descendant body
-          wholesale; classify whether the hierarchy supports or limits the scalability claim.
-        - Record immutable raw evidence and stable-locus findings in `analysis-review-chunking.md`, bound to the
-          tested SHA and explicitly requiring revalidation after `session-locus-model` reconciles with main.
+    - `[x]` **5.R.e Aggregate and preserve the reusable advisory packet**
+        - A fresh non-author aggregate consumed only bounded root inventories, coverage proof, seam results, and
+          targeted contracts; it returned a coherent 66-finding `changes-requested` packet with no dedup inflation.
+        - Classified the hierarchy `supports-scalability` on all four predeclared criteria and bound later use to
+          exact target `0c5dd045a`, requiring source revalidation after `session-locus-model` reconciles with main.
+
+- _Outcome:_ The 43,754-line target remained reviewable through 17 complete leaves, owned local/root/top seams, and
+  summary-only aggregation without recreating the monolith. Exact manifests are mandatory and the process remains
+  expensive, but the preserved SHA-bound packet can serve as advisory input to the target's later code review.
 
 ### `[ ]` **5.3 Validate the doc-heavy analog and seam review**
 

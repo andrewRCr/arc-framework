@@ -2937,3 +2937,106 @@ One preceding invocation pointed at the parent worktree, immediately returned `r
 contributed no evidence. Total CodeRabbit calls were four: the S2 and E1 shadows, this completed seam shadow, and the
 no-change setup skip—within the predeclared fewer-than-five ceiling. The disposable projection was removed after
 the completed run.
+
+### Fresh whole-target aggregate
+
+The fresh non-author aggregate ran from an empty read-only context. It received only the immutable target identity,
+exact coverage and completion proof, the four bounded root inventories and seam summaries, the top-seam result, and
+the predeclared scalability criteria. It did not receive the raw patch or any descendant report body.
+
+```yaml
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+exactTarget:
+  base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+  head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+  targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+boundedInputsUsed:
+  - exact target identity and totals
+  - coverage and completion proof
+  - primary-adjudicated domain inventories
+  - root-seam and top-seam summaries
+  - predeclared scalability criteria
+descendantBodiesLoaded: false
+rawDiffLoaded: false
+coverageDisposition:
+  status: exact-complete
+  files: 333
+  hunks: 1525
+  changedLines: 43754
+  leafCount: 17
+  seamOwnership: complete
+  note: >
+    All files and hunks were assigned exactly once; the malformed W1 attempt was excluded and successfully rerun
+    with an exact manifest.
+wholeTargetAdvisoryVerdict:
+  verdict: changes-requested
+  findingCount: 66
+  domainCounts:
+    rootA: 18
+    rootB: 16
+    rootC: 16
+    rootD: 16
+crossDomainSynthesis:
+  - >
+    Authority and trust evidence are inconsistently preserved across readers, mutation paths, recovery, and
+    operational consumers.
+  - >
+    Generation, identity, lease, and source-capture bindings can become stale or be dropped across provisioning,
+    promotion, attachment, and recovery.
+  - >
+    Partial failure and replay boundaries can leave durable residue, lose occupancy, or report outcomes
+    inconsistent with performed mutations.
+  - >
+    Recovery and lifecycle behavior diverge across legacy, transient, durable, work-unit, and session
+    representations.
+  - >
+    CLI, methodology, distribution, documentation, and test claims do not consistently match implemented lifecycle
+    contracts.
+dedupDisposition:
+  status: consistent
+  arithmetic: 18 + 16 + 16 + 16 = 66
+  topSeamInflation: false
+scalabilityClassification: supports-scalability
+criteriaAssessment:
+  completeBoundedReviews: satisfied
+  residualAttentionDisclosure: satisfied
+  exactUnionAndSeamOwnership: satisfied
+  boundedWholeTargetRecomposition: satisfied
+reusablePacketMinimumFields:
+  - repositoryId
+  - diffBaseSha
+  - headSha
+  - targetId
+  - canonicalPatchDigest
+  - targetTotals
+  - exactCoverageProof
+  - leafAndSeamOwnership
+  - completionAndOverloadStatus
+  - authoritativeDeduplicatedFindings
+  - domainFindingCounts
+  - crossDomainContractsAndSynthesis
+  - deduplicationDisposition
+  - limitations
+  - revalidationRule
+limitations:
+  - The aggregate relies on bounded summaries and does not independently adjudicate source evidence.
+  - Review cost and latency remain high; cohesive hunk-dense units such as M1 can complete very slowly.
+  - Exact derived manifests are mandatory, as demonstrated by the excluded malformed W1 attempt.
+  - CodeRabbit shadows are advisory carrier evidence only and are not completeness authority.
+revalidationRule: >
+  This packet is SHA-bound advisory evidence for the exact base, head, target ID, and patch digest above. It cannot
+  satisfy the review obligation for any later head. After reconciliation with main, every finding and verification
+  weakness must be revalidated against the resulting target.
+```
+
+Primary adjudication accepts the aggregate classification. The arithmetic matches the globally deduplicated
+inventory, the five cross-domain themes are grounded in multiple supplied domain summaries, and the top seam added
+no finding inflation. The hierarchy therefore **supports scalability** for the stated goal: it made a 43,754-line
+monolith reviewable as complete bounded leaves and owned seams, then reconstructed a coherent whole-target advisory
+verdict without restoring monolithic attention.
+
+This is a mechanics result, not a claim that the method is cheap or self-enforcing. M1, the root-D seam, and the top
+seam were slow; semantic labels plus totals failed to bind W1; and the CodeRabbit carrier could not include an
+untracked projection file under `--uncommitted`. The reusable packet remains advisory and immutable-target-bound.
