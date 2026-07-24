@@ -122,20 +122,15 @@ async function isGitWorktree(exec: GitExec, path: string): Promise<boolean> {
   }
 }
 
-async function restoreCheckout(exec: GitExec, source: LocalReviewSource): Promise<void> {
+async function ensureCheckout(exec: GitExec, source: LocalReviewSource): Promise<void> {
   const reviewRoot = source.materializationRef;
-  if (!await isGitWorktree(exec, reviewRoot)) {
-    if (await pathExists(reviewRoot)) {
-      throw new LocalReviewMaterializationError("materialization-path-occupied");
-    }
-    await mkdir(dirname(reviewRoot), { recursive: true, mode: 0o700 });
-    const cwd = dirname(dirname(dirname(dirname(reviewRoot))));
-    await git(exec, cwd, ["worktree", "add", "--detach", reviewRoot, source.headSha]);
-    return;
+  if (await isGitWorktree(exec, reviewRoot)) return;
+  if (await pathExists(reviewRoot)) {
+    throw new LocalReviewMaterializationError("materialization-path-occupied");
   }
-  await git(exec, reviewRoot, ["checkout", "--detach", source.headSha]);
-  await git(exec, reviewRoot, ["reset", "--hard", source.headSha]);
-  await git(exec, reviewRoot, ["clean", "-fdx"]);
+  await mkdir(dirname(reviewRoot), { recursive: true, mode: 0o700 });
+  const cwd = dirname(dirname(dirname(dirname(reviewRoot))));
+  await git(exec, cwd, ["worktree", "add", "--detach", reviewRoot, source.headSha]);
 }
 
 async function verifyCheckout(exec: GitExec, source: LocalReviewSource): Promise<void> {
@@ -143,7 +138,7 @@ async function verifyCheckout(exec: GitExec, source: LocalReviewSource): Promise
   const head = await git(exec, reviewRoot, ["rev-parse", "HEAD"]);
   const tree = await git(exec, reviewRoot, ["rev-parse", "HEAD^{tree}"]);
   const branch = await git(exec, reviewRoot, ["rev-parse", "--abbrev-ref", "HEAD"]);
-  const status = await git(exec, reviewRoot, ["status", "--porcelain=v2", "--untracked-files=normal"]);
+  const status = await git(exec, reviewRoot, ["status", "--porcelain=v2", "--untracked-files=no"]);
   if (head !== source.headSha) throw new LocalReviewMaterializationError("checkout-head-mismatch");
   if (tree !== source.headTree) throw new LocalReviewMaterializationError("checkout-tree-mismatch");
   if (branch !== "HEAD") throw new LocalReviewMaterializationError("checkout-not-detached");
@@ -196,7 +191,7 @@ export async function ensureLocalReviewSourceMaterialized(input: {
   const source = LocalReviewSourceSchema.parse(input.source);
   await requireObjects(input.exec, source);
   await ensurePin(input.exec, source);
-  await restoreCheckout(input.exec, source);
+  await ensureCheckout(input.exec, source);
   await verifyCheckout(input.exec, source);
   const pinned = await git(
     input.exec,

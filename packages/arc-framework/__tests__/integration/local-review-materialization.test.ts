@@ -83,16 +83,33 @@ describe("immutable local review materialization", () => {
     await expect(readFile(join(materialized.reviewRoot, "tracked.txt"), "utf8")).resolves.toBe("feature\n");
   });
 
-  it("restores a missing pin or dirty checkout but refuses a pin to different bytes", async () => {
+  it("repairs missing locators without mutating evaluator outputs and rejects tracked drift", async () => {
     const records = await fixture();
     await ensureLocalReviewSourceMaterialized({ exec, source: records.source });
 
     await git(records.root, "update-ref", "-d", records.source.reachabilityRef);
     await writeFile(join(records.source.materializationRef, "untracked.txt"), "dirty\n", "utf8");
+    await writeFile(await git(
+      records.source.materializationRef,
+      "rev-parse",
+      "--git-path",
+      "info/exclude",
+    ), "ignored.txt\n", "utf8");
+    await writeFile(join(records.source.materializationRef, "ignored.txt"), "review result\n", "utf8");
     await ensureLocalReviewSourceMaterialized({ exec, source: records.source });
     expect(await git(records.root, "rev-parse", records.source.reachabilityRef)).toBe(records.target.headSha);
     await expect(readFile(join(records.source.materializationRef, "untracked.txt"), "utf8"))
-      .rejects.toMatchObject({ code: "ENOENT" });
+      .resolves.toBe("dirty\n");
+    await expect(readFile(join(records.source.materializationRef, "ignored.txt"), "utf8"))
+      .resolves.toBe("review result\n");
+
+    await writeFile(join(records.source.materializationRef, "tracked.txt"), "changed\n", "utf8");
+    await expect(ensureLocalReviewSourceMaterialized({
+      exec,
+      source: records.source,
+    })).rejects.toMatchObject({ code: "corrupt-state", reason: "checkout-dirty" });
+    await expect(readFile(join(records.source.materializationRef, "tracked.txt"), "utf8"))
+      .resolves.toBe("changed\n");
 
     await git(records.root, "update-ref", records.source.reachabilityRef, records.target.diffBaseSha);
     await expect(ensureLocalReviewSourceMaterialized({
