@@ -209,6 +209,19 @@ async function seedLegacyRecoveryRecord(cwd: string): Promise<void> {
   await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
 }
 
+/**
+ * Seed one malformed entry into the identity's errand records.
+ *
+ * The record tree reads successfully but the entry does not parse, so the oracle reports
+ * an incomplete read — the state in which no branch can be proven record-less.
+ */
+async function seedUnreadableErrandRecord(cwd: string): Promise<void> {
+  const blob = await gitWithInput(cwd, ["hash-object", "-w", "--stdin"], "not a record\n");
+  const tree = await gitWithInput(cwd, ["mktree"], `100644 blob ${blob}\tunreadable\n`);
+  const commit = await git(cwd, ["commit-tree", tree, "-m", "seed unreadable record"]);
+  await git(cwd, ["update-ref", "refs/arc/user/test-user/errands", commit]);
+}
+
 async function writeStatusFixture(
   arcRoot: string,
   category: string,
@@ -615,9 +628,17 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.recommendedCombinedPrompt).toBeUndefined();
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("single");
-    expect(envelope.locusState?.ok).toBe(false);
-    expect(envelope.recoveryFrame?.ok).toBe(false);
-    expect(envelope.loadSet?.ok).toBe(false);
+    expect(envelope.locusState?.ok).toBe(true);
+    // The checkout carries an active meta but no locus record, so recovery resolves no
+    // work-unit frame and its load set stays universal — recovery reads the locus, not
+    // the meta, and will not claim work-unit context it cannot prove.
+    expect(envelope.recoveryFrame).toMatchObject({
+      ok: true,
+      value: { kind: "none", workflow: null, sessionType: null },
+    });
+    expect(envelope.loadSet?.ok).toBe(true);
+    expect(envelope.loadSet?.value?.entries.map((entry) => entry.path))
+      .not.toContain(".arc/active/meta-foo.md");
     expect(envelope.taskCursor).toBeUndefined();
   });
 
@@ -664,7 +685,10 @@ describe("session-init E2E — sessionType across type variants", () => {
       status: "stop",
       ready: false,
       stopReasons: expect.arrayContaining([
-        expect.objectContaining({ kind: "load-set-unresolved" }),
+        // The seed's load set comes from active-meta resolution, while recovery derives
+        // its own from a locus role. This checkout carries a meta but no record, so
+        // recovery reports the divergence rather than adopting the seed's work-unit view.
+        expect.objectContaining({ kind: "load-set-drift" }),
         expect.objectContaining({ kind: "task-cursor-unresolved" }),
       ]),
       taskCursor: { match: false, actual: null },
@@ -756,7 +780,50 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.active.value?.sessionType).toBeNull();
   });
 
-  it("keeps record-less remote residue manual when locus classification is unavailable", async () => {
+  it("reports record-less remote residue as unclassified when errand records are unreadable", async () => {
+    const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-residue-origin-"));
+    try {
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
+      await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: bareDir });
+      await execFileAsync("git", ["remote", "add", "origin", bareDir], { cwd: tmpDir });
+      await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+      await execFileAsync(
+        "git",
+        ["-c", "core.hooksPath=/dev/null", "commit", "-m", "install ARC"],
+        { cwd: tmpDir },
+      );
+      await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: tmpDir });
+      await execFileAsync("git", ["switch", "-c", "chore/merged-residue"], { cwd: tmpDir });
+      await execFileAsync("git", ["push", "-u", "origin", "chore/merged-residue"], { cwd: tmpDir });
+      await execFileAsync("git", ["switch", "main"], { cwd: tmpDir });
+      await seedUnreadableErrandRecord(tmpDir);
+
+      const result = await runArc(["status", "--session-init", "--json"], tmpDir);
+      expect(result.exitCode).toBe(0);
+
+      // One unreadable record makes the whole errand oracle incomplete, so the branch
+      // cannot be proven record-less — it stays unclassified and degraded rather than
+      // being reported as settled residue.
+      const envelope = parseJsonEnvelope(result.stdout);
+      expect(envelope.errandState).toMatchObject({
+        ok: true,
+        value: {
+          residue: [
+            {
+              branch: "chore/merged-residue",
+              slug: "merged-residue",
+              reason: "classification-unavailable",
+              marks: ["degraded"],
+            },
+          ],
+        },
+      });
+    } finally {
+      await removeGitBackedDir(bareDir);
+    }
+  });
+
+  it("reports record-less remote residue as settled once classification is available", async () => {
     const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-residue-origin-"));
     try {
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
@@ -784,7 +851,7 @@ describe("session-init E2E — sessionType across type variants", () => {
             {
               branch: "chore/merged-residue",
               slug: "merged-residue",
-              reason: "classification-unavailable",
+              reason: "no-record-or-meta",
             },
           ],
         },

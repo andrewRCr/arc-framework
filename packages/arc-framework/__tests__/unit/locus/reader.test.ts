@@ -183,4 +183,29 @@ describe("readLocusState", () => {
       reconciliation: { kind: "clean" },
     });
   });
+
+  it("reads a complete conservative snapshot from an unverifiable entering anchor", async () => {
+    // The probe adapters pass an acquired unverifiable anchor straight through rather than treating
+    // it as a failure, so this arm must yield a usable snapshot: no lease anchor can equal it, which
+    // is what makes `current` conservatively none.
+    const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
+    const result = await readLocusState({
+      identity: "andrew",
+      pathFlavor: "posix",
+      evidenceIO: evidenceIO({ listDirectory: async () => { throw missing; } }),
+      subjectMetaIO,
+      activeExtensions: [],
+      identityGlobalUserDir: "/repo/.arc/user/andrew",
+      enteringAnchor: { kind: "unverifiable", reason: "Unrecognized process boundary: sh" },
+      readPrimarySafety: async () => ({ kind: "complete", clean: true, onBase: true, branch: "main" }),
+    });
+
+    expect(result).toMatchObject({
+      current: { kind: "none" },
+      primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+      recovery: { kind: "none" },
+      reconciliation: { kind: "clean" },
+    });
+    expect(result.roster.ok).toBe(true);
+  });
 });

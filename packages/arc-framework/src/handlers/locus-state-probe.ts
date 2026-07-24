@@ -23,8 +23,11 @@ export interface LocusStateProbeOptions {
 /** Read one network-free locus interpretation for a session operation. */
 export async function runLocusStateProbe(options: LocusStateProbeOptions): Promise<LocusStateV1> {
   const inspector = createPlatformProcessInspector();
+  // An unverifiable anchor is a state the model represents, not a probe failure: the reader accepts
+  // it, and `current` then resolves to none because no persisted lease anchor can equal it. Refusing
+  // here would cost the whole snapshot at exactly the unrecognized invocation boundaries where
+  // conservative state matters most. Mutating callers reject the unverifiable arm themselves.
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") throw new Error(anchor.reason);
   const identityGlobalUserDir = (await resolveUserSurfaceResolver({
     cwd: options.cwd,
     identity: SlugSchema.parse(options.identity),

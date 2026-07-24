@@ -1142,13 +1142,14 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   stop, dropped active-extension context, the seed unbound to its repository root, malformed identity authority
   read as empty, the absent seed hint acting as a generation wildcard, and the cleared local tombstone.
 
-    - `[ ]` **7.E.b.i Accept the unverifiable anchor the model represents** — S2-F1
-        - `locus-state-probe.ts` throws for every non-process anchor before calling the reader, while
-          `acquireSessionAnchor`, `LocusAnchorSchema`, and the reader's `enteringAnchor` input all accept the
-          unverifiable arm. Preserve an acquired unverifiable anchor as reader input and reserve the runtime-probe
-          error arm for genuine reader or root failures. The e2e envelope goldens were captured under an
-          unrecognized process boundary and therefore record the defect as expected output, so the suite cannot
-          observe the slot at all until the fixtures are repaired first — hence the two increments below.
+    - `[x]` **7.E.b.i Accept the unverifiable anchor the model represents** — S2-F1
+        - The locus slot had never been exercised end to end. The probe refused every non-process anchor, the
+          captured envelopes recorded that refusal as their expected output, and the suite therefore stayed green
+          on a defect sitting at the centerpiece of this work unit. Removing the refusal exposed four distinct
+          causes, only one of which was the anchor: placeholders that could not satisfy the schema they stood in
+          for, a row order sorting on a random temp suffix, and three expectations written against the defect
+          itself. The general lesson is the phase's own: verification that cannot observe its subject will report
+          the subject's absence as agreement.
 
         - `[x]` **7.E.b.i.1 Let the envelope fixtures observe a populated locus slot**
             - Redaction emits path-shaped placeholders (`/redacted/primary`, `/redacted/worktree`), so a replayed
@@ -1160,15 +1161,15 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
               captured envelope until the slot populates: placeholders are asserted against the path schema itself,
               and every fixture root against the primary prefix. Goldens regenerated.
 
-        - `[ ]` **7.E.b.i.2 Preserve the acquired unverifiable anchor**
-            - Drop the probe's non-process refusal and cover the unverifiable arm at the reader. Three suite
-              expectations record the old defect and must follow the real behavior: the recovery load-set stop
-              sharpens from `load-set-unresolved` to `load-set-drift` (recovery derives its frame from a locus role,
-              so a record-less checkout correctly reports drift against a seed written from active-meta
-              resolution); the lean-recover arm asserts `locusState`, `recoveryFrame`, and `loadSet` are all
-              unresolved; and the record-less residue arm reached `classification-unavailable` only because the
-              throw made classification unavailable — retarget it to `no-record-or-meta` and add a fixture that
-              produces a genuine unavailable classification so that arm keeps its coverage.
+        - `[x]` **7.E.b.i.2 Preserve the acquired unverifiable anchor**
+            - The probe hands an acquired unverifiable anchor to the reader instead of refusing it, so the snapshot
+              survives at exactly the unrecognized invocation boundaries where conservative state matters most;
+              `current` resolves to none there because no persisted lease anchor can equal it. Three expectations
+              written against the refusal followed the real behavior: recovery's load-set stop sharpened to
+              `load-set-drift`, the lean-recover arm now asserts a resolved frame that claims no work-unit context,
+              and the residue arm split in two — one proving settled residue once classification is available, the
+              other seeding an unreadable errand record so `classification-unavailable` comes from a genuinely
+              incomplete read rather than from the refusal.
 
     - `[x]` **7.E.b.ii Keep the execute-bound queue read from discarding its valid entries** — S2-F4
         - `listExecuteBoundInboxEntries` returns file-ordered entries plus per-entry diagnostics instead of throwing

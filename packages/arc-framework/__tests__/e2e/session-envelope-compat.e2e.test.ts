@@ -168,7 +168,7 @@ describe("recovery-audit wire compatibility", () => {
     expect(result.exitCode, result.stderr).toBe(0);
   }
 
-  it("locks the complete unresolved-locus report", async () => {
+  it("locks the complete record-less-checkout report", async () => {
     fixture = await prepareSessionEnvelopeFixture("active-resume");
     await writeSeed(fixture);
     const normalized = await capture(fixture, ["recover", "audit", "--json"]);
@@ -176,7 +176,7 @@ describe("recovery-audit wire compatibility", () => {
       status: "stop",
       ready: false,
       stopReasons: expect.arrayContaining([
-        expect.objectContaining({ kind: "load-set-unresolved" }),
+        expect.objectContaining({ kind: "load-set-drift" }),
         expect.objectContaining({ kind: "task-cursor-unresolved" }),
       ]),
     });
@@ -192,7 +192,7 @@ describe("recovery-audit wire compatibility", () => {
       status: "stop",
       ready: false,
       stopReasons: expect.arrayContaining([
-        expect.objectContaining({ kind: "load-set-unresolved" }),
+        expect.objectContaining({ kind: "load-set-drift" }),
         expect.objectContaining({ kind: "dirty-path-drift" }),
         expect.objectContaining({ kind: "task-cursor-unresolved" }),
       ]),
