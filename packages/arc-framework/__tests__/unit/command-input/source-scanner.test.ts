@@ -14,11 +14,23 @@ describe("command-input source scanner", () => {
         program.command("direct <name>").option("--kind <kind>").action(handleDirect);
         const parent = program.command("parent");
         parent.command("child [slug]").action((slug) => handleChild(slug));
+        program.command("inline-parent")
+          .description("group")
+          .command("inline-child")
+          .argument("<input>")
+          .action((input) => handleInlineChild(input));
         program.command("wrapped").action(withInteractionContext({}, (context) => handleWrapped(context)));
       `,
     });
 
-    expect(result.commands.map((command) => command.path)).toEqual(["direct", "parent", "parent child", "wrapped"]);
+    expect(result.commands.map((command) => command.path)).toEqual([
+      "direct",
+      "parent",
+      "parent child",
+      "inline-parent inline-child",
+      "inline-parent",
+      "wrapped",
+    ]);
     expect(result.commands[0]).toMatchObject({
       operands: [{ name: "name", required: true, variadic: false }],
       options: [{ flags: "--kind <kind>", valueName: "kind", required: true }],
@@ -28,7 +40,12 @@ describe("command-input source scanner", () => {
       operands: [{ name: "slug", required: false, variadic: false }],
       action: { symbol: "handleChild" },
     });
-    expect(result.commands[3]?.action).toMatchObject({ symbol: "handleWrapped", interactionContext: true });
+    expect(result.commands[3]).toMatchObject({
+      operands: [{ name: "input", required: true, variadic: false }],
+      action: { symbol: "handleInlineChild" },
+    });
+    expect(result.commands[4]).toMatchObject({ operands: [], action: null });
+    expect(result.commands[5]?.action).toMatchObject({ symbol: "handleWrapped", interactionContext: true });
   });
 
   it("retains aliases, required and variadic values, addOption policy, and opaque paths", () => {

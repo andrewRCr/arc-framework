@@ -367,7 +367,7 @@ that translates directly to docs.
 pointer to docs (with `[TODO-docs-site]` placeholder). Operational essentials retained inline:
 the bare fact that the pipeline option exists. All other content (when to use, layout, ceremony,
 archival, role transitions) extracts cleanly. The Layout code block is the most operationally
-useful chunk for active pipeline users — give it prominence in the docs page. Role transitions
+useful section for active pipeline users — give it prominence in the docs page. Role transitions
 guidance ("change your role between work units, not during them") is rarely-but-critically
 applicable behavioral guidance; flag in the docs page header. Voice adaptation: second-person
 reader address works well in docs as-is for a "guide" page; convert to third-person if presenting

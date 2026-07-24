@@ -338,12 +338,19 @@ Config settings divide into two categories based on how changes take effect:
 - `merge.strategy` — Integration strategy
 - `platform.type` — Agent platform awareness
 - `review.frontline_sources` — Ordered registered frontline review source defaults
+- `review.chunking_threshold_lines`, `review.chunking_threshold_files` — Independent exact-target attention
+  tripwires for considering review chunks
 
 **Personal settings** route through `git config` (identity, role, tools, autonomy interlocks, release-wrapper
 opt-in, frontline source) and are managed by `arc init` / `arc join` (identity, role, tools), `arc release setup
 install` / `arc release opt-in` (release-wrapper opt-in), or direct `git config arc.<key>` edits (autonomy
 interlocks and frontline source). See
 [Personal Configuration via Git Config](#personal-configuration-via-git-config) for the full key reference.
+
+The review-chunking thresholds are advisory attention tripwires, not chunk-size caps or universal
+review-provider limits. Each non-negative dimension is independent: `0` disables that dimension, both `0`
+preserve whole-target review without measurement, and either enabled threshold may recommend drawing
+contract-cohesive review boundaries.
 
 ### Tier 3 in config
 

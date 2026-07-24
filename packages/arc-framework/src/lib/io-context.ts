@@ -14,6 +14,7 @@ import { execa } from "execa";
 
 import type { IOContext } from "../commands/init.js";
 import type { UserIOContext } from "../commands/user.js";
+import type { RawGitExec } from "./change-facts.js";
 import type { GitExec, GitExecInput, DirEntry } from "../lib/git/index.js";
 import {
   createExecaGitExec,
@@ -26,6 +27,27 @@ import { atomicWriteFile, exclusiveCreateFile } from "./fs.js";
 import type { InteractionContext } from "./command-input/interaction-context.js";
 
 export { environmentForGitCwd } from "../lib/git/process-executor.js";
+
+/** Create a byte-preserving Git adapter without importing an executable module at the CLI entrypoint. */
+export function createRawGitExec(cwd = process.cwd()): RawGitExec {
+  return async (args, options = {}) => {
+    const effectiveCwd = options.cwd ?? cwd;
+    try {
+      const result = await execa("git", args, {
+        cwd: effectiveCwd,
+        env: environmentForGitCwd(effectiveCwd),
+        encoding: "buffer",
+        stripFinalNewline: false,
+        extendEnv: false,
+        maxBuffer: MAX_GIT_OUTPUT_BYTES,
+        ...(options.input === undefined ? {} : { input: options.input }),
+      });
+      return { stdout: result.stdout, stderr: result.stderr };
+    } catch (error) {
+      throw normalizeGitRejection(error, { command: "git", args });
+    }
+  };
+}
 
 const candidateGitExec = createExecaGitExec();
 

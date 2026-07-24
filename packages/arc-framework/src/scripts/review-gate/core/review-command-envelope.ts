@@ -32,6 +32,7 @@ const PersistedVersionSchema = z.number().int().positive();
 
 export const ReviewCommandModeSchema = z.enum([
   "review-frontline-resolve",
+  "review-chunking-resolve",
   "review-frontline-run",
   "review-local-prepare",
   "review-local-attest",
@@ -114,6 +115,92 @@ function envelopeVariant<
     payload,
   });
 }
+
+const ReviewChunkingBasePayload = {
+  target: ReviewTargetSchema,
+};
+const ReviewChunkingMeasuredPayload = {
+  ...ReviewChunkingBasePayload,
+  metrics: z.strictObject({
+    lines: z.number().int().nonnegative(),
+    files: z.number().int().nonnegative(),
+  }),
+  thresholds: z.strictObject({
+    lines: z.number().int().nonnegative(),
+    files: z.number().int().nonnegative(),
+  }),
+};
+
+function trippedReviewChunkingDimensions(payload: {
+  metrics: { lines: number; files: number };
+  thresholds: { lines: number; files: number };
+}): Array<"lines" | "files"> {
+  const tripped: Array<"lines" | "files"> = [];
+  if (payload.thresholds.lines > 0 && payload.metrics.lines >= payload.thresholds.lines) {
+    tripped.push("lines");
+  }
+  if (payload.thresholds.files > 0 && payload.metrics.files >= payload.thresholds.files) {
+    tripped.push("files");
+  }
+  return tripped;
+}
+
+const ReviewChunkingBelowThresholdPayloadSchema = z.strictObject(
+  ReviewChunkingMeasuredPayload,
+).superRefine((payload, context) => {
+  if (payload.thresholds.lines === 0 && payload.thresholds.files === 0) {
+    context.addIssue({
+      code: "custom",
+      message: "disabled review chunking cannot produce a below-threshold result",
+      path: ["thresholds"],
+    });
+  }
+  if (trippedReviewChunkingDimensions(payload).length > 0) {
+    context.addIssue({
+      code: "custom",
+      message: "below-threshold metrics must not trip an enabled dimension",
+      path: ["metrics"],
+    });
+  }
+});
+
+const ReviewChunkingConsiderPayloadSchema = z.strictObject({
+  ...ReviewChunkingMeasuredPayload,
+  tripped: z.array(z.enum(["lines", "files"])).min(1),
+  advisory: z.string().trim().min(1),
+}).superRefine((payload, context) => {
+  const expected = trippedReviewChunkingDimensions(payload);
+  const exact = payload.tripped.length === expected.length
+    && payload.tripped.every((dimension, index) => dimension === expected[index]);
+  if (!exact) {
+    context.addIssue({
+      code: "custom",
+      message: "tripped dimensions must exactly match every enabled metric at or above its threshold",
+      path: ["tripped"],
+    });
+  }
+});
+
+export const ReviewChunkingResolveEnvelopeSchema = z.union([
+  envelopeVariant(
+    "review-chunking-resolve",
+    "disabled",
+    "none",
+    z.strictObject(ReviewChunkingBasePayload),
+  ),
+  envelopeVariant(
+    "review-chunking-resolve",
+    "below-threshold",
+    "continue-review",
+    ReviewChunkingBelowThresholdPayloadSchema,
+  ),
+  envelopeVariant(
+    "review-chunking-resolve",
+    "consider-chunks",
+    "select-review-scope",
+    ReviewChunkingConsiderPayloadSchema,
+  ),
+]);
 
 const FrontlineResolveBasePayload = {
   routing: ReviewRoutingProjectionSchema,
@@ -490,6 +577,7 @@ function errorVariant<Mode extends ReviewCommandMode, Code extends string>(
 export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): KernelRegistry {
   for (const [id, schema] of [
     ["review-frontline-resolve-envelope", FrontlineResolveEnvelopeSchema],
+    ["review-chunking-resolve-envelope", ReviewChunkingResolveEnvelopeSchema],
     ["review-frontline-run-envelope", FrontlineRunEnvelopeSchema],
     ["review-local-prepare-envelope", LocalPrepareEnvelopeSchema],
     ["review-local-attest-envelope", LocalAttestEnvelopeSchema],

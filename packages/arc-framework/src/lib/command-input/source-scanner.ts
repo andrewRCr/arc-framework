@@ -146,6 +146,7 @@ function chainedCalls(commandCall: ts.CallExpression): readonly ts.CallExpressio
     && ts.isCallExpression(current.parent.parent)
   ) {
     const call = current.parent.parent;
+    if (methodCall(call)?.name === "command") break;
     calls.push(call);
     current = call;
   }

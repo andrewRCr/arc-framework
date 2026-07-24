@@ -1,8 +1,8 @@
-# Research: pr-decomposition
+# Research: review-chunking
 
 > _Captured 2026-06-23 from a deep-research run (fan-out web search → fetch → 3-vote adversarial verification →
 > synthesis; 22 sources, 105 claims extracted, 25 verified, 24 confirmed / 1 killed). Grounding for
-> `draft-pr-decomposition.md`. Findings are point-in-time; URLs are external sources, not internal references._
+> `spec-review-chunking.md`. Findings are point-in-time; URLs are external sources, not internal references._
 
 **Question:** How do teams reconcile a single coherent logical change (one concern — e.g. a cross-cutting
 refactor or consistency sweep) with the industry norm of small, independently-reviewable / -mergeable PRs — and

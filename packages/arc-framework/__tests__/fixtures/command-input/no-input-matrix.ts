@@ -25,6 +25,7 @@ export const NO_INPUT_MATRIX = Object.freeze([
   { commandPath: "release setup install", args: ["release", "setup", "install", "--json"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "missing required input" } },
   { commandPath: "release setup uninstall", args: ["release", "setup", "uninstall", "--harness", "matrix", "--json"], preservesWorktree: true, expected: { exitCode: 0, outputIncludes: "\"command\": \"uninstall\"" } },
   { commandPath: "review", args: ["review", "reduce", "-"], stdin: "", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
+  { commandPath: "review chunking resolve", args: ["review", "chunking", "resolve", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
   { commandPath: "review frontline run", args: ["review", "frontline", "run", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
   { commandPath: "start", args: ["start", "matrix"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "does not exist on the base branch" } },
   { commandPath: "status", args: ["status", "--json"], expected: { exitCode: 0, outputIncludes: "\"mode\":\"full\"" } },
