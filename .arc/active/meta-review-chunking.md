@@ -1,8 +1,8 @@
 # Metadata: review-chunking
 
-| **State** | **Owner** | **Branch**             | **Class** | **Priority** |
-| --------- | --------- | ---------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/review-chunking` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**             | **Class** | **Priority** |
+| ------------- | --------- | ---------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/review-chunking` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Finalized `spec-review-chunking.md` (`create-spec`); 2 adversarial passes converged
-- **Next Task:** Begin Task 1.1 — Author and distribute the review-chunking method
+- **Last Completed:** Task 6.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
