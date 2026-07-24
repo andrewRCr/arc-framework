@@ -24,7 +24,7 @@ import { join, posix } from "node:path";
 import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { canonicalize } from "../../canonical/canonical-json.js";
 import { SlugSchema } from "../../kernel/index.js";
-import { resolveArcPath } from "../../layout/index.js";
+import { resolveArcPath, WorkUnitPlacementSchema } from "../../layout/index.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import { repointDependsOn } from "../decompose-sweep.js";
 import type {
@@ -34,6 +34,10 @@ import type {
   DecomposeAllocationMap,
 } from "../decompose-cut-map.js";
 import { newMemberDependencies } from "../decompose-cut-map.js";
+import {
+  resolveDecomposeMemberPlacement,
+  type DecomposeMemberPlacement,
+} from "../decompose-placement.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
 import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
 import { partitionTransformDependents } from "../transform-coordination.js";
@@ -80,14 +84,8 @@ export interface ScaffoldOriginContext {
 
 /** The resolved request the batch scaffold writes. */
 export interface ScaffoldCohortMembersParams {
-  /**
-   * The resolved cohort placement path the members nest under — dual-placed (the
-   * meta `Cohort` field + the draft header). All three parent-position arms
-   * collapse to this single value: the caller resolves it (the cut-map's cohort
-   * for the standalone / in-cohort arms, the origin's existing cohort for the
-   * at-cap lateral fan-out).
-   */
-  cohort: string;
+  /** Canonical planned placement shared by scaffolding and retirement. */
+  placement: DecomposeMemberPlacement;
   /** Origin-inherited field values. */
   originContext: ScaffoldOriginContext;
   /** The cut's new members, in cut-map order. */
@@ -125,12 +123,18 @@ export interface ScaffoldedMember {
  * @param cohort - The member's cohort path, mirrored into the header.
  * @returns The rendered draft markdown, terminated by a single newline.
  */
-export function renderMemberDraft(slug: string, origin: string, cohort: string): string {
+export function renderMemberDraft(
+  slug: string,
+  origin: string,
+  placement: DecomposeMemberPlacement,
+): string {
+  const cohort = placement.cohort.length === 0
+    ? ""
+    : `- **Cohort:** \`${placement.cohort.join("/")}\`\n`;
   return `# Draft: ${slug}
 
 - **Origin:** ${origin}
-- **Cohort:** \`${cohort}\`
-- **Purpose:** —
+${cohort}- **Purpose:** —
 
 ---
 
@@ -179,14 +183,18 @@ export async function scaffoldCohortMembers(
   ctx: ScaffoldCohortMembersContext,
   params: ScaffoldCohortMembersParams,
 ): Promise<ScaffoldedMember[]> {
-  const { cohort, originContext, members, internalEdges, outgoingEdges = [] } = params;
+  const { originContext, members, internalEdges, outgoingEdges = [] } = params;
   const scaffolded: ScaffoldedMember[] = [];
-  const cohortSegments = cohort.split("/").map((segment) => SlugSchema.parse(segment));
+  const parsedPlacement = WorkUnitPlacementSchema.parse(params.placement);
+  if (parsedPlacement.kind !== "backlog" || parsedPlacement.commitment !== "planned") {
+    throw new Error("decompose members require a planned backlog placement");
+  }
+  const placement = params.placement;
+  const cohort = placement.cohort.length === 0 ? "[none]" : placement.cohort.join("/");
   const validatedMembers = members.map((member) => ({
     member,
     slug: SlugSchema.parse(member.slug),
   }));
-  const placement = { kind: "backlog", commitment: "planned", cohort: cohortSegments } as const;
 
   for (const { member, slug } of validatedMembers) {
     const dir = resolveArcPath({ kind: "work-unit-container", placement, slug });
@@ -208,7 +216,7 @@ export async function scaffoldCohortMembers(
 
     await ensureDir(join(ctx.cwd, dir), ctx.fs.mkdir);
     await ctx.fs.writeFile(join(ctx.cwd, metaPath), renderMetaFile(slug, overrides));
-    await ctx.fs.writeFile(join(ctx.cwd, draftPath), renderMemberDraft(slug, originContext.origin, cohort));
+    await ctx.fs.writeFile(join(ctx.cwd, draftPath), renderMemberDraft(slug, originContext.origin, placement));
 
     scaffolded.push({ slug, metaPath, draftPath });
   }
@@ -378,16 +386,8 @@ export async function runDecompose(
   }
   const originRecord = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, originPath)));
 
-  // The resolved member-enrolment cohort: the cut-map's cohort for the standalone
-  // / in-cohort arms; the origin's existing cohort for the at-cap lateral fan-out
-  // (no new node minted), which the cut-map omits.
-  const placementCohort = cut.cohort ?? originEntry.cohort ?? undefined;
-  if (placementCohort === undefined || placementCohort === "") {
-    return {
-      status: "rejected",
-      reason: `decompose needs a cohort placement: the cut-map omits one and origin "${originSlug}" carries no cohort.`,
-    };
-  }
+  const memberPlacement = resolveDecomposeMemberPlacement(cut, originEntry.cohort);
+  if (memberPlacement.status === "refused") return { status: "rejected", reason: memberPlacement.reason };
 
   const newMembers = cut.entries.filter((e): e is NewMemberEntry => e.kind === "new-member");
 
@@ -395,7 +395,7 @@ export async function runDecompose(
   const members = await scaffoldCohortMembers(
     { cwd: executor.cwd, fs: ctx.fs },
     {
-      cohort: placementCohort,
+      placement: memberPlacement.placement,
       originContext: {
         origin: originRecord.Origin ?? "[internal]",
         owner: originRecord.Owner ?? "—",

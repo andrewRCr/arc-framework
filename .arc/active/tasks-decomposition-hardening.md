@@ -243,40 +243,31 @@ origin-disposition shape.
 - _Outcome:_ The versioned cut-map parser now admits flat siblings as a distinct placement while rejecting every
   representation that would imply an ownerless cohort surface.
 
-### `[ ]` **3.2 Project flat sibling paths through scaffold and retirement**
+### `[x]` **3.2 Project flat sibling paths through scaffold and retirement**
 
 - _Goal:_ A cohortless cut creates complete flat sibling WU skeletons whose only relationship is their authored
   dependency graph, with one path authority from preparation through finalization and no cohort directory,
   membership, draft header, or coordination document.
 
-- _Note:_ See `notes-decomposition-hardening.md` § Cohortless placement invariants.
+    - `[x]` **3.2.a Resolve one typed member placement**
+        - Added a pure placement resolver covering declared cohorts, origin-cohort lateral fan-out, and the empty
+          planned coordinate, with explicit refusals for every missing cohort authority.
 
-    - `[ ]` **3.2.a Resolve one typed member placement**
-        - Add a shared pure resolver from the validated cut plus origin cohort to `WorkUnitPlacement`: declared
-          cohort segments for `standalone` / `in-cohort`, the origin's existing cohort for `at-cap`, and the
-          existing planned empty-cohort placement for `cohortless`.
-        - Return an explicit refusal when a cohort-requiring arm lacks its required declared or origin placement.
+    - `[x]` **3.2.b Thread placement through every path consumer**
+        - Scaffolding and retirement preparation now consume the same typed placement for member paths, allowed
+          paths, destination locators, and final targets; flat projections render `Cohort: [none]` and omit the
+          draft cohort header.
 
-    - `[ ]` **3.2.b Thread placement through every path consumer**
-        - Replace cohort-string path derivation in `verbs/decompose.ts` and
-          `decompose-retirement-projection.ts` with the shared placement for scaffolding, allowed-path derivation,
-          destination locators, preparation, and finalization.
-        - Render flat member metas through the canonical complete-field projection with `Cohort: [none]`; omit the
-          cohort header from flat member drafts.
+    - `[x]` **3.2.c Preserve per-member ownership and dependencies**
+        - Member projection continues to inherit origin metadata and per-member Class while deriving dependencies
+          only from the declared external allocation and internal cut edges.
 
-    - `[ ]` **3.2.c Preserve per-member ownership and dependencies**
-        - Continue inheriting origin/owner/priority and per-member `Class`; distribute only declared outgoing and
-          internal edges, never blanket-inherit the origin's dependency set.
+    - `[x]` **3.2.d Prove filesystem, content, and retirement outcomes**
+        - Added focused resolver/scaffold tests plus a real-repository prepared/finalized roadmap-tooling-class
+          split proving exact flat paths, no cohort artifact, complete member metadata, and authored dependencies.
 
-    - `[ ]` **3.2.d Prove filesystem, content, and retirement outcomes**
-        - Extend `decompose-shapes.test.ts`, focused scaffold tests, and retirement preparation/finalization tests
-          with a roadmap-tooling-class flat split.
-        - Build `test-first` (one behavior at a time):
-            - N members land at flat planned paths with their own meta/draft artifacts
-            - metas render `Cohort: [none]`; no cohort directory, `cohort-*.md`, or cohort draft header is created
-            - internal dependency ordering renders exactly as authored
-            - preparation admits the exact flat destinations and finalization resolves those same targets
-            - cohort-backed and at-cap scaffolds retain their existing layouts
+- _Outcome:_ One typed placement now governs cohort-backed, at-cap, and cohortless filesystem behavior from
+  initial scaffold through receipt-backed finalization.
 
 ### `[ ]` **3.3 Align cohort-fit guidance and prove the full decomposition-shape matrix**
 

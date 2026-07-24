@@ -218,6 +218,81 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(depStaged["Depends On"]).not.toContain("mono");
   });
 
+  it("cohortless: scaffolds complete flat siblings and preserves authored dependencies", async () => {
+    await writeWu(repo, ".arc/active", "roadmap-tooling", {
+      State: "Planning",
+      Branch: "plan/roadmap-tooling",
+      Origin: "[internal]",
+      "Depends On": "lifecycle-index",
+    });
+    await commitAll(repo, "cohortless origin");
+    await execFileAsync("git", ["branch", "plan/roadmap-tooling", "HEAD"], { cwd: repo });
+    const sourcePath = validateManagedPath(".arc/active/draft-roadmap-tooling.md");
+    const sourceId = canonicalDigest({
+      schemaVersion: 2,
+      sourcePath,
+      sourceLocator: { artifact: "draft-roadmap-tooling.md", kind: "preamble" },
+    });
+
+    const cut: DecomposeParams = {
+      schemaVersion: 2,
+      origin: { slug: "roadmap-tooling", phase: "Planning", location: "active" },
+      shape: "symmetric",
+      parentPosition: "cohortless",
+      entries: [newMember("roadmap-renderer"), newMember("roadmap-status")],
+      internalEdges: [{ from: "roadmap-status", to: "roadmap-renderer" }],
+      sourceAllocations: [{
+        sourceId,
+        ownership: "destination-owned",
+        disposition: { kind: "drop", reason: "superseded framing" },
+      }],
+      incomingEdges: [],
+      outgoingEdges: [{
+        prerequisite: "lifecycle-index",
+        disposition: { kind: "targets", targets: ["roadmap-renderer"] },
+      }],
+    };
+
+    const driver = decomposeDriver(repo);
+    const prepared = await driver.prepare(cut);
+    if (prepared.status === "refused") throw new Error(prepared.reason);
+    expect(prepared.status).toBe("prepared");
+    expect(prepared.preparation.record.allowedPaths).toEqual(expect.arrayContaining([
+      ".arc/backlog/planned/roadmap-renderer/meta-roadmap-renderer.md",
+      ".arc/backlog/planned/roadmap-renderer/draft-roadmap-renderer.md",
+      ".arc/backlog/planned/roadmap-status/meta-roadmap-status.md",
+      ".arc/backlog/planned/roadmap-status/draft-roadmap-status.md",
+    ]));
+    expect(prepared.preparation.record.allowedPaths.some((path) => (
+      path.includes("/roadmap-tooling/roadmap-renderer/")
+    ))).toBe(false);
+
+    const result = await runPreparedDecompose(decomposeCtx(repo), {
+      cut,
+      preparation: prepared.preparation,
+      revalidate: async () => await driver.revalidate(prepared.preparation),
+    });
+
+    expect(result.status).toBe("decomposed");
+    if (result.status !== "decomposed") return;
+    await driver.stagePreparedResult(prepared.preparation);
+    const finalized = await driver.finalize("roadmap-tooling", prepared.preparation.locator.receiptId);
+    expect(finalized.status).toBe("recorded");
+    const rendererRoot = join(repo, ".arc/backlog/planned/roadmap-renderer");
+    const statusRoot = join(repo, ".arc/backlog/planned/roadmap-status");
+    expect(await pathExists(join(rendererRoot, "meta-roadmap-renderer.md"))).toBe(true);
+    expect(await pathExists(join(statusRoot, "draft-roadmap-status.md"))).toBe(true);
+    expect(await pathExists(join(repo, ".arc/backlog/planned/cohort-roadmap-tooling.md"))).toBe(false);
+
+    const renderer = parseMetaRecord(await readFile(join(rendererRoot, "meta-roadmap-renderer.md"), "utf8"));
+    const status = parseMetaRecord(await readFile(join(statusRoot, "meta-roadmap-status.md"), "utf8"));
+    expect(renderer.Cohort).toBe("[none]");
+    expect(renderer["Depends On"]).toContain("lifecycle-index");
+    expect(status.Cohort).toBe("[none]");
+    expect(status["Depends On"]).toContain("roadmap-renderer");
+    expect(await readFile(join(rendererRoot, "draft-roadmap-renderer.md"), "utf8")).not.toContain("**Cohort:**");
+  });
+
   it("runs the prepared mutation and receipt-addressed finalization as one durable transition", async () => {
     await writeWu(repo, ".arc/active", "mono", { State: "Planning", Branch: "plan/mono", Origin: "[internal]" });
     await writeWu(repo, ".arc/active", "dep", { State: "Active", Branch: "feat/dep", "Depends On": "mono" });

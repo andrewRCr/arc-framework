@@ -14,6 +14,7 @@
 import { describe, it, expect } from "vitest";
 
 import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import {
   runDecompose,
   runPreparedDecompose,
@@ -23,6 +24,7 @@ import {
   type ScaffoldCohortMembersParams,
 } from "../../../../src/lib/work-unit/verbs/decompose.js";
 import type { DecomposeParams, NewMemberEntry } from "../../../../src/lib/work-unit/decompose-cut-map.js";
+import type { DecomposeMemberPlacement } from "../../../../src/lib/work-unit/decompose-placement.js";
 import type { ComposedLifecycleIndexResult } from "../../../../src/lib/work-unit/composed-lifecycle-index.js";
 import type { PreparedDecomposeRetirement } from "../../../../src/lib/work-unit/retirement-authority.js";
 import type {
@@ -80,6 +82,14 @@ const ORIGIN_CONTEXT: ScaffoldCohortMembersParams["originContext"] = {
   priority: "P1",
 };
 
+function plannedPlacement(cohort: string | null): DecomposeMemberPlacement {
+  return {
+    kind: "backlog",
+    commitment: "planned",
+    cohort: cohort === null ? [] : cohort.split("/").map((segment) => SlugSchema.parse(segment)),
+  };
+}
+
 /** Pull the captured write for a member's meta / draft by repo-relative tail. */
 function writeFor(writes: Harness["writes"], tail: string): { path: string; content: string } {
   const hit = writes.find((w) => w.path.endsWith(tail));
@@ -92,7 +102,7 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     const { ctx, writes, mkdirs } = buildHarness();
 
     const result = await scaffoldCohortMembers(ctx, {
-      cohort: "neo",
+      placement: plannedPlacement("neo"),
       originContext: ORIGIN_CONTEXT,
       members: [member("alpha"), member("beta"), member("gamma")],
       internalEdges: [],
@@ -116,7 +126,7 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     const { ctx, writes } = buildHarness();
 
     await scaffoldCohortMembers(ctx, {
-      cohort: "neo",
+      placement: plannedPlacement("neo"),
       originContext: { origin: "https://example.test/issue/7", owner: "andrew", priority: "P1" },
       members: [member("alpha", { workClass: "Heavy" }), member("beta", { workClass: "Light" })],
       internalEdges: [],
@@ -140,7 +150,7 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     const { ctx, writes } = buildHarness();
 
     await scaffoldCohortMembers(ctx, {
-      cohort: "neo",
+      placement: plannedPlacement("neo"),
       originContext: ORIGIN_CONTEXT,
       members: [member("alpha"), member("beta")],
       internalEdges: [],
@@ -154,7 +164,7 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     const { ctx, writes } = buildHarness();
 
     await scaffoldCohortMembers(ctx, {
-      cohort: "neo",
+      placement: plannedPlacement("neo"),
       originContext: ORIGIN_CONTEXT,
       members: [member("alpha"), member("beta"), member("gamma")],
       outgoingEdges: [
@@ -177,7 +187,7 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     const { ctx, writes } = buildHarness();
 
     await scaffoldCohortMembers(ctx, {
-      cohort: "neo",
+      placement: plannedPlacement("neo"),
       originContext: ORIGIN_CONTEXT,
       members: [member("alpha"), member("beta")],
       outgoingEdges: [
@@ -205,7 +215,7 @@ describe("scaffoldCohortMembers — the three parent-position placement arms", (
       const { ctx, writes, mkdirs } = buildHarness();
 
       const result = await scaffoldCohortMembers(ctx, {
-        cohort,
+        placement: plannedPlacement(cohort),
         originContext: ORIGIN_CONTEXT,
         members: [member("alpha"), member("beta")],
         internalEdges: [],
@@ -219,11 +229,45 @@ describe("scaffoldCohortMembers — the three parent-position placement arms", (
     });
   }
 
+  it("places cohortless members flat with no cohort projection", async () => {
+    const { ctx, writes, mkdirs } = buildHarness();
+
+    const result = await scaffoldCohortMembers(ctx, {
+      placement: plannedPlacement(null),
+      originContext: ORIGIN_CONTEXT,
+      members: [member("roadmap-renderer"), member("roadmap-status")],
+      internalEdges: [{ from: "roadmap-status", to: "roadmap-renderer" }],
+    });
+
+    expect(mkdirs).toContain("/repo/.arc/backlog/planned/roadmap-renderer");
+    expect(mkdirs).toContain("/repo/.arc/backlog/planned/roadmap-status");
+    expect(result[0]).toEqual({
+      slug: "roadmap-renderer",
+      metaPath: ".arc/backlog/planned/roadmap-renderer/meta-roadmap-renderer.md",
+      draftPath: ".arc/backlog/planned/roadmap-renderer/draft-roadmap-renderer.md",
+    });
+    const rendererMeta = writeFor(writes, "/roadmap-renderer/meta-roadmap-renderer.md").content;
+    const statusMeta = writeFor(writes, "/roadmap-status/meta-roadmap-status.md").content;
+    expect(rendererMeta).toContain("**Cohort:** [none]");
+    expect(statusMeta).toContain("**Depends On:** `roadmap-renderer`");
+    expect(writeFor(writes, "/roadmap-renderer/draft-roadmap-renderer.md").content).not.toContain("**Cohort:**");
+    expect(writes.some((write) => write.path.includes("/cohort-"))).toBe(false);
+  });
+
   it("rejects unvalidated member and cohort operands before writing", async () => {
     for (const params of [
-      { cohort: "Not-A-Slug", members: [member("alpha")] },
-      { cohort: "neo", members: [member("../alpha")] },
-      { cohort: "neo", members: [member("alpha"), member("../beta")] },
+      {
+        placement: { kind: "backlog", commitment: "planned", cohort: ["Not-A-Slug"] },
+        members: [member("alpha")],
+      },
+      {
+        placement: { kind: "backlog", commitment: "planned", cohort: ["neo"] },
+        members: [member("../alpha")],
+      },
+      {
+        placement: { kind: "backlog", commitment: "planned", cohort: ["neo"] },
+        members: [member("alpha"), member("../beta")],
+      },
     ]) {
       const { ctx, writes, mkdirs } = buildHarness();
 
@@ -231,7 +275,7 @@ describe("scaffoldCohortMembers — the three parent-position placement arms", (
         ...params,
         originContext: ORIGIN_CONTEXT,
         internalEdges: [],
-      })).rejects.toThrow();
+      } as unknown as ScaffoldCohortMembersParams)).rejects.toThrow();
       expect(writes).toEqual([]);
       expect(mkdirs).toEqual([]);
     }
