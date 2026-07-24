@@ -728,6 +728,7 @@ describe("trusted review-gate workflows", () => {
     const inventory = JSON.parse(recipe) as { include_files: string[] };
 
     expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/arc-clearance.yml");
+    expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/CODEOWNERS");
     expect(inventory.include_files).toContain("system/workflows/arc/supplemental/setup-arc-clearance.md");
     expect(template).toContain("@arc-framework/cli@{{ARC_FRAMEWORK_VERSION}}");
     expect(template).toContain("npm exec --yes --package=");
