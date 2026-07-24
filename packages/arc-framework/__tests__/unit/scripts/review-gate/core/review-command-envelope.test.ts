@@ -272,6 +272,65 @@ describe("review command envelopes", () => {
     expect(schema.parse(envelope)).toEqual(envelope);
   });
 
+  it.each([
+    ["disabled thresholds below threshold", {
+      state: "below-threshold",
+      nextAction: "continue-review",
+      payload: {
+        target,
+        metrics: { lines: 0, files: 0 },
+        thresholds: { lines: 0, files: 0 },
+      },
+    }],
+    ["tripped metrics below threshold", {
+      state: "below-threshold",
+      nextAction: "continue-review",
+      payload: {
+        target,
+        metrics: { lines: 10, files: 1 },
+        thresholds: { lines: 10, files: 5 },
+      },
+    }],
+    ["disabled thresholds requesting chunks", {
+      state: "consider-chunks",
+      nextAction: "select-review-scope",
+      payload: {
+        target,
+        metrics: { lines: 10, files: 5 },
+        thresholds: { lines: 0, files: 0 },
+        tripped: ["lines"],
+        advisory: "Invalid.",
+      },
+    }],
+    ["duplicate tripped dimensions", {
+      state: "consider-chunks",
+      nextAction: "select-review-scope",
+      payload: {
+        target,
+        metrics: { lines: 10, files: 1 },
+        thresholds: { lines: 10, files: 5 },
+        tripped: ["lines", "lines"],
+        advisory: "Invalid.",
+      },
+    }],
+    ["incomplete tripped dimensions", {
+      state: "consider-chunks",
+      nextAction: "select-review-scope",
+      payload: {
+        target,
+        metrics: { lines: 10, files: 5 },
+        thresholds: { lines: 10, files: 5 },
+        tripped: ["lines"],
+        advisory: "Invalid.",
+      },
+    }],
+  ] as const)("rejects impossible review chunking envelope: %s", (_name, variant) => {
+    expect(() => ReviewChunkingResolveEnvelopeSchema.parse({
+      ...header("review-chunking-resolve"),
+      ...variant,
+    })).toThrow();
+  });
+
   it("rejects an impossible state/action pair", () => {
     expect(() => FrontlineResolveEnvelopeSchema.parse({
       ...header("review-frontline-resolve"),

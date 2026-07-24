@@ -3,7 +3,8 @@
 - **Origin:** [internal] — extracted from `pr-decomposition` on 2026-07-21 at its `assess-cohort-fit` re-read,
   which returned a two-member cut (flat siblings + one dependency edge, no cohort node). The origin retains the
   chunk-boundary doctrine and the review-only retrofit; this member takes the up-front planning half and the merge
-  topology. The cut-map and its rationale are recorded in `draft-review-chunking.md` § Decomposition.
+  topology. The cut and its rationale are recorded in `spec-review-chunking.md` § Non-Goals and § Cross-cutting
+  Considerations.
 - **Purpose:** Make a work unit able to **plan** its review surface during task generation and **land** the
   resulting chunks through a merge topology that keeps `main` coherent. Two halves, both deferred out of the
   origin because their consumers are future work units rather than today's integration backlog: **(A) up-front
@@ -208,14 +209,14 @@ later.
   window, but this needs confirming against that work unit's design.
 - **Class expectation:** Heavy. Confirm via `classify-work-unit` at grooming — the extraction removed the
   retrofit half, so the estimate should be re-read rather than inherited unexamined.
-- **Relationships:** `Depends On: pr-decomposition` (the chunk-boundary doctrine and review-unit vocabulary are
+- **Relationships:** `Depends On: review-chunking` (the chunk-boundary doctrine and review-unit vocabulary are
   authored there and consumed here).
 
 ## Coordination
 
-- **`pr-decomposition`** — the sibling this was cut from; owns the chunk-boundary cohesion doctrine, the review
-  unit's name, and the review-only retrofit. Keep chunking and merge topology decoupled across the seam; consume
-  the doctrine, never re-author it.
+- **`review-chunking`** — the sibling this was cut into; owns the chunk-boundary cohesion doctrine, the review
+  unit's name, and the review-only retrofit. Keep chunking and merge topology decoupled across the seam; consume the
+  doctrine, never re-author it.
 - **`decomposition-doctrine`** — its stated scope includes codifying "the stack-vs-coupling test", and the
   stack-eligibility test above is the same subject matter. **Settle ownership explicitly at grooming** rather than
   letting both work units author a test. Adjacent but distinct: that work unit governs when a _concern_ decomposes

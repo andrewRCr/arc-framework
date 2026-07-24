@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Groom via `--plan chunked-delivery` once `pr-decomposition` settles the chunk-boundary
+- **Next Action:** Groom via `--plan chunked-delivery` once `review-chunking` settles the chunk-boundary
   doctrine this consumes. Open at entry: task-list chunk-annotation shape, the integration-branch orchestration
   verb, config posture, and the v1 assurance-core minimum.
 

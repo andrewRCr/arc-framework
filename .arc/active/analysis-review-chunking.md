@@ -85,6 +85,32 @@ contract; unchanged repository, platform, and library declarations are external 
 | T3        | Git/release/sync/work-unit adapters, cross-layer tests, and project records    |     34 |     2,142 |     193 |
 | **Union** | **Every target path exactly once**                                             | **97** | **8,971** | **672** |
 
+The exact treatment assignment is the ordered classifier below, evaluated over `git diff --name-only
+ebe446fe2506927ec88b944dd4a7b13feb4c048e..86a0d220dc87e01fed17308cddb13c5604d1a0b9`. Each predicate receives the
+lower-cased repository-relative path; the first match owns the whole changed file:
+
+1. **T1:** path contains `/lib/command-input/`, `/unit/command-input/`, `/fixtures/command-input/`,
+   `command-input-infrastructure-policies`, or `render-command-input-inventory`.
+2. **T3:** path contains `/release/`, `release-`, `/sync`, `sync-`, `/lib/git/`, `/work-unit/`,
+   `promote-demote`, `remedy-roadmap`, `validate-decompose`, or `/integration/git-executor`; starts with `.arc/`;
+   or equals `package.json` or `packages/arc-framework/package.json`.
+3. **T2:** every remaining path.
+
+The canonical manifest encoding is the target's Git path order, one UTF-8 line per assignment as
+`<scope>\t<path>\n`. Its digest is
+`sha256:0d445f1764181f2855bfd759d3e48315dea1bf52cafebe61350b041ee83204ff`. The corresponding newline-delimited
+per-scope path-manifest digests are:
+
+| Scope | Files | Manifest digest                                                           |
+| ----- | ----: | ------------------------------------------------------------------------- |
+| T1    |    23 | `sha256:fa46e2ee3ef1ccf11f9fc0aa235d12ec5e3511004c9249ab740ab990d775eee8` |
+| T2    |    40 | `sha256:d3b5c15c2ac577c9a1710729db5056b7caa6ee216d684223d23529f102c7accf` |
+| T3    |    34 | `sha256:f981aaa61edbdd7d793eff5d6f894e1afb7344b37bdf79edfbbe6011d645e753` |
+
+Reproduction yields the file, changed-line, and hunk totals recorded above and binds the raw T1/T2/T3 snapshots by
+their scope label, exact target, and owned metrics. The baseline rules are already complete ordered predicates:
+`src/lib/**`, remaining `src/**`, then the complement.
+
 The treatment seam owns declaration-to-registration identity, interaction-context propagation into handlers,
 repository capability discovery, Git executor behavior shared by T2 and T3, and record-to-runtime coherence.
 
