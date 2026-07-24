@@ -1180,11 +1180,17 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           `resolveExecutionNextOffer` fails closed because it must prove the completed capture is no longer
           execute-bound and an unreadable capture cannot be excluded from that set.
 
-    - `[ ]` **7.E.b.iii Report unreadable transient identity authority as unknown** — E1-F2
-        - `readTransientInFlightIndexes` returns empty maps on snapshot error and iterates complete snapshots
-          without propagating their diagnostics, so tip/tree failure is indistinguishable from absent authority and
-          malformed entries vanish from a partial index. Return complete/absent/error with diagnostics and require
-          consumers to surface unknown rather than classifying live transient branches as non-transient.
+    - `[x]` **7.E.b.iii Report unreadable transient identity authority as unknown** — E1-F2
+        - `readTransientInFlightIndexes` returns `absent | complete{diagnostics} | error{stage}` instead of empty
+          maps, so an unborn identity and an unreadable one are no longer the same value, and a partial decode
+          reports its dropped entries rather than presenting itself as the whole claim set.
+          `projectTransientInFlightRead` is the one way to reach the indexes, pairing them with whether absence is
+          established. The transient half now composes into the same `errandRecordsComplete` gate the legacy
+          record half already fed, so an unreadable identity degrades classification rather than letting a live
+          transient branch read as non-transient. The type change located all seven consumers: the three
+          derivation callers thread completeness, `errandState` surfaces the degradation in its warning channel,
+          and the husk and sweep surfaces lose only their claim-mismatch check — both still block on marker
+          provenance alone, so neither becomes destructive under an unreadable identity.
 
     - `[ ]` **7.E.b.iv Preserve the local tombstone under locus-owned suppression** — W1-F4
         - The `locusOwned` early return in `in-flight-derivation.ts` clears the flag by which a local no-meta

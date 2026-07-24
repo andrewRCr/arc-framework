@@ -103,6 +103,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec, readGitBlobBytes } from "../lib/io-context.js";
 import {
   listErrandRecordsResult,
+  projectTransientInFlightRead,
   readTransientInFlightIndexes,
   type ErrandRecord,
   type ListErrandRecordsResult,
@@ -482,13 +483,19 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         await pruneRemoteTrackingRefs(gitExec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const [recordResult, transientIndexes, parkedSlugs, locusState] = await Promise.all([
+        const [recordResult, transientRead, parkedSlugs, locusState] = await Promise.all([
           getErrandRecordsResult(),
           getTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
           getOptionalLocusState(),
         ]);
         const records = recordResult.records;
+        // The oracle is the union of the legacy records and the transient identity, so
+        // it is complete only when both halves are. An unreadable or entry-dropping
+        // transient read degrades classification exactly as an unreadable record tree does.
+        const transient = projectTransientInFlightRead(transientRead);
+        const transientIndexes = transient.indexes;
+        const oracleComplete = recordResult.complete && transient.complete;
         const errandSlugByBranch = new Map([
           ...records.map((record) => [record.branch, record.slug] as const),
           ...transientIndexes.slugByBranch,
@@ -501,7 +508,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           teamMode,
           errandSlugByBranch,
           expectedTransientByBranch: transientIndexes.expectedByBranch,
-          errandRecordsComplete: recordResult.complete,
+          errandRecordsComplete: oracleComplete,
           locusState,
           parkedSlugs,
         });
@@ -533,15 +540,19 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       },
       worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
       currentHusk: async (worktreePath) => {
-        const [marker, headResult, resolved, transientIndexes] = await Promise.all([
+        const [marker, headResult, resolved, transientRead] = await Promise.all([
           readWorktreeMarker(worktreePath),
           gitExec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
           resolvedSettingsP,
           getTransientIndexes(),
         ]);
+        // The marker alone still classifies the worktree as transient, so an unreadable
+        // identity softens rather than inverts this advisory: without the expectation no
+        // claim mismatch can be detected, and the husk is described from the marker only.
+        const { indexes: huskIndexes } = projectTransientInFlightRead(transientRead);
         const markerSubject = marker.kind === "present" ? marker.marker.createdFor : undefined;
         const expectedTransient = markerSubject !== undefined && "slug" in markerSubject
-          ? transientIndexes.expectedBySlug.get(markerSubject.slug)
+          ? huskIndexes.expectedBySlug.get(markerSubject.slug)
           : undefined;
         return await resolveCurrentHuskAdvisory({
           worktreePath,
@@ -630,11 +641,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
       },
       sweep: async (roster, worktreeIdentity) => {
-        const [resolved, transientIndexes, locusState] = await Promise.all([
+        const [resolved, transientRead, locusState] = await Promise.all([
           resolvedSettingsP,
           getTransientIndexes(),
           getOptionalLocusState(),
         ]);
+        // Transient worktrees stay blocked from cleanup on marker provenance alone, so an
+        // unreadable identity cannot turn a claimed worktree into a deletable one; it only
+        // costs the mismatch check between the marker's claim and the identity's.
+        const { indexes: sweepIndexes } = projectTransientInFlightRead(transientRead);
         return runStaleWorktreeSweep({
           roster,
           worktreeIdentity,
@@ -645,7 +660,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
           excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
           readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
-          expectedTransientByBranch: transientIndexes.expectedByBranch,
+          expectedTransientByBranch: sweepIndexes.expectedByBranch,
           locusState,
         });
       },
@@ -692,13 +707,21 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         // with the in-flight derivation); empty when no identity resolved.
         const recordResult = await getErrandRecordsResult();
         const records = recordResult.records;
-        const [transientIndexes, locusState] = await Promise.all([
+        const [transientRead, locusState] = await Promise.all([
           getTransientIndexes(),
           getOptionalLocusState(),
         ]);
+        // Resume and discovery read the transient records as the identity's claim set. An
+        // unreadable identity yields no records, which is indistinguishable from having
+        // none — so the degradation is surfaced rather than left to read as absence.
+        const transientState = projectTransientInFlightRead(transientRead);
+        const transientIndexes = transientState.indexes;
         let entries: InFlightEntry[] | null = null;
         let residue: InFlightResidue[] = [];
-        let oracleWarnings: string[] = [...recordResult.warnings];
+        let oracleWarnings: string[] = [
+          ...recordResult.warnings,
+          ...(transientState.degraded === null ? [] : [transientState.degraded]),
+        ];
         if (input.includeDiscovery) {
           const oracle = await getOracle();
           entries = oracle.reachable ? oracle.entries : null;

@@ -10,6 +10,10 @@ import {
   readTransientIdentitySnapshot,
   type IdentitySnapshotIO,
 } from "../../src/lib/errand/identity-snapshot.js";
+import {
+  projectTransientInFlightRead,
+  readTransientInFlightIndexes,
+} from "../../src/lib/errand/record.js";
 import { MAX_LOCUS_JSON_BYTES } from "../../src/lib/locus/schema/index.js";
 
 const tip = "a".repeat(40);
@@ -128,5 +132,78 @@ describe("transient identity snapshots", () => {
 
     expect(malformed).toMatchObject({ kind: "error", stage: "tree" });
     expect(subtree).toMatchObject({ kind: "error", stage: "tree" });
+  });
+});
+
+describe("transient in-flight indexes", () => {
+  const unborn = "fatal: ambiguous argument: unknown revision or path not in the working tree.";
+
+  it("separates an unborn identity from one that could not be read", async () => {
+    const absent = await readTransientInFlightIndexes({
+      identity: "andrew",
+      exec: async () => { throw new Error(unborn); },
+    });
+    const unreadable = await readTransientInFlightIndexes({
+      identity: "andrew",
+      exec: async () => { throw new Error("fatal: bad object"); },
+    });
+
+    // Both carry no records, and that is exactly why the distinction has to survive the
+    // read: only the unborn arm establishes that the identity holds no claim.
+    expect(absent).toMatchObject({ kind: "absent" });
+    expect(unreadable).toMatchObject({ kind: "error", stage: "tip" });
+    expect(projectTransientInFlightRead(absent).complete).toBe(true);
+    expect(projectTransientInFlightRead(unreadable).complete).toBe(false);
+  });
+
+  it("treats a resolved identity with no records as an established empty claim set", async () => {
+    const read = await readTransientInFlightIndexes({
+      identity: "andrew",
+      exec: async (_command, args) => {
+        if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
+        return { stdout: "" };
+      },
+    });
+
+    expect(read).toMatchObject({ kind: "complete", diagnostics: [] });
+    expect(projectTransientInFlightRead(read).complete).toBe(true);
+  });
+
+  it("indexes readable records while refusing to call a partial read whole", async () => {
+    const read = await readTransientInFlightIndexes({
+      identity: "andrew",
+      exec: async (_command, args) => {
+        if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
+        if (args[0] === "ls-tree") {
+          return {
+            stdout: `100644 blob ${blobOid}     ${Buffer.byteLength(record)}\tfix-output\0`
+              + `100644 blob ${"c".repeat(40)}     4\tbroken\0`,
+          };
+        }
+        if (args[2] === blobOid) return { stdout: record };
+        return { stdout: "{[}" };
+      },
+    });
+
+    expect(read.kind).toBe("complete");
+    if (read.kind !== "complete") throw new Error("expected a complete read");
+    // The readable record still indexes — the partial read is usable, just not whole.
+    expect(read.indexes.slugByBranch.get("chore/fix-output")).toBe("fix-output");
+    expect(read.indexes.expectedBySlug.get("fix-output")).toMatchObject({ kind: "errand" });
+    expect(read.diagnostics).toHaveLength(1);
+
+    const projected = projectTransientInFlightRead(read);
+    expect(projected.complete).toBe(false);
+    expect(projected.degraded).toContain("1 unreadable entry");
+  });
+
+  it("resolves a null identity as an established absence", async () => {
+    const read = await readTransientInFlightIndexes({
+      identity: null,
+      exec: async () => { throw new Error("no read is expected without an identity"); },
+    });
+
+    expect(read).toMatchObject({ kind: "absent" });
+    expect(projectTransientInFlightRead(read).complete).toBe(true);
   });
 });
