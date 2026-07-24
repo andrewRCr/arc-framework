@@ -44,6 +44,16 @@ describe("local review result normalization", () => {
     });
   });
 
+  it("accepts compatibility bindings that exactly match runtime-owned values", () => {
+    expect(normalizeLocalReviewResult({
+      ...evaluatorResult,
+      ...bindings,
+    }, bindings)).toEqual({
+      ...evaluatorResult,
+      ...bindings,
+    });
+  });
+
   it.each(Object.keys(bindings) as (keyof LocalReviewResultBindings)[])(
     "rejects a mismatched compatibility binding for %s",
     (binding) => {

@@ -47,14 +47,7 @@ function validateResultConsistency(
 
 export const LocalReviewEvaluatorResultSchema = z.strictObject({
   ...EvaluatorOwnedLocalReviewResultShape,
-  repositoryId: ReviewIdentifierSchema.optional(),
-  targetId: ReviewCanonicalDigestSchema.optional(),
-  headSha: GitObjectIdSchema.optional(),
-  headTree: GitObjectIdSchema.optional(),
-  rubricVersion: ReviewIdentifierSchema.optional(),
-  rubricDigest: ReviewCanonicalDigestSchema.optional(),
-  sourceDigest: ReviewCanonicalDigestSchema.optional(),
-  guidanceDigest: ReviewCanonicalDigestSchema.optional(),
+  ...z.strictObject(RuntimeOwnedLocalReviewBindingShape).partial().shape,
 }).superRefine(validateResultConsistency);
 export type LocalReviewEvaluatorResult = z.infer<typeof LocalReviewEvaluatorResultSchema>;
 
