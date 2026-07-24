@@ -88,9 +88,10 @@ beforeEach(() => {
     await input.exec("git", ["rev-parse", "--git-path", "rebase-merge"]);
     return { allowed: true, conditions: [] };
   });
-  mocks.pushWorktreeBranch.mockImplementation(async (input: { exec: GitExec }) => {
-    await input.exec("git", ["push", "origin", "feat/test"]);
-    return { status: "success", stdout: "", stderr: "" };
+  mocks.pushWorktreeBranch.mockResolvedValue({
+    status: "success",
+    stdout: "",
+    stderr: "",
   });
   mocks.runReleasePush.mockImplementation(async (input: {
     runPushability(): Promise<unknown>;
@@ -103,13 +104,20 @@ beforeEach(() => {
 });
 
 describe("handleReleasePush", () => {
-  it("uses one invocation-bound Git executor for every preflight and the final push", async () => {
+  it("uses one invocation-bound subprocess policy across preflights and the final push", async () => {
     await expect(handleReleasePush({ args: [] }, context)).resolves.toBeUndefined();
 
     expect(mocks.createGitExec).toHaveBeenCalledWith(context.subprocess);
     expect(mocks.ambientExec).not.toHaveBeenCalled();
     expect(mocks.boundExec).toHaveBeenCalledWith("git", ["fetch", "origin", "feat/test"]);
-    expect(mocks.boundExec).toHaveBeenCalledWith("git", ["push", "origin", "feat/test"]);
+    expect(mocks.pushWorktreeBranch).toHaveBeenCalledWith({
+      exec: mocks.boundExec,
+      branch: "feat/test",
+      args: [],
+      cwd: "/repo",
+      inheritStdio: true,
+      interaction: context.subprocess,
+    });
     expect(process.exitCode).toBeUndefined();
   });
 });

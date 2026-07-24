@@ -108,7 +108,7 @@ export async function handleReleasePush(
         worktreeBranch: currentBranch,
         worktreeSyncState: worktreeSync.state,
       }),
-    spawnPush: createRealSpawnPush(exec),
+    spawnPush: createRealSpawnPush(exec, context.subprocess),
   });
 
   if (result.exitCode !== 0) {
@@ -124,13 +124,17 @@ export async function handleReleasePush(
  * Reshapes the helper's `failed` arm into the orchestrator's first-class
  * `exitCode` field so audit attribution uses structured process evidence.
  */
-const createRealSpawnPush = (exec: GitExec): SpawnPush => async ({ branch, args, cwd }) => {
+const createRealSpawnPush = (
+  exec: GitExec,
+  interaction: InteractionContext["subprocess"],
+): SpawnPush => async ({ branch, args, cwd }) => {
   const result = await pushWorktreeBranch({
     exec,
     branch,
     args,
     cwd,
     inheritStdio: true,
+    interaction,
   });
   if (result.status === "success") {
     return { status: "success", stdout: result.stdout, stderr: result.stderr };
