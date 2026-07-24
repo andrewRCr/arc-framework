@@ -17,7 +17,7 @@
 - **Next Task:** Task 3.1 — Extend the cut-map contract with the `cohortless` placement
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — Extend the cut-map contract with the `cohortless` placement
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
