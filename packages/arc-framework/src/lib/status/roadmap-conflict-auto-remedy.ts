@@ -14,10 +14,9 @@
  * @module
  */
 
-import { join } from "node:path";
-
 import type { GitExec } from "../git/exec.js";
 import { readConfigSettings } from "../config/status-reader.js";
+import { materializeArcPath } from "../layout/index.js";
 
 import {
   ROADMAP_PATH,
@@ -158,7 +157,7 @@ export async function applyRoadmapConflictAutoRemedy(
       ...(deps.renderedRef !== undefined ? { renderedRef: deps.renderedRef } : {}),
     });
 
-    const absolutePath = join(deps.cwd, ROADMAP_PATH);
+    const absolutePath = materializeArcPath(deps.cwd, ROADMAP_PATH);
     await deps.writeFile(absolutePath, rendered.content);
     await deps.exec("git", ["add", "--", ROADMAP_PATH], { cwd: deps.cwd });
 

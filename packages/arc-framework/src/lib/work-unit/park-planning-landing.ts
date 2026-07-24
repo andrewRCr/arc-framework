@@ -23,6 +23,8 @@ import { validateManagedPath, type ManagedPath } from "../canonical/managed-path
 import { artifactGroupDigest, receiptId } from "../canonical/receipt-id.js";
 import type { GitExec } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
+import { SlugSchema } from "../kernel/index.js";
+import { resolveArcPath } from "../layout/index.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import {
   validateReceiptMatrix,
@@ -32,12 +34,12 @@ import { validateRetirementReceiptRelation } from "./retirement-relation.js";
 import { resolveRetirementRecordRelativePath } from "./retirement-record-store.js";
 import { isSlugSafe } from "./slug.js";
 
-const ROADMAP_PATH = validateManagedPath(".arc/backlog/ROADMAP.md");
+const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 const LIFECYCLE_ROOTS = [
-  ".arc/active",
-  ".arc/backlog/planned",
-  ".arc/backlog/provisional",
-  ".arc/completed",
+  resolveArcPath({ kind: "placement-root", tier: "active" }),
+  resolveArcPath({ kind: "placement-root", tier: "planned" }),
+  resolveArcPath({ kind: "placement-root", tier: "provisional" }),
+  resolveArcPath({ kind: "placement-root", tier: "completed" }),
 ] as const;
 
 /** Exact tree blob copied into the landing checkout and index. */
@@ -225,8 +227,8 @@ async function readCommittedTransition(
     const recordBytes = await requireBlob(deps, commit, recordPath);
     const receipt = parseParkReceipt(recordBytes);
 
-    const plannedRoot = ".arc/backlog/planned";
-    const sourceDir = ".arc/active";
+    const plannedRoot = resolveArcPath({ kind: "placement-root", tier: "planned" });
+    const sourceDir = resolveArcPath({ kind: "placement-root", tier: "active" });
     const matcher = artifactMatcher(params.name);
     const [plannedRootTree, sourceTree, operations] = await Promise.all([
       readTreeEntries(deps, commit, plannedRoot),
@@ -247,9 +249,19 @@ async function readCommittedTransition(
     if (!isSafeCohortPath(cohort) || validateCohortPath(cohort) !== null) {
       return { status: "rejected", reason: "The planned result carries an invalid Cohort path." };
     }
-    const expectedPlannedDir = cohort === ""
-      ? `${plannedRoot}/${params.name}`
-      : `${plannedRoot}/${cohort}/${params.name}`;
+    const cohortSegments = cohort === "" || cohort === "[none]" ? [] : cohort.split("/");
+    if (cohortSegments.some((segment) => !SlugSchema.safeParse(segment).success)) {
+      return { status: "rejected", reason: "The planned result carries an invalid Cohort path." };
+    }
+    const expectedPlannedDir = resolveArcPath({
+      kind: "work-unit-container",
+      placement: {
+        kind: "backlog",
+        commitment: "planned",
+        cohort: cohortSegments.map((segment) => SlugSchema.parse(segment)),
+      },
+      slug: SlugSchema.parse(params.name),
+    });
     if (plannedDir !== expectedPlannedDir) {
       return { status: "rejected", reason: "The planned result does not match its Cohort placement." };
     }

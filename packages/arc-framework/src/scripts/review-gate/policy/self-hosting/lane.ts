@@ -1,23 +1,20 @@
-/** Ref-backed ownership policy for the self-hosting automatic lane. */
+/** Ref-backed ownership policy for self-hosting review routing. */
 
 import { posix } from "node:path";
 
 import { parseMetaRecord } from "../../../../lib/active/meta-reader.js";
+import type { ChangePathFact, ChangeStatus } from "../../../../lib/change-facts.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { readMetaAtRef } from "../../../../lib/git/remote-ref-reader.js";
 
 /** Changed-path status supplied by the host adapter. */
-export type ChangedPathStatus = "added" | "modified" | "deleted" | "renamed";
+export type ChangedPathStatus = ChangeStatus;
 
-/** One changed path, with its prior location for renames. */
-export interface ChangedPath {
-  status: ChangedPathStatus;
-  path: string;
-  previousPath?: string;
-}
+/** One changed path, with its prior location for renames and copies. */
+export type ChangedPath = ChangePathFact;
 
-/** Inputs for the ref-backed lane decision. */
-export interface AutoLaneInput {
+/** Inputs for normalized ownership over one canonical change set. */
+export interface OwnershipResolutionInput {
   exec: GitExec;
   diffBaseSha: string;
   headSha: string;
@@ -26,23 +23,12 @@ export interface AutoLaneInput {
   changes: ChangedPath[];
 }
 
-/** Stable lane-decision reason. */
-export type LaneReason =
-  | "author-owned-artifacts"
-  | "ownerless-cohort"
-  | "unknown-author"
-  | "unknown-change-set"
-  | "non-lane-path"
-  | "ambiguous-move"
-  | "missing-or-invalid-meta"
-  | "owner-transition"
-  | "mixed-ownership"
-  | "owner-mismatch";
+/** Normalized ownership relation consumed by review routing. */
+export type OwnershipRelation = "self" | "foreign" | "mixed" | "ownerless" | "not-applicable" | "unknown";
 
-/** Automatic or reviewed lane with stable reasons. */
-export interface LaneDecision {
-  lane: "auto" | "reviewed";
-  reasons: LaneReason[];
+/** Exact-ref ownership result for the full affected change set. */
+export interface OwnershipResolution {
+  relation: OwnershipRelation;
 }
 
 interface ArtifactGroup {
@@ -56,12 +42,26 @@ function nestedBacklogDirectory(directory: string): boolean {
     || directory.startsWith(".arc/backlog/provisional/");
 }
 
+/**
+ * Directories that hold grooming-stage artifacts, matching the surface-authority predicate.
+ *
+ * Cohort documents sit beside the work units they coordinate, so they nest a level below the
+ * lifecycle root rather than resting directly in it.
+ */
+function planningGroomingDirectory(directory: string): boolean {
+  return directory === ".arc/active"
+    || directory === ".arc/backlog/planned"
+    || directory === ".arc/backlog/provisional"
+    || directory.startsWith(".arc/active/")
+    || nestedBacklogDirectory(directory);
+}
+
 function groupForPath(path: string): ArtifactGroup | null {
   if (path.startsWith("/") || path.split("/").includes("..")) return null;
   const directory = posix.dirname(path);
   const basename = posix.basename(path);
   if (/^cohort-.+\.md$/su.test(basename)) {
-    if (directory !== ".arc/backlog/planned" && directory !== ".arc/backlog/provisional") return null;
+    if (!planningGroomingDirectory(directory)) return null;
     return { key: `${directory}/${basename}`, metaPath: null, ownerless: true };
   }
   if (directory !== ".arc/active" && !nestedBacklogDirectory(directory)) return null;
@@ -85,22 +85,29 @@ function parseOwner(content: string | null): string | null {
   }
 }
 
-/** Resolve automatic-lane eligibility from exact-ref companion ownership. */
-export async function resolveAutoLane(input: AutoLaneInput): Promise<LaneDecision> {
+async function resolveOwnershipDetailed(input: OwnershipResolutionInput): Promise<OwnershipResolution> {
   const mappedOwner = input.authorMap[input.authorLogin];
-  if (mappedOwner === undefined) return { lane: "reviewed", reasons: ["unknown-author"] };
-  if (input.changes.length === 0) return { lane: "reviewed", reasons: ["unknown-change-set"] };
+  if (mappedOwner === undefined) return { relation: "unknown" };
+  if (input.changes.length === 0) return { relation: "unknown" };
 
   const groups = new Map<string, { group: ArtifactGroup; changes: ChangedPath[] }>();
   for (const change of input.changes) {
     const group = groupForPath(change.path);
-    if (group === null) return { lane: "reviewed", reasons: ["non-lane-path"] };
-    if (change.status === "renamed") {
-      const previous = change.previousPath === undefined ? null : groupForPath(change.previousPath);
-      if (previous === null || previous.key !== group.key) {
-        return { lane: "reviewed", reasons: ["ambiguous-move"] };
+    if (change.path.startsWith("/") || change.path.split("/").includes("..")) {
+      return { relation: "unknown" };
+    }
+    if (change.status === "renamed" || change.status === "copied") {
+      const previous = groupForPath(change.previousPath);
+      if (change.previousPath.startsWith("/")
+        || change.previousPath.split("/").includes("..")) {
+        return { relation: "unknown" };
+      }
+      if (group === null && previous === null) continue;
+      if (group === null || previous === null || previous.key !== group.key) {
+        return { relation: "unknown" };
       }
     }
+    if (group === null) continue;
     const existing = groups.get(group.key);
     if (existing === undefined) groups.set(group.key, { group, changes: [change] });
     else existing.changes.push(change);
@@ -113,30 +120,39 @@ export async function resolveAutoLane(input: AutoLaneInput): Promise<LaneDecisio
       sawOwnerless = true;
       continue;
     }
-    if (group.metaPath === null) return { lane: "reviewed", reasons: ["missing-or-invalid-meta"] };
+    if (group.metaPath === null) {
+      return { relation: "unknown" };
+    }
     const requiresBase = changes.some((change) => change.status !== "added");
     const requiresHead = changes.some((change) => change.status !== "deleted");
     const [baseContent, headContent] = await Promise.all([
-      readMetaAtRef({ exec: input.exec, ref: input.diffBaseSha, metaPath: group.metaPath }),
-      readMetaAtRef({ exec: input.exec, ref: input.headSha, metaPath: group.metaPath }),
+      requiresBase
+        ? readMetaAtRef({ exec: input.exec, ref: input.diffBaseSha, metaPath: group.metaPath })
+        : Promise.resolve(null),
+      requiresHead
+        ? readMetaAtRef({ exec: input.exec, ref: input.headSha, metaPath: group.metaPath })
+        : Promise.resolve(null),
     ]);
     const baseOwner = parseOwner(baseContent);
     const headOwner = parseOwner(headContent);
     if ((requiresBase && baseOwner === null) || (requiresHead && headOwner === null)) {
-      return { lane: "reviewed", reasons: ["missing-or-invalid-meta"] };
+      return { relation: "unknown" };
     }
     if (baseOwner !== null && headOwner !== null && baseOwner !== headOwner) {
-      return { lane: "reviewed", reasons: ["owner-transition"] };
+      return { relation: "unknown" };
     }
     const owner = baseOwner ?? headOwner;
-    if (owner === null) return { lane: "reviewed", reasons: ["missing-or-invalid-meta"] };
+    if (owner === null) return { relation: "unknown" };
     owners.add(owner);
   }
 
-  if (owners.size > 1) return { lane: "reviewed", reasons: ["mixed-ownership"] };
+  if (owners.size > 1) return { relation: "mixed" };
   const owner = owners.values().next().value;
-  if (owner !== undefined && owner !== mappedOwner) return { lane: "reviewed", reasons: ["owner-mismatch"] };
-  return owner === undefined && sawOwnerless
-    ? { lane: "auto", reasons: ["ownerless-cohort"] }
-    : { lane: "auto", reasons: ["author-owned-artifacts"] };
+  if (owner !== undefined) return { relation: owner === mappedOwner ? "self" : "foreign" };
+  return { relation: sawOwnerless ? "ownerless" : "not-applicable" };
+}
+
+/** Resolve normalized ownership over every affected endpoint at the ref where it exists. */
+export async function resolveOwnership(input: OwnershipResolutionInput): Promise<OwnershipResolution> {
+  return resolveOwnershipDetailed(input);
 }

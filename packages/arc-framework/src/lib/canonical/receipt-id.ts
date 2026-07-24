@@ -12,7 +12,7 @@ import { type CanonicalDigest, canonicalDigest } from "./canonical-json.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 
 /** The non-shipped retirement transitions a receipt can record. */
-export type RetirementTransition = "abandon" | "decompose" | "park-planning";
+export type RetirementTransition = "abandon" | "decompose" | "park-planning" | "rename";
 
 /** The exact tuple a `receiptId` is derived from. */
 export interface ReceiptIdInput {

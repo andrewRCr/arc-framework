@@ -1,9 +1,20 @@
 /** Exact-head resolution for hosted Codex review guidance. */
 
+import { canonicalDigest, sortByCanonicalBytes } from "../../../../lib/kernel/index.js";
 import { hashContent } from "../../../../lib/manifest/hash.js";
 import type { HostChangedPath } from "../../core/ports.js";
+import { ReviewGuidanceDigestPreimageSchema } from "../../policy/standard-review-schema.js";
+import {
+  STANDARD_REVIEW_BASELINE_CONTRACT,
+  STANDARD_REVIEW_RUBRIC_IDENTITY,
+} from "../../policy/standard-review.js";
+import {
+  admitSelfHostingGuidanceCarrier,
+  SELF_HOSTING_REVIEW_GUIDANCE_END,
+  SELF_HOSTING_REVIEW_GUIDANCE_START,
+} from "../../policy/self-hosting/guidance.js";
 
-export const CODEX_RUBRIC_VERSION = "independent-analysis/v1";
+export const CODEX_RUBRIC_VERSION = STANDARD_REVIEW_RUBRIC_IDENTITY.version;
 
 const REQUIRED_DIMENSIONS = [
   "intent and scope",
@@ -27,8 +38,13 @@ export type CodexGuidanceResolution =
     qualified: true;
     headSha: string;
     rubricVersion: typeof CODEX_RUBRIC_VERSION;
+    rubricDigest: string;
     targets: string[];
     guidancePaths: string[];
+    baseline: typeof STANDARD_REVIEW_BASELINE_CONTRACT;
+    projectAugmentation: Array<{ path: string; content: string }>;
+    guidanceDigest: string;
+    /** Schema-v1 command digest retained until explicit contract dispatch migrates the carrier. */
     digest: string;
   }
   | { qualified: false; reasons: string[] };
@@ -54,19 +70,27 @@ function guidanceCandidates(target: string): string[] {
 function changedTargets(changes: readonly HostChangedPath[]): string[] {
   const targets: string[] = [];
   for (const change of changes) {
-    if (change.status === "renamed") targets.push(change.previousPath, change.path);
+    if (change.previousPath !== undefined) targets.push(change.previousPath, change.path);
     else targets.push(change.path);
   }
   return [...new Set(targets)];
 }
 
-function reviewGuidelines(content: string): string | null {
+function reviewGuidelines(content: string): "current" | "missing" | "stale" {
   const match = /^## Review guidelines\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/imu.exec(content);
-  if (match?.[1] === undefined) return null;
-  const section = match[1].trim().toLowerCase();
-  if (!section.includes(CODEX_RUBRIC_VERSION)) return null;
-  if (REQUIRED_DIMENSIONS.some((dimension) => !section.includes(dimension))) return null;
-  return section;
+  if (match?.[1] === undefined) {
+    return content.includes(SELF_HOSTING_REVIEW_GUIDANCE_START)
+      || content.includes(SELF_HOSTING_REVIEW_GUIDANCE_END)
+      ? "stale"
+      : "missing";
+  }
+  const section = match[1].trim();
+  const admission = admitSelfHostingGuidanceCarrier("hosted-codex", section);
+  if (!admission.admitted) return admission.reason === "managed-guidance-missing" ? "missing" : "stale";
+  const normalized = section.toLowerCase();
+  if (!normalized.includes(CODEX_RUBRIC_VERSION)) return "stale";
+  if (REQUIRED_DIMENSIONS.some((dimension) => !normalized.includes(dimension))) return "stale";
+  return "current";
 }
 
 /** Resolve one unambiguous effective guidance set from exact-head git objects. */
@@ -95,6 +119,9 @@ export async function resolveCodexGuidance(input: {
       if (resolved.observedHeadSha !== input.headSha) {
         return { qualified: false, reasons: [`guidance-head-mismatch:${path}`] };
       }
+      if (path !== "AGENTS.md" && reviewGuidelines(resolved.content) === "stale") {
+        return { qualified: false, reasons: [`review-guidelines-stale:${path}`] };
+      }
       effective.push({ path, content: resolved.content });
     }
     effectiveSets.push(effective);
@@ -102,20 +129,38 @@ export async function resolveCodexGuidance(input: {
 
   const root = cache.get("AGENTS.md");
   if (root?.kind !== "ok") return { qualified: false, reasons: ["missing-guidance:AGENTS.md"] };
-  if (reviewGuidelines(root.content) === null) {
+  const rootGuidelines = reviewGuidelines(root.content);
+  if (rootGuidelines === "missing") {
     return { qualified: false, reasons: ["review-guidelines-missing:AGENTS.md"] };
   }
-  const signatures = effectiveSets.map((items) => JSON.stringify(items));
+  if (rootGuidelines === "stale") {
+    return { qualified: false, reasons: ["review-guidelines-stale:AGENTS.md"] };
+  }
+  const signatures = effectiveSets.map((items) => JSON.stringify([...new Set(items.map((item) => item.content))]));
   if (signatures.some((signature) => signature !== signatures[0])) {
     return { qualified: false, reasons: ["conflicting-effective-guidance"] };
   }
-  const effective = effectiveSets[0] ?? [{ path: "AGENTS.md", content: root.content }];
+  const effective = (effectiveSets[0] ?? [{ path: "AGENTS.md", content: root.content }])
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.content === item.content) === index);
+  const projectAugmentation = sortByCanonicalBytes(effective);
+  const guidancePreimage = ReviewGuidanceDigestPreimageSchema.parse({
+    domain: "arc.review-guidance.digest/v2",
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    carrierId: "hosted-codex",
+    baseline: STANDARD_REVIEW_BASELINE_CONTRACT,
+    projectAugmentation,
+  });
   return {
     qualified: true,
     headSha: input.headSha,
     rubricVersion: CODEX_RUBRIC_VERSION,
+    rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
     targets,
     guidancePaths: effective.map((item) => item.path),
+    baseline: STANDARD_REVIEW_BASELINE_CONTRACT,
+    projectAugmentation,
+    guidanceDigest: canonicalDigest(guidancePreimage),
     digest: hashContent(JSON.stringify(effective)),
   };
 }

@@ -58,7 +58,7 @@ precondition, the entry dispatch, then the sync channels.
 
 ### Branch-gone recovery (precondition)
 
-When `worktree.value.state == "branch-gone"`, align git state *before* anything reads against the working
+When `worktree.value.state == "branch-gone"`, align git state _before_ anything reads against the working
 branch. The upstream was deleted (the branch shipped elsewhere), so the notes pull here and Step 3's
 context-load would otherwise surface metas and companion files that don't exist on the recovered branch.
 The `recovery` slot carries pre-computed candidates (no scanning across turns); render them as a single
@@ -214,7 +214,7 @@ here; the arms below are the **signal-absent** path.
 - **Materialize** — the probe surfaces a remote-only work unit (`materializableWorkUnits.value.candidates`
   non-empty) or a remote-only errand (`errandState.value.materializable.candidates` includes a `chore/<slug>`
   branch with no local worktree and no backing meta). Surface the candidates and ask which to materialize when
-  more than one is present; never guess — the candidate list *is* the correctness mechanism (you pick a real
+  more than one is present; never guess — the candidate list _is_ the correctness mechanism (you pick a real
   in-flight entry, so a phantom / typo'd name is impossible). For a work unit: run `arc materialize <name>` (or
   `arc materialize <name> --here` when explicitly materializing in the current checkout), then `arc user pull` to
   load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an errand:
@@ -261,7 +261,7 @@ signal calls for it — the single load satisfies both, so they never double-run
   when a worktree pull silently advanced the user-notes ref on this machine).
 - `retiredSubdirs.value.recommendedAction ∈ {pull, prompt}` — a sibling shipped, orphaning a user
   subdir; the reconcile (removal + `.internal/` backup) runs inside `arc user load`. Fires even when
-  notes are current — a retired subdir is a *base* event, orthogonal to notes freshness.
+  notes are current — a retired subdir is a _base_ event, orthogonal to notes freshness.
 
 Both gate on `session.init_load.notes`, so they agree on the action — dispatch on it:
 
@@ -345,7 +345,7 @@ primary; otherwise the primary's base, per `resolveWriteContext`), and the Erran
    the universal surfaces. **Skip every WU-artifact read:** SESSION-NOTES (item 8.1), the active task list
    (item 9), and the lifecycle workflow (item 10) — there is no work unit to orient against.
 2. **Skip Step 5 (Assess Readiness).** No handoff baseline exists to freshness-check, and the setup below
-   replaces next-work-unit discovery (that is the *discovery* intent, not the Errand one).
+   replaces next-work-unit discovery (that is the _discovery_ intent, not the Errand one).
 3. **Classify, gate, execute.** Follow the [run-errand workflow][run-errand] in Launch mode. The errand seed
    comes from the `--errand` blurb/slug when present; when it names a flagged `USER-INBOX § Errand` capture,
    adopt that capture as the originating entry. Launch classifies errand-vs-Work-Unit (with the stop-and-route
@@ -982,12 +982,12 @@ axis's authority to the other's question.
 
 **Axis 1 — Truth of work state** ("was this actually committed?"). Git is authoritative: commits, file
 contents on disk, `git status`. The task list, the active meta file, and personal session context
-(SESSION-NOTES, WORKING-MEMORY) are *claims* about work state — verify them against git, which wins on conflict.
+(SESSION-NOTES, WORKING-MEMORY) are _claims_ about work state — verify them against git, which wins on conflict.
 
 **Axis 2 — Which work am I picking up** (the roster question). Identity-filtered metas + the worktree list are
 authoritative — the same authority the Step-2 branch-gone recovery uses to pick a target. Personal notes are
-deliberately absent from this axis: they answer the *context* question (how the work was approached), not the
-*roster* question (which WU / branch / task this session resumes).
+deliberately absent from this axis: they answer the _context_ question (how the work was approached), not the
+_roster_ question (which WU / branch / task this session resumes).
 
 **Acting on a mismatch.** Auto-recover when one axis's authority resolves it cleanly; stop and ask when it
 stays ambiguous.
@@ -996,17 +996,17 @@ stays ambiguous.
 the discrepancy in orientation. Report format: "Active meta file said X. Git/task list show Y. Proceeding
 with Y."
 
-- *Axis 1:* active meta file says "Task 3.3 in progress" but the task list shows 3.3 `[x]` and git log confirms
+- _Axis 1:_ active meta file says "Task 3.3 in progress" but the task list shows 3.3 `[x]` and git log confirms
   the commit → proceed with Task 3.4 as current.
-- *Axis 1:* `worktree.value.state == "diverged"` while session docs reflect clean state → git is ground truth.
+- _Axis 1:_ `worktree.value.state == "diverged"` while session docs reflect clean state → git is ground truth.
   Surface as `Reconcile required:` (Step 6) and carry forward. Non-blocking; do not auto-reconcile.
 
 **Stop and ask** — multiple plausible explanations, or same-tier sources within an axis disagree. Report each
 source's view with specific details and wait for explicit direction before any corrective action.
 
-- *Axis 1:* git shows uncommitted changes to files not mentioned in any session doc — could be co-development,
+- _Axis 1:_ git shows uncommitted changes to files not mentioned in any session doc — could be co-development,
   a partial task, or an interrupted session.
-- *Axis 2:* the active meta file references a task that doesn't exist in the task list — renumbered, removed,
+- _Axis 2:_ the active meta file references a task that doesn't exist in the task list — renumbered, removed,
   or the meta file points to the wrong task list.
 
 ---

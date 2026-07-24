@@ -23,6 +23,8 @@ import {
   type InFlightWarning,
   type InFlightWorkUnit,
 } from "../git/in-flight-derivation.js";
+import { SlugSchema } from "../kernel/index.js";
+import { resolveArcPath } from "../layout/index.js";
 import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
 import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { resolveSlugQuery } from "../work-unit/lifecycle-query.js";
@@ -439,6 +441,12 @@ function inFlightEntryToCandidate(entry: InFlightEntry): ProjectReadinessRecordC
   const state = validateState(entry.state);
   if (state === "unknown") return null;
   const ref = selectedRefFor(entry);
+  const metaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: SlugSchema.parse(entry.name),
+    artifact: "meta",
+  });
   return {
     slug: entry.name,
     location: "active",
@@ -447,7 +455,7 @@ function inFlightEntryToCandidate(entry: InFlightEntry): ProjectReadinessRecordC
     priority: validatePriority(entry.priority ?? null),
     dependsOn: [...entry.dependsOn],
     ...(entry.cohort !== undefined ? { cohort: entry.cohort } : {}),
-    source: sourceFor("active", `${ref}:.arc/active/meta-${entry.name}.md`),
+    source: sourceFor("active", `${ref}:${metaPath}`),
     ...(entry.scheduling === "parked" ? { scheduling: "parked" as const } : {}),
   };
 }

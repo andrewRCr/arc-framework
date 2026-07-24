@@ -65,7 +65,7 @@ the system.
 ## Step 3a: Wire as Method Override
 
 1. Identify which method in [`system/methods/`][arc-methods] this content replaces
-   (e.g., `commit-format`, `diff-review`, `session-state`)
+   (e.g., `commit-format`, `self-review`, `session-state`)
 2. Read the method's **contract** — your override should satisfy the same invariant
 3. Adapt the content to fit the override format:
     - Populate the `## {method-name}.override` section with the new implementation
@@ -85,7 +85,7 @@ the system.
     - Replace `[No extension configured]` in the `## {extension-name}.actions` section
     - Toggle `active: true` in the extension's frontmatter
     - Write clear actions the agent can follow
-4. Extensions *add to* existing workflow behavior — they don't replace it. If the content needs
+4. Extensions _add to_ existing workflow behavior — they don't replace it. If the content needs
    to replace behavior, it's a method override (Step 3a), not an extension
 
 ## Step 3c: Add as Strategy

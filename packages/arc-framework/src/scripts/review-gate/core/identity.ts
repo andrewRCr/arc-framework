@@ -1,7 +1,16 @@
 /** Canonical identities for change sets and plain-data policy. */
 
 import { hashContent } from "../../../lib/manifest/hash.js";
-import { canonicalize } from "../../../lib/kernel/index.js";
+import {
+  canonicalDigest,
+  canonicalize,
+  sortByCanonicalBytes,
+} from "../../../lib/kernel/index.js";
+import {
+  ReviewPolicyVersionInputSchema,
+  ReviewPolicyVersionPreimageSchema,
+  type ReviewPolicyVersionInput,
+} from "./gate-contract-v2-schema.js";
 
 /** Inputs that define one reviewed change set. */
 export interface ChangeSetIdentityInput {
@@ -38,4 +47,24 @@ export function computeChangeSetId(input: ChangeSetIdentityInput): string {
 /** Compute the policy digest while excluding runtime observations by construction. */
 export function computePolicyVersion(input: PolicyVersionInput): string {
   return hashContent(canonicalizePlainJson(input.policy));
+}
+
+/**
+ * Derive the forward policy identity from normalized admission semantics.
+ *
+ * @param input - Complete non-target semantics for one standard-review requirement.
+ * @returns The canonical domain-separated policy digest.
+ */
+export function computeReviewPolicyVersion(input: ReviewPolicyVersionInput): string {
+  const uniqueSources = new Map(
+    input.acceptableSources.map((source) => [canonicalize(source), source]),
+  );
+  const policy = ReviewPolicyVersionInputSchema.parse({
+    ...input,
+    acceptableSources: sortByCanonicalBytes([...uniqueSources.values()]),
+  });
+  return canonicalDigest(ReviewPolicyVersionPreimageSchema.parse({
+    domain: "arc.review-gate.policy-version/v2",
+    ...policy,
+  }));
 }

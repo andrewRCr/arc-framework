@@ -12,7 +12,8 @@
 import { join } from "node:path";
 import { z } from "zod";
 
-import { ARC_CONFIG_SEGMENTS } from "../constants.js";
+import { ARC_CONFIG_SUFFIX } from "../constants.js";
+import { materializeArcPath, resolveArcPath } from "../layout/index.js";
 import { gitConfigGet, type GitExec } from "../git/index.js";
 import { parseArcConfig } from "./index.js";
 import type { ArcConfigKey } from "./schema.js";
@@ -107,7 +108,10 @@ export async function resolveGitConfigOverride<T extends string>(
   if (opts.yamlKey !== undefined) {
     const yamlKey = opts.yamlKey;
     try {
-      const configPath = join(opts.cwd, ...ARC_CONFIG_SEGMENTS);
+      const configPath = join(
+        materializeArcPath(opts.cwd, resolveArcPath({ kind: "arc-root" })),
+        ...ARC_CONFIG_SUFFIX,
+      );
       const content = await opts.readFile(configPath);
       const yamlValue = parseArcConfig(content)[yamlKey];
       if (hasConfiguredValue(yamlValue)) {

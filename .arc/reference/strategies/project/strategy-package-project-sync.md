@@ -15,7 +15,7 @@ those are project-owned with no package counterparts.
 This repo has two copies of the ARC framework content:
 
 | Copy                 | Location                      | Role                                                                         |
-|----------------------|-------------------------------|------------------------------------------------------------------------------|
+| -------------------- | ----------------------------- | ---------------------------------------------------------------------------- |
 | **Package source**   | `packages/arc-framework/arc/` | Authoritative. What adopters receive via `arc init` and `arc update`.        |
 | **Project instance** | `.arc/`                       | Rendered output of the package source, plus project-specific customizations. |
 
@@ -28,7 +28,7 @@ source to reach adopters.
 Edit direction depends on file classification (per [strategy-file-classification.md][file-class]):
 
 | Classification    | Edit direction    | Rationale                                                                             |
-|-------------------|-------------------|---------------------------------------------------------------------------------------|
+| ----------------- | ----------------- | ------------------------------------------------------------------------------------- |
 | **Framework**     | Package → `.arc/` | `.arc/` copy should match package. Edits here are methodology changes that must ship. |
 | **Configurable**  | Both (by section) | Framework sections from package; project-specific sections in `.arc/` only.           |
 | **Scaffolded**    | `.arc/` only      | Project-owned after init. Package has template, `.arc/` has rendered content.         |
@@ -62,26 +62,21 @@ tree by then. Use targeted edits from the start.
 
 ## Template Counterparts
 
-14 files in the package use a `.template.md` suffix, stripped at init time. 6 of these contain
+11 files in the package use a `.template.md` suffix, stripped at init time. Two contain
 `<!-- arc:if -->` conditionals resolved during rendering:
 
-| Template file                        | Conditions                    |
-|--------------------------------------|-------------------------------|
-| `process-task-loop.template.md`      | team.mode, pm.mode (3 blocks) |
-| `session-init.template.md`           | team.mode, pm.mode (5 blocks) |
-| `session-handoff.template.md`        | team.mode (1 block)           |
-| `generate-tasks.template.md`         | team.mode (2 blocks)          |
-| `02_define-project.template.md`      | pm.mode (3 blocks)            |
-| `AGENT-BRIEF.PROJECT.template.md`    | Token substitution only       |
+| Template file                   | Conditions           |
+| ------------------------------- | -------------------- |
+| `session-init.template.md`      | team.mode (2 blocks) |
+| `02_define-project.template.md` | pm.mode (10 blocks)  |
 
 **Editing template files:** When editing a workflow that has a `.template.md` counterpart,
 edit the template in the package source. The `.arc/` rendered copy reflects this project's
 config (`team.mode: false`, `pm.mode: arc-in-git`) — conditional blocks for other modes are
 absent. Don't copy `.arc/` content back to the template without re-adding the conditionals.
 
-**Remaining 6 templates** (ROADMAP, backlogs, PROJECT-PRD,
-TECHNICAL-OVERVIEW, QUICK-REFERENCE) are Scaffolded or Configurable — project-owned content,
-no sync concern.
+The remaining templates use token substitution, static rendering, or scaffold/configurable installation semantics;
+they contain no conditional blocks. `init-recipe.json` is authoritative for template membership.
 
 ## Safeguards
 
@@ -129,7 +124,7 @@ shipped to adopters — only universal checks belong there. This supersedes the 
 **Strategy documents** and **ADRs** serve complementary roles in ARC's documentation system:
 
 | Aspect     | Strategy documents                            | ADRs                                       |
-|------------|-----------------------------------------------|--------------------------------------------|
+| ---------- | --------------------------------------------- | ------------------------------------------ |
 | Content    | Synthesized approaches to problem domains     | Specific decisions made at a point in time |
 | Style      | "How we think about X"                        | "What we chose for X situation"            |
 | Mutability | Updated as understanding evolves              | Immutable once accepted (supersession)     |
@@ -142,8 +137,8 @@ the full ADR lifecycle.
 
 ## File Inventory and Dependency Map
 
-Consolidated listing of all `.arc/` template files with classification, layer, and sync
-status. Paths relative to their respective roots (`.arc/` or `packages/arc-framework/arc/`).
+Recipe-derived inventory of installed files by classification, layer, and sync status. Paths are relative to their
+respective roots (`.arc/` or `packages/arc-framework/arc/`).
 
 **Classification** determines update behavior (see [File Classification Strategy][file-class]
 for taxonomy definitions). **Layer** indicates which framework layer owns the file: **Core**
@@ -152,69 +147,12 @@ arc-in-git files are annotated explicitly.
 
 ### Framework files (must match between copies)
 
-**Reference:**
+Framework is the default classification: every resolved recipe path not listed in the classifier's Scaffolded or
+Configurable sets. The self-hosting configuration currently resolves 86 Framework files. Membership is derived from
+`init-recipe.json` plus `classification.ts`; the generated self-hosting manifest is the reviewable inventory, and
+`framework-sync.test.ts` verifies each installed Framework file against rendered package source.
 
-- `README.md` (root)
-- `reference/adr/README.md`
-- `system/rules/DEV-RULES.ARC.md`
-- `system/rules/README.md`
-- `reference/strategies/README.md`
-- `reference/supplemental/analysis/README.md`
-- `reference/supplemental/research/README.md`
-- `reference/strategies/arc/strategy-adr-methodology.md`
-- `reference/strategies/arc/strategy-configurability-architecture.md`
-- `reference/strategies/arc/strategy-file-classification.md`
-- `reference/strategies/arc/strategy-planning-module.md` · arc-in-git
-- `reference/strategies/arc/strategy-quality-gates.md`
-- `reference/strategies/arc/strategy-session-operations.md`
-- `reference/strategies/arc/strategy-task-list-formatting.md`
-- `reference/strategies/arc/strategy-team-coordination.md`
-- `reference/strategies/arc/strategy-work-organization.md`
-- `reference/strategies/arc/strategy-work-planning.md`
-- `reference/strategies/project/README.md`
-- `reference/strategies/project/style/README.md`
-- `reference/templates/arc/template-adr.md`
-- `reference/templates/arc/template-contributing.md`
-- `reference/templates/arc/work-unit/template-draft.md`
-
-**System:**
-
-- `system/README.md`
-- `reference/briefs/AGENT-BRIEF.ARC.md`
-- `reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`
-- `reference/briefs/README.md`
-- `system/.internal/githooks/README.md`
-- `system/.internal/githooks/commit-msg`
-- `system/.internal/githooks/pre-commit`
-- `system/.internal/scripts/README.md`
-- `system/.internal/scripts/arc-lib.sh`
-- `system/.internal/skills/README.md`
-- `system/.internal/skills/arc-commit/SKILL.md`
-- `system/.internal/skills/arc-handoff/SKILL.md`
-- `system/.internal/skills/arc-plan/SKILL.md`
-- `system/.internal/skills/arc-session/SKILL.md`
-- `system/.internal/skills/arc-setup/SKILL.md`
-- `system/.internal/skills/arc-task-audit/SKILL.md`
-- `system/.internal/skills/arc-task-review/SKILL.md`
-- `system/.internal/skills/arc-verify/SKILL.md`
-- `system/workflows/arc/create-spec.md`
-- `system/workflows/arc/initial-setup/01_verify-and-configure.md`
-- `system/workflows/arc/session-lifecycle/session-loop.md`
-- `system/workflows/arc/supplemental/add-agent.md`
-- `system/workflows/arc/supplemental/clean-work-unit.md`
-- `system/workflows/arc/supplemental/integrate-external-content.md`
-- `system/workflows/arc/supplemental/maintain-project-docs.md`
-- `system/workflows/arc/supplemental/prepare-commits.md`
-- `system/workflows/arc/supplemental/verify-arc-integrity.md`
-- `system/workflows/arc/work-unit-lifecycle/activate-work-unit.md`
-- `system/workflows/arc/work-unit-lifecycle/archive-work-unit.md`
-- `system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
-- `system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md`
-- `system/workflows/arc/work-unit-lifecycle/verify-work-unit.md`
-- `system/workflows/project/README.md`
-- `user/README.md`
-
-### Configurable files (project sections expected to differ) — 26
+### Configurable files (project sections expected to differ) — 35
 
 - `completed/README.md`
 - `system/rules/DEV-RULES.PROJECT.md`
@@ -234,13 +172,22 @@ arc-in-git files are annotated explicitly.
 - `system/extensions/pre-pr-open.md`
 - `system/extensions/post-pr-open.md`
 - `system/extensions/pre-push-review.md`
+- `system/extensions/pre-spec-finalization-review.md`
+- `system/methods/classify-work-unit.md`
 - `system/methods/commit-footer.md`
 - `system/methods/commit-format.md`
-- `system/methods/diff-review.md`
+- `system/methods/frontline-review.md`
+- `system/methods/standard-review.md`
+- `system/methods/implementation-audit.md`
+- `system/methods/review-chunking.md`
+- `system/methods/self-review.md`
 - `system/methods/issue-triage.md`
 - `system/methods/quality-gate-commands.md`
+- `system/methods/resolve-planning-depth.md`
+- `system/methods/review-response.md`
 - `system/methods/review-triage.md`
 - `system/methods/session-state.md`
+- `system/methods/spec-review.md`
 - `system/methods/test-first.md`
 
 ### Package-only files (not in `.arc/` — expected)
@@ -252,6 +199,7 @@ arc-in-git files are annotated explicitly.
 ### Template counterparts (package `.template.md` → `.arc/` `.md`)
 
 - `backlog/ROADMAP.template.md` → `backlog/ROADMAP.md` (Scaffolded · arc-in-git)
+- `backlog/ATOMIC-INBOX.template.md` → `backlog/ATOMIC-INBOX.md` (Scaffolded · arc-in-git)
 - `reference/PROJECT-PRD.template.md` → `reference/PROJECT-PRD.md` (Scaffolded)
 - `reference/QUICK-REFERENCE.template.md` → `reference/QUICK-REFERENCE.md` (Configurable)
 - `reference/TECHNICAL-OVERVIEW.template.md` → `reference/TECHNICAL-OVERVIEW.md` (Scaffolded)
@@ -268,15 +216,17 @@ arc-in-git files are annotated explicitly.
 ### Summary
 
 | Classification | Count | Update Behavior                                       |
-|----------------|-------|-------------------------------------------------------|
-| Framework      | 67    | Wholesale replaced. No conflicts.                     |
-| Configurable   | 16    | Three-way merge. Conflicts expected in user sections. |
-| Scaffolded     | 7     | Skip. Project-owned after init.                       |
+| -------------- | ----- | ----------------------------------------------------- |
+| Framework      | 86    | Wholesale replaced. No conflicts.                     |
+| Configurable   | 35    | Three-way merge. Conflicts expected in user sections. |
+| Scaffolded     | 4     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 90.
+**Self-hosting installed files:** 125. **Template counterparts:** 11. Conditional recipe arms change installed
+membership: external PM adds its setup workflow, arc-in-git adds four planning files, and team mode adds the team
+coordination strategy.
 
-*`DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not counted.*
+_`DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not counted._
 
 ---
 

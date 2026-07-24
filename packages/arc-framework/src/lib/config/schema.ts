@@ -10,6 +10,8 @@ export type ArcConfigFieldPolicy =
   | { readonly kind: "enum"; readonly values: readonly string[] }
   | { readonly kind: "boolean-token" }
   | { readonly kind: "positive-safe-integer"; readonly minimum: number }
+  | { readonly kind: "unsigned-safe-integer" }
+  | { readonly kind: "registry-id-list" }
   | {
     readonly kind:
       | "pattern"
@@ -77,7 +79,7 @@ function booleanField<const Key extends string>(key: Key, defaultValue: "false" 
 
 type StringFieldPolicyKind = Exclude<
   ArcConfigFieldPolicy["kind"],
-  "enum" | "boolean-token" | "positive-safe-integer"
+  "enum" | "boolean-token" | "positive-safe-integer" | "unsigned-safe-integer" | "registry-id-list"
 >;
 
 function stringField<const Key extends string, Schema extends z.ZodType<string>>(
@@ -98,6 +100,7 @@ function stringField<const Key extends string, Schema extends z.ZodType<string>>
 
 const POSITIVE_SAFE_INTEGER_PATTERN = /^0*(?:[1-9]\d{0,14}|[1-8]\d{15}|900719925474099[01])$/u;
 const SAFE_INTEGER_AT_LEAST_TEN_PATTERN = /^0*(?:[1-9]\d{1,14}|[1-8]\d{15}|900719925474099[01])$/u;
+const UNSIGNED_SAFE_INTEGER_PATTERN = /^(?:0|0*[1-9]\d{0,14}|0*[1-8]\d{15}|0*900719925474099[01])$/u;
 
 function positiveSafeIntegerField<const Key extends string>(
   key: Key,
@@ -112,6 +115,26 @@ function positiveSafeIntegerField<const Key extends string>(
     defaultValue,
     quotedEmpty: "invalid",
     policy: { kind: "positive-safe-integer", minimum },
+  } satisfies ArcConfigFieldDescriptor<Key>;
+}
+
+function unsignedSafeIntegerField<const Key extends string>(key: Key, defaultValue: string) {
+  return {
+    key,
+    schema: z.string().regex(UNSIGNED_SAFE_INTEGER_PATTERN),
+    defaultValue,
+    quotedEmpty: "invalid",
+    policy: { kind: "unsigned-safe-integer" },
+  } satisfies ArcConfigFieldDescriptor<Key>;
+}
+
+function registryIdListField<const Key extends string>(key: Key, defaultValue: string) {
+  return {
+    key,
+    schema: z.string(),
+    defaultValue,
+    quotedEmpty: "default",
+    policy: { kind: "registry-id-list" },
   } satisfies ArcConfigFieldDescriptor<Key>;
 }
 
@@ -186,12 +209,14 @@ export const ARC_CONFIG_FIELDS = [
     "unset",
     "pattern",
   ),
-  enumField("review.pre_merge", ["enabled", "disabled"], "enabled"),
   enumField(
     "platform.type",
     ["github", "gitlab", "bitbucket", "azure-devops"],
     "github",
   ),
+  registryIdListField("review.frontline_sources", "[]"),
+  unsignedSafeIntegerField("review.chunking_threshold_lines", "0"),
+  unsignedSafeIntegerField("review.chunking_threshold_files", "0"),
   enumField("pm.mode", ["none", "arc-in-git", "external"], "none"),
   booleanField("team.mode", "false"),
   enumField("session.remote_sync", ["enabled", "disabled"], "enabled"),

@@ -63,16 +63,16 @@ Each schema lives with the subsystem that owns the meaning of the record. No glo
 subsystem semantics. The one cross-subsystem module is an assembly-only registry factory; it imports the owning
 schemas and registers them without changing their behavior.
 
-| Surface | Owning module |
-| --- | --- |
-| Audit entry | `packages/arc-framework/src/lib/release/schema.ts` |
-| Semantic meta record and projection intermediates | `packages/arc-framework/src/lib/active/meta-schema.ts` |
-| Authorable configuration and completed status view | `packages/arc-framework/src/lib/config/schema.ts` |
-| Local sync state and cross-WU note payloads | `packages/arc-framework/src/lib/user-sync/schema.ts` |
-| Decomposition cut map | `packages/arc-framework/src/lib/work-unit/decompose-cut-map-schema.ts` |
-| Git worktree porcelain record and tokenizer | `packages/arc-framework/src/lib/git/worktree-porcelain.ts` |
-| Cold-start input | `packages/arc-framework/src/lib/active/spec-input-parser.ts` |
-| Registry composition only | `packages/arc-framework/src/lib/validation-surfaces/registry.ts` |
+| Surface                                            | Owning module                                                          |
+| -------------------------------------------------- | ---------------------------------------------------------------------- |
+| Audit entry                                        | `packages/arc-framework/src/lib/release/schema.ts`                     |
+| Semantic meta record and projection intermediates  | `packages/arc-framework/src/lib/active/meta-schema.ts`                 |
+| Authorable configuration and completed status view | `packages/arc-framework/src/lib/config/schema.ts`                      |
+| Local sync state and cross-WU note payloads        | `packages/arc-framework/src/lib/user-sync/schema.ts`                   |
+| Decomposition cut map                              | `packages/arc-framework/src/lib/work-unit/decompose-cut-map-schema.ts` |
+| Git worktree porcelain record and tokenizer        | `packages/arc-framework/src/lib/git/worktree-porcelain.ts`             |
+| Cold-start input                                   | `packages/arc-framework/src/lib/active/spec-input-parser.ts`           |
+| Registry composition only                          | `packages/arc-framework/src/lib/validation-surfaces/registry.ts`       |
 
 Exported structural types derive with `z.infer`; migrated handwritten interfaces and structural unions are removed
 or become compatibility re-exports from their established import paths. Domain unions that express decisions rather
@@ -94,12 +94,12 @@ readers may tolerate or discard malformed optional extensions only where that is
 
 `createValidationSurfacesRegistry()` returns a fresh `createKernelRegistry()` with exactly four added roots:
 
-| Registry id | Root schema | Version | Migration posture |
-| --- | --- | --- | --- |
-| `audit-entry` | `AuditEntrySchema` | `2` | `strict-current` |
-| `meta-record` | `MetaRecordSchema` | `1` | `strict-current` |
-| `arc-config` | `ArcConfigSchema` | `1` | `strict-current` |
-| `local-sync-state` | `PersistedLocalSyncStateSchema` | `4` | `backward-compatible` |
+| Registry id        | Root schema                     | Version | Migration posture     |
+| ------------------ | ------------------------------- | ------- | --------------------- |
+| `audit-entry`      | `AuditEntrySchema`              | `2`     | `strict-current`      |
+| `meta-record`      | `MetaRecordSchema`              | `1`     | `strict-current`      |
+| `arc-config`       | `ArcConfigSchema`               | `1`     | `strict-current`      |
+| `local-sync-state` | `PersistedLocalSyncStateSchema` | `4`     | `backward-compatible` |
 
 Registration is discovery metadata, not publication. The factory is independently composable and does not change
 the kernel-only artifact emitted by the current build.

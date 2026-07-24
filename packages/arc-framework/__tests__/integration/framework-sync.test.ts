@@ -25,7 +25,10 @@ import { fileURLToPath } from "node:url";
 import { renderTokens, renderConditionals } from "../../src/lib/template/render.js";
 import { readManifest } from "../../src/lib/manifest/index.js";
 import { buildConfigMap, buildTokenMap } from "../../src/lib/config/index.js";
-import type { Manifest } from "../../src/lib/types.js";
+import { classifyFile, resolveFileList } from "../../src/lib/classification.js";
+import { resolveTemplateOutputPath } from "../../src/lib/layout/index.js";
+import { parseWorkflowFrontmatter } from "../../src/scripts/audit-method-triggers.js";
+import type { Manifest, Recipe } from "../../src/lib/types.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT_DIR = resolve(currentDir, "../../../..");
@@ -137,5 +140,92 @@ describe("framework sync (self-hosting drift check)", () => {
             "(see strategy-package-project-sync.md for direction rules).\n"
         : undefined,
     ).toEqual([]);
+  });
+
+  it("keeps review chunking thresholds as intentional Configurable project overrides", async () => {
+    const path = "system/arc-config.yml";
+    const packageConfig = await readFile(join(PKG_ARC_DIR, path), "utf-8");
+    const projectConfig = await readFile(join(ARC_DIR, path), "utf-8");
+
+    expect(manifest.files[path]?.classification).toBe("Configurable");
+    expect(packageConfig).toContain("review.chunking_threshold_lines: 0");
+    expect(packageConfig).toContain("review.chunking_threshold_files: 0");
+    expect(projectConfig).toContain("review.chunking_threshold_lines: 5000");
+    expect(projectConfig).toContain("review.chunking_threshold_files: 150");
+  });
+
+  it("keeps neutral review customization contracts aligned across both copies", async () => {
+    const paths = [
+      "system/methods/README.md",
+      "system/methods/assess-design-proportionality.md",
+      "system/methods/design-audit.md",
+      "system/methods/self-review.md",
+      "system/methods/frontline-review.md",
+      "system/methods/standard-review.md",
+      "system/methods/implementation-audit.md",
+      "system/methods/review-chunking.md",
+      "system/methods/review-response.md",
+      "system/methods/review-triage.md",
+      "system/extensions/README.md",
+      "system/extensions/pre-pr-open.md",
+      "system/workflows/arc/supplemental/run-errand.md",
+      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    ];
+
+    for (const path of paths) {
+      const [packaged, project] = await Promise.all([
+        readFile(join(PKG_ARC_DIR, path), "utf8"),
+        readFile(join(ARC_DIR, path), "utf8"),
+      ]);
+      expect(project, `${path} must retain the shipped neutral contract`).toBe(packaged);
+    }
+  });
+
+  it("keeps the frontline chunking attachment reference-only and whole-target", async () => {
+    const method = await readFile(join(PKG_ARC_DIR, "system/methods/frontline-review.md"), "utf8");
+    expect(method.match(/review-chunking/gu)?.length).toBeGreaterThanOrEqual(2);
+    expect(method).toContain("canonical target, partition, and coverage state");
+    expect(method).toContain("one aggregate whole-target frontline result");
+    expect(method).not.toContain("per-chunk receipt");
+  });
+
+  it("keeps standard chunking bounded to one exact-target carrier orchestration", async () => {
+    const standard = await readFile(join(PKG_ARC_DIR, "system/methods/standard-review.md"), "utf8");
+    const adversarial = await readFile(join(PKG_ARC_DIR, "system/methods/adversarial-review.md"), "utf8");
+    const guidance = `${standard}\n${adversarial}`;
+
+    expect(standard.match(/review-chunking/gu)?.length).toBeGreaterThanOrEqual(2);
+    expect(standard).toContain("target identity, partition, and coverage state");
+    expect(standard).toContain("one aggregate whole-target standard-review result");
+    expect(adversarial).toContain("bounded chunk-series carrier mode");
+    expect(guidance).not.toMatch(/per-chunk receipt|durable scope identity|review-gate runtime state/iu);
+  });
+
+  it("declares design proportionality at every direct planning consumer", async () => {
+    const workflowPaths = [
+      "system/workflows/arc/draft-design.md",
+      "system/workflows/arc/create-spec.md",
+      "system/workflows/arc/generate-tasks.template.md",
+    ];
+
+    for (const path of workflowPaths) {
+      const content = await readFile(join(PKG_ARC_DIR, path), "utf8");
+      const declarations = parseWorkflowFrontmatter(content);
+      expect(declarations.parseError, `${path} frontmatter`).toBeUndefined();
+      expect(declarations.methods, `${path} direct methods`).toContain("assess-design-proportionality");
+    }
+  });
+
+  it("keeps the self-hosting manifest aligned with recipe-derived membership and classification", async () => {
+    const recipeText = await readFile(join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8");
+    const recipe = JSON.parse(recipeText) as Recipe;
+    const expected = resolveFileList(recipe, conditionals);
+    const expectedOutputs = expected.map((path) => resolveTemplateOutputPath(path)).sort();
+    expect(Object.keys(manifest.files).sort()).toEqual(expectedOutputs);
+
+    for (const templatePath of expected) {
+      const outputPath = resolveTemplateOutputPath(templatePath);
+      expect(manifest.files[outputPath]?.classification, outputPath).toBe(classifyFile(templatePath));
+    }
   });
 });

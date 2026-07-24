@@ -12,9 +12,9 @@
 import { describe, it, expect } from "vitest";
 
 import {
-  normalizeGitConfigValue,
   resolveSessionInitDirtyState,
 } from "../../../src/handlers/status.js";
+import { normalizeGitConfigValue } from "../../../src/handlers/identity-pointers.js";
 
 describe("normalizeGitConfigValue", () => {
   it("returns null for undefined (git config key absent)", () => {

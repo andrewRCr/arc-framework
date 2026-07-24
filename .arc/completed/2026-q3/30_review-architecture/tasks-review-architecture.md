@@ -1,0 +1,1031 @@
+# Task List: review-architecture
+
+- **Design:** `spec-review-architecture.md`
+
+---
+
+## **Phase 1:** Canonical review facts and schema authority
+
+_Purpose:_ Establish the normalized change and work facts plus their runtime-schema authority before any policy,
+gate, or workflow consumes them.
+
+### `[x]` **1.1 Lift canonical change facts into the CLI**
+
+- _Goal:_ CI weight, review risk, ownership, and review routing consume one validated six-status record, with every
+  ambiguous Git shape represented as an unknown change set instead of a weaker parallel interpretation.
+
+    - `[x]` **1.1.a Extract the canonical raw-diff parser and record types**
+        - Added a dependency-free byte parser and raw Git port in `change-facts.ts`; all six statuses retain exact
+          modes and rename/copy endpoints, while malformed framing, object IDs, and UTF-8 fail closed to `unknown`.
+
+    - `[x]` **1.1.b Expose a machine-readable classifier entrypoint**
+        - Added an injectable base/head resolver and native-TypeScript executable that emits stable canonical JSON;
+          real-repository coverage proves unresolved refs fail closed and hostile filenames remain inert raw data.
+
+    - `[x]` **1.1.c Convert the shell classifier into a compatibility adapter**
+        - Moved raw/status reduction, path policy, portability membership, and code-tree identity behind the shared
+          module; the shell retains its public commands and conservative path fallback, with Node 24 pinned before
+          the dependency-free CI classification path.
+
+    - `[x]` **1.1.d Replace review-gate change-path approximations**
+        - Routed GitHub coverage, host projection, self-hosting lane policy, provider locators, and runtime
+          composition through canonical changes; copy/type-change identities and both moved endpoints now survive
+          downstream, while malformed raw input fails closed and code-surface policy uses the shared classifier.
+
+- _Outcome:_ CI classification and review-gate coverage, routing, and risk composition now share one dependency-free
+  raw-diff authority, eliminating the parallel status parser and extension-only code-surface approximation.
+
+### `[x]` **1.2 Resolve ownership and surface authority at exact refs**
+
+- _Goal:_ The router receives one explicit ownership relation and one artifact-authority classification derived
+  from exact target refs, including safe answers for mixed, ownerless, moved, and unverifiable surfaces.
+
+    - `[x]` **1.2.a Normalize ownership across the full change set**
+        - Added a six-relation exact-ref ownership resolver beside the derived legacy lane projection; canonical
+          endpoints now read authoritative metas only where they exist, reduce neutral and known-owner groups with
+          closed precedence, and return `unknown` for unavailable evidence, transitions, or ambiguous moves.
+
+    - `[x]` **1.2.b Classify surface authority independently of ownership**
+        - Added project predicates and a closed strongest-member reducer for formative, design, constitutional,
+          ordinary, derived, and unknown surfaces; both move/copy endpoints participate, declared projections
+          require injected source proof, and malformed inputs or failed policy evaluation resolve to `unknown`.
+
+    - `[x]` **1.2.c Unify review-risk path membership**
+        - Added a shared stable affected-path union and routed review risk through it plus the canonical code-surface
+          predicate; package manifests, shell, fixtures, workflows, project extensions, deletions, and both
+          rename/copy endpoints now share membership, while empty or unresolved sets remain sensitive.
+
+    - `[x]` **1.2.d Preserve CI/review decision independence**
+        - Added a mode-insensitive canonical change-set view and dedicated risk mapper alongside the full CI and
+          authority policies; contract coverage proves light CI documentation may remain design-sensitive and
+          review fact mapping cannot observe verified-tree history.
+
+- _Outcome:_ The canonical change record now feeds three independent project decisions: mode-aware CI weight,
+  status/endpoint-aware review risk, and exact-ref ownership/authority. The legacy lane is only a downstream
+  presentation, so routing can consume closed facts without inheriting CI history or owner-policy shortcuts.
+
+### `[x]` **1.3 Register the review-domain record family**
+
+- _Goal:_ Review-domain runtime records are Zod-authoritative, infer their TypeScript types, register under stable
+  identities, and generate deterministic JSON Schema without centralizing domain semantics in the kernel.
+
+    - `[x]` **1.3.a Define co-located semantic schemas**
+        - Added strict Zod owners for canonical changes, routing facts/decisions, activity and assurance, project
+          promotions, finding primitives, and the independent-analysis contract; exported types infer from those
+          schemas, project reasons remain namespaced, and a closed inventory assigns every later durable record to
+          its semantic owner and stable versioned identity.
+
+    - `[x]` **1.3.b Register stable review schema identities**
+        - Added owner-local registrars with explicit strict-current versions and a review-domain composition
+          entrypoint over caller-owned kernel registries; contract tests preserve the four kernel built-ins, prove
+          repeat-composition rejection, and guard the kernel schema modules from review imports and vocabulary.
+
+    - `[x]` **1.3.c Extend deterministic schema generation and packaging**
+        - Composed the review registrar only in `tsup.config.ts` while retaining the kernel-only projection default;
+          schema-generation and production-artifact tests pin the complete deterministic identity and `$ref` set,
+          and a package dry run proves the generated `dist/schemas/kernel.json` ships through the existing manifest.
+
+    - `[x]` **1.3.d Fence legacy validators during migration**
+        - Added an AST-backed owner-boundary test that requires schema-inferred exported types, schema-only exported
+          values, and registrar-only functions; the exact schema-v1 handwritten-validator importer set is pinned so
+          new validation imports, structural interfaces, parsers, or projections fail the focused contract suite.
+
+- _Outcome:_ Review semantics now compose above the unchanged kernel as strict, owner-local Zod contracts: runtime
+  types derive from schemas, build output is deterministic and publishable, and the forward record-family inventory
+  plus legacy-validator fence prevents later gate, finding, authorization, and operation-state work from introducing
+  adapter-private JSON authorities.
+
+## **Phase 2:** Topology-neutral routing policy
+
+_Purpose:_ Derive review obligations and frontline action from the closed ARC record without coupling policy to
+pull-request count, provider choice, or host mechanics.
+
+### `[x]` **2.1 Implement the ordered review-routing reducer**
+
+- _Goal:_ Every valid or malformed routing input deterministically produces one obligation set, stable reasons, and
+  no invalid independent-analysis/retrigger pairing.
+
+    - `[x]` **2.1.a Implement fail-closed, risk, and routine bases**
+        - Added a field-wise unknown-input normalizer with stable rejected-path diagnostics and conservative defaults,
+          plus a typed pure reducer for maximal unknown/sensitive floors and both routine documentation/code bases;
+          valid assurance and activity fields survive malformed peers, and any rejection forces the unknown route.
+
+    - `[x]` **2.1.b Apply promote-only ownership and authority effects**
+        - Added explicit ascending obligation, frontline, and retrigger lattices; ownership raises independent
+          analysis, while design/constitutional/unverifiable authority raises it to required full-final review, with
+          stable reason coverage and ceiling routes left unchanged.
+
+    - `[x]` **2.1.c Resolve assurance mode and activation adjustments**
+        - Added `Heavy | Novel` terminal assurance after every routing base, then applied independent self-review and
+          frontline activity adjustments; inactive methods cannot produce invocations, independent-analysis stays
+          unchanged, and formative planning remains per-change exempt in heavier work units.
+
+    - `[x]` **2.1.d Validate outputs and project promotions**
+        - Added a typed project-policy callback over normalized facts and strict namespaced promotion records; all
+          effects apply through the shared lattices, close over the retrigger invariant, and reject exceptions,
+          unknown keys, or malformed output without altering the framework decision.
+
+- _Outcome:_ One topology-neutral public boundary now normalizes every field, reduces all risk/content bases,
+  composes framework and project promotions monotonically, applies assurance/activity last, and validates the
+  resulting reasoned decision against the closed runtime schema.
+
+### `[x]` **2.2 Establish activity and WU assurance inputs**
+
+- _Goal:_ The pure router receives explicit activity and WU facts, while a declared stronger rubric survives every
+  lifecycle transition and fails visibly when it cannot be resolved.
+
+    - `[x]` **2.2.a Keep method activity as an injected routing fact**
+        - Added a narrow read port that accepts only effective self-review/frontline booleans, preserves valid peers,
+          defaults rejected fields conservatively with diagnostics, and feeds the router without method-file or
+          override interpretation; each activity adjustment remains isolated from independent analysis.
+
+    - `[x]` **2.2.b Add the WU review-rubric overlay field**
+        - Added `Review Rubric` to the canonical meta projection with `[none]` as semantic absence and one slug-safe
+          rubric/method identity as its only value; paths, instructions, lists, and other sentinels reject, managed
+          lifecycle rewrites preserve it, and the routing-facts schema explicitly excludes the overlay.
+
+    - `[x]` **2.2.c Resolve WU assurance facts without production method binding**
+        - Added a schema-backed WU assurance composer over injected activity and rubric availability; canonical meta
+          parsing preserves the branded identity, malformed values reject, and missing or failed lookup resolves to
+          an explicit unavailable state without binding discovery, providers, or host policy.
+
+- _Outcome:_ Routing inputs now compose from narrow activity and availability ports plus lifecycle-stable WU metadata;
+  the stronger-rubric overlay remains explicit from semantic absence through validated resolution or fail-closed
+  unavailability, while method discovery and activation ownership remain outside the record.
+
+### `[x]` **2.3 Project one independent-analysis requirement per deliverable**
+
+- _Goal:_ Each deliverable exposes one lossless, version-neutral independent-analysis projection that Phase 3 can
+  bind to an exact gate target without rerunning policy or encoding deferred assurance-group algebra.
+
+    - `[x]` **2.3.a Project one logical obligation record per deliverable**
+        - Added a registered immutable obligation projection with stable reasons, rubric identity, retrigger, and
+          fixed `count: 1`; one routing decision yields one record, while exemption stays explicit without target-
+          bound requirement fields.
+
+    - `[x]` **2.3.b Project obligation and retrigger without a second policy decision**
+        - Added a validation-only projector that copies the independent-analysis obligation, reasons, and retrigger
+          directly from the routed decision, composes the validated rubric pair, and excludes self-review/frontline
+          outputs from the frozen downstream policy input.
+
+    - `[x]` **2.3.c Preserve the multi-deliverable seam**
+        - Kept projection cardinality caller-owned: repeated deliverable calls return distinct records, while strict
+          routing validation rejects pull-request count and every projection omits grouping, repository, carrier,
+          provider, request, and target topology.
+
+- _Outcome:_ The routing boundary now terminates in one version-neutral, schema-owned independent-analysis record
+  per deliverable; Phase 3 can bind non-exempt projections to exact targets and add source/admission policy without
+  re-running routing or inheriting author/frontline and future assurance-group concerns.
+
+### `[x]` **2.4 Prove routing totality and fail-closed behavior**
+
+- _Goal:_ Exhaustive and property-style tests make the closed reducer and fact boundary auditable rather than
+  relying only on six representative examples.
+
+    - `[x]` **2.4.a Exhaust the closed routing matrix**
+        - Added exhaustive coverage across all 27,648 schema-accepted fact combinations, proving every input returns
+          a valid decision with a congruent obligation/retrigger pair; pinned the complete framework-reason
+          vocabulary alongside the existing six readable base-route regressions.
+
+    - `[x]` **2.4.b Prove monotonic promotion and activation properties**
+        - Added generated monotonicity assertions for sensitivity, ownership, authority, and project policy plus
+          isolation properties for activation and `Class`; centralized the terminal assurance/activity adjustment
+          so project promotions cannot reactivate a disabled method.
+
+    - `[x]` **2.4.c Exercise the public classifier-to-router boundary**
+        - Added one runtime-validated self-hosting composition boundary and real-Git integration coverage from all
+          six canonical statuses through endpoint-aware risk/authority, exact-ref ownership, and routing; malformed,
+          path-only, four-status, and missing rename/copy origins all fail closed to the unknown route.
+
+- _Outcome:_ Phase 2 routing is now mechanically closed from canonical Git input through one total, monotonic policy
+  result: every schema combination is valid, project promotions cannot bypass activation, and no legacy or malformed
+  change representation can reach normalized routing facts without the maximal unknown floor.
+
+## **Phase 3:** Gate contract and evidence migration
+
+_Purpose:_ Move the review gate onto the forward-only exact-target contract, preserving strict evidence identity
+while adding local satisfaction and typed retrigger applicability without claiming that review settlement is merge
+readiness.
+
+### `[x]` **3.1 Version the gate target, request, requirement, and receipt contracts**
+
+- _Goal:_ The controller admits the new semantic identities only through an explicit forward contract version,
+  while retaining a bounded parser for legacy evidence and projecting only exact-target review obligations.
+- _Context:_ Implements Design §1.4 over `core/contracts.ts`, `core/execution.ts`, `core/receipt-payload.ts`, and
+  the existing exact-key validation suite.
+
+    - `[x]` **3.1.a Characterize the schema-v1 compatibility boundary**
+        - Added one focused fixture family across change request, requirement, source request, receipt envelope,
+          projection, and ledger parsing; exact keys and bare digests remain readable without canonical-prefix
+          coercion, while satisfaction is explicitly characterized only inside the legacy requirement family.
+
+    - `[x]` **3.1.b Define the forward review-target and request schemas**
+        - Added strict registered v2 target/request and ID-preimage schemas plus validating constructors; canonical
+          semantic IDs remain distinct from bare Git OIDs, one request binds one repository/target/requirement/
+          carrier, actor and hosted-carrier invariants reject, and retargeting cannot retain a stale derived ID.
+
+    - `[x]` **3.1.c Define forward requirement and receipt schemas**
+        - Added strict registered v2 requirement/preimage and receipt schemas with inferred types and validated
+          constructors. Requirements derive exact target-bound IDs from normalized policy inputs; receipts bind the
+          exact request, target, requirement, rubric, evaluator, attestor, and explicit nullable applicability/
+          provider identities, with golden vectors covering domains, ordering, sensitivity, and self-ID exclusion.
+
+    - `[x]` **3.1.d Migrate controller projections and ports**
+        - Added a dormant strict-v2 chain reducer and neutral projection, v2-specific receipt/provider/host ports,
+          bounded GitHub check rendering, and a private runtime entrypoint. Exact identities now cross each boundary
+          without admitting legacy evidence or moving provider finding normalization into the neutral core.
+
+### `[x]` **3.2 Bind rubric, guidance, and policy identities**
+
+- _Goal:_ Gate satisfaction proves both the required independent-analysis contract and the exact instructions a
+  carrier received, while policy identity changes whenever obligation or admission semantics change.
+- _Context:_ Implements Design §§1.4 and 2.1.
+
+    - `[x]` **3.2.a Generate the independent-analysis rubric identity**
+        - Added one immutable typed baseline covering exact complete scope, evaluator isolation, the five-dimension
+          implementation audit, finding floor, and clean rule. Its registered domain-separated preimage generates
+          `independent-analysis/v1` plus a pinned digest; semantic drift requires a version change while prose stays
+          outside the identity.
+
+    - `[x]` **3.2.b Bind carrier guidance projections**
+        - Added a registered canonical guidance preimage over the generated baseline and exact effective project
+          documents. Codex resolution and locator/adapter qualification now expose and verify the rubric pair plus
+          forward guidance digest; missing, stale, unreadable, nested-conflicting, or mismatched guidance cannot
+          qualify, while the schema-v1 command digest remains explicitly bounded to compatibility use.
+
+    - `[x]` **3.2.c Expand policy identity inputs**
+        - Added a registered domain-separated policy preimage over normalized obligation, source qualifiers,
+          admission, rubric identity, and retrigger semantics. Requirement construction now derives the digest and
+          validation recomputes it; stale receipts fail membership after any covered policy input changes.
+
+### `[x]` **3.3 Implement exact retrigger and carry-forward proofs**
+
+- _Goal:_ Evidence remains attached to the surface actually reviewed: exact incremental chains may advance it,
+  disjoint tails may carry it, and interacting or final-full conditions retrigger only what policy requires.
+- _Context:_ Implements Design §1.4 and Success Criterion 9.
+
+    - `[x]` **3.3.a Validate incremental and full-final coverage chains**
+        - Added a forward-only reducer over exact v2 target, requirement, request, and receipt links. It accepts
+          contiguous same-source generations, rejects broken or ambiguous bindings and incomplete results, and
+          requires a terminal full record at the settled target for `full-final`.
+
+    - `[x]` **3.3.b Generalize lifecycle-tail carry-forward**
+        - Added a registered v2 lifecycle-tail proof beside the operational v1 bridge. Git classification now binds
+          exact prior/current targets and preserves coverage only when reviewed-surface tree, path-manifest, semantic,
+          policy, rubric, and source identities agree; its strict applicability is limited to review coverage.
+
+    - `[x]` **3.3.c Classify base-reconcile interaction**
+        - Added registered v2 applicability proof/preimage schemas and a canonical-change classifier that normalizes
+          exact reviewed, delta, and intersection manifests. Disjoint deltas carry, interactions and conflicts
+          retrigger incrementally, and receipt coverage must match the intersection or complete stronger delta.
+
+    - `[x]` **3.3.d Wire applicability into controller reduction**
+        - Added a dormant controller reducer that validates typed applicability and lifecycle proofs, carries only
+          policy-compatible prior coverage, requires proof-bound incremental receipts, invalidates stale flights,
+          and projects coverage treatment through the host check. Runtime cases cover bookkeeping, disjoint,
+          interacting, conflict, unbound proof, and final-full paths.
+
+### `[x]` **3.4 Admit local exact-head independent-analysis evidence**
+
+- _Goal:_ A qualified fresh local evaluator can satisfy `independent-analysis/v1` at an exact head without a pull
+  request or hosted provider, through a repository-shared local receipt authority that hosted gates never trust
+  implicitly.
+- _Context:_ Implements Design §2.1 and Success Criterion 4.
+
+    - `[x]` **3.4.a Add the local-change-set carrier contract**
+        - Added a strict local admission contract that revalidates the full repository/base/head snapshot, derives
+          only the fixed `local-change-set` carrier with a null change-request identity, rejects uncommitted and
+          unborn state, and binds separated author, evaluator, and attesting-runtime identities.
+
+    - `[x]` **3.4.b Implement the local receipt authority**
+        - Added a registered repository-scoped v2 receipt ledger and a Git-common-directory store with bounded
+          advisory locking, version-checked atomic publication, idempotent replay, and fail-closed conflict/partial
+          state handling. The reusable publisher separates evidence and operation namespaces, while explicit hosted
+          import revalidates bindings before appending through the destination authority.
+
+    - `[x]` **3.4.c Produce an attested local review receipt**
+        - Added a strict normalized-result attestor that revalidates the still-current target, requirement, local
+          carrier, rubric, evaluator, and runtime/mechanism bindings before appending. Only complete clean or
+          finding results attest; partial, unavailable, failed, stale, self, or mismatched runs fail before storage.
+
+    - `[x]` **3.4.d Qualify local evidence in gate reduction**
+        - Added explicit `local` / `hosted` / `both` source qualification over carrier kind, accepted rubric source,
+          and provider-event shape. Forward evaluation and carry/direct controller paths now refuse unqualified
+          evidence; local receipts satisfy the shared obligation only where project channel policy admits them.
+
+    - `[x]` **3.4.e Cover the local carrier-to-evidence path**
+        - Added real-storage integration coverage from local request construction through clean/finding attestation,
+          durable reads, and check projection. Separate publishers prove sibling-worktree serialization; stale heads,
+          conflicting replay, hosted import validation, namespace isolation, and cross-machine absence fail closed.
+
+### `[x]` **3.5 Migrate strict parsers and invalidate legacy evidence safely**
+
+- _Goal:_ Existing installations fail safely across the forward migration: legacy records remain diagnosable, new
+  records parse strictly, and no stale evidence is silently promoted.
+- _Context:_ Implements Design §1.4's rollout contract and Success Criterion 8.
+
+    - `[x]` **3.5.a Dispatch parsers by explicit contract version**
+        - Added family-specific repository target, requirement, workflow/provider request, receipt, and ledger
+          dispatch over explicit schema/semantics pairs. V1 retains exact bare encodings; v2 reuses canonical
+          identity validators, while unknown versions, mixed composites, mismatched semantics, and coercion fail.
+
+    - `[x]` **3.5.b Mark legacy evidence ineligible**
+        - Added an audit-only eligibility result for parsed v1 receipts with null forward request-reuse and closure
+          authority; only exact v2 composites receive membership keys. Mixed/downgraded receipts, requirements, and
+          projections fail, while all five legacy provider severities and existing dispositions remain unchanged.
+
+    - `[x]` **3.5.c Update durable and workflow fixtures**
+        - Renamed operational qualification builders as explicit legacy-v1 fixtures and marked repair rehearsal data
+          with its live contract posture. Forward target/request/receipt, local-store, and check fixtures remain v2
+          contract proofs, with runbook text stating that they are dormant and carry no hosted merge authority.
+
+## **Phase 4:** Shipped review doctrine and method family
+
+_Purpose:_ Give every review activity, rubric, standard, response cycle, and invariant one explicit layer owner,
+with adopter-facing contracts mirrored through the package source.
+
+### `[x]` **4.1 Ship the review activity, rubric, and standard contracts**
+
+- _Goal:_ Author review, frontline review, implementation audit, and independent analysis are separately named,
+  overridable surfaces whose contracts cannot be confused with carrier or evidence roles.
+
+    - `[x]` **4.1.a Rename author diff review to self-review**
+        - Renamed the package-authoritative method and project mirror to `self-review`, shipped it active by default,
+          retained its aggregate author-side/non-evidence contract, and migrated installation, classification,
+          workflow declarations, indexes, current references, and tests to the new identity.
+
+    - `[x]` **4.1.b Add the implementation-audit rubric**
+        - Shipped the package-authoritative `implementation-audit` method and project mirror with the five
+          medium-neutral change-realization dimensions, complete-change clean rule, grounded finding contract, and
+          override-compatible baseline; registered it for installation and integration-time loading.
+
+    - `[x]` **4.1.c Add frontline-review and independent-analysis contracts**
+        - Shipped package/project method pairs separating inactive advisory pre-publication review from the satisfying
+          non-author exact-change-set standard. Both bind the shared mechanism and rubric without carrier commands,
+          controller procedure, or project source policy; the satisfying contract points to its typed v1 identity.
+
+    - `[x]` **4.1.d Reconcile the adversarial-review mechanism**
+        - Made launch policy caller-owned: offers use the existing callout while required analysis invokes the same
+          mechanism unconditionally. Frontline and local satisfying roles now bind the implementation rubric through
+          this mechanism, with reviewers read-only and only an authorized adapter able to attest an exact-target run.
+
+    - `[x]` **4.1.e Bind activatable methods to routing facts**
+        - Added the typed `self-review: true` / `frontline-review: false` registry, registry-scoped optional `active`
+          frontmatter, package-corpus/default validation, and per-method project resolution with diagnostic fallback.
+          The adapter binds effective booleans through the existing routing port independently of override state.
+
+### `[x]` **4.2 Upgrade review triage to severity × disposition**
+
+- _Goal:_ Every finding carries one materiality level and one approved action, with pure-polish nits represented
+  orthogonally and blocker/major settlement deterministic across local and hosted review.
+
+    - `[x]` **4.2.a Rewrite the override-proof triage contract**
+        - Replaced the conflated four-way labels with orthogonal `blocker | major | minor` severity,
+          `fix | defer | reject` disposition, and minor-only code-review `nit`; the method contract now requires
+          independent source verification and approval of the complete set before any mutation.
+
+    - `[x]` **4.2.b Add the high-miss-cost DEV-RULES anchor**
+        - Added a concise package/project universal rule requiring independent source verification and approval of
+          the complete proposed disposition set before any finding-driven fix, independent of reviewer or channel;
+          procedural classification remains in `review-triage`.
+
+    - `[x]` **4.2.c Migrate finding and settlement records**
+        - Added registered, inferred v2 finding, settlement, and conversation-closure schemas; forward receipts,
+          local attestation, reducers, provider normalizers, and settlement runtimes now carry the shared severity ×
+          disposition primitives. Provider labels normalize only at adapter boundaries, `nit` requires explicit
+          pure-polish evidence and minor severity, and legacy labels remain confined to v1 diagnostic evidence.
+
+    - `[x]` **4.2.d Update disposition reports and commit records**
+        - Added the channel-neutral report and commit-body formats plus registered canonical disposition-set and
+          approval schemas. Exact target, policy, rubric, findings, rationale, recommendation, questions, and actors
+          now bind approval; forward settlement rejects stale, partial, changed, or absent approval before mutation.
+
+- _Outcome:_ Review findings now move through one override-proof source-verification → complete proposal → exact
+  approval boundary, with shared severity/disposition records across local and hosted channels and deterministic
+  evidence that prevents individual fixes from bypassing the approved set.
+
+### `[x]` **4.3 Ship the channel-neutral review-response contract**
+
+- _Goal:_ Local and hosted findings enter one bounded author-side cycle that verifies, approves, fixes, validates,
+  persists, and returns authority-specific closure work to its adapter.
+
+    - `[x]` **4.3.a Define review-response inputs and outputs**
+        - Shipped the configurable `review-response` method and registered strict input/plan schemas. The planner
+          accepts exact targets, normalized findings, routing, approval, evidence, and capability facts only; it
+          emits one of the six response states with legal capabilities, precomposed action text, approved
+          dispositions, verification references, old/new targets, and explicit blocking status.
+
+    - `[x]` **4.3.b Encode the bounded response cycle**
+        - Bound method execution to the planner-selected author leaf: complete-set approval or one approved fix
+          increment with quality evidence. Persistence, adapter reply/closure, and retrigger selection remain
+          caller-owned; changed heads return through `reroute`, and blocked states cannot mutate.
+
+    - `[x]` **4.3.c Define channel-specific etiquette boundaries**
+        - Local review now ends at its disposition report; hosted plans emit only per-finding actions backed by
+          authenticated reply/thread capabilities. Strict schemas reject local, duplicate, and foreign conversation
+          actions, while the method forbids roll-up noise, provider impersonation, and resolution-as-authority.
+
+    - `[x]` **4.3.d Define shared review-operation state**
+        - Added the injected, versioned `ReviewOperationStateStore` port and registered inferred `frontline-run` /
+          `review-suspension` schemas. Strict variants bind exact invalidation and re-entry facts while rejecting
+          controller conclusions, approvals, authorizations, receipts, narrative actions, and unknown fields.
+
+    - `[x]` **4.3.e Implement the project operation-state adapter**
+        - Added a Git-common-directory operation store over the shared bounded-lock/atomic-publish primitive. Strict
+          version and identity checks preserve recoverable records, identical sibling-worktree replay is idempotent,
+          and facts-only suspension reconstruction remains structurally outside receipt and evidence parsing.
+
+- _Outcome:_ One typed response family now spans deterministic author actions, channel-owned conversation effects,
+  and resumable local operation continuity while preserving exact approval boundaries and keeping operational state
+  categorically outside review evidence authority.
+
+### `[x]` **4.4 Retire the legacy toggle and reconcile hook vocabulary**
+
+- _Goal:_ The review feature family uses method activation and settled lifecycle hooks, while generic commit/push/PR
+  extensions retain their names and capabilities without carrying semantic review roles.
+- **Additional Context:** `strategy-configurability-architecture.md` §§ Extension Points and Method Overrides;
+  `strategy-workflow-authoring.md` §§ Author-side Declaration Rule and Body Conventions.
+
+    - `[x]` **4.4.a Remove `review.pre_merge` from the live config surface**
+        - Removed the legacy key from package/project config, validation, typed/default settings, operator docs, and
+          fixtures. Integration now keys local preflight directly from effective `self-review` activation, and the
+          retired key fails shell validation as unknown instead of surviving behind a renamed config toggle.
+
+    - `[x]` **4.4.b Preserve generic extension semantics**
+        - Restored the project `pre-pr-open` extension to its inactive, action-neutral package baseline, removing
+          classification, billing-label, provider, triage, and review-routing policy while retaining the same
+          proposed-change-request input, lifecycle fire point, authored-order halt, and retry-safe contract.
+
+    - `[x]` **4.4.c Reconcile workflow declarations and fire points**
+        - Consolidated integration's duplicate pre-push prose into one workflow-wide contract while retaining exact-
+          head `pre-merge` settlement, and made sync retry re-fire the extension. The trigger audit now checks
+          declaration plus prior firing for every class-tagged push, wrapper command, and pushing `arc sync` across
+          integration, Errand, and lifecycle workflows; guidance assigns direct CLI/raw enforcement to hooks/hosts.
+
+    - `[x]` **4.4.d Update configurability documentation and validation**
+        - Documented activation independently from override composition, aligned method/extension inventories and
+          project/package copies, and closed both frontmatter schemas against unknown or cross-kind fields. Extended
+          package-neutrality, parser, corpus, and framework-sync coverage around the settled review surfaces.
+
+- _Outcome:_ Review customization now has one owner per concern: registered method activation controls whether an
+  activity runs, method overrides control how it runs, and generic extensions retain operation-boundary semantics.
+  Closed-schema and corpus checks prevent the retired toggle or review-specific extension drift from returning.
+
+### `[x]` **4.5 State the enforcement and rubric-delivery boundaries**
+
+- _Goal:_ Shipped guidance tells projects exactly which surfaces are ergonomics, which evidence satisfies review,
+  and which host-side check can enforce merge safety—without claiming this repository's controller is operational.
+
+    - `[x]` **4.5.a Document agent ergonomics versus host guarantee**
+        - The ARC brief, session-operations strategy, and review method contracts now identify agent-side review as
+          best-effort ergonomics and reserve structural merge safety for a configured required host check. The
+          self-hosting technical overview separately records that its controller is not operational merge authority
+          and preserves the established manual integration path pending later qualification and promotion work.
+
+    - `[x]` **4.5.b Project the rubric into native reviewer surfaces**
+        - Added a strict additive project-rubric schema plus generic projection, exact-source validation, and a
+          package-neutral human checklist renderer derived from the typed `independent-analysis/v1` baseline. The
+          projection carries rubric identity and content only; its closed schema has no coordination, author-state,
+          approval, receipt, or controller-state channel.
+
+    - `[x]` **4.5.c Document the generic adapter boundary**
+        - Documented the provider-neutral delivery seam: adapters project the typed baseline plus optional additive
+          project dimensions into native instruction/configuration surfaces, validate effective exact-target content,
+          and record its guidance identity without making that projection rubric, evidence, or merge authority.
+
+- _Outcome:_ Review authority is now explicit end to end: the typed baseline owns the satisfying standard, native
+  projections prove delivered content, attestations establish eligible exact-target evidence, and only a configured
+  required host check can structurally block merge. Repository-specific carrier rollout remains unclaimed.
+
+## **Phase 5:** Frontline execution and carrier binding
+
+_Purpose:_ Turn the router's frontline decision into a provider-neutral, authorization-preserving execution path
+that shapes review spend without producing satisfying evidence.
+
+### `[x]` **5.1 Resolve source fallback and invocation precedence**
+
+- _Goal:_ One pure resolver turns activation, smart routing, source binding, and a one-run override into a complete
+  `skip | offer | attempt` record without probing or executing the selected source.
+
+    - `[x]` **5.1.a Implement the source fallback chain**
+        - Added deterministic invocation → developer → project → unbound resolution through an injected preference
+          port and local `arc.frontlineSource` / `review.frontline_source` adapter. The closed registry maps safe IDs
+          only to typed agent capability handles or direct executable-plus-argv descriptors; invalid values and
+          storage failures remain diagnosed, and no self-hosting provider binding ships here.
+
+    - `[x]` **5.1.b Apply invocation override precedence**
+        - Added a strict `inherit | force | skip` invocation schema and pure precedence resolver: `force` activates
+          an attempt for one run, `skip` rejects source input, and `inherit` preserves smart routing while allowing
+          source selection without persisting either override.
+
+    - `[x]` **5.1.c Produce the complete semantic result**
+        - Composed invocation and source resolution into a validated `frontline-review/v1` record with stable reasons,
+          typed source descriptors, bounded pass allowance, and precomposed review or binding text. Source-less
+          attempts become actionable offers; skip and attempt invariants are schema-enforced, and diagnostics survive.
+
+    - `[x]` **5.1.d Expose a workflow-facing resolution verb**
+        - Added `arc review frontline resolve <file | ->` and an injectable API that accept explicit versioned
+          change-set facts and invocation intent, fail malformed facts closed, and emit one JSON result. The CLI
+          resolves only composition-owned registered descriptors, while the API remains non-executing.
+
+- _Outcome:_ Frontline resolution is now one provider-neutral path from normalized change facts through smart action,
+  one-run precedence, private/project source fallback, and a versioned workflow result. Configuration can select safe
+  source IDs, but carrier preparation and process authorization remain separate downstream stages.
+
+### `[x]` **5.2 Execute frontline carriers with typed outcomes**
+
+- _Goal:_ Accepted frontline attempts execute the selected carrier against the exact aggregate target and return a
+  truthful provider-neutral outcome without ever producing independent-analysis evidence.
+
+    - `[x]` **5.2.a Add agent and command carrier adapters**
+        - Added effect-free preparation for registered agent handles and direct executable-plus-argv descriptors.
+          Harness adapters return `ready | needs-authorization | unavailable | invalid`; only `ready` carries an
+          execution capability, while authorization needs become a precomposed one-run offer without spending a pass.
+
+    - `[x]` **5.2.b Normalize execution outcomes**
+        - Added a validated provider-neutral outcome record binding every result to its typed source, exact review
+          target, and bounded pass. Explicit clean and finding results remain distinct; rate limits normalize to
+          unavailable, while ambiguous, partial, malformed, stale-head, and provider failures can never become clean.
+
+    - `[x]` **5.2.c Feed findings through the universal checkpoint**
+        - Added a narrow adapter admitting only normalized frontline finding outcomes into the existing local
+          `review-response` planner. Complete source-verified disposition approval gates fix capability; changed-target
+          verification, affected-gate evidence, persistence, and rerouting remain required without carrier authority.
+
+    - `[x]` **5.2.d Enforce bounded follow-up policy**
+        - Added an exact-outcome follow-up resolver that permits pass two only after matching approved dispositions
+          contain a `major | blocker` fix and the target changed. Minor/deferred findings, reduced limits, exhausted
+          caps, unchanged targets, provider failure, and unavailability all stop without becoming clean.
+
+- _Outcome:_ Carrier preparation, execution normalization, finding response, and bounded rerouting now form one typed
+  advisory pipeline. Only authorized ready carriers execute, every result stays exact-target-bound, and neither
+  provider output nor project activation can bypass disposition approval or mint independent-analysis evidence.
+
+### `[x]` **5.3 Qualify structured CodeRabbit output with a safe fallback**
+
+- _Goal:_ The repository uses CodeRabbit structured output only when bounded live observations plus reproducible
+  failure fixtures prove enough of its contract for truthful normalization.
+
+    - `[x]` **5.3.a Capture bounded `--agent` qualification fixtures**
+        - Recorded sanitized CodeRabbit CLI `0.6.5` agent observations for empty-uncommitted and clean scoped-directory
+          completion, then added the findings shape observed during a bounded committed fix-delta review. Synthetic
+          injected-command cases cover rate limit, malformed output, stale head, refusal, and process failure without
+          deliberately provoking those live-provider states.
+
+    - `[x]` **5.3.b Select structured or plain compatibility parsing**
+        - Selected version-pinned `--agent` parsing after bounded observations established both clean and findings
+          contracts. The CLI `0.6.5` NDJSON parser accepts validated finding events plus one successful terminal event;
+          count mismatch, duplicate completion or finding identity, skipped/unknown/empty output, version drift, rate
+          limit, stale head, refusal, and process failure stay non-clean. The plain parser remains compatibility code.
+
+    - `[x]` **5.3.c Integrate CodeRabbit frontline execution**
+        - Bound self-hosting source `coderabbit-cli` to a direct `coderabbit review --agent --type committed` adapter
+          with exact diff-base argv and before/after HEAD checks. Pinned parsing feeds provider-neutral outcomes,
+          preserves structured findings for author-side triage, and reports truthful rate-limit unavailability;
+          hosted `coderabbit-pr` remains a separate provider identity.
+
+- _Outcome:_ Bounded qualification selected the structured agent-mode adapter for both exact clean and findings
+  outcomes while every unknown or failed shape stays non-clean. The project binding activates only the local CLI
+  source and does not alter hosted review capacity or evidence authority.
+
+### `[x]` **5.4 Wire frontline into work-unit and Errand publication**
+
+- _Goal:_ Both publication paths execute the router-selected frontline action at the aggregate pre-PR boundary,
+  then enter the ordinary PR lifecycle with an exact, settled head.
+- **Additional Context:** `strategy-workflow-authoring.md` §§ Author-side Declaration Rule, Prose economy, and Verbs
+  over mechanics.
+
+    - `[x]` **5.4.a Add the work-unit frontline fire point**
+        - The work-unit publication path now resolves the pushed aggregate target, executes only the selected
+          frontline action, routes findings through approved response and persistence, and re-resolves bounded
+          follow-up work before generic pre-creation extensions and change-request creation.
+
+    - `[x]` **5.4.b Add the Errand frontline fire point**
+        - Full-protection Errands now run the same exact-target frontline resolution, approved response, persistence,
+          and bounded reroute cycle before PR resolution; merge lanes remain presentation-only and partial-protection
+          direct-base Errands stay outside the PR-only path.
+
+    - `[x]` **5.4.c Surface frontline outcome without gate claims**
+        - Added deterministic exact-target/source/generation operation keys, source-binding and policy invalidation,
+          pending-before-effect plus terminal outcome publication, unchanged-binding replay, and fail-closed identity
+          conflicts through `ReviewOperationStateStore`. Publication surfaces remain provider-neutral and advisory,
+          while gate reduction now validates and rejects non-evidence records at runtime.
+
+    - `[x]` **5.4.d Validate extension and publication contracts**
+        - Extended the focused ARC contract slice across work-unit and Errand ordering, partial-protection exclusion,
+          replay/invalidation and pending publication, provider-neutral workflow content, framework mirroring, method
+          activation and offers, bounded outcomes, and local optimistic-concurrency conflict behavior.
+
+- _Outcome:_ Work-unit and full-protection Errand publication now share one provider-neutral exact-target frontline
+  cycle before generic PR hooks. Durable operation replay prevents duplicate unchanged-target work without creating
+  evidence or gate authority, while every changed binding reroutes and direct-base Errands remain outside PR mechanics.
+
+## **Phase 6:** Review response and integration autonomy
+
+_Purpose:_ Preserve exact-head authority and finding-fix approval before mutation while allowing a fully reviewed
+provisional integration candidate to compose, reconcile, suspend, and re-enter between genuine developer decisions.
+
+### `[x]` **6.1 Graduate the project coordinator behind review-response**
+
+- _Goal:_ Local and hosted obligations enter one source-neutral coordination cycle while
+  `coordinate-pr-review.md` retains repository-specific host/provider mechanics and the reusable finding cycle
+  lives once in `review-response`.
+
+    - `[x]` **6.1.a Split neutral response from project action/await mechanics**
+        - The project coordinator now executes the six `review-response` planner states for verification, approved
+          mutation, persistence, closure, and rerouting while retaining typed controller action/await commands plus
+          exact-head and actor-authorization validation at the project boundary.
+
+    - `[x]` **6.1.b Adapt controller findings and native conversations**
+        - Added strict source-locus-bound adapter variants: controller findings return opaque receipt, reply, and
+          thread-state handles with declared resolution capability, while provider-native findings return reply,
+          thread-state, and decisive-review handles without acquiring controller closure authority.
+
+    - `[x]` **6.1.c Recompose after every head or policy change**
+        - The coordinator now binds each iteration to canonical target, policy, lifecycle-tail, and provider-event
+          identities; every authority-bearing change forces canonical rerouting before another action.
+        - Substantive fixes and interacting reconciles discard the composition basis, while carry-forward requires a
+          typed applicability proof that the reviewed work-unit delta is unchanged.
+        - Project contracts cover the stale, exempt, recommended, required, and attention dispatch arms.
+
+    - `[x]` **6.1.d Coordinate source-neutral independent analysis**
+        - The coordinator now consumes typed routing plus explicit `local | hosted | both` policy, materializes exact
+          carrier inputs, normalizes and attests eligible terminal evidence, reduces the requirement, and routes
+          findings through `review-response` without retaining resident execution state.
+        - Local review runs `adversarial-review` under `implementation-audit` without author conclusions and requires
+          the exact-head attestor; hosted trigger, await, and conversation authority stays behind project adapters.
+        - Unavailable, partial, and failed results remain non-satisfying and block only required obligations. Work-unit
+          and Errand integration invoke the same cycle and reroute after every approved head change.
+
+- _Outcome:_ The project coordinator now composes exact-target local and hosted evidence through one bounded cycle,
+  while the neutral `review-response` planner remains the sole finding-response procedure. Project adapters retain
+  host authority, and both WU and Errand integration share the same rerouting and failure semantics.
+
+### `[x]` **6.2 Enforce approved dispositions and authoritative settlement**
+
+- _Goal:_ No local or hosted finding mutates the tree before the complete disposition set is approved, and no
+  conversation closes without the authority that owns it.
+
+    - `[x]` **6.2.a Add an explicit disposition-set approval state**
+        - Added registered, inferred proposed/approved disposition-state variants over the canonical set and approval
+          records. Approval now binds the exact target/set, distinct approving actor, and timestamp at the Zod and
+          semantic-validation boundaries.
+        - The response runtime consumes one strict state instead of nullable set/approval pairs; v2 settlement records
+          retain the approved-set identity and approval while schema-v1 past-tense actions remain ineligible.
+        - Test-first rejection coverage now holds missing, partial, stale, changed-finding, same-actor, and attempted
+          pre-approval fixes outside mutation-capable planner states.
+
+    - `[x]` **6.2.b Apply one authorized review-fix increment**
+        - Added registered v2 authorization/preimage/consumption records: approval mints an old-target and approved-set
+          authorization without predicting a new head, while consumption binds the actual old/new targets, applying
+          actor, and affected-gate references exactly once.
+        - Forward response plans expose authorization only at `ready-to-fix`; semantic and persisted-set guards reject
+          missing, ambiguous, invalid, stale, mismatched, or reused authority before mutation.
+        - Local fix handling now orders exact-target reread → authorized mutation → affected gates → caller-interlocked
+          commit → consumption. Forward settlements retain the complete consumption; legacy schema-v1 receipt payloads
+          remain unchanged and ineligible, while non-fix dispositions never mint fix authority or move the target.
+
+    - `[x]` **6.2.c Close each channel with its own authority**
+        - Registered distinct controller-source-confirmed, provider-native-decisive, and local-disposition-terminal
+          records. Controller closure now validates same-source evidence before any host mutation; host resolution is
+          retained only as optional observation.
+        - Provider-native closure requires canonical decisive approval and resolved-conversation evidence together,
+          while local review terminates on the exact approved disposition report without a synthetic conversation.
+        - Response plans declare the required authority per action and reject bare resolution, generic approval,
+          coordinator claims, changes-requested/review-required state, and provider ignore commands.
+
+    - `[x]` **6.2.d Make severity gating deterministic**
+        - Added a registered project policy and pure severity reducer: blocker/major always block, nits never block,
+          ordinary minors follow `minorGating`, and package plus self-hosting defaults are `record-only`.
+        - Terminal reduction retains every approved finding, requires exact local/controller/provider closure authority,
+          blocks qualifying recurrences, and preserves provider-native requested changes and required conversations as
+          independent blockers without prompting another round for record-only findings.
+
+- _Outcome:_ Forward review response now has one exact approval → single-use fix → authority-specific closure chain,
+  with deterministic severity gating over the complete disposition set. ARC can terminate record-only findings without
+  review churn while remaining unable to weaken blocking severity, recurrence, provider-native state, or conversation
+  authority.
+
+### `[x]` **6.3 Add resilient review suspend-and-reenter behavior**
+
+- _Goal:_ Asynchronous review can outlive the current process, context window, or machine and resume from durable
+  `Integrating` state without a live-session pin or silent stall.
+
+    - `[x]` **6.3.a Define the durable suspension record and re-entry check**
+        - Added a registered, non-persistent re-entry result over the existing strict suspension record and
+          version-checked operation store. An absent machine-local record publishes only with expected version zero;
+          conflicts refuse before live observation.
+        - Re-entry now validates the current exact target, derives response plans and narrative text from a live
+          observer, and distinguishes pending, clean, findings, stale target, timeout, and failed/unavailable states
+          without persisting conclusions or consulting narrative meta fields.
+
+    - `[x]` **6.3.b Prefer the promoted watcher capability when available**
+        - Added an injected `ReviewWakeupCapability` that arms only from the strict suspension's operation, vehicle,
+          target/request, generation, deadline, and deduplication token; fake coverage proves the complete binding.
+        - A null capability returns the ordinary fallback without provider conclusions. Production assembly remains
+          unbound, and source-contract coverage prevents coupling to the current controller/wakeup runtime.
+
+    - `[x]` **6.3.c Support scheduled and human re-entry fallbacks**
+        - Added an injected harness scheduler that receives the exact deduplicated wakeup request and refuses a run
+          later than the suspension deadline. Scheduler absence leaves the vehicle suspended with explicit source-state/
+          deadline and WU-or-Errand resume instructions.
+        - Timeout and failed/unavailable provider results now map to the same human-reentry record shape without being
+          mistaken for clean review or silently retried.
+
+    - `[x]` **6.3.d Validate session and machine resilience**
+        - Added Git-common integration coverage for WU handoff, next-session store reuse, Errand reconstruction on an
+          absent machine-local store, explicit suspended fallback, and duplicate idempotent canonical rereads.
+        - Scheduled actions now validate operation, target/request, generation, and deduplication token against the
+          current suspension; stale actions refuse before observing live review state.
+
+- _Outcome:_ Review waits now persist only invalidation-safe suspension facts and re-enter through freshly observed
+  target/provider state. The promoted-watcher → bounded-schedule → explicit-human hierarchy survives session and
+  machine loss for both WUs and Errands, while conflicts, stale wakeups, timeouts, and provider failures remain visible
+  non-clean states.
+
+### `[x]` **6.4 Reshape work-unit composition and late base reconcile**
+
+- _Goal:_ Integration returns the developer only for disposition approval and merge authorization, while content
+  composition and safe late base reconciliation form a provisional candidate that is reviewed in full at the
+  exact-head merge decision and cannot appear merge-ready before its required lifecycle products exist.
+- **Additional Context:** `strategy-workflow-authoring.md` §§ Prose economy, Verbs over mechanics, and Interlock
+  markers; `strategy-procedure-evolution.md` §§ Forward-Compat Principles 1–6.
+
+    - `[x]` **6.4.a Define and assemble the provisional integration candidate**
+        - Added the sole bounded review-increment exception for the post-settlement candidate tail while preserving
+          structured approval for implementation/finding fixes and exact-head authorization as the only merge release.
+        - Made the source-neutral cycle's `review-settled` reduction the candidate-entry state, removed both composition
+          proceed turns, and retained stops for material disagreement, failed gates, conflicts, and unexpected state.
+        - Bound autonomous cleanup and composition to the settled change set, completed outcomes, spec intent,
+          success-criteria disposition, and verification evidence, with recomposition after corrections or interaction.
+
+    - `[x]` **6.4.b Harden public release notes and completion composition**
+        - Restricted Release Notes to shipped public outcomes, excluding internal identifiers, workflow machinery,
+          and unshipped plans while permitting supported review concepts/configuration when they are the product.
+        - Bound Infrastructure and breaking-change language to external operational impact, affected stability
+          contracts, and migration; Completion Notes now separate delivered scope, deviations, and verified evidence.
+        - Made the final interlock surface the exact cleanup/composition/cohort/archive/readiness/reconcile tail rather
+          than excerpts, keeping the whole provisional candidate visible at disposition time.
+
+    - `[x]` **6.4.c Consolidate to one late base-reconcile location**
+        - Removed the pre-composition reconcile and made the candidate's final mutation site accept only a stable,
+          typed, disjoint base OID; conflicts, substantive interaction, degraded evidence, and host disagreement stop.
+        - After an append-only merge, typed applicability carries composition only for an unchanged WU delta; the new
+          head is pushed, reruns CI/routing before `pre-merge`, and loops at the same late site on further base movement.
+
+    - `[x]` **6.4.d Preserve an unbroken exact-head merge window**
+        - Added cadence-specific authoritative lifecycle checks before final `pre-merge`, then bound checks,
+          conversations, requirements, lifecycle readiness, and the complete candidate-tail diff to the approved head.
+        - Head/PR/base rereads now directly precede merge without mutation or review action; any candidate mutation
+          invalidates the checkpoint and prospective authority.
+        - Prohibited direct, auto, or queued merge before lifecycle products and the final integration-interlock,
+          which remains the sole merge authority.
+
+    - `[x]` **6.4.e Update candidate correction, resume, and failure behavior**
+        - Added append-only correction and failure recovery that reruns affected gates/routing and refires the exact-
+          head interlock; resolver re-entry now distinguishes integrating, swept-open, and already-merged candidates.
+        - Expanded workflow regression coverage across composition, reconcile, cadence, stale authority, swept/merged
+          resume, cleanup, and a corpus guard proving every WU lifecycle merge follows its product and final interlock.
+
+- _Outcome:_ Work-unit integration now advances autonomously from authoritative review settlement through a complete
+  provisional candidate, with public composition, one typed late reconcile, and cadence-qualified lifecycle products.
+  The developer returns only for finding disposition or exact-head merge authorization, and mutation, failure, stale
+  state, or incomplete products cannot inherit or manufacture merge readiness.
+
+### `[x]` **6.5 Align Errand review and final-head settlement**
+
+- _Goal:_ Full-protection Errands use the same routing, response, retrigger, and final-head authority as work units
+  without inheriting WU composition or task-list ceremony.
+
+    - `[x]` **6.5.a Recompose Errand review around the shared methods**
+        - Declared the shared independent-analysis/audit/triage methods and routed exact Errand targets through optional
+          frontline, source-neutral coordination, approved response, and vehicle-neutral suspension/re-entry state.
+        - Atomic determinacy is now an explicit routing fact while auto/reviewed lanes resolve only after settlement as
+          presentation; suspension uses watcher/schedule/human fallbacks without synthesizing WU lifecycle state.
+
+    - `[x]` **6.5.b Preserve exact final-head settlement and merge authority**
+        - Bound full-protection Errands to strict vehicle identity, authoritative base freshness, typed
+          carry/retrigger behavior, generic push coordination, and final `pre-merge` ordering before exact-head
+          integration authorization.
+        - Revalidated the approved head immediately before a head-bound lane action, kept vehicle-qualified Errands
+          outside WU composition products without absence inference, and preserved partial protection's direct-base
+          path without PR integration ceremony.
+
+    - `[x]` **6.5.c Extend Errand lifecycle coverage**
+        - Covered clean and unavailable frontline outcomes, findings/fix cycling, recommended versus required
+          independent review, exact-target suspension/re-entry, exact-head auto-merge and owner-review lanes, and
+          already-merged cleanup including unattended finalization.
+
+- _Outcome:_ Errands now share the review architecture's typed evidence and exact-head authority while retaining
+  vehicle-specific continuity, direct-base partial protection, and cleanup semantics without WU products.
+
+## **Phase 7:** Rollout and cross-surface coherence
+
+_Purpose:_ Reconcile project bindings, hosted guidance, package mirrors, and end-to-end coverage so the new review
+architecture lands as one coherent forward contract.
+
+### `[x]` **7.1 Migrate self-hosting policy and hosted-review guidance**
+
+- _Goal:_ Repository-specific policy binds the neutral records, local/hosted sources, and native guidance without
+  preserving rejected lanes or implying that live enforcement is enabled.
+
+    - `[x]` **7.1.a Replace the self-hosting lane decision**
+        - Rebased self-hosting decision/reduction and production runtime composition on normalized routing facts and
+          obligations, with ownership and review-risk policy identities replacing lane-named policy inputs.
+        - Removed the standalone lane reducer, retained `auto | reviewed` only as a derived legacy check projection,
+          preserved canonical change modes across the GitHub host boundary, and left lifecycle readiness outside this
+          subsystem.
+
+    - `[x]` **7.1.b Bind local, hosted, and human sources**
+        - Bound local agent runtimes, hosted CodeRabbit/Codex, and qualified-human sources to explicit channel,
+          baseline/project guidance, admission, request, closure, attestation, and hosted-import identities.
+        - Kept source qualification/capacity outside obligation routing, rejected approving/applying actors as source
+          policy, and fixed the repository posture at manual merge authority with inactive live-controller authority.
+
+    - `[x]` **7.1.c Update native review instruction projections**
+        - Projected the typed baseline plus self-hosting augmentation through managed blocks in root `AGENTS.md`,
+          CodeRabbit's repository-wide path instruction, and the local/qualified-human attestation checklist while
+          retaining `CLAUDE.md` inheritance.
+        - Added carrier-specific digest/admission records and exact managed-content validation; hosted Codex now
+          rejects missing or stale root projections, accepts inherited or identical repeats, and rejects differing
+          effective nested sets.
+        - Extended guidance, package, controller, and repository-carrier coverage without exposing coordination or
+          controller state through reviewer instructions.
+
+    - `[x]` **7.1.d Reconcile Actions, commands, and operator docs**
+        - Added a closed private operation map binding every launcher/mode to its entrypoint keys, npm command,
+          workflow, operator document, and dormant-forward/qualification/outage authority class; corpus tests reject
+          missing surface bindings and public CLI exposure.
+        - Updated the operator rubric example, attestation contract, and PR coordination workflow to require forward
+          v2 records while retaining exact v1 parsing and ledger history only for upgrade, audit, diagnostics, and
+          qualification fixtures.
+        - Preserved manual merge authority and the separate setup, qualification, promotion, outage, and downstream
+          lifecycle-readiness boundaries.
+
+- _Outcome:_ Self-hosting policy, native guidance carriers, and executable operator surfaces now share one typed
+  forward contract with explicit source/admission identities and closed surface coverage, while qualification,
+  promotion, lifecycle readiness, and merge authority remain outside the dormant controller.
+
+### `[x]` **7.2 Prove routing-to-gate behavior across adapters and workflows**
+
+- _Goal:_ Cross-module tests demonstrate that the architecture preserves its contracts from Git facts through
+  routing, review execution, evidence, response, lifecycle re-entry, and merge authorization.
+- _Context:_ Operationalizes Success Criteria 4–12 without duplicating the unit behavior lists in earlier tasks.
+
+    - `[x]` **7.2.a Add cross-layer integration scenarios**
+        - Added cross-layer routing matrices for atomic/ordinary/sensitive/unknown changes, foreign ownership,
+          constitutional authority, inactive methods, and rubric overlays with exact obligation, frontline, and
+          retrigger assertions.
+        - Exercised local-only and hosted-only v2 chains through exact target/request construction, separated local
+          attestation or hosted evidence, forward eligibility/reduction, explicit `both` admission, and cross-channel
+          substitution refusal while preserving inactive controller/manual merge authority.
+
+    - `[x]` **7.2.b Exercise finding and re-entry scenarios**
+        - Added cross-layer finding-response coverage for approved fix/defer/reject dispositions, mixed severity,
+          local disposition reports, and provider-native decisive conversation authority without allowing ARC
+          record-only state to override native requested-change or unresolved-conversation state.
+        - Exercised durable suspension through pending preservation, scheduled and explicit human re-entry, exact
+          wakeup validation, timeout escalation, stale-head rerouting, and bounded frontline pass-cap exhaustion.
+
+    - `[x]` **7.2.c Exercise lifecycle and migration scenarios**
+        - Added cross-layer lifecycle coverage for WU and Errand publication, pre-composition non-authority,
+          cadence-specific products, complete candidate-tail review, swept-candidate re-entry, append-only correction
+          and invalidation, exact-head merge authorization, and cadence-specific post-merge cleanup.
+        - Proved typed disjoint carry, interacting incremental retrigger, final-full review, forward evidence, and
+          strict schema-v1 exclusion; locked the release-note rejection classes for internal identifiers, process and
+          provider machinery, and unshipped plans while retaining shipped public review concepts.
+
+    - `[x]` **7.2.d Run the affected integration checkpoint**
+        - Exercised the complete package test suite and both TypeScript configurations, then validated TypeScript and
+          Markdown lint plus the distributable build before closing the cross-layer proof.
+
+- _Outcome:_ Routing, exact evidence admission, finding response, suspension/re-entry, lifecycle candidate assembly,
+  applicability, and merge authorization now have joined behavioral proofs from canonical facts through their public
+  adapter and workflow boundaries, including explicit refusal of cross-channel, stale-head, legacy, and prospective
+  authority substitutions.
+
+### `[x]` **7.3 Audit package/project parity and legacy-reference removal**
+
+- _Goal:_ Every shipped review surface is package-authoritative and mirrored accurately, while project-only policy
+  remains local and no live file still teaches the retired architecture.
+- **Additional Context:** `strategy-package-project-sync.md` §§ Edit Flow Rules, Template Counterparts, and
+  Safeguards.
+
+    - `[x]` **7.3.a Audit framework and configurable mirrors**
+        - Verified all changed Framework and review-method mirrors against package-authoritative sources while
+          retaining the self-hosting config overrides; the neutral review method set remains ordinary Configurable
+          files and the retired `diff-review` path is absent from source, recipe, classifier, and manifest membership.
+        - Regenerated the self-hosting manifest from the current recipe/configuration, expanded init/update/E2E
+          expectations to all 15 methods and 13 extensions, and made recipe-derived membership/classification a
+          persistent framework-sync assertion.
+        - Replaced the stale exhaustive Framework list with authoritative recipe/classifier derivation and refreshed
+          exact configurable, scaffolded, conditional, and 11-template counterpart inventory/counts.
+
+    - `[x]` **7.3.b Sweep retired vocabulary and policy references**
+        - Swept live package/project guidance, code, workflows, tests, root and GitHub surfaces; renamed stale planned
+          examples to `self-review`, quarantined the remaining planned hits as explicit historical baselines, and
+          retained completed/ADR/research occurrences as historical records.
+        - Classified exact-key gate-v1 code and old receipt dispositions as compatibility, unrelated schema-v1
+          contracts as unrelated, and changed-path/frontline surfaces as current six-status/action-neutral behavior;
+          renamed the v1 semantics constant and comments so the diagnostic family no longer claims current authority.
+        - Added corpus guards excluding retired config/method vocabulary from live guidance, limiting planned hits to
+          the historical allowlist, preserving `independent-analysis/v1`, and pinning gate-v1 to its two compatibility
+          files without weakening existing v1 parser fixtures.
+
+    - `[x]` **7.3.c Validate corpus and package boundaries**
+        - Validated framework sync, package neutrality, method/extension declarations, links and section references,
+          ARC contracts, Markdown/TypeScript quality, the full test suite, and the built npm inventory/schema artifact;
+          packaged methodology contains no project-only CodeRabbit or controller bindings.
+
+- _Outcome:_ Package-authoritative review surfaces, the regenerated self-hosting inventory, legacy-term guards, and
+  distribution-boundary tests now agree on the current method/extension corpus while keeping self-hosting policy local.
+
+## **Phase 8:** Verification
+
+_Purpose:_ Verify the settled implementation and documentation suite against the design, quality gates, and
+integration contract.
+
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ markdown lint (493 files), shellcheck, TypeScript lint, typecheck (source + test), build, and
+  7606 tests — all passing, after reconciling the base merge's two semantic conflicts (`ARC_CONFIG_SEGMENTS` →
+  root-resolved `ARC_CONFIG_SUFFIX`; `toOutputPath` → `resolveTemplateOutputPath`).
+
+- _Success criteria:_ 15 criteria — 14 met (3 with deviations), 1 deferred to a named owner. An
+  adversarial pass found four typed contracts shipped with zero production callers, the load-bearing case being the
+  local review channel: the reducer accepts a local carrier but nothing can produce one, leaving the
+  local-satisfying criterion unreachable. Root cause was decomposition by layer with no task owning composition —
+  every task delivered its port honestly and no gate could see the gap. Verification fixed the misleading surfaces
+  (workflows named the wrong fact record and a rejected invocation shape; `review-response.md` cited a method never
+  minted) and added the cross-domain golden vector the design named. The absent adapters are pre-scoped into
+  `draft-review-surface-binding.md`; the process gap is captured for a guard.
+
+---
+
+## Success Criteria
+
+- `[x]` The closed routing record resolves every fact combination to one valid obligation set.
+
+- `[x]` Routine atomic code softens review spend while sensitive or unknown changes retain the maximal floor.
+
+    - **Deviation:** the routing half is delivered and exhaustively proven. The spec's companion clause — a
+      `Heavy` / `Novel` WU carrying a declared additional-rubric overlay _executed at integration_ — is not:
+      `resolveWorkUnitReviewAssurance` resolves the `Review Rubric` field into typed state but has no production
+      caller and no availability-port implementation, so a declared overlay cannot reach a reviewer. Deferred with
+      its evidence to `draft-review-surface-binding.md`.
+
+- `[x]` Malformed, empty, unsupported, or endpoint-incomplete change facts fail closed.
+
+- `[~]` Local independent analysis can satisfy the exact-head requirement without a hosted provider.
+
+    - **Superseded:** deferred to `draft-review-surface-binding.md`, which carries the loci and inherited design
+      constraints. The contract half holds — the reducer accepts a `local-change-set` carrier on `channel: "local"`,
+      and the receipt authority works against a real Git common directory under concurrent replay. The local receipt
+      store, operation-state store, attestation runtime, and carrier each have zero production callers, though: no
+      CLI verb, launcher entry, or script reaches them, so no project can produce the receipt the criterion requires.
+      Satisfied in letter, unreachable in substance.
+
+      Provenance matters here and the deferral should not read as planning: this was **not** scoped out during
+      planning. It was surfaced by an adversarial verification pass after the full self-verify, a green Tier 3, and
+      the cross-layer integration suite had all passed — none of which exercise an invocable surface. The decision to
+      route rather than build it here was made at verification, weighing a further expansion of an already
+      306-file change set against a named owner.
+
+- `[x]` Every carrier proves the rubric and guidance it received without receiving author conclusions.
+
+- `[x]` Every finding is source-verified and one canonical exact-head disposition set authorizes any fix mutation.
+
+- `[x]` Pull-request count never mechanically multiplies or weakens review obligations.
+
+    - **Deviation:** delivered as structural impossibility rather than as an implemented grouping rule — the routing
+      decision schema rejects `pullRequestCount` outright, so topology cannot reach the reducer, and each deliverable
+      projects one independent requirement. The affirmative branch (one run satisfying several deliverables under a
+      no-weakening proof) is specified as routed to `pr-decomposition`, so the system stays permanently in the
+      per-deliverable fallback until that work lands.
+
+- `[x]` The gate migrates forward with exact domain-separated ID preimages and golden vectors, without silently
+  upgrading legacy receipts or evidence.
+
+- `[x]` Typed applicability distinguishes carry-forward, incremental interaction review, and final full review.
+
+- `[x]` Every review surface has one layer owner and states the agent-ergonomics / host-guarantee boundary honestly.
+
+    - **Deviation:** routing resolved to the CLI layer rather than the `review-routing` method the design named, and
+      the method was never minted — leaving two dangling citations in shipped `review-response.md`, reworded during
+      verification. Whether routing warrants a method is carried to `draft-review-surface-binding.md`.
+
+- `[x]` The complete provisional integration tail is reviewed at the exact-head merge gate, and public release notes
+  contain no WU identifiers or internal development jargon.
+
+- `[x]` Review settlement alone cannot authorize a pre-composition WU merge; every agent-side WU merge path is
+  dominated by cadence-required products, complete-tail surfacing, and the final exact-head interlock.
+
+- `[x]` Package and project copies remain synchronized for every framework surface.
+
+- `[x]` All quality gates pass (tests, linting, type checking, build)
+
+- `[x]` Ready for integration
+
+    - **Deviation:** ready as scoped, not complete against the original criteria set. One criterion is deferred and
+      three carry deviations, each routed to a named owner rather than left as a note. The contract layer is sound;
+      the agent-facing adapters are the deferred remainder.

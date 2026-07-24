@@ -5,8 +5,8 @@
   cohort/lifecycle domain, the planning + validation surfaces, the shipped cohort members, and the slug→state verb.
 - **Purpose:** Make **cross-WU relatedness** a coherent discipline — a WU should be planned, built, and shipped
   with the work it bears on in view: pull related work in at planning, push refinements back at iteration, validate
-  alignment at exit. Complements `lifecycle-state-machine` (which made the *lifecycle* a coherent machine); this
-  makes *relatedness between related WUs* a coherent one.
+  alignment at exit. Complements `lifecycle-state-machine` (which made the _lifecycle_ a coherent machine); this
+  makes _relatedness between related WUs_ a coherent one.
 
 ---
 
@@ -39,11 +39,11 @@ If the cohort cut is confirmed at planning:
 
 ARC has no real read/write backstop ensuring a WU is planned, built, and shipped with the work it bears on in view.
 Concretely for a WU that is **already a cohort member**, the cohort doc is pulled in at only two points today:
-session-init surfaces it passively in orientation, and `assess-parallel-fit` Tier 3 reads it for *parallelism
-overlap* at activate / in-flight-scope-check. Everywhere it matters for the member's own work it is absent:
+session-init surfaces it passively in orientation, and `assess-parallel-fit` Tier 3 reads it for _parallelism
+overlap_ at activate / in-flight-scope-check. Everywhere it matters for the member's own work it is absent:
 
-- `draft-design` / `create-spec` / `generate-tasks` run `assess-cohort-fit`, but that only decides *whether to
-  split*; it never reads an existing cohort doc to check the member's declared responsibilities / sibling scope /
+- `draft-design` / `create-spec` / `generate-tasks` run `assess-cohort-fit`, but that only decides _whether to
+  split_; it never reads an existing cohort doc to check the member's declared responsibilities / sibling scope /
   shared contracts against the design taking shape.
 - `verify-work-unit` and `integrate-work-unit` have **zero** cohort awareness — a member can ship scope that
   drifted from its cohort responsibilities or broke a shared contract and nothing catches it.
@@ -58,18 +58,18 @@ activation's parallelism check.
 
 A WU shouldn't be planned/built/shipped in isolation from the work it bears on — **pull related work in at
 planning, push refinements back at iteration, validate alignment at exit.** The two members sit at opposite ends
-of a *relatedness spectrum*:
+of a _relatedness spectrum_:
 
-- **Explicit relatedness** (the new member): the related set is *declared* — cohort doc + `Depends On` edges. The
+- **Explicit relatedness** (the new member): the related set is _declared_ — cohort doc + `Depends On` edges. The
   candidate set is known; the hard part is the read / write-back / verify discipline. Determinate and sharp; leans
   directly on the now-shipped `arc status <slug>` (see coordination note below).
 - **Discovered relatedness** (`cross-wu-forward-compat`, the existing provisional stub): the related set must be
-  *found* among arbitrary planned WUs. The hard part is the cheap relevance filter ("most WUs won't relate").
+  _found_ among arbitrary planned WUs. The hard part is the cheap relevance filter ("most WUs won't relate").
 
 They share the **same planning-coordination hook** (one insertion point at `create-spec` / `generate-tasks` /
 `arc-task-audit` — not two competing ones) and the **same bidirectional pull/push verb model**. That
 shared-contract-no-single-member-owns is what justifies a cohort doc over a single broadened WU. (Why not just
-rename/broaden `cross-wu-forward-compat` in place: forward-compat is one *mode* of cross-WU awareness, not the
+rename/broaden `cross-wu-forward-compat` in place: forward-compat is one _mode_ of cross-WU awareness, not the
 whole — the name would lie once the cohort-specific half is folded in.)
 
 ## Cheap-first slice — shipped: surface + prescribe the slug→state resolver
@@ -89,7 +89,7 @@ The remaining cross-WU-coordination work is the broader read/write-back/verify b
   cohort-ness is incidental; its real domain is decomposition, so its natural neighbors are `decompose-matrix` /
   `assess-cohort-fit`. Absorbing it would make this a "cohort-themed grab-bag" rather than one concern decomposed.
   Record the adjacency; don't pull it in.
-- **`lifecycle-closeout`** owns the *global* cohort consistency audit (cohort-tail, cross-cutting — wrong altitude
+- **`lifecycle-closeout`** owns the _global_ cohort consistency audit (cohort-tail, cross-cutting — wrong altitude
   for a per-member verify check).
 - **`operational-state-docs`** owns the cohort-membership validator + the (shipped) slug→state substrate.
 - **`assess-parallel-fit`** already reads the cohort doc (precedent/sibling for a "read the cohort doc" method).

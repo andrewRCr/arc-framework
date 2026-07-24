@@ -18,8 +18,6 @@
  * @module
  */
 
-import { join } from "node:path";
-
 import { runUserOpen } from "../../commands/user/open.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
@@ -28,6 +26,8 @@ import {
   PLANNING_WORKFLOWS,
   BEGIN_CURRENT_WORKFLOW_SENTINEL,
 } from "../active/current-workflow-consistency.js";
+import { SlugSchema } from "../kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../layout/index.js";
 import { ensureDir } from "../template/files.js";
 import { writeWorktreeOwnershipMarker } from "./worktree-marker.js";
 
@@ -120,7 +120,17 @@ export async function scaffoldIntoWorktree(
   ctx: SpawnWorktreeContext,
   params: ScaffoldWorktreeParams,
 ): Promise<void> {
-  const activeDir = join(params.worktreePath, ".arc", "active");
+  const slug = SlugSchema.parse(params.wuName);
+  const activeDir = materializeArcPath(
+    params.worktreePath,
+    resolveArcPath({ kind: "placement-root", tier: "active" }),
+  );
+  const metaPath = materializeArcPath(params.worktreePath, resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug,
+    artifact: "meta",
+  }));
   await ensureDir(activeDir, ctx.io.mkdir);
 
   const state = params.initialState ?? PLANNING_LIFE_PHASE.initialState;
@@ -139,7 +149,7 @@ export async function scaffoldIntoWorktree(
   if (params.design !== undefined) overrides.design = [params.design];
 
   await ctx.io.writeFile(
-    join(activeDir, `meta-${params.wuName}.md`),
+    metaPath,
     renderMetaFile(params.wuName, overrides),
   );
 

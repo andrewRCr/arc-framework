@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { stat } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 
 import {
   createTempRepo,
@@ -117,6 +117,17 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "utf-8",
     );
     expect(briefing).toContain("Integration Test Project");
+  });
+
+  it("installs literal transformed outputs beneath the supplied root, independent of ambient cwd", async () => {
+    expect(tempDir).not.toBe(process.cwd());
+    expect(result.filesWritten).toContain("reference/briefs/AGENT-BRIEF.PROJECT.md");
+    expect(result.filesWritten).toContain("system/rules/DEV-RULES.ARC.md");
+    expect(result.filesWritten).not.toContain("reference/briefs/AGENT-BRIEF.PROJECT.template.md");
+    expect((await stat(join(arcDir, "reference/briefs/AGENT-BRIEF.PROJECT.md"))).isFile()).toBe(true);
+    expect((await stat(join(arcDir, "system/rules/DEV-RULES.ARC.md"))).isFile()).toBe(true);
+    await expect(stat(join(arcDir, "reference/briefs/AGENT-BRIEF.PROJECT.template.md")))
+      .rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("leaves no init-time token residuals in rendered files", async () => {
@@ -264,17 +275,39 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(projectBriefing.isFile()).toBe(true);
   });
 
+  it("installs the canonical design-audit skill source as core Framework", async () => {
+    const skillPath = "system/.internal/skills/arc-design-audit/SKILL.md";
+    expect((await stat(join(arcDir, skillPath))).isFile()).toBe(true);
+
+    const manifest = await readManifestFile(tempDir);
+    expect(manifest.files[skillPath]?.classification).toBe("Framework");
+    expect(manifest.files[skillPath]?.layer).toBe("core");
+  });
+
   // --- Per-File Methods and Extensions ---
 
-  it("installs all 8 per-file methods plus README in system/methods/", async () => {
+  it("installs every registered per-file method plus README in system/methods/", async () => {
     const methodFiles = [
-      "commit-footer.md",
+      "assess-cohort-fit.md",
+      "assess-design-proportionality.md",
+      "assess-draft-readiness.md",
+      "adversarial-review.md",
+      "classify-work-unit.md", "commit-footer.md",
       "commit-format.md",
-      "diff-review.md",
+      "design-audit.md",
+      "frontline-review.md",
+      "standard-review.md",
+      "implementation-audit.md",
+      "review-chunking.md",
+      "self-review.md",
       "issue-triage.md",
       "quality-gate-commands.md",
+      "resolve-planning-depth.md",
+      "review-response.md",
       "review-triage.md",
       "session-state.md",
+      "spec-review.md",
+      "task-audit.md",
       "test-first.md",
       "README.md",
     ];
@@ -284,7 +317,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     }
   });
 
-  it("installs all 12 per-file extensions plus README in system/extensions/", async () => {
+  it("installs all 13 per-file extensions plus README in system/extensions/", async () => {
     const extensionFiles = [
       "post-context-load.md",
       "post-task-completion.md",
@@ -298,6 +331,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "pre-pr-open.md",
       "post-pr-open.md",
       "pre-push-review.md",
+      "pre-spec-finalization-review.md",
       "README.md",
     ];
     for (const name of extensionFiles) {
@@ -312,15 +346,17 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const manifest = await readManifestFile(tempDir);
 
       const methodNames = [
-        "commit-footer", "commit-format", "diff-review",
-        "issue-triage", "quality-gate-commands", "review-triage",
-        "session-state", "test-first",
+        "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
+        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
+        "implementation-audit", "review-chunking", "self-review", "design-audit",
+        "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
+        "session-state", "spec-review", "task-audit", "test-first",
       ];
       const extensionNames = [
         "post-context-load", "post-task-completion", "post-task-quality",
         "post-unit-quality", "post-work-unit-activate",
         "post-work-unit-archive", "pre-activation", "pre-commit-review",
-        "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review",
+        "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
       ];
 
       for (const name of methodNames) {
@@ -440,6 +476,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "utf-8",
     );
     expect(config).toContain("pm.mode: none");
+    expect(config).toContain("review.chunking_threshold_lines: 0");
+    expect(config).toContain("review.chunking_threshold_files: 0");
   });
 
   it("writes arc-config.yml with solo team mode defaults", async () => {
@@ -676,6 +714,46 @@ describe("init integration (existing installation)", () => {
       expect(ufErr.whatToDo).toContain("arc join");
       expect(ufErr.whatToDo).toContain("arc update");
     }
+  });
+});
+
+describe("init integration — template path boundary", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await createTempRepo("arc-init-invalid-template-");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("rejects an unsafe enumerated source before creating installation files", async () => {
+    const boundedTemplateDir = join(tempDir, "templates");
+    await mkdir(boundedTemplateDir, { recursive: true });
+    await writeFile(join(tempDir, "outside.template.md"), "outside\n", "utf-8");
+    const unsafeRecipe: Recipe = {
+      include_files: ["../outside.template.md"],
+      prompts: [],
+      conditions: {},
+    };
+
+    await expect(runInit({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir: boundedTemplateDir,
+      internalTemplateDir,
+      recipe: unsafeRecipe,
+      prompts,
+      identityResult: "test-user",
+    })).rejects.toMatchObject({
+      name: "LayoutError",
+      code: "layout.invalid-template-path",
+    });
+
+    await expect(stat(join(tempDir, ".arc"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(join(tempDir, "outside.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(join(tempDir, ".arc-init.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
 

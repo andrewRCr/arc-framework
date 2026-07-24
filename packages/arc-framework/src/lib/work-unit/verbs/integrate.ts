@@ -25,6 +25,8 @@ import {
   type ExecuteTransitionContext,
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
+import { SlugSchema } from "../../kernel/index.js";
+import { resolveArcPath } from "../../layout/index.js";
 
 /** The orientation inputs an `integrate` supplies. */
 export interface IntegrateParams {
@@ -63,5 +65,14 @@ export async function runIntegrate(
   });
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-  return { status: "integrated", outcome, metaPath: `.arc/active/meta-${name}.md` };
+  return {
+    status: "integrated",
+    outcome,
+    metaPath: resolveArcPath({
+      kind: "work-unit-artifact",
+      placement: { kind: "active", scope: { kind: "project" } },
+      slug: SlugSchema.parse(name),
+      artifact: "meta",
+    }),
+  };
 }

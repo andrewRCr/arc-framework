@@ -4,7 +4,7 @@
   sidecar-discovery session's concurrency-guidance re-evaluation.
 - **Purpose:** Grade ARC's design-load model by lifecycle stage — remaining design load = `Class` ×
   stage-decay — across `assess-parallel-fit`, the concurrent-work doctrine, and the probe's
-  `inFlightComposition`, so concurrency guidance reads *remaining* rather than *intrinsic* load.
+  `inFlightComposition`, so concurrency guidance reads _remaining_ rather than _intrinsic_ load.
 - **Commitment note:** provisional by design — the decay curve calibrates against parallelism dogfooding before
   codifying (the observation base was one operator-week old at capture).
 
@@ -15,7 +15,7 @@
 Post-parallelism-GA dogfooding shows the attention/judgment cost of a Heavy/Novel WU is strongly front-loaded
 and decays over the lifecycle: draft-design is the peak, create-spec still high, generate-tasks a noticeable
 step down, impl near-free (given sound preceding stages), verification/integration a small kick back up.
-`Class` records intrinsic weight; the concurrency-budget question is *remaining* weight. The binary
+`Class` records intrinsic weight; the concurrency-budget question is _remaining_ weight. The binary
 design-settled gate over-guarded a board whose Heavies were past spec — the settle-at-spec interim fix
 (PR #285, 2026-07-18) moved the settle point to spec finalization, but the full ordinal decay model, and the
 machinery that reads it, remain open here.

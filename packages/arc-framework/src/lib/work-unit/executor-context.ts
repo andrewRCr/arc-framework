@@ -49,6 +49,8 @@ import { getCurrentBranch, type GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
 import { renderTrackedProjectReadinessViewResult } from "../status/project-roadmap-render.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
+import { SlugSchema } from "../kernel/index.js";
+import { resolveArcPath } from "../layout/index.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
@@ -137,10 +139,16 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
   // the just-activated WU; each edge's dependency is read against current state and
   // only the satisfied ones (`shipped` ∨ `integrating`) are dropped from the gate.
   const dischargeDepEdgesHandler: SideEffectHandler = async ({ slug }) => {
+    const metaPath = resolveArcPath({
+      kind: "work-unit-artifact",
+      placement: { kind: "active", scope: { kind: "project" } },
+      slug: SlugSchema.parse(slug),
+      artifact: "meta",
+    });
     const index = await buildLifecycleIndex({ cwd, fs: indexFs });
     const { discharged } = await dischargeDepEdges(
       { index, readMeta: (p) => io.readFile(at(p)), writeMeta: (p, c) => io.writeFile(at(p), c) },
-      { slug, metaPath: `.arc/active/meta-${slug}.md` },
+      { slug, metaPath },
     );
     return discharged.length > 0
       ? `Discharged ${discharged.length} satisfied dependency edge(s): ${discharged.join(", ")}.`
@@ -155,7 +163,13 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
   // already-applied `Integrating → Active` flip isn't left mid-transition (the
   // operator finishes the withdrawal by hand).
   const withdrawPrHandler: SideEffectHandler = async ({ slug, inputs }) => {
-    const { branch } = parseMetaRecord(await io.readFile(at(`.arc/active/meta-${slug}.md`)));
+    const metaPath = resolveArcPath({
+      kind: "work-unit-artifact",
+      placement: { kind: "active", scope: { kind: "project" } },
+      slug: SlugSchema.parse(slug),
+      artifact: "meta",
+    });
+    const { branch } = parseMetaRecord(await io.readFile(at(metaPath)));
     const mode = inputs.prWithdrawMode ?? "close";
     if (branch === null) {
       return `Could not withdraw the PR for \`${slug}\`: no branch recorded — close or convert it manually.`;
@@ -292,7 +306,11 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
             mkdir: io.mkdir,
             writeFile: io.writeFile,
             resolveIdentityGlobalRoot: async (resolvedIdentity) =>
-              (await resolveUserSurfaceResolver({ cwd, identity: resolvedIdentity, exec })).identityGlobalRoot,
+              (await resolveUserSurfaceResolver({
+                cwd,
+                identity: SlugSchema.parse(resolvedIdentity),
+                exec,
+              })).identityGlobalRoot,
           },
           { cwd, identity, slug, from, to },
         ),

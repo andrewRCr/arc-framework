@@ -50,6 +50,7 @@ import {
   requireLiveInboxTitle,
 } from "../lib/user-sync/index.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
@@ -764,7 +765,7 @@ async function resolveLiveInboxOriginEntry(options: {
   const inboxPath = (
     await resolveUserSurfaceResolver({
       cwd: options.cwd,
-      identity: options.identity,
+      identity: SlugSchema.parse(options.identity),
       exec: options.io.exec,
     })
   ).identityGlobalPath("USER-INBOX.md");

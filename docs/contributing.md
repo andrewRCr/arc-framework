@@ -125,7 +125,7 @@ runs automatically, but you can run checks manually:
 ## Architectural Decisions
 
 Significant design choices are documented as Architecture Decision Records (ADRs) in
-`.arc/reference/adr/`. ADRs capture not just *what* was decided, but *why* — so future
+`.arc/reference/adr/`. ADRs capture not just _what_ was decided, but _why_ — so future
 contributors have the context they need before revisiting a choice.
 
 **Write an ADR when:**

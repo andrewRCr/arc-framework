@@ -18,16 +18,16 @@ import {
   timestampAt,
 } from "./validation.js";
 
-/** Stable request contract identity. */
+/** Stable legacy diagnostic request contract identity. */
 export const REVIEW_REQUEST_CONTRACT = "arc.review-request";
-/** Initial live request schema. */
+/** Exact legacy diagnostic request schema. */
 export const REVIEW_REQUEST_SCHEMA_VERSION = 1;
-/** Stable receipt contract identity. */
+/** Stable legacy diagnostic receipt contract identity. */
 export const REVIEW_RECEIPT_CONTRACT = "arc.review-receipt";
-/** Initial live receipt schema. */
+/** Exact legacy diagnostic receipt schema. */
 export const REVIEW_RECEIPT_SCHEMA_VERSION = 1;
-/** Current neutral semantics bound into request identity. */
-export const REVIEW_SEMANTICS_VERSION = "review-gate/v1";
+/** Legacy semantics retained only for exact schema-v1 parsing and diagnostics. */
+export const LEGACY_REVIEW_SEMANTICS_VERSION = "review-gate/v1";
 
 export type { RequestMechanism, ReviewReceiptPayload } from "./receipt-payload.js";
 

@@ -52,7 +52,33 @@ describe("review-gate canonical serializer inventory", () => {
       .filter((path) => /import\s*\{[^}]*\bcanonicalize\b[^}]*\}\s*from\s*["'][^"']*kernel[^"']*["']/su
         .test(source(path)))
       .map(name);
-    expect(kernelImports).toEqual(["core/identity.ts"]);
+    expect(kernelImports).toEqual([
+      "core/applicability.ts",
+      "core/dispositions.ts",
+      "core/forward-coverage.ts",
+      "core/gate-contract-v2-schema.ts",
+      "core/gate-contract-v2.ts",
+      "core/identity.ts",
+      "core/local-operation.ts",
+      "core/severity-gating.ts",
+      "hosts/local/disposition-record-store.ts",
+      "hosts/local/frontline-outcome-store.ts",
+      "hosts/local/operation-state-store.ts",
+      "hosts/local/receipt-store.ts",
+      "hosts/local/source-store.ts",
+      "policy/frontline-operation.ts",
+      "policy/local-review-guidance.ts",
+      "policy/local-review-policy.ts",
+      "policy/self-hosting/guidance.ts",
+      "policy/standard-review-guidance.ts",
+      "policy/standard-review-schema.ts",
+      "policy/standard-review.ts",
+      "runtime/frontline-run-command.ts",
+      "runtime/local-attest-command.ts",
+      "runtime/local-resume-command.ts",
+      "runtime/reduce-command.ts",
+      "runtime/respond-command.ts",
+    ]);
 
     const serializerDeclarations = files.flatMap((path) => {
       const matches = source(path).matchAll(

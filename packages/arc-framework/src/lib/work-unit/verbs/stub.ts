@@ -27,6 +27,8 @@ import { validateClass } from "../../../commands/active/types.js";
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../../active/meta-reader.js";
 import { MetaPrioritySchema } from "../../active/meta-schema.js";
+import { SlugSchema } from "../../kernel/index.js";
+import { resolveArcPath } from "../../layout/index.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import {
   executeTransition,
@@ -166,10 +168,17 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
 
   // Logical tier → physical destination: a per-WU subdir under the committed
   // tier, nested in the cohort tree when `--cohort` enrols it.
-  const toDir = hasCohort
-    ? `.arc/backlog/${commitment}/${cohort}/${params.name}`
-    : `.arc/backlog/${commitment}/${params.name}`;
-  const metaPath = `${toDir}/meta-${params.name}.md`;
+  const rawCohortSegments = hasCohort ? cohort.split("/") : [];
+  if (rawCohortSegments.some((segment) => !SlugSchema.safeParse(segment).success)) {
+    return { status: "rejected", reason: `\`stub --cohort\` rejects an invalid cohort path "${cohort}".` };
+  }
+  const placement = {
+    kind: "backlog",
+    commitment,
+    cohort: rawCohortSegments.map((segment) => SlugSchema.parse(segment)),
+  } as const;
+  const toDir = resolveArcPath({ kind: "work-unit-container", placement, slug: params.name });
+  const metaPath = resolveArcPath({ kind: "work-unit-artifact", placement, slug: params.name, artifact: "meta" });
 
   const scaffoldOrRemove: ExecuteTransitionContext["scaffoldOrRemove"] = async ({ disposition, slug }) => {
     if (disposition !== "scaffold") {
@@ -187,7 +196,7 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
     if (hasCohort) overrides.cohort = cohort;
 
     await ensureDir(join(ctx.executor.cwd, toDir), ctx.fs.mkdir);
-    await ctx.fs.writeFile(join(ctx.executor.cwd, toDir, `meta-${slug}.md`), renderMetaFile(slug, overrides));
+    await ctx.fs.writeFile(join(ctx.executor.cwd, metaPath), renderMetaFile(slug, overrides));
   };
 
   const outcome = await executeTransition(

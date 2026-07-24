@@ -15,16 +15,16 @@ const CHANGE_SET = computeChangeSetId({ baseRef: "main", diffBaseSha: DIFF_BASE,
 const requirement: ReviewRequirement = {
   schemaVersion: 1,
   id: "analysis",
-  kind: "independent-analysis",
+  kind: "standard-review",
   obligation: "required",
   acceptableSources: [
-    { sourceKind: "agent", qualifier: "independent-analysis/v1" },
-    { sourceKind: "human", qualifier: "independent-analysis/v1" },
+    { sourceKind: "agent", qualifier: "standard-review/v1" },
+    { sourceKind: "human", qualifier: "standard-review/v1" },
   ],
   count: 1,
   initialAdmission: "automatic",
   policyVersion: "a".repeat(64),
-  rubricVersion: "independent-analysis/v1",
+  rubricVersion: "standard-review/v1",
   reasons: ["code-surface"],
   changeSetId: CHANGE_SET,
   headSha: HEAD,
@@ -114,13 +114,13 @@ describe("neutral attestations", () => {
     const human = manifest({
       sourceKind: "human",
       sourceIdentity: "human-1",
-      reviewerClaim: "independent-analysis/v1",
+      reviewerClaim: "standard-review/v1",
       reviewerRuntime: { kind: "human", version: "1" },
     });
     const humanContext = {
       ...context,
       authenticatedActor: { schemaVersion: 1 as const, actorIdentity: "human-1", permissions: ["write" as const] },
-      acceptedReviewerClaims: ["independent-analysis/v1"],
+      acceptedReviewerClaims: ["standard-review/v1"],
     };
     expect(validateAttestation(human, humanContext).ok).toBe(true);
     expect(validateAttestation(human, { ...humanContext, authorIdentity: "human-1" }).ok).toBe(false);
@@ -200,9 +200,9 @@ describe("neutral attestations", () => {
     const first = ingestAttestation(input);
     if (!first.ok) throw new Error(first.error);
     expect(first.receipt).toMatchObject({
-      eventId: "attestation:run-1:b1801a70abc3e0c233b87fa20d789eac4a28be2c19105e40c0940357b0f2b8a3",
-      idempotencyKey: "03613a3624b4bb66f781e3b785881a315fc41e20520f025c95b0b0d69b97db40",
-      receiptHash: "3895584d5a51598c9b086ce03d1d8f0aaee4a9c64b2876afe6f9b0923e5a5f7a",
+      eventId: "attestation:run-1:ee90808da25a5840c7a2819ab0352f19bf6e0f0c9f382674d1dc7af04499a251",
+      idempotencyKey: "f349675d15cdccd21c652e169c16aea48e9f611f5a8fad9e9abcb3492ecb9522",
+      receiptHash: "6c2815d8952e2b8b2d86fafa5c3580f282724391900ab7ac6687c314c6251c19",
     });
     expect(ingestAttestation({ ...input, priorReceipts: [first.receipt] })).toMatchObject({
       ok: true,
@@ -273,12 +273,12 @@ describe("repair attestation authority", () => {
     const humanContext = {
       ...repairContext,
       authenticatedActor: { schemaVersion: 1 as const, actorIdentity: "human-1", permissions: ["write" as const] },
-      acceptedReviewerClaims: ["independent-analysis/v1"],
+      acceptedReviewerClaims: ["standard-review/v1"],
     };
     expect(validateRepairAttestation(repairManifest({
       sourceKind: "human",
       sourceIdentity: "human-1",
-      reviewerClaim: "independent-analysis/v1",
+      reviewerClaim: "standard-review/v1",
       reviewerRuntime: { kind: "human", version: "1" },
     }), humanContext).ok).toBe(true);
   });

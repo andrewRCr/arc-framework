@@ -83,10 +83,10 @@ function projection(): GateProjection {
   return {
     schemaVersion: 1,
     conclusion: "success",
-    summary: "independent-analysis: clean",
+    summary: "standard-review: clean",
     blockers: [],
     requirementExecutions: [{
-      requirementId: "independent-analysis",
+      requirementId: "standard-review",
       state: "clean",
       sourceIdentity: "codex-cli",
       detail: "non-blocking",
@@ -109,9 +109,9 @@ function pendingProjection(): GateProjection {
   return {
     ...projection(),
     conclusion: "pending",
-    summary: "independent-analysis: queued",
+    summary: "standard-review: queued",
     requirementExecutions: [{
-      requirementId: "independent-analysis",
+      requirementId: "standard-review",
       state: "queued",
       sourceIdentity: "coderabbit-pr",
       detail: "request reserved",
@@ -185,6 +185,46 @@ describe("GitHub host read adapter", () => {
         mergeability: "mergeable",
       },
     });
+  });
+
+  it("retains copied and type-changed statuses at the host projection boundary", async () => {
+    const changedPaths = [
+      {
+        status: "copied" as const,
+        path: "src/copy.ts",
+        previousPath: "src/original.ts",
+        oldMode: "100644" as const,
+        newMode: "100644" as const,
+      },
+      {
+        status: "type-changed" as const,
+        path: "src/link.ts",
+        oldMode: "100644" as const,
+        newMode: "120000" as const,
+      },
+    ];
+
+    const resolved = await adapter({
+      resolveChangeRequest: async () => ({
+        kind: "resolved",
+        changeRequest,
+        context: {
+          changedPaths,
+          author: { identity: "7", nodeId: "U_7", login: "author", kind: "user" },
+          isDraft: false,
+          isCrossRepository: false,
+          mergeability: "mergeable",
+        },
+      }),
+    }).resolveChangeRequest(changeRequest.hostRef);
+
+    expect(resolved.context.changedPaths).toEqual([
+      {
+        status: "copied", path: "src/copy.ts", previousPath: "src/original.ts",
+        oldMode: "100644", newMode: "100644",
+      },
+      { status: "type-changed", path: "src/link.ts", oldMode: "100644", newMode: "120000" },
+    ]);
   });
 
   it("resolves login-addressed capability while retaining immutable identity", async () => {
@@ -295,7 +335,7 @@ describe("GitHub verdict publication", () => {
     });
 
     expect(checks.mutations.map((mutation) => mutation.name)).toEqual(names);
-    expect(checks.mutations.every((mutation) => mutation.output.summary.includes("independent-analysis: clean")))
+    expect(checks.mutations.every((mutation) => mutation.output.summary.includes("standard-review: clean")))
       .toBe(true);
     expect(refs).toHaveLength(names.length);
   });

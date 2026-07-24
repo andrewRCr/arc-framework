@@ -17,25 +17,25 @@ knowledge base. OKF (Google Cloud, v0.1, 2026-06-12) is conformant if every non-
 frontmatter with a non-empty `type` — a trivially low bar. Karpathy's gist is the cited antecedent OKF formalizes.
 
 **The register is convergence, not adoption.** "We independently arrived at the same shape these now describe — here
-is the mapping" is *stronger* legitimacy than "built on OKF," and it avoids coupling ARC's identity to a one-day-old
-v0.1 spec. Frame as *convergent with / a mature instance of*, never *conformant to / built on*.
+is the mapping" is _stronger_ legitimacy than "built on OKF," and it avoids coupling ARC's identity to a one-day-old
+v0.1 spec. Frame as _convergent with / a mature instance of_, never _conformant to / built on_.
 
 ## Alignment surface to evaluate
 
 - **Frontmatter `type` as an orthogonal machine-legible layer.** OKF separates **Concept ID = the file path**
-  (identity / grouping) from **`type` = a frontmatter field** (the kind). ARC currently *overloads* both onto the
-  filename prefix: `meta-`/`tasks-`/`notes-` carry a type hint *and* ride the shared slug (good for grouping,
+  (identity / grouping) from **`type` = a frontmatter field** (the kind). ARC currently _overloads_ both onto the
+  filename prefix: `meta-`/`tasks-`/`notes-` carry a type hint _and_ ride the shared slug (good for grouping,
   collides if you "extract the type"), while workflows / methods / extensions carry type only via **directory** — a
   third, prefix-less scheme. OKF's path-is-ID / type-is-frontmatter split is a principled **third horn** for the
   long-standing "justify or tweak the prefix" question: keep the human-facing filename scheme exactly as is (prefix
   for fuzzy-find, slug for grouping, directory for workflows) **and** add a uniform, orthogonal frontmatter `type`
-  that also covers the prefix-less families. The filename stops being the *sole* type-carrier; projection/tooling
+  that also covers the prefix-less families. The filename stops being the _sole_ type-carrier; projection/tooling
   that wants to query by type gets a clean layer. **Caveat:** real churn, and nothing reads it today — evaluate
   deliberately; this is an option to weigh, not a foregone change. (`naming-conventions` already brushes the idea:
   "a documented property (or frontmatter if ever machine-legible).")
 - **`index.md` / `log.md` correspondence.** Document the mapping between the family's reserved files and ARC's
   equivalents (README-per-dir + ALL-CAPS hubs; the heterogeneous append logs) in `strategy-file-classification.md` —
-  *document the correspondence, don't rename* (README is a stronger web/git norm than `index.md`; ARC's flat
+  _document the correspondence, don't rename_ (README is a stronger web/git norm than `index.md`; ARC's flat
   `active/` + README-per-dir already covers the hub role).
 - **Projection-readiness.** Keep ARC's `reference/` + project-knowledge layer cheaply emittable as a conformant OKF
   bundle (a downstream consumer/interop story), composing with the `arc-backend` record→markdown projection model.
@@ -46,7 +46,7 @@ v0.1 spec. Frame as *convergent with / a mature instance of*, never *conformant 
 - **In scope:** the convention/structural alignment questions above — design and (if warranted) a bounded
   convention change; the correspondence documentation.
 - **Out of scope:** renaming ARC's internal vocabulary (work unit, errand, interlock, …) to the family's coarser,
-  catalog-shaped terms — different domain, more precise terms, load-bearing. The public-facing *framing copy* (the
+  catalog-shaped terms — different domain, more precise terms, load-bearing. The public-facing _framing copy_ (the
   onboarding on-ramp) is **not** here — it routes to `docs-content-sweep` as a framing note.
 
 ## Relationship to other work

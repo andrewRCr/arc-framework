@@ -14,6 +14,7 @@ import type {
   HttpResponse,
 } from "../../src/scripts/review-gate/hosts/github/api/http.js";
 import type { ChangedPath } from "../../src/scripts/review-gate/policy/self-hosting/lane.js";
+import { SELF_HOSTING_REVIEW_GUIDANCE_BLOCK } from "../../src/scripts/review-gate/policy/self-hosting/guidance.js";
 
 /** Fixed clock shared by the fakes and the reconcile invocation. */
 export const NOW = new Date("2026-07-11T20:00:00.000Z");
@@ -34,8 +35,7 @@ export const CODEX_GUIDANCE = `# Agent Bootstrap
 
 ## Review guidelines
 
-Apply rubric \`independent-analysis/v1\` across intent and scope; correctness and failure behavior; trust and
-compatibility; verification; coherence and maintainability.
+${SELF_HOSTING_REVIEW_GUIDANCE_BLOCK}
 `;
 
 /** One GitHub issue comment (ledger anchor, receipt, or human command). */
@@ -492,14 +492,42 @@ const STATUS_LETTER: Record<ChangedPath["status"], string> = {
   modified: "M",
   deleted: "D",
   renamed: "R",
+  copied: "C",
+  "type-changed": "T",
 };
 
 /** Render a changed-path set as `git diff --name-status -z` NUL-framed output. */
 function nameStatusZ(changes: ChangedPath[]): string {
   const fields: string[] = [];
   for (const change of changes) {
-    if (change.status === "renamed") fields.push("R", change.previousPath ?? "", change.path);
+    if (change.status === "renamed" || change.status === "copied") {
+      fields.push(STATUS_LETTER[change.status], change.previousPath ?? "", change.path);
+    }
     else fields.push(STATUS_LETTER[change.status], change.path);
+  }
+  return fields.length === 0 ? "" : `${fields.join("\0")}\0`;
+}
+
+/** Render canonical `git diff --raw -z --no-abbrev` output for coverage reads. */
+function rawDiffZ(changes: ChangedPath[]): string {
+  const zero = "0".repeat(40);
+  const oldObject = "1".repeat(40);
+  const newObject = "2".repeat(40);
+  const fields: string[] = [];
+  for (const change of changes) {
+    const modes = change.status === "added"
+      ? ["000000", "100644", zero, newObject]
+      : change.status === "deleted"
+        ? ["100644", "000000", oldObject, zero]
+        : change.status === "type-changed"
+          ? ["100644", "120000", oldObject, newObject]
+          : ["100644", "100644", oldObject, newObject];
+    const status = change.status === "renamed" || change.status === "copied"
+      ? `${STATUS_LETTER[change.status]}${100}`
+      : STATUS_LETTER[change.status];
+    fields.push(`:${modes.join(" ")} ${status}`);
+    if (change.previousPath !== undefined) fields.push(change.previousPath);
+    fields.push(change.path);
   }
   return fields.length === 0 ? "" : `${fields.join("\0")}\0`;
 }
@@ -529,9 +557,11 @@ export function routingExec(world: ReviewGateWorld): GitExec {
         return Promise.resolve({ stdout: `${world.diffBaseSha}\n` });
       case "diff":
         return Promise.resolve({
-          stdout: nameStatusZ(rest.includes("--no-renames") && world.lifecycleTailChanges !== null
-            ? world.lifecycleTailChanges
-            : world.changedPaths),
+          stdout: rest.includes("--raw")
+            ? rawDiffZ(world.changedPaths)
+            : nameStatusZ(rest.includes("--no-renames") && world.lifecycleTailChanges !== null
+                ? world.lifecycleTailChanges
+                : world.changedPaths),
         });
       case "cat-file": {
         const object = rest.at(-1) ?? "";

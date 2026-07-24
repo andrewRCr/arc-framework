@@ -76,10 +76,11 @@ describe("arc view", () => {
     await mkdir(planned, { recursive: true });
     await mkdir(provisional, { recursive: true });
     await mkdir(completed, { recursive: true });
-    await writeFile(join(planned, "meta-planned.md"), [
+    await mkdir(join(planned, "planned"), { recursive: true });
+    await writeFile(join(planned, "planned", "meta-planned.md"), [
       "# Metadata: planned", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
     ].join("\n"));
-    await writeFile(join(planned, "spec-planned.md"), "# Planned spec\n");
+    await writeFile(join(planned, "planned", "spec-planned.md"), "# Planned spec\n");
     await writeFile(join(provisional, "meta-provisional.md"), [
       "# Metadata: provisional", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
     ].join("\n"));

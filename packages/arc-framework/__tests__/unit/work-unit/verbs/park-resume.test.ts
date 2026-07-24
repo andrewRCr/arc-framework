@@ -168,9 +168,13 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     reconcileWorktree: async (op) => {
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
-      return op.mutation === "teardown"
-        ? { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true }
-        : { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch };
+      if (op.mutation === "teardown") {
+        return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true };
+      }
+      if (op.mutation === "spawn") {
+        return { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch };
+      }
+      return { mutation: "move", from: op.from, to: op.to, locusHopped: false };
     },
     writeBranchField: async () => {},
     writeCurrentWorkflowField: async () => {},
@@ -699,5 +703,18 @@ describe("park / resume reject a non-slug name", () => {
     expect(result.reason).toMatch(/slug-safe/i);
     expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
     expect(removals).toEqual([]);
+  });
+
+  it("rejects park when the declared cohort is not a canonical slug path", async () => {
+    const { ctx, calls, writes } = buildCtx([ACTIVE]);
+
+    const result = await runPark(ctx, {
+      ...BASE_PARK,
+      sourceRecord: { ...recordFor(ACTIVE), cohort: "Not-A-Slug" },
+    });
+
+    expect(result.status).toBe("rejected");
+    expect(calls.some((call) => call.startsWith("worktree:"))).toBe(false);
+    expect(writes).toEqual([]);
   });
 });

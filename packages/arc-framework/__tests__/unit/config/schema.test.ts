@@ -26,7 +26,6 @@ describe("ARC config field catalog", () => {
       "hooks.commit_msg": ["enabled", "disabled"],
       "hooks.pre_push": ["enabled", "disabled"],
       "hooks.task_numbering": ["error", "warning", "off"],
-      "review.pre_merge": ["enabled", "disabled"],
       "platform.type": ["github", "gitlab", "bitbucket", "azure-devops"],
       "pm.mode": ["none", "arc-in-git", "external"],
       "team.mode": ["false", "true"],
@@ -113,6 +112,8 @@ describe("ARC config field catalog", () => {
       "hooks.body_max_line_length",
       "inbox.remind_after_days",
       "integration.stale_after_days",
+      "review.chunking_threshold_lines",
+      "review.chunking_threshold_files",
     ]);
 
     for (const descriptor of ARC_CONFIG_FIELDS) {
@@ -150,8 +151,10 @@ describe("ARC config field catalog", () => {
       ["hooks.body_max_lines", "100"],
       ["hooks.body_max_line_length", "100"],
       ["hooks.contributor_protected_paths", "active/|backlog/"],
-      ["review.pre_merge", "enabled"],
       ["platform.type", "github"],
+      ["review.frontline_sources", "[]"],
+      ["review.chunking_threshold_lines", "0"],
+      ["review.chunking_threshold_files", "0"],
       ["pm.mode", "none"],
       ["team.mode", "false"],
       ["session.remote_sync", "enabled"],

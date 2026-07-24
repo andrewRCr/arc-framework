@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../../../../../src/lib/git/exec.js";
-import type { LifecycleTailProofResolutionInput } from "../../../../../../src/scripts/review-gate/core/ports.js";
+import { createReviewTarget } from "../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import type {
+  ForwardLifecycleTailProofResolutionInput,
+  LifecycleTailProofResolutionInput,
+} from "../../../../../../src/scripts/review-gate/core/ports.js";
 import { GitLifecycleTailProofAdapter } from "../../../../../../src/scripts/review-gate/hosts/github/lifecycle-tail.js";
 
 const REVIEWED = "a".repeat(40);
@@ -45,7 +49,7 @@ function resolution(): LifecycleTailProofResolutionInput {
     baseRef: "main",
     diffBaseSha: DIFF_BASE,
     policyVersion: POLICY,
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     sourceIdentity: "agent-1",
   };
   return {
@@ -54,6 +58,49 @@ function resolution(): LifecycleTailProofResolutionInput {
     currentHeadSha: CURRENT,
     reviewed: scope,
     current: { ...scope },
+  };
+}
+
+function forwardResolution(): ForwardLifecycleTailProofResolutionInput {
+  const priorTarget = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: DIFF_BASE,
+    diffBaseTree: "e".repeat(40),
+    headSha: REVIEWED,
+    headTree: "f".repeat(40),
+  });
+  const currentTarget = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: DIFF_BASE,
+    diffBaseTree: "e".repeat(40),
+    headSha: CURRENT,
+    headTree: "0".repeat(40),
+  });
+  const surface = {
+    treeId: "1".repeat(40),
+    pathManifestDigest: `sha256:${"2".repeat(64)}` as const,
+    semanticDigest: `sha256:${"3".repeat(64)}` as const,
+  };
+  const scope = {
+    target: priorTarget,
+    surface,
+    policyVersion: `sha256:${POLICY}` as const,
+    rubricVersion: "standard-review/v1",
+    rubricDigest: `sha256:${"4".repeat(64)}` as const,
+    sourceIdentity: "agent-1",
+  };
+  return {
+    predicateId: "lifecycle-bookkeeping-tail/v2",
+    reviewed: scope,
+    current: { ...scope, target: currentTarget, surface: { ...surface } },
   };
 }
 
@@ -107,6 +154,34 @@ function ordinaryAdapter(
 }
 
 describe("Git lifecycle bookkeeping-tail predicate", () => {
+  it("binds a valid archive tail to exact forward targets without granting merge authority", async () => {
+    const input = forwardResolution();
+    await expect(ordinaryAdapter().resolveForwardLifecycleTail(input)).resolves.toMatchObject({
+      schemaVersion: 2,
+      priorTargetId: input.reviewed.target.targetId,
+      currentTargetId: input.current.target.targetId,
+      priorHeadTree: input.reviewed.target.headTree,
+      currentHeadTree: input.current.target.headTree,
+      applicability: { treatment: "carry", scope: "review-coverage-only" },
+      diagnostics: [],
+    });
+  });
+
+  it("rejects surface drift before granting the lifecycle tail privileged Git classification", async () => {
+    const input = forwardResolution();
+    input.current = {
+      ...input.current,
+      surface: { ...input.current.surface, semanticDigest: `sha256:${"9".repeat(64)}` },
+    };
+    const adapter = new GitLifecycleTailProofAdapter({
+      exec: async () => { throw new Error("Git must not run for surface drift"); },
+    });
+
+    await expect(adapter.resolveForwardLifecycleTail(input)).resolves.toMatchObject({
+      diagnostics: ["semantic-digest-drift"],
+    });
+  });
+
   it("accepts one archived artifact group, byte-identical companions, notes cleanup, and ROADMAP", async () => {
     const sourceMeta = `${ACTIVE}/meta-${SLUG}.md`;
     const sourceTasks = `${ACTIVE}/tasks-${SLUG}.md`;

@@ -15,20 +15,20 @@ import {
   SELF_HOSTING_POLICY,
   type SourceQualificationDeclaration,
 } from "../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
-import { qualificationCell, qualificationScope } from "./qualification-fixtures.js";
+import { legacyV1QualificationCell, legacyV1QualificationScope } from "./qualification-fixtures.js";
 
-function acceptance(transform: (cell: ReturnType<typeof qualificationCell>) => ReturnType<typeof qualificationCell> = (cell) => cell) {
-  const scope = qualificationScope();
+function acceptance(transform: (cell: ReturnType<typeof legacyV1QualificationCell>) => ReturnType<typeof legacyV1QualificationCell> = (cell) => cell) {
+  const scope = legacyV1QualificationScope();
   let checkpoint = createQualificationCheckpoint(scope);
-  for (const cellId of QUALIFICATION_CELL_IDS) checkpoint = appendQualificationCell(scope, checkpoint, transform(qualificationCell(cellId)));
+  for (const cellId of QUALIFICATION_CELL_IDS) checkpoint = appendQualificationCell(scope, checkpoint, transform(legacyV1QualificationCell(cellId)));
   return finalizeQualification(scope, checkpoint);
 }
 
 function unicodeAcceptance(composed: boolean) {
-  const scope = { ...qualificationScope(), defaultBranch: "e\u0301" };
+  const scope = { ...legacyV1QualificationScope(), defaultBranch: "e\u0301" };
   let checkpoint = createQualificationCheckpoint(scope);
   for (const cellId of QUALIFICATION_CELL_IDS) {
-    const cell = qualificationCell(cellId);
+    const cell = legacyV1QualificationCell(cellId);
     checkpoint = appendQualificationCell(scope, checkpoint, cellId === "pending-first"
       ? { ...cell, evidenceRef: `https://github.com/o/r/actions/${composed ? "é" : "e\u0301"}` }
       : cell);
@@ -44,11 +44,11 @@ describe("qualification activation compiler", () => {
     expect(acceptanceCandidate.matrixDigest).toBe(
       "dcc3abb0069cf1ab4d6f640291901cbff79468b32f72cce61a21e035d15afcfe",
     );
-    expect(candidate.candidateDigest).toBe("2477a565c316d0f9741d6d180636dd89ccbb42acc07f430135d0211c427022ea");
+    expect(candidate.candidateDigest).toBe("e0426c94e86de888bbfc9c1208c8523ab84379f9834b8542fb8daae8851e984b");
     expect(candidate.operations.map(({ valueDigest }) => valueDigest)).toEqual([
-      "7e38142a3f981094abe45b7f24f4c3f356e7ea8c67431950fee116f4948467f6",
-      "316f4929887e8d3f3246b527eb454ac913daa9e75e360d16abb4aaea413ad808",
-      "25ff61378f0119eb8c58742937c140fee49f43169ad551b918f59da11f35c849",
+      "c5a3677514f8b36524e47d69a06c6d5743e1624863983e66bb5909282f898ee8",
+      "7c02ec6182e2d3cbddffd74069bf2dfeadd1c35bc81b261e1370db5910b40ae7",
+      "e0bb30244cd6fad6e9c22756caa49d8f322d816512007ac68c996968133c57d2",
     ]);
     expect(validateQualificationActivationDiff(candidate, candidate.operations)).toEqual([]);
 

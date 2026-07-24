@@ -1,6 +1,7 @@
 /** GitHub composition adapters over the validated host leaf functions. */
 
 import type { GitExec } from "../../../../lib/git/exec.js";
+import type { RawGitExec } from "../../../../lib/change-facts.js";
 import type {
   ActorAddress,
   GitHostAdapter,
@@ -63,6 +64,7 @@ export interface GitHubHostReadDeps {
   rest: GitHubRestClient;
   gql: GitHubGraphQLClient;
   exec: GitExec;
+  rawExec?: RawGitExec;
   owner: string;
   repo: string;
   baseRemote: string;
@@ -112,17 +114,14 @@ export class GitHubHostReadAdapter implements GitHostReadAdapter {
     const result = await this.functions.resolveChangeRequest({
       rest: this.deps.rest,
       exec: this.deps.exec,
+      ...(this.deps.rawExec === undefined ? {} : { rawExec: this.deps.rawExec }),
       baseRemote: this.deps.baseRemote,
     }, hostRef);
     if (result.kind !== "resolved") throw new GitHubHostReadError(`change-request-${result.kind}`);
     return {
       changeRequest: result.changeRequest,
       context: {
-        changedPaths: result.context.changedPaths.map((change) => {
-          if (change.status !== "renamed") return { status: change.status, path: change.path };
-          if (change.previousPath === undefined) throw new GitHubHostReadError("renamed-path-missing-previous-path");
-          return { status: "renamed", path: change.path, previousPath: change.previousPath };
-        }),
+        changedPaths: result.context.changedPaths,
         author: {
           identity: result.context.author.identity,
           login: result.context.author.login,

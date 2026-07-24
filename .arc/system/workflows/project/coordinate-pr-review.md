@@ -3,7 +3,10 @@ purpose: Coordinate one explicit open pull request through controller admission,
 audience: agent
 arc:
   methods:
-    - review-triage
+    - adversarial-review
+    - standard-review
+    - implementation-audit
+    - review-response
 ---
 
 # Workflow: Coordinate PR Review
@@ -14,13 +17,38 @@ current change-set projection before acting. Provider-specific requests and obse
 commands and adapter summaries; controller-normalized findings and provider-native conversations have distinct
 closure authority.
 
+Require `review-gate/v2` for every forward projection and operation record. Treat an exact v1 parser or ledger result
+as historical/diagnostic input only and stop if it is offered as current qualification evidence. This workflow does
+not activate the dormant controller, project lifecycle readiness, or merge authority.
+
 ## 1. Run the Typed Action Loop
 
 Pass the explicit `hostRef` to each repository launcher; the launchers resolve and validate the remaining canonical
-coordinates. Keep the resulting scope unchanged for one loop iteration:
+coordinates. Bind one loop iteration to the canonical target and head, policy identity, lifecycle-tail identity, and
+provider-event identity. An approved fix, base merge, or change to any bound identity invalidates that scope: re-read
+the canonical target and routing result before another action.
 
-1. Run `npm run review-gate:next-action -- <hostRef>` and parse its JSON contract. Never infer an action from summary
-   prose.
+Consume the effective routing result plus the explicit project channel, `local | hosted | both`. Materialize the
+exact target, standard-review requirement, and selected carrier request from those typed inputs. An exempt
+obligation produces no request. For every admitted source:
+
+- **Local:** Launch [`adversarial-review`][adversarial-review] under the effective
+  [`implementation-audit`][implementation-audit] rubric over the complete exact target. Run without author conclusions,
+  suspected weak spots, preferred fixes, or self-verification claims. Normalize the result, then submit only a complete
+  clean or findings result to the exact-head attestor. Re-reduce the requirement from the appended local receipt; send
+  findings to § 2 with a local channel and no conversation capabilities.
+- **Hosted:** Enter the typed action/await loop below. Provider trigger, observation, and conversation mechanics stay
+  behind repository launchers and authority-specific adapters.
+
+Unavailable, partial, or failed review is non-satisfying. An unsatisfied required obligation blocks; an unsatisfied
+recommended obligation remains visible and non-blocking. After an approved fix changes the target, reroute and
+relaunch every still-selected source rather than carrying a prior request or result. Typed reduction ends the bounded
+call and does not add a resident engine or retain coordinator-owned execution state.
+
+When a hosted source remains selected and unsatisfied:
+
+1. Run `npm run review-gate:next-action -- <hostRef>` and parse its JSON contract. Never infer an action from
+   summary prose.
 2. On `needs-user-trigger`, surface the provider, generation, command, and required actor. After authorization, run
    `npm run review-gate:perform-action -- <hostRef> <request-key> <generation>`; it revalidates actor and canonical
    state before the trigger and dispatches exact-PR/head reconciliation afterward.
@@ -31,41 +59,80 @@ coordinates. Keep the resulting scope unchanged for one loop iteration:
    `stale-head`, recompose the full `openedChangeRequest` and restart. On timeout, re-read `next-action` before
    deciding whether to wait again. Authentication, host, or malformed-projection results stop for operator repair.
 
+Dispatch the current normalized routing/controller arm without weakening it:
+
+- `stale` — discard the loop scope and recompose from canonical state.
+- `exempt` — skip review request mechanics and await current-head CI readiness.
+- `recommended` — keep an unavailable or failed review visible but non-blocking; coordinate the admitted source when
+  one is selected.
+- `required` — block until the exact requirement is satisfied or an authoritative decision changes it.
+- `attention` — enter § 2 for findings; otherwise stop on the typed operator-repair reason.
+
+Treat any carried lifecycle or integration state as a bound composition basis. An approved substantive fix or an
+interacting reconcile must discard the composition basis. Carry only when a typed applicability proof establishes that
+the reviewed work-unit delta is unchanged; otherwise recompose it from the current target, policy, and source state.
+
 This is the `next-action` → `perform-action` → `await` → canonical re-entry loop. It is idempotent from both
 `post-pr-open` and final `pre-merge`; no arm bypasses the controller.
 
-## 2. Coordinate Findings
+Before leaving an asynchronous review, publish only the strict `review-suspension` operation record through the
+version-checked store. On re-entry, reconstruct an absent local record from canonical vehicle and host facts, then
+re-read the current target and provider state. Derive the response plan and resume text in memory; never persist a
+controller conclusion or treat the meta's free-form `Next Action` as review authority.
 
-Fetch controller-normalized findings with source-scoped immutable ids and provider-native conversations with their
-current decisive review state. Triage both paths with [`review-triage`][review-triage], then keep their authority
-separate:
+Prefer a promoted review watcher only through the injected `ReviewWakeupCapability`. Arm it with the suspension's
+exact wakeup token and invalidation facts. The production binding remains absent until enforcement promotion; absence
+continues to the fallback layer and never licenses use of the current controller or its wakeup workflow.
 
-- **Controller-normalized findings:** Surface every finding and record an explicit FIX, DEFER, or REJECT disposition.
-  Apply only approved fixes; non-fix dispositions require an authorized developer rationale on the unchanged head.
-- **Provider-native conversations:** Surface dispositions and apply only approved fixes, but never mint a controller
-  finding or settlement. `CHANGES_REQUESTED` remains blocking; closure comes from the provider's decisive state and
-  current conversation status. Completion-check success only wakes a canonical re-read; it never closes or cleans a
-  conversation.
+At the fallback layer, arm an injected harness-native schedule no later than the suspension deadline. If unavailable,
+leave the vehicle suspended and report the exact source-state/deadline resume condition plus the WU-or-Errand
+integration entrypoint. Timeout and failed/unavailable provider state use this same explicit human re-entry shape.
+Reject a scheduled action whose operation, target/request, generation, or wakeup token is stale. Repeated current-token
+wakeups simply perform the same canonical re-read and do not advance durable operation state.
 
-Run affected quality gates and commit atomically with a `(code review)` context footer. For a FIX, record the
-authorized `begin-fix` transition before invoking the guard. Run
-`npm run review-gate:assert-head-mutable -- <hostRef> HEAD [<begin-fix-receipt-hash>]`. Stop on refusal; only then run
-any active pre-push review action and push.
+## 2. Coordinate Findings Through `review-response`
+
+Fetch controller-normalized findings and provider-native conversations, retaining source-scoped immutable ids and
+current decisive review state. Compose the [`review-response` method][review-response] input from the exact current
+target, effective routing result, normalized findings, strict proposed/approved disposition state, verification and
+persistence evidence, self-hosting `minorGating: record-only`, and opaque adapter capabilities. Controller findings
+carry a controller receipt handle plus
+their available
+reply and thread-state handles; provider conversations carry provider reply, thread-state, and decisive-review handles.
+Every normalized finding retains its explicit FIX, DEFER, or REJECT disposition and immutable source locus. For
+provider-native conversations, `CHANGES_REQUESTED` remains blocking.
+Completion-check success only wakes a canonical re-read and never closes a conversation. Execute only the returned
+planner state:
+
+- `awaiting-approval` — verify every finding against source, present the complete disposition set, and obtain exact
+  approval. Do not mutate the target.
+- `ready-to-fix` — require the returned `FixAuthorization` to be the one unconsumed record for the approved set and
+  exact old target before applying any edit. Apply only its approved fix findings as one bounded increment and run
+  affected quality gates. Return the candidate target and verification references without persisting it.
+- `ready-to-persist` — stop unless the exact authorization remains unconsumed and the affected gates passed. Commit
+  atomically with a `(code review)` context footer through the caller's commit interlock, then bind one consumption
+  record to the actual old/new targets, applying actor, and verification references. Run any active pre-push review
+  action and release the push interlock only after the consumption is canonical.
+- `ready-to-close` — preserve a local disposition report as terminal without adapter work, or pass only the returned
+  hosted closure work to § 3's authority-specific adapters.
+- `reroute` — recompose the exact target and return it to routing before another action.
+- `blocked` — stop with the planner's next action; do not infer a missing capability or transition.
 
 After a head update, recompose the exact scope and return to § 1. The controller decides whether full or incremental
 coverage is admissible and exposes any actor-owned trigger through `next-action`; never synthesize a command from
-provider state or prose. Run the resulting typed action/wait loop, then re-enter from canonical state. A changed head
-invalidates the loop scope before any action or settlement decision.
+provider state or prose. Run the resulting typed action/wait loop, then re-enter from canonical state.
 
 ## 3. Close Findings With Authority
 
 Settle each controller-normalized finding through exactly one authority path:
 
-- **FIX:** Record `begin-fix`, authorize and consume one old-head-to-new-head push, require successful exact-new-head
-  CI and a qualifying full-head follow-up review with no explicit recurrence, post an accurate direct reply, append
-  and confirm `fixed`, then resolve and canonically observe the conversation.
-- **DEFER or REJECT:** Keep the head unchanged, post the authorized developer's bounded rationale as a direct reply,
-  append and confirm that disposition, then resolve and canonically observe the conversation.
+- **Controller FIX:** Retain the approved-set `FixAuthorization`, consume it once against the actual old/new target
+  after the affected gates and interlocked commit succeed, require successful exact-new-head CI and a qualifying full-head
+  follow-up review with no explicit recurrence, post an accurate direct reply, append and confirm `fixed`, and retain
+  any host resolution separately. Close only from the same source's explicit confirmation.
+- **Controller DEFER or REJECT:** Keep the head unchanged, post the authorized developer's bounded rationale as a
+  direct reply, append and confirm that disposition, and retain any host resolution separately. Close only from the
+  same source's explicit confirmation.
 - **Provider-owned closure:** Accept only an explicit closure relation from the same qualified source that issued the
   finding. Record `provider-closed` without speaking for the provider or mutating the thread on its behalf.
 
@@ -73,17 +140,23 @@ A bare host-thread mutation, generic approval, provider ignore command, coordina
 provider review request cannot close or satisfy a requirement. Thread resolution is a separate observation that may
 follow durable coordinator authority; it is never authority by itself.
 
-A provider-native conversation closes only when its provider's current decisive state and conversation status confirm
-it. Never mint a controller finding or settlement for a native artifact the provider boundary cannot model.
+A provider-native conversation closes only when its provider's current decisive state is approved and the conversation
+is resolved, each with canonical evidence. Never mint a controller finding or settlement for a native artifact the
+provider boundary cannot model.
 
 ## 4. Return Settled State
 
-Re-read the current head, requirements, findings, native conversations, and check projection. Return only when every
-obligation is satisfied, explicitly waived or settled with authority, or remains non-blocking recommended work, and no
-blocking finding or unresolved required conversation remains. A valid lifecycle-tail projection that is already
+Re-read the current head, requirements, findings, native conversations, and check projection. Reduce the approved set
+through the typed severity gate: unresolved blocker/major findings remain blocking; ordinary minors follow the project
+policy; nits are record-only; and only a blocking recurrence asks for another round. Keep all findings in the report.
+Return only when every obligation is satisfied, explicitly waived or settled with authority, or remains non-blocking
+recommended work, and no blocking finding, provider-native requested-changes state, or required conversation remains.
+A valid lifecycle-tail projection that is already
 settled returns without requesting or recommending a refresh. An invalid or ambiguous tail returns to ordinary
 current-head coordination. If the head changes, restart at § 1.
 
 ---
 
-[review-triage]: ../../methods/review-triage.md
+[review-response]: ../../methods/review-response.md
+[adversarial-review]: ../../methods/adversarial-review.md
+[implementation-audit]: ../../methods/implementation-audit.md

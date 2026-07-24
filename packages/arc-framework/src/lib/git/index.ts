@@ -231,6 +231,7 @@ export {
 } from "./branch-containment.js";
 
 export {
+  readConfiguredIdentity,
   slugifyIdentity,
   resolveIdentity,
   type IdentityOptions,

@@ -46,6 +46,79 @@ describe("parseMethodFrontmatter", () => {
     expect(result.frontmatter?.related).toBeUndefined();
   });
 
+  it("accepts optional activation only for a registered activatable method", () => {
+    const content = [
+      "---",
+      "name: self-review",
+      "description: Aggregate author review",
+      "active: false",
+      "override-active: true",
+      "override-mode: extend",
+      "---",
+      "",
+    ].join("\n");
+    expect(parseMethodFrontmatter(content, "self-review").frontmatter).toMatchObject({
+      active: false,
+      "override-active": true,
+      "override-mode": "extend",
+    });
+  });
+
+  it("preserves the optional structured review augmentation for policy parsing", () => {
+    const content = [
+      "---",
+      "name: security-audit",
+      "description: Security-focused review",
+      "override-active: false",
+      "review-augmentation:",
+      "  rubricId: security-audit/v1",
+      "  dimensions:",
+      "    - id: authorization-boundaries",
+      "      title: Authorization boundaries",
+      "      instruction: Verify every privileged operation has an explicit authority check.",
+      "---",
+      "",
+    ].join("\n");
+
+    expect(parseMethodFrontmatter(content, "security-audit").frontmatter?.["review-augmentation"])
+      .toEqual({
+        rubricId: "security-audit/v1",
+        dimensions: [{
+          id: "authorization-boundaries",
+          title: "Authorization boundaries",
+          instruction: "Verify every privileged operation has an explicit authority check.",
+        }],
+      });
+  });
+
+  it("rejects activation on an unregistered method and malformed registered values", () => {
+    const unregistered = validMethod.replace("override-active: false", "active: true\noverride-active: false");
+    expect(parseMethodFrontmatter(unregistered, "commit-format").errors).toContain(
+      "`active` is only valid for a registered activatable method",
+    );
+    const malformed = [
+      "---",
+      "name: frontline-review",
+      "description: Advisory review",
+      'active: "yes"',
+      "override-active: false",
+      "---",
+      "",
+    ].join("\n");
+    expect(parseMethodFrontmatter(malformed, "frontline-review").errors)
+      .toContain("invalid `active` (expected boolean)");
+  });
+
+  it("rejects unknown frontmatter fields", () => {
+    const content = validMethod.replace("override-active: false", [
+      "override-active: false",
+      "actions: enabled",
+    ].join("\n"));
+
+    expect(parseMethodFrontmatter(content, "commit-format").errors)
+      .toContain("unknown frontmatter field `actions`");
+  });
+
   it("reports a diagnostic naming the missing `name` field", () => {
     const content = [
       "---",

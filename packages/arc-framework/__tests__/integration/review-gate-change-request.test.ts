@@ -79,7 +79,12 @@ describe("GitHub change-request composition", () => {
     expect(result.changeRequest).not.toHaveProperty("node_id");
     expect(result.changeRequest).not.toHaveProperty("mergeable");
     expect(result.context).toEqual({
-      changedPaths: [{ status: "added", path: "feature.txt" }],
+      changedPaths: [{
+        status: "added",
+        path: "feature.txt",
+        oldMode: "000000",
+        newMode: "100644",
+      }],
       author: { identity: "7", nodeId: "U_author", login: "andrewRCr", kind: "user" },
       isDraft: false,
       isCrossRepository: false,

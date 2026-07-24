@@ -16,6 +16,7 @@ import {
   decodeWorktreeHuskStamp,
   nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarker,
+  renameWorktreeOwnershipMarker,
   stampWorktreeHusk,
   writeWorktreeMarker,
   writeWorktreeOwnershipMarker,
@@ -392,6 +393,74 @@ describe("stampWorktreeHusk", () => {
 
     expect((await stampWorktreeHusk(cwd, husk)).kind).toBe("malformed");
     expect(await readFile(path, "utf8")).toBe("{ not json");
+  });
+});
+
+describe("renameWorktreeOwnershipMarker", () => {
+  let cwd: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-worktree-marker-rename-"));
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it("rewrites both work-unit ownership fields", async () => {
+    await writeWorktreeOwnershipMarker(cwd, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "old-name" },
+      spawningIdentity: "andrew",
+      now: Date.parse("2026-07-22T12:00:00.000Z"),
+    });
+
+    await expect(renameWorktreeOwnershipMarker(cwd, {
+      oldWuName: "old-name",
+      newWuName: "new-name",
+    })).resolves.toEqual({ status: "renamed" });
+    expect(await readWorktreeMarker(cwd)).toMatchObject({
+      kind: "present",
+      marker: {
+        wuName: "new-name",
+        createdFor: { kind: "work-unit", name: "new-name" },
+        spawningIdentity: "andrew",
+      },
+    });
+  });
+
+  it("treats a missing marker as an in-place skip", async () => {
+    await expect(renameWorktreeOwnershipMarker(cwd, {
+      oldWuName: "old-name",
+      newWuName: "new-name",
+    })).resolves.toEqual({ status: "absent" });
+  });
+
+  it("leaves a marker owned by another work unit untouched", async () => {
+    await writeWorktreeOwnershipMarker(cwd, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "other-name" },
+      spawningIdentity: "andrew",
+    });
+    const before = await readWorktreeMarker(cwd);
+
+    await expect(renameWorktreeOwnershipMarker(cwd, {
+      oldWuName: "old-name",
+      newWuName: "new-name",
+    })).resolves.toEqual({ status: "foreign" });
+    expect(await readWorktreeMarker(cwd)).toEqual(before);
+  });
+
+  it("does not repair a malformed marker", async () => {
+    const path = resolveWorktreeMarkerPath(cwd);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, "{ malformed", "utf8");
+
+    await expect(renameWorktreeOwnershipMarker(cwd, {
+      oldWuName: "old-name",
+      newWuName: "new-name",
+    })).resolves.toMatchObject({ status: "malformed" });
+    await expect(readFile(path, "utf8")).resolves.toBe("{ malformed");
   });
 });
 

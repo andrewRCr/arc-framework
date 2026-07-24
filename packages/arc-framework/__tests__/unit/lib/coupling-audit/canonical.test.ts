@@ -56,6 +56,30 @@ describe("canonical coupling-audit output", () => {
     expect(digestMemberSet([second, first, second])).toBe(digestMemberSet([first, second]));
   });
 
+  it("orders canonical strings by UTF-8 bytes instead of the host locale", () => {
+    const ledger = {
+      version: 1,
+      resultDigest: "a".repeat(64),
+      packets: [{
+        id: "packet-a",
+        targetSlug: "target-a",
+        concernId: "concern-a",
+        owner: { state: "planned" as const, resolvedAt: "2026-07-18" },
+        classIds: ["ä", "z"],
+        extractRefs: [],
+        evidenceAnchors: [],
+        reportAnchors: [],
+        classEvidence: [],
+        designImplication: "Design implication.",
+        recommendation: "Recommendation.",
+        contentDigest: "b".repeat(64),
+        state: "captured-awaiting-housekeep" as const,
+      }],
+    } satisfies RoutingLedger;
+
+    expect(canonicalizeRoutingLedger(ledger).packets[0]!.classIds).toEqual(["z", "ä"]);
+  });
+
   it("canonicalizes routing packet, class, and anchor ordering", () => {
     const ledger: RoutingLedger = {
       version: 1,

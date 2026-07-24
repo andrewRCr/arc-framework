@@ -30,6 +30,7 @@ import {
   SELF_HOSTING_POLICY,
   type SelfHostingPolicy,
 } from "../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
+import { resolveReviewRouting } from "../../../../../src/scripts/review-gate/policy/routing.js";
 import {
   SelfHostingReconcileRuntime,
   type ReconcileRuntimeDependencies,
@@ -41,6 +42,20 @@ const DIFF_BASE = "b".repeat(40);
 const HEAD = "c".repeat(40);
 const NOW = new Date("2026-07-11T20:00:00.000Z");
 const APP_BOT = SELF_HOSTING_POLICY.providerIdentities.appBotUserId;
+
+function routing(reviewRisk: "routine" | "sensitive") {
+  return resolveReviewRouting({
+    schemaVersion: 1,
+    changeSetState: "known",
+    contentKind: "documentation",
+    reviewRisk,
+    changeDeterminacy: "ordinary",
+    ownership: "not-applicable",
+    surfaceAuthority: "ordinary",
+    assurance: { workContext: "unscoped", workClass: "none" },
+    activity: { selfReview: true, frontlineReview: true },
+  });
+}
 
 const changeRequest: NormalizedChangeRequest = {
   schemaVersion: 1,
@@ -204,8 +219,7 @@ function harness(overrides: HarnessOverrides = {}) {
     mode: "shadow",
     expectedAppId: "4268856",
     resolveCiState: async () => "success",
-    resolveLane: async () => ({ lane: "reviewed", reasons: ["non-lane-path"] }),
-    resolveRisk: () => ({ risk: "routine", reasons: ["routine-doc-surface"] }),
+    resolveRouting: async () => routing("routine"),
     listCommandComments: async () => [],
     ...overrides.deps,
   };
@@ -240,7 +254,7 @@ describe("SelfHostingReconcileRuntime", () => {
     if (first === undefined) throw new Error("missing requirement fixture");
     const policy: SelfHostingPolicy = {
       ...SELF_HOSTING_POLICY,
-      requirementTemplates: [first, { ...first, id: "independent-analysis-secondary" }],
+      requirementTemplates: [first, { ...first, id: "standard-review-secondary" }],
     };
     const { runtime } = harness({ policy });
 
@@ -274,7 +288,7 @@ describe("SelfHostingReconcileRuntime", () => {
   });
 
   it("keeps an attestation-only obligation pending with no automatic request", async () => {
-    const { runtime } = harness({ deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) } });
+    const { runtime } = harness({ deps: { resolveRouting: async () => routing("sensitive") } });
     const state = await runtime.read();
     const decision = await runtime.reduce(state, NOW);
 
@@ -285,7 +299,7 @@ describe("SelfHostingReconcileRuntime", () => {
   it("admits one controller-authored provider request under an enabled qualified policy", async () => {
     const { runtime } = harness({
       policy: coderabbitPolicy(),
-      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+      deps: { resolveRouting: async () => routing("sensitive") },
     });
     const state = await runtime.read();
     const decision = await runtime.reduce(state, NOW);
@@ -301,7 +315,7 @@ describe("SelfHostingReconcileRuntime", () => {
   it("drives the reserve-confirm-invoke-acknowledge protocol through the provider", async () => {
     const { runtime, store, requestCalls } = harness({
       policy: coderabbitPolicy(),
-      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+      deps: { resolveRouting: async () => routing("sensitive") },
     });
     const state = await runtime.read();
     const decision = await runtime.reduce(state, NOW);
@@ -319,7 +333,7 @@ describe("SelfHostingReconcileRuntime", () => {
   it("rejects an unqualified provider request before appending its reservation", async () => {
     const { runtime, provider, store } = harness({
       policy: coderabbitPolicy(),
-      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+      deps: { resolveRouting: async () => routing("sensitive") },
     });
     provider.qualifyRequest = async () => ({ qualified: false, reason: "guidance-unresolved" });
     const state = await runtime.read();
@@ -344,7 +358,7 @@ describe("SelfHostingReconcileRuntime", () => {
           evidenceRef: "https://github.test/review-empty",
         }],
       },
-      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+      deps: { resolveRouting: async () => routing("sensitive") },
     });
 
     const state = await runtime.read();
@@ -356,7 +370,7 @@ describe("SelfHostingReconcileRuntime", () => {
     const { runtime, provider } = harness({
       policy: coderabbitPolicy(),
       deps: {
-        resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }),
+        resolveRouting: async () => routing("sensitive"),
         readTriggerHistory: async () => triggerHistory,
       },
     });
@@ -375,14 +389,14 @@ describe("SelfHostingReconcileRuntime", () => {
     }];
     provider.normalizeEvidence = async () => [{
       schemaVersion: 1,
-      requirementId: "independent-analysis",
+      requirementId: "standard-review",
       sourceKind: "agent",
       sourceIdentity: "coderabbit-pr",
       result: "clean",
       evidenceUrlOrId: "https://github.test/review-clean",
       reviewRunId: "run-clean",
       policyVersion: computePolicyVersion({ policy: coderabbitPolicy() }),
-      rubricVersion: "independent-analysis/v1",
+      rubricVersion: "standard-review/v1",
       coverage: "full",
       coverageFromSha: DIFF_BASE,
       coverageThroughSha: HEAD,
@@ -428,8 +442,8 @@ describe("SelfHostingReconcileRuntime", () => {
       changeSetId: computeChangeSetId({ baseRef: "main", diffBaseSha: DIFF_BASE, headSha: oldHead }),
       policyVersion: computePolicyVersion({ policy }),
       semanticsVersion: "review-gate/v1",
-      rubricVersion: "independent-analysis/v1",
-      requirementId: "independent-analysis",
+      rubricVersion: "standard-review/v1",
+      requirementId: "standard-review",
       sourceIdentity: "coderabbit-pr",
       coverage: "full",
       coverageFromSha: DIFF_BASE,
@@ -491,7 +505,7 @@ describe("SelfHostingReconcileRuntime", () => {
     const { runtime, requestCalls } = harness({
       policy,
       store,
-      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+      deps: { resolveRouting: async () => routing("sensitive") },
     });
 
     const result = await reconcile(runtime, NOW);
@@ -509,7 +523,7 @@ describe("SelfHostingReconcileRuntime", () => {
     const { runtime } = harness({
       policy: coderabbitPolicy(),
       deps: {
-        resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }),
+        resolveRouting: async () => routing("sensitive"),
         readTriggerHistory: async () => events,
       },
     });
@@ -553,7 +567,7 @@ describe("SelfHostingReconcileRuntime", () => {
   it("confirms pending only for the matching request generation and ledger projection", async () => {
     const { runtime } = harness({
       policy: coderabbitPolicy(),
-      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+      deps: { resolveRouting: async () => routing("sensitive") },
     });
     const state = await runtime.read();
     const decision = await runtime.reduce(state, NOW);
@@ -576,7 +590,7 @@ describe("SelfHostingReconcileRuntime", () => {
   it("orchestrates durable pending publication and confirmation before provider execution", async () => {
     const { runtime, store, publishCalls, requestCalls } = harness({
       policy: coderabbitPolicy(),
-      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+      deps: { resolveRouting: async () => routing("sensitive") },
     });
 
     await expect(reconcile(runtime, NOW)).resolves.toMatchObject({ status: "published" });
@@ -594,7 +608,7 @@ describe("SelfHostingReconcileRuntime", () => {
     const { runtime, store, publishCalls, requestCalls } = harness({
       policy: coderabbitPolicy(),
       confirmPendingProjection: async () => false,
-      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+      deps: { resolveRouting: async () => routing("sensitive") },
     });
 
     await expect(reconcile(runtime, NOW)).resolves.toEqual({ status: "pending-unconfirmed", effect: null });
@@ -606,7 +620,7 @@ describe("SelfHostingReconcileRuntime", () => {
   it("records a terminal failure at the expected ledger version when invocation is ambiguous", async () => {
     const { runtime, store, provider } = harness({
       policy: coderabbitPolicy(),
-      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+      deps: { resolveRouting: async () => routing("sensitive") },
     });
     provider.request = vi.fn(async () => { throw new Error("ambiguous delivery"); });
     const state = await runtime.read();
@@ -629,7 +643,7 @@ describe("SelfHostingReconcileRuntime", () => {
     const { runtime } = harness({
       policy: coderabbitPolicy(),
       resolveActorCapabilities,
-      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+      deps: { resolveRouting: async () => routing("sensitive") },
     });
     const state = await runtime.read();
     const decision = await runtime.reduce(state, NOW);
@@ -643,7 +657,7 @@ describe("SelfHostingReconcileRuntime", () => {
     const { runtime } = harness({
       policy: coderabbitPolicy(),
       store,
-      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+      deps: { resolveRouting: async () => routing("sensitive") },
     });
     const state = await runtime.read();
     const decision = await runtime.reduce(state, NOW);
@@ -660,7 +674,7 @@ describe("SelfHostingReconcileRuntime", () => {
       commentNodeId: "IC_require",
       actor: { login: "maintainer", expectedActorId: "maintainer-1" },
       actorNodeId: "U_maintainer",
-      body: "/review-gate require independent-analysis needs a second look",
+      body: "/review-gate require standard-review needs a second look",
       createdAt: NOW.toISOString(),
       updatedAt: NOW.toISOString(),
       durableRef: "https://github.test/pull/7#issuecomment-1",
@@ -669,7 +683,7 @@ describe("SelfHostingReconcileRuntime", () => {
       store,
       resolveActorCapabilities: async (actor) => capabilities(actor.expectedActorId, ["maintain"]),
       deps: {
-        resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }),
+        resolveRouting: async () => routing("sensitive"),
         listCommandComments: async () => [command],
       },
     });
@@ -693,7 +707,7 @@ describe("SelfHostingReconcileRuntime", () => {
       commentNodeId: "IC_require",
       actor: { login: "maintainer", expectedActorId: "maintainer-1" },
       actorNodeId: "U_maintainer",
-      body: "/review-gate require independent-analysis needs a second look",
+      body: "/review-gate require standard-review needs a second look",
       createdAt: NOW.toISOString(),
       updatedAt: NOW.toISOString(),
       durableRef: "https://github.test/pull/7#issuecomment-1",
@@ -716,7 +730,7 @@ describe("SelfHostingReconcileRuntime", () => {
 
     expect(decision.projection.conclusion).toBe("pending");
     expect(decision.projection.requirementExecutions[0]).toMatchObject({
-      requirementId: "independent-analysis",
+      requirementId: "standard-review",
       state: "not-requested",
     });
   });

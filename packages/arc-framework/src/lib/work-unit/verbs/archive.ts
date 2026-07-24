@@ -32,10 +32,12 @@
  * @module
  */
 
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import { cohortLeaf, cohortParent, isSafeCohortPath } from "../../active/cohort-path.js";
 import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
+import { SlugSchema, type Slug } from "../../kernel/index.js";
+import { ArchiveQuarterSchema, ArchiveSequenceSchema, resolveArcPath } from "../../layout/index.js";
 import {
   computeArchiveDestination,
   type ArchiveDestination,
@@ -50,9 +52,6 @@ import {
   type TransitionInputs,
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
-
-/** The flat `active/` tier — where an Active / Integrating WU's artifacts live. */
-const ACTIVE_DIR = ".arc/active";
 
 /** The standalone-WU sentinel; carries no cohort grouping. */
 const NONE_SENTINEL = "[none]";
@@ -124,7 +123,16 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   const { name, prUrl, completed, suggestion } = params;
   const { executor, fs, clock } = ctx;
 
-  const sourceMetaPath = `${ACTIVE_DIR}/meta-${name}.md`;
+  const slug = SlugSchema.safeParse(name);
+  if (!slug.success) {
+    return { status: "rejected", reason: `\`${name}\` is not a started WU in \`active/\` — nothing to archive.` };
+  }
+  const sourceMetaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: slug.data,
+    artifact: "meta",
+  });
   let record: ParsedMetaRecord;
   try {
     record = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, sourceMetaPath)));
@@ -142,7 +150,16 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   const outcome = await executeTransition(executor, { verb: "archive", slug: name, inputs });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
-  const metaPath = `${destination.toDir}/meta-${name}.md`;
+  const metaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: {
+      kind: "completed",
+      quarter: ArchiveQuarterSchema.parse(destination.quarter),
+      sequence: ArchiveSequenceSchema.parse(destination.sequence),
+    },
+    slug: slug.data,
+    artifact: "meta",
+  });
 
   // Write the finalize facts to the relocated meta as managed fields (the
   // structured replacement for the hand-appended post-integration prose block).
@@ -202,6 +219,15 @@ function today(clock: Clock): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+function parseCohortCoordinate(field: string): [Slug] | [Slug, Slug] | null {
+  const segments = field.split("/").map((segment) => SlugSchema.safeParse(segment));
+  if (segments.some((segment) => !segment.success)) return null;
+  const slugs = field.split("/").map((segment) => SlugSchema.parse(segment));
+  if (slugs.length === 1 && slugs[0] !== undefined) return [slugs[0]];
+  if (slugs.length === 2 && slugs[0] !== undefined && slugs[1] !== undefined) return [slugs[0], slugs[1]];
+  return null;
+}
+
 /**
  * Sweep a cohort's coordinating `cohort-<leaf>.md` into a `NNa_cohort-<leaf>`
  * closeout sidecar when the cohort's **last member has shipped** — the archival
@@ -232,14 +258,26 @@ export async function sweepCohortDoc(
   // (`..` traversal, a leading `/`, a backslash, or a Windows drive). No-op,
   // matching the empty/sentinel skip above — never construct the path or sweep.
   if (!isSafeCohortPath(field)) return null;
+  const coordinate = parseCohortCoordinate(field);
+  if (coordinate === null) return null;
   // Descendants-aware so a nested parent (when the member's field IS the parent)
   // is held back until its subcohorts ship; for a leaf this is exact membership.
   if (!isArchivalTriggeredWithDescendants(index, field)) return null;
 
   const leaf = cohortLeaf(field);
-  const toDir = `.arc/completed/${quarter}/${sequence}a_cohort-${leaf}`;
-  const { moved } = await relocate({ slug: leaf, fromDir: `.arc/backlog/planned/${field}`, toDir });
-  return moved.length > 0 ? `${toDir}/cohort-${leaf}.md` : null;
+  const fromPath = resolveArcPath({ kind: "cohort-document", placement: { kind: "planned" }, cohort: coordinate });
+  const completedPath = resolveArcPath({
+    kind: "cohort-document",
+    placement: {
+      kind: "completed",
+      quarter: ArchiveQuarterSchema.parse(quarter),
+      sequence: ArchiveSequenceSchema.parse(sequence),
+      closeout: "leaf",
+    },
+    cohort: coordinate,
+  });
+  const { moved } = await relocate({ slug: leaf, fromDir: posix.dirname(fromPath), toDir: posix.dirname(completedPath) });
+  return moved.length > 0 ? completedPath : null;
 }
 
 /**
@@ -270,12 +308,25 @@ export async function sweepNestedParentDoc(
   const field = cohort.trim();
   if (field === "" || field === NONE_SENTINEL) return null;
   if (!isSafeCohortPath(field)) return null;
+  const coordinate = parseCohortCoordinate(field);
+  if (coordinate === null) return null;
 
   const parent = cohortParent(field);
   if (parent === null) return null;
   if (!isArchivalTriggeredWithDescendants(index, parent)) return null;
 
-  const toDir = `.arc/completed/${quarter}/${sequence}b_cohort-${parent}`;
-  const { moved } = await relocate({ slug: parent, fromDir: `.arc/backlog/planned/${parent}`, toDir });
-  return moved.length > 0 ? `${toDir}/cohort-${parent}.md` : null;
+  const parentCoordinate: [Slug] = [SlugSchema.parse(parent)];
+  const fromPath = resolveArcPath({ kind: "cohort-document", placement: { kind: "planned" }, cohort: parentCoordinate });
+  const completedPath = resolveArcPath({
+    kind: "cohort-document",
+    placement: {
+      kind: "completed",
+      quarter: ArchiveQuarterSchema.parse(quarter),
+      sequence: ArchiveSequenceSchema.parse(sequence),
+      closeout: "parent",
+    },
+    cohort: parentCoordinate,
+  });
+  const { moved } = await relocate({ slug: parent, fromDir: posix.dirname(fromPath), toDir: posix.dirname(completedPath) });
+  return moved.length > 0 ? completedPath : null;
 }

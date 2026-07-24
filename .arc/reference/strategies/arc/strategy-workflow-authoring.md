@@ -79,10 +79,10 @@ subset they need and carry no coverage requirement.
 
 ### Prose economy — write for the executing session
 
-Workflow prose is read by an agent *executing* the workflow, often on every run. The test for each line:
+Workflow prose is read by an agent _executing_ the workflow, often on every run. The test for each line:
 **does a session executing this need it to act correctly?** Keep procedure and load-bearing constraints —
 the rule, the format, when to skip; cut author-facing justification — "what this is / isn't" framing,
-rationale for *why* a rule exists, and restatements of guidance an adjacent inline hint already carries.
+rationale for _why_ a rule exists, and restatements of guidance an adjacent inline hint already carries.
 Rationale an author needs to trust the design belongs in the planning artifact (spec, draft, ADR), not in
 prose a session re-reads each run. Compress to the instruction; justification rarely earns its per-run token
 and judgement cost.
@@ -95,7 +95,7 @@ mechanics (a `git mv` into a concrete directory, a hand-edit of a state field, a
 Concrete paths and layouts belong to the invoked tooling, which is the single binding surface; every
 mechanics-narrating line is an additional coupling site a future structural change must find and pay for.
 
-Mechanics prose is legitimate only where no command exists for the operation and the mechanics *are* the
+Mechanics prose is legitimate only where no command exists for the operation and the mechanics _are_ the
 instruction — then the workflow is the binding surface by necessity. Applies to new and edited prose
 immediately; existing mechanics-narrating lines migrate as their workflows are touched.
 
@@ -211,6 +211,10 @@ The exception is class-tag-routing scope only — extension markers (`pre-push-r
 broader pre-* family) still fire on workflow steps that invoke a push, including `arc sync`. Place
 the marker before the sync invocation; the agent loads the extension's `.actions` per the
 established contract regardless of how the push itself routes.
+
+This is an agent-layer guarantee. The workflow corpus audit verifies agent-managed wrapper and pushing-sync
+callsites, but direct CLI invocations and raw Git pushes outside those workflows cannot be structurally intercepted
+by an agent-interpreted extension. Git hooks or host controls own stronger enforcement across those paths.
 
 ---
 

@@ -4,19 +4,20 @@ import {
   resolveCodexGuidance,
   type CodexGuidanceObjectReader,
 } from "../../../../../../src/scripts/review-gate/providers/codex/guidance.js";
+import {
+  STANDARD_REVIEW_BASELINE_CONTRACT,
+  STANDARD_REVIEW_RUBRIC_IDENTITY,
+} from "../../../../../../src/scripts/review-gate/policy/standard-review.js";
+import {
+  SELF_HOSTING_REVIEW_GUIDANCE_BLOCK,
+} from "../../../../../../src/scripts/review-gate/policy/self-hosting/guidance.js";
 
 const HEAD = "a".repeat(40);
 const ROOT = `# Agent Bootstrap
 
 ## Review guidelines
 
-Rubric: independent-analysis/v1
-
-- Intent and scope
-- Correctness and failure behavior
-- Trust and compatibility
-- Verification
-- Coherence and maintainability
+${SELF_HOSTING_REVIEW_GUIDANCE_BLOCK}
 `;
 
 function reader(files: Record<string, string>, observedHeadSha = HEAD): CodexGuidanceObjectReader {
@@ -41,9 +42,13 @@ describe("Codex exact-head review guidance", () => {
     expect(result).toMatchObject({
       qualified: true,
       headSha: HEAD,
-      rubricVersion: "independent-analysis/v1",
+      rubricVersion: "standard-review/v1",
       targets: ["packages/a.ts", "packages/old.ts"],
       guidancePaths: ["AGENTS.md"],
+      baseline: STANDARD_REVIEW_BASELINE_CONTRACT,
+      projectAugmentation: [{ path: "AGENTS.md", content: ROOT }],
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
+      guidanceDigest: "sha256:2870b060bd1bf7686f0833f3f33c1d3171b0912186897d46a32d907aed1dac46",
       digest: expect.stringMatching(/^[a-f0-9]{64}$/u),
     });
   });
@@ -61,10 +66,62 @@ describe("Codex exact-head review guidance", () => {
     expect(result).toEqual({ qualified: false, reasons: ["conflicting-effective-guidance"] });
   });
 
+  it("accepts inherited and identically repeated effective guidance", async () => {
+    const inherited = await resolveCodexGuidance({
+      headSha: HEAD,
+      changes: [{ status: "modified", path: "src/a.ts" }],
+      reader: reader({ "AGENTS.md": ROOT }),
+    });
+    const repeated = await resolveCodexGuidance({
+      headSha: HEAD,
+      changes: [{ status: "modified", path: "src/a.ts" }],
+      reader: reader({ "AGENTS.md": ROOT, "src/AGENTS.md": ROOT }),
+    });
+
+    expect(inherited.qualified).toBe(true);
+    expect(repeated.qualified).toBe(true);
+  });
+
+  it("rejects a stale managed projection in the effective nested set", async () => {
+    const result = await resolveCodexGuidance({
+      headSha: HEAD,
+      changes: [{ status: "modified", path: "src/a.ts" }],
+      reader: reader({
+        "AGENTS.md": ROOT,
+        "src/AGENTS.md": ROOT.replace("Stable locus", "Approximate locus"),
+      }),
+    });
+
+    expect(result).toEqual({ qualified: false, reasons: ["review-guidelines-stale:src/AGENTS.md"] });
+  });
+
+  it("changes the forward identity when exact project augmentation changes", async () => {
+    const baseline = await resolveCodexGuidance({
+      headSha: HEAD,
+      changes: [{ status: "modified", path: "src/a.ts" }],
+      reader: reader({ "AGENTS.md": ROOT }),
+    });
+    const augmented = await resolveCodexGuidance({
+      headSha: HEAD,
+      changes: [{ status: "modified", path: "src/a.ts" }],
+      reader: reader({
+        "AGENTS.md": ROOT,
+        "src/AGENTS.md": "# Project instructions\n\nCheck generated fixtures.\n",
+      }),
+    });
+    if (!baseline.qualified || !augmented.qualified) throw new Error("expected qualified guidance");
+
+    expect(augmented.guidanceDigest).not.toBe(baseline.guidanceDigest);
+    expect(augmented.rubricDigest).toBe(baseline.rubricDigest);
+    expect(augmented.projectAugmentation).toHaveLength(2);
+  });
+
   it.each([
     ["missing root", {}, HEAD, "missing-guidance:AGENTS.md"],
     ["wrong head", { "AGENTS.md": ROOT }, "b".repeat(40), "guidance-head-mismatch:AGENTS.md"],
     ["missing rubric", { "AGENTS.md": "# Agent Bootstrap\n" }, HEAD, "review-guidelines-missing:AGENTS.md"],
+    ["stale projection", { "AGENTS.md": ROOT.replace("Stable locus", "Approximate locus") }, HEAD,
+      "review-guidelines-stale:AGENTS.md"],
   ])("fails closed for %s", async (_name, files, observedHeadSha, reason) => {
     await expect(resolveCodexGuidance({
       headSha: HEAD,

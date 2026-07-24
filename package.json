@@ -8,10 +8,18 @@
     "packages/arc-framework"
   ],
   "scripts": {
-    "lint:md": "markdownlint-cli2 \"**/*.md\"",
+    "lint:md": "tsx packages/arc-framework/src/scripts/lint-markdown.ts",
+    "lint:md:staged": "tsx packages/arc-framework/src/scripts/lint-markdown-staged.ts",
+    "lint:md:markdownlint": "npm run -s lint:md:dependencies && tsx packages/arc-framework/src/scripts/lint-markdown-worktree.ts",
+    "lint:md:descriptors": "tsx packages/arc-framework/src/scripts/lint-task-descriptors.ts",
+    "lint:md:dependencies": "tsx packages/arc-framework/src/scripts/verify-markdown-dependencies.ts",
     "lint:md:file": "markdownlint-cli2 --no-globs",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
     "lint:md:fix:file": "markdownlint-cli2 --fix --no-globs",
+    "format:tables": "tsx packages/arc-framework/src/scripts/format-tables.ts",
+    "render:framework": "tsx packages/arc-framework/src/scripts/render-framework.ts",
+    "audit:tables": "tsx packages/arc-framework/src/scripts/audit-tables.ts",
+    "audit:emphasis": "tsx packages/arc-framework/src/scripts/audit-emphasis.ts",
     "build": "npm run build -w packages/arc-framework",
     "benchmark:session-envelope": "npm run benchmark:session-envelope -w packages/arc-framework",
     "test": "npm run test -w packages/arc-framework",
@@ -29,6 +37,7 @@
     "lint:arc:domain-rules": "tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
     "lint:arc:section-refs": "tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
     "audit:coupling": "tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
+    "audit:layout-migration": "tsx packages/arc-framework/src/scripts/assert-layout-migration.ts",
     "review-gate:next-action": "tsx packages/arc-framework/src/scripts/review-gate/run-next-action.ts",
     "review-gate:perform-action": "tsx packages/arc-framework/src/scripts/review-gate/run-perform-action.ts",
     "review-gate:await": "tsx packages/arc-framework/src/scripts/review-gate/run-await.ts",
@@ -41,6 +50,8 @@
   },
   "devDependencies": {
     "husky": "^9.1.7",
+    "jsonc-parser": "3.3.1",
+    "markdownlint": "0.40.0",
     "markdownlint-cli2": "0.22.1",
     "tsx": "^4.22.4"
   },

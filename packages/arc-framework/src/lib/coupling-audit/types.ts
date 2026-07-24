@@ -194,6 +194,14 @@ export interface CouplingScanResult extends CouplingScanCore {
   reportInputs: CouplingReportInputs;
 }
 
+/** Disposition-independent canonical source evidence for one coupling scan. */
+export interface CouplingClassInventory {
+  readonly version: 1;
+  readonly manifestDigest: string;
+  readonly corpus: CouplingScanResult["corpus"];
+  readonly classes: CouplingScanResult["classes"];
+}
+
 /** Canonical cross-WU finding ledger bound to one exact scan result. */
 export interface RoutingLedger {
   version: 1;

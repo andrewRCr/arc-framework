@@ -32,7 +32,7 @@ Customizing conventions — not principles — is the entire scope of the config
 mechanisms handle different kinds of customization, and existing project documentation absorbs a fourth concern:
 
 | Mechanism       | What It Does              | File                 | Example                                    |
-|-----------------|---------------------------|----------------------|--------------------------------------------|
+| --------------- | ------------------------- | -------------------- | ------------------------------------------ |
 | Config          | Toggles enforcement       | `arc-config.yml`     | `commit.format: any` disables hook check   |
 | Extension       | Adds steps to workflows   | `system/extensions/` | Post-task quality: also run security scan  |
 | Method override | Replaces default behavior | `system/methods/`    | Session state: custom format, not default  |
@@ -56,7 +56,7 @@ Beyond mechanisms, ARC supports **content-level customization** through project-
 domain-specific guidance, project-specific procedures, or extended standards:
 
 | Content Channel       | What It Does                | Location              | Example                                        |
-|-----------------------|-----------------------------|-----------------------|------------------------------------------------|
+| --------------------- | --------------------------- | --------------------- | ---------------------------------------------- |
 | Project strategies    | Domain-specific guidance    | `strategies/project/` | `strategy-authentication.md` for auth patterns |
 | Project workflows     | Project-specific procedures | `workflows/project/`  | Custom deploy workflow, release checklist      |
 | Domain-specific rules | Extended project standards  | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`   |
@@ -88,7 +88,7 @@ a configurability path (how teams adapt it).
 #### Core commitment conventions
 
 | Convention                                                  | Principle | Default                  | Configurability Path                                  |
-|-------------------------------------------------------------|-----------|--------------------------|-------------------------------------------------------|
+| ----------------------------------------------------------- | --------- | ------------------------ | ----------------------------------------------------- |
 | Document hierarchy (PROJECT-PRD → PRD → tasks)              | P1        | Full hierarchy           | Structural contract — workflows depend on structure   |
 | Template-first documents                                    | P1        | Copy-ready templates     | Structural contract — fill in, don't redesign         |
 | Per-task mandatory review stop                              | P2        | Stop after each checkbox | Behavioral guidance — adjust review increment scope   |
@@ -98,28 +98,28 @@ a configurability path (how teams adapt it).
 
 #### Operational discipline conventions
 
-| Convention                              | Principle | Default                             | Configurability Path                                  |
-|-----------------------------------------|-----------|-------------------------------------|-------------------------------------------------------|
-| Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels          |
-| Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries          |
-| Pre-merge aggregate review              | P4        | Lightweight diff review before push | Config setting — `review.pre_merge` + Method override |
-| Planning checkpoint review              | P2 / P4   | No checkpoint stop                  | Extension — `pre-activation`                          |
-| Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer       |
-| Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria      |
-| Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                      |
-| Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`              |
-| Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization     |
-| Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme           |
-| Per-WU status + user/{identity}/ state  | P5        | Two-file session state in user dir  | Method override — substitute session mechanism        |
-| Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type  |
-| Commit interlock release                | P5        | Manual commit                       | Per-developer git config — `arc.commitInterlock`      |
-| Sync interlock release                  | P5        | Sync at handoff                     | Per-developer git config — `arc.syncInterlock`        |
-| Push interlock release                  | P5        | Manual push                         | Per-developer git config — `arc.pushInterlock`        |
+| Convention                              | Principle | Default                             | Configurability Path                                 |
+| --------------------------------------- | --------- | ----------------------------------- | ---------------------------------------------------- |
+| Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels         |
+| Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries         |
+| Pre-merge aggregate review              | P4        | Lightweight diff review before push | Method activation + override                         |
+| Planning checkpoint review              | P2 / P4   | No checkpoint stop                  | Extension — `pre-activation`                         |
+| Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer      |
+| Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria     |
+| Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                     |
+| Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`             |
+| Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization    |
+| Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme          |
+| Per-WU status + user/{identity}/ state  | P5        | Two-file session state in user dir  | Method override — substitute session mechanism       |
+| Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type |
+| Commit interlock release                | P5        | Manual commit                       | Per-developer git config — `arc.commitInterlock`     |
+| Sync interlock release                  | P5        | Sync at handoff                     | Per-developer git config — `arc.syncInterlock`       |
+| Push interlock release                  | P5        | Manual push                         | Per-developer git config — `arc.pushInterlock`       |
 
 #### Design commitment conventions
 
 | Convention                         | Principle | Default                                  | Configurability Path                         |
-|------------------------------------|-----------|------------------------------------------|----------------------------------------------|
+| ---------------------------------- | --------- | ---------------------------------------- | -------------------------------------------- |
 | Collaborative voice in docs        | P9        | Team perspective, no "user/AI" framing   | Behavioral guidance — documentation style    |
 | Reference-style markdown links     | P9        | Reference links, definitions at file end | Behavioral guidance — link formatting style  |
 | No meta-project references in code | P9        | Task IDs stay in `.arc/` docs            | Behavioral guidance — enforcement strictness |
@@ -220,34 +220,37 @@ directly — would create update safety or maintenance problems.
 where each developer configures them independently.
 
 - **Project-only settings** — `branch.*`, `commit.*`, `merge.*`, `hooks.*`, `platform.*`, `pm.mode`, `team.mode`,
-  `archive.cadence`, `review.pre_merge`, `session.init_pull.*`, `session.init_load.notes`, `session.remote_sync`.
+  `archive.cadence`, `session.init_pull.*`, `session.init_load.notes`, `session.remote_sync`.
   These are inherently project-wide; per-developer variation would create inconsistency.
-- **Per-developer settings** — identity, role, autonomy interlocks, release-wrapper opt-in. These route through
+- **Per-developer settings** — identity, role, autonomy interlocks, review-source preference, release-wrapper
+  opt-in. These route through
   **git config** (`git config arc.<key>`). See [Personal Configuration via Git
   Config](#personal-configuration-via-git-config) below for the full key reference.
-- **Dual-scope (one key)** — `user.notes_push` is the lone setting carrying both a project-level default in
-  `arc-config.yml` and a per-developer git-config override (`arc.notesPush`). Other settings are exclusively
-  one tier or the other.
+- **Dual-scope** — `user.notes_push` / `arc.notesPush` and `review.frontline_sources` / `arc.frontlineSources`
+  carry project defaults with per-developer git-config overrides. Other settings are exclusively one tier or the
+  other.
 
 ### Personal Configuration via Git Config
 
 Personal preferences live in git-config local rather than `arc-config.yml`. Each developer configures them
-independently; they have no project-level counterpart (with the lone exception of `arc.notesPush`, which
-overrides a yaml-side default).
+independently; they have no project-level counterpart except the dual-scope entries described below.
 
-| Git-config key        | Controls                                     | Values                                        | Default      |
-|-----------------------|----------------------------------------------|-----------------------------------------------|--------------|
-| `arc.identity`        | Developer identity                           | Free-form (no spaces)                         | (required)   |
-| `arc.role`            | Maintainer vs. contributor                   | `maintainer` / `contributor`                  | `maintainer` |
-| `arc.tools`           | Installed AI harnesses for skill scaffolding | Comma-separated harness names                 | (none)       |
-| `arc.commitInterlock` | When the agent fires per-task commits        | `manual` / `on-task-approval` / `on-workflow` | `manual`     |
-| `arc.pushInterlock`   | When the agent fires pushes                  | `manual` / `on-sync` / `on-workflow`          | `manual`     |
-| `arc.syncInterlock`   | When the agent invokes session sync          | `manual` / `on-handoff` / `on-workflow`       | `on-handoff` |
-| `arc.notesPush`       | Personal user-directory notes push behavior  | `manual` / `prompt` / `on-sync`               | `on-sync`    |
-| `arc.releaseOptedIn`  | Per-developer release-wrapper opt-in flag    | `true` / `false`                              | `false`      |
+| Git-config key         | Controls                                     | Values                                        | Default      |
+| ---------------------- | -------------------------------------------- | --------------------------------------------- | ------------ |
+| `arc.identity`         | Developer identity                           | Free-form (no spaces)                         | (required)   |
+| `arc.role`             | Maintainer vs. contributor                   | `maintainer` / `contributor`                  | `maintainer` |
+| `arc.tools`            | Installed AI harnesses for skill scaffolding | Comma-separated harness names                 | (none)       |
+| `arc.commitInterlock`  | When the agent fires per-task commits        | `manual` / `on-task-approval` / `on-workflow` | `manual`     |
+| `arc.pushInterlock`    | When the agent fires pushes                  | `manual` / `on-sync` / `on-workflow`          | `manual`     |
+| `arc.syncInterlock`    | When the agent invokes session sync          | `manual` / `on-handoff` / `on-workflow`       | `on-handoff` |
+| `arc.notesPush`        | Personal user-directory notes push behavior  | `manual` / `prompt` / `on-sync`               | `on-sync`    |
+| `arc.frontlineSources` | Ordered registered frontline review sources  | Repeated lowercase registry IDs               | (project)    |
+| `arc.releaseOptedIn`   | Per-developer release-wrapper opt-in flag    | `true` / `false`                              | `false`      |
 
 `arc.notesPush` is dual-scope: it overrides the project-level `user.notes_push` value in `arc-config.yml`. The
-other entries are per-developer only — there is no project-level counterpart to override.
+`arc.frontlineSources` preferences similarly override `review.frontline_sources`; both lists name registered
+sources in resolution order and never contain commands or reviewer identities. Add each developer preference with
+`git config --add arc.frontlineSources <source-id>`. The other entries are per-developer only.
 
 `arc.releaseOptedIn` is set by `arc release setup install` (per-harness setup + opt-in recording) or
 `arc release opt-in` (opt-in recording only). See [Interlock Release Wrappers
@@ -334,12 +337,20 @@ Config settings divide into two categories based on how changes take effect:
 - `branch.base`, `branch.protection` — Branch model
 - `merge.strategy` — Integration strategy
 - `platform.type` — Agent platform awareness
-- `review.pre_merge` — Pre-merge review toggle
+- `review.frontline_sources` — Ordered registered frontline review source defaults
+- `review.chunking_threshold_lines`, `review.chunking_threshold_files` — Independent exact-target attention
+  tripwires for considering review chunks
 
 **Personal settings** route through `git config` (identity, role, tools, autonomy interlocks, release-wrapper
-opt-in) and are managed by `arc init` / `arc join` (identity, role, tools), `arc release setup install` /
-`arc release opt-in` (release-wrapper opt-in), or direct `git config arc.<key>` edits (autonomy interlocks). See
+opt-in, frontline source) and are managed by `arc init` / `arc join` (identity, role, tools), `arc release setup
+install` / `arc release opt-in` (release-wrapper opt-in), or direct `git config arc.<key>` edits (autonomy
+interlocks and frontline source). See
 [Personal Configuration via Git Config](#personal-configuration-via-git-config) for the full key reference.
+
+The review-chunking thresholds are advisory attention tripwires, not chunk-size caps or universal
+review-provider limits. Each non-negative dimension is independent: `0` disables that dimension, both `0`
+preserve whole-target review without measurement, and either enabled threshold may recommend drawing
+contract-cohesive review boundaries.
 
 ### Tier 3 in config
 
@@ -383,15 +394,15 @@ step or git operation:
 
 Seven extension fire-points span the work-unit and Errand lifecycles:
 
-| Extension                      | Fire-point                                                 | Wired into                                   | Default                         |
-|--------------------------------|------------------------------------------------------------|----------------------------------------------|---------------------------------|
-| `pre-spec-finalization-review` | `create-spec.md` finalization gate, post-`spec-review`     | `create-spec.md`                             | inactive; no default `.actions` |
-| `pre-activation`               | `activate-work-unit.md` pre-condition gate                 | `activate-work-unit.md`                      | inactive                        |
-| `pre-commit-review`            | After staging, before commit creation                      | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
-| `pre-pr-open`                  | Pushed head, immediately before change-request creation    | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
-| `post-pr-open`                 | Newly created or existing open change request              | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
-| `pre-push-review`              | Any push via the push wrapper                              | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
-| `pre-merge`                    | Settled final head, immediately before merge authorization | `integrate-work-unit.md`, `run-errand.md`    | inactive; no default `.actions` |
+| Extension                      | Fire-point                                                 | Wired into                                | Default                         |
+| ------------------------------ | ---------------------------------------------------------- | ----------------------------------------- | ------------------------------- |
+| `pre-spec-finalization-review` | `create-spec.md` finalization gate, post-`spec-review`     | `create-spec.md`                          | inactive; no default `.actions` |
+| `pre-activation`               | `activate-work-unit.md` pre-condition gate                 | `activate-work-unit.md`                   | inactive                        |
+| `pre-commit-review`            | After staging, before commit creation                      | `arc-commit` skill + `prepare-commits.md` | inactive                        |
+| `pre-pr-open`                  | Pushed head, immediately before change-request creation    | `integrate-work-unit.md`, `run-errand.md` | inactive                        |
+| `post-pr-open`                 | Newly created or existing open change request              | `integrate-work-unit.md`, `run-errand.md` | inactive                        |
+| `pre-push-review`              | Every agent-managed workflow push                          | Push and pushing-`arc sync` workflows     | inactive; no default `.actions` |
+| `pre-merge`                    | Settled final head, immediately before merge authorization | `integrate-work-unit.md`, `run-errand.md` | inactive; no default `.actions` |
 
 All extensions ship as inactive by default — teams populate `.actions` and flip `active: true` in frontmatter
 to opt in. Entries marked "no default `.actions`" ship as no-op shells without a provided action body; teams
@@ -405,7 +416,7 @@ or for future defaults. Three entries from the family above carry this status to
 - `pre-spec-finalization-review` — fires at `create-spec.md`'s spec-finalization gate, after the `spec-review`
   self-review. The opt-in seam for a team's own spec-review cadence — an async-PR review of the spec, a fixed
   comment window, a committee sign-off. Those cadences are informative precedents only; ARC enforces none.
-- `pre-push-review` — fires for any push via the push wrapper.
+- `pre-push-review` — fires before every agent-managed workflow push.
 - `pre-merge` — fires post-review-response, pre-merge at `integrate-work-unit.md` and `run-errand.md`.
 
 New reserved names land here when codified, keeping the namespace coherent before defaults emerge.
@@ -456,6 +467,14 @@ replace-only model. `extend` applies the default first, then the override on top
 augments the baseline rather than supplanting it. Method content loads on-demand when the agent reaches a
 workflow step that references the method — not at session initialization.
 
+### Activity activation
+
+Activation and overriding are orthogonal. Only methods in the closed activatable-method registry may declare
+`active`; the package defaults are `self-review: true` and `frontline-review: false`. A valid project value is the
+effective value. A missing file, missing or malformed `active`, or read failure emits a diagnostic and falls back to
+the registered package default. `override-active` still says whether an override body is populated, and
+`override-mode` still says how that body composes; neither enables or disables the activity.
+
 ### Method references in workflows
 
 Method references appear as inline links in workflow prose. The workflow describes WHAT to do; the method
@@ -466,13 +485,25 @@ defines HOW:
    [commit-footer][arc-methods-ccf] methods
 ```
 
+### Reviewer-guidance adapters
+
+Native reviewer integrations consume the generic `standard-review` projector rather than copying rubric prose.
+An adapter may supply the projector's typed additive project-rubric input, then writes the result to its native
+instruction or configuration surface. For the exact target it must resolve and validate the effective carrier
+content, reject missing, stale, conflicting, or unverifiable projections, and record its `guidanceDigest` with the
+baseline `rubricVersion` and `rubricDigest`.
+
+The projection is not rubric authority: the typed baseline owns the standard, while the carrier digest proves only
+what instructions were delivered. Projection content is limited to rubric guidance; invocation, coordination,
+author findings and dispositions, evidence admission, and controller state remain outside this customization seam.
+
 ### Hook interaction
 
 For methods with mechanical enforcement (commit format, context footer), hooks read override configuration from
 `arc-config.yml`. The `custom` config value bridges "I want enforcement" and "I want _different_ enforcement":
 
 | Setting value  | Hook behavior                                                |
-|----------------|--------------------------------------------------------------|
+| -------------- | ------------------------------------------------------------ |
 | `conventional` | Validates against ARC's built-in conventional commit pattern |
 | `custom`       | Validates against the team's `commit.custom_pattern` regex   |
 | `any`          | Skips format validation entirely                             |

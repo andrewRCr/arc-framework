@@ -47,8 +47,8 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
     });
   });
 
-  it("enumerates the 24 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(24);
+  it("enumerates the 26 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(26);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -81,6 +81,11 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
   it("includes inbox.remind_after_days", () => {
     expect(AGENT_CONSUMABLE_KEYS).toContain("inbox.remind_after_days");
   });
+
+  it("includes review chunking thresholds only in the full settings set", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toContain("review.chunking_threshold_lines");
+    expect(AGENT_CONSUMABLE_KEYS).toContain("review.chunking_threshold_files");
+  });
 });
 
 describe("readConfigSettings — default fallback", () => {
@@ -100,8 +105,10 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["commit.format"]).toBe("conventional");
     expect(result.settings["commit.context_footer"]).toBe("required");
     expect(result.settings["merge.strategy"]).toBe("merge");
-    expect(result.settings["review.pre_merge"]).toBe("enabled");
     expect(result.settings["platform.type"]).toBe("github");
+    expect(result.settings["review.frontline_sources"]).toBe("[]");
+    expect(result.settings["review.chunking_threshold_lines"]).toBe("0");
+    expect(result.settings["review.chunking_threshold_files"]).toBe("0");
     expect(result.settings["team.mode"]).toBe("false");
     expect(result.settings["session.remote_sync"]).toBe("enabled");
     expect(result.settings["archive.cadence"]).toBe("with-integration");
@@ -145,8 +152,10 @@ describe("readConfigSettings — user-supplied values", () => {
       "commit.custom_pattern: ^FOO-.+",
       "commit.context_pattern: ^Relates to",
       "merge.strategy: rebase",
-      "review.pre_merge: disabled",
       "platform.type: gitlab",
+      "review.frontline_sources: [project-reviewer]",
+      "review.chunking_threshold_lines: 5000",
+      "review.chunking_threshold_files: 150",
       "pm.mode: arc-in-git",
       "team.mode: true",
       "session.remote_sync: disabled",
@@ -168,6 +177,9 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["worktree.post_create"]).toBe("npm run setup:worktree");
     expect(result.settings["worktree.harness_dirs"]).toBe(".codex,.custom-harness");
     expect(result.settings["commit.format"]).toBe("custom");
+    expect(result.settings["review.frontline_sources"]).toBe("[project-reviewer]");
+    expect(result.settings["review.chunking_threshold_lines"]).toBe("5000");
+    expect(result.settings["review.chunking_threshold_files"]).toBe("150");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["user.notes_push"]).toBe("manual");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
@@ -360,7 +372,6 @@ describe("readConfigSettings — session.init_pull channels", () => {
       "commit.format: conventional",
       "commit.context_footer: required",
       "merge.strategy: merge",
-      "review.pre_merge: enabled",
       "platform.type: github",
       "pm.mode: arc-in-git",
       "team.mode: false",

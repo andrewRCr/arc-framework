@@ -48,25 +48,25 @@ DEV-RULES.ARC + method-doc + hook churn.
 
 ### Alternatives considered
 
-- *Meta file in `backlog/` during planning.* Rejected — `backlog/` is `pm.layer: arc-pm` only; doesn't
+- _Meta file in `backlog/` during planning._ Rejected — `backlog/` is `pm.layer: arc-pm` only; doesn't
   generalize to `none`. Also semantically odd: meta file in backlog while WU is actively being planned reads
   wrong.
-- *Meta file gitignored (per-developer like SESSION-NOTES).* Rejected — loses cross-WU coordination visibility.
+- _Meta file gitignored (per-developer like SESSION-NOTES)._ Rejected — loses cross-WU coordination visibility.
   Meta files are project state, not personal state.
-- *Two branches with delayed planning-merge until activation.* Rejected — planning artifacts merge at activation
+- _Two branches with delayed planning-merge until activation._ Rejected — planning artifacts merge at activation
   moment instead of planning-integration moment, but main still gets them. Same leak, different timing.
-- *No-prefix execution branches.* Rejected — scannability matters when many branches exist (atomic chores
+- _No-prefix execution branches._ Rejected — scannability matters when many branches exist (atomic chores
   blending with serious feature work was a real failure mode). CB alignment preserves visual scannability while
   removing the feature-vs-technical contradiction with PR conventional-commit types.
-- *Maintain `feature/` and `technical/` prefixes; tighten CC type set independently.* Rejected — the prefix
+- _Maintain `feature/` and `technical/` prefixes; tighten CC type set independently._ Rejected — the prefix
   problem is structural (categorical signal that doesn't honestly partition the work). Keeping the prefixes
   bakes in the contradiction.
-- *Keep `status-{name}.md`; rely on `**Integration:**` field to express archive phase.* Rejected — the file's
+- _Keep `status-{name}.md`; rely on `**Integration:**` field to express archive phase._ Rejected — the file's
   role expanded beyond status (carries metadata, life-state pointers, and archive-phase content); rename
   acknowledges the composite role. The rename moment is active, not passive: with completion-status
   consolidation absorbed into this reform, rename and lifecycle extension land together rather than across two
   WUs.
-- *Rename "work unit" entirely* (epic, story, initiative). Rejected — industry alternatives don't fit ARC's
+- _Rename "work unit" entirely_ (epic, story, initiative). Rejected — industry alternatives don't fit ARC's
   flat, technical-or-feature-agnostic shape. Cost of renaming high; benefit unclear. Resolved instead by
   separating "work unit" (wrapper noun) from "atomic" (work character) — see § Decision.
 
@@ -169,7 +169,7 @@ Scope governance:
 Resolves a long-standing tangle where "atomic" was doing two jobs (item-shape AND tier-shape) and "work unit"
 was getting stretched ("is an atomic WU really a work unit?"):
 
-- **Work unit** — the wrapper noun. Any bounded chunk of work with a branch, status, and PR. Invariant across
+- **Work unit** — the wrapper noun. Any bounded unit of work with a branch, status, and PR. Invariant across
   tiers (atomic / quick / standard from Agile WU Lifecycle).
 - **Atomic** — describes work character. Single-bounded, indivisible, no internal stages. Applies to items
   (capture-tier), tasks (companion-file scope), and WUs (atomic-tier).
@@ -195,23 +195,23 @@ convention.
 
 **Cascading rules:**
 
-- *Sweep-as-you-go default.* `archive.cadence: with-integration` (default — sweep in integration PR);
+- _Sweep-as-you-go default._ `archive.cadence: with-integration` (default — sweep in integration PR);
   `archive.cadence: deferred` (sweep at next-WU planning batch — pre-WOR pattern); `archive.cadence: manual`
   (explicit invocation).
-- *ROADMAP as rendered view.* ROADMAP.md becomes a generated artifact rendered from meta-file fields walked
+- _ROADMAP as rendered view._ ROADMAP.md becomes a generated artifact rendered from meta-file fields walked
   across `active/**` and `backlog/planned/**`. Render algorithm codified in `strategy-work-organization.md`;
   hand-maintenance discipline ships pre-CLI.
-- *PROJECT-STATUS retirement.* `.arc/reference/PROJECT-STATUS.md` deletes entirely. Function decomposes across
+- _PROJECT-STATUS retirement._ `.arc/reference/PROJECT-STATUS.md` deletes entirely. Function decomposes across
   PROJECT-PRD, per-WU Release Notes Entries, and directory queries.
-- *Forward-only migration.* Historical commits keep their existing type/scope tags. In-flight WUs retain
+- _Forward-only migration._ Historical commits keep their existing type/scope tags. In-flight WUs retain
   current `feature/`/`technical/` branches through natural integration (branch rename would force coordination
   across multiple in-flight branches); the `status-*` → `meta-*` rename is mechanical and low-risk. Historical
   archive read-only.
-- *Per-WU Release Notes Entry.* Every shipped WU has a Release Notes Entry section in its archived meta file,
+- _Per-WU Release Notes Entry._ Every shipped WU has a Release Notes Entry section in its archived meta file,
   categorized per Keep a Changelog (Added / Changed / Removed / Fixed / Infrastructure / Deprecated / Security).
   Composition fires at integration ceremony when `**State:**` transitions `Active → Integrating`. CHANGELOG
   aggregation tooling deferred; per-WU entries ship now.
-- *Atomic-tier infra-edit smell flag.* Documentation-only flag in DEV-RULES.ARC: atomic-tier work touching
+- _Atomic-tier infra-edit smell flag._ Documentation-only flag in DEV-RULES.ARC: atomic-tier work touching
   load-bearing infra (`.arc/system/`, `.arc/reference/strategies/`, `arc-config.yml`) warrants quick-tier at
   minimum.
 
@@ -260,19 +260,19 @@ convention.
 
 ### Risks
 
-- *Commit-convention reform may surface latent project-specific scope governance needs.* Mitigation: denylist
+- _Commit-convention reform may surface latent project-specific scope governance needs._ Mitigation: denylist
   starts with `arc` only and expands organically as new catch-all patterns surface in PR review. Strict
   scope-enum enforcement is explicitly deferred (evolution favored over fixed enumeration).
-- *ROADMAP hand-maintenance discipline pre-CLI is a known gap.* Mitigation: algorithm codified in
+- _ROADMAP hand-maintenance discipline pre-CLI is a known gap._ Mitigation: algorithm codified in
   `strategy-work-organization.md`; ceremony fire-points (graduation, activation, integration, dep-field edit)
   trigger regenerate-ROADMAP steps in workflow bodies. CLI implementation deferred to downstream WU.
-- *Forward-only migration creates legacy/new shape coexistence in archive.* Mitigation: backward-compat tooling
+- _Forward-only migration creates legacy/new shape coexistence in archive._ Mitigation: backward-compat tooling
   requirement codified — anything reading the archive (renderer, future CLI, search/audit) must handle both
   legacy and new shape. Historical archive remains read-only.
-- *Sweep-as-you-go produces multi-commit integration PRs.* Mitigation: commit shape codified (code commits →
+- _Sweep-as-you-go produces multi-commit integration PRs._ Mitigation: commit shape codified (code commits →
   completion content → sweep commits) so reviewers can navigate per-commit. `deferred` cadence remains for
   adopters who prefer single-commit-per-PR review posture.
-- *Boundary-workflow restructure may surface dependencies not anticipated in planning.* Mitigation: phased
+- _Boundary-workflow restructure may surface dependencies not anticipated in planning._ Mitigation: phased
   rollout (Phase 1 constitution → Phase 2 strategy codification → Phase 3 workflow restructure → Phase 4
   templates → Phase 5 cascade → Phase 6 migration sweep → Phase 7 verification) means workflow changes land
   after strategy guidance is in place to inform them.
@@ -284,7 +284,7 @@ convention.
 
 **Amendment (2026-05-22):** The "CB core-6 alignment / intentional `test` + `revert` divergence per CB spec
 rationale" framing in § Context and § Decision (surface 2) rested on a misreading of the Conventional Branch
-spec, caught during implementation. ARC's branch-prefix set is *inspired by* Conventional Branch, not aligned to
+spec, caught during implementation. ARC's branch-prefix set is _inspired by_ Conventional Branch, not aligned to
 a fixed "core-6"; the corrected "inspired-by, not aligned-with" framing lives in the `branch-format` method
 preamble, with `strategy-work-organization.md` § Branching treating `branch-format` and `commit-format` as
 independent axes. The branch-prefix decision itself is unchanged — only its rationale is corrected.

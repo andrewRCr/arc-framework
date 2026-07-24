@@ -18,7 +18,8 @@ import {
   runConfigStatus,
   validateConfigFile,
 } from "../commands/config.js";
-import { ARC_CONFIG_SEGMENTS } from "../lib/constants.js";
+import { ARC_CONFIG_SUFFIX } from "../lib/constants.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface ConfigStatusCliOptions {
@@ -39,8 +40,9 @@ export async function handleConfigValidate(opts: ConfigValidateCliOptions): Prom
   if (selectedPath === undefined) {
     const root = requireArcProjectRoot();
     if (!root) return;
-    readPath = join(root, ...ARC_CONFIG_SEGMENTS);
-    displayPath = ARC_CONFIG_SEGMENTS.join("/");
+    const relativePath = resolveArcPath({ kind: "arc-root" });
+    readPath = join(materializeArcPath(root, relativePath), ...ARC_CONFIG_SUFFIX);
+    displayPath = join(relativePath, ...ARC_CONFIG_SUFFIX);
   } else {
     readPath = resolve(process.cwd(), selectedPath);
     displayPath = selectedPath;

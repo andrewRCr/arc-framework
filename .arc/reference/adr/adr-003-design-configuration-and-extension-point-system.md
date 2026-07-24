@@ -380,7 +380,7 @@ extension points that would allow circumventing them.
   design complexity for little benefit. Mitigation: discoverability through the `arc-extensions.md` file
   at workflows root, clear markers in workflow docs, and documentation in adoption guides.
 - **Merge strategy adaptation is guidance, not enforcement.** `merge.strategy: squash` triggers adapted
-  *guidance* (shift traceability to PRs) but ARC has no mechanism to enforce that PR descriptions are
+  _guidance_ (shift traceability to PRs) but ARC has no mechanism to enforce that PR descriptions are
   actually thorough enough. Teams choosing squash are trusting themselves to maintain traceability through
   discipline rather than tooling. This is consistent with ARC's approach (principles define what, not
   how) but carries inherent risk.

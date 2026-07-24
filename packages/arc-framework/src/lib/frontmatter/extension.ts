@@ -8,7 +8,9 @@
  * @module
  */
 
-import { isStringArray, validateFrontmatterShape } from "./generic.js";
+import { isStringArray, unknownFrontmatterFields, validateFrontmatterShape } from "./generic.js";
+
+const EXTENSION_FRONTMATTER_FIELDS = new Set(["name", "description", "active", "related"]);
 
 /** Validated extension frontmatter. */
 export interface ExtensionFrontmatter {
@@ -38,7 +40,7 @@ export function parseExtensionFrontmatter(
   const shape = validateFrontmatterShape(content);
   if (!shape.ok) return { errors: shape.errors };
   const data = shape.data;
-  const errors: string[] = [];
+  const errors = unknownFrontmatterFields(data, EXTENSION_FRONTMATTER_FIELDS);
 
   const name = data.name;
   const description = data.description;

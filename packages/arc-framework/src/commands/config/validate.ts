@@ -47,9 +47,10 @@ const VALIDATION_DOMAIN_ORDER = [
   "hooks.subject_max_length",
   "hooks.body_max_lines",
   "hooks.body_max_line_length",
-  "review.pre_merge",
   "merge.strategy",
   "platform.type",
+  "review.chunking_threshold_lines",
+  "review.chunking_threshold_files",
   "pm.mode",
   "team.mode",
   "session.remote_sync",
@@ -140,12 +141,13 @@ function renderDomain(
     return;
   }
 
-  if (field.policy.kind === "positive-safe-integer") {
+  if (field.policy.kind === "positive-safe-integer" || field.policy.kind === "unsigned-safe-integer") {
     const selected = configured ?? field.defaultValue;
     if (invalidKeys.has(key)) {
+      const minimum = field.policy.kind === "unsigned-safe-integer" ? 0 : field.policy.minimum;
       error(
         output,
-        `${key}: '${selected}' must be an unsigned base-10 safe integer >= ${field.policy.minimum}`,
+        `${key}: '${selected}' must be an unsigned base-10 safe integer >= ${minimum}`,
       );
     } else {
       pass(output, `${key}: ${selected}`);
@@ -161,6 +163,29 @@ function renderDomain(
     error(output, `${key}: '${configured}' is not valid (expected: ${allowed.join(" ")})`);
   } else {
     pass(output, `${key}: ${configured}`);
+  }
+}
+
+function renderFrontlineSources(
+  output: ValidationOutput,
+  values: Readonly<Record<string, string>>,
+): void {
+  const key = "review.frontline_sources";
+  const configured = values[key] ?? getArcConfigField(key).defaultValue;
+  const hasOpening = configured.startsWith("[");
+  const hasClosing = configured.endsWith("]");
+  if (hasOpening !== hasClosing) {
+    error(output, `${key} must use matched list brackets`);
+    return;
+  }
+  const source = hasOpening ? configured.slice(1, -1) : configured;
+  const entries = source.split(",").map((entry) => entry.trim()).filter((entry) => entry !== "");
+  for (const entry of entries) {
+    if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u.test(entry)) {
+      error(output, `${key} entries must be lowercase registry IDs (got '${entry}')`);
+      continue;
+    }
+    pass(output, `${key} entry is a safe registry ID`);
   }
 }
 
@@ -261,6 +286,7 @@ export async function validateConfigFile(
   const invalidKeys = invalidKnownKeys(values);
 
   for (const key of VALIDATION_DOMAIN_ORDER) renderDomain(output, key, values, invalidKeys);
+  renderFrontlineSources(output, values);
 
   const locationTemplate = values["worktree.location_template"];
   if (locationTemplate !== undefined && invalidKeys.has("worktree.location_template")) {

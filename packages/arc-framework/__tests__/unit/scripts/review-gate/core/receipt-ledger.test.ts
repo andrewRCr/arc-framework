@@ -22,7 +22,7 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     changeSetId: "a".repeat(64),
     policyVersion: "b".repeat(64),
     semanticsVersion: "review-gate/v1",
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     requirementId: "analysis",
     sourceIdentity: "agent-1",
     coverage: "full",
@@ -96,7 +96,7 @@ describe("canonical request keys and receipt ledger", () => {
     const literal: ReviewReceipt = {
       schemaVersion: 1,
       eventId: "event-unicode",
-      idempotencyKey: "68b0e00ae8f627c875c5d5af5d6dbada135e3114af53c8c996f8d140ffbd5e20",
+      idempotencyKey: "c8bb2ac30b82ba4d677c75bbba2a9726292d4d22f72e30b7cff85f902d7755f2",
       previousLedgerVersion: 0,
       action: "reserved",
       request: request(),
@@ -105,7 +105,7 @@ describe("canonical request keys and receipt ledger", () => {
       evidenceUrlOrId: null,
       findingIds: [],
       payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
-      receiptHash: "8dc46bb65f6f25c7d8d76d016192fa3beca78cbbeb62dd788cf4f9d6a522fb47",
+      receiptHash: "c909b389e82dea0bd0c81fa9bc99c093ec52525273a4c69eee6dfe8a61d04ef1",
     };
 
     expect(receiptIdentityValid(literal)).toBe(true);
@@ -149,15 +149,15 @@ describe("canonical request keys and receipt ledger", () => {
     const { receiptHash, ...withoutHash } = created;
 
     expect(computeRequestKey(request())).toBe(
-      "f4a456df216594dcba2267fc2c05f18966b3d9b3c8d38a3f8e06f6a088006fcc",
+      "b736cae0e41ce6627536f8966500d87f0bbe7e64f9933c1c7e94544c44251ecb",
     );
     expect(created.idempotencyKey).toBe(
-      "7f3be3f4cdbe0ce8ce039bb4487ae099ff35e0fb447c1d4b8a33d2b8999ffc77",
+      "6f6c4cc093a3609474cc2564754ba9c5ce12a7266772687c1f84cd7af4815d85",
     );
-    expect(receiptHash).toBe("1b54d946d91b1329b9e3108b0114518ff5a5d5374c08ac764b0ba2af77a0bff0");
+    expect(receiptHash).toBe("3b732e2e9752cd2f0c8ff58f34343946df67787d6a6baa14bf50f45b5a65e62b");
     expect(canonicalizePlainJson(withoutHash)).toBe(
       '{"action":"reserved","eventId":"event-1","evidenceUrlOrId":null,"findingIds":[],'
-      + '"idempotencyKey":"7f3be3f4cdbe0ce8ce039bb4487ae099ff35e0fb447c1d4b8a33d2b8999ffc77",'
+      + '"idempotencyKey":"6f6c4cc093a3609474cc2564754ba9c5ce12a7266772687c1f84cd7af4815d85",'
       + '"payload":{"kind":"reservation","pendingProjectionRef":null,"reservedAt":null},'
       + '"previousLedgerVersion":0,"reason":null,"request":{"actorIdentity":"actor-1",'
       + '"changeRequestId":"change-7","changeSetId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",'
@@ -166,7 +166,7 @@ describe("canonical request keys and receipt ledger", () => {
       + '"policyVersion":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",'
       + '"repositoryId":"repo-1","requestCommand":null,"requestMechanism":"automatic",'
       + '"requiredActorIdentity":"actor-1",'
-      + '"requirementId":"analysis","rubricVersion":"independent-analysis/v1","schemaVersion":1,'
+      + '"requirementId":"analysis","rubricVersion":"standard-review/v1","schemaVersion":1,'
       + '"semanticsVersion":"review-gate/v1","sourceIdentity":"agent-1"},"result":null,"schemaVersion":1}',
     );
   });
@@ -188,13 +188,13 @@ describe("canonical request keys and receipt ledger", () => {
   it("re-keys requests only through the supplied policy-version string", () => {
     const stored = request({ policyVersion: "legacy-policy-version" });
     expect(computeRequestKey(stored)).toBe(
-      "64d3cbaa19081921966d63291b038a036c1d4dbc54c8ab6d087d76d5570e219d",
+      "a20016c7db7fe4e926d7e9537e5b97bcce9a3f03019dd51b54a265d515de71df",
     );
     expect(computeRequestKey({ ...stored })).toBe(computeRequestKey(stored));
     expect(computeRequestKey({
       ...stored,
       policyVersion: "7832a5d6150a56da1a4f0c8fa00c26a7350389b0fc8696707cd2abbbd32be0c1",
-    })).toBe("1f7b700cbd9bc94bc51141f0b73ee2947987f6cc6e621eb34fc9ddc6ef3e3326");
+    })).toBe("356d2d8458e675f908b799b91f0eaaaac45aa4bdb779fafbcfa5dca74af37b33");
   });
 
   it("binds lifecycle payload and predecessor version into receipt identity", () => {

@@ -209,7 +209,7 @@ export function validateQualificationScope(scope: QualificationScope): string[] 
     || !hasExactKeys(scope.providerAppIds, ["coderabbit", "codex"])
     || !hasExactKeys(scope.providerBotUserIds, ["coderabbit", "codex"])
     || !hasExactKeys(scope.guidanceDigests, ["codex"])) errors.push("scope-provider-set-invalid");
-  if (scope.rubricVersion !== "independent-analysis/v1"
+  if (scope.rubricVersion !== "standard-review/v1"
     || scope.parserVersion.length === 0
     || !/^[1-9][0-9]*$/u.test(scope.expectedActorIdentity)
     || ![scope.controllerAppId, scope.controllerBotUserId, scope.actionsAppId, scope.actionsBotUserId,

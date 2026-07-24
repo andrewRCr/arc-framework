@@ -25,11 +25,16 @@ async function resolvedChange(deps: CodexLocatorDeps) {
 
 function guidanceChanges(changes: Array<{ status: string; path: string; previousPath?: string }>): HostChangedPath[] {
   return changes.map((change) => {
-    if (change.status === "renamed") {
-      if (change.previousPath === undefined) throw new CodexRequestError("renamed-path-origin-missing");
-      return { status: "renamed", path: change.path, previousPath: change.previousPath };
+    if (change.status === "renamed" || change.status === "copied") {
+      if (change.previousPath === undefined) throw new CodexRequestError(`${change.status}-path-origin-missing`);
+      return { status: change.status, path: change.path, previousPath: change.previousPath };
     }
-    if (change.status === "added" || change.status === "modified" || change.status === "deleted") {
+    if (
+      change.status === "added"
+      || change.status === "modified"
+      || change.status === "deleted"
+      || change.status === "type-changed"
+    ) {
       return { status: change.status, path: change.path };
     }
     throw new CodexRequestError("changed-path-status-unsupported");
@@ -45,7 +50,13 @@ export class ReceiptBackedCodexLocator implements CodexRequestLocator, CodexObse
   }
 
   async resolveRequestGuidance(request: ReviewRequest): Promise<
-    | { qualified: true; guidanceDigest: string }
+    | {
+      qualified: true;
+      guidanceDigest: string;
+      forwardGuidanceDigest: string;
+      rubricVersion: string;
+      rubricDigest: string;
+    }
     | { qualified: false; reasons: string[] }
   > {
     const change = await resolvedChange(this.deps);
@@ -60,7 +71,13 @@ export class ReceiptBackedCodexLocator implements CodexRequestLocator, CodexObse
       reader: this.deps.guidanceReader,
     });
     return guidance.qualified
-      ? { qualified: true, guidanceDigest: guidance.digest }
+      ? {
+        qualified: true,
+        guidanceDigest: guidance.digest,
+        forwardGuidanceDigest: guidance.guidanceDigest,
+        rubricVersion: guidance.rubricVersion,
+        rubricDigest: guidance.rubricDigest,
+      }
       : { qualified: false, reasons: guidance.reasons };
   }
 

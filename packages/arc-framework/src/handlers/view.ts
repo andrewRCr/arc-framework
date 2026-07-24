@@ -11,9 +11,8 @@ import { promisify } from "node:util";
 
 import {
   resolveTaskListPath,
-  runActiveSessionInitStatus,
-  type ActiveSessionInitResult,
-  type MetaFileCandidate,
+  runActiveSessionInitStatusInternal,
+  type ActiveSessionInitInternalResult,
 } from "../commands/active.js";
 import { runView } from "../commands/view.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
@@ -22,6 +21,8 @@ import { resolveWorkUnitSessionNotesPath } from "../lib/handoff/session-notes-pa
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { SlugSchema } from "../lib/kernel/index.js";
+import type { WorkUnitPlacement } from "../lib/layout/index.js";
 import { resolveViewArtifact, type ViewArtifactDependencies } from "../lib/view-artifact.js";
 import {
   renderViewWithPager,
@@ -44,43 +45,43 @@ export interface ViewCliOptions {
 
 /** Convert the command-owned active envelope into the neutral viewer target. */
 export function adaptActiveViewTarget(
-  result: ActiveSessionInitResult,
+  internal: ActiveSessionInitInternalResult,
   currentBranch: string | null,
 ): ViewTargetResult {
-  let candidate: MetaFileCandidate | null = null;
+  const { result } = internal;
+  let semantic = internal.resolved;
   let taskListPath: string | null = null;
 
-  if (result.resolution === "single" && result.path !== null) {
-    const slug = /^meta-(.+)\.md$/u.exec(result.path.split("/").at(-1) ?? "")?.[1];
-    if (slug === undefined) return { status: "unavailable" };
+  if (result.resolution === "single" && result.path !== null && semantic !== null) {
     return {
       status: "resolved",
-      slug,
+      slug: semantic.slug,
+      placement: semantic.placement,
       location: "active",
       metaPath: result.path,
       taskListPath: result.taskListPath ?? null,
     };
   }
   if (result.resolution === "multiple") {
-    const matches = result.candidates.filter(
-      (entry) => entry.branch !== null && entry.branch === currentBranch,
+    const matches = internal.candidates.filter(
+      (entry) => entry.candidate.branch !== null && entry.candidate.branch === currentBranch,
     );
     if (matches.length !== 1) return { status: "unavailable" };
-    candidate = matches[0] ?? null;
-    if (candidate !== null) taskListPath = resolveTaskListPath(candidate.path, candidate.taskList);
+    semantic = matches[0] ?? null;
+    if (semantic !== null) {
+      taskListPath = resolveTaskListPath(semantic.candidate.path, semantic.candidate.taskList);
+    }
   }
 
-  if (candidate === null) return { status: "unavailable" };
-  const slug = /^meta-(.+)\.md$/u.exec(candidate.filename)?.[1];
-  return slug === undefined
-    ? { status: "unavailable" }
-    : {
+  if (semantic === null) return { status: "unavailable" };
+  return {
       status: "resolved",
-      slug,
+      slug: semantic.slug,
+      placement: semantic.placement,
       location: "active",
-      metaPath: candidate.path,
+      metaPath: semantic.candidate.path,
       taskListPath,
-    };
+  };
 }
 
 /** Resolve CLI context, run the viewer, and preserve stdout/stderr separation. */
@@ -133,7 +134,7 @@ function createViewDependencies(
 ): ViewArtifactDependencies {
   return {
     resolveAmbientTarget: async ({ identity }) => {
-      const result = await runActiveSessionInitStatus({
+      const result = await runActiveSessionInitStatusInternal({
         cwd,
         identity,
         role: await gitConfigGet(gitExec, "arc.role"),
@@ -159,7 +160,7 @@ function createViewDependencies(
     resolveSessionNotes: ({ identity: resolvedIdentity, workUnitName }) =>
       resolveWorkUnitSessionNotesPath(cwd, resolvedIdentity, workUnitName, { access }),
     resolveUserSurfaces: ({ identity: resolvedIdentity }) =>
-      resolveUserSurfaceResolver({ cwd, identity: resolvedIdentity, exec: gitExec }),
+      resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(resolvedIdentity), exec: gitExec }),
     pathExists,
   };
 }
@@ -175,10 +176,27 @@ export async function resolveExplicitViewTarget(input: {
   if (entry === undefined) return { status: "unavailable", slug: input.slug };
   if (entry.location === "completed") return { status: "completed", slug: input.slug };
   try {
+    const slug = SlugSchema.safeParse(entry.slug);
+    if (!slug.success) return { status: "unavailable", slug: input.slug };
+    const cohort = [];
+    for (const segment of entry.cohort?.split("/") ?? []) {
+      const parsed = SlugSchema.safeParse(segment);
+      if (!parsed.success) return { status: "unavailable", slug: input.slug };
+      cohort.push(parsed.data);
+    }
+    if (cohort.length > 2) return { status: "unavailable", slug: input.slug };
+    const placement: WorkUnitPlacement = entry.location === "active"
+      ? { kind: "active", scope: { kind: "project" } }
+      : {
+          kind: "backlog",
+          commitment: entry.location === "planned" ? "planned" : "provisional",
+          cohort,
+        };
     const meta = parseMetaRecord(await input.readFile(join(input.cwd, entry.path)));
     return {
       status: "resolved",
-      slug: entry.slug,
+      slug: slug.data,
+      placement,
       location: entry.location,
       metaPath: entry.path,
       taskListPath: resolveTaskListPath(entry.path, meta.taskList),

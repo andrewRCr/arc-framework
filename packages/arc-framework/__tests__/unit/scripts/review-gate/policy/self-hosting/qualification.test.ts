@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../../../../../src/scripts/review-gate/policy/standard-review.js";
 
 import {
   createHostedProviderProbePolicy,
   deriveHostedProviderDeclaration,
-  qualifyIndependentAnalysisSource,
+  qualifyStandardReviewSource,
   selectReconcilePolicy,
 } from "../../../../../../src/scripts/review-gate/policy/self-hosting/qualification.js";
 import {
@@ -14,9 +15,19 @@ import {
 
 const capable = {
   sourceKind: "agent",
-  qualifier: "independent-analysis/v1",
+  qualifier: "standard-review/v1",
   sourceIdentity: "agent-1",
-  rubricVersion: "independent-analysis/v1",
+  rubricVersion: "standard-review/v1",
+  channel: "local",
+  guidance: {
+    baselineVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+    baselineDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
+    projectAugmentationId: "self-hosting-review/v1",
+  },
+  admissionMode: "checkpoint",
+  requestMechanism: "local-attestation",
+  attestationAuthority: "local-receipt-store",
+  hostedImportAuthority: "arc-review-gate-app",
   mode: "enabled",
   exactCoverage: true,
   durableResults: true,
@@ -30,13 +41,12 @@ const capable = {
   providerBotUserId: null,
   guidanceDigest: null,
   terminalUnavailableMode: "disabled",
-  requestActor: "explicit",
 } satisfies SourceQualificationDeclaration;
 
-describe("independent-analysis source qualification", () => {
+describe("standard-review source qualification", () => {
   it("qualifies the enabled attested and durable-record source fixtures", () => {
     const identities = SELF_HOSTING_POLICY.qualifications
-      .filter((source) => qualifyIndependentAnalysisSource(source, "independent-analysis/v1").qualified)
+      .filter((source) => qualifyStandardReviewSource(source, "standard-review/v1").qualified)
       .map((source) => source.sourceIdentity);
 
     expect(identities).toEqual([
@@ -56,14 +66,14 @@ describe("independent-analysis source qualification", () => {
     ["closure", { closureCapability: false }],
     ["disabled", { mode: "disabled" as const }],
   ])("rejects missing %s", (_name, override) => {
-    expect(qualifyIndependentAnalysisSource({ ...capable, ...override }, "independent-analysis/v1").qualified).toBe(false);
+    expect(qualifyStandardReviewSource({ ...capable, ...override }, "standard-review/v1").qualified).toBe(false);
   });
 
   it("keeps the pull-request provider declaration partial during shadow observation", () => {
     const source = SELF_HOSTING_POLICY.qualifications.find((candidate) => candidate.sourceIdentity === "coderabbit-pr");
     expect(source).toBeDefined();
     expect(source?.mode).toBe("partial");
-    expect(qualifyIndependentAnalysisSource(source!, "independent-analysis/v1").qualified).toBe(false);
+    expect(qualifyStandardReviewSource(source!, "standard-review/v1").qualified).toBe(false);
   });
 
   it("derives enabled versus partial hosted declarations only from baseline outcomes", () => {
@@ -136,6 +146,8 @@ describe("independent-analysis source qualification", () => {
       { runtimeLabel: "enabled" },
       { capacity: "available" },
       { secret: "token" },
+      { approvingActor: "maintainer" },
+      { applyingActor: "author" },
     ]) {
       expect(() => parseSelfHostingPolicy({
         ...SELF_HOSTING_POLICY,

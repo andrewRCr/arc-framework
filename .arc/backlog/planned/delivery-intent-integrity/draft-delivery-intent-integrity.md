@@ -29,6 +29,18 @@ The source record and detailed examples live in
 
 ## Inbound Charter
 
+### Guard layer-wise decomposition from shipping unwired ports
+
+`review-architecture` verification found four typed contracts with no production callers despite complete tasks,
+passing cross-layer library tests, and a green Tier 3. The failure mode is decomposition by layer without a task
+owning composition: each port is correct in isolation, while no invocable path produces or consumes it.
+
+At grooming, incorporate the concrete guard candidates into this WU's existing composition-root charter: a scoped
+non-test-import reachability check with deliberate-seam allowlisting; a user-reachable-path reading in work-unit
+verification; and task/spec authoring rules that name the adapter or composition owner whenever a port is introduced.
+Prefer the mechanical reachability check plus an explicit composition task, while preserving legitimate extension
+seams. Routed from `USER-INBOX § Work Unit` at the 2026-07-21 housekeep drain.
+
 ### Composition-seam test planning
 
 Decide how task generation and testing guidance identify an entry point or composition root and require an

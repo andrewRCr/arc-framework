@@ -6,6 +6,7 @@ import type { ReceiptEnvelope, ReviewRequest } from "../../../../../../src/scrip
 import { buildCodexReviewCommand } from "../../../../../../src/scripts/review-gate/providers/codex/adapter.js";
 import { resolveCodexGuidance } from "../../../../../../src/scripts/review-gate/providers/codex/guidance.js";
 import { ReceiptBackedCodexLocator } from "../../../../../../src/scripts/review-gate/providers/codex/locators.js";
+import { SELF_HOSTING_REVIEW_GUIDANCE_BLOCK } from "../../../../../../src/scripts/review-gate/policy/self-hosting/guidance.js";
 
 const HEAD = "a".repeat(40);
 const DIFF_BASE = "b".repeat(40);
@@ -13,8 +14,7 @@ const ROOT = `# Agent Bootstrap
 
 ## Review guidelines
 
-Rubric: independent-analysis/v1
-Intent and scope; correctness and failure behavior; trust and compatibility; verification; coherence and maintainability.
+${SELF_HOSTING_REVIEW_GUIDANCE_BLOCK}
 `;
 
 describe("receipt-backed Codex locators", () => {
@@ -37,8 +37,8 @@ describe("receipt-backed Codex locators", () => {
       changeSetId: computeChangeSetId({ baseRef: "main", diffBaseSha: DIFF_BASE, headSha: HEAD }),
       policyVersion: "c".repeat(64),
       semanticsVersion: "review-gate/v1",
-      rubricVersion: "independent-analysis/v1",
-      requirementId: "independent-analysis",
+      rubricVersion: "standard-review/v1",
+      requirementId: "standard-review",
       sourceIdentity: "codex-pr",
       coverage: "full",
       coverageFromSha: DIFF_BASE,
@@ -110,6 +110,9 @@ describe("receipt-backed Codex locators", () => {
     await expect(locator.resolveRequestGuidance(request)).resolves.toEqual({
       qualified: true,
       guidanceDigest: guidance.digest,
+      forwardGuidanceDigest: guidance.guidanceDigest,
+      rubricVersion: guidance.rubricVersion,
+      rubricDigest: guidance.rubricDigest,
     });
     await expect(locator.resolveRun(computeRequestKey(request))).resolves.toMatchObject({
       pullNumber: 7,

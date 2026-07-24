@@ -71,6 +71,7 @@ const metaRecord = {
   origin: "internal",
   design: ["spec-cli-validation-surfaces.md"],
   taskList: "tasks-cli-validation-surfaces.md",
+  reviewRubric: null,
   currentWorkflow: null,
   lastCompleted: null,
   nextTask: "Task 6.2.a",

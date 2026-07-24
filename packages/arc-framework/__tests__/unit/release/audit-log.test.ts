@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, readFile, rm, stat, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, stat, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -62,6 +62,13 @@ describe("ensureAuditLogParent", () => {
     const parent = join(fixture.root, ".arc", "user", "alice", ".internal");
     const info = await stat(parent);
     expect(info.isDirectory()).toBe(true);
+  });
+
+  it("rejects an invalid identity before creating directories", async () => {
+    await expect(
+      ensureAuditLogParent({ cwd: fixture.root, identity: "../escape" }),
+    ).rejects.toThrow();
+    expect(await readdir(fixture.root)).toEqual([]);
   });
 });
 

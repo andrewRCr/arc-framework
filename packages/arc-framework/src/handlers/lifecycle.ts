@@ -33,6 +33,8 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, type GitExec } from "../lib/git/exec.js";
 import { isCanonicalDigest } from "../lib/canonical/canonical-json.js";
 import { createUserIOContext, prepareGitRefVerification, readGitBlobBytes } from "../lib/io-context.js";
+import { SlugSchema } from "../lib/kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import {
   resolvePrimaryWorktreePath,
@@ -70,8 +72,10 @@ import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
   createInRepoParkPlanningRetirementContext,
+  createInRepoRenameRetirementContext,
   type InRepoDirectRetirementDeps,
 } from "../lib/work-unit/direct-retirement-driver.js";
+import { runRenameCommand } from "../commands/rename.js";
 import {
   createInRepoParkPlanningLandingContext,
   landParkPlanningTransition,
@@ -112,6 +116,19 @@ const lifecycleFs: LifecycleIndexFs = {
   readdir: (path) => readdir(path, { withFileTypes: true }),
   readFile: (path) => readFile(path, "utf8"),
 };
+
+function projectActiveMetaPath(slugValue: string) {
+  return resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: SlugSchema.parse(slugValue),
+    artifact: "meta",
+  });
+}
+
+function materializeActiveMetaPath(cwd: string, slugValue: string): string {
+  return materializeArcPath(cwd, projectActiveMetaPath(slugValue));
+}
 
 /** `meta-<slug>.md` → `<slug>`, or `null` when the filename is not a meta file. */
 function slugFromMetaFilename(filename: string): string | null {
@@ -411,6 +428,62 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
   p.outro("Done.");
 }
 
+/** `arc rename <slug> <new-slug>` — atomically rename a work unit and its applicable identities. */
+export async function handleRename(sourceSlug: string, targetSlug: string): Promise<void> {
+  p.intro("arc rename");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+  const { settings } = await readConfigSettings(base.cwd);
+  const result = await runRenameCommand({
+    cwd: base.cwd,
+    identity: base.identity,
+    baseBranch: settings["branch.base"],
+    io: base.io,
+    retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
+  }, { sourceSlug, targetSlug });
+  if (result.status !== "renamed") {
+    refuse(result.reason);
+    return;
+  }
+  const lines = [
+    `Work unit: ${sourceSlug} → ${targetSlug}`,
+    `Shape:     ${result.shape}`,
+  ];
+  if (result.pendingIntegration) {
+    lines.push("Visibility: pending integration of the rename branch");
+  }
+  if (result.remote?.status === "unpublished") lines.push("Remote:    unpublished; no ref created");
+  if (result.shape === "in-place") {
+    lines.push("Marker:    skipped; in-place work units carry no ownership marker");
+    lines.push("Worktree:  unchanged; the primary worktree cannot be moved");
+  }
+  if (result.worktree !== undefined) {
+    if ("mutation" in result.worktree) {
+      if (result.worktree.mutation !== "move") {
+        lines.push("Worktree:  unchanged; rename returned an unexpected worktree result");
+      } else {
+        const notice = result.worktree.followUpNotice;
+        if (notice !== undefined) {
+          lines.push(`Follow-up:  ${notice}`);
+        } else {
+          lines.push(
+            `Worktree:  ${result.worktree.to}`
+            + (result.worktree.locusHopped ? " (process relocated)" : ""),
+          );
+        }
+      }
+    } else if (result.worktree.status === "already-moved") {
+      lines.push(`Worktree:  unchanged; registered path already carries the new slug: ${result.worktree.worktreePath}`);
+    } else if (result.worktree.status === "unmatched") {
+      lines.push(`Worktree:  unchanged; registered path does not contain the old slug: ${result.worktree.worktreePath}`);
+    } else {
+      lines.push("Worktree:  unchanged; no linked worktree is registered for the renamed branch");
+    }
+  }
+  p.note(lines.join("\n"), "Renamed");
+  p.outro("Done.");
+}
+
 // ---------------------------------------------------------------------------
 // Backlog-tier moves — `promote` / `demote`
 // ---------------------------------------------------------------------------
@@ -537,7 +610,7 @@ export interface ParkOptions {
  */
 async function resolveWuWorktreePath(base: VerbBase, slug: string): Promise<string> {
   try {
-    const record = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`)));
+    const record = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug)));
     const branch = record.branch;
     if (branch !== null) {
       const byBranch = await resolveWorktreePathsByBranch(base.io.exec);
@@ -575,7 +648,7 @@ async function resolveParkSource(
   slug: string,
 ): Promise<{ worktreePath: string; record: ParsedMetaRecord } | null> {
   try {
-    const record = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`)));
+    const record = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug)));
     return { worktreePath: await resolveWuWorktreePath(base, slug), record };
   } catch {
     // Not in the current checkout — scan worktrees for the one holding it.
@@ -862,24 +935,34 @@ export async function handleMaterialize(
   const candidate = await resolveMaterializeCandidate(base, settings, slug);
   if (candidate === null) return;
 
-  try {
-    await fetchMaterializeBranch(base.io.exec, candidate.branch);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    refuse(`could not fetch \`origin/${candidate.branch}\` for materialize: ${detail}`);
-    return;
+  {
+    const spinner = p.spinner();
+    spinner.start(`Fetching origin/${candidate.branch}...`);
+    try {
+      await fetchMaterializeBranch(base.io.exec, candidate.branch);
+      spinner.stop("Fetch complete.");
+    } catch (err) {
+      spinner.stop("Fetch failed.");
+      const detail = err instanceof Error ? err.message : String(err);
+      refuse(`could not fetch \`origin/${candidate.branch}\` for materialize: ${detail}`);
+      return;
+    }
   }
 
   if (opts.here) {
+    const spinner = p.spinner();
+    spinner.start("Materializing in place...");
     const result = await runMaterialize(executor, {
       name: candidate.name,
       branch: candidate.branch,
       inPlace: true,
     });
     if (result.status === "rejected") {
+      spinner.stop("Materialize failed.");
       refuse(result.reason);
       return;
     }
+    spinner.stop("Materialize complete.");
     reportOutcome(
       "Materialized (in place)",
       [
@@ -898,30 +981,36 @@ export async function handleMaterialize(
     refuse("could not resolve the primary worktree path to derive the repository name");
     return;
   }
-  const result = await runMaterialize(executor, {
-    name: candidate.name,
-    branch: candidate.branch,
-    locationTemplate: settings["worktree.location_template"],
-    postCreateScript: settings["worktree.post_create"],
-    primaryWorktreePath,
-    registeredHarnessDirs: settings["worktree.harness_dirs"],
-    repo: basename(primaryWorktreePath),
-    spawningIdentity: base.identity,
-  });
-  if (result.status === "rejected") {
-    refuse(result.reason);
-    return;
+  {
+    const spinner = p.spinner();
+    spinner.start("Spawning materialize worktree...");
+    const result = await runMaterialize(executor, {
+      name: candidate.name,
+      branch: candidate.branch,
+      locationTemplate: settings["worktree.location_template"],
+      postCreateScript: settings["worktree.post_create"],
+      primaryWorktreePath,
+      registeredHarnessDirs: settings["worktree.harness_dirs"],
+      repo: basename(primaryWorktreePath),
+      spawningIdentity: base.identity,
+    });
+    if (result.status === "rejected") {
+      spinner.stop("Materialize failed.");
+      refuse(result.reason);
+      return;
+    }
+    spinner.stop("Worktree ready.");
+    reportOutcome(
+      "Materialized",
+      [
+        `Work unit: ${candidate.name}`,
+        `Branch:    ${candidate.branch}`,
+        ``,
+        `Run \`arc user pull\` in the materialized checkout, then re-run session init to resume.`,
+      ],
+      result.outcome,
+    );
   }
-  reportOutcome(
-    "Materialized",
-    [
-      `Work unit: ${candidate.name}`,
-      `Branch:    ${candidate.branch}`,
-      ``,
-      `Run \`arc user pull\` in the materialized checkout, then re-run session init to resume.`,
-    ],
-    result.outcome,
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -988,7 +1077,7 @@ export interface ReopenOptions {
 async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | undefined> {
   let branch: string | null;
   try {
-    branch = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`))).branch;
+    branch = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug))).branch;
   } catch {
     return undefined;
   }
@@ -1481,7 +1570,7 @@ export async function handleRepointDesign(event: string | undefined): Promise<vo
     return;
   }
 
-  const metaPath = join(base.cwd, ".arc/active", `meta-${slug}.md`);
+  const metaPath = materializeActiveMetaPath(base.cwd, slug);
   const currentDesign = parseMetaRecord(await readFile(metaPath, "utf8")).design;
 
   const { executor } = await buildExecutor(base);

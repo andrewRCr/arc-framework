@@ -64,7 +64,7 @@ that arrives in a worktree ARC did not create is advisory only: ARC warns when i
 convention but never refuses or relocates it, so ARC composes with externally-created branches rather than
 rejecting them.
 
-**Relationship to Conventional Branch.** ARC's default set is *inspired by* Conventional Branch
+**Relationship to Conventional Branch.** ARC's default set is _inspired by_ Conventional Branch
 but doesn't strictly match its recommended set. CB's recommended set is
 `feature|feat | bugfix|fix | chore | hotfix | release`. ARC:
 
