@@ -2578,3 +2578,68 @@ Primary adjudication upheld all three findings. The row schema and formatter dir
 ordering and top-level catch establish X1-F2 against the CLI's typed-result promise; and the formatter/raw-write
 composition establishes X1-F3. X1 passes reviewability and contributes two material runtime findings plus one
 low-severity output-compatibility defect.
+
+### M1 leaf evidence
+
+The fresh M1 evaluator reproduced its exact 52-file manifest, 2,965 changed lines, and 354 hunks after a deliberately
+long pass over the highest-density remaining leaf. It completed every owned artifact without overload, partiality,
+or malformed scope:
+
+```yaml
+scope: M1
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 52, insertions: 1576, deletions: 1389, changedLines: 2965, zeroContextHunks: 354}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: M1-F1
+    title: Composite-probe fallback contradicts reader-owned sole authority
+    severity: high
+    stableLocus: >
+      packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md — lines 28-30,
+      45-52, and 71-75;
+      packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-handoff.template.md — lines 32-34
+      and 59-67
+    evidence: >
+      Session initialization names locusState as the sole frame authority and stops when that slot fails, while
+      handoff permits dispatch only through handoffLocus. Both workflows nevertheless retain whole-probe fallback
+      to raw Git or active-meta scans that cannot produce either trusted authority.
+    impact: >
+      The documented failure arm must either violate its own no-inference rule and risk selecting the wrong
+      generation, or stop at an undocumented point; handoff cannot prove transient preservation, parentage, or an
+      exact lease through raw Git status.
+    correctionBoundary: >
+      Fail closed for frame-sensitive work after composite-probe failure, permitting only non-mutating diagnostics,
+      or supply a typed fallback reader with the same locus/handoff authority; test whole-call and locus-slot
+      failures for absence of branch/meta-derived dispatch.
+  - id: M1-F2
+    title: Quick reference advertises an unsupported Errand option
+    severity: medium
+    stableLocus: >
+      packages/arc-framework/arc/reference/QUICK-REFERENCE.template.md — line 255;
+      .arc/reference/QUICK-REFERENCE.md — line 255;
+      packages/arc-framework/src/cli.ts — lines 399-407
+    evidence: >
+      Both maintained references publish errand open with --type, while the exact-head command declares intent,
+      inbox-title, compatibility-alias, and JSON options only.
+    impact: >
+      The documented invocation fails as an unknown option and preserves an obsolete branch-type concept on the
+      identity-model entry command.
+    correctionBoundary: >
+      Remove --type from both references or restore and define it in the CLI, then cover the complete errand-open
+      signature in the methodology command-surface test.
+withstood:
+  - Package and project copies align at every non-rendered M1 decision site.
+  - Concurrency and inbox-drain methodology are included in distribution with fresh-init/update coverage.
+  - Documented locus, recovery, role, lease, and handoff discriminants match exact-head TypeScript declarations.
+  - Other named transient, grooming, housekeeping, locus, and materialization commands match the CLI.
+  - CI schedules the native process-inspector suite on Linux and cross-platform portability runs.
+verdict: changes-requested
+```
+
+Primary adjudication upheld both findings. The init and handoff workflows visibly pair sole-authority declarations
+with fallback mechanisms incapable of producing that authority, while the CLI declaration directly disproves the
+documented `--type` option. M1 passes reviewability despite its 354-hunk density and completes all 17 leaf reviews.
