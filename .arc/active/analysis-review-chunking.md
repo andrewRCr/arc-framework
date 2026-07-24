@@ -2180,3 +2180,150 @@ confirmed name-only recovery, same-anchor lease rollover, and XY-insensitive por
 test comparison confirmed that the removed derivation-floor integration scenario has no replacement: every new
 owned fixture uses `floor: "scale"`. E4 passes reviewability and contributes three distinct runtime findings plus
 one verification weakness.
+
+### E5 leaf evidence
+
+The fresh E5 evaluator reproduced six files, 2,282 changed lines, and 169 hunks exactly. It completed every owned
+hunk without overload or malformed scope:
+
+```yaml
+scope: E5
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 6, insertions: 1860, deletions: 422, changedLines: 2282, zeroContextHunks: 169}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: E5-F1
+    title: Inbox generation is not bound to the identity mutation
+    severity: high
+    stableLocus: packages/arc-framework/src/handlers/errand.ts — lines 450-464, 627-654, and 1282-1300
+    evidence: >
+      Inbox adoption returns title and source digest under the notes lock, then releases it. Open discards the
+      digest and link passes it to a core that consumes only the title before publishing identity later.
+    impact: >
+      Concurrent removal or same-title replacement can leave an Errand bound to no capture and later delete a
+      replacement capture it never adopted.
+    correctionBoundary: >
+      Coordinate inbox inspection with identity mutation or persist and enforce the inspected source digest through
+      publication and removal; cover replacement after inspection.
+  - id: E5-F2
+    title: Remote-only legacy Errands cannot reach their supported close path
+    severity: medium
+    stableLocus: packages/arc-framework/src/handlers/errand.ts — lines 912-942
+    evidence: >
+      Legacy dispatch consults only the local snapshot. A fresh clone with only a remote v1/v2 record chooses the
+      ordinary close runtime, whose reconciled core then refuses the non-v3 identity.
+    impact: >
+      A valid remote-only legacy generation becomes stranded despite the explicitly retained close-only migration
+      path.
+    correctionBoundary: >
+      Dispatch from the same complete reconciled local/remote basis used for mutation and cover a fresh-clone
+      remote-only legacy close.
+  - id: E5-F3
+    title: JSON handlers can throw before entering their result-conversion boundary
+    severity: medium
+    stableLocus: >
+      packages/arc-framework/src/handlers/errand.ts — lines 475-493, 752-759, 1037-1044, and 1234-1239
+    evidence: >
+      Extension reads and user-surface resolution run before the operation try/catch in open, leave, abandon, and
+      promote.
+    impact: >
+      JSON automation can receive an unhandled rejection or non-envelope diagnostic instead of the validated
+      mutation result.
+    correctionBoundary: >
+      Include every fallible preflight in the handler's error-to-result boundary and test an extension-read failure
+      in JSON mode.
+verificationFindings:
+  - id: E5-V1
+    title: Tests claiming current open and inbox coverage exercise seeded legacy records
+    severity: medium
+    stableLocus: packages/arc-framework/__tests__/e2e/errand.e2e.test.ts — lines 201-251 and 431-466
+    evidence: >
+      The just-opened, ROADMAP, and from-inbox cases call seedLegacyErrand rather than the new open path; materialize
+      has no owned end-to-end execution.
+    impact: >
+      V3 projection, inbox adoption, and materialization cleanup can regress while the owned suite stays green.
+    correctionBoundary: >
+      Create real v3 Errands for status, ROADMAP, and adoption cases; add materialize success and failed-open
+      rollback scenarios.
+withstood:
+  - Result rendering preserves validated JSON envelopes for covered runtime outcomes and maps failures nonzero.
+  - Anchored tests cover cold and warm open, pause/resume, partial close/abandon, and in-place promotion.
+  - Materialization uses temporary refs, exact-head preservation, zero-OID creation, and exact-head rollback.
+verdict: changes-requested
+```
+
+Primary adjudication upheld all three runtime findings and the verification weakness. Source confirms that adoption
+discards generation evidence, legacy dispatch reads only local authority, and fallible preflight work sits outside
+the result boundary. The named E2E cases visibly seed v2 identities instead of exercising current open. E5 passes
+reviewability despite its high hunk density.
+
+### S1 leaf evidence
+
+The fresh S1 evaluator reproduced 15 files, 2,030 changed lines, and 81 hunks exactly. It completed every owned
+hunk without overload or malformed scope:
+
+```yaml
+scope: S1
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 15, insertions: 1970, deletions: 60, changedLines: 2030, zeroContextHunks: 81}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: S1-F1
+    title: Legacy recovery fails whenever the repository has multiple active work units
+    severity: high
+    stableLocus: packages/arc-framework/src/handlers/recover-probes.ts — lines 63-96
+    evidence: >
+      Candidate selection finds one exact return-branch parent, but subsequent projection requires the repository-
+      global active result to resolve single; multiple active metadata therefore rejects the exact match.
+    impact: >
+      The close-only legacy recovery path requires manual intervention in an ordinary multi-WU repository.
+    correctionBoundary: >
+      Project session fields from the exact matched candidate or a targeted parent API rather than global
+      resolution; cover two active WUs with one exact return-branch match.
+  - id: S1-F2
+    title: An absent seed hint is a wildcard for a newly live locus generation
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/lib/compaction-seed/emitter.ts — lines 173-207;
+      packages/arc-framework/src/lib/recover/audit.ts — lines 297-320
+    evidence: >
+      A current seed can omit locus after an unavailable probe. If fresh recovery later resolves a live generation,
+      audit declares expected null versus any actual generation a match.
+    impact: >
+      Ready recovery can leave record, lease, active path, session-home path, and parent generation completely
+      unbound.
+    correctionBoundary: >
+      Distinguish legacy seeds from current unavailable-locus emission; current producers must fail, skip, or persist
+      an unavailable state that audit stops on.
+  - id: S1-F3
+    title: Ready recovery reports need not carry a locus-hint audit
+    severity: medium
+    stableLocus: packages/arc-framework/src/lib/recover/report.ts — lines 25-63
+    evidence: >
+      The exported report authority requires seed and recovery for ready status but permits locusHint null even when
+      the seed summary contains a hint.
+    impact: >
+      Another producer or refactor can validate ready without proving seed generation was compared to fresh locus
+      authority.
+    correctionBoundary: >
+      Require a non-null comparison on ready and cross-check its expected value against seed.locus.
+withstood:
+  - Complete locus hints atomically compare every correlation field.
+  - Fresh context derivation fails closed on ambiguous current state, mismatched recovery tokens, role ambiguity,
+    dead leases, unknown residue, and incomplete projections.
+  - Load-set augmentation, lineage, dirty-path, cursor, and legacy-diagnostic checks remain structured.
+verdict: changes-requested
+```
+
+Primary adjudication upheld all three findings. The exact-parent selector is followed by a contradictory global
+single-parent requirement, current schema-version seeds can omit locus while audit treats absence as wildcard, and
+the exported ready-report schema does not enforce the comparison its semantics advertise. S1 passes reviewability
+and contributes three distinct findings.
