@@ -752,18 +752,26 @@ async function teardownBranchProjection(
             );
           }
           if (localMutationReady) {
-            try {
-              await exec("git", [
-                "update-ref",
-                "-d",
-                `refs/heads/${branchForCleanup}`,
-                directionalAuthorization.refs.localOid,
-              ]);
-            } catch (err) {
-              notices.push(
-                `Could not compare-and-delete local branch \`${branchForCleanup}\` `
-                  + `(${err instanceof Error ? err.message : String(err)}).`,
-              );
+            // Already-reaped is the common post-integration husk case: the local
+            // branch was deleted earlier, and a later husk cleanup still carries a
+            // stamped localOid. Skip the CAS delete when the ref is gone so we do
+            // not emit a compare-and-delete warning that contradicts the summary's
+            // "(already reaped)" line. Keep the warning for genuine failures on a
+            // still-present ref (lock contention, CAS mismatch, etc.).
+            if (await branchExists(exec, branchForCleanup)) {
+              try {
+                await exec("git", [
+                  "update-ref",
+                  "-d",
+                  `refs/heads/${branchForCleanup}`,
+                  directionalAuthorization.refs.localOid,
+                ]);
+              } catch (err) {
+                notices.push(
+                  `Could not compare-and-delete local branch \`${branchForCleanup}\` `
+                    + `(${err instanceof Error ? err.message : String(err)}).`,
+                );
+              }
             }
           }
         }
