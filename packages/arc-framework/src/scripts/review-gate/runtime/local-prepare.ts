@@ -32,7 +32,12 @@ import {
   type LocalReviewSource,
 } from "../core/local-review-source.js";
 import type { LocalReviewAuthority } from "../core/local-review-authority.js";
+import {
+  LocalReviewStateSchema,
+  type LocalReviewState,
+} from "../core/operation-state-schema.js";
 import type {
+  ForwardReceiptLedger,
   LocalReviewSourceStore,
   ReviewOperationStateStore,
 } from "../core/ports.js";
@@ -64,6 +69,7 @@ type AssuranceComposition =
 
 export interface LocalPrepareDependencies {
   sweep(): Promise<void>;
+  withSourceLock<T>(action: () => Promise<T>): Promise<T>;
   resolveRepositoryId(): Promise<string>;
   deriveTarget(repositoryId: string): Promise<ReviewTarget>;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
@@ -76,6 +82,7 @@ export interface LocalPrepareDependencies {
   ): void;
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
+  readReceipts(targetId: string): Promise<ForwardReceiptLedger>;
   describeSource(operationId: string, target: ReviewTarget): Promise<LocalReviewSource>;
   materialize(source: LocalReviewSource): Promise<{ reviewRoot: string }>;
   now(): string;
@@ -85,7 +92,16 @@ function diagnostics(messages: readonly string[]) {
   return messages.map((message) => ({ code: "local-prepare", message }));
 }
 
-/** Derive, admit, publish, and prove one immutable local review operation. */
+function cleanupExpired(state: LocalReviewState, nowInput: string): boolean {
+  const admittedAt = Date.parse(state.updatedAt);
+  const now = Date.parse(nowInput);
+  if (!Number.isFinite(admittedAt) || !Number.isFinite(now)) {
+    throw new Error("invalid local review cleanup clock");
+  }
+  return now >= admittedAt + state.cleanupTtlMs;
+}
+
+/** Derive, admit, optionally renew liveness, and prove one local review operation. */
 export async function prepareLocalReview(
   requestInput: unknown,
   dependencies: LocalPrepareDependencies,
@@ -165,64 +181,101 @@ export async function prepareLocalReview(
       },
     });
   }
-  let settled: {
-    resolution: LocalReviewAdmissionResolution;
-    preparation: LocalReviewPreparation;
-  } | null = null;
-  for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
-    const existingVerification: {
-      value?: { source: LocalReviewSource; reviewRoot: string };
-    } = {};
-    const resolution = await resolveLocalReviewAdmission(admissionInput, {
-      store: dependencies.operationStore,
-      verifyExisting: async (state) => {
-        const source = await dependencies.sourceStore.readSource(state.sourceRef);
-        if (source === null
-          || source.sourceDigest !== state.sourceDigest
-          || source.targetId !== state.targetId) {
-          throw new Error("local review source reference mismatch");
+  const cleanupTtlMs = request.freshnessMs ?? DEFAULT_LOCAL_REVIEW_FRESHNESS_MS;
+  const settled = await dependencies.withSourceLock(async () => {
+    let admitted: {
+      resolution: LocalReviewAdmissionResolution;
+      preparation: LocalReviewPreparation;
+    } | null = null;
+    for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
+      const existingVerification: {
+        value?: { source: LocalReviewSource; reviewRoot: string };
+        renewal?: LocalReviewSource;
+      } = {};
+      const resolution = await resolveLocalReviewAdmission(admissionInput, {
+        store: dependencies.operationStore,
+        verifyExisting: async (state) => {
+          const source = await dependencies.sourceStore.readSource(state.sourceRef);
+          if (source === null
+            || source.sourceDigest !== state.sourceDigest
+            || source.targetId !== state.targetId) {
+            throw new Error("local review source reference mismatch");
+          }
+          if (cleanupExpired(state, dependencies.now())) {
+            const ledger = await dependencies.readReceipts(state.targetId);
+            const hasReceipt = ledger.receipts.some((receipt) => receipt.requestId === state.requestId);
+            if (!hasReceipt) {
+              existingVerification.renewal = source;
+              return;
+            }
+          }
+          const materialized = await dependencies.materialize(source);
+          existingVerification.value = { source, reviewRoot: materialized.reviewRoot };
+        },
+      });
+      if (resolution.state === "existing") {
+        const renewal = existingVerification.renewal;
+        if (renewal !== undefined) {
+          const renewedState = LocalReviewStateSchema.parse({
+            ...resolution.persistedState,
+            updatedAt: dependencies.now(),
+            cleanupTtlMs,
+          });
+          const published = await dependencies.operationStore.publishOperation(
+            renewedState,
+            resolution.persistedVersion,
+          );
+          const materialized = await dependencies.materialize(renewal);
+          admitted = {
+            resolution,
+            preparation: {
+              persistedVersion: published.version,
+              state: renewedState,
+              sourceRef: renewedState.sourceRef,
+              sourceDigest: renewal.sourceDigest,
+              reviewRoot: materialized.reviewRoot,
+            },
+          };
+          break;
         }
-        const materialized = await dependencies.materialize(source);
-        existingVerification.value = { source, reviewRoot: materialized.reviewRoot };
-      },
-    });
-    if (resolution.state === "existing") {
-      const verified = existingVerification.value;
-      if (verified === undefined) throw new Error("existing local review was not verified");
-      settled = {
-        resolution,
-        preparation: {
-          persistedVersion: resolution.persistedVersion,
-          state: resolution.persistedState,
-          sourceRef: resolution.persistedState.sourceRef,
-          sourceDigest: verified.source.sourceDigest,
-          reviewRoot: verified.reviewRoot,
-        },
-      };
-      break;
-    }
-    const source = LocalReviewSourceSchema.parse(
-      await dependencies.describeSource(resolution.operationId, target),
-    );
-    try {
-      const preparation = await publishLocalReviewPreparation(
-        createLocalReviewAdmission(admissionInput),
-        source,
-        {
-          sourceStore: dependencies.sourceStore,
-          operationStore: dependencies.operationStore,
-          materialize: (candidate) => dependencies.materialize(candidate),
-          now: () => dependencies.now(),
-          cleanupTtlMs: request.freshnessMs ?? DEFAULT_LOCAL_REVIEW_FRESHNESS_MS,
-          guidanceDigest: assurance.guidance.guidanceDigest,
-        },
+        const verified = existingVerification.value;
+        if (verified === undefined) throw new Error("existing local review was not verified");
+        admitted = {
+          resolution,
+          preparation: {
+            persistedVersion: resolution.persistedVersion,
+            state: resolution.persistedState,
+            sourceRef: resolution.persistedState.sourceRef,
+            sourceDigest: verified.source.sourceDigest,
+            reviewRoot: verified.reviewRoot,
+          },
+        };
+        break;
+      }
+      const source = LocalReviewSourceSchema.parse(
+        await dependencies.describeSource(resolution.operationId, target),
       );
-      settled = { resolution, preparation };
-      break;
-    } catch (error) {
-      if (!isReviewVersionConflict(error)) throw error;
+      try {
+        const preparation = await publishLocalReviewPreparation(
+          createLocalReviewAdmission(admissionInput),
+          source,
+          {
+            sourceStore: dependencies.sourceStore,
+            operationStore: dependencies.operationStore,
+            materialize: (candidate) => dependencies.materialize(candidate),
+            now: () => dependencies.now(),
+            cleanupTtlMs,
+            guidanceDigest: assurance.guidance.guidanceDigest,
+          },
+        );
+        admitted = { resolution, preparation };
+        break;
+      } catch (error) {
+        if (!isReviewVersionConflict(error)) throw error;
+      }
     }
-  }
+    return admitted;
+  });
   if (settled === null) throw new Error("local review preparation exceeded version-conflict retry attempts");
   const { resolution, preparation } = settled;
   const sourcePayload = createLocalReviewSourcePayload(resolution, preparation);

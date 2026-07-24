@@ -290,6 +290,78 @@ describe("built review protocol", () => {
     ])).rejects.toThrow();
   });
 
+  it("renews an expired receipt-less operation when review reruns at the unchanged head", async () => {
+    const root = await fixture();
+    const expired = await prepareLocal(root, 1);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    await expect(invoke(root, ["review", "local", "resume", "-"], {
+      schemaVersion: 1,
+      operationId: expired.operationId,
+    })).resolves.toMatchObject({ state: "expired", nextAction: "rerun-review" });
+
+    const renewed = await prepareLocal(root, 60_000);
+    expect(renewed.operationId).toBe(expired.operationId);
+    await expect(invoke(root, ["review", "local", "resume", "-"], {
+      schemaVersion: 1,
+      operationId: renewed.operationId,
+    })).resolves.toMatchObject({ state: "suspended", nextAction: "wait" });
+    await expect(invoke(root, ["review", "local", "attest", "-"], {
+      schemaVersion: 1,
+      operationId: renewed.operationId,
+      result: localResult(renewed, "clean"),
+    })).resolves.toMatchObject({ state: "attested-current", nextAction: "reduce" });
+  });
+
+  it("keeps a renewed source live while an expiry sweep runs concurrently", async () => {
+    const root = await fixture();
+    const expired = await prepareLocal(root, 1);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const request = {
+      schemaVersion: 1,
+      operationId: expired.operationId,
+    };
+
+    const [renewed, resumed] = await Promise.all([
+      prepareLocal(root, 60_000),
+      invoke(root, ["review", "local", "resume", "-"], request),
+    ]);
+
+    expect(renewed.operationId).toBe(expired.operationId);
+    expect(resumed).toMatchObject({
+      state: expect.stringMatching(/^(expired|suspended)$/),
+    });
+    await expect(access(renewed.reviewerPayload.reviewRoot)).resolves.toBeUndefined();
+    await expect(git(root, [
+      "show-ref",
+      "--verify",
+      `refs/arc/review/local/${renewed.operationId}`,
+    ])).resolves.toContain(renewed.operationId);
+    await expect(invoke(root, ["review", "local", "resume", "-"], request))
+      .resolves.toMatchObject({ state: "suspended", nextAction: "wait" });
+  });
+
+  it("accepts only one of two conflicting terminal results for one local operation", async () => {
+    const root = await fixture();
+    const prepared = await prepareLocal(root);
+    const request = (result: "clean" | "findings") => ({
+      schemaVersion: 1,
+      operationId: prepared.operationId,
+      result: localResult(prepared, result),
+    });
+
+    const results = await Promise.all([
+      runArcWithStdin(["review", "local", "attest", "-"], root, `${JSON.stringify(request("clean"))}\n`),
+      runArcWithStdin(["review", "local", "attest", "-"], root, `${JSON.stringify(request("findings"))}\n`),
+    ]);
+
+    expect(results.map((result) => result.exitCode).sort()).toEqual([0, 1]);
+    const rejected = results.find((result) => result.exitCode === 1);
+    expect(JSON.parse(rejected?.stdout.trim() ?? "{}")).toMatchObject({
+      error: { code: "corrupt-state" },
+    });
+  });
+
   it("serializes overlapping exact-head frontline reviews through public verbs", async () => {
     const root = await fixture();
     const prepared = await prepareLocal(root);

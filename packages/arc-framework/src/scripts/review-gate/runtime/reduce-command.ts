@@ -182,7 +182,11 @@ async function reduceLocal(
     || source.targetId !== state.targetId) {
     throw new ReduceCommandError("local review source snapshot mismatch");
   }
-  const entry = entries.filter((candidate) => candidate.receipt.requestId === state.requestId).at(-1);
+  const operationEntries = entries.filter((candidate) => candidate.receipt.requestId === state.requestId);
+  if (operationEntries.length > 1) {
+    throw new ReduceCommandError("local review operation has multiple terminal receipts");
+  }
+  const entry = operationEntries[0];
   if (entry === undefined) throw new ReduceCommandError("local review receipt is unavailable");
   let receipt: ReviewReceiptV2;
   try {

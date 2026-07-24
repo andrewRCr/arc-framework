@@ -25,6 +25,7 @@ const receiptRef = (operationId: string, durableRef: string) => bindReviewSource
   operationId,
   durableRef,
 });
+const withSourceLock = async <T>(action: () => Promise<T>): Promise<T> => action();
 
 function fixture() {
   const target = createReviewTarget({
@@ -138,6 +139,7 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -178,6 +180,7 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -230,6 +233,7 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -273,6 +277,7 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -303,6 +308,45 @@ describe("local resume command", () => {
       },
     });
     expect(appendReceipt).toHaveBeenCalledWith(records.receipt, 1);
+  });
+
+  it("rejects multiple terminal receipts for one local operation", async () => {
+    const records = fixture();
+    const appendReceipt = vi.fn();
+
+    await expect(resumeLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+    }, {
+      sweep: vi.fn(),
+      withSourceLock,
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: records.operation }),
+        publishOperation: vi.fn(),
+      },
+      sourceStore: {
+        readSource: async () => records.source,
+        appendSource: vi.fn(),
+      },
+      receiptStore: {
+        readReceipts: async () => ({
+          ledgerVersion: 2,
+          receipts: [records.receipt, records.receipt],
+        }),
+        appendReceipt,
+      },
+      dispositionStore: {
+        readDispositionRecord: vi.fn(),
+        appendDispositionRecord: vi.fn(),
+      },
+      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      materialize: vi.fn(),
+      now: () => "2026-07-23T18:00:00Z",
+    })).rejects.toMatchObject({
+      code: "corrupt-state",
+      message: "local review operation has multiple terminal receipts",
+    });
+    expect(appendReceipt).not.toHaveBeenCalled();
   });
 
   it("returns the exact local response plan for undispositioned findings", async () => {
@@ -347,6 +391,7 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -471,6 +516,7 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),

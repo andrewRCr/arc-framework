@@ -31,6 +31,7 @@ const targetInput = (target: LocalReviewState["target"]) => ({
   headTree: target.headTree,
 });
 const releaseMaterialization = async (): Promise<void> => undefined;
+const withSourceLock = async <T>(action: () => Promise<T>): Promise<T> => action();
 
 function fixture() {
   const target = createReviewTarget({
@@ -137,6 +138,7 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: records.result,
     }, {
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -174,6 +176,7 @@ describe("local attest command", () => {
         sourceDigest: digest("different-source"),
       },
     }, {
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -204,6 +207,7 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.result, status: "complete" },
     }, {
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -246,6 +250,7 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.result, status: "complete" },
     }, {
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -301,6 +306,7 @@ describe("local attest command", () => {
         operationId: records.operation.operationId,
         result: { ...records.result, status: "complete" },
       }, {
+        withSourceLock,
         operationStore: {
           readOperation: async () => ({ version: 1, state: records.operation }),
           publishOperation: vi.fn(),
@@ -356,6 +362,7 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.result, status: "complete" },
     }, {
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -408,6 +415,7 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.result, status: "complete" },
     }, {
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -465,6 +473,7 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result,
     }, {
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -507,6 +516,7 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.result, status: "complete" },
     }, {
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -566,6 +576,7 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result,
     }, {
+      withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -593,5 +604,54 @@ describe("local attest command", () => {
     expect(appendReceipt).toHaveBeenCalledWith(receipt, 1);
     expect(releaseMaterialization).toHaveBeenCalledWith(records.operation.operationId);
     expect(inspectMaterialization).not.toHaveBeenCalled();
+  });
+
+  it("rejects multiple terminal receipts for one local operation", async () => {
+    const records = fixture();
+    const result = { ...records.result, status: "complete" as const };
+    const receipt = createLocalReviewReceipt({
+      target: records.operation.target,
+      requirement: records.operation.requirement,
+      carrier: {
+        target: records.operation.target,
+        request: records.operation.request,
+        attestation: records.operation.attestation,
+      },
+      result,
+      runtimeIdentity: records.operation.attestation.runtimeIdentity,
+      attestationMechanism: records.operation.attestation.mechanism,
+      sourceDigest: records.operation.sourceDigest,
+      guidanceDigest: records.operation.guidanceDigest,
+    });
+    const appendReceipt = vi.fn();
+
+    await expect(attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+      result,
+    }, {
+      withSourceLock,
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: records.operation }),
+        publishOperation: vi.fn(),
+      },
+      sourceStore: {
+        readSource: async () => records.source,
+        appendSource: vi.fn(),
+      },
+      receiptStore: {
+        readReceipts: async () => ({ ledgerVersion: 2, receipts: [receipt, receipt] }),
+        appendReceipt,
+      },
+      resolveAuthority: async () => records.admission.authority,
+      resolveGuidanceDigest: async () => records.operation.guidanceDigest,
+      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      inspectMaterialization: vi.fn(),
+      releaseMaterialization: vi.fn(),
+    })).rejects.toMatchObject({
+      code: "corrupt-state",
+      message: "local review operation has multiple terminal receipts",
+    });
+    expect(appendReceipt).not.toHaveBeenCalled();
   });
 });

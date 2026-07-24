@@ -342,6 +342,26 @@ describe("review reduction command: attested local", () => {
     });
   });
 
+  it("rejects multiple terminal receipts for one local operation", async () => {
+    const records = localFixture();
+    const setup = localDependencies(records);
+    setup.adapterDependencies.readReceiptEntries = async () => [
+      {
+        receipt: records.receipt,
+        durableEvidenceRef: durableReceiptRef,
+      },
+      {
+        receipt: records.receipt,
+        durableEvidenceRef: "git-common:review-gate/evidence/receipts-v2.json#2",
+      },
+    ];
+
+    await expect(reduceReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+    }, setup.dependencies)).rejects.toThrow("local review operation has multiple terminal receipts");
+  });
+
   it("returns stale-target before reading advisory records", async () => {
     const records = localFixture();
     const setup = localDependencies(records);

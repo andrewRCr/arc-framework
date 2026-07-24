@@ -31,6 +31,7 @@ export function createLocalResumeDependencies(input: {
   };
   return {
     sweep: () => prepare.sweep(),
+    withSourceLock: (action) => prepare.withSourceLock(action),
     operationStore: prepare.operationStore,
     sourceStore: prepare.sourceStore,
     receiptStore: {

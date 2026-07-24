@@ -9,6 +9,7 @@ import {
 import {
   RepositoryGitCommonStatePublisher,
   resolveRepositoryIdentity,
+  withRepositoryReviewSweepLock,
 } from "../hosts/local/git-common-state.js";
 import { RepositoryLocalReviewSourceStore } from "../hosts/local/source-store.js";
 import {
@@ -62,6 +63,12 @@ export function createLocalPrepareDependencies(input: {
   const operationStore = new LocalReviewOperationStateStore(publisher);
   const sourceStore = new RepositoryLocalReviewSourceStore(publisher);
   const sweepAdapter = new RepositoryLocalReviewSourceSweepAdapter(input.exec, input.cwd);
+  let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
+  const receipts = () => {
+    receiptStore ??= resolveRepositoryIdentity(publisher)
+      .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
+    return receiptStore;
+  };
   let liveContext: Promise<ResolvedLocalReviewLiveContext> | null = null;
   const readLive = () => {
     liveContext ??= readLocalReviewLiveContext(input);
@@ -74,17 +81,20 @@ export function createLocalPrepareDependencies(input: {
     operationStore,
     sourceStore,
     now: () => new Date().toISOString(),
+    withSourceLock: (action) => withRepositoryReviewSweepLock(input.exec, input.cwd, action),
     sweep: async () => {
-      const repositoryId = await resolveRepositoryIdentity(publisher);
-      const receiptStore = new LocalForwardReviewReceiptStore(publisher, repositoryId);
-      await sweepLocalReviewSources({
-        listOperationIds: () => sweepAdapter.listOperationIds(),
-        readOperation: (operationId) => operationStore.readOperation(operationId),
-        readReceipts: (targetId) => receiptStore.readReceipts(targetId),
-        release: (operationId) => sweepAdapter.release(operationId),
-        now: () => new Date().toISOString(),
+      const receiptStore = await receipts();
+      await withRepositoryReviewSweepLock(input.exec, input.cwd, async () => {
+        await sweepLocalReviewSources({
+          listOperationIds: () => sweepAdapter.listOperationIds(),
+          readOperation: (operationId) => operationStore.readOperation(operationId),
+          readReceipts: (targetId) => receiptStore.readReceipts(targetId),
+          release: (operationId) => sweepAdapter.releaseWithinLock(operationId),
+          now: () => new Date().toISOString(),
+        });
       });
     },
+    readReceipts: async (targetId) => (await receipts()).readReceipts(targetId),
     resolveRepositoryId: () => resolveRepositoryIdentity(publisher),
     deriveTarget: async (repositoryId) => {
       const config = await readConfigSettings(input.cwd);

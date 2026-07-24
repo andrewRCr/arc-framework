@@ -28,6 +28,7 @@ export const LocalResumeRequestSchema = z.strictObject({
 
 export interface LocalResumeDependencies {
   sweep(): Promise<void>;
+  withSourceLock<T>(action: () => Promise<T>): Promise<T>;
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   receiptStore: ForwardReviewReceiptStore;
@@ -56,6 +57,13 @@ export async function resumeLocalReviewCommand(
 ): Promise<z.infer<typeof LocalResumeEnvelopeSchema>> {
   const request = LocalResumeRequestSchema.parse(requestInput);
   await dependencies.sweep();
+  return dependencies.withSourceLock(() => resumeLocalReviewWithinSourceLock(request, dependencies));
+}
+
+async function resumeLocalReviewWithinSourceLock(
+  request: z.infer<typeof LocalResumeRequestSchema>,
+  dependencies: LocalResumeDependencies,
+): Promise<z.infer<typeof LocalResumeEnvelopeSchema>> {
   const persisted = await dependencies.operationStore.readOperation(request.operationId);
   if (persisted.state === null
     || persisted.state.kind !== "local-review"
@@ -93,6 +101,9 @@ export async function resumeLocalReviewCommand(
   }
   const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
   const receipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
+  if (receipts.length > 1) {
+    throw new LocalResumeCommandError("local review operation has multiple terminal receipts");
+  }
   if (receipts.length === 0) {
     const now = Date.parse(dependencies.now());
     const admittedAt = Date.parse(state.updatedAt);
@@ -131,7 +142,7 @@ export async function resumeLocalReviewCommand(
     state.target,
     state.requirement,
     state.request,
-    receipts.at(-1),
+    receipts[0],
   );
   const replay = await dependencies.receiptStore.appendReceipt(receipt, ledger.ledgerVersion);
   if (receipt.result !== "findings") {

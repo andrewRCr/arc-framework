@@ -34,6 +34,7 @@ export const LocalAttestRequestSchema = z.strictObject({
 });
 
 export interface LocalAttestDependencies {
+  withSourceLock<T>(action: () => Promise<T>): Promise<T>;
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   receiptStore: ForwardReviewReceiptStore;
@@ -70,10 +71,11 @@ async function appendReceiptWithRetry(
       if (!isReviewVersionConflict(error)) throw error;
     }
     const reloaded = await store.readReceipts(receipt.targetId);
-    const replay = reloaded.receipts.find((candidate) => (
-      candidate.requestId === receipt.requestId
-      && candidate.reviewRunId === receipt.reviewRunId
-    ));
+    const terminalReceipts = reloaded.receipts.filter((candidate) => candidate.requestId === receipt.requestId);
+    if (terminalReceipts.length > 1) {
+      throw new LocalAttestCommandError("corrupt-state", "local review operation has multiple terminal receipts");
+    }
+    const replay = terminalReceipts[0];
     if (replay !== undefined && canonicalize(replay) !== canonicalize(receipt)) {
       throw new LocalAttestCommandError("corrupt-state", "conflicting local review receipt replay");
     }
@@ -88,6 +90,13 @@ export async function attestLocalReviewCommand(
   dependencies: LocalAttestDependencies,
 ): Promise<z.infer<typeof LocalAttestEnvelopeSchema>> {
   const request = LocalAttestRequestSchema.parse(requestInput);
+  return dependencies.withSourceLock(() => attestLocalReviewWithinSourceLock(request, dependencies));
+}
+
+async function attestLocalReviewWithinSourceLock(
+  request: z.infer<typeof LocalAttestRequestSchema>,
+  dependencies: LocalAttestDependencies,
+): Promise<z.infer<typeof LocalAttestEnvelopeSchema>> {
   const receiptReference = (durableRef: string) => bindReviewSourceReference({
     kind: "attested-local",
     operationId: request.operationId,
@@ -125,10 +134,11 @@ export async function attestLocalReviewCommand(
     throw new LocalAttestCommandError("invalid-input", "local review result source digest mismatch");
   }
   const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
-  const existing = ledger.receipts.find((receipt) => (
-    receipt.requestId === state.requestId
-    && receipt.reviewRunId === request.result.reviewRunId
-  ));
+  const terminalReceipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
+  if (terminalReceipts.length > 1) {
+    throw new LocalAttestCommandError("corrupt-state", "local review operation has multiple terminal receipts");
+  }
+  const existing = terminalReceipts[0];
   const receipt = createLocalReviewReceipt({
     target: state.target,
     requirement: state.requirement,
@@ -145,7 +155,7 @@ export async function attestLocalReviewCommand(
   });
   if (existing !== undefined) {
     if (canonicalize(existing) !== canonicalize(receipt)) {
-      throw new LocalAttestCommandError("corrupt-state", "conflicting local review receipt replay");
+      throw new LocalAttestCommandError("corrupt-state", "local review operation already has a terminal receipt");
     }
     const replay = await appendReceiptWithRetry(
       dependencies.receiptStore,

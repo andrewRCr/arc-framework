@@ -4,6 +4,7 @@ import type { GitExec } from "../../../lib/git/exec.js";
 import {
   RepositoryGitCommonStatePublisher,
   resolveRepositoryIdentity,
+  withRepositoryReviewSweepLock,
 } from "../hosts/local/git-common-state.js";
 import {
   inspectLocalReviewSourceMaterialization,
@@ -31,6 +32,7 @@ export function createLocalAttestDependencies(input: {
     return receiptStore;
   };
   return {
+    withSourceLock: (action) => withRepositoryReviewSweepLock(input.exec, input.cwd, action),
     operationStore: prepare.operationStore,
     sourceStore: prepare.sourceStore,
     receiptStore: {
@@ -60,6 +62,6 @@ export function createLocalAttestDependencies(input: {
       exec: input.exec,
       source,
     }),
-    releaseMaterialization: (operationId) => sweepAdapter.release(operationId),
+    releaseMaterialization: (operationId) => sweepAdapter.releaseWithinLock(operationId),
   };
 }

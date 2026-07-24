@@ -81,6 +81,7 @@ describe("local review preparation request", () => {
     let clockTick = 0;
     const dependencies = {
       sweep: async () => undefined,
+      withSourceLock: async <T>(action: () => Promise<T>) => action(),
       resolveRepositoryId: async () => target.repositoryId,
       deriveTarget: async () => target,
       confirmTarget: async () => ({ state: "current" as const, target }),
@@ -131,6 +132,7 @@ describe("local review preparation request", () => {
           return { sourceRef: "sources/local.json" };
         },
       },
+      readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
       describeSource: async (operationId: string) => createLocalReviewSource({
         schemaVersion: 1,
         semanticsVersion: "git-object-range/v1",

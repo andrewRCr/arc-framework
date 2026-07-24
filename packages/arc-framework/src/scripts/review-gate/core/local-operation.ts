@@ -124,8 +124,9 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
 /**
  * Looks up an admission by its deterministic identity.
  *
- * Existing records are re-verified through the caller-supplied source proof;
- * this path never republishes state or rebuilds an intact materialization.
+ * Existing records are re-verified through the caller-supplied source proof.
+ * The resolver itself never republishes state; its prepare caller may renew
+ * only the cleanup liveness of an expired, receipt-less operation.
  *
  * @param input - Canonical admission facts.
  * @param dependencies - Operation store and exact-source verifier.

@@ -45,18 +45,23 @@ export class RepositoryLocalReviewSourceSweepAdapter {
   }
 
   async release(operationIdInput: string): Promise<void> {
-    const operationId = ReviewIdentifierSchema.parse(operationIdInput);
     await withRepositoryReviewSweepLock(this.exec, this.cwd, async () => {
-      const commonDir = await resolveGitCommonDir(this.exec, this.cwd);
-      const reviewRoot = join(commonDir, "arc", "review-gate", "materializations", operationId);
-      if (await pathExists(reviewRoot)) {
-        await git(this.exec, reviewRoot, ["reset", "--hard"]);
-        await git(this.exec, reviewRoot, ["clean", "-fdx"]);
-        await git(this.exec, this.cwd, ["worktree", "remove", reviewRoot]);
-      } else {
-        await git(this.exec, this.cwd, ["worktree", "prune"]);
-      }
-      await git(this.exec, this.cwd, ["update-ref", "-d", `${LOCAL_PIN_PREFIX}${operationId}`]);
+      await this.releaseWithinLock(operationIdInput);
     });
+  }
+
+  /** Release one materialization while the caller holds the repository review source lock. */
+  async releaseWithinLock(operationIdInput: string): Promise<void> {
+    const operationId = ReviewIdentifierSchema.parse(operationIdInput);
+    const commonDir = await resolveGitCommonDir(this.exec, this.cwd);
+    const reviewRoot = join(commonDir, "arc", "review-gate", "materializations", operationId);
+    if (await pathExists(reviewRoot)) {
+      await git(this.exec, reviewRoot, ["reset", "--hard"]);
+      await git(this.exec, reviewRoot, ["clean", "-fdx"]);
+      await git(this.exec, this.cwd, ["worktree", "remove", reviewRoot]);
+    } else {
+      await git(this.exec, this.cwd, ["worktree", "prune"]);
+    }
+    await git(this.exec, this.cwd, ["update-ref", "-d", `${LOCAL_PIN_PREFIX}${operationId}`]);
   }
 }
