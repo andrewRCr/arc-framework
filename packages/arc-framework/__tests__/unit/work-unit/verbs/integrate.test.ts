@@ -19,6 +19,10 @@ import type {
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
+import type {
+  CurrentWuReconcileHost,
+  PreparedCurrentWuReconcile,
+} from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 import { runIntegrate, type IntegrateParams } from "../../../../src/lib/work-unit/verbs/integrate.js";
 
 const CWD = "/repo";
@@ -60,7 +64,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 }
 
 interface Harness {
-  ctx: ExecuteTransitionContext;
+  ctx: ExecuteTransitionContext & CurrentWuReconcileHost;
   calls: string[];
   softWrites: Record<string, string>[];
 }
@@ -77,7 +81,25 @@ function buildCtx(metas: MetaSpec[]): Harness {
     };
   }
 
-  const ctx: ExecuteTransitionContext = {
+  const prepared: PreparedCurrentWuReconcile = {
+    slug: "foo",
+    plan: {
+      status: "ready",
+      dependency: {
+        before: [],
+        after: [],
+        replacements: [],
+        drops: [],
+        discharged: [],
+        live: [],
+        conflicts: [],
+      },
+      trackedReferences: { edits: [] },
+      advisories: [],
+    },
+    edits: [],
+  };
+  const ctx = {
     cwd: CWD,
     indexFs: buildIndexFs(metas),
     setPhase: async (params) => {
@@ -98,8 +120,18 @@ function buildCtx(metas: MetaSpec[]): Harness {
     writeSoftFields: async (_path, updates) => {
       softWrites.push(updates as Record<string, string>);
     },
+    currentWuReconcile: {
+      prepare: async () => {
+        calls.push("reconcile:prepare");
+        return { status: "clean", prepared };
+      },
+      apply: async () => {
+        calls.push("reconcile:apply");
+        return { status: "clean", prepared };
+      },
+    },
     sideEffects,
-  };
+  } satisfies ExecuteTransitionContext & CurrentWuReconcileHost;
 
   return { ctx, calls, softWrites };
 }
@@ -123,6 +155,8 @@ describe("runIntegrate — the set-phase-only move", () => {
     }
     expect(result.metaPath).toBe(".arc/active/meta-foo.md");
     expect(calls).toContain("setPhase:Integrating");
+    expect(calls.indexOf("reconcile:prepare")).toBeLessThan(calls.indexOf("setPhase:Integrating"));
+    expect(calls.indexOf("reconcile:apply")).toBeLessThan(calls.indexOf("setPhase:Integrating"));
     // No location move and no branch rotation — the working branch already carries its prefix.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("branch:"))).toBe(false);
   });
@@ -140,6 +174,37 @@ describe("runIntegrate — the set-phase-only move", () => {
       "Next Task": "[none]",
       "Next Action": "open the PR",
     });
+  });
+
+  it("rejects a reconcile conflict before changing phase", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+    ctx.currentWuReconcile.prepare = async () => ({
+      status: "conflict",
+      prepared: {
+        slug: "foo",
+        plan: {
+          status: "conflict",
+          dependency: {
+            before: ["retired"],
+            after: ["retired"],
+            replacements: [],
+            drops: [],
+            discharged: [],
+            live: ["retired"],
+            conflicts: [{ edge: "retired", subject: "retired", reason: "namespace-corrupt" }],
+          },
+          trackedReferences: { edits: [] },
+          advisories: [],
+        },
+        edits: [],
+      },
+      reason: "namespace-corrupt",
+    });
+
+    const result = await runIntegrate(ctx, BASE);
+
+    expect(result.status).toBe("rejected");
+    expect(calls).not.toContain("setPhase:Integrating");
   });
 });
 

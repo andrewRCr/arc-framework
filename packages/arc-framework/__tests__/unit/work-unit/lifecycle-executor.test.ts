@@ -143,7 +143,6 @@ function buildSpies(opts: SpyOptions = {}): Spies {
   const ALL_SIDE_EFFECTS: SideEffectId[] = [
     "reconcile-roadmap",
     "reconcile-status-user",
-    "discharge-dep-edges",
     "user-workspace",
     "withdraw-pr",
   ];

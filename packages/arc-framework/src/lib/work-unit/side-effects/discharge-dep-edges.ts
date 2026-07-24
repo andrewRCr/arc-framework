@@ -117,6 +117,18 @@ export interface CurrentWuReconcileContext {
   stagePaths: (paths: readonly string[]) => Promise<void>;
 }
 
+/** Read-only dependencies for producing one exact current-WU reconcile plan. */
+export type CurrentWuReconcilePrepareContext = Pick<
+  CurrentWuReconcileContext,
+  "index" | "queryDisposition" | "readFile"
+>;
+
+/** Mutation dependencies for applying a previously prepared exact plan. */
+export type CurrentWuReconcileApplyContext = Pick<
+  CurrentWuReconcileContext,
+  "readFile" | "writeFile" | "stagePaths"
+>;
+
 /** Closed public operation result used by CLI and lifecycle callers. */
 export type CurrentWuReconcileResult =
   | { status: "clean"; prepared: PreparedCurrentWuReconcile }
@@ -133,6 +145,19 @@ export interface CurrentWuReconcileOp {
   slug: string;
   metaPath: string;
   apply: boolean;
+}
+
+/** Ceremony seam that carries one prepared reconcile across a lifecycle transition. */
+export interface CurrentWuReconcileCeremony {
+  prepare: (
+    op: Omit<CurrentWuReconcileOp, "apply">,
+  ) => Promise<Extract<CurrentWuReconcileResult, { status: "clean" | "pending" | "conflict" }>>;
+  apply: (prepared: PreparedCurrentWuReconcile) => Promise<CurrentWuReconcileResult>;
+}
+
+/** Lifecycle executor extension required by dependent-owned write ceremonies. */
+export interface CurrentWuReconcileHost {
+  currentWuReconcile: CurrentWuReconcileCeremony;
 }
 
 interface ResolvedRetiredEdge {
@@ -320,6 +345,22 @@ export async function runCurrentWuReconcile(
   ctx: CurrentWuReconcileContext,
   op: CurrentWuReconcileOp,
 ): Promise<CurrentWuReconcileResult> {
+  const inspected = await prepareCurrentWuReconcile(ctx, op);
+  if (inspected.status === "conflict" || !op.apply) return inspected;
+  return applyPreparedCurrentWuReconcile(ctx, inspected.prepared);
+}
+
+/**
+ * Produce one exact current-WU reconcile plan without mutation.
+ *
+ * @param ctx - Lifecycle, receipt-query, and read boundaries
+ * @param op - Dependent identity and owned meta path
+ * @returns A clean, pending, or conflict inspection result
+ */
+export async function prepareCurrentWuReconcile(
+  ctx: CurrentWuReconcilePrepareContext,
+  op: Omit<CurrentWuReconcileOp, "apply">,
+): Promise<Extract<CurrentWuReconcileResult, { status: "clean" | "pending" | "conflict" }>> {
   let content: string;
   let edges: string[];
   try {
@@ -355,9 +396,30 @@ export async function runCurrentWuReconcile(
     };
   }
   if (edits.length === 0) return { status: "clean", prepared };
-  if (!op.apply) return { status: "pending", prepared };
+  return { status: "pending", prepared };
+}
 
-  for (const edit of edits) {
+/**
+ * Apply a previously prepared exact reconcile without querying or replanning.
+ *
+ * @param ctx - Read, write, and staging boundaries
+ * @param prepared - The exact plan produced before the enclosing ceremony mutated
+ * @returns A clean, applied, or stale-content conflict result
+ */
+export async function applyPreparedCurrentWuReconcile(
+  ctx: CurrentWuReconcileApplyContext,
+  prepared: PreparedCurrentWuReconcile,
+): Promise<CurrentWuReconcileResult> {
+  if (prepared.plan.status === "conflict") {
+    return {
+      status: "conflict",
+      prepared,
+      reason: prepared.plan.dependency.conflicts[0]?.reason ?? "invalid-meta",
+    };
+  }
+  if (prepared.edits.length === 0) return { status: "clean", prepared };
+
+  for (const edit of prepared.edits) {
     let current: string;
     try {
       current = await ctx.readFile(edit.path);
@@ -368,8 +430,8 @@ export async function runCurrentWuReconcile(
       return { status: "conflict", prepared, reason: "stale-content" };
     }
   }
-  for (const edit of edits) await ctx.writeFile(edit.path, edit.content);
-  const stagedPaths = edits.map((edit) => edit.path);
+  for (const edit of prepared.edits) await ctx.writeFile(edit.path, edit.content);
+  const stagedPaths = prepared.edits.map((edit) => edit.path);
   await ctx.stagePaths(stagedPaths);
   return { status: "applied", prepared, stagedPaths };
 }

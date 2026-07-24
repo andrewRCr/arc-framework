@@ -46,7 +46,7 @@ import { deriveInFlight, renderInFlightWarning } from "../lib/git/in-flight-deri
 import { DEFAULT_NETWORK_TIMEOUT_MS } from "../lib/git/remote-ref-reader.js";
 import { resolveWriteContext, type WriteContext } from "../lib/git/write-context.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
-import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
+import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
 import {
   resolveComposedLifecycleIndex,
@@ -207,9 +207,7 @@ async function resolveVerbBase(): Promise<VerbBase | null> {
 }
 
 /** Read config once and build the production executor context, returning both. */
-async function buildExecutor(
-  base: VerbBase,
-): Promise<{ executor: ExecuteTransitionContext; settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"] }> {
+async function buildExecutor(base: VerbBase) {
   const { settings } = await readConfigSettings(base.cwd);
   const executor = buildExecutorContext({
     cwd: base.cwd,
@@ -592,6 +590,10 @@ export async function handleActivate(slug: string | undefined, opts: ActivateOpt
     nextAction: action,
   });
   if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  if (result.status === "reconcile-failed") {
     refuse(result.reason);
     return;
   }
@@ -1080,6 +1082,10 @@ export async function handleIntegrate(slug: string | undefined, opts: IntegrateO
   const { executor } = await buildExecutor(base);
   const result = await runIntegrate(executor, { name: target, lastCompleted, nextAction: action });
   if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  if (result.status === "reconcile-failed") {
     refuse(result.reason);
     return;
   }

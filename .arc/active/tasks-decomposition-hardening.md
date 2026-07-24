@@ -142,34 +142,28 @@ own branch and fails safely at lifecycle boundaries.
 - _Outcome:_ Dependency discharge and retirement repair now share one current-WU operation whose read-only plan is
   the exact version carried into a bounded apply; unsafe evidence or stale ownership cannot partially rewrite a gate.
 
-### `[ ]` **2.3 Apply pending reconciles at dependent-owned write ceremonies**
+### `[x]` **2.3 Apply pending reconciles at dependent-owned write ceremonies**
 
 - _Goal:_ Activation, review entry, and resume repair only the dependent's own branch, with refusal-capable planning
   ordered before phase mutation and resume's base-pointer and WU-branch commits kept distinct.
 
-    - `[ ]` **2.3.a Preflight activation and integration entry through the shared reconcile**
-        - Replace the activation-only discharge handler with the generalized operation on both `activate` and the
-          initial `integrate` transition. Compute and validate the plan before `executeTransition()` mutates phase
-          or branch, then carry that exact plan into the ceremony apply/stage path rather than replanning in a
-          refusal-capable post-encoding side effect.
-        - Keep no-op reconciles invisible. A stale apply after a successful preflight returns explicit recovery
-          context rather than an untyped throw.
+    - `[x]` **2.3.a Preflight activation and integration entry through the shared reconcile**
+        - Split the shared operation into exact prepare/apply seams and wired both activation and initial
+          integration to validate their source phase, preflight conflicts, and apply the carried plan before
+          transition mutation; stale content returns a typed rerun path and the old discharge side effect is gone.
 
-    - `[ ]` **2.3.b Reconcile after both resume arms reattach the WU branch**
-        - Preserve resume's real two-branch topology: first land the tracked-base pointer removal, then invoke
-          `arc wu reconcile --apply --json` from the reattached dependent branch—immediately in the spawned
-          worktree, or after the deferred checkout for `--here`.
-        - Land an applied rewrite as its own dependent-branch `chore(arc):` ceremony commit. A conflict blocks
-          resume workflow completion on that branch but does not pretend the already-landed base-pointer commit can
-          be rolled back atomically.
+    - `[x]` **2.3.b Reconcile after both resume arms reattach the WU branch**
+        - Updated both workflow copies so the base-side pointer removal lands first, then spawn and `--here` enter
+          the preserved branch for the same bounded reconcile; applied edits get a separate WU-branch ceremony
+          commit, clean is invisible, and conflict stops without rewriting the landed base commit.
 
-    - `[ ]` **2.3.c Prove branch isolation and ceremony atomicity**
-        - Build `test-first` (one behavior at a time):
-            - activation and integration entry reject a planning conflict before phase or branch mutation
-            - activation plus both resume shapes apply the same plan from the dependent's own checkout
-            - a no-op creates no write, stage, or extra commit
-            - both resume arms keep the base-pointer and dependent-meta changes in their correct separate commits
-            - no adapter writes or commits a dependent branch other than the WU whose own ceremony is running
+    - `[x]` **2.3.c Prove branch isolation and ceremony atomicity**
+        - Covered conflict and stale refusal before lifecycle mutation, exact-plan ordering on activate/integrate,
+          both resume placements and commit boundaries, clean zero-write behavior, bounded owned-path staging, and
+          real-CLI refusal to touch a work unit owned by another branch.
+
+- _Outcome:_ Every automatic tracked reconcile now runs within the dependent's own write ceremony: lifecycle entry
+  carries one version-checked plan, while resume preserves distinct base-pointer and dependent-meta commits.
 
 ### `[ ]` **2.4 Detect pending reconciles at session entry and fail closed at integration**
 
