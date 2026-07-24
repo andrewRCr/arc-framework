@@ -20,11 +20,12 @@ import type {
 
 const COMMAND = "@coderabbitai full review";
 const BOT_USER_ID = "136622811";
+const APP_OWNER_ID = "132028505";
 
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
   requestCommand: COMMAND,
-  identities: { botUserId: BOT_USER_ID },
+  identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID },
 } as const;
 
 function severity(body: string): "blocker" | "major" | "minor" | null {
@@ -274,7 +275,7 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         this.github.readThreads(target, options),
       ]);
       const providerChecks = checks.filter((check) =>
-        check.name === "CodeRabbit" && check.appOwnerIdentity === BOT_USER_ID);
+        check.name === "CodeRabbit" && check.appOwnerIdentity === APP_OWNER_ID);
       if (providerChecks.some((check) => /\b(?:quota|rate[ -]?limit)\b/iu.test(check.summary))) {
         return { kind: "rate-limited" };
       }

@@ -95,6 +95,28 @@ describe("CodeRabbit hosted adapter", () => {
       }],
     });
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.botUserId).toBe("136622811");
+    expect(CODERABBIT_HOSTED_REGISTRATION.identities.appOwnerId).toBe("132028505");
+  });
+
+  it("binds provider checks to the GitHub App owner rather than the bot account", async () => {
+    const check = {
+      name: "CodeRabbit",
+      status: "completed",
+      conclusion: "failure",
+      summary: "",
+    };
+    const wrongOwner = new CodeRabbitHostedAdapter(port({
+      readCheckRuns: () => Promise.resolve([{ ...check, appOwnerIdentity: "136622811" }]),
+    }));
+    const appOwner = new CodeRabbitHostedAdapter(port({
+      readCheckRuns: () => Promise.resolve([{ ...check, appOwnerIdentity: "132028505" }]),
+    }));
+
+    await expect(wrongOwner.observeHandle(target)).resolves.toEqual({ kind: "pending" });
+    await expect(appOwner.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-check-failure",
+    });
   });
 
   it("returns review-body nitpicks as triage-only findings", async () => {
