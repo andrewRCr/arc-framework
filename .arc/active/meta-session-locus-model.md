@@ -12,13 +12,13 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.E.b.ii — Keep the execute-bound queue read from discarding its valid entries
-- **Next Task:** Task 7.E.b.i — Accept the unverifiable anchor the model represents (line ~1145)
+- **Last Completed:** Task 7.E.b.iv — Preserve the local tombstone under locus-owned suppression
+- **Next Task:** Task 7.E.b.v — Make recovery depend on proven physical identity (line ~1204)
 - **Blockers:** `review-chunking` must merge before this WU reconciles and merges — ordering obligation, not a
   dependency; its review is executed and its findings are triaged into Phase 7.E
 
-- **Next Action:** Repair the session-envelope golden fixtures, then restore the held `s2f1-probe` stash to land
-  Task 7.E.b.i — SESSION-NOTES § Remaining Work carries the exact failure set and the redaction defect
+- **Next Action:** Begin Task 7.E.b.v — decompose its four bundled sub-issues at entry rather than treating them
+  as one increment; SESSION-NOTES § Remaining Work carries the read on which ones share a fix
 
 - **PR URL:** [none]
 - **Completed:** [none]
