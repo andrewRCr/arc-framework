@@ -1,8 +1,8 @@
 # Metadata: cli-command-inputs
 
-| **State**     | **Owner** | **Branch**                | **Class** | **Priority** |
-| ------------- | --------- | ------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/cli-command-inputs` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** `cli-substrate-adoption`
 - **Depends On:** [none]
@@ -16,11 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 3 — push the branch and open the PR; review input arrives as
-  `review-chunking`'s validation findings, so no frontline rerun
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/347>
+- **Completed:** 2026-07-24
 
 ---
 
