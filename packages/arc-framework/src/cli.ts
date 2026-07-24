@@ -73,7 +73,9 @@ import {
 import {
   handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
   handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
+  handleUserReconcileReferences,
   type UserInboxRemoveOptions,
+  type UserReconcileReferencesOptions,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
@@ -541,6 +543,13 @@ userCmd
   .option("--verbose", "Render the full ref/disk/working-files three-tier detail block (default: collapsed)")
   .option("--json", "Emit the typed result as JSON")
   .action(handleUserStatus);
+
+userCmd
+  .command("reconcile-references")
+  .description("Inspect or apply protection-aware managed user-reference repairs")
+  .option("--apply", "Apply exact managed USER-INBOX repairs under the notes lock")
+  .option("--json", "Emit the typed result as JSON")
+  .action((opts: UserReconcileReferencesOptions) => handleUserReconcileReferences(opts));
 
 userCmd
   .command("sync")

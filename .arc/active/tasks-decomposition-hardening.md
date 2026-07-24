@@ -425,41 +425,26 @@ substrate behaves consistently across verbs, worktrees, and user state.
   structured repairs can apply from the owning checkout while ambiguous narrative and removed-origin references
   remain explicit, typed author decisions.
 
-### `[ ]` **5.3 Reconcile managed user references under the notes write discipline**
+### `[x]` **5.3 Reconcile managed user references under the notes write discipline**
 
 - _Goal:_ Session entry can repair an authoritative renamed `WU_Target` without turning a read-only status probe
   into a mutator, hiding unsaved disk drift, or touching sibling WU workspaces.
 
-- **Additional Context:** `strategy-user-notes-concurrency.md` § Disciplines and § Review Checklist
+    - `[x]` **5.3.a Plan structured and advisory user-state reconciles**
+        - Added protection-aware-base transition discovery and exact managed Work Unit `WU_Target` planning;
+          optional placement suffixes survive while global memory and current-WU notes remain advisory-only.
 
-- _Note:_ See `notes-decomposition-hardening.md` § Reference reconciliation authority and mutation invariants.
+    - `[x]` **5.3.b Add the dedicated user-reference apply verb**
+        - Added `arc user reconcile-references --apply` through semantic user-surface paths, the per-identity notes
+          lock, post-lock re-read, and atomic disk write without advancing the notes ref or materialized baseline.
 
-    - `[ ]` **5.3.a Plan structured and advisory user-state reconciles**
-        - Discover rename evidence only from the protection-aware base. Treat only an exact managed `WU_Target` in a
-          `USER-INBOX` Work Unit entry as mechanically retargetable, preserving its optional
-          `(planned|provisional)` suffix. Scan `WORKING-MEMORY.md` and the current WU's `SESSION-NOTES.md` for
-          advisory prose only; do not scan or mutate sibling WU workspaces.
+    - `[x]` **5.3.c Integrate the reconcile into session entry**
+        - Added the read-only typed session projection and CLI-owned dispatch; real-CLI coverage proves exact managed
+          retargeting, truthful disk drift, advisory exclusions, protection authority, and recoverable failures.
 
-    - `[ ]` **5.3.b Add the dedicated user-reference apply verb**
-        - Implement `arc user reconcile-references --apply` over protection-aware-base-authoritative,
-          unambiguous rename evidence. Resolve paths through the user-surface resolver, acquire the per-identity
-          notes lock, re-read after acquisition, and write disk atomically. Do not mutate the canonical notes ref
-          or materialized-baseline stamp; the repair remains visible as disk-ahead drift until save/load.
-
-    - `[ ]` **5.3.c Integrate the reconcile into session entry**
-        - Keep the status probe read-only: emit typed findings and precomposed argv for the dedicated verb. The
-          workflow may invoke it only for an authoritative unambiguous rename; decompose, prose, ambiguity, and
-          cycles remain advisory while the active WU's ordinary session context is preserved.
-        - Build `test-first` (one behavior at a time):
-            - full protection trusts only refreshed `origin/<base>` evidence and partial protection trusts the local
-              integrating base; unmerged branch-only receipts never change identity-global state
-            - exact `WU_Target` rewrites once and preserves `(planned|provisional)`
-            - `WORKING-MEMORY`, current-WU session notes, sibling workspaces, decompose, and prose cases remain
-              unmodified
-            - a sibling edit between planning and lock acquisition is re-read and preserved
-            - successful disk repair leaves the canonical notes ref and materialized baseline unchanged, producing
-              truthful disk-ahead status
-            - lock / atomic-write failures leave disk, notes, and baseline state recoverable
+- _Outcome:_ Identity-global rename repair is now a separate lock-serialized disk transaction: session entry may
+  invoke it from authoritative base evidence while notes history, baseline truth, sibling workspaces, and
+  judgment-owned references remain untouched.
 
 ### `[ ]` **5.4 Close the cross-worktree and cross-verb transform acceptance matrix**
 

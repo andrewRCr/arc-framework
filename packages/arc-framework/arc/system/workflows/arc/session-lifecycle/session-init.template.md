@@ -27,7 +27,8 @@ pwd && arc status --session-init --json
 `pwd` should be the current repository root — the directory containing `.arc/`.
 The probe returns a single JSON envelope with these top-level slots: `identity`, `user`, `worktree`,
 `currentHusk`, `baseDistance`, `baseBranchSync`, `dirty`, `extensions`, `config`, `active`, `taskCursor`,
-`domainRules`, `releaseRouting`, `currentWuReconcile`, `recommendedCombinedPrompt`, `recovery`, `sweep`,
+`domainRules`, `releaseRouting`, `currentWuReconcile`, `userReferenceReconcile`, `recommendedCombinedPrompt`,
+`recovery`, `sweep`,
 `orphanBranchSweep`, `retiredSubdirs`, `errandSweep`, `errandState`, `materializableWorkUnits`, `workUnitState`,
 `inFlightComposition`, `cohortDocPath`, `inboxState`, `partialPushMarker`, and `compactionAdvisory`.
 
@@ -278,6 +279,10 @@ Neither signal firing (`loadNeeded` falsy **and** `retiredSubdirs.value.recommen
 skip}`) → no load. Notes-pull and notes-load are mutually exclusive on the notes channel (pull fires
 when `refState ∈ {remote-ahead, diverged}`; load fires when `refState === "same"`), so they never
 co-occur there.
+
+**User-reference dispatch.** After any notes pull/load, dispatch on
+`userReferenceReconcile.value.recommendedAction`: `apply` invokes the precomposed
+`recommendedCommand`; `surface` carries `recommendedPromptText` into Step 6; `skip` does nothing.
 
 **Notes/disk drift surface.** Independent of both dispatches above, when `user.value.notesDriftSurface`
 is present (clean arm; the on-disk user tree diverges from the latest note in a way that is neither a
@@ -745,6 +750,9 @@ tracked source documents the work.
   ```text
   **Current WU reconcile:** {currentWuReconcile.value.recommendedPromptText}
   ```
+
+- `userReferenceReconcile.ok == true` AND `userReferenceReconcile.value.recommendedAction == "surface"`:
+  render `userReferenceReconcile.value.recommendedPromptText` verbatim.
 
 - `partialPushMarker.value.markers` non-empty: a cohort sibling's notes push has not yet arrived at origin — an
   incomplete push is outstanding (**lag, not loss**: the sibling's work is safe on its own machine; it simply

@@ -65,10 +65,12 @@ export interface ReferenceReconcilePlan {
   conflicts: readonly ReferenceTransitionConflict[];
 }
 
-type Resolution =
+/** One subject's composed result over reachable retirement transitions. */
+export type ReferenceTransitionResolution =
   | { kind: "rename"; targetSlug: string }
   | { kind: "decompose" }
   | { kind: "removed" }
+  | { kind: "absent" }
   | { kind: "conflict"; reason: ReferenceTransitionConflict["reason"] };
 
 const ARTIFACT_CODE_SPAN = /`([a-z]+)-([a-z0-9]+(?:-[a-z0-9]+)*)\.md`/gu;
@@ -141,7 +143,7 @@ export function planReferenceReconcile(input: {
   artifacts: readonly ReferenceArtifactSnapshot[];
 }): ReferenceReconcilePlan {
   const outcomes = groupOutcomes(input.transitions);
-  const resolutions = new Map<string, Resolution>();
+  const resolutions = new Map<string, ReferenceTransitionResolution>();
   const referencedSubjects = [...outcomes.keys()]
     .filter((subject) => input.artifacts.some((artifact) =>
       slugOffsets(artifact.content, subject).length > 0
@@ -149,7 +151,7 @@ export function planReferenceReconcile(input: {
         .some((match) => match[1] !== "cohort" && match[2] === subject)))
     .sort(byteSort);
   for (const subject of referencedSubjects) {
-    resolutions.set(subject, resolveSubject(subject, outcomes, new Set()));
+    resolutions.set(subject, resolveReferenceTransition(input.transitions, subject));
   }
 
   const conflicts: ReferenceTransitionConflict[] = [];
@@ -196,7 +198,7 @@ export function planReferenceReconcile(input: {
     }
 
     for (const [subject, resolution] of resolutions) {
-      if (resolution.kind === "conflict") continue;
+      if (resolution.kind === "conflict" || resolution.kind === "absent") continue;
       for (const offset of slugOffsets(artifact.content, subject)) {
         if (codeRanges.some((range) => offset >= range.start && offset < range.end)) continue;
         advisories.push(advisoryAt(
@@ -217,6 +219,22 @@ export function planReferenceReconcile(input: {
   };
 }
 
+/**
+ * Compose one subject's unique acyclic transition to its terminal result.
+ *
+ * @param transitions - Authenticated storage-independent transitions
+ * @param subject - Retired work-unit identity to resolve
+ * @returns Final rename target, terminal removal, absence, or conflict
+ */
+export function resolveReferenceTransition(
+  transitions: readonly ReachableReferenceTransition[],
+  subject: string,
+): ReferenceTransitionResolution {
+  const outcomes = groupOutcomes(transitions);
+  if (!outcomes.has(subject)) return { kind: "absent" };
+  return resolveSubject(subject, outcomes, new Set());
+}
+
 function groupOutcomes(
   transitions: readonly ReachableReferenceTransition[],
 ): Map<string, ReachableReferenceTransition["outcome"][]> {
@@ -234,7 +252,7 @@ function resolveSubject(
   subject: string,
   outcomes: ReadonlyMap<string, readonly ReachableReferenceTransition["outcome"][]>,
   visited: Set<string>,
-): Resolution {
+): ReferenceTransitionResolution {
   if (visited.has(subject)) return { kind: "conflict", reason: "rename-cycle" };
   const candidates = outcomes.get(subject) ?? [];
   if (candidates.length !== 1) return { kind: "conflict", reason: "ambiguous-history" };

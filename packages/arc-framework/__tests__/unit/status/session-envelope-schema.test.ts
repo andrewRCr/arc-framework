@@ -37,6 +37,19 @@ function fixture(name: string): Record<string, unknown> {
         recommendedPromptText: "",
       },
     };
+    if ((value.identity as { identity?: string | null }).identity !== null) {
+      value.userReferenceReconcile = {
+        ok: true,
+        value: {
+          status: "clean",
+          authority: { status: "ready", ref: "main", transitions: [] },
+          plan: { status: "clean", edits: [], advisories: [] },
+          recommendedAction: "skip",
+          recommendedCommand: null,
+          recommendedPromptText: "",
+        },
+      };
+    }
   }
   return value;
 }

@@ -401,6 +401,15 @@ const cleanCurrentWuReconcile: SessionInitProbes["currentWuReconcile"] = async (
   recommendedPromptText: "",
 });
 
+const cleanUserReferenceReconcile: NonNullable<SessionInitProbes["userReferenceReconcile"]> = async () => ({
+  status: "clean",
+  authority: { status: "ready", ref: "main", transitions: [] },
+  plan: { status: "clean", edits: [], advisories: [] },
+  recommendedAction: "skip",
+  recommendedCommand: null,
+  recommendedPromptText: "",
+});
+
 function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionInitProbes {
   return {
     user: vi.fn(async () => userSessionInit()),
@@ -417,6 +426,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     currentWuReconcile: vi.fn(cleanCurrentWuReconcile),
+    userReferenceReconcile: vi.fn(cleanUserReferenceReconcile),
     roster: vi.fn(async () => rosterResult()),
     cleanupRoster: vi.fn(async () => rosterResult()),
     recovery: vi.fn(async (): Promise<CascadeResolution> => ({ kind: "main-fallback" })),
@@ -1799,6 +1809,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "retiredSubdirs",
       "sweep",
       "user",
+      "userReferenceReconcile",
       "worktree",
     ]);
   });

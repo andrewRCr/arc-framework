@@ -130,6 +130,10 @@ import {
   assertSessionRecoverProbeResult,
 } from "../commands/status/schema.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
+import {
+  projectUserReferenceSessionResult,
+  resolveUserReferenceAuthority,
+} from "../lib/user-reference-reconcile.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import {
@@ -552,6 +556,45 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           },
           { slug, metaPath },
         ),
+      userReferenceReconcile: async ({ slug }) => {
+        if (identity === null) throw new Error("User-reference probe requires an identity.");
+        const resolved = await resolvedSettingsP;
+        const surfaces = await userSurfacesFor(identity);
+        const authority = await resolveUserReferenceAuthority({
+          protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
+          baseBranch: resolved.settings["branch.base"],
+          refreshRemoteBase: async () => {
+            try {
+              await gitExec("git", ["fetch", "origin", resolved.settings["branch.base"]]);
+              await gitExec("git", [
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                `origin/${resolved.settings["branch.base"]}`,
+              ]);
+              return true;
+            } catch {
+              return false;
+            }
+          },
+          enumerateAt: (ref) => enumerateGitRetirementRecords(gitExec, ref),
+        });
+        const sessionNotesPath = surfaces.sessionNotesPath(SlugSchema.parse(slug));
+        return projectUserReferenceSessionResult(authority, {
+          userInbox: {
+            path: surfaces.identityGlobalDisplayPath("USER-INBOX.md"),
+            content: await readUserInbox(identity),
+          },
+          workingMemory: {
+            path: surfaces.workingMemoryDisplayPath,
+            content: await io.readFile(surfaces.workingMemoryPath).catch(() => ""),
+          },
+          sessionNotes: {
+            path: sessionNotesPath,
+            content: await io.readFile(sessionNotesPath).catch(() => ""),
+          },
+        });
+      },
       roster: async () => {
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";

@@ -65,6 +65,7 @@ import type { RecommendedAction } from "../../lib/session-init/recommended-actio
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
 import type { CurrentWuReconcileSessionResult } from "../../lib/session-init/current-wu-reconcile.js";
+import type { UserReferenceReconcileSessionResult } from "../../lib/user-reference-reconcile.js";
 
 export type { RecommendedAction, WorktreeIdentity };
 
@@ -235,6 +236,8 @@ export interface SessionInitProbeResult {
    * never applies tracked edits during session entry.
    */
   currentWuReconcile?: Probe<CurrentWuReconcileSessionResult>;
+  /** Read-only identity-global reference facts for the single active WU. */
+  userReferenceReconcile?: Probe<UserReferenceReconcileSessionResult>;
   /**
    * Pre-computed in-flight worktree roster, identity-filtered. Present when the
    * orchestrator's gated second phase fires: worktree state `branch-gone`,
@@ -549,6 +552,10 @@ export interface SessionInitProbes extends SessionSharedProbes {
   currentWuReconcile: (
     input: { slug: string; metaPath: string },
   ) => Promise<CurrentWuReconcileSessionResult>;
+  /** Inspect permitted current-user surfaces against protection-aware base evidence. */
+  userReferenceReconcile?: (
+    input: { slug: string },
+  ) => Promise<UserReferenceReconcileSessionResult>;
   /**
    * Physical-worktree detection (primary vs. linked). Local rev-parse only —
    * no network — so it rides every session-init pass. Folded onto the worktree

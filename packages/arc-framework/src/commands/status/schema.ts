@@ -80,6 +80,23 @@ export const CurrentWuReconcileSessionValueViewSchema = z
     }
   });
 
+/** Routing view of the read-only identity-global user-reference reconcile fact. */
+export const UserReferenceReconcileSessionValueViewSchema = z.object({
+  status: z.enum(["clean", "pending", "advisory", "unavailable", "conflict"]),
+  authority: z.object({
+    status: z.enum(["ready", "unavailable", "conflict"]),
+    ref: NON_EMPTY_TEXT,
+  }).loose(),
+  plan: z.object({
+    status: z.enum(["clean", "pending", "advisory"]),
+    edits: z.array(z.unknown()),
+    advisories: z.array(z.unknown()),
+  }).nullable(),
+  recommendedAction: z.enum(["skip", "apply", "surface"]),
+  recommendedCommand: z.array(z.string()).nullable(),
+  recommendedPromptText: z.string(),
+}).loose();
+
 /** Thin routing view of a worktree synchronization result. */
 export const WorktreeSyncValueViewSchema = z
   .object({
@@ -434,6 +451,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   domainRules: probe(DomainRulesSessionInitValueViewSchema),
   releaseRouting: probe(ReleaseRoutingValueViewSchema),
   currentWuReconcile: probe(CurrentWuReconcileSessionValueViewSchema).optional(),
+  userReferenceReconcile: probe(UserReferenceReconcileSessionValueViewSchema).optional(),
   roster: probe(WorktreeRosterValueViewSchema).optional(),
   recovery: probe(CascadeResolutionSchema).optional(),
   sweep: probe(StaleWorktreeSweepValueViewSchema).optional(),
@@ -530,6 +548,12 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
 
   requireExactPresence(value, context, "errandState", value.worktree.ok && value.active.ok);
   requireExactPresence(value, context, "currentWuReconcile", active?.resolution === "single");
+  requireExactPresence(
+    value,
+    context,
+    "userReferenceReconcile",
+    identityKnown && active?.resolution === "single",
+  );
   requireExactPresence(value, context, "workUnitState", rosterSuccessful);
   requireExactPresence(
     value,

@@ -272,6 +272,99 @@ describe("arc wu reconcile", () => {
     }
   });
 
+  it("reconciles managed user targets without advancing notes or the materialized baseline", async () => {
+    const userRoot = join(repo, ".arc", "user", "test-user");
+    const sessionRoot = join(userRoot, "dependent");
+    const inboxPath = join(userRoot, "USER-INBOX.md");
+    const workingMemoryPath = join(userRoot, "WORKING-MEMORY.md");
+    const sessionNotesPath = join(sessionRoot, "SESSION-NOTES.md");
+    await mkdir(sessionRoot, { recursive: true });
+    await writeFile(
+      inboxPath,
+      "# User Inbox\n\n## Errand\n\n## Work Unit\n\n"
+      + "### `[ ]` **Target**\n\n- _WU_Target:_ `origin (provisional)`\n\n---\n",
+      "utf8",
+    );
+    await writeFile(workingMemoryPath, "# Working Memory\n\n## Memories\n\norigin prose\n", "utf8");
+    await writeFile(sessionNotesPath, "# Session Notes\n\norigin prose\n", "utf8");
+    const saved = await runArc(["user", "save"], repo);
+    expect(saved.exitCode).toBe(0);
+    const notesRef = "refs/notes/arc/user/test-user";
+    const notesBefore = await git(repo, ["rev-parse", notesRef]);
+    const baselinePath = join(
+      repo,
+      ".git",
+      "arc",
+      "user",
+      "test-user",
+      ".internal",
+      "materialized-baseline.json",
+    );
+    const baselineBefore = await readFile(baselinePath, "utf8");
+    const workingBefore = await readFile(workingMemoryPath, "utf8");
+    const sessionBefore = await readFile(sessionNotesPath, "utf8");
+
+    const sessionStatus = await runArc(["status", "--session-init", "--json"], repo);
+    expect(sessionStatus.exitCode).toBe(0);
+    expect(JSON.parse(sessionStatus.stdout)).toMatchObject({
+      userReferenceReconcile: {
+        ok: true,
+        value: {
+          status: "pending",
+          recommendedAction: "apply",
+          recommendedCommand: [
+            "arc",
+            "user",
+            "reconcile-references",
+            "--apply",
+            "--json",
+          ],
+        },
+      },
+    });
+    expect(await readFile(inboxPath, "utf8")).toContain("- _WU_Target:_ `origin (provisional)`");
+
+    const inspected = await runArc(["user", "reconcile-references", "--json"], repo);
+    expect(inspected.exitCode).toBe(0);
+    expect(JSON.parse(inspected.stdout)).toMatchObject({
+      status: "pending",
+      authority: { status: "ready", ref: "main" },
+      plan: {
+        edits: [{
+          replacements: [{ subject: "origin", targetSlug: "successor" }],
+        }],
+        advisories: expect.arrayContaining([
+          expect.objectContaining({ path: expect.stringContaining("WORKING-MEMORY.md") }),
+          expect.objectContaining({ path: expect.stringContaining("SESSION-NOTES.md") }),
+        ]),
+      },
+      recommendedCommand: [
+        "arc",
+        "user",
+        "reconcile-references",
+        "--apply",
+        "--json",
+      ],
+    });
+    expect(await readFile(inboxPath, "utf8")).toContain("- _WU_Target:_ `origin (provisional)`");
+
+    const applied = await runArc(
+      ["user", "reconcile-references", "--apply", "--json"],
+      repo,
+    );
+    expect(applied.exitCode).toBe(0);
+    expect(JSON.parse(applied.stdout)).toMatchObject({ status: "applied" });
+    expect(await readFile(inboxPath, "utf8")).toContain("- _WU_Target:_ `successor (provisional)`");
+    expect(await readFile(workingMemoryPath, "utf8")).toBe(workingBefore);
+    expect(await readFile(sessionNotesPath, "utf8")).toBe(sessionBefore);
+    expect(await git(repo, ["rev-parse", notesRef])).toBe(notesBefore);
+    expect(await readFile(baselinePath, "utf8")).toBe(baselineBefore);
+
+    const drift = await runArc(["user", "status", "--offline", "--json"], repo);
+    expect(drift.exitCode).toBe(0);
+    expect(JSON.parse(drift.stdout)).toMatchObject({ diskState: "different" });
+  });
+
   it("keeps an owned clean reconcile invisible", async () => {
     const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
     await writeFile(metaPath, meta("dependent", "main", "[none]"), "utf8");
