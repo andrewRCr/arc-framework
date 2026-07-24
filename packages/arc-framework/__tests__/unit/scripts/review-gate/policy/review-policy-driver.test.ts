@@ -43,7 +43,7 @@ describe("resolveReviewPolicy", () => {
   });
 
   it("returns unavailable when configured sources cannot satisfy the selected scope", () => {
-    expect(resolveReviewPolicy({
+    const result = resolveReviewPolicy({
       schemaVersion: 1,
       target,
       lane: "standard",
@@ -53,15 +53,44 @@ describe("resolveReviewPolicy", () => {
       maxPasses: 2,
       attempts: [],
       scopeSelection: { mode: "chunked", target },
-    })).toMatchObject({
+    });
+    expect(result).toMatchObject({
       state: "unavailable",
       nextAction: "stop",
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: "source-scope-ineligible" }),
+        expect.objectContaining({ code: "no-eligible-source" }),
+      ]),
       payload: {
         lane: "standard",
         scope: "chunked",
         consumedPass: false,
         attemptedSources: [],
         ineligibleSources: ["coderabbit-pr", "codex-pr"],
+      },
+    });
+  });
+
+  it("reports unknown sources while continuing with a registered fallback", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["custom-reviewer", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+    })).toMatchObject({
+      state: "ready",
+      nextAction: "local-prepare",
+      diagnostics: [{
+        code: "unknown-source",
+        message: expect.stringContaining("custom-reviewer"),
+      }],
+      payload: {
+        sourceId: "delegated-agent",
+        ineligibleSources: ["custom-reviewer"],
       },
     });
   });
@@ -267,7 +296,7 @@ describe("resolveReviewPolicy", () => {
     "source-unbound",
     "terminal-failure",
   ] as const)("stops on the non-fall-through %s outcome", (outcome) => {
-    expect(resolveReviewPolicy({
+    const result = resolveReviewPolicy({
       schemaVersion: 1,
       target,
       lane: "standard",
@@ -276,9 +305,11 @@ describe("resolveReviewPolicy", () => {
       completedPasses: 0,
       maxPasses: 2,
       attempts: [{ sourceId: "coderabbit-pr", outcome }],
-    })).toMatchObject({
+    });
+    expect(result).toMatchObject({
       state: "blocked",
       nextAction: "stop",
+      diagnostics: [{ code: `source-outcome-${outcome}` }],
       payload: {
         sourceId: "coderabbit-pr",
         outcome,
@@ -327,6 +358,32 @@ describe("resolveReviewPolicy", () => {
   });
 
   it("requires exceptional approval when a lane exhausts its ceiling", () => {
+    const approval = resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 2,
+      maxPasses: 2,
+      attempts: [],
+    });
+    expect(approval).toMatchObject({
+      state: "approval-required",
+      nextAction: "obtain-ceiling-override",
+      diagnostics: [{ code: "review-pass-ceiling-exhausted" }],
+      payload: {
+        lane: "standard",
+        consumedPass: false,
+        consequence: {
+          target,
+          lane: "standard",
+          exhaustedPassCount: 2,
+          nextPass: 3,
+        },
+      },
+    });
+    if (approval.state !== "approval-required") throw new Error("expected approval consequence");
     expect(resolveReviewPolicy({
       schemaVersion: 1,
       target,
@@ -336,19 +393,54 @@ describe("resolveReviewPolicy", () => {
       completedPasses: 2,
       maxPasses: 2,
       attempts: [],
+      ceilingOverride: approval.payload.consequence,
+    })).toMatchObject({
+      state: "ready",
+      payload: { pass: 3, ceilingOverrideApplied: true },
+    });
+  });
+
+  it("enforces the ceiling while preserving safe-unavailability attempts", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "delegated-agent"],
+      completedPasses: 2,
+      maxPasses: 2,
+      attempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
     })).toMatchObject({
       state: "approval-required",
-      nextAction: "obtain-ceiling-override",
       payload: {
+        attemptedSources: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
+      },
+    });
+  });
+
+  it("applies a valid ceiling override after only safe-unavailability attempts", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "delegated-agent"],
+      completedPasses: 2,
+      maxPasses: 2,
+      attempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
+      ceilingOverride: {
+        target,
         lane: "standard",
-        consumedPass: false,
-        consequence: {
-          repository: target.repository,
-          pullRequest: target.pullRequest,
-          headSha: target.headSha,
-          exhaustedPassCount: 2,
-          nextPass: 3,
-        },
+        exhaustedPassCount: 2,
+        nextPass: 3,
+      },
+    })).toMatchObject({
+      state: "ready",
+      nextAction: "local-prepare",
+      payload: {
+        sourceId: "delegated-agent",
+        pass: 3,
+        ceilingOverrideApplied: true,
       },
     });
   });
@@ -386,7 +478,30 @@ describe("resolveReviewPolicy", () => {
     })).toMatchObject({
       state: "no-op",
       nextAction: "none",
-      payload: { lane: "standard" },
+      payload: { lane: "standard", attemptedSources: [] },
+    });
+  });
+
+  it("preserves safe attempts when an exempt standard obligation no-ops", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview: {
+        ...standardReview,
+        obligation: "exempt",
+        reasons: ["auto-eligible-planning"],
+        retrigger: "none",
+      },
+      sources: ["coderabbit-pr"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
+    })).toMatchObject({
+      state: "no-op",
+      payload: {
+        attemptedSources: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
+      },
     });
   });
 
@@ -458,6 +573,31 @@ describe("resolveReviewPolicy", () => {
       patch: { completedPasses: 3 },
       reason: "pass-count-mismatch",
     },
+    {
+      name: "wrong next pass",
+      patch: {
+        ceilingOverride: {
+          target,
+          lane: "standard" as const,
+          exhaustedPassCount: 2,
+          nextPass: 4,
+        },
+      },
+      reason: "next-pass-mismatch",
+    },
+    {
+      name: "ceiling not exhausted",
+      patch: {
+        completedPasses: 1,
+        ceilingOverride: {
+          target,
+          lane: "standard" as const,
+          exhaustedPassCount: 1,
+          nextPass: 2,
+        },
+      },
+      reason: "ceiling-not-exhausted",
+    },
   ])("rejects a stale or mismatched override: $name", ({ patch, reason }) => {
     const ceilingOverride = {
       target,
@@ -479,7 +619,36 @@ describe("resolveReviewPolicy", () => {
     })).toMatchObject({
       state: "invalid-override",
       nextAction: "stop",
+      diagnostics: [{ code: `ceiling-override-${reason}` }],
       payload: { consumedPass: false, reason },
     });
+  });
+
+  it.each([
+    {
+      name: "out-of-order attempts",
+      attempts: [
+        { sourceId: "codex-pr", outcome: "rate-limited" as const },
+        { sourceId: "coderabbit-pr", outcome: "transient-unavailable" as const },
+      ],
+    },
+    {
+      name: "attempt after terminal outcome",
+      attempts: [
+        { sourceId: "coderabbit-pr", outcome: "terminal-failure" as const },
+        { sourceId: "codex-pr", outcome: "rate-limited" as const },
+      ],
+    },
+  ])("rejects the request invariant for $name", ({ attempts }) => {
+    expect(() => resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "codex-pr"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts,
+    })).toThrow();
   });
 });

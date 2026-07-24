@@ -165,7 +165,7 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       consumedPass: z.literal(false),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
       consequence: z.strictObject({
-        ...ReviewPolicyTargetShape,
+        target: ReviewPolicyTargetSchema,
         lane: z.enum(["frontline", "standard"]),
         exhaustedPassCount: CompletedPassCountSchema,
         nextPass: ReviewPassSchema,
@@ -271,6 +271,77 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
 ]);
 export type ReviewResolveEnvelope = z.infer<typeof ReviewResolveEnvelopeSchema>;
 
+type ReviewDiagnostic = ReviewResolveEnvelope["diagnostics"][number];
+type ReviewNextAction = Extract<ReviewResolveEnvelope, { state: "ready" }>["nextAction"];
+
+interface ReviewSourceCapability {
+  lanes: readonly ReviewPolicyRequest["lane"][];
+  scopes: readonly z.infer<typeof ReviewScopeModeSchema>[];
+  requiresPullRequest: boolean;
+  nextAction: ReviewNextAction;
+}
+
+const REVIEW_SOURCE_CAPABILITIES: Readonly<Record<string, ReviewSourceCapability>> = {
+  "coderabbit-cli": {
+    lanes: ["frontline"],
+    scopes: ["whole-target", "chunked"],
+    requiresPullRequest: false,
+    nextAction: "run-frontline",
+  },
+  "coderabbit-pr": {
+    lanes: ["standard"],
+    scopes: ["whole-target"],
+    requiresPullRequest: true,
+    nextAction: "hosted-request",
+  },
+  "codex-pr": {
+    lanes: ["standard"],
+    scopes: ["whole-target"],
+    requiresPullRequest: true,
+    nextAction: "hosted-request",
+  },
+  "delegated-agent": {
+    lanes: ["standard"],
+    scopes: ["whole-target", "chunked"],
+    requiresPullRequest: false,
+    nextAction: "local-prepare",
+  },
+};
+
+function resolveEnvelope(
+  body: Omit<ReviewResolveEnvelope, "schemaVersion" | "mode" | "diagnostics">,
+  diagnostics: readonly ReviewDiagnostic[] = [],
+): ReviewResolveEnvelope {
+  return ReviewResolveEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-resolve",
+    diagnostics,
+    ...body,
+  });
+}
+
+function sourceDiagnostic(
+  sourceId: string,
+  lane: ReviewPolicyRequest["lane"],
+  scope: z.infer<typeof ReviewScopeModeSchema>,
+  pullRequest: number | null,
+): ReviewDiagnostic | null {
+  const capability = REVIEW_SOURCE_CAPABILITIES[sourceId];
+  if (capability === undefined) {
+    return { code: "unknown-source", message: `Review source '${sourceId}' has no registered capability.` };
+  }
+  if (!capability.lanes.includes(lane)) {
+    return { code: "source-lane-ineligible", message: `Review source '${sourceId}' cannot satisfy the ${lane} lane.` };
+  }
+  if (!capability.scopes.includes(scope)) {
+    return { code: "source-scope-ineligible", message: `Review source '${sourceId}' cannot satisfy ${scope} scope.` };
+  }
+  if (capability.requiresPullRequest && pullRequest === null) {
+    return { code: "source-awaits-change-request", message: `Review source '${sourceId}' requires a pull request.` };
+  }
+  return null;
+}
+
 /**
  * Resolve the next allowed action for one review lane without executing a source or persisting state.
  *
@@ -282,10 +353,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   const scope = request.scopeSelection?.mode ?? "whole-target";
   if (request.scopeSelection !== undefined
     && !sameTarget(request.scopeSelection.target, request.target)) {
-    return ReviewResolveEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-resolve",
-      diagnostics: [],
+    return resolveEnvelope({
       state: "stale-target",
       nextAction: "select-scope",
       payload: {
@@ -294,14 +362,14 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         selectedTarget: request.scopeSelection.target,
         currentTarget: request.target,
       },
-    });
+    }, [{
+      code: "stale-scope-target",
+      message: "The selected review scope does not belong to the current target.",
+    }]);
   }
   if (request.lane === "frontline"
     && (!request.frontlineActive || request.sources.length === 0)) {
-    return ReviewResolveEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-resolve",
-      diagnostics: [],
+    return resolveEnvelope({
       state: "skipped",
       nextAction: "none",
       payload: {
@@ -315,26 +383,20 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   }
   if (request.lane === "standard"
     && (request.sources.length === 0 || request.standardReview.obligation === "exempt")) {
-    return ReviewResolveEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-resolve",
-      diagnostics: [],
+    return resolveEnvelope({
       state: "no-op",
       nextAction: "none",
       payload: {
         lane: "standard",
         scope,
         consumedPass: false,
-        attemptedSources: [],
+        attemptedSources: request.attempts,
       },
     });
   }
   const invalidOverrideReason = resolveInvalidOverrideReason(request);
   if (invalidOverrideReason !== null) {
-    return ReviewResolveEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-resolve",
-      diagnostics: [],
+    return resolveEnvelope({
       state: "invalid-override",
       nextAction: "stop",
       payload: {
@@ -344,16 +406,15 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         attemptedSources: request.attempts,
         reason: invalidOverrideReason,
       },
-    });
+    }, [{
+      code: `ceiling-override-${invalidOverrideReason}`,
+      message: `The review ceiling override is invalid: ${invalidOverrideReason}.`,
+    }]);
   }
   const ceilingOverrideApplied = request.ceilingOverride !== undefined;
   if (request.completedPasses >= request.maxPasses
-    && request.attempts.length === 0
     && !ceilingOverrideApplied) {
-    return ReviewResolveEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-resolve",
-      diagnostics: [],
+    return resolveEnvelope({
       state: "approval-required",
       nextAction: "obtain-ceiling-override",
       payload: {
@@ -362,23 +423,23 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         consumedPass: false,
         attemptedSources: request.attempts,
         consequence: {
-          ...request.target,
+          target: request.target,
           lane: request.lane,
           exhaustedPassCount: request.completedPasses,
           nextPass: request.completedPasses + 1,
         },
       },
-    });
+    }, [{
+      code: "review-pass-ceiling-exhausted",
+      message: `The ${request.lane} lane has exhausted its configured pass ceiling.`,
+    }]);
   }
   const lastAttempt = request.attempts.at(-1);
   if (lastAttempt !== undefined
     && !isSafeUnavailable(lastAttempt.outcome)
     && lastAttempt.outcome !== "clean"
     && lastAttempt.outcome !== "findings") {
-    return ReviewResolveEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-resolve",
-      diagnostics: [],
+    return resolveEnvelope({
       state: "blocked",
       nextAction: "stop",
       payload: {
@@ -389,16 +450,16 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         consumedPass: false,
         attemptedSources: request.attempts,
       },
-    });
+    }, [{
+      code: `source-outcome-${lastAttempt.outcome}`,
+      message: `Review source '${lastAttempt.sourceId}' returned ${lastAttempt.outcome}.`,
+    }]);
   }
   if (lastAttempt !== undefined
     && (lastAttempt.outcome === "clean" || lastAttempt.outcome === "findings")) {
     const pass = request.completedPasses + 1;
     if (scope === "chunked" && lastAttempt.chunkSeriesComplete !== true) {
-      return ReviewResolveEnvelopeSchema.parse({
-        schemaVersion: 1,
-        mode: "review-resolve",
-        diagnostics: [],
+      return resolveEnvelope({
         state: "chunk-pending",
         nextAction: "continue-chunks",
         payload: {
@@ -414,10 +475,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     }
     const completedPasses = pass;
     if (lastAttempt.outcome === "findings") {
-      return ReviewResolveEnvelopeSchema.parse({
-        schemaVersion: 1,
-        mode: "review-resolve",
-        diagnostics: [],
+      return resolveEnvelope({
         state: "findings",
         nextAction: "respond",
         payload: {
@@ -432,10 +490,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         },
       });
     }
-    return ReviewResolveEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-resolve",
-      diagnostics: [],
+    return resolveEnvelope({
       state: "pass-complete",
       nextAction: "none",
       payload: {
@@ -449,19 +504,22 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       },
     });
   }
-  const ineligibleSources = request.sources.filter((sourceId) =>
-    !sourceCanSatisfy(sourceId, request.lane, scope, request.target.pullRequest));
+  const sourceDiagnostics = new Map(request.sources.map((sourceId) => [
+    sourceId,
+    sourceDiagnostic(sourceId, request.lane, scope, request.target.pullRequest),
+  ]));
+  const ineligibleSources = request.sources.filter((sourceId) => sourceDiagnostics.get(sourceId) !== null);
+  const diagnostics = [...sourceDiagnostics.values()].filter(
+    (diagnostic): diagnostic is ReviewDiagnostic => diagnostic !== null,
+  );
   if (ineligibleSources.length === request.sources.length) {
     const waitingSources = request.lane === "standard"
       && scope === "whole-target"
       && request.target.pullRequest === null
-      ? request.sources.filter((sourceId) => sourceId === "coderabbit-pr" || sourceId === "codex-pr")
+      ? request.sources.filter((sourceId) => REVIEW_SOURCE_CAPABILITIES[sourceId]?.requiresPullRequest === true)
       : [];
     if (waitingSources.length > 0) {
-      return ReviewResolveEnvelopeSchema.parse({
-        schemaVersion: 1,
-        mode: "review-resolve",
-        diagnostics: [],
+      return resolveEnvelope({
         state: "awaiting-change-request",
         nextAction: "open-change-request",
         payload: {
@@ -471,12 +529,9 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
           attemptedSources: request.attempts,
           waitingSources,
         },
-      });
+      }, diagnostics);
     }
-    return ReviewResolveEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-resolve",
-      diagnostics: [],
+    return resolveEnvelope({
       state: "unavailable",
       nextAction: "stop",
       payload: {
@@ -486,7 +541,10 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         attemptedSources: request.attempts,
         ineligibleSources,
       },
-    });
+    }, [
+      ...diagnostics,
+      { code: "no-eligible-source", message: "No configured review source can satisfy the selected lane and scope." },
+    ]);
   }
   const safelyAttempted = new Set(request.attempts
     .filter((attempt) => isSafeUnavailable(attempt.outcome))
@@ -494,10 +552,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   const sourceId = request.sources.find((candidate) =>
     !ineligibleSources.includes(candidate) && !safelyAttempted.has(candidate));
   if (sourceId === undefined) {
-    return ReviewResolveEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-resolve",
-      diagnostics: [],
+    return resolveEnvelope({
       state: "unavailable",
       nextAction: "stop",
       payload: {
@@ -507,14 +562,18 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         attemptedSources: request.attempts,
         ineligibleSources,
       },
-    });
+    }, [
+      ...diagnostics,
+      { code: "safe-fallback-exhausted", message: "Every eligible review source was safely unavailable." },
+    ]);
   }
-  return ReviewResolveEnvelopeSchema.parse({
-    schemaVersion: 1,
-    mode: "review-resolve",
-    diagnostics: [],
+  const selectedCapability = REVIEW_SOURCE_CAPABILITIES[sourceId];
+  if (selectedCapability === undefined) {
+    throw new Error(`eligible review source '${sourceId}' has no registered capability`);
+  }
+  return resolveEnvelope({
     state: "ready",
-    nextAction: nextActionForSource(sourceId),
+    nextAction: selectedCapability.nextAction,
     payload: {
       lane: request.lane,
       scope,
@@ -526,7 +585,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       attemptedSources: request.attempts,
       ineligibleSources,
     },
-  });
+  }, diagnostics);
 }
 
 function resolveInvalidOverrideReason(
@@ -534,7 +593,7 @@ function resolveInvalidOverrideReason(
 ): InvalidOverrideReason | null {
   const override = request.ceilingOverride;
   if (override === undefined) return null;
-  if (request.attempts.length > 0) return "pass-started";
+  if (request.attempts.some((attempt) => !isSafeUnavailable(attempt.outcome))) return "pass-started";
   if (!sameTarget(override.target, request.target)) return "target-mismatch";
   if (override.lane !== request.lane) return "lane-mismatch";
   if (override.exhaustedPassCount !== request.completedPasses) return "pass-count-mismatch";
@@ -554,25 +613,4 @@ function sameTarget(
   return left.repository === right.repository
     && left.pullRequest === right.pullRequest
     && left.headSha === right.headSha;
-}
-
-function sourceCanSatisfy(
-  sourceId: string,
-  lane: ReviewPolicyRequest["lane"],
-  scope: z.infer<typeof ReviewScopeModeSchema>,
-  pullRequest: number | null,
-): boolean {
-  if (lane === "frontline") return sourceId === "coderabbit-cli";
-  if (sourceId === "delegated-agent") return true;
-  return scope === "whole-target"
-    && pullRequest !== null
-    && (sourceId === "coderabbit-pr" || sourceId === "codex-pr");
-}
-
-function nextActionForSource(
-  sourceId: string,
-): "run-frontline" | "local-prepare" | "hosted-request" {
-  if (sourceId === "coderabbit-cli") return "run-frontline";
-  if (sourceId === "delegated-agent") return "local-prepare";
-  return "hosted-request";
 }
