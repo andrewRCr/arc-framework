@@ -12,13 +12,18 @@ export type FrontlineFollowUpDecision =
   | { action: "follow-up"; pass: ReviewPass; target: ReviewTarget }
   | { action: "stop"; reason: string };
 
-export const FrontlineFollowUpAdviceSchema = z.discriminatedUnion("action", [
-  z.strictObject({
+const FollowUpAfterFixAdviceSchema = z.strictObject({
     action: z.literal("follow-up-after-fix"),
     pass: ReviewPassSchema,
     maxPasses: ReviewPassSchema,
     nextCommand: z.literal("frontline-resolve"),
-  }),
+  }).refine((advice) => advice.pass <= advice.maxPasses, {
+    message: "frontline follow-up pass cannot exceed maxPasses",
+    path: ["pass"],
+  });
+
+export const FrontlineFollowUpAdviceSchema = z.discriminatedUnion("action", [
+  FollowUpAfterFixAdviceSchema,
   z.strictObject({
     action: z.literal("stop"),
     reason: z.string().trim().min(1),

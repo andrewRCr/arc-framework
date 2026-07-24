@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
+  NormalizedLocalReviewResultSchema,
   normalizeLocalReviewResult,
   type LocalReviewResultBindings,
 } from "../../../../../src/scripts/review-gate/core/local-review-result.js";
@@ -52,4 +53,14 @@ describe("local review result normalization", () => {
       }, bindings)).toThrow(`local review result ${binding} does not match`);
     },
   );
+
+  it("requires the repository binding on normalized results", () => {
+    const withoutRepository = {
+      ...evaluatorResult,
+      ...bindings,
+      repositoryId: undefined,
+    };
+
+    expect(NormalizedLocalReviewResultSchema.safeParse(withoutRepository).success).toBe(false);
+  });
 });

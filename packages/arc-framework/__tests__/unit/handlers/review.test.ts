@@ -99,6 +99,7 @@ const localAttestRequest = {
   result: {
     status: "complete",
     result: "clean",
+    repositoryId: target.repositoryId,
     targetId: target.targetId,
     headSha: target.headSha,
     headTree: target.headTree,
@@ -289,6 +290,7 @@ function localReceiptFixture() {
     result: {
       status: "complete" as const,
       result: "clean" as const,
+      repositoryId: receiptTarget.repositoryId,
       targetId: receiptTarget.targetId,
       headSha: receiptTarget.headSha,
       headTree: receiptTarget.headTree,

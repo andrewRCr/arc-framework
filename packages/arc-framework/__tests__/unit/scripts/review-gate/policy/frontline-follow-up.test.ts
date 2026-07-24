@@ -8,6 +8,7 @@ import {
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
+  FrontlineFollowUpAdviceSchema,
   projectFrontlineFollowUpAdvice,
   resolveFrontlineFollowUp,
 } from "../../../../../src/scripts/review-gate/policy/frontline-follow-up.js";
@@ -91,6 +92,15 @@ function approved(severity: "blocker" | "major" | "minor", disposition: "fix" | 
 }
 
 describe("frontline follow-up policy", () => {
+  it("rejects advice whose next pass exceeds its bound ceiling", () => {
+    expect(FrontlineFollowUpAdviceSchema.safeParse({
+      action: "follow-up-after-fix",
+      pass: 3,
+      maxPasses: 2,
+      nextCommand: "frontline-resolve",
+    }).success).toBe(false);
+  });
+
   it("projects a non-durable fresh-head instruction before the approved fix exists", () => {
     expect(projectFrontlineFollowUpAdvice({
       outcome: outcome("major"),

@@ -87,4 +87,18 @@ describe("GhReviewUnlockPort", () => {
       "client_payload[archive_cadence]=with-integration",
     ]));
   });
+
+  it.each([null, "42", 42.5])("rejects malformed pull-request number %j at the port boundary", async (number) => {
+    const boundary = runner([JSON.stringify({
+      number,
+      state: "open",
+      head: { ref: "feat/demo", sha: "a".repeat(40) },
+      base: { repo: { full_name: "owner/repo" } },
+    })]);
+    const port = new GhReviewUnlockPort(boundary.port, async () => {
+      throw new Error("readiness not used");
+    });
+
+    await expect(port.resolvePullRequest("owner/repo", 42)).rejects.toThrow(/expected an integer/iu);
+  });
 });

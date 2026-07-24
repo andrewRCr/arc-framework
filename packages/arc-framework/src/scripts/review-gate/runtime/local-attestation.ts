@@ -70,7 +70,7 @@ export function createLocalReviewReceipt(input: LocalReviewReceiptInput): Review
   if (result.status !== "complete" || result.result === null) {
     throw new LocalReviewReceiptError("invalid-input", "local review result is not attestable terminal evidence");
   }
-  if ((result.repositoryId !== undefined && result.repositoryId !== target.repositoryId)
+  if (result.repositoryId !== target.repositoryId
     || result.targetId !== target.targetId
     || result.headSha !== target.headSha
     || result.headTree !== target.headTree) {

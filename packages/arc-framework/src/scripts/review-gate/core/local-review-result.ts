@@ -64,7 +64,6 @@ export type LocalReviewResultBindings = z.infer<typeof LocalReviewResultBindings
 export const NormalizedLocalReviewResultSchema = z.strictObject({
   ...EvaluatorOwnedLocalReviewResultShape,
   ...RuntimeOwnedLocalReviewBindingShape,
-  repositoryId: ReviewIdentifierSchema.optional(),
 }).superRefine(validateResultConsistency);
 export type NormalizedLocalReviewResult = z.infer<typeof NormalizedLocalReviewResultSchema>;
 

@@ -23,6 +23,13 @@ function string(value: unknown, path: string): string {
   return value;
 }
 
+function integer(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    throw new Error(`${path}: expected an integer`);
+  }
+  return value;
+}
+
 function parse(text: string, path: string): unknown {
   try {
     return JSON.parse(text) as unknown;
@@ -62,7 +69,7 @@ export class GhReviewUnlockPort implements ReviewUnlockPort {
     const base = object(value.base, "pullRequest.base");
     return {
       repository: string(object(base.repo, "pullRequest.base.repo").full_name, "pullRequest.base.repo.full_name"),
-      number: Number(value.number),
+      number: integer(value.number, "pullRequest.number"),
       state: string(value.state, "pullRequest.state") === "open" ? "open" as const : "closed" as const,
       headBranch: string(head.ref, "pullRequest.head.ref"),
       headSha: string(head.sha, "pullRequest.head.sha"),
