@@ -6,6 +6,7 @@
 - [Dogfood evidence trail](#dogfood-evidence-trail)
 - [Adjacent work and shipped substrate](#adjacent-work-and-shipped-substrate)
 - [Right-sizing audit (2026-07-22)](#right-sizing-audit-2026-07-22)
+- [Chunked-review finding triage (2026-07-24)](#chunked-review-finding-triage-2026-07-24)
 
 ## Codebase pointers
 
@@ -87,3 +88,71 @@ teardown linearization, determinism/sorting rules, the v3 identity state model a
 core, and the `arc locus` reader with typed session-init verdicts. These are internal, tested, and
 friction-neutral; deleting them buys churn, not simplicity. Guiding boundary for future edits: full exactness on
 data-destroying paths; advisory or simple-conflict semantics on operator-facing routine paths.
+
+## Chunked-review finding triage (2026-07-24)
+
+The chunked-review hierarchy reviewed this branch pinned at `0c5dd045a` against base `ebe446fe2` and returned 66
+deduplicated findings with a `changes-requested` whole-target verdict. The reviewing effort classified its own
+mechanics **supports-scalability**: 17 leaf contexts, four root seams, and one top seam reconstructed a coherent
+verdict over 43,754 changed lines without any leaf reporting partiality, context overload, or malformed scope.
+Finding density is outcome evidence, not a reviewability failure.
+
+**Packet standing.** The packet is advisory, SHA-bound, and never satisfies a review obligation on its own — every
+item is verified against source before any fix is applied. Two independent spot checks confirmed its calibration:
+the probe adapter does throw on the unverifiable anchor its own reader accepts, and in-place resume does supply
+`attachSession` and `deferCheckout` together into a driver that rejects the un-switched branch.
+
+**Decay is smaller than the packet's own warning implies.** The only delta between the reviewed head and the
+branch tip is the handoff commit's meta edit, so every reviewed line of code is unchanged. Base reconcile adds
+little: of the sibling's changed runtime files only `cli.ts` and `init-recipe.json` are named in any finding, and
+the remaining base integrations carry no substantive overlap. Post-reconcile revalidation therefore lands on a
+handful of loci rather than the whole set.
+
+### Root causes, not 66 independent defects
+
+The findings restate a small number of causes across leaves; fixing by cause is what keeps the remediation
+bounded. Some findings sit in two causes — the grouping drives the work, it is not a partition.
+
+- **Unknown collapsed into absent** — an error or unverifiable state renders as empty or default instead of
+  stopping or surfacing unknown.
+- **Destructive dispatch without exact proof** — a mutation that can delete or overwrite work proceeds on evidence
+  gathered before the lock that authorizes it.
+- **Mutation before proof, with no compensation** — external state changes ahead of its authorizing proof, and a
+  post-mutation failure leaves durable residue with no replay path.
+- **Receipts that misdescribe the operation** — outcomes derive from one stage rather than the whole transaction,
+  so a command reports idempotent after authoritative local change.
+- **Typed boundaries that leak** — errors escape the declared vocabulary, and success shapes validate without the
+  authority coordinates a caller needs.
+- **Anchor identification** — wrapper and shell classification can bind a lease to a short-lived process.
+- **Claims that outrun the code** — spec, workflow, quick-reference, and distribution assertions that the
+  implementation does not meet.
+- **Tests asserting the double** — the reason a 66-defect branch held a green suite: the resume round-trip injects
+  an always-successful driver, the current-open e2e cases seed legacy records, and a rewrite dropped the
+  derivation-floor integration coverage.
+
+### Disposition
+
+- **59 in scope** — Phase 9 below. Everything destructive, every named path that does not work, and every claim
+  the work unit makes about itself that is false.
+- **6 carved** to a follow-on unit — the systematic generation-capability contract and its failure-injection test
+  substrate: `L4-F2` (≡ `A-F2`), `L4-F4`, `A-F4`, `E4-F2`, `W1-F5`, and the whole-lifecycle portion of `P1-V1`.
+- **1 already resolved** — `R1-F5`, corrected by the handoff commit that follows the reviewed head.
+
+**Why the carve is decomposition rather than deferral.** The carved set is one design question — what exact
+generation capability every mutator carries, and where it is revalidated under lock — plus the failure-injection
+and replay substrate needed to prove it. That is spec-worthy on its own terms, it does not exist in the tree
+today, and authoring it under merge pressure on a branch this size is the disproportion that produced this
+situation. The carved items are races between concurrent sessions whose consequence is a stolen lease, a stale
+receipt, or a lost marker generation; every member whose consequence is destroyed or stranded work stayed in
+scope, including `L2-F1`, `E2-F2`, `E3-F2`, `E4-F1`, and `E5-F1`. Each Phase 9 fix still carries targeted
+coverage for the path it touches — only the systematic injection matrix is carved.
+
+**Recorded risk of the carve:** the model ships with known non-destructive race windows between concurrent
+sessions on the same machine. This is a stated position, not an oversight.
+
+### Remediation shape
+
+The leaf partition is reusable as a delivery map, not only a review map. Each Phase 9 task decomposes into
+leaf-scoped subtasks at entry, so its re-review is a bounded delta against that leaf's preserved report rather
+than a fresh pass over the whole target. That keeps the post-fix review obligation proportional to the fix delta
+and closes the loop with the method this branch motivated.

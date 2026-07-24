@@ -1073,6 +1073,99 @@ both blocks operations that never allocate and masks genuine transient residue b
   `release-work-unit`. The fold also masked transient residue behind the allocation stop, since it was tested
   before the residue scan — both consequences are now covered.
 
+## **Phase 7.E:** Chunked-Review Remediation
+
+_Purpose:_ Close the 59 in-scope findings the chunked review returned against this branch at `0c5dd045a`. The
+review's own mechanics verdict was that the target is reviewable when decomposed; the findings are what that
+decomposition surfaced, and most of them restate a handful of causes across leaves.
+
+_Design decisions:_ Tasks group by **cause**, not by finding, because the same defect recurs across leaves and a
+per-finding sequence would pay the design cost repeatedly. Each task decomposes into **leaf-scoped subtasks at
+entry** — the leaf partition is also the re-review unit, so a fix increment's review is a bounded delta against
+that leaf's preserved report instead of a fresh whole-target pass. `7.E.a` runs first: later tasks consume the
+predicate it defines. Findings are advisory until verified against source; the disposition set, carve rationale,
+and recorded risk live in `notes-session-locus-model.md` § Chunked-review finding triage.
+
+### `[ ]` **7.E.a Define the trusted-row predicate consumers must satisfy**
+
+- _Findings:_ A-F1
+
+- _Goal:_ One predicate or projection decides whether a roster row is trustworthy enough to touch state, and every
+  command-preparation and idempotent-open selector requires it — so a cross-identity, marker-missing,
+  subject-unresolved, or otherwise diagnostic-bearing record can no longer reach lease mutation or occupancy reuse
+  by passing a structural-coordinates check alone.
+
+### `[ ]` **7.E.b Stop rendering unknown state as absent**
+
+- _Findings:_ S2-F1, S2-F3, S2-F4, S2S1-001, S2S1-002, S2S1-004, E1-F2, S1-F2, W1-F4
+
+- _Goal:_ Every read that cannot establish its fact reports unknown or stops instead of substituting an empty,
+  default, or synthetic value — covering the probe's rejection of a valid unverifiable anchor, recovery's synthetic
+  primary identity, whole-queue loss from one malformed capture, the legacy fallback that overrides a reader-owned
+  stop, dropped active-extension context, the seed unbound to its repository root, malformed identity authority
+  read as empty, the absent seed hint acting as a generation wildcard, and the cleared local tombstone.
+
+### `[ ]` **7.E.c Prove exact authority before destructive dispatch**
+
+- _Findings:_ L2-F1, L4-F1, L4-F3, S2-F2, E2-F2, E3-F1, E3-F2, E4-F1, E4-F3
+
+- _Goal:_ No path that can delete, overwrite, or retire work proceeds on evidence older than the lock authorizing
+  it: abandon carries its selected generation into dispatch, rollback matches branch as well as head, a live or
+  unknown record lock preserves the checkout, cleanup applies the occupancy veto before offering removal, partial
+  settlement and leave validate the locked role and lease before mutating, close proves occupancy absent before
+  finalizing, promotion recovery binds to its source generation, and dirty-state recovery accepts only the exact
+  transaction-produced state rather than arbitrary user index and worktree content.
+
+### `[ ]` **7.E.d Make post-mutation failure recoverable**
+
+- _Findings:_ L4-F5, E2-F1, W1-F1, W1-F2, W1-F3, P1-F1, P1-F2, L2-F2
+
+- _Goal:_ A failure after externally visible mutation either compensates or leaves a state a replay can settle:
+  probe failure after checkout reconciles rather than skipping rollback, identity rollback does not strand its
+  durable locus, an interrupted rename recovers both coordinates and validates target absence before moving,
+  create-new rollback compensates its minted role, groom and housekeep tails stay replayable across ref deletion
+  and occupancy removal, and a crashed lock breaker leaves a reclaimable secondary rather than a wedged lock.
+
+### `[ ]` **7.E.e Close the typed boundaries and make receipts describe the operation**
+
+- _Findings:_ L1-F1, L1-F2, L1-F3, L3-F3, L4-F6, E5-F3, X1-F1, X1-F2, X1-F3, A-F3, E2-F3, S1-F3
+
+- _Goal:_ The public surface delivers what it declares: one finite error vocabulary with no escaping code, success
+  shapes that require their authority coordinates, normalized error text and typed marker results instead of raw
+  throws, a JSON path that yields one typed result for preflight and boundary failures, rendered row diagnostics
+  and a terminating newline in human output, timestamps in canonical UTC, and outcomes composed from every stage so
+  no command reports idempotent after making authoritative local change.
+
+### `[ ]` **7.E.f Bind the session anchor to a durable process**
+
+- _Findings:_ L3-F1, L3-F2, L3-F4
+
+- _Goal:_ Anchor selection classifies proven wrappers before interactivity and requires ARC at the executable,
+  script, or command position, so a lease binds to the durable session rather than a short-lived `bash -lc` wrapper
+  or an unrelated Node/npm/npx ancestor; subject projection reuses the reader's bounded scheduler.
+
+### `[ ]` **7.E.g Repair the named paths that do not work**
+
+- _Findings:_ W2-F1, E1-F1, E5-F2, S1-F1, P1-F3, P1-F4, E5-F1, B-F1, M1-F2, D-F1
+
+- _Goal:_ Every advertised path completes through its production composition: in-place resume establishes its locus
+  after the deferred checkout lands, previously accepted legacy records stay readable, remote-only legacy Errands
+  reach their retained close path, legacy recovery works in an ordinary multi-work-unit repository, partial
+  housekeeping binds to an exact opened base and applies the same path policy, grooming authorizes on exact paths
+  rather than basenames, the inbox source digest survives identity publication and lost-response replay, the quick
+  reference matches the shipped Errand signature, and a fresh installation receives both entry skills.
+
+### `[ ]` **7.E.h Reconcile the claims and restore the lost coverage**
+
+- _Findings:_ R1-F1, R1-F2, R1-F3, R1-F4, M1-F1, E4-V1, E5-V1
+
+- _Goal:_ The recorded design says what the implementation does: advisory entry cannot mint immediate residue,
+  leaseless work-unit selection is specified, changed-head re-entry has one rule across decisions and criteria,
+  lease scope reads verb-scoped throughout, and the packaged workflows fail closed after composite-probe failure
+  instead of falling back to branch and meta inference. Coverage stops asserting doubles — derivation-floor
+  promotion regains real-runtime integration coverage, and the current-open, ROADMAP, adoption, and materialize
+  cases exercise real v3 Errands rather than seeded legacy records.
+
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
@@ -1117,4 +1210,6 @@ both blocks operations that never allocate and masks genuine transient residue b
 - `[ ]` Linux, macOS/BSD, and Windows inspectors enforce PID-plus-start-token liveness with unknown-safe degradation.
 - `[ ]` Locus schemas compose with the landed kernel and session envelope without a parallel type or codec authority.
 - `[ ]` Package/source parity and all required tests, lint, type checks, builds, and platform CI pass.
+- `[ ]` Every in-scope chunked-review finding is verified against source and corrected, and each carved finding is
+  recorded in `notes-session-locus-model.md` with the risk its deferral accepts.
 - `[ ]` Ready for integration.
