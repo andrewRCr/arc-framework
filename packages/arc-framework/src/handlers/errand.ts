@@ -18,6 +18,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { basename } from "node:path";
 
 import * as p from "@clack/prompts";
+import { z } from "zod";
 
 import { runActiveInFlight } from "../commands/active.js";
 import {
@@ -39,16 +40,22 @@ import {
   preferRemoteBaseRef,
   projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionResult,
+  type GitExec,
 } from "../lib/git/index.js";
 import {
   renderInFlightWarning,
   type InFlightWarning,
 } from "../lib/git/in-flight-derivation.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+import {
+  declareCliOptionSite,
+  declareInteractionSite,
+  type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
-import { gitExec, createUserIOContext } from "../lib/io-context.js";
+import { createGitExec, createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
-import { SlugSchema } from "../lib/kernel/index.js";
 import { openOrdinaryErrandAtRuntime } from "../lib/errand/open-runtime.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
@@ -59,6 +66,8 @@ import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js
 import { prepareMaterializedBranch } from "../lib/errand/materialize-branch.js";
 import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
+import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import {
   clearErrandPartialPushMarker,
   inspectInboxEntry,
@@ -127,6 +136,14 @@ export interface ErrandCheckOptions {
   fetch?: boolean;
 }
 
+/** Validated input for the errand overlap inspection. */
+export const ErrandCheckInputSchema = z.object({
+  target: z.array(z.string().trim().min(1)).min(1),
+  local: z.boolean().optional(),
+  fetch: z.boolean().optional(),
+  json: z.boolean().optional(),
+}).strict();
+
 export function formatErrandCheckCaveats(result: ForeignArtifactDetectionResult): string[] {
   return [
     ...(result.skipped ?? []).map(
@@ -148,7 +165,11 @@ export function buildErrandCheckJsonEnvelope(
   return { ...result, warnings, reachable };
 }
 
-export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void> {
+export async function handleErrandCheck(
+  opts: ErrandCheckOptions,
+  interaction?: InteractionContext,
+): Promise<void> {
+  const exec = createGitExec(interaction?.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
@@ -180,21 +201,21 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
   );
 
   const { entries, warnings, snapshot, reachable } = await runActiveInFlight({
-    exec: gitExec,
+    exec,
     identity,
     teamMode,
     localOnly,
     baseBranch,
     parkedSlugs,
   });
-  const baseRef = await preferRemoteBaseRef(gitExec, baseBranch);
+  const baseRef = await preferRemoteBaseRef(exec, baseBranch);
 
   const result = await detectForeignArtifactOverlap({
-    exec: gitExec,
+    exec,
     roster: projectInFlightToOverlapRoster(entries),
     targetPaths,
     baseBranch: baseRef,
-    originatingWorktreePath: await currentWorktreePath(cwd),
+    originatingWorktreePath: await currentWorktreePath(cwd, exec),
     originatingMetaPath: await resolveOriginatingMetaPath(cwd),
     snapshot,
   });
@@ -263,6 +284,7 @@ export interface ErrandMaterializeOptions {
 export async function handleErrandMaterialize(
   slug: string,
   opts: ErrandMaterializeOptions,
+  context?: InteractionContext,
 ): Promise<void> {
   if (opts.json !== true) p.intro("arc errand materialize");
   const cwd = requireArcProjectRoot();
@@ -280,7 +302,7 @@ export async function handleErrandMaterialize(
     emitMaterializeError("identity", "No identity resolved — set arc.identity before materializing.", opts.json === true);
     return;
   }
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   if (!io.execInput) {
     emitMaterializeError("identity", "The stdin Git boundary is unavailable.", opts.json === true);
     return;
@@ -385,6 +407,27 @@ function emitMaterializeError(suffix: string, message: string, json: boolean): v
     recommendedPromptText: "Inspect the retained identity and local branch evidence before retrying.",
   }), json);
 }
+const InboxTitleSourcesSchema = z.object({
+  fromInbox: z.string().min(1).optional(),
+  inboxTitleFile: z.string().min(1).optional(),
+  inboxEntryFile: z.string().min(1).optional(),
+});
+
+function titleSourceCount(value: z.infer<typeof InboxTitleSourcesSchema>): number {
+  return [value.fromInbox, value.inboxTitleFile, value.inboxEntryFile]
+    .filter((candidate) => candidate !== undefined).length;
+}
+
+/** Validated input for opening an errand. */
+export const ErrandOpenInputSchema = InboxTitleSourcesSchema.extend({
+  slug: SlugSchema,
+  intent: z.string().min(1).optional(),
+  json: z.boolean().optional(),
+}).strict().superRefine((value, ctx) => {
+  if (titleSourceCount(value) > 1) {
+    ctx.addIssue({ code: "custom", message: "Provide at most one inbox title source." });
+  }
+});
 
 /**
  * Open an Errand through the shared identity, allocation, role, and lease
@@ -396,8 +439,20 @@ function emitMaterializeError(suffix: string, message: string, json: boolean): v
  * revalidated under the identity notes lock and its title is carried into the
  * identity or partial role.
  */
-export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): Promise<void> {
+export async function handleErrandOpen(
+  slug: string,
+  opts: ErrandOpenOptions,
+  context?: InteractionContext,
+): Promise<void> {
   if (opts.json !== true) p.intro("arc errand open");
+
+  const parsed = ErrandOpenInputSchema.safeParse({ slug, ...opts });
+  if (!parsed.success) {
+    p.log.error(z.prettifyError(parsed.error));
+    process.exitCode = 1;
+    return;
+  }
+  const input = parsed.data;
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
@@ -434,7 +489,7 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
     return;
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   if (!io.execInput) {
     emitErrandOpenFailure(
       "locus.errand-open.identity",
@@ -446,17 +501,17 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
 
   let originEntry: string | null = null;
   if (
-    opts.fromInbox !== undefined
-    || opts.inboxTitleFile !== undefined
-    || opts.inboxEntryFile !== undefined
+    input.fromInbox !== undefined
+    || input.inboxTitleFile !== undefined
+    || input.inboxEntryFile !== undefined
   ) {
     try {
       const adoption = await resolveLiveInboxAdoption({
         cwd,
         io,
         identity,
-        literal: opts.fromInbox,
-        file: opts.inboxTitleFile ?? opts.inboxEntryFile,
+        literal: input.fromInbox,
+        file: input.inboxTitleFile ?? input.inboxEntryFile,
       });
       originEntry = adoption.title;
     } catch (err) {
@@ -575,6 +630,16 @@ export interface ErrandLinkOptions {
   inboxEntryFile?: string;
 }
 
+/** Validated input for linking an errand to exactly one inbox title source. */
+export const ErrandLinkInputSchema = InboxTitleSourcesSchema
+  .extend({ slug: SlugSchema, json: z.boolean().optional() })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (titleSourceCount(value) !== 1) {
+      ctx.addIssue({ code: "custom", message: "Provide exactly one inbox title source." });
+    }
+  });
+
 /**
  * Link an already-open errand to a USER-INBOX capture.
  *
@@ -582,8 +647,20 @@ export interface ErrandLinkOptions {
  * existing errand record to carry the inbox back-pointer, so the normal close or
  * promote path can drop the capture after the record is removed.
  */
-export async function handleErrandLink(slug: string, opts: ErrandLinkOptions): Promise<void> {
+export async function handleErrandLink(
+  slug: string,
+  opts: ErrandLinkOptions,
+  context?: InteractionContext,
+): Promise<void> {
   if (opts.json !== true) p.intro("arc errand link");
+
+  const parsed = ErrandLinkInputSchema.safeParse({ slug, ...opts });
+  if (!parsed.success) {
+    p.log.error(z.prettifyError(parsed.error));
+    process.exitCode = 1;
+    return;
+  }
+  const input = parsed.data;
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
@@ -609,7 +686,7 @@ export async function handleErrandLink(slug: string, opts: ErrandLinkOptions): P
     return;
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   if (!io.execInput) {
     emitErrandLinkFailure(
       "locus.errand-link.identity",
@@ -625,8 +702,8 @@ export async function handleErrandLink(slug: string, opts: ErrandLinkOptions): P
       cwd,
       io,
       identity,
-      literal: opts.fromInbox,
-      file: opts.inboxTitleFile ?? opts.inboxEntryFile,
+      literal: input.fromInbox,
+      file: input.inboxTitleFile ?? input.inboxEntryFile,
     });
   } catch (err) {
     emitErrandLinkFailure(
@@ -704,7 +781,11 @@ export interface ErrandLeaveOptions {
 }
 
 /** Preserve an exact Errand head or change request, then close its local occupancy. */
-export async function handleErrandLeave(slug: string, opts: ErrandLeaveOptions): Promise<void> {
+export async function handleErrandLeave(
+  slug: string,
+  opts: ErrandLeaveOptions,
+  context?: InteractionContext,
+): Promise<void> {
   if (opts.json !== true) p.intro("arc errand leave");
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
@@ -735,7 +816,7 @@ export async function handleErrandLeave(slug: string, opts: ErrandLeaveOptions):
     );
     return;
   }
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   if (!io.execInput) {
     emitErrandLeaveFailure(
       "locus.errand-leave.identity",
@@ -814,6 +895,11 @@ export interface ErrandCloseOptions {
   json?: boolean;
 }
 
+/** Validated input for closing an errand. */
+export const ErrandCloseInputSchema = z
+  .object({ slug: SlugSchema, force: z.boolean().optional(), json: z.boolean().optional() })
+  .strict();
+
 /**
  * Complete an Errand after its exact full-mode merge or partial direct-base
  * result is proven, then retire its durable state and originating capture.
@@ -822,8 +908,19 @@ export interface ErrandCloseOptions {
  * protection proves the direct-base push and pops its identity-free primary
  * role. Both modes remove only the recorded originating inbox capture.
  */
-export async function handleErrandClose(slug: string, opts: ErrandCloseOptions): Promise<void> {
+export async function handleErrandClose(
+  slug: string,
+  opts: ErrandCloseOptions,
+  context?: InteractionContext,
+): Promise<void> {
   if (opts.json !== true) p.intro("arc errand close");
+
+  const parsed = ErrandCloseInputSchema.safeParse({ slug, ...opts });
+  if (!parsed.success) {
+    p.log.error(z.prettifyError(parsed.error));
+    process.exitCode = 1;
+    return;
+  }
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
@@ -851,7 +948,7 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
     return;
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   if (!io.execInput) {
     emitErrandCloseFailure("locus.errand-close.identity", "The stdin Git boundary is unavailable.", opts.json === true);
     return;
@@ -997,7 +1094,11 @@ export interface ErrandAbandonOptions {
 }
 
 /** Explicitly retire a safely preserved ordinary Errand while retaining its capture. */
-export async function handleErrandAbandon(slug: string, opts: ErrandAbandonOptions): Promise<void> {
+export async function handleErrandAbandon(
+  slug: string,
+  opts: ErrandAbandonOptions,
+  context?: InteractionContext,
+): Promise<void> {
   if (opts.json !== true) p.intro("arc errand abandon");
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
@@ -1016,7 +1117,7 @@ export async function handleErrandAbandon(slug: string, opts: ErrandAbandonOptio
     emitErrandAbandonFailure("locus.errand-abandon.identity", "No identity resolved.", opts.json === true);
     return;
   }
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   if (!io.execInput) {
     emitErrandAbandonFailure(
       "locus.errand-abandon.identity",
@@ -1172,6 +1273,116 @@ export interface ErrandPromoteOptions {
   json?: boolean;
 }
 
+/** Validated input for promoting an errand into a work unit. */
+export const ErrandPromoteInputSchema = z.object({
+  slug: SlugSchema,
+  name: SlugSchema.optional(),
+  type: z.string().regex(/^[a-z][a-z0-9-]*$/u).optional(),
+  floor: z.enum(["derivation", "scale"]),
+  priority: PrioritySchema.optional(),
+  class: WorkClassSchema.optional(),
+  json: z.boolean().optional(),
+}).strict();
+
+/** Registry contributions owned by value-bearing errand commands. */
+export const errandCommandInputRegistrations = [
+  {
+    commandPath: "errand check",
+    schema: ErrandCheckInputSchema,
+    schemaFields: {
+      "option.target": "target",
+      "option.local": "local",
+      "option.no-fetch": "fetch",
+      "option.json": "json",
+    },
+  },
+  {
+    commandPath: "errand open",
+    schema: ErrandOpenInputSchema,
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.intent": "intent",
+      "option.from-inbox": "fromInbox",
+      "option.inbox-title-file": "inboxTitleFile",
+      "option.inbox-entry-file": "inboxEntryFile",
+      "option.json": "json",
+    },
+  },
+  {
+    commandPath: "errand link",
+    schema: ErrandLinkInputSchema,
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.from-inbox": "fromInbox",
+      "option.inbox-title-file": "inboxTitleFile",
+      "option.inbox-entry-file": "inboxEntryFile",
+      "option.json": "json",
+    },
+  },
+  ...["errand materialize", "errand leave", "errand abandon"].map((commandPath) => ({
+    commandPath,
+    schema: z.object({ slug: SlugSchema, json: z.boolean().optional() }).strict(),
+    schemaFields: { "operand.slug": "slug", "option.json": "json" },
+  })),
+  {
+    commandPath: "errand close",
+    schema: ErrandCloseInputSchema,
+    schemaFields: { "operand.slug": "slug", "option.force": "force", "option.json": "json" },
+  },
+  {
+    commandPath: "errand promote",
+    schema: ErrandPromoteInputSchema,
+    schemaFields: {
+      "operand.slug": "slug",
+      "option.name": "name",
+      "option.type": "type",
+      "option.floor": "floor",
+      "option.priority": "priority",
+      "option.class": "class",
+      "option.json": "json",
+    },
+  },
+] as const satisfies readonly CommandInputRegistration[];
+
+/** Input and interaction policies owned by errand command adapters. */
+export const errandCommandInputPolicyDeclarations = [
+  {
+    commandPath: "errand check", aliases: [], sites: [declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable", automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    })],
+  },
+  ...[
+    "errand open",
+    "errand link",
+    "errand materialize",
+    "errand leave",
+    "errand close",
+    "errand abandon",
+    "errand promote",
+  ].map((commandPath) => ({
+    commandPath, aliases: [], sites: [declareCliOptionSite("json", {
+      acquisition: "machine-mode" as const,
+      schemaOwnership: "owned" as const,
+      schemaField: "json",
+      cancellation: "not-applicable" as const,
+      automation: { noInput: "same" as const, flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none" as const,
+    })],
+  })),
+  {
+    commandPath: "errand open", aliases: [], sites: [1, 2].map((occurrence) => declareInteractionSite(
+      { file: "lib/inbox-entry-operand.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence },
+      {
+        acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
+        mutationBoundary: "errand open input preflight", subprocess: "explicit-stdin",
+      },
+    )),
+  },
+] satisfies readonly CommandInputDeclaration[];
+
 /**
  * Promote an errand to a work unit: rename its branch (commits preserved), mint
  * the backing meta at the floor-dictated stage, and retire the identity record.
@@ -1182,8 +1393,20 @@ export interface ErrandPromoteOptions {
  * deterministic mechanics (rename, meta mint, record retire, push) run here; only
  * the WU name/type, the floor, and optional priority/`Class` are supplied.
  */
-export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptions): Promise<void> {
+export async function handleErrandPromote(
+  slug: string,
+  opts: ErrandPromoteOptions,
+  context?: InteractionContext,
+): Promise<void> {
   if (opts.json !== true) p.intro("arc errand promote");
+
+  const parsed = ErrandPromoteInputSchema.safeParse({ slug, ...opts });
+  if (!parsed.success) {
+    p.log.error(z.prettifyError(parsed.error));
+    process.exitCode = 1;
+    return;
+  }
+  const input = parsed.data;
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
@@ -1197,11 +1420,7 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
     return;
   }
 
-  const floor = opts.floor?.trim();
-  if (floor !== "derivation" && floor !== "scale") {
-    emitErrandPromoteFailure("locus.errand-promote.input", "--floor must be 'derivation' or 'scale'.", opts.json === true);
-    return;
-  }
+  const floor = input.floor;
 
   const identity = await resolveIdentityWithPrompt(false);
   if (!identity) {
@@ -1209,15 +1428,15 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
     return;
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   if (!io.execInput) {
     emitErrandPromoteFailure("locus.errand-promote.identity", "The stdin Git boundary is unavailable.", opts.json === true);
     return;
   }
 
-  const rawName = opts.name?.trim();
+  const rawName = input.name?.trim();
   const wuName = rawName !== undefined && rawName !== "" ? rawName : slug;
-  const type = opts.type?.trim();
+  const type = input.type?.trim();
 
   const identityGlobalUserDir = (await resolveUserSurfaceResolver({
     cwd, identity: SlugSchema.parse(identity), exec: io.exec,
@@ -1312,9 +1531,9 @@ async function dropOriginatingInboxCapture(
 }
 
 /** The current worktree's root, in `git worktree list` path form (for self-exclusion). */
-async function currentWorktreePath(fallback: string): Promise<string> {
+async function currentWorktreePath(fallback: string, exec: GitExec): Promise<string> {
   try {
-    const { stdout } = await gitExec("git", ["rev-parse", "--show-toplevel"]);
+    const { stdout } = await exec("git", ["rev-parse", "--show-toplevel"]);
     const top = stdout.trim();
     return top === "" ? fallback : top;
   } catch {

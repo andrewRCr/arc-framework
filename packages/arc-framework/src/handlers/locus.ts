@@ -2,6 +2,8 @@
 
 import { access, lstat, readFile, realpath } from "node:fs/promises";
 
+import { z } from "zod";
+
 import type { LocusEnvelopeV1 } from "../lib/locus/schema/index.js";
 import { formatLocusEnvelope, validateLocusEnvelope } from "../commands/locus.js";
 import { createLocusEvidenceIO } from "../lib/locus/evidence.js";
@@ -12,6 +14,7 @@ import { gitExec } from "../lib/io-context.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { SlugSchema } from "../lib/kernel/index.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 import {
@@ -31,6 +34,20 @@ import type { LocusResolveAction } from "../lib/locus/resolve-driver.js";
 export interface LocusCliOptions {
   json?: boolean;
 }
+
+/** Registry contributions owned by the value-bearing session-locus commands. */
+export const locusCommandInputRegistrations = [
+  {
+    commandPath: "locus attach",
+    schema: z.object({ checkout: z.string().min(1).optional(), json: z.boolean().optional() }).strict(),
+    schemaFields: { "option.checkout": "checkout", "option.json": "json" },
+  },
+  ...["locus release", "locus resolve"].map((commandPath) => ({
+    commandPath,
+    schema: z.object({ recordId: z.string().min(1), json: z.boolean().optional() }).strict(),
+    schemaFields: { "operand.record-id": "recordId", "option.json": "json" },
+  })),
+] as const satisfies readonly CommandInputRegistration[];
 
 export interface LocusAttachOptions extends LocusCliOptions { checkout?: string }
 export interface LocusReleaseOptions extends LocusCliOptions { lease: string }

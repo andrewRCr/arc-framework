@@ -16,6 +16,8 @@ import type { CommitMessagePreflightResult, PreflightCommitMessage } from "./com
 /** I/O and repository boundaries needed by release preflight. */
 export interface CommitMessagePreflightDeps {
   stdinIsTTY: boolean;
+  /** Whether unsupported or Git-managed sources may fall through to interactive Git behavior. */
+  interactionAllowed?: boolean;
   readFile: (path: string) => Promise<Uint8Array>;
   readFileWithIdentity?: (path: string) => Promise<{
     bytes: Uint8Array;
@@ -52,7 +54,8 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
     }
 
     const preparedContext = prepareCommitCheckContext(repository.context);
-    if (preparedContext.kind === "outcome" && preparedContext.outcome.kind === "skipped") {
+    const validationSkipped = preparedContext.kind === "outcome" && preparedContext.outcome.kind === "skipped";
+    if (validationSkipped && deps.interactionAllowed !== false) {
       return { kind: "pass-through" };
     }
 
@@ -62,7 +65,11 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
       commitCleanup: repository.cleanup,
       commitEncoding: repository.encoding,
     });
-    if (classification.kind === "pass-through") return classification;
+    if (classification.kind === "pass-through") {
+      return deps.interactionAllowed === false
+        ? inputFailure("Commit-message input is not a proven editor-free deterministic source.")
+        : classification;
+    }
     if (classification.kind === "refused") {
       return inputFailure("Commit-message input requires an interactive editor.");
     }
@@ -102,6 +109,10 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
               : { sourceIdentity: capture.sourceIdentity }),
           }
         : { kind: "stdin", rawBytes: capture.rawBytes };
+    }
+
+    if (validationSkipped) {
+      return { kind: "passed", verdict: "pass", messageBytes, transport };
     }
 
     const checked = await validateCommitMessageBytes(messageBytes, repository);

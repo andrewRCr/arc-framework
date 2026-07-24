@@ -17,7 +17,10 @@ import {
   resolveCompactionSeedPath,
 } from "../lib/compaction-seed/emitter.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
-import { gitExec } from "../lib/io-context.js";
+import type { GitExec } from "../lib/git/index.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import { createGitExec } from "../lib/io-context.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import {
@@ -37,8 +40,18 @@ export interface RecoverAuditOptions {
   json?: boolean;
 }
 
+/** Machine-output policy owned by the recovery-audit adapter. */
+export const recoverCommandInputPolicyDeclarations = [{
+  commandPath: "recover audit", aliases: [], sites: [declareCliOptionSite("json", {
+    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })],
+}] satisfies readonly CommandInputDeclaration[];
+
 /** Handle `arc recover audit`. */
-export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<void> {
+export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?: InteractionContext): Promise<void> {
+  const gitExec = createGitExec(interaction?.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
@@ -117,8 +130,8 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
   }
 
   const [freshBranch, freshHead] = await Promise.all([
-    readGitValue(["rev-parse", "--abbrev-ref", "HEAD"]),
-    readGitValue(["rev-parse", "--verify", "HEAD^{commit}"]),
+    readGitValue(gitExec, ["rev-parse", "--abbrev-ref", "HEAD"]),
+    readGitValue(gitExec, ["rev-parse", "--verify", "HEAD^{commit}"]),
   ]);
 
   const verdict = await auditRecoveryState({
@@ -138,7 +151,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
   }, Boolean(opts.json));
 }
 
-async function readGitValue(args: string[]): Promise<string | null> {
+async function readGitValue(gitExec: GitExec, args: string[]): Promise<string | null> {
   try {
     const { stdout } = await gitExec("git", args);
     return stdout.trim() || null;

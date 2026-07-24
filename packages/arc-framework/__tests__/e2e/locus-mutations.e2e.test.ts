@@ -303,7 +303,7 @@ describe("arc locus mutation commands", () => {
   it("keeps operational JSON on stdout and exposes the exact public operands", async () => {
     const help = await runCli(["locus", "release", "--help"], { cwd: repository });
     expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain("release [options] <recordId>");
+    expect(help.stdout).toContain("release [options] <record-id>");
     expect(help.stdout).toContain("--lease <id>");
 
     const invalid = await runCli([

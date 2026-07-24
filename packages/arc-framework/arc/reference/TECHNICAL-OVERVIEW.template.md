@@ -7,7 +7,8 @@
      - Use `_italic_` for sub-section intros that introduce a bullet group (e.g., "_Key characteristics:_" before
        a bullet list). Reserve `**bold**` for bullet labels readers scan to. Prevents visual competition between
        group frame and item labels in list-dense sections.
-     - For flat lists exceeding ~8 items, chunk into 2-4 logical groups with italic frame labels (parallel pattern). -->
+     - For flat lists exceeding ~8 items, organize into 2-4 logical groups with italic frame labels
+       (parallel pattern). -->
 
 # {{PROJECT_NAME}} Technical Overview
 

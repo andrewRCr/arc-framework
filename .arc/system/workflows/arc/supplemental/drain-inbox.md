@@ -132,9 +132,9 @@ The verb revalidates every title under one notes lock and writes all markings th
 failure leaves the occupancy and inbox evidence visible for explicit retry or abandonment; never mark entries one
 at a time.
 
-### 4. Chunk if the sweep is large
+### 4. Split if the sweep is large
 
-Default a single routing increment. When the confirmed proposal exceeds **one reviewable increment**, chunk by
+Default a single routing increment. When the confirmed proposal exceeds **one reviewable increment**, split by
 **concern-coherence + review-reachability** — split only when one unit would exceed a reviewer's reach. Under full
 protection, ordered commits and review passes stay inside the sweep's one branch and PR; under partial protection,
 use coherent commit boundaries. Surface the batch shape at the interlock; never silently truncate.
@@ -179,7 +179,7 @@ routing write.
 - **Execute-now atomic** — held aside here; executed in § 7, not written by the drain.
 
 Perform every routing write from the returned active checkout. The confirmed sweep is one routing generation;
-chunking changes only commit/review increments. Full mode ships the pure-routing diff in one PR. At close, classify
+splitting changes only commit/review increments. Full mode ships the pure-routing diff in one PR. At close, classify
 its lane from the routes actually landed (`reviewed` if any write needs owner review, otherwise `auto`). Partial mode
 pushes the direct-base commits. Never open an Errand branch for routing or split foreign-owner writes into a second
 sweep generation.

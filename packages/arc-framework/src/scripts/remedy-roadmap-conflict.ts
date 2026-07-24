@@ -14,12 +14,25 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import type { GitExec } from "../lib/git/exec.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import {
   applyRoadmapConflictAutoRemedy,
   formatRoadmapConflictAutoRemedyMessage,
 } from "../lib/status/roadmap-conflict-auto-remedy.js";
 
 const execFileAsync = promisify(execFile);
+
+/** Closed-stdin subprocess policy owned by the ROADMAP remedy hook adapter. */
+export const remedyRoadmapConflictInputPolicyDeclarations = [{
+  commandPath: "hook-remedy-roadmap-conflict", aliases: [], sites: [declareInteractionSite(
+    { file: "scripts/remedy-roadmap-conflict.ts", kind: "subprocess", callee: "execFileAsync", occurrence: 1 },
+    {
+      acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "hook-remedy-roadmap-conflict subprocess boundary", subprocess: "close-stdin",
+    },
+  )],
+}] satisfies readonly CommandInputDeclaration[];
 
 /** Real Git executor for this script; stdout is not trimEnd()ed. */
 const rawGitExec: GitExec = async (cmd, args, options) => {

@@ -7,6 +7,32 @@ import {
 } from "../../../../../../src/scripts/review-gate/providers/coderabbit/executable.js";
 
 describe("CodeRabbit executable resolution", () => {
+  it("carries the invocation subprocess policy into version interrogation", async () => {
+    const interaction = {
+      terminalPrompts: "forbidden" as const,
+      presenters: "forbidden" as const,
+      ambientStdin: "closed" as const,
+    };
+    const interrogate = vi.fn(async () => "CodeRabbit CLI version 0.6.5\n");
+
+    await resolveCodeRabbitExecutable("coderabbit", {
+      access: async () => undefined,
+      realpath: async () => "/trusted/bin/coderabbit",
+      readFile: async () => Buffer.from("exact executable bytes"),
+      interrogate,
+      interaction,
+      pathValue: "/trusted/bin",
+      platform: "linux",
+      pathExtValue: "",
+    });
+
+    expect(interrogate).toHaveBeenCalledWith("/trusted/bin/coderabbit", {
+      remainingMs: expect.any(Number),
+      signal: expect.any(AbortSignal),
+      interaction,
+    });
+  });
+
   it("binds digest and version to one resolved executable path", async () => {
     const access = vi.fn(async (path: string, mode: number) => {
       if (path !== "/trusted/bin/coderabbit" || mode !== constants.X_OK) throw new Error("not executable");

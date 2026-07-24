@@ -1,5 +1,6 @@
 /** Production adapters for exact-target frontline review execution. */
 
+import type { InteractionContext } from "../../../lib/command-input/interaction-context.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import {
   LocalFrontlineOutcomeStore,
@@ -40,6 +41,7 @@ import type { FrontlineRunCommandDependencies } from "./frontline-run-command.js
 export function createFrontlineRunDependencies(input: {
   exec: GitExec;
   cwd: string;
+  interaction: InteractionContext["subprocess"];
 }): FrontlineRunCommandDependencies {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const registry = new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]);
@@ -75,8 +77,14 @@ export function createFrontlineRunDependencies(input: {
             ? {
                 status: "ready",
                 execute: () => executeCodeRabbitFrontline(execution, {
-                  resolveExecutable: (command, context) => resolveCodeRabbitExecutable(command, context),
-                  run: runCodeRabbitProcess,
+                  resolveExecutable: (command, context) => resolveCodeRabbitExecutable(command, {
+                    ...context,
+                    interaction: input.interaction,
+                  }),
+                  run: (command, argv, options) => runCodeRabbitProcess(command, argv, {
+                    ...options,
+                    interaction: input.interaction,
+                  }),
                 }),
               }
             : {

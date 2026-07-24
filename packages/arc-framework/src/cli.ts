@@ -14,8 +14,9 @@ import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
 import { isHandoffCritical } from "./lib/handoff-critical.js";
-import { handleInit } from "./handlers/init.js";
-import { handleJoin } from "./handlers/join.js";
+import { withInteractionContext } from "./lib/command-input/interaction-context.js";
+import { handleInit, type InitOptions } from "./handlers/init.js";
+import { handleJoin, type JoinOptions } from "./handlers/join.js";
 import { handleStart, type StartOptions } from "./handlers/start.js";
 import {
   handleErrandCheck,
@@ -83,6 +84,7 @@ import {
   handleFinalizeStage,
   handleRepointDesign,
   handleRename,
+  type PromoteOptions,
   type StubOptions,
   type ParkOptions,
   type ResumeOptions,
@@ -99,11 +101,24 @@ import {
   handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
   handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
   type UserInboxRemoveOptions,
+  type UserPushOptions,
+  type UserFetchOptions,
+  type UserCompactHandlerOptions,
+  type UserStatusOptions,
+  type UserLoadOptions,
+  type UserPullOptions,
 } from "./handlers/user.js";
-import { handleExtensionsStatus } from "./handlers/extensions.js";
-import { handleConfigStatus } from "./handlers/config.js";
-import { handleActiveStatus, handleActiveRoster, handleActiveInFlight } from "./handlers/active.js";
-import { handleStatus } from "./handlers/status.js";
+import { handleExtensionsStatus, type ExtensionsStatusCliOptions } from "./handlers/extensions.js";
+import { handleConfigStatus, type ConfigStatusCliOptions } from "./handlers/config.js";
+import {
+  handleActiveStatus,
+  handleActiveRoster,
+  handleActiveInFlight,
+  type ActiveStatusCliOptions,
+  type ActiveRosterCliOptions,
+  type ActiveInFlightCliOptions,
+} from "./handlers/active.js";
+import { handleStatus, type StatusCliOptions } from "./handlers/status.js";
 import {
   handleLocus,
   handleLocusAttach,
@@ -116,9 +131,10 @@ import {
 import { handleView, type ViewCliOptions } from "./handlers/view.js";
 import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
-import { handleUserSync } from "./handlers/user-sync.js";
+import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
   handleReviewLocalAttest,
@@ -141,6 +157,10 @@ import {
   handleReleaseSetupUninstall,
   handleReleaseSetupVerify,
   handleReleaseStatus,
+  type ReleaseSetupInstallOptions,
+  type ReleaseSetupPrintPatternsOptions,
+  type ReleaseSetupUninstallOptions,
+  type ReleaseSetupVerifyOptions,
 } from "./commands/release.js";
 import { runDecomposeRecordValidation } from "./scripts/validate-decompose-record.js";
 import { runRoadmapConflictAutoRemedyCommand } from "./scripts/remedy-roadmap-conflict.js";
@@ -150,6 +170,7 @@ const program = new Command();
 program
   .name("arc")
   .description("CLI for installing, updating, and managing ARC framework files")
+  .option("--no-input", "Forbid prompts, presenters, editors, and ambient child-process input")
   .version(getFrameworkVersion());
 
 // --- Checks ---
@@ -189,11 +210,14 @@ checkCmd
   .argument("[input...]", "Commit-message file path, or - for stdin")
   .allowUnknownOption(true)
   .option("--json", "Emit a versioned JSON envelope")
-  .action((input: string[], opts: HandleCheckCommitMessageOptions) =>
-    handleCheckCommitMessage(input, {
-      ...opts,
-      dashPrefixedSourceAllowed: isDashPrefixedCheckSourceEscaped(process.argv, input),
-    }));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, input: string[], opts: HandleCheckCommitMessageOptions) =>
+      handleCheckCommitMessage(input, {
+        ...opts,
+        dashPrefixedSourceAllowed: isDashPrefixedCheckSourceEscaped(process.argv, input),
+      }, context),
+  ));
 
 // --- Init & Join ---
 
@@ -201,22 +225,30 @@ program
   .command("init")
   .description("Initialize ARC framework in the current project")
   .option("-y, --yes", "Skip prompts, use defaults")
-  .option("--name <string>", "Project name (requires --yes)")
-  .option("--pm-mode <mode>", "PM mode: none, arc-in-git, external (requires --yes)")
-  .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
+  .option("--name <string>", "Project name")
+  .option("--pm-mode <mode>", "PM mode: none, arc-in-git, external")
+  .option("--tools <csv>", "Comma-separated tool list")
+  .option("--identity <name>", "Personal workspace identity (fresh installation only)")
   .option("--team", "Enable team mode (requires --yes)")
   .option("--reconfigure", "Change structural settings on an existing installation")
   .option("--dry-run", "Preview reconfigure changes without applying (requires --reconfigure)")
-  .action(handleInit);
+  .action(withInteractionContext(
+    { yes: "compatibility" },
+    (context, opts: InitOptions) => handleInit(opts, context),
+  ));
 
 program
   .command("join")
   .description("Join an existing ARC project as a team member or contributor")
   .option("--contributor", "Set role to contributor (default: maintainer)")
   .option("-y, --yes", "Skip prompts, use defaults")
-  .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
+  .option("--tools <csv>", "Comma-separated tool list")
+  .option("--identity <name>", "Personal workspace identity (fresh setup only)")
   .option("--reconfigure", "Change personal workspace settings (role, tools)")
-  .action(handleJoin);
+  .action(withInteractionContext(
+    { yes: "compatibility" },
+    (context, opts: JoinOptions) => handleJoin(opts, context),
+  ));
 
 // --- Work units ---
 
@@ -240,7 +272,10 @@ program
   )
   .option("--new", "Create a fresh work unit when the name does not exist on the base branch")
   .option("-y, --yes", "Skip the confirm prompt; spawned starts still commit and push the ceremony")
-  .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
+  .action(withInteractionContext(
+    { yes: "compatibility" },
+    (context, name: string | undefined, opts: StartOptions) => handleStart(name, opts, context),
+  ));
 
 // --- Lifecycle verbs (top-level peers of `arc start`) ---
 // Each takes an optional positional so a bare invocation reaches the handler's
@@ -255,36 +290,55 @@ program
   .option("--design <ref>", "Design artifact (spec / draft) → meta `Design`")
   .option("--cohort <slug>", "Enrol under a cohort: place at backlog/planned/<cohort>/<name>/ + set meta `Cohort` (planned-tier, single member)")
   .option("--class <value>", "Initial resolved Class (Light | Heavy | Novel); omitted → `[TBD]`")
-  .action((name: string | undefined, opts: StubOptions) => handleStub(name, opts));
+  .action(withInteractionContext(
+    { yes: "none" },
+    (context, name: string | undefined, opts: StubOptions) => handleStub(name, opts, context),
+  ));
 
 program
   .command("decompose <origin>")
   .description("Split a work unit into a cohort of members per a structured cut-map file")
   .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
   .option("--finalize <receipt-id>", "Verify the staged allocation and replace its preparation with a finalized receipt")
-  .action((origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts));
+  .action(withInteractionContext(
+    {},
+    (context, origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts, context),
+  ));
 
 program
   .command("rename <slug> <new-slug>")
   .description("Rename a work unit and its branch, workspace, remote, marker, and worktree identities")
-  .action((slug: string, newSlug: string) => handleRename(slug, newSlug));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string, newSlug: string) => handleRename(slug, newSlug, context),
+  ));
 
 program
   .command("promote [slug]")
   .description("Raise a provisional stub to planned (requires a resolved `Class`)")
-  .action((slug: string | undefined) => handlePromote(slug));
+  .option("--class <value>", "Resolved Class (Light | Heavy | Novel) when the stub is still `[TBD]`")
+  .action(withInteractionContext(
+    { yes: "none" },
+    (context, slug: string | undefined, opts: PromoteOptions) => handlePromote(slug, opts, context),
+  ));
 
 program
   .command("demote [slug]")
   .description("Lower a planned stub back to provisional")
-  .action((slug: string | undefined) => handleDemote(slug));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined) => handleDemote(slug, context),
+  ));
 
 program
   .command("park [slug]")
   .description("Shelve a started work unit off the active set (defaults to the current WU)")
   .option("--reason <text>", "Why the work unit is being parked (required)")
   .option("--land <commit>", "Stage an exact planning transition on a partial-protection base")
-  .action((slug: string | undefined, opts: ParkOptions) => handlePark(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: ParkOptions) => handlePark(slug, opts, context),
+  ));
 
 program
   .command("resume [slug]")
@@ -293,7 +347,10 @@ program
     + "`--here` re-attaches in the current worktree.",
   )
   .option("--here", "Re-attach in the current worktree instead of spawning a new one")
-  .action((slug: string | undefined, opts: ResumeOptions) => handleResume(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: ResumeOptions) => handleResume(slug, opts, context),
+  ));
 
 program
   .command("materialize [slug]")
@@ -302,7 +359,10 @@ program
     + "`--here` checks it out in the current worktree.",
   )
   .option("--here", "Check out in the current worktree instead of spawning a new one")
-  .action((slug: string | undefined, opts: MaterializeOptions) => handleMaterialize(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: MaterializeOptions) => handleMaterialize(slug, opts, context),
+  ));
 
 program
   .command("activate [slug]")
@@ -310,38 +370,56 @@ program
   .option("--type <type>", "Working-branch type, e.g. `feat` — composes `<type>/<slug>` (required)")
   .option("--task <task>", "First task to orient on → meta `Next Task` (required)")
   .option("--action <action>", "Next action pointer → meta `Next Action` (required)")
-  .action((slug: string | undefined, opts: ActivateOptions) => handleActivate(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: ActivateOptions) => handleActivate(slug, opts, context),
+  ));
 
 program
   .command("deactivate [slug]")
   .description("Undo a premature activation: Active → Planning (defaults to the current WU)")
-  .action((slug: string | undefined) => handleDeactivate(slug));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined) => handleDeactivate(slug, context),
+  ));
 
 program
   .command("integrate [slug]")
   .description("Open review on an Active work unit: Active → Integrating (defaults to the current WU); marks phase entry, not the merge")
   .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
   .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
-  .action((slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts, context),
+  ));
 
 program
   .command("reopen [slug]")
   .description("Withdraw an Integrating work unit back to Active (defaults to the current WU); closes its open PR")
   .option("--keep-pr", "Convert the PR to a draft instead of closing it")
-  .action((slug: string | undefined, opts: ReopenOptions) => handleReopen(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: ReopenOptions) => handleReopen(slug, opts, context),
+  ));
 
 program
   .command("abandon [slug]")
   .description("Destroy a pre-merge work unit (artifacts, branch, worktree) — prints the impact plan; requires --yes")
   .option("-y, --yes", "Confirm the destructive cascade (required to proceed)")
-  .action((slug: string | undefined, opts: AbandonOptions) => handleAbandon(slug, opts));
+  .action(withInteractionContext(
+    { yes: "authority" },
+    (context, slug: string | undefined, opts: AbandonOptions) => handleAbandon(slug, opts, context),
+  ));
 
 program
   .command("archive [slug]")
   .description("Sweep a shipped work unit to completed/ (defaults to the current WU); computes the dated path")
   .option("--pr-url <url>", "Integration PR URL → meta `PR URL` (absent writes a placeholder + warns)")
   .option("--completed <date>", "Completion date YYYY-MM-DD → meta `Completed` (defaults to today)")
-  .action((slug: string | undefined, opts: ArchiveOptions) => handleArchive(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: ArchiveOptions) => handleArchive(slug, opts, context),
+  ));
 
 program
   .command("teardown [name]")
@@ -352,7 +430,10 @@ program
     "--force",
     "Tear down a retired/parked origin (unmerged branch) using its finalized retirement receipt",
   )
-  .action((name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts));
+  .action(withInteractionContext(
+    {},
+    (context, name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts, context),
+  ));
 
 program
   .command("set-stage <stage>")
@@ -364,7 +445,10 @@ program
     "--advance",
     "Advance to <stage> at a stage boundary: also reset `Next Action` to the `[begin current workflow]` sentinel",
   )
-  .action((stage: string, opts: { advance?: boolean }) => handleSetStage(stage, opts));
+  .action(withInteractionContext(
+    {},
+    (context, stage: string, opts: { advance?: boolean }) => handleSetStage(stage, opts, context),
+  ));
 
 program
   .command("finalize <fire-point>")
@@ -373,7 +457,10 @@ program
     + "at its fire-point: create-spec | generate-tasks | verify",
   )
   .option("--class <value>", "Resolved Class to persist (Light | Heavy | Novel) — required at create-spec / generate-tasks")
-  .action((firePoint: string, opts: { class?: string }) => handleFinalizeStage(firePoint, opts));
+  .action(withInteractionContext(
+    {},
+    (context, firePoint: string, opts: { class?: string }) => handleFinalizeStage(firePoint, opts, context),
+  ));
 
 program
   .command("repoint-design <event>")
@@ -381,7 +468,10 @@ program
     "Advance the current work unit's design pointer (meta `Design`) at a planning event: "
     + "draft-created | spec-finalized",
   )
-  .action((event: string) => handleRepointDesign(event));
+  .action(withInteractionContext(
+    {},
+    (context, event: string) => handleRepointDesign(event, context),
+  ));
 
 const errand = program
   .command("errand")
@@ -394,7 +484,10 @@ errand
   .option("--local", "Skip the oracle's network read; check local refs only (alias: --no-fetch)")
   .option("--no-fetch", "Skip the oracle's network read; check local refs only")
   .option("--json", "Emit overlap facts as JSON (for skill consumption)")
-  .action((opts: ErrandCheckOptions) => handleErrandCheck(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: ErrandCheckOptions) => handleErrandCheck(opts, context),
+  ));
 
 errand
   .command("open <slug>")
@@ -404,7 +497,10 @@ errand
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .option("--json", "Emit the producer-validated mutation result")
-  .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts, context),
+  ));
 
 errand
   .command("link <slug>")
@@ -413,33 +509,48 @@ errand
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .option("--json", "Emit the producer-validated mutation result")
-  .action((slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts, context),
+  ));
 
 errand
   .command("materialize <slug>")
   .description("Materialize an exact remote-only Errand generation in an ARC-owned checkout")
   .option("--json", "Emit the producer-validated mutation result")
-  .action((slug: string, opts: ErrandMaterializeOptions) => handleErrandMaterialize(slug, opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandMaterializeOptions) => handleErrandMaterialize(slug, opts, context),
+  ));
 
 errand
   .command("leave <slug>")
   .description("Preserve an Errand tail and close its local occupancy")
   .requiredOption("--state <state>", "Tail state: paused | awaiting-merge")
   .option("--json", "Emit the producer-validated mutation result")
-  .action((slug: string, opts: ErrandLeaveOptions) => handleErrandLeave(slug, opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandLeaveOptions) => handleErrandLeave(slug, opts, context),
+  ));
 
 errand
   .command("close <slug>")
   .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
   .option("--force", "Legacy-only override for an intentionally discarded close-only generation")
   .option("--json", "Emit the producer-validated mutation result")
-  .action((slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts, context),
+  ));
 
 errand
   .command("abandon <slug>")
   .description("Abandon a safely preserved Errand and retain its inbox capture")
   .option("--json", "Emit the producer-validated mutation result")
-  .action((slug: string, opts: ErrandAbandonOptions) => handleErrandAbandon(slug, opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandAbandonOptions) => handleErrandAbandon(slug, opts, context),
+  ));
 
 errand
   .command("promote <slug>")
@@ -450,7 +561,10 @@ errand
   .option("--priority <priority>", "WU priority for the minted meta")
   .option("--class <class>", "WU Class for the minted meta")
   .option("--json", "Emit the producer-validated mutation result")
-  .action((slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts, context),
+  ));
 
 const housekeep = program
   .command("housekeep")
@@ -463,7 +577,10 @@ housekeep
   .command("check")
   .description("Classify the write context — base-branch (proceed), WU branch (relocate), or degenerate (refuse)")
   .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
-  .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: HousekeepCheckOptions) => handleHousekeepCheck(opts, context),
+  ));
 
 housekeep
   .command("mark-execute <titles...>")
@@ -497,13 +614,19 @@ baseCmd
   .command("drift")
   .description("Analyze current branch drift from a freshly fetched integration base")
   .option("--json", "Emit the typed base-drift analysis as JSON")
-  .action((opts: BaseDriftOptions) => handleBaseDrift(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: BaseDriftOptions) => handleBaseDrift(opts, context),
+  ));
 
 baseCmd
   .command("sync")
   .description("Safely fast-forward the local base from any worktree")
   .option("--json", "Emit the typed synchronization outcome as JSON")
-  .action((opts: BaseSyncOptions) => handleBaseSync(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: BaseSyncOptions) => handleBaseSync(opts, context),
+  ));
 
 const plan = program
   .command("plan")
@@ -536,7 +659,10 @@ plan
   .description("Classify the planning-entry route — committable (proceed) or not (redirect to start / stub / errand)")
   .option("--name <slug>", "The design's WU-name slug — gates the draft-presence check")
   .option("--json", "Emit the planning-entry route as JSON (for skill consumption)")
-  .action((opts: PlanCheckOptions) => handlePlanCheck(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: PlanCheckOptions) => handlePlanCheck(opts, context),
+  ));
 
 // --- Lifecycle ---
 
@@ -544,7 +670,10 @@ program
   .command("update")
   .description("Update ARC framework files to the latest version")
   .option("-q, --quiet", "Suppress changelog output")
-  .action(handleUpdate);
+  .action(withInteractionContext(
+    {},
+    (context, opts: { quiet?: boolean }) => handleUpdate(opts, context),
+  ));
 
 program
   .command("health")
@@ -567,12 +696,18 @@ const userCmd = program
 userCmd
   .command("add <identity>")
   .description("Create a user directory for a team member")
-  .action(handleUserAdd);
+  .action(withInteractionContext(
+    {},
+    (context, identity: string) => handleUserAdd(identity, context),
+  ));
 
 userCmd
   .command("open <wu-name>")
   .description("Open per-WU user workspace subdir (seeds SESSION-NOTES.md from template)")
-  .action(handleUserOpen);
+  .action(withInteractionContext(
+    {},
+    (context, wuName: string) => handleUserOpen(wuName, context),
+  ));
 
 userCmd
   .command("close <wu-name>")
@@ -584,7 +719,10 @@ userCmd
   .description("Drop the title-matched USER-INBOX entry (idempotent — no-op when absent)")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
-  .action((slug: string | undefined, opts: UserInboxRemoveOptions) => handleUserInboxRemove(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: UserInboxRemoveOptions) => handleUserInboxRemove(slug, opts, context),
+  ));
 
 userCmd
   .command("save")
@@ -595,32 +733,47 @@ userCmd
   .command("load")
   .description("Restore user directory from user notes")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
-  .action(handleUserLoad);
+  .action(withInteractionContext(
+    { yes: "compatibility" },
+    (context, opts: UserLoadOptions) => handleUserLoad(opts, context),
+  ));
 
 userCmd
   .command("push")
   .description("Push user notes to remote")
   .option("--force", "Force-push even when remote and local notes conflict")
-  .action(handleUserPush);
+  .action(withInteractionContext(
+    {},
+    (context, opts: UserPushOptions) => handleUserPush(opts, context),
+  ));
 
 userCmd
   .command("fetch")
   .description("Fetch user notes from remote")
   .option("--identity <name>", "Pull another developer's notes instead of your own")
-  .action(handleUserFetch);
+  .action(withInteractionContext(
+    {},
+    (context, opts: UserFetchOptions) => handleUserFetch(opts, context),
+  ));
 
 userCmd
   .command("pull")
   .description("Fetch user notes from remote and restore them to disk")
   .option("--identity <name>", "Pull another developer's notes instead of your own")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
-  .action(handleUserPull);
+  .action(withInteractionContext(
+    { yes: "authority" },
+    (context, opts: UserPullOptions) => handleUserPull(opts, context),
+  ));
 
 userCmd
   .command("compact")
   .description("Compact user notes history to a retained snapshot baseline")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleUserCompact);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: UserCompactHandlerOptions) => handleUserCompact(opts, context),
+  ));
 
 userCmd
   .command("status")
@@ -630,13 +783,19 @@ userCmd
   .option("--session-init", "Render a non-destructive remote probe summary for session-init")
   .option("--verbose", "Render the full ref/disk/working-files three-tier detail block (default: collapsed)")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleUserStatus);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
+    (context, opts: UserStatusOptions) => handleUserStatus(opts, context),
+  ));
 
 userCmd
   .command("sync")
   .description("Direction-aware notes-only sync — push, pull, or prompt on conflict")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
-  .action(handleUserSync);
+  .action(withInteractionContext(
+    { yes: "authority" },
+    (context, opts: UserSyncOptions) => handleUserSync(opts, context),
+  ));
 
 // --- Extensions ---
 
@@ -650,7 +809,10 @@ extensionsCmd
   .option("--session-init", "Emit the active-extensions list consumed by session-init")
   .option("--all", "Include the full orphan-reference detail list")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleExtensionsStatus);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
+    (_context, opts: ExtensionsStatusCliOptions) => handleExtensionsStatus(opts),
+  ));
 
 // --- Config ---
 
@@ -663,7 +825,10 @@ configCmd
   .description("Show arc-config.yml settings (agent-consumable; hooks.* excluded)")
   .option("--session-init", "Emit the init-gating subset consumed by session-init")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleConfigStatus);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
+    (_context, opts: ConfigStatusCliOptions) => handleConfigStatus(opts),
+  ));
 
 // --- Active ---
 
@@ -676,13 +841,19 @@ activeCmd
   .description("Enumerate in-flight work units and their status-file fields")
   .option("--session-init", "Emit resolved path / null / candidate list for session-init")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleActiveStatus);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
+    (context, opts: ActiveStatusCliOptions) => handleActiveStatus(opts, context),
+  ));
 
 activeCmd
   .command("roster")
   .description("Emit the cross-worktree in-flight work-unit roster (concurrency-advisory data input)")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleActiveRoster);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: ActiveRosterCliOptions) => handleActiveRoster(opts, context),
+  ));
 
 activeCmd
   .command("in-flight")
@@ -690,7 +861,10 @@ activeCmd
   .option("--local", "Skip the network read; derive from local refs (alias: --no-fetch)")
   .option("--no-fetch", "Skip the network read; derive from local refs")
   .option("--json", "Emit the typed result as JSON")
-  .action(handleActiveInFlight);
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: ActiveInFlightCliOptions) => handleActiveInFlight(opts, context),
+  ));
 
 // --- View ---
 
@@ -704,7 +878,10 @@ program
   .option("--project", "With inbox: render the shared project inbox")
   .option("--current", "With tasks: render only the current task region")
   .option("--for <slug>", "Override ambient context with the named work-unit slug")
-  .action((kind: string | undefined, opts: ViewCliOptions) => handleView(kind, opts));
+  .action(withInteractionContext(
+    {},
+    (context, kind: string | undefined, opts: ViewCliOptions) => handleView(kind, opts, context),
+  ));
 
 // --- Status (composite) ---
 
@@ -756,7 +933,15 @@ program
     ).conflicts(["recover", "session-handoff", "user", "project"]),
   )
   .option("--json", "Emit the typed result as JSON")
-  .action(handleStatus);
+  .action(withInteractionContext(
+    {
+      machineReadable: (opts) => opts.json === true
+        || opts.sessionInit === true
+        || opts.sessionHandoff === true
+        || opts.recover === true,
+    },
+    (context, slug: string | undefined, opts: StatusCliOptions) => handleStatus(slug, opts, context),
+  ));
 
 // --- Locus ---
 
@@ -777,7 +962,7 @@ locusCmd
   }));
 
 locusCmd
-  .command("release <recordId>")
+  .command("release <record-id>")
   .description("Release one exact caller-named lease generation")
   .requiredOption("--lease <id>", "Exact lease generation to release")
   .option("--json", "Emit one typed session locus mutation result")
@@ -787,7 +972,7 @@ locusCmd
   }));
 
 locusCmd
-  .command("resolve <recordId>")
+  .command("resolve <record-id>")
   .description("Resume or abandon one exact conclusively dead transient generation")
   .requiredOption("--action <action>", "Resolution action: resume | abandon")
   .option("--json", "Emit one typed session locus mutation result")
@@ -806,7 +991,10 @@ recoverCmd
   .command("audit")
   .description("Audit the latest compaction seed against fresh recovery state")
   .option("--json", "Emit the typed result as JSON")
-  .action((opts: RecoverAuditOptions) => handleRecoverAudit(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: RecoverAuditOptions) => handleRecoverAudit(opts, context),
+  ));
 
 // --- Sync (orchestrator) ---
 
@@ -826,7 +1014,10 @@ program
   // Call explicitly with only the parsed options — Commander otherwise passes
   // the Command instance as a second arg, which would collide with the
   // injectable `output` parameter.
-  .action((opts: SyncOptions) => handleSync(opts));
+  .action(withInteractionContext(
+    { yes: "authority", machineReadable: (opts) => opts.json === true },
+    (context, opts: SyncOptions) => handleSync(opts, undefined, context),
+  ));
 
 // --- Release ---
 
@@ -843,9 +1034,10 @@ releaseCmd
   )
   .allowUnknownOption(true)
   .argument("[args...]", "Arguments forwarded to `git commit`")
-  .action(async (args: string[]) => {
-    await handleReleaseCommit({ args });
-  });
+  .action(withInteractionContext(
+    {},
+    (context, args: string[]) => handleReleaseCommit({ args }, context),
+  ));
 
 releaseCmd
   .command("push")
@@ -854,9 +1046,10 @@ releaseCmd
   )
   .allowUnknownOption(true)
   .argument("[args...]", "Arguments forwarded to `git push`")
-  .action(async (args: string[]) => {
-    await handleReleasePush({ args });
-  });
+  .action(withInteractionContext(
+    {},
+    (context, args: string[]) => handleReleasePush({ args }, context),
+  ));
 
 releaseCmd
   .command("opt-in")
@@ -880,9 +1073,10 @@ releaseCmd
   .command("status")
   .description("Show resolved release-mode opt-in and interlock state")
   .option("--json", "Emit a schemaVersion 2 JSON envelope")
-  .action(async (opts: { json?: boolean }) => {
-    await handleReleaseStatus({ json: opts.json });
-  });
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: { json?: boolean }) => handleReleaseStatus({ json: opts.json }, context),
+  ));
 
 const setupCmd = releaseCmd
   .command("setup")
@@ -896,10 +1090,17 @@ setupCmd
     new Option("--mode <mode>", "Harness mode")
       .choices(["default-prompt", "bypass"]),
   )
+  .addOption(
+    new Option("--idempotency-action <action>", "Existing-install action")
+      .choices(["exit", "re-verify", "update-markers", "add-harness"]),
+  )
+  .option("-y, --yes", "Acknowledge the release-wrapper trust shift")
+  .option("--workflow-verified", "Attest that the harness setup workflow was verified")
   .option("--json", "Emit a schemaVersion 1 JSON envelope")
-  .action(async (opts: { harness?: string; mode?: string; json?: boolean }) => {
-    await handleReleaseSetupInstall(opts);
-  });
+  .action(withInteractionContext(
+    { yes: "authority", machineReadable: (opts) => opts.json === true },
+    (context, opts: ReleaseSetupInstallOptions) => handleReleaseSetupInstall(opts, context),
+  ));
 
 setupCmd
   .command("print-patterns")
@@ -910,7 +1111,7 @@ setupCmd
       .choices(["harness", "raw"])
       .default("harness"),
   )
-  .action((opts: { harness?: string; format?: string }) => {
+  .action((opts: ReleaseSetupPrintPatternsOptions) => {
     handleReleaseSetupPrintPatterns(opts);
   });
 
@@ -918,18 +1119,21 @@ setupCmd
   .command("uninstall")
   .description("Remove release-wrapper harness integration")
   .option("--harness <name>", "Harness name for single-harness uninstall flow")
+  .option("--cleanup-verified", "Attest that canonical harness entries were removed")
   .option("--json", "Emit a schemaVersion 1 JSON envelope")
-  .action(async (opts: { harness?: string; json?: boolean }) => {
-    await handleReleaseSetupUninstall(opts);
-  });
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: ReleaseSetupUninstallOptions) => handleReleaseSetupUninstall(opts, context),
+  ));
 
 setupCmd
   .command("verify")
   .description("Report recorded release-wrapper setup posture")
   .option("--harness <name>", "Filter verification report to a harness")
-  .action(async (opts: { harness?: string }) => {
-    await handleReleaseSetupVerify(opts);
-  });
+  .action(withInteractionContext(
+    {},
+    async (context, opts: ReleaseSetupVerifyOptions) => handleReleaseSetupVerify(opts, context),
+  ));
 
 // --- Log ---
 
@@ -972,7 +1176,19 @@ frontlineCmd
   .description("Execute one exact-target frontline review as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewFrontlineRun(input));
+  .action(withInteractionContext(
+    { machineReadable: true },
+    (context, input: string) => handleReviewFrontlineRun(input, {}, context),
+  ));
+
+reviewCmd
+  .command("chunking")
+  .description("Exact-target review chunking operations")
+  .command("resolve")
+  .description("Resolve one immutable target's chunking recommendation as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewChunkingResolve(input));
 
 const localReviewCmd = reviewCmd
   .command("local")

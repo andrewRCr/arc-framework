@@ -1,13 +1,21 @@
 /** Machine-readable review workflow handlers. */
 
 import { readFile } from "node:fs/promises";
-import { ZodError, type ZodType } from "zod";
+import { z, ZodError, type ZodType } from "zod";
 
-import { gitExec } from "../lib/io-context.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../lib/command-input/interaction-context.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import { createGitExec, createRawGitExec, gitExec } from "../lib/io-context.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
+  ReviewChunkingResolveEnvelopeSchema,
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
   LocalResumeEnvelopeSchema,
@@ -16,6 +24,7 @@ import {
   ReviewCommandErrorEnvelopeSchema,
   type ReviewCommandMode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
+import { ReviewChunkingResolveRequestSchema } from "../scripts/review-gate/core/review-chunking-command-schema.js";
 import { createLocalFrontlineSourcePreferenceReader } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
 import {
   LocalTargetDerivationError,
@@ -26,6 +35,7 @@ import {
   resolveFrontlineCommand,
 } from "../scripts/review-gate/policy/frontline-command.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
+import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
@@ -57,6 +67,79 @@ import {
   ReduceRequestSchema,
   reduceReviewCommand,
 } from "../scripts/review-gate/runtime/reduce-command.js";
+
+/**
+ * Build the request-source operand schema owned by one review command.
+ *
+ * Each command registers its own instance: the registry keys schemas by identity,
+ * so a shared instance would collide across the family's seven canonical paths.
+ *
+ * @returns One review command's request-source operand schema
+ */
+function reviewCommandInputSchema(): z.ZodType<{ input: string }> {
+  return z.object({
+    input: z.string().trim().min(1, "A JSON request file path, or - for stdin, is required."),
+  }).strict();
+}
+
+/** Request-source operand schema shared by the review handlers' own validation. */
+export const ReviewCommandInputSchema = reviewCommandInputSchema();
+
+/** Canonical paths of the review commands sharing the request-source operand. */
+const REVIEW_COMMAND_PATHS = [
+  "review chunking resolve",
+  "review frontline resolve",
+  "review frontline run",
+  "review local prepare",
+  "review local attest",
+  "review local resume",
+  "review respond",
+  "review reduce",
+] as const;
+
+/** Registry contributions owned by the review command adapters. */
+export const reviewCommandInputRegistrations = REVIEW_COMMAND_PATHS.map((commandPath) => ({
+  commandPath,
+  schema: reviewCommandInputSchema(),
+  schemaFields: { "operand.input": "input" },
+})) satisfies readonly CommandInputRegistration[];
+
+/** Input and interaction policies owned by the review command adapters. */
+export const reviewCommandInputPolicyDeclarations = [
+  {
+    commandPath: "review", aliases: [], sites: [declareInteractionSite(
+      { file: "handlers/review.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
+      {
+        acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
+        mutationBoundary: "review request read", subprocess: "explicit-stdin",
+      },
+    )],
+  },
+  {
+    commandPath: "review chunking resolve", aliases: [], sites: [declareInteractionSite(
+      { file: "lib/change-facts.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
+      {
+        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "review target diff read", subprocess: "close-stdin",
+      },
+    )],
+  },
+  {
+    commandPath: "review frontline run", aliases: [], sites: [
+      "scripts/review-gate/providers/coderabbit/executable.ts",
+      "scripts/review-gate/providers/coderabbit/process.ts",
+    ].map((file) => declareInteractionSite(
+      { file, kind: "subprocess", callee: "execa", occurrence: 1 },
+      {
+        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "frontline provider subprocess boundary", subprocess: "close-stdin",
+      },
+    )),
+  },
+] satisfies readonly CommandInputDeclaration[];
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -109,6 +192,12 @@ async function executeReviewHandler(input: {
   dependencies: ReviewHandlerBoundary;
   execute(request: unknown, root: string): Promise<unknown>;
 }): Promise<void> {
+  const operand = ReviewCommandInputSchema.safeParse({ input: input.source });
+  if (!operand.success) {
+    emitReviewCommandError(input.mode, operand.error, "request", input.dependencies);
+    return;
+  }
+
   let root: string;
   try {
     const resolved = input.dependencies.resolveRoot(process.cwd());
@@ -121,7 +210,7 @@ async function executeReviewHandler(input: {
 
   let request: unknown;
   try {
-    request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(input.source)));
+    request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(operand.data.input)));
   } catch (error) {
     emitReviewCommandError(input.mode, error, "request", input.dependencies);
     return;
@@ -194,6 +283,51 @@ export async function handleReviewFrontlineResolve(
   });
 }
 
+export interface ReviewChunkingResolveHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  resolve(request: unknown, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultReviewChunkingResolveDependencies(): ReviewChunkingResolveHandlerDependencies {
+  return {
+    resolveRoot: resolveArcRoot,
+    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    resolve: (request, root) => resolveReviewChunkingCommand(request, {
+      readSettings: () => readConfigSettings(root),
+      exec: createRawGitExec(root),
+    }),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
+/**
+ * Resolve one exact target's review-chunking recommendation as JSON.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleReviewChunkingResolve(
+  source: string,
+  overrides: Partial<ReviewChunkingResolveHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultReviewChunkingResolveDependencies(), ...overrides };
+  await executeReviewHandler({
+    mode: "review-chunking-resolve",
+    source,
+    requestSchema: ReviewChunkingResolveRequestSchema,
+    resultSchema: ReviewChunkingResolveEnvelopeSchema,
+    dependencies,
+    execute: dependencies.resolve,
+  });
+}
+
 export interface ReviewFrontlineRunHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
@@ -202,13 +336,14 @@ export interface ReviewFrontlineRunHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultFrontlineRunDependencies(): ReviewFrontlineRunHandlerDependencies {
+function defaultFrontlineRunDependencies(context: InteractionContext): ReviewFrontlineRunHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     resolveRoot: resolveArcRoot,
     readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
     run: (request, root) => runFrontlineReviewCommand(
       request,
-      createFrontlineRunDependencies({ exec: gitExec, cwd: root }),
+      createFrontlineRunDependencies({ exec, cwd: root, interaction: context.subprocess }),
     ),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => {
@@ -222,13 +357,20 @@ function defaultFrontlineRunDependencies(): ReviewFrontlineRunHandlerDependencie
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
  * @returns Resolves after stdout and exit status are assigned.
  */
 export async function handleReviewFrontlineRun(
   source: string,
   overrides: Partial<ReviewFrontlineRunHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultFrontlineRunDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultFrontlineRunDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-frontline-run",
     source,

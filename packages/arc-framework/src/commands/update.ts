@@ -97,7 +97,7 @@ export interface UpdateResult {
   pristineStoreError: PristineStoreError;
 }
 
-interface UserSyncPushMigrationResult {
+interface ConfigMigrationResult {
   content: string;
   changed: boolean;
   warnings: string[];
@@ -135,7 +135,7 @@ function translateLegacyNotesPushValue(value: string): string {
   return value === "always" ? "on-sync" : value;
 }
 
-function migrateUserSyncPush(yamlContent: string): UserSyncPushMigrationResult {
+function migrateUserSyncPush(yamlContent: string): ConfigMigrationResult {
   const legacyKey = "user.sync_push";
   const newKey = "user.notes_push";
 
@@ -210,6 +210,40 @@ function migrateUserSyncPush(yamlContent: string): UserSyncPushMigrationResult {
 
   const content = migratedLines.join("\n");
   return { content, changed: changed || content !== yamlContent, warnings };
+}
+
+function migrateReviewChunkingThresholds(yamlContent: string): ConfigMigrationResult {
+  const linesKey = "review.chunking_threshold_lines";
+  const filesKey = "review.chunking_threshold_files";
+  const lines = yamlContent.split("\n");
+  const keys = new Set(lines.map((line) => parseConfigLine(line)?.key).filter(Boolean));
+  if (keys.has(linesKey) && keys.has(filesKey)) {
+    return { content: yamlContent, changed: false, warnings: [] };
+  }
+
+  const insertAfter = lines.findIndex(
+    (line) => parseConfigLine(line)?.key === "review.frontline_sources",
+  );
+  const additions = keys.has(linesKey) || keys.has(filesKey)
+    ? [
+      ...(keys.has(linesKey) ? [] : [`${linesKey}: 0`]),
+      ...(keys.has(filesKey) ? [] : [`${filesKey}: 0`]),
+    ]
+    : [
+      "",
+      "# Exact-target attention tripwires for considering contract-cohesive review chunks.",
+      "# These are not chunk-size caps or review-provider limits. Either dimension can be",
+      "# enabled independently; 0 disables that dimension (both 0 preserves whole-target review).",
+      `${linesKey}: 0`,
+      `${filesKey}: 0`,
+    ];
+  const insertAt = insertAfter >= 0
+    ? insertAfter + 1
+    : lines.at(-1) === ""
+      ? lines.length - 1
+      : lines.length;
+  lines.splice(insertAt, 0, ...additions);
+  return { content: lines.join("\n"), changed: true, warnings: [] };
 }
 
 // --- Temp file merge wrapper ---
@@ -328,6 +362,21 @@ export async function runUpdate(
     }
   }
 
+  let templateHasReviewChunkingThresholds = false;
+  try {
+    const templateConfig = await io.readFile(join(templateDir, ARC_CONFIG_TEMPLATE_PATH));
+    templateHasReviewChunkingThresholds = templateConfig.includes("review.chunking_threshold_lines:")
+      && templateConfig.includes("review.chunking_threshold_files:");
+  } catch {
+    // The change plan owns missing-template diagnostics.
+  }
+  if (templateHasReviewChunkingThresholds) {
+    const pristineConfig = pristineStore[ARC_CONFIG_TEMPLATE_PATH];
+    if (pristineConfig !== undefined) {
+      pristineStore[ARC_CONFIG_TEMPLATE_PATH] = migrateReviewChunkingThresholds(pristineConfig).content;
+    }
+  }
+
   // Build change plan (pure computation)
   const plan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
 
@@ -346,11 +395,14 @@ export async function runUpdate(
         const content = await io.readFile(path);
         if (path !== arcConfigPath) return content;
 
-        const migration = migrateUserSyncPush(content);
-        if (migration.changed) {
+        const notesPushMigration = migrateUserSyncPush(content);
+        const migration = templateHasReviewChunkingThresholds
+          ? migrateReviewChunkingThresholds(notesPushMigration.content)
+          : { content: notesPushMigration.content, changed: false, warnings: [] };
+        if (notesPushMigration.changed || migration.changed) {
           migrated.add(ARC_CONFIG_TEMPLATE_PATH);
         }
-        migrationWarnings.push(...migration.warnings);
+        migrationWarnings.push(...notesPushMigration.warnings, ...migration.warnings);
         return migration.content;
       },
       writeFile: io.writeFile,

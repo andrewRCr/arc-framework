@@ -275,6 +275,7 @@ describe("resolveFileList — actual recipe", () => {
     expect(files).toContain("system/methods/assess-draft-readiness.md");
     expect(files).toContain("system/methods/adversarial-review.md");
     expect(files).toContain("system/methods/design-audit.md");
+    expect(files).toContain("system/methods/review-chunking.md");
     expect(files).toContain("system/methods/resolve-planning-depth.md");
     expect(files).toContain("system/methods/spec-review.md");
     expect(files).toContain("system/methods/task-audit.md");
@@ -301,6 +302,7 @@ describe("classifyFile", () => {
     expect(classifyFile("system/methods/classify-work-unit.md")).toBe("Configurable");
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
     expect(classifyFile("system/methods/design-audit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/review-chunking.md")).toBe("Configurable");
     expect(classifyFile("system/methods/resolve-planning-depth.md")).toBe("Configurable");
     expect(classifyFile("system/methods/spec-review.md")).toBe("Configurable");
     expect(classifyFile("system/methods/task-audit.md")).toBe("Configurable");

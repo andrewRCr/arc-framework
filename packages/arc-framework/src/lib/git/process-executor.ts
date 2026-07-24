@@ -52,9 +52,19 @@ export function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv
 export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
   return async (command, args, options) => {
     const environment = environmentForGitCwd(options?.cwd);
-    const env = options?.indexFile === undefined
+    const indexedEnvironment = options?.indexFile === undefined
       ? environment
       : { ...(environment ?? process.env), GIT_INDEX_FILE: options.indexFile };
+    const forbidden = options?.interaction?.terminalPrompts === "forbidden";
+    const env = forbidden
+      ? {
+          ...(indexedEnvironment ?? process.env),
+          GIT_TERMINAL_PROMPT: "0",
+          GIT_EDITOR: "true",
+          GIT_PAGER: "cat",
+          PAGER: "cat",
+        }
+      : indexedEnvironment;
     try {
       const result = await execa(command, args, {
         cwd: options?.cwd,
@@ -63,6 +73,7 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
         cancelSignal: options?.signal,
         maxBuffer,
         stripFinalNewline: false,
+        ...(options?.interaction?.ambientStdin === "closed" ? { stdin: "ignore" as const } : {}),
       });
       return { stdout: result.stdout.trimEnd(), stderr: result.stderr };
     } catch (error) {
