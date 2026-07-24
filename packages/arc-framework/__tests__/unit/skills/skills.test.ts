@@ -44,6 +44,7 @@ function buildCanonicalFiles(
   const descriptions: Record<CanonicalSkillName, string> = {
     "arc-session": "Initialize and resume the active working ARC session.",
     "arc-commit": "Commit current repository changes with atomic boundaries.",
+    "arc-design-audit": "Re-validate a finished design for efficacy, fit, and material proportionality.",
     "arc-errand": "Run an isolated ARC errand.",
     "arc-handoff": "Update and finalize current ARC session documentation.",
     "arc-housekeep": "Drain and route captured ARC inbox entries.",
@@ -108,6 +109,11 @@ describe("generateSkills", () => {
       // Content matches canonical source
       expect(output!.content).toBe(files[`${SKILLS_DIR}/${name}/SKILL.md`]);
     }
+
+    const designAudit = result.outputs.find(
+      (output) => output.path === ".agents/skills/arc-design-audit/SKILL.md",
+    );
+    expect(designAudit?.content).toContain("material proportionality");
 
     expect(result.warnings).toHaveLength(0);
   });

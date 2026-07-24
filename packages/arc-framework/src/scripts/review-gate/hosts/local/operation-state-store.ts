@@ -5,14 +5,11 @@ import { z } from "zod";
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
 import {
   ReviewOperationStateSchema,
-  ReviewSuspensionStateSchema,
   type ReviewOperationState,
-  type ReviewSuspensionState,
 } from "../../core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "../../core/ports.js";
 import type { GitCommonStatePublisher } from "./git-common-state.js";
 
-const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const OPERATION_STORE_SEMANTICS = "review-operation-store/v1" as const;
 
@@ -24,26 +21,6 @@ const ReviewOperationStoreRecordSchema = z.strictObject({
   state: ReviewOperationStateSchema,
 });
 type ReviewOperationStoreRecord = z.infer<typeof ReviewOperationStoreRecordSchema>;
-
-const CanonicalReviewSuspensionFactsSchema = z.strictObject({
-  operationId: IdentifierSchema,
-  observedAt: z.iso.datetime({ offset: true }),
-  vehicle: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("work-unit"), identity: IdentifierSchema }),
-    z.strictObject({ kind: z.literal("errand"), identity: IdentifierSchema }),
-  ]),
-  repositoryId: IdentifierSchema,
-  changeRequestId: IdentifierSchema.nullable(),
-  targetId: CanonicalDigestSchema,
-  requestId: CanonicalDigestSchema,
-  sourceIdentity: IdentifierSchema,
-  generation: z.number().int().nonnegative(),
-  policyVersion: CanonicalDigestSchema,
-  rubricVersion: IdentifierSchema,
-  rubricDigest: CanonicalDigestSchema,
-  deadlineAt: z.iso.datetime({ offset: true }),
-  wakeupToken: CanonicalDigestSchema,
-});
 
 /** Stable local-store failure that callers can branch on without parsing prose. */
 export class LocalOperationStateStoreError extends Error {
@@ -71,30 +48,6 @@ function parseRecord(raw: string, operationId: string): ReviewOperationStoreReco
     throw new LocalOperationStateStoreError("operation-id-mismatch");
   }
   return parsed.data;
-}
-
-/** Rebuild a suspension only from strict vehicle and host facts observed on the current machine. */
-export function reconstructReviewSuspensionState(input: unknown): ReviewSuspensionState {
-  const facts = CanonicalReviewSuspensionFactsSchema.parse(input);
-  return ReviewSuspensionStateSchema.parse({
-    schemaVersion: 1,
-    semanticsVersion: "review-operation/v1",
-    kind: "review-suspension",
-    operationId: facts.operationId,
-    updatedAt: facts.observedAt,
-    vehicle: facts.vehicle,
-    repositoryId: facts.repositoryId,
-    changeRequestId: facts.changeRequestId,
-    targetId: facts.targetId,
-    requestId: facts.requestId,
-    sourceIdentity: facts.sourceIdentity,
-    generation: facts.generation,
-    policyVersion: facts.policyVersion,
-    rubricVersion: facts.rubricVersion,
-    rubricDigest: facts.rubricDigest,
-    deadlineAt: facts.deadlineAt,
-    wakeupToken: facts.wakeupToken,
-  });
 }
 
 /** Version-checked operation store backed by the repository's non-evidentiary Git-common namespace. */

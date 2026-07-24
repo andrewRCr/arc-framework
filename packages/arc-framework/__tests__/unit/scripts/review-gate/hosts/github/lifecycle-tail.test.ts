@@ -49,7 +49,7 @@ function resolution(): LifecycleTailProofResolutionInput {
     baseRef: "main",
     diffBaseSha: DIFF_BASE,
     policyVersion: POLICY,
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     sourceIdentity: "agent-1",
   };
   return {
@@ -93,7 +93,7 @@ function forwardResolution(): ForwardLifecycleTailProofResolutionInput {
     target: priorTarget,
     surface,
     policyVersion: `sha256:${POLICY}` as const,
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     rubricDigest: `sha256:${"4".repeat(64)}` as const,
     sourceIdentity: "agent-1",
   };

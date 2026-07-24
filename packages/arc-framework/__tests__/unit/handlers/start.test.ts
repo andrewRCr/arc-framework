@@ -18,6 +18,8 @@ const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const mockNote = vi.fn();
 const mockConfirm = vi.fn();
 const mockIsCancel = vi.fn(() => false) as Mock<(val: unknown) => boolean>;
+const mockSpinnerStart = vi.fn();
+const mockSpinnerStop = vi.fn();
 
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
@@ -26,6 +28,10 @@ vi.mock("@clack/prompts", () => ({
   note: (...args: unknown[]) => mockNote(...args),
   confirm: (opts: unknown) => mockConfirm(opts),
   isCancel: (val: unknown) => mockIsCancel(val),
+  spinner: () => ({
+    start: (...args: unknown[]) => mockSpinnerStart(...args),
+    stop: (...args: unknown[]) => mockSpinnerStop(...args),
+  }),
 }));
 
 const mockResolveStartDispatch = vi.fn();
@@ -198,7 +204,23 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockResolveStartDispatch).toHaveBeenCalledWith(expect.any(Map), "widget", { create: true });
     expect(mockRunCreateNew.mock.calls[0]?.[1]).toMatchObject({ baseRef: "base123" });
     expect((mockNote.mock.calls[0]?.[0] as string)).toContain("plan/widget");
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Spawning worktree...");
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Worktree ready.");
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Refreshing ROADMAP...");
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Committing and pushing start ceremony...");
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("stops the spawn spinner with a failure label when create-new is refused", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockRunCreateNew.mockResolvedValue({ ok: false, reason: "spawn refused" });
+
+    await handleStart("widget", { new: true });
+
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Spawning worktree...");
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Spawn failed.");
+    expect(mockLog.error).toHaveBeenCalledWith("spawn refused");
+    expect(process.exitCode).toBe(1);
   });
 
   it.each([

@@ -52,7 +52,11 @@ function receiptFor(
     source,
     transitionPatchDigest: digest("patch"),
     retiringProjection: { kind: transition === "decompose" ? "unchanged" : "direct-transition" },
-    authorization: transition === "park-planning" ? "planning-relocated" : "discard-confirmed",
+    authorization: transition === "rename"
+      ? "identity-renamed"
+      : transition === "park-planning"
+        ? "planning-relocated"
+        : "discard-confirmed",
     result,
   };
 }
@@ -66,6 +70,12 @@ function candidate(receipt: RetirementReceipt): Record<string, unknown> {
 }
 
 describe("parseRetirementReceipt", () => {
+  const renameReceipt = (): RetirementReceipt => receiptFor(
+    { kind: "work-unit", name: "sample" },
+    "rename",
+    { kind: "rename", targetSlug: "renamed-sample", artifactDigest: digest("renamed") },
+  );
+
   it("accepts canonical receipts for every closed subject and result arm", () => {
     const receipts = [
       receiptFor({ kind: "work-unit", name: "sample" }),
@@ -200,6 +210,42 @@ describe("parseRetirementReceipt", () => {
     const invalid = candidate(receiptFor());
     invalid.receiptId = digest("not-the-derived-id");
     expect(parseRetirementReceipt(canonicalize(invalid))).toBeNull();
+  });
+
+  it("decodes a canonical rename receipt to its fully narrowed value", () => {
+    const rename = renameReceipt();
+
+    expect(parseRetirementReceipt(contentOf(rename))).toEqual(rename);
+  });
+
+  it.each([
+    ["extra key", { kind: "rename", targetSlug: "renamed-sample", artifactDigest: digest("renamed"), extra: true }],
+    ["missing key", { kind: "rename", targetSlug: "renamed-sample" }],
+    ["malformed slug", { kind: "rename", targetSlug: "../renamed", artifactDigest: digest("renamed") }],
+  ])("rejects a rename result with an %s", (_label, result) => {
+    const invalid = candidate(renameReceipt());
+    invalid.result = result;
+
+    expect(parseRetirementReceipt(canonicalize(invalid))).toBeNull();
+  });
+
+  it("rejects rename cross-field and projection mismatches", () => {
+    const unchanged = candidate(renameReceipt());
+    unchanged.retiringProjection = { kind: "unchanged" };
+    expect(parseRetirementReceipt(canonicalize(unchanged))).toBeNull();
+
+    const shippedAuthorization = candidate(renameReceipt());
+    shippedAuthorization.authorization = "discard-confirmed";
+    expect(parseRetirementReceipt(canonicalize(shippedAuthorization))).toBeNull();
+  });
+
+  it("rejects non-canonical rename JSON and a rename receipt ID derived from other fields", () => {
+    const rename = renameReceipt();
+
+    expect(parseRetirementReceipt(`${contentOf(rename)}\n`)).toBeNull();
+    const invalidId = candidate(rename);
+    invalidId.receiptId = digest("wrong-rename-id");
+    expect(parseRetirementReceipt(canonicalize(invalidId))).toBeNull();
   });
 
   it.each([

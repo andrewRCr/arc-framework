@@ -8,6 +8,7 @@ import {
 import { isManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import { receiptId, type RetirementTransition } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
+import { SlugSchema } from "../kernel/schema/slug.js";
 import { LocusTokenSchema } from "../locus/schema/limits.js";
 import { parseCutMap, type DecomposeAllocationMap } from "./decompose-cut-map.js";
 import { validateReceiptMatrix, type RetirementReceipt } from "./retirement-authority.js";
@@ -139,6 +140,14 @@ function parseResult(value: unknown): RetirementReceipt["result"] | null {
       ? { kind: "relocate", plannedArtifactDigest: value.plannedArtifactDigest }
       : null;
   }
+  if (value.kind === "rename") {
+    const targetSlug = SlugSchema.safeParse(value.targetSlug);
+    return hasExactKeys(value, ["kind", "targetSlug", "artifactDigest"])
+        && targetSlug.success
+        && isCanonicalDigest(value.artifactDigest)
+      ? { kind: "rename", targetSlug: targetSlug.data, artifactDigest: value.artifactDigest }
+      : null;
+  }
   if (value.kind !== "decompose"
     || !hasExactKeys(value, [
       "kind",
@@ -191,9 +200,14 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
     const projection = parseProjection(parsed.retiringProjection);
     const result = parseResult(parsed.result);
     if (subject === null || source === null || projection === null || result === null
-      || (parsed.transition !== "abandon" && parsed.transition !== "decompose" && parsed.transition !== "park-planning")
+      || (parsed.transition !== "abandon"
+        && parsed.transition !== "decompose"
+        && parsed.transition !== "park-planning"
+        && parsed.transition !== "rename")
       || !isCanonicalDigest(parsed.transitionPatchDigest)
-      || (parsed.authorization !== "discard-confirmed" && parsed.authorization !== "planning-relocated")) {
+      || (parsed.authorization !== "discard-confirmed"
+        && parsed.authorization !== "planning-relocated"
+        && parsed.authorization !== "identity-renamed")) {
       return null;
     }
     const transition: RetirementTransition = parsed.transition;

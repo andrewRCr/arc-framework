@@ -34,14 +34,14 @@ const changeRequest = {
 
 const requirement: ReviewRequirement = {
   schemaVersion: 1,
-  id: "independent-analysis",
-  kind: "independent-analysis",
+  id: "standard-review",
+  kind: "standard-review",
   obligation: "required",
-  acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+  acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
   count: 1,
   initialAdmission: "automatic",
   policyVersion: bareDigest("e"),
-  rubricVersion: "independent-analysis/v1",
+  rubricVersion: "standard-review/v1",
   reasons: ["reviewed-sensitive"],
   changeSetId: changeRequest.changeSetId,
   headSha: changeRequest.headSha,
@@ -131,7 +131,7 @@ describe("schema-v1 compatibility boundary", () => {
       candidates: [{
         requirementId: requirement.id,
         sourceKind: "agent",
-        qualifier: "independent-analysis/v1",
+        qualifier: "standard-review/v1",
         sourceIdentity: request.sourceIdentity,
       }],
       nativeReview: { requestedChanges: false, unresolvedRequiredConversations: 0 },

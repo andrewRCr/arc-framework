@@ -31,7 +31,10 @@ export {
   listBackupFiles,
   reconcileRetiredSubdirsStandalone,
   runUserLoad,
+  runUserRenameWorkspace,
   runUserSave,
+  type UserRenameWorkspaceOptions,
+  type UserRenameWorkspaceResult,
 } from "./user/save-load.js";
 export {
   clearErrandPartialPushMarker,

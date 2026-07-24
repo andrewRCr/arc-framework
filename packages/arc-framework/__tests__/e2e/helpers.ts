@@ -71,6 +71,14 @@ export async function runArc(
   options?: { timeout?: number; env?: Record<string, string> },
 ): Promise<RunResult> {
   assertCliBuilt();
+  // JSON contracts need a clean stdout channel. On Linux, `script` allocates a
+  // pseudo-TTY whose transcript merges stderr into the captured stdout, so a
+  // self-hosting stale-build warn would prefix `--json` payloads and break
+  // `JSON.parse`. Route JSON invocations through the non-TTY helper; keep the
+  // TTY path for interactive clack/TUI coverage.
+  if (args.includes("--json")) {
+    return runArcNoTty(args, cwd, options);
+  }
   const timeout = options?.timeout ?? 30_000;
   const env = { ...process.env, NO_COLOR: "1", ...options?.env };
   try {

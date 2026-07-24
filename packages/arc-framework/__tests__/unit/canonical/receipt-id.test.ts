@@ -42,6 +42,13 @@ describe("receiptId", () => {
     expect(receiptId(changed)).not.toBe(receiptId(baseReceipt));
   });
 
+  it("distinguishes rename from abandon and remains stable for the same rename tuple", () => {
+    const rename = { ...baseReceipt, transition: "rename" } as const;
+
+    expect(receiptId(rename)).not.toBe(receiptId(baseReceipt));
+    expect(receiptId(rename)).toBe(receiptId({ ...rename }));
+  });
+
   it("distinguishes subject kind even when the text suffix matches", () => {
     const asWorkUnit: WorktreeSubject = { kind: "work-unit", name: "shared" };
     const asBranch: WorktreeSubject = { kind: "branch", ref: "shared" };

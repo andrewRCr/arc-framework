@@ -60,7 +60,11 @@ point-agnostic; what changes per point is the question the same two lenses answe
 A design that merely avoids conflict with its surroundings has not yet demonstrated fit. The bar is higher:
 
 - **Optimality.** Among the reasonable alternatives, is this the right design — would two competent engineers,
-  given the same constraints, build materially the same thing? Complexity should be proportional to the problem.
+  given the same constraints, build materially the same thing?
+- **Material proportionality.** Delegate unsupported machinery, missed composition, speculative capability,
+  disproportionate rigor, and adequacy regression to
+  [`assess-design-proportionality`][assess-design-proportionality]. This lens retains broader efficacy and fit
+  analysis plus minor optimality residue; it does not duplicate the proportionality criterion.
 - **System coherence.** The design composes with the existing architecture, conventions, and adjacent designs
   rather than sitting beside them.
 - **Forward compatibility.** The design survives known upcoming directions — it does not bake in an assumption
@@ -106,6 +110,7 @@ draft or spec grooming — not around it via downstream patches.
 
 [draft-design]: ../workflows/arc/draft-design.md
 [create-spec]: ../workflows/arc/create-spec.md
+[assess-design-proportionality]: assess-design-proportionality.md
 [spec-review]: spec-review.md
 [adversarial-review]: adversarial-review.md
 [arc-design-audit-skill]: ../.internal/skills/arc-design-audit/SKILL.md

@@ -70,9 +70,13 @@ function buildCtx(opts: { activeCandidates?: MetaFileCandidate[] } = {}): {
     reconcileWorkUnitWorktree: async (op) => {
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
-      return op.mutation === "spawn"
-        ? { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch }
-        : { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };
+      if (op.mutation === "spawn") {
+        return { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch };
+      }
+      if (op.mutation === "teardown") {
+        return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };
+      }
+      return { mutation: "move", from: op.from, to: op.to, locusHopped: false };
     },
     writeBranchField: async () => {},
     writeCurrentWorkflowField: async () => {},

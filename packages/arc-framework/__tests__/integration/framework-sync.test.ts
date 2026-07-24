@@ -35,6 +35,7 @@ import {
   resolveTemplateOutputBindings,
   resolveTemplateOutputPath,
 } from "../../src/lib/layout/index.js";
+import { parseWorkflowFrontmatter } from "../../src/scripts/audit-method-triggers.js";
 import type { Manifest, Recipe } from "../../src/lib/types.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -187,9 +188,11 @@ describe("framework sync (self-hosting drift check)", () => {
   it("keeps neutral review customization contracts aligned across both copies", async () => {
     const paths = [
       "system/methods/README.md",
+      "system/methods/assess-design-proportionality.md",
+      "system/methods/design-audit.md",
       "system/methods/self-review.md",
       "system/methods/frontline-review.md",
-      "system/methods/independent-analysis.md",
+      "system/methods/standard-review.md",
       "system/methods/implementation-audit.md",
       "system/methods/review-response.md",
       "system/methods/review-triage.md",
@@ -205,6 +208,21 @@ describe("framework sync (self-hosting drift check)", () => {
         readFile(join(ARC_DIR, path), "utf8"),
       ]);
       expect(project, `${path} must retain the shipped neutral contract`).toBe(packaged);
+    }
+  });
+
+  it("declares design proportionality at every direct planning consumer", async () => {
+    const workflowPaths = [
+      "system/workflows/arc/draft-design.md",
+      "system/workflows/arc/create-spec.md",
+      "system/workflows/arc/generate-tasks.template.md",
+    ];
+
+    for (const path of workflowPaths) {
+      const content = await readFile(join(PKG_ARC_DIR, path), "utf8");
+      const declarations = parseWorkflowFrontmatter(content);
+      expect(declarations.parseError, `${path} frontmatter`).toBeUndefined();
+      expect(declarations.methods, `${path} direct methods`).toContain("assess-design-proportionality");
     }
   });
 

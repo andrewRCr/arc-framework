@@ -6,7 +6,7 @@ arc:
     - assess-parallel-fit
     - commit-footer
     - frontline-review
-    - independent-analysis
+    - standard-review
     - implementation-audit
     - review-triage
     - review-response
@@ -163,29 +163,61 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    `surfaceAuthority`, `assurance`, and `activity`. These are review-policy facts, not the canonical changed-path
    record; supplying the latter resolves `changeSetState: unknown` and the maximal floor. The future merge lane is
    downstream presentation, not a routing input. Run `arc review frontline resolve -` with
-   `"invocation": {"mode": "inherit"}`, then execute only its selected action:
+   `"invocation": {"mode": "inherit"}`. Follow only its typed `state` / `nextAction` pair:
 
-   - `skip` — continue.
-   - `offer` — surface its preparation or authorization action; execute only when accepted and the carrier is ready.
-   - `attempt` — prepare the registered source and run [`frontline-review`][frontline-review] against the exact
-     target.
+   - `skipped / none` — continue.
+   - `offered / bind-source` — surface the unbound source action and stop this lane.
+   - `offered / obtain-authorization` — surface the authorization action; re-run resolve only after authorization.
+   - `ready / run-frontline` — pass the exact target and complete ready resolution to
+     `arc review frontline run -`.
 
-   Resolve `frontline-run` through `ReviewOperationStateStore` before execution. Reuse only an unchanged exact
-   target/source/policy/generation binding; otherwise invalidate it. Publish pending state before the carrier effect
-   and the normalized outcome after it. This operational record never enters review receipts or gate reduction.
+   Dispatch the `frontline run` result by its typed `state` / `nextAction`. Continue on `clean / none`; retry only
+   `unavailable / retry`, `timed-out / retry`, or `failed / retry`; repair only an explicit `operator-repair` action;
+   recompose the target on `stale-target / prepare-current-target`. On `findings / respond`, run
+   [`review-response`][review-response], then pass the durable frontline outcome reference and approved disposition
+   set to `arc review respond -`.
 
-   Route normalized findings through [`review-response`][review-response]. Apply only the approved fix set, run Tier
-   1 quality gates, commit through the applicable interlock, and push through the Errand push contract. After every
-   persisted fix, recompose the exact target and resolve frontline routing again; run only the bounded follow-up the
-   result permits. Surface clean, unavailable, failed, and pass-cap outcomes as advisory publication orientation,
-   then continue without treating them as review evidence.
+   When standard-review dispatch selects the delegated local lane, invoke `arc review local prepare -` with the
+   evaluator identity and routing facts. For `local prepare`, supply only `contentKind`, `reviewRisk`,
+   `changeDeterminacy`, `ownership`, and `surfaceAuthority`; the CLI derives `changeSetState`, assurance, and
+   activity. Follow only its typed `state` / `nextAction`:
+
+   - `exempt / none` — continue.
+   - `review-complete / reduce` — invoke `arc review reduce -` with the returned operation ID.
+   - `ready / launch-review` — give the returned reviewer payload to the separately authorized evaluator, then
+     submit its normalized result with the returned operation ID to `arc review local attest -`.
+   - `unavailable / operator-repair` — stop and surface the binding diagnostics.
+   - `stale-target / prepare-current-target` — recompose and restart preparation.
+
+   Dispatch attestation by its typed action: run `arc review reduce -` on `attested-current / reduce`; recompose on
+   `stale-target / prepare-current-target`; rerun the review on `expired / rerun-review` or
+   `not-attestable / rerun-review`. After an interruption, invoke `arc review local resume -` with the operation ID
+   and follow its returned action rather than reconstructing state. On `respond-to-findings / respond`, run
+   [`review-response`][review-response], then pass the receipt reference and author-owned finding decisions to
+   `arc review respond -`. On `awaiting-approval / obtain-approval`, present the returned canonical proposal; after
+   exact approval, resubmit that proposal as the approved disposition state.
+
+   Dispatch `respond` by its typed pair: on `awaiting-approval / obtain-approval`, follow the approval step above; on
+   `ready-to-fix / apply-fix`, apply only the approved fix set, run Tier 1 quality gates, commit through the applicable
+   interlock, push through the Errand push contract, then recompose the exact target and restart the selected review
+   lane. For a frontline source, restart only when `frontlineFollowUp.action` is `follow-up-after-fix`, carrying its
+   exact `pass` and `maxPasses` into the new `frontline resolve` request; a `stop` advice ends that advisory lane. On
+   `settled / reduce` or `already-settled / reduce`, invoke `arc review reduce -`; on
+   `stale-target / prepare-current-target`, recompose the exact target and restart the selected review lane. Dispatch
+   `reduce` the same way: route
+   `findings / respond` through [`review-response`][review-response] and `respond`; continue on `settled / none` or
+   `advisory-complete / none`; invoke the returned retry command on `retryable / retry`; recompose on
+   `stale-target / prepare-current-target`.
+
+   Any command error envelope, including `invalid-input`, stops the lane and carries no dispatchable state. Never
+   treat advisory receipts, outcomes, or reductions as merge authority.
 
 3. **Resolve the Errand PR** before creation. Paginate the exact current repository + head-owner/branch query and
    retain each candidate's state, merged time, and head SHA. A lookup error or incomplete enumeration is a stop, not
    an empty result. Classify the complete result:
 
    | Result                                                           | Action                                       |
-   |------------------------------------------------------------------|----------------------------------------------|
+   | ---------------------------------------------------------------- | -------------------------------------------- |
    | No match                                                         | Enter the creation arm below                 |
    | One open match                                                   | Reuse its `hostRef`; do not create or reopen |
    | One merged match at the current head                             | Skip review/merge and enter Complete cleanup |
@@ -218,21 +250,23 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    coordination and both hooks share this exact-head contract. After any head-changing action, recompose
    `openedChangeRequest` from the canonical current head before re-entry.
 
-   Invoke the active project review coordinator's source-neutral independent-analysis cycle with the exact target,
-   effective routed obligation, and explicit project channel `local | hosted | both`. The coordinator selects and
-   normalizes the admitted carrier, reduces its result, and sends findings through [`review-response`][review-response].
-   If the selected source is unavailable, partial, or failed, only a required obligation blocks; recommended work
-   stays visible and non-blocking. Recompose and repeat the cycle after any approved fix changes the target.
+   Re-enter the public `arc review` protocol with the exact target, effective routed obligation, and explicit project
+   channel `local | hosted | both`. An active project review coordinator may select a source and supply hosted-only
+   adapter actions, but it drives local and frontline transitions only through those commands. Follow the returned
+   typed state/action through reduction and send findings through [`review-response`][review-response]. If the
+   selected source is unavailable, partial, or failed, only a required obligation blocks; recommended work stays
+   visible and non-blocking. Recompose and repeat the protocol after any approved fix changes the target.
 
-   When the cycle suspends, publish the strict `review-suspension` through the vehicle-neutral response-state store
-   with `vehicle: errand`, exact target/request, source/policy, deadline, generation, and wakeup token. Re-entry reads
-   current host/provider state and follows the shared promoted watcher → bounded schedule → explicit human re-entry
-   hierarchy. Never invent WU meta or task-list state from absent or malformed WU state; the Errand branch, PR, and
-   operation record are sufficient continuity.
+   On interruption, follow the last typed `state` / `nextAction` and retain the returned operation ID. Resume a
+   suspended local operation with `arc review local resume -`, and re-invoke the owning idempotent verb for frontline,
+   response, or reduction work. Hosted-only waits remain behind the active project coordinator. Never publish or
+   reconstruct review state from workflow prose. Never invent WU meta or task-list state from absent or malformed WU
+   state; the Errand branch, PR, and public operation references are sufficient continuity.
 
-   After the shared cycle settles, classify the merge lane by what the Errand touched ([§ Auto-Merge Lane][auto-lane]):
-   code uses the **reviewed-lane**; pure planning or doc grooming may use the **auto-merge-lane**. This merge lane is
-   downstream presentation only and cannot change routing, response, or evidence authority.
+   After the public protocol settles, classify the merge lane by what the Errand touched
+   ([§ Auto-Merge Lane][auto-lane]): code uses the **reviewed-lane**; pure planning or doc grooming may use the
+   **auto-merge-lane**. This merge lane is downstream presentation only and cannot change routing, response, or
+   evidence authority.
 
 5. **Settle the final head.** Establish `vehicle: errand` from the strict Errand record, branch, and exact PR. That
    vehicle is explicitly outside WU composition-product requirements. Never infer the exemption from absent or
@@ -319,7 +353,6 @@ idempotent and may return the next file-ordered execute-bound offer.
 [drain-inbox]: drain-inbox.md
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [commit-footer]: ../../../methods/commit-footer.md
-[frontline-review]: ../../../methods/frontline-review.md
 [review-response]: ../../../methods/review-response.md
 [errand-class]: ../../../../reference/strategies/arc/strategy-work-organization.md#errand-work-class
 [auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane

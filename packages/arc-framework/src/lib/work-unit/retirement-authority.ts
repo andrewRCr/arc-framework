@@ -103,7 +103,7 @@ export interface RetirementReceipt {
   };
   transitionPatchDigest: CanonicalDigest;
   retiringProjection: { kind: "direct-transition" } | { kind: "unchanged" };
-  authorization: Exclude<HuskAuthorization, "merged-preserved">;
+  authorization: Exclude<HuskAuthorization, "merged-preserved"> | "identity-renamed";
   result:
     | { kind: "discard"; artifactDigest: "absent" }
     | {
@@ -119,7 +119,8 @@ export interface RetirementReceipt {
           artifactDigest: CanonicalDigest;
         }>;
       }
-    | { kind: "relocate"; plannedArtifactDigest: CanonicalDigest };
+    | { kind: "relocate"; plannedArtifactDigest: CanonicalDigest }
+    | { kind: "rename"; targetSlug: string; artifactDigest: CanonicalDigest };
 }
 
 /** Exact source and result projections bound by an authority snapshot. */
@@ -287,7 +288,11 @@ export function validateReceiptMatrix(
     || (receipt.transition === "park-planning"
       && receipt.authorization === "planning-relocated"
       && expectedLifecycle === "planned"
-      && receipt.result.kind === "relocate");
+      && receipt.result.kind === "relocate")
+    || (receipt.transition === "rename"
+      && receipt.authorization === "identity-renamed"
+      && expectedLifecycle === "nonexistent"
+      && receipt.result.kind === "rename");
   return valid ? null : "evidence-mismatch";
 }
 

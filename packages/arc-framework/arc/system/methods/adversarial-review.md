@@ -4,7 +4,7 @@ description: Fresh-context adversarial review mechanism for planning and verific
 related:
   - frontline-review
   - implementation-audit
-  - independent-analysis
+  - standard-review
 override-active: false
 ---
 
@@ -85,7 +85,7 @@ adversarial-review:
 **Named inputs:**
 
 | Input            | Kind                  | Contents                                                       |
-|------------------|-----------------------|----------------------------------------------------------------|
+| ---------------- | --------------------- | -------------------------------------------------------------- |
 | `rubric`         | per-stage             | Rubric(s) to attack, including their referents.                |
 | `artifacts`      | per-stage             | Artifact under audit plus its upstream chain.                  |
 | `orientation`    | fixed                 | Artifact-neutral briefings shared with every pass.             |
@@ -232,13 +232,13 @@ subagent-unavailable degrade path from [DEV-RULES.ARC § Sub-agent scope][sub-ag
 defines correctness for that stage:
 
 | Fire-point                  | Artifact set                                      |
-|-----------------------------|---------------------------------------------------|
+| --------------------------- | ------------------------------------------------- |
 | draft readiness             | draft                                             |
 | create-spec finalization    | draft + spec                                      |
 | generate-tasks finalization | spec + task list                                  |
 | verify-work-unit            | spec + task list + the diff under verification    |
 | frontline review            | exact change target + `implementation-audit` lens |
-| independent analysis        | exact change target + `implementation-audit` lens |
+| standard review             | exact change target + `implementation-audit` lens |
 
 Also include a non-exhaustive key-file pointer list when the stage has known implementation or reference loci.
 Keep the list neutral: "key files, not necessarily complete" is orientation, while "the files I think are

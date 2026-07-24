@@ -14,8 +14,8 @@ const request = {
   changeSetId: "a".repeat(64),
   policyVersion: "b".repeat(64),
   semanticsVersion: "review-gate/v1",
-  rubricVersion: "independent-analysis/v1",
-  requirementId: "independent-analysis",
+  rubricVersion: "standard-review/v1",
+  requirementId: "standard-review",
   sourceIdentity: "agent-9",
   coverage: "full",
   coverageFromSha: "c".repeat(40),
@@ -391,10 +391,10 @@ describe("request and projection contracts", () => {
     const projection = {
       schemaVersion: 1,
       conclusion: "pending",
-      summary: "Independent analysis is not requested",
+      summary: "Standard review is not requested",
       blockers: [{ code: "review-not-requested", detail: "checkpoint admission is required" }],
       requirementExecutions: [{
-        requirementId: "independent-analysis",
+        requirementId: "standard-review",
         state: "not-requested",
         sourceIdentity: null,
         detail: "awaiting checkpoint",

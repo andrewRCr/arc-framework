@@ -19,6 +19,16 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Add a dependency-edge flag to `arc stub`**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-23); captured while minting the
+  `chunked-delivery` sibling during `pr-decomposition`.
+- _Concern:_ `arc stub` cannot set `Depends On`, so dependency-bearing stubs require an immediate hand edit that
+  also stales the readiness view emitted by the command.
+- _Fold-in:_ add `--depends-on <slug>` at the stub mutation boundary so the dependency is present before the
+  command's own readiness regeneration. Sequence this with the existing first-class render-verb concern: the flag
+  removes the common manual path, while the render verb covers other render-field edits.
+
 ### `[ ]` **Treat branch-carried project projections as the defect, not only their merge conflicts**
 
 - _Routed from:_ parallelism-GA operating review and housekeep drain (2026-07-20).

@@ -55,7 +55,9 @@ If `verdict.status === "stop"`, inspect `verdict.stopReasons`:
   artifacts. If the summary is missing, vague, or contradictory, stop for direction. Do not fall
   back to active-meta `Current Workflow`.
 
-If `verdict.status === "ready"`, continue without prompting.
+If `verdict.status === "ready"`, continue to Step 3 without prompting. `ready` attests that the load set is
+trustworthy — no blocking drift between the seed and fresh state — not that context is restored. It is a property
+of the manifest, never a clearance to resume project work: recovery is incomplete until Step 3's reads land.
 
 Require `verdict.locusHint.match === true`. A pre-model seed with no `locus` hint remains valid when the fresh frame
 itself resolves; when the hint is present, the audit has already compared its session-home path, active session locus
@@ -93,6 +95,16 @@ The recovery load set is ARC-owned context only. Repository-root harness instruc
 (such as `AGENTS.md` for Codex CLI and `CLAUDE.md` for Claude Code) are expected to come from
 the harness baseline and are not included in `report.recover.loadSet.value`. Do not read sibling
 harness instruction files during recovery.
+
+**The manifest is the complete recovery read** — reading past it spends the post-compaction budget on context
+the resumed step does not need. Two classes sit outside it:
+
+- **Frontmatter-declared methods and extensions.** Do not load a recovered lifecycle workflow's `arc.methods` /
+  `arc.extensions` declarations here; each loads at its fire-site when the resumed step reaches it.
+  Scope-limited override of DEV-RULES.ARC § Method and extension loading, for the recovery load only —
+  recovery resumes mid-workflow, so most declarations belong to steps already behind the resume point.
+- **Design artifacts.** `spec-*`, `notes-*`, and the task list beyond the manifest's `partial-strategic` slice
+  are not manifest members. Load them at their step trigger.
 
 Apply each entry's `readMode`:
 

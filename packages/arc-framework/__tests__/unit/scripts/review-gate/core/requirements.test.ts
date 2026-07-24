@@ -10,13 +10,13 @@ function requirement(overrides: Partial<ReviewRequirement> = {}): ReviewRequirem
   return {
     schemaVersion: 1,
     id: "analysis",
-    kind: "independent-analysis",
+    kind: "standard-review",
     obligation: "required",
-    acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
     count: 1,
     initialAdmission: "automatic",
     policyVersion: "a".repeat(64),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     reasons: ["code-surface"],
     changeSetId: "b".repeat(64),
     headSha: "c".repeat(40),
@@ -53,7 +53,7 @@ describe("typed requirement reduction", () => {
     const duplicate = {
       requirementId: "analysis",
       sourceKind: "agent" as const,
-      qualifier: "independent-analysis/v1",
+      qualifier: "standard-review/v1",
       sourceIdentity: "agent-1",
     };
     expect(evaluateRequirements({
@@ -84,7 +84,7 @@ describe("typed requirement reduction", () => {
       candidates: [{
         requirementId: "analysis",
         sourceKind: "agent",
-        qualifier: "independent-analysis/v1",
+        qualifier: "standard-review/v1",
         sourceIdentity: "agent-1",
       }],
       nativeReview: { requestedChanges: true, unresolvedRequiredConversations: 2 },

@@ -2,7 +2,7 @@
  * `reconcile-work-unit-worktree` — the WU worktree-axis encoding mutator, including
  * execution-locus relocation.
  *
- * Two operations:
+ * Three operations:
  *
  * - `spawn` — establish the WU's working tree, in one of two **placement modes**:
  *     - *fresh worktree* (default): the decomposition of the shipped
@@ -26,6 +26,9 @@
  *   (self-teardown), the agent's process locus is hopped to the primary
  *   checkout *first* — otherwise `park@Active` / `abandon` of the current WU
  *   would saw off the branch it stands on.
+ * - `move` — relocate a registered linked worktree with `git worktree move`,
+ *   hopping the process locus after a successful self-move and returning an
+ *   actionable follow-up when an occupied-directory platform refusal occurs.
  *
  * Worktree occupancy / identity is read from `git worktree list`
  * (`resolvePrimaryWorktreePath`), never from `git branch` inference. The git seam
@@ -36,15 +39,20 @@
  */
 
 import { access, cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
 import { createLinkedWorktree } from "../../git/linked-worktree.js";
+import { gitFailureText } from "../../git/process-error.js";
 import { isWorktreeClean } from "../../git/worktree-cleanup.js";
 import {
   ensureWorktreeMarkerIgnored,
   writeWorktreeOwnershipMarker,
 } from "../../git/worktree-marker.js";
-import { resolvePrimaryWorktreePath } from "../../git/worktree-roster.js";
+import {
+  resolvePrimaryWorktreePath,
+  resolveWorktreePathsByBranchResult,
+} from "../../git/worktree-roster.js";
 import { setupLinkedWorktree } from "../../git/linked-worktree-setup.js";
 import { localPathContains } from "../../local-path-identity.js";
 import {
@@ -124,6 +132,8 @@ export const nodeReconcileWorkUnitWorktreeFs: ReconcileWorkUnitWorktreeFs = {
  *   `git checkout [-b]`; no new worktree, no marker.
  * - `teardown` — remove `worktreePath`; `currentLocus` is the directory the
  *   transition executes from, used to detect a self-teardown.
+ * - `move` — move one registered worktree root and preserve the process locus
+ *   when the caller is outside it.
  */
 export type ReconcileWorkUnitWorktreeOp =
   | {
@@ -193,12 +203,78 @@ export type ReconcileWorkUnitWorktreeOp =
       revalidateLocal?: () => Promise<void>;
       /** Caller has approved a detached husk; skip the redundant cleanliness probe, but reconcile user surfaces. */
       huskApproved?: boolean;
+    }
+  | {
+      mutation: "move";
+      /** Live registered worktree root. */
+      from: string;
+      /** Destination derived relative to the live registered root. */
+      to: string;
+      /** Directory the transition currently executes from. */
+      currentLocus: string;
     };
 
 /** Outcome of a {@link reconcileWorkUnitWorktree} call. */
 export type ReconcileWorkUnitWorktreeResult =
   | { mutation: "spawn"; worktreePath: string; branch: string; postCreateNotice?: string }
-  | { mutation: "teardown"; worktreePath: string; locusHopped: boolean };
+  | { mutation: "teardown"; worktreePath: string; locusHopped: boolean }
+  | {
+      mutation: "move";
+      from: string;
+      to: string;
+      locusHopped: boolean;
+      followUpNotice?: string;
+    };
+
+/** Result of deriving a worktree move from live branch registration. */
+export type RenameWorktreeMoveResolution =
+  | { status: "move"; from: string; to: string }
+  | { status: "already-moved"; worktreePath: string }
+  | { status: "unmatched"; worktreePath: string }
+  | { status: "in-place" };
+
+/**
+ * Resolve a rename destination from the branch's live registered worktree.
+ * Only the final path segment changes; off-template placement and its parent
+ * directory remain authoritative.
+ *
+ * @param exec - Git executor
+ * @param params - Renamed branch plus old/new work-unit slugs
+ * @returns A move plan or designed skip
+ */
+export async function resolveRenameWorktreeMove(
+  exec: GitExec,
+  params: { branch: string; oldSlug: string; newSlug: string },
+): Promise<RenameWorktreeMoveResolution> {
+  const registry = await resolveWorktreePathsByBranchResult(exec);
+  if (!registry.ok) throw new Error("could not read the registered worktree paths");
+  const from = registry.paths.get(params.branch);
+  if (from === undefined) return { status: "in-place" };
+
+  const leaf = basename(from);
+  const slugOffset = leaf.lastIndexOf(params.oldSlug);
+  const targetOffset = leaf.lastIndexOf(params.newSlug);
+  if (
+    targetOffset !== -1
+    && (
+      slugOffset === -1
+      || (
+        params.newSlug.includes(params.oldSlug)
+        && slugOffset >= targetOffset
+        && slugOffset + params.oldSlug.length <= targetOffset + params.newSlug.length
+      )
+    )
+  ) {
+    return { status: "already-moved", worktreePath: from };
+  }
+  if (slugOffset === -1) return { status: "unmatched", worktreePath: from };
+  const renamedLeaf = `${leaf.slice(0, slugOffset)}${params.newSlug}${leaf.slice(slugOffset + params.oldSlug.length)}`;
+  return {
+    status: "move",
+    from,
+    to: join(dirname(from), renamedLeaf),
+  };
+}
 
 /**
  * Whether `locus` sits inside (or at) `worktreePath` — the self-teardown test.
@@ -229,6 +305,29 @@ export async function reconcileWorkUnitWorktree(
   ctx: ReconcileWorkUnitWorktreeContext,
   op: ReconcileWorkUnitWorktreeOp,
 ): Promise<ReconcileWorkUnitWorktreeResult> {
+  if (op.mutation === "move") {
+    const selfMove = await isSelfTeardown(op.from, op.currentLocus);
+    try {
+      await ctx.exec("git", ["worktree", "move", op.from, op.to]);
+    } catch (error) {
+      if (!selfMove || !isOccupiedWorktreeMoveFailure(error)) throw error;
+      return {
+        mutation: "move",
+        from: op.from,
+        to: op.to,
+        locusHopped: false,
+        followUpNotice:
+          `Move the worktree from outside the worktree: git worktree move ${op.from} ${op.to}`,
+      };
+    }
+    if (selfMove) ctx.chdir(op.to);
+    return {
+      mutation: "move",
+      from: op.from,
+      to: op.to,
+      locusHopped: selfMove,
+    };
+  }
   if (op.mutation === "teardown" && op.huskApproved === true && ctx.teardownLocus === undefined) {
     if (await isSelfTeardown(op.worktreePath, op.currentLocus)) {
       throw new Error(`refusing to remove the current detached worktree: ${op.worktreePath}`);
@@ -373,6 +472,11 @@ export async function reconcileWorkUnitWorktree(
     await removeCheckout();
   }
   return { mutation: "teardown", worktreePath, locusHopped };
+}
+
+function isOccupiedWorktreeMoveFailure(error: unknown): boolean {
+  return /permission denied|access is denied|being used by another process|device or resource busy|invalid argument/iu
+    .test(gitFailureText(error));
 }
 
 async function reconcileUserSurfacesForRemoval(

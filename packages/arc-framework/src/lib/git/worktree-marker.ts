@@ -470,6 +470,47 @@ export async function writeWorktreeOwnershipMarker(
   await writeWorktreeMarker(cwd, marker);
 }
 
+/** Result of rewriting a work-unit ownership marker for a rename. */
+export type RenameWorktreeOwnershipMarkerResult =
+  | { status: "renamed" }
+  | { status: "absent" }
+  | { status: "foreign" }
+  | { status: "malformed"; message: string; path: string };
+
+/**
+ * Rewrite both work-unit identity projections in an existing ARC marker.
+ * Missing markers represent in-place or externally managed worktrees and skip;
+ * malformed or foreign ownership is never repaired or appropriated.
+ *
+ * @param cwd - Registered worktree root
+ * @param names - Expected old identity and replacement identity
+ * @returns Whether ownership changed or why it was left untouched
+ */
+export async function renameWorktreeOwnershipMarker(
+  cwd: string,
+  names: { oldWuName: string; newWuName: string },
+): Promise<RenameWorktreeOwnershipMarkerResult> {
+  const current = await readWorktreeMarker(cwd);
+  if (current.kind === "absent") return { status: "absent" };
+  if (current.kind === "malformed") return { status: "malformed", message: current.message, path: current.path };
+
+  const createdForName = current.marker.createdFor?.kind === "work-unit"
+    ? current.marker.createdFor.name
+    : undefined;
+  const ownedName = current.marker.wuName ?? createdForName;
+  if (ownedName !== names.oldWuName || current.marker.provisioning !== undefined) {
+    return { status: "foreign" };
+  }
+
+  const renamed: WorktreeMarker = {
+    ...current.marker,
+    wuName: names.newWuName,
+    createdFor: { kind: "work-unit", name: names.newWuName },
+  };
+  await writeWorktreeMarker(cwd, renamed);
+  return { status: "renamed" };
+}
+
 /**
  * Add terminal husk proof to an existing valid ownership marker.
  *

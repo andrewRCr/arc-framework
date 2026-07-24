@@ -35,8 +35,8 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     changeSetId: "a".repeat(64),
     policyVersion: "b".repeat(64),
     semanticsVersion: "review-gate/v1",
-    rubricVersion: "independent-analysis/v1",
-    requirementId: "independent-analysis",
+    rubricVersion: "standard-review/v1",
+    requirementId: "standard-review",
     sourceIdentity: "coderabbit-pr",
     coverage: "full",
     coverageFromSha: DIFF_BASE,
@@ -64,9 +64,9 @@ const capabilities: CodeRabbitCapabilities = {
 function context(overrides: Partial<CodeRabbitRunContext> = {}): CodeRabbitRunContext {
   return {
     requestIdentity: "request-1",
-    requirementId: "independent-analysis",
+    requirementId: "standard-review",
     policyVersion: "b".repeat(64),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     baseRef: "main",
     diffBaseSha: DIFF_BASE,
     headSha: HEAD,

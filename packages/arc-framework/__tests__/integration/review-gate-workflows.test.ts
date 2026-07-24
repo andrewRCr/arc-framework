@@ -461,7 +461,7 @@ describe("trusted review-gate workflows", () => {
     expect(finalGate).toMatch(/archive moves[\s\S]*readiness regeneration[\s\S]*reconcile commits/u);
   });
 
-  it("keeps frontline publication operational, advisory, and provider-neutral", async () => {
+  it("routes frontline and local review through the public advisory command surface", async () => {
     const paths = [
       "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
       "system/workflows/arc/supplemental/run-errand.md",
@@ -472,24 +472,44 @@ describe("trusted review-gate workflows", () => {
         readRepositoryFile(`.arc/${path}`),
       ]);
       expect(project).toBe(packaged);
-      expect(packaged).toContain("ReviewOperationStateStore");
-      expect(packaged).toContain("advisory publication orientation");
-      expect(packaged).toContain("never enters review receipts or gate reduction");
+      for (const command of [
+        "arc review frontline resolve -",
+        "arc review frontline run -",
+        "arc review local prepare -",
+        "arc review local attest -",
+        "arc review local resume -",
+        "arc review respond -",
+        "arc review reduce -",
+      ]) {
+        expect(packaged).toContain(command);
+      }
+      expect(packaged).toMatch(
+        /For `local prepare`, supply only `contentKind`, `reviewRisk`,\s+`changeDeterminacy`, `ownership`, and `surfaceAuthority`/u,
+      );
+      expect(packaged).toContain("`respond-to-findings / respond`");
+      expect(packaged).toContain("`ready-to-fix / apply-fix`");
+      expect(packaged).toContain("`settled / reduce`");
+      expect(packaged).toContain("`retryable / retry`");
+      expect(packaged).toContain("invalid-input");
+      expect(packaged).toMatch(/Re-enter the public `arc review` protocol/iu);
+      expect(packaged).toMatch(/local and frontline transitions only through those commands/iu);
+      expect(packaged).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
+      expect(packaged).not.toMatch(/source-neutral standard-review cycle/u);
+      expect(packaged).not.toMatch(/review-suspension|promoted watcher|scheduled wakeup/iu);
       expect(packaged).not.toMatch(/CodeRabbit|coderabbit|billing|credits?|quota|--agent|--plain/iu);
     }
   });
 
-  it("routes Errand review through the shared vehicle-neutral cycle", async () => {
+  it("routes Errand review and re-entry through the public command protocol", async () => {
     const [packaged, project] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
       readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
     ]);
     expect(project).toBe(packaged);
     expect(packaged).toMatch(/atomic determinacy[\s\S]*routing fact/iu);
-    expect(packaged).toMatch(/source-neutral independent-analysis cycle[\s\S]*review-response/u);
-    expect(packaged).toContain("vehicle-neutral response-state store");
-    expect(packaged).toMatch(/review-suspension[\s\S]*`vehicle: errand`/u);
-    expect(packaged).toMatch(/promoted watcher[\s\S]*bounded schedule[\s\S]*explicit human re-entry/u);
+    expect(packaged).toMatch(/Re-enter the public `arc review` protocol[\s\S]*review-response/iu);
+    expect(packaged).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
+    expect(packaged).not.toMatch(/vehicle-neutral response-state store|review-suspension|promoted watcher/u);
     expect(packaged).toMatch(/merge lane[\s\S]*downstream presentation/u);
     expect(packaged).toMatch(/never invent[\s\S]*WU meta[\s\S]*task-list state/iu);
   });
@@ -531,9 +551,17 @@ describe("trusted review-gate workflows", () => {
       packaged.indexOf("Run `arc review frontline resolve -`"),
       packaged.indexOf("3. **Resolve the Errand PR**"),
     );
-    expect(frontline).toMatch(/normalized findings[\s\S]*approved fix set[\s\S]*Tier\s+1 quality gates/iu);
-    expect(frontline).toMatch(/recompose the exact target[\s\S]*resolve frontline routing again/iu);
-    expect(frontline).toMatch(/clean, unavailable, failed, and pass-cap outcomes[\s\S]*continue/iu);
+    expect(frontline).toContain("`findings / respond`");
+    expect(frontline).toContain("`arc review respond -`");
+    expect(frontline).toMatch(
+      /`ready-to-fix \/ apply-fix`[\s\S]*approved fix set[\s\S]*Tier\s+1\s+quality gates/iu,
+    );
+    expect(frontline).toMatch(
+      /`stale-target \/ prepare-current-target`[\s\S]*recompose\s+the\s+exact target[\s\S]*restart the selected review lane/iu,
+    );
+    expect(frontline).toMatch(
+      /`clean \/ none`[\s\S]*`unavailable \/ retry`[\s\S]*`timed-out \/ retry`[\s\S]*`failed \/ retry`/iu,
+    );
 
     const openPr = packaged.slice(
       packaged.indexOf("4. **Enter the open PR.**"),
@@ -542,7 +570,8 @@ describe("trusted review-gate workflows", () => {
     expect(openPr).toMatch(/unavailable, partial, or failed[\s\S]*required obligation blocks/iu);
     expect(openPr).toMatch(/recommended work[\s\S]*visible and non-blocking/iu);
     expect(openPr).toMatch(/recompose and repeat[\s\S]*approved fix changes the target/iu);
-    expect(openPr).toMatch(/review-suspension[\s\S]*promoted watcher[\s\S]*bounded schedule[\s\S]*human re-entry/u);
+    expect(openPr).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
+    expect(openPr).not.toMatch(/review-suspension|promoted watcher|bounded schedule/u);
   });
 
   it("covers Errand merge lanes and already-merged cleanup", async () => {

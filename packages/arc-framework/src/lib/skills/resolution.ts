@@ -66,6 +66,7 @@ export interface SkillGenerationTarget {
 export const CANONICAL_SKILLS = [
   "arc-session",
   "arc-commit",
+  "arc-design-audit",
   "arc-errand",
   "arc-handoff",
   "arc-housekeep",

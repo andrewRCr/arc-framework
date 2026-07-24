@@ -79,19 +79,29 @@ describe("validate-config.sh — retired review toggle", () => {
 
 describe("validate-config.sh — frontline review source", () => {
   it("accepts an optional safe registry ID", async () => {
-    const result = await runValidateConfig("review.frontline_source: project-reviewer\n");
+    const result = await runValidateConfig("review.frontline_sources: [project-reviewer]\n");
 
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("PASS  review.frontline_source is a safe registry ID");
+    expect(result.stdout).toContain("PASS  review.frontline_sources entry is a safe registry ID");
   });
 
   it.each(["Review Agent", "review;agent", "review--agent", "review-agent-"])(
     "rejects shell-shaped or malformed value %s",
     async (value) => {
-      const result = await runValidateConfig(`review.frontline_source: ${value}\n`);
+      const result = await runValidateConfig(`review.frontline_sources: ${value}\n`);
 
       expect(result.code).toBe(2);
-      expect(result.stdout).toContain("ERROR review.frontline_source must be a lowercase registry ID");
+      expect(result.stdout).toContain("ERROR review.frontline_sources entries must be lowercase registry IDs");
+    },
+  );
+
+  it.each(["[project-reviewer", "project-reviewer]"])(
+    "rejects unmatched list brackets in %s",
+    async (value) => {
+      const result = await runValidateConfig(`review.frontline_sources: ${value}\n`);
+
+      expect(result.code).toBe(2);
+      expect(result.stdout).toContain("ERROR review.frontline_sources must use matched list brackets");
     },
   );
 });

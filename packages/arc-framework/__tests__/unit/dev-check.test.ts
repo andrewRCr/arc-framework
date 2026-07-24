@@ -10,9 +10,13 @@ import { describe, it, expect } from "vitest";
 
 import {
   checkDevBuildStaleness,
+  hashSourceInputs,
   selectBundleInputs,
   type DevCheckDeps,
 } from "../../src/lib/dev-check.js";
+import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 function deps(overrides: Partial<DevCheckDeps>): DevCheckDeps {
   return {
@@ -55,7 +59,7 @@ describe("checkDevBuildStaleness", () => {
     });
   });
 
-  it("returns stale with computed ages when src is newer than dist", () => {
+  it("returns stale with computed ages when src is newer than dist (mtime fallback)", () => {
     const result = checkDevBuildStaleness(
       deps({
         newestSrc: () => ({ mtimeMs: NOW - 12_000, path: "src/lib/foo.ts" }),
@@ -72,7 +76,7 @@ describe("checkDevBuildStaleness", () => {
     });
   });
 
-  it("returns fresh when dist is newer than every src file", () => {
+  it("returns fresh when dist is newer than every src file (mtime fallback)", () => {
     const result = checkDevBuildStaleness(
       deps({
         newestSrc: () => ({ mtimeMs: NOW - 600_000, path: "src/cli.ts" }),
@@ -82,6 +86,67 @@ describe("checkDevBuildStaleness", () => {
     );
 
     expect(result).toEqual({ kind: "fresh" });
+  });
+
+  it("returns fresh on mtime-only bump when content stamps match", () => {
+    // The second failure mode: a tool touched the file without editing it, so
+    // mtime is ahead of dist but the bytes the build consumed are unchanged.
+    const result = checkDevBuildStaleness(
+      deps({
+        newestSrc: () => ({ mtimeMs: NOW - 1_000, path: "src/lib/foo.ts" }),
+        distMtimeMs: () => NOW - 7_200_000,
+        now: () => NOW,
+        currentInputsHash: () => "abc123",
+        stampedInputsHash: () => "abc123",
+      }),
+    );
+
+    expect(result).toEqual({ kind: "fresh" });
+  });
+
+  it("returns stale when content stamps diverge even if mtime looks fresh", () => {
+    // Content changed but a clock skew / restored mtime would hide it — the
+    // stamp is the authoritative signal.
+    const result = checkDevBuildStaleness(
+      deps({
+        newestSrc: () => ({ mtimeMs: NOW - 600_000, path: "src/cli.ts" }),
+        distMtimeMs: () => NOW - 60_000,
+        now: () => NOW,
+        currentInputsHash: () => "new-content",
+        stampedInputsHash: () => "old-content",
+      }),
+    );
+
+    expect(result).toEqual({
+      kind: "stale",
+      srcAge: 600,
+      distAge: 60,
+      newestSrc: "src/cli.ts",
+    });
+  });
+
+  it("falls back to mtime when only one side of the stamp pair is available", () => {
+    const mtimeStale = checkDevBuildStaleness(
+      deps({
+        newestSrc: () => ({ mtimeMs: NOW - 1_000, path: "src/cli.ts" }),
+        distMtimeMs: () => NOW - 7_200_000,
+        now: () => NOW,
+        currentInputsHash: () => "abc",
+        stampedInputsHash: () => null,
+      }),
+    );
+    expect(mtimeStale.kind).toBe("stale");
+
+    const mtimeFresh = checkDevBuildStaleness(
+      deps({
+        newestSrc: () => ({ mtimeMs: NOW - 600_000, path: "src/cli.ts" }),
+        distMtimeMs: () => NOW - 60_000,
+        now: () => NOW,
+        currentInputsHash: () => null,
+        stampedInputsHash: () => "abc",
+      }),
+    );
+    expect(mtimeFresh).toEqual({ kind: "fresh" });
   });
 });
 
@@ -111,5 +176,31 @@ describe("selectBundleInputs", () => {
     expect(selectBundleInputs(null, PKG)).toBeNull();
     expect(selectBundleInputs({}, PKG)).toBeNull();
     expect(selectBundleInputs({ inputs: 5 }, PKG)).toBeNull();
+  });
+});
+
+describe("hashSourceInputs", () => {
+  it("is stable under input order and sensitive to content", () => {
+    const root = mkdtempSync(join(tmpdir(), "arc-dev-check-hash-"));
+    const a = join(root, "a.ts");
+    const b = join(root, "b.ts");
+    writeFileSync(a, "export const a = 1;\n");
+    writeFileSync(b, "export const b = 2;\n");
+
+    const h1 = hashSourceInputs([a, b], root);
+    const h2 = hashSourceInputs([b, a], root);
+    expect(h1).toBe(h2);
+
+    writeFileSync(a, "export const a = 99;\n");
+    expect(hashSourceInputs([a, b], root)).not.toBe(h1);
+  });
+
+  it("uses package-relative keys so absolute roots do not change the digest", () => {
+    const root = mkdtempSync(join(tmpdir(), "arc-dev-check-hash-"));
+    mkdirSync(join(root, "src"), { recursive: true });
+    const file = join(root, "src", "x.ts");
+    writeFileSync(file, "export {};\n");
+
+    expect(hashSourceInputs([file], root)).toMatch(/^[0-9a-f]{64}$/u);
   });
 });

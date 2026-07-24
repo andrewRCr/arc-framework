@@ -44,7 +44,7 @@ describe("review routing bases", () => {
       schemaVersion: 1,
       authorSelfReview: "exempt",
       frontlineAction: "skip",
-      independentAnalysis: "required",
+      standardReview: "required",
       retrigger: "full-final",
       assuranceMode: "terminal-aggregate",
       reasons: ["unknown-change-set", "self-review-inactive", "frontline-inactive"],
@@ -141,7 +141,7 @@ describe("review routing bases", () => {
     })).toMatchObject({
       authorSelfReview: "required",
       frontlineAction: "attempt",
-      independentAnalysis: "required",
+      standardReview: "required",
       retrigger: "full-final",
       reasons: ["sensitive-change-set"],
     });
@@ -151,7 +151,7 @@ describe("review routing bases", () => {
     expect(reduceReviewRouting(routineFacts)).toMatchObject({
       authorSelfReview: "recommended",
       frontlineAction: "skip",
-      independentAnalysis: "exempt",
+      standardReview: "exempt",
       retrigger: "none",
       reasons: ["auto-eligible-planning", "self-owned-artifact"],
     });
@@ -160,7 +160,7 @@ describe("review routing bases", () => {
     expect(reduceReviewRouting({ ...routineFacts, surfaceAuthority: "ordinary" })).toMatchObject({
       authorSelfReview: "recommended",
       frontlineAction: "skip",
-      independentAnalysis: "recommended",
+      standardReview: "recommended",
       retrigger: "incremental",
       reasons: ["reviewed-routine-documentation"],
     });
@@ -174,14 +174,14 @@ describe("review routing bases", () => {
     })).toMatchObject({
       authorSelfReview: "required",
       frontlineAction: "offer",
-      independentAnalysis: "recommended",
+      standardReview: "recommended",
       retrigger: "incremental",
       reasons: ["routine-code", "atomic-determinate", "atomic-softened"],
     });
     expect(reduceReviewRouting({ ...routineFacts, contentKind: "code-bearing" })).toMatchObject({
       authorSelfReview: "required",
       frontlineAction: "attempt",
-      independentAnalysis: "required",
+      standardReview: "required",
       retrigger: "incremental",
       reasons: ["routine-code"],
     });
@@ -197,7 +197,7 @@ describe("review routing bases", () => {
     expect(decision).toMatchObject({
       authorSelfReview: "recommended",
       frontlineAction: "skip",
-      independentAnalysis: "required",
+      standardReview: "required",
       retrigger: "incremental",
     });
     expect(decision.reasons).toEqual(["reviewed-routine-documentation", reason]);
@@ -219,7 +219,7 @@ describe("review routing bases", () => {
     expect(decision).toMatchObject({
       authorSelfReview: "required",
       frontlineAction: "offer",
-      independentAnalysis: "required",
+      standardReview: "required",
       retrigger: "full-final",
     });
     expect(decision.reasons).toEqual([
@@ -248,7 +248,7 @@ describe("review routing bases", () => {
     }).assuranceMode).toBe(assuranceMode);
   });
 
-  it("adjusts each inactive method without weakening independent analysis", () => {
+  it("adjusts each inactive method without weakening standard review", () => {
     const active = reduceReviewRouting({ ...routineFacts, contentKind: "code-bearing" });
     const noSelfReview = reduceReviewRouting({
       ...routineFacts,
@@ -264,14 +264,14 @@ describe("review routing bases", () => {
     expect(noSelfReview).toMatchObject({
       authorSelfReview: "exempt",
       frontlineAction: active.frontlineAction,
-      independentAnalysis: active.independentAnalysis,
+      standardReview: active.standardReview,
       retrigger: active.retrigger,
     });
     expect(noSelfReview.reasons.at(-1)).toBe("self-review-inactive");
     expect(noFrontline).toMatchObject({
       authorSelfReview: active.authorSelfReview,
       frontlineAction: "skip",
-      independentAnalysis: active.independentAnalysis,
+      standardReview: active.standardReview,
       retrigger: active.retrigger,
     });
     expect(noFrontline.reasons.at(-1)).toBe("frontline-inactive");
@@ -282,7 +282,7 @@ describe("review routing bases", () => {
       ...routineFacts,
       assurance: { workContext: "work-unit", workClass: "Novel" },
     })).toMatchObject({
-      independentAnalysis: "exempt",
+      standardReview: "exempt",
       retrigger: "none",
       assuranceMode: "terminal-aggregate",
     });
@@ -292,12 +292,12 @@ describe("review routing bases", () => {
     const result = resolveReviewRouting(routineFacts, (facts) => ({
       schemaVersion: 1,
       policyId: "assurance-floor",
-      independentAnalysis: facts.assurance.workClass === "Light" ? "required" : "recommended",
+      standardReview: facts.assurance.workClass === "Light" ? "required" : "recommended",
       reasons: ["project:assurance-floor:light-review"],
     }));
 
     expect(result.decision).toMatchObject({
-      independentAnalysis: "required",
+      standardReview: "required",
       retrigger: "incremental",
     });
     expect(result.decision.reasons.at(-1)).toBe("project:assurance-floor:light-review");
@@ -311,21 +311,21 @@ describe("review routing bases", () => {
       retrigger: "full-final",
       reasons: ["project:release:full-final"],
     })).decision;
-    expect(fullFinal).toMatchObject({ independentAnalysis: "recommended", retrigger: "full-final" });
+    expect(fullFinal).toMatchObject({ standardReview: "recommended", retrigger: "full-final" });
 
     const requiredBase = resolveReviewRouting({ ...routineFacts, contentKind: "code-bearing" }, () => ({
       schemaVersion: 1,
       policyId: "routine",
       authorSelfReview: "recommended",
       frontlineAction: "offer",
-      independentAnalysis: "recommended",
+      standardReview: "recommended",
       retrigger: "incremental",
       reasons: ["project:routine:minimums"],
     })).decision;
     expect(requiredBase).toMatchObject({
       authorSelfReview: "required",
       frontlineAction: "attempt",
-      independentAnalysis: "required",
+      standardReview: "required",
       retrigger: "incremental",
     });
   });
@@ -334,7 +334,7 @@ describe("review routing bases", () => {
     const malformed = resolveReviewRouting(routineFacts, () => ({
       schemaVersion: 1,
       policyId: "unsafe",
-      independentAnalysis: "required",
+      standardReview: "required",
       reasons: ["project:unsafe:extension"],
       facts: { providerAvailable: true },
     }));

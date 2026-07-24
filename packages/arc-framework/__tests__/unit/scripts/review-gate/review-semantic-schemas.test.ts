@@ -18,11 +18,11 @@ import {
   type ReviewAssuranceInput,
 } from "../../../../src/scripts/review-gate/policy/assurance-schema.js";
 import {
-  IndependentAnalysisContractSchema,
-} from "../../../../src/scripts/review-gate/policy/independent-analysis-schema.js";
+  StandardReviewContractSchema,
+} from "../../../../src/scripts/review-gate/policy/standard-review-schema.js";
 import {
-  INDEPENDENT_ANALYSIS_BASELINE_CONTRACT,
-} from "../../../../src/scripts/review-gate/policy/independent-analysis.js";
+  STANDARD_REVIEW_BASELINE_CONTRACT,
+} from "../../../../src/scripts/review-gate/policy/standard-review.js";
 import {
   ProjectRoutingPromotionSchema,
 } from "../../../../src/scripts/review-gate/policy/project-promotion-schema.js";
@@ -124,12 +124,12 @@ describe("review semantic schemas", () => {
     }).success).toBe(false);
   });
 
-  it("enforces independent-analysis and retrigger pairings", () => {
+  it("enforces standard-review and retrigger pairings", () => {
     const decision = {
       schemaVersion: 1,
       authorSelfReview: "recommended",
       frontlineAction: "skip",
-      independentAnalysis: "exempt",
+      standardReview: "exempt",
       retrigger: "none",
       assuranceMode: "terminal-aggregate",
       reasons: ["auto-eligible-planning"],
@@ -137,11 +137,11 @@ describe("review semantic schemas", () => {
     expect(ReviewRoutingDecisionSchema.parse(decision)).toEqual(decision);
     expect(ReviewRoutingDecisionSchema.safeParse({
       ...decision,
-      independentAnalysis: "required",
+      standardReview: "required",
     }).success).toBe(false);
     expect(ReviewRoutingDecisionSchema.safeParse({
       ...decision,
-      independentAnalysis: "exempt",
+      standardReview: "exempt",
       retrigger: "incremental",
     }).success).toBe(false);
     expect(ReviewRoutingDecisionSchema.safeParse({ ...decision, reasons: [] }).success).toBe(false);
@@ -151,7 +151,7 @@ describe("review semantic schemas", () => {
     const promotion = {
       schemaVersion: 1,
       policyId: "self-hosting",
-      independentAnalysis: "required",
+      standardReview: "required",
       reasons: ["project:self-hosting:heavy-class"],
     };
     expect(ProjectRoutingPromotionSchema.parse(promotion)).toEqual(promotion);
@@ -162,10 +162,10 @@ describe("review semantic schemas", () => {
     }).success).toBe(false);
   });
 
-  it("validates the logical independent-analysis contract", () => {
-    const contract = INDEPENDENT_ANALYSIS_BASELINE_CONTRACT;
-    expect(IndependentAnalysisContractSchema.parse(contract)).toEqual(contract);
-    expect(IndependentAnalysisContractSchema.safeParse({ ...contract, partial: true }).success).toBe(false);
+  it("validates the logical standard-review contract", () => {
+    const contract = STANDARD_REVIEW_BASELINE_CONTRACT;
+    expect(StandardReviewContractSchema.parse(contract)).toEqual(contract);
+    expect(StandardReviewContractSchema.safeParse({ ...contract, partial: true }).success).toBe(false);
   });
 
   it("exports schema-inferred structural types", () => {
@@ -185,11 +185,15 @@ describe("review semantic schemas", () => {
       { id: "disposition-set", version: 2, owner: "finding-settlement" },
       { id: "fix-authorization", version: 2, owner: "finding-settlement" },
       { id: "fix-consumption", version: 2, owner: "finding-settlement" },
+      { id: "local-review-source", version: 1, owner: "local-source" },
+      { id: "approved-disposition-record", version: 1, owner: "advisory-records" },
+      { id: "frontline-outcome-record", version: 1, owner: "advisory-records" },
+      { id: "review-reduction-projection", version: 1, owner: "advisory-records" },
       {
         id: "review-operation-state",
         version: 1,
         owner: "operation-state",
-        variants: ["frontline-run", "review-suspension"],
+        variants: ["frontline-run", "review-suspension", "local-review"],
       },
     ]);
     expect(new Set(REVIEW_DURABLE_RECORD_INVENTORY.map(({ id }) => id)).size)

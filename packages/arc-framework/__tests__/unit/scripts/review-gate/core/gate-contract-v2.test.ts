@@ -17,8 +17,8 @@ import {
   validateReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
-  INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
-} from "../../../../../src/scripts/review-gate/policy/independent-analysis.js";
+  STANDARD_REVIEW_RUBRIC_IDENTITY,
+} from "../../../../../src/scripts/review-gate/policy/standard-review.js";
 
 const objectId = (character: string): string => character.repeat(40);
 
@@ -35,7 +35,7 @@ const policyIdentityChanges: ReadonlyArray<readonly [string, PolicyIdentityOverr
   ["obligation", { obligation: "recommended" }],
   ["source qualifier", { acceptableSources: [{ sourceKind: "agent", qualifier: "carrier/v2" }] }],
   ["admission", { initialAdmission: "checkpoint" }],
-  ["rubric version", { rubricVersion: "independent-analysis/v2" }],
+  ["rubric version", { rubricVersion: "standard-review/v2" }],
   ["rubric digest", { rubricDigest: canonicalDigest({ rubric: "replacement" }) }],
   ["retrigger", { retrigger: "incremental" }],
 ];
@@ -91,7 +91,7 @@ describe("review gate v2 contract", () => {
       headSha: objectId("c"),
       headTree: objectId("d"),
     });
-    const requirementId = canonicalDigest({ requirement: "independent-analysis" });
+    const requirementId = canonicalDigest({ requirement: "standard-review" });
     const request = createReviewRequest(target, {
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
@@ -246,20 +246,20 @@ describe("review gate v2 contract", () => {
       headSha: objectId("c"),
       headTree: objectId("d"),
     });
-    const rubricDigest = INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest;
+    const rubricDigest = STANDARD_REVIEW_RUBRIC_IDENTITY.digest;
     const requirement = createReviewRequirement({
       target,
       projection: {
         obligation: "required",
         reasons: ["sensitive-change-set", "sensitive-change-set"],
-        rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+        rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
         rubricDigest,
         retrigger: "full-final",
         count: 1,
       },
       acceptableSources: [
         { sourceKind: "human", qualifier: null },
-        { sourceKind: "agent", qualifier: "independent-analysis/v1" },
+        { sourceKind: "agent", qualifier: "standard-review/v1" },
         { sourceKind: "human", qualifier: null },
       ],
       initialAdmission: "automatic",
@@ -268,7 +268,7 @@ describe("review gate v2 contract", () => {
 
     expect(requirement.reasons).toEqual(["sensitive-change-set"]);
     expect(requirement.acceptableSources).toEqual([
-      { sourceKind: "agent", qualifier: "independent-analysis/v1" },
+      { sourceKind: "agent", qualifier: "standard-review/v1" },
       { sourceKind: "human", qualifier: null },
     ]);
     expect(requirement.requirementId).toBe(canonicalDigest({
@@ -276,19 +276,19 @@ describe("review gate v2 contract", () => {
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       targetId: target.targetId,
-      kind: "independent-analysis",
+      kind: "standard-review",
       obligation: "required",
       reasons: ["sensitive-change-set"],
-      rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
       rubricDigest,
       retrigger: "full-final",
       count: 1,
       acceptableSources: [
-        { sourceKind: "agent", qualifier: "independent-analysis/v1" },
+        { sourceKind: "agent", qualifier: "standard-review/v1" },
         { sourceKind: "human", qualifier: null },
       ],
       initialAdmission: "automatic",
-      policyVersion: "sha256:06d07df0790bedb433464d3646296053ab3e3c224b07c947003f12993427456d",
+      policyVersion: "sha256:4b42f515d1d68b811c4ff764b02fcbed4c9b121536d40b91b2480e31eb040c02",
     }));
   });
 
@@ -304,18 +304,18 @@ describe("review gate v2 contract", () => {
       headSha: objectId("c"),
       headTree: objectId("d"),
     });
-    const rubricDigest = INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest;
+    const rubricDigest = STANDARD_REVIEW_RUBRIC_IDENTITY.digest;
     const requirement = createReviewRequirement({
       target,
       projection: {
         obligation: "required",
         reasons: ["sensitive-change-set"],
-        rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+        rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
         rubricDigest,
         retrigger: "full-final",
         count: 1,
       },
-      acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+      acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
       initialAdmission: "automatic",
     });
     if (requirement === null) throw new Error("expected requirement");
@@ -385,7 +385,7 @@ describe("review gate v2 contract", () => {
       headSha: objectId("c"),
       headTree: objectId("d"),
     });
-    const requirementIdSeed = canonicalDigest({ requirement: "independent-analysis" });
+    const requirementIdSeed = canonicalDigest({ requirement: "standard-review" });
     const request = createReviewRequest(target, {
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
@@ -403,14 +403,14 @@ describe("review gate v2 contract", () => {
       projection: {
         obligation: "required" as const,
         reasons: ["sensitive-change-set" as const],
-        rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-        rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
         retrigger: "full-final" as const,
         count: 1 as const,
       },
       acceptableSources: [
         { sourceKind: "human", qualifier: null },
-        { sourceKind: "agent", qualifier: "independent-analysis/v1" },
+        { sourceKind: "agent", qualifier: "standard-review/v1" },
       ],
       initialAdmission: "automatic" as const,
     };
@@ -431,8 +431,8 @@ describe("review gate v2 contract", () => {
       requirementId: requirement.requirementId,
     }).toEqual({
       targetId: "sha256:d4289a08f0d41356739446723949aaf892a2de41fb6510f6f065a4c93b26bcbd",
-      requestId: "sha256:480e17fe526675904ddc4124b18108214be44b199a82dad7a8d6e5f7990aea8b",
-      requirementId: "sha256:c47fa4ec60c27c990942466ec01861904a570ec631fd0b0f695a87b2b1f3e751",
+      requestId: "sha256:2e875e9566792187d4ace2030abdc6f479af30b06741812b2054c02ee706a5e7",
+      requirementId: "sha256:5bcc86a859459b05b8f8f249017a3eb46ffe3df51e044500329aee6abbdb93cd",
     });
     expect(new Set([target.targetId, request.requestId, requirement.requirementId]).size).toBe(3);
     expect(reordered.requirementId).toBe(requirement.requirementId);
@@ -504,8 +504,8 @@ describe("review gate v2 contract", () => {
       projection: {
         obligation: "required" as const,
         reasons: ["sensitive-change-set" as const],
-        rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-        rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
         retrigger: "full-final" as const,
         count: 1 as const,
       },
@@ -539,8 +539,8 @@ describe("review gate v2 contract", () => {
       projection: {
         obligation: "required",
         reasons: ["sensitive-change-set"],
-        rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-        rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
         retrigger: "full-final",
         count: 1,
       },
@@ -609,8 +609,8 @@ describe("review gate v2 contract", () => {
     const projection = {
       obligation: "required" as const,
       reasons: ["sensitive-change-set" as const],
-      rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-      rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
       retrigger: "full-final" as const,
       count: 1 as const,
     };
