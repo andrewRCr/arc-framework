@@ -1,8 +1,18 @@
 import { configDefaults, defineConfig } from "vitest/config";
 import { realpathSync } from "node:fs";
+import { dirname } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 
 import { ISOLATED_UNIT_MOCK_FILES } from "./__tests__/helpers/isolated-unit-mock-files.js";
+
+// Absolute package root from this config file — not process.cwd(). `root: "."`
+// resolves against the invoker's cwd, so `npx vitest --config …` from the monorepo
+// root (or an IDE workspace root) finds zero tests under `__tests__/…`. Pinning
+// here keeps include globs and globalSetup package-relative regardless of cwd.
+// Supported entry remains `npm test` (workspaces set package cwd); this removes
+// the silent empty-run failure mode when the config is pointed at directly.
+const packageRoot = dirname(fileURLToPath(import.meta.url));
 
 // Git reports physical worktree paths while `os.tmpdir()` can retain a host
 // alias (macOS `/var` vs `/private/var`). Give every temp fixture one canonical
@@ -29,7 +39,7 @@ export default defineConfig({
       {
         test: {
           name: "unit",
-          root: ".",
+          root: packageRoot,
           include: ["__tests__/unit/**/*.test.ts"],
           exclude: [...configDefaults.exclude, ...ISOLATED_UNIT_MOCK_FILES],
           // Module-mocking files are quarantined to the `unit-mocks` tier, so the
@@ -41,7 +51,7 @@ export default defineConfig({
       {
         test: {
           name: "unit-mocks",
-          root: ".",
+          root: packageRoot,
           include: [...ISOLATED_UNIT_MOCK_FILES],
           isolate: true,
           passWithNoTests: true,
@@ -50,7 +60,7 @@ export default defineConfig({
       {
         test: {
           name: "integration",
-          root: ".",
+          root: packageRoot,
           include: ["__tests__/integration/**/*.test.ts"],
           passWithNoTests: true,
         },
@@ -58,7 +68,7 @@ export default defineConfig({
       {
         test: {
           name: "e2e",
-          root: ".",
+          root: packageRoot,
           include: ["__tests__/e2e/**/*.test.ts"],
           globalSetup: ["__tests__/e2e/global-setup.ts"],
           testTimeout: 30_000,
