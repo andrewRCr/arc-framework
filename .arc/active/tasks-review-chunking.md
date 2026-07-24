@@ -245,21 +245,15 @@ review obligations or authorize target mutation.
 - _Goal:_ The first application yields comparable raw evidence about whether closure-respecting boundaries reduce
   declaration-split false blocker findings.
 
-    - `[ ]` **5.2.a Run two controlled local carrier runs**
-        - Run one independent carrier orchestration per arm with the same evaluator profile/capability and effective
-          review rubric; within each arm, isolate every chunk and seam in its own fresh bounded context and use a
-          fresh non-author aggregate context.
-        - Exclude author conclusions and keep each arm blind to the other arm's map, triage, and findings until both
-          raw snapshots and aggregate results are complete.
+    - `[x]` **5.2.a Run two controlled local carrier runs**
+        - Ran ten fresh evaluator invocations over the exact target: three isolated scopes, one isolated seam, and
+          one fresh aggregate per arm, with identical capability and rubric and cross-arm blindness preserved.
 
-    - `[ ]` **5.2.b Classify the pre-triage finding sets**
-        - Preserve every structured raw per-chunk finding in `analysis-review-chunking.md` before classification,
-          then classify declaration-split false `blocker` findings against full source, type-check, definitions,
-          references, and tests.
-        - Record evaluator configuration, scope sizes, aggregate results, and any rate-limit or tool degradation
-          that constrains interpretation.
-        - Do not mutate the held-out target. Hand verified actionable findings to its owner through the ordinary
-          review-disposition path; the analysis records the experiment but is not the work item's home.
+    - `[x]` **5.2.b Classify the pre-triage finding sets**
+        - Preserved every scope, seam, and aggregate report before primary classification; full-source adjudication,
+          exact-head type-check, and 105 focused tests found zero declaration-split false blockers in either arm.
+        - Bound a verified eight-item advisory packet to the held-out SHA without mutating its worktree or treating
+          the experiment record as the target's disposition queue.
 
     - `[ ]` **5.2.c Record the paired result**
         - Complete the forward-readable section in `analysis-review-chunking.md` with both arm summaries, the raw
