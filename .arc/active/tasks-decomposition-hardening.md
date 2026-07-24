@@ -222,31 +222,26 @@ own branch and fails safely at lifecycle boundaries.
 _Purpose:_ Make a flat-sibling split a closed, validated placement arm without conflating cohort placement with the
 origin-disposition shape.
 
-### `[ ]` **3.1 Extend the cut-map contract with the `cohortless` placement**
+### `[x]` **3.1 Extend the cut-map contract with the `cohortless` placement**
 
 - _Goal:_ The untrusted cut-map boundary distinguishes flat siblings from both a newly minted cohort and lateral
   fan-out under an existing parent.
 
-- _Note:_ See `notes-decomposition-hardening.md` § Cohortless placement invariants.
+    - `[x]` **3.1.a Add `cohortless` to the placement vocabulary**
+        - Added `cohortless` to the closed `ParentPosition` vocabulary while retaining the existing schema version
+          and orthogonal transform-shape contract.
 
-    - `[ ]` **3.1.a Add `cohortless` to the placement vocabulary**
-        - Extend `ParentPosition` and the closed parser set in
-          `packages/arc-framework/src/lib/work-unit/decompose-cut-map.ts`; keep `shape` orthogonal and make the
-          schema-version call explicit in codec fixtures.
+    - `[x]` **3.1.b Enforce cohort/placement combinations**
+        - Cohort-backed positions now require a cohort, `cohortless` and `at-cap` forbid one, and cohortless maps
+          reject both coordination destinations and shared source ownership at the untrusted boundary.
 
-    - `[ ]` **3.1.b Enforce cohort/placement combinations**
-        - Require `cohort` for `standalone` / `in-cohort`, forbid it for `cohortless` / `at-cap`, and retain
-          shape-specific survivor, destination, ownership, and edge validation.
-        - Forbid `cohort-coordination` entries and `cohort-shared` source ownership on `cohortless` maps; every
-          conserved source must have a destination-owned home.
+    - `[x]` **3.1.c Prove the closed parse matrix**
+        - Added parser coverage for symmetric and extraction cohortless maps, every cohort-presence combination,
+          forbidden shared coordination, retained cohort-backed behavior, and the existing closed-value/version
+          boundary.
 
-    - `[ ]` **3.1.c Prove the closed parse matrix**
-        - Build `test-first` (one behavior at a time):
-            - valid symmetric and extraction `cohortless` maps parse canonically with no cohort
-            - `cohortless` plus a cohort and cohort-requiring arms without one reject
-            - cohort coordination or shared ownership rejects on `cohortless` while cohort-backed maps retain it
-            - `at-cap` remains distinguishable and all prior valid maps retain their canonical form
-            - unknown placement values and incompatible schema versions fail at the JSON boundary
+- _Outcome:_ The versioned cut-map parser now admits flat siblings as a distinct placement while rejecting every
+  representation that would imply an ownerless cohort surface.
 
 ### `[ ]` **3.2 Project flat sibling paths through scaffold and retirement**
 

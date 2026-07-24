@@ -20,7 +20,7 @@ import { isSlugSafe } from "./slug.js";
 export const DECOMPOSE_SCHEMA_VERSION = 2;
 
 export type TransformShape = "symmetric" | "extraction" | "backlog-stub-source" | "heterogeneous-home";
-export type ParentPosition = "standalone" | "in-cohort" | "at-cap";
+export type ParentPosition = "standalone" | "in-cohort" | "cohortless" | "at-cap";
 export type OriginLocation = "provisional" | "planned" | "active";
 export type OriginDisposition = "keep-active" | "park";
 export type ExistingHomeKind = "fold" | "atomic-edit";
@@ -123,7 +123,7 @@ const TRANSFORM_SHAPES: readonly TransformShape[] = [
   "backlog-stub-source",
   "heterogeneous-home",
 ];
-const PARENT_POSITIONS: readonly ParentPosition[] = ["standalone", "in-cohort", "at-cap"];
+const PARENT_POSITIONS: readonly ParentPosition[] = ["standalone", "in-cohort", "cohortless", "at-cap"];
 const ORIGIN_LOCATIONS: readonly OriginLocation[] = ["provisional", "planned", "active"];
 const ORIGIN_PHASES: readonly WorkUnitState[] = ["Planning", "Active"];
 const WORK_CLASSES: readonly WorkClass[] = ["Light", "Heavy", "Novel"];
@@ -498,10 +498,10 @@ export function parseCutMap(input: unknown): CutMapParseResult {
     }
     cohort = input.cohort;
   }
-  if (input.parentPosition === "at-cap" && cohort !== undefined) {
-    return { status: "rejected", reason: "at-cap decomposition must omit `cohort`." };
+  if ((input.parentPosition === "cohortless" || input.parentPosition === "at-cap") && cohort !== undefined) {
+    return { status: "rejected", reason: `${input.parentPosition} decomposition must omit \`cohort\`.` };
   }
-  if (input.parentPosition !== "at-cap" && cohort === undefined) {
+  if ((input.parentPosition === "standalone" || input.parentPosition === "in-cohort") && cohort === undefined) {
     return { status: "rejected", reason: `${input.parentPosition} decomposition requires a cohort placement.` };
   }
   if (!Array.isArray(input.entries)) return { status: "rejected", reason: "cut-map requires an entries array." };
@@ -515,6 +515,9 @@ export function parseCutMap(input: unknown): CutMapParseResult {
   if (duplicateId !== null) return { status: "rejected", reason: `duplicate destinationId \`${duplicateId}\`.` };
   const coordinations = entries.filter((entry): entry is CohortCoordinationEntry => entry.kind === "cohort-coordination");
   if (coordinations.length > 1) return { status: "rejected", reason: "at most one cohort-coordination entry is allowed." };
+  if (input.parentPosition === "cohortless" && coordinations.length > 0) {
+    return { status: "rejected", reason: "cohortless decomposition forbids cohort-coordination entries." };
+  }
   const duplicateIdentity = duplicate(entries.map(entryIdentity));
   if (duplicateIdentity !== null) return { status: "rejected", reason: `duplicate destination identity \`${duplicateIdentity}\`.` };
   if (coordinations[0] !== undefined && (cohort === undefined || coordinations[0].cohort !== cohort)) {
@@ -558,6 +561,12 @@ export function parseCutMap(input: unknown): CutMapParseResult {
 
   const sourceAllocations = parseSourceAllocations(input.sourceAllocations);
   if ("reason" in sourceAllocations) return { status: "rejected", reason: sourceAllocations.reason };
+  if (
+    input.parentPosition === "cohortless"
+    && sourceAllocations.value.some((allocation) => allocation.ownership === "cohort-shared")
+  ) {
+    return { status: "rejected", reason: "cohortless decomposition forbids cohort-shared source ownership." };
+  }
   const destinations = new Map(entries.map((entry) => [entry.destinationId, entry]));
   for (const allocation of sourceAllocations.value) {
     if (allocation.disposition.kind !== "target") continue;
