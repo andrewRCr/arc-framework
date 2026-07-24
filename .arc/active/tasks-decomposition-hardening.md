@@ -98,54 +98,29 @@ consumes them.
 _Purpose:_ Turn retirement receipts into the shared, version-checked mechanism that repairs a dependent from its
 own branch and fails safely at lifecycle boundaries.
 
-### `[ ]` **2.1 Add subject-keyed retirement discovery and dependent-specific dispositions**
+### `[x]` **2.1 Add subject-keyed retirement discovery and dependent-specific dispositions**
 
 - _Goal:_ A dependent can ask what happened to one edge target and receive its own validated, storage-agnostic
   reconcile instruction without knowing receipt paths or transition-specific record shapes.
 
-- _Approach:_ Expose a `{ retiredSubject, dependentSlug }` query over the retirement store. The current in-repo
-  adapter considers only receipts reachable from the dependent branch's committed history, reading the canonical
-  current-tree namespace plus legacy records in that same reachable history; callers depend only on the query
-  contract, so paths and Git enumeration do not leak into lifecycle logic.
+    - `[x]` **2.1.a Define the receipt-discovery query and ambiguity outcomes**
+        - Added a storage-independent query port with the six closed resolution states and path-free Git adapter;
+          it authenticates the complete reachable namespace before projecting one work-unit subject.
 
-    - `[ ]` **2.1.a Define the receipt-discovery query and ambiguity outcomes**
-        - Return validated candidates keyed by retired work-unit subject and project the named dependent's mapping,
-          with explicit `absent | unique | ambiguous | unmapped-dependent | version-conflict | namespace-corrupt`
-          outcomes. `unique` and `unmapped-dependent` carry evidence-quality metadata
-          `unknown | tree-only | reachable | degraded`; read quality is not a peer resolution outcome. An
-          undecodable digest-keyed entry cannot be classified as unrelated; mixed valid/corrupt enumeration fails
-          closed before subject projection. Keep paths and enumeration mechanics behind the adapter boundary.
-        - Never consume evidence from an arbitrary live or remote branch. A receipt becomes actionable only when
-          its introduction commit is reachable from the dependent's own branch, so the replacement projection is
-          available in the same history.
+    - `[x]` **2.1.b Project receipts into one closed reconcile disposition set**
+        - Projected decompose replace/drop, rename retarget, and abandon removal with exact dependent mappings and
+          retained `unknown | tree-only | reachable | degraded` provenance; park remains non-actionable.
 
-    - `[ ]` **2.1.b Project receipts into one closed reconcile disposition set**
-        - Derive `replace` / authored `drop` from decompose allocations, `retarget` from rename, and `abandoned`
-          from abandon; park produces no incoming-edge disposition because the slug persists.
-        - Keep an authenticated mapped disposition actionable when its evidence quality is `degraded` or v1
-          `unknown`; retain that provenance in the plan/advisory. `unmapped-dependent` remains a conflict at every
-          quality and never guesses a replacement.
-        - A decompose receipt with no `incomingEdges` entry for the querying dependent returns
-          `unmapped-dependent`; never guess a transform-wide replacement for a dependent omitted from the prepared
-          inventory.
+    - `[x]` **2.1.c Extend retirement codecs without weakening the trust boundary**
+        - Bound decompose subject/allocation identity and allocation digests, rejected invalid v2 quality domains,
+          and changed work-unit transition writers to record their composed inventory quality.
 
-    - `[ ]` **2.1.c Extend retirement codecs without weakening the trust boundary**
-        - Keep exact-key and closed-enum validation for the reachability and disposition-bearing receipt shape;
-          reject mismatched subject, transition, result, and digest combinations before they reach reconciliation.
+    - `[x]` **2.1.d Prove discovery across store and schema states**
+        - Covered all resolution/disposition arms, global corruption and symlink refusal, degraded/v1 evidence,
+          adapter independence, and real-Git branch reachability before and after receipt introduction merges.
 
-    - `[ ]` **2.1.d Prove discovery across store and schema states**
-        - Build `test-first` (one behavior at a time):
-            - one valid receipt yields one typed disposition with no storage path in the domain result
-            - absent, duplicate-authoritative, unmapped, and version-conflict outcomes surface distinctly
-            - one malformed, unknown-version, or digest-mismatched entry makes related and unrelated queries
-              `namespace-corrupt`
-            - canonical and historical-legacy symlink entries make every query `namespace-corrupt`
-            - mapped `degraded` and v1 `unknown` evidence remains actionable with provenance, while an unmapped
-              receipt at either quality remains a conflict
-            - unmerged evidence on another branch is ignored; the same receipt becomes actionable once its
-              introduction commit is reachable from the dependent branch
-            - each transition/result combination admits only its legal disposition
-            - relocation of the store adapter does not change the query consumer contract
+- _Outcome:_ Dependents can now resolve only retirement evidence committed into their own history through a closed
+  path-free contract; provenance remains actionable without weakening global namespace authentication.
 
 ### `[ ]` **2.2 Generalize dependency discharge into a version-checked current-WU reconcile**
 

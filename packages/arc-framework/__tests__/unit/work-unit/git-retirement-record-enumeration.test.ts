@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { receiptId } from "../../../src/lib/canonical/receipt-id.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
-import { enumerateGitRetirementRecords } from "../../../src/lib/work-unit/git-retirement-record-enumeration.js";
+import {
+  enumerateGitRetirementRecords,
+  queryGitRetirementDisposition,
+} from "../../../src/lib/work-unit/git-retirement-record-enumeration.js";
 import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
 import {
   LEGACY_RETIREMENT_RECORD_NAMESPACE,
@@ -83,6 +86,17 @@ function enumerationExec(options: { canonicalMode?: string; legacyMode?: string 
 }
 
 describe("Git retirement record enumeration", () => {
+  it("projects the dependent query behind the Git adapter boundary", async () => {
+    await expect(queryGitRetirementDisposition(enumerationExec(), "HEAD", {
+      retiredSubject: "sample",
+      dependentSlug: "consumer",
+    })).resolves.toEqual({
+      status: "unique",
+      evidenceQuality: "unknown",
+      disposition: { kind: "abandoned" },
+    });
+  });
+
   it("deduplicates canonical-current and historical-legacy records without exposing paths", async () => {
     const result = await enumerateGitRetirementRecords(enumerationExec(), "HEAD");
 

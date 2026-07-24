@@ -10,7 +10,7 @@ const digest = (label: string) => canonicalDigest(label);
 
 const allocationInput = {
   schemaVersion: 2,
-  origin: { slug: "origin-wu", phase: "Planning", location: "planned" },
+  origin: { slug: "sample", phase: "Planning", location: "planned" },
   shape: "symmetric",
   parentPosition: "standalone",
   cohort: "my-cohort",
@@ -89,7 +89,7 @@ describe("parseRetirementReceipt", () => {
         kind: "decompose",
         preparationId: digest("preparation"),
         allocation,
-        cutMapDigest: digest("cut-map"),
+        cutMapDigest: canonicalDigest(allocation),
         sourceInventoryDigest: digest("source-inventory"),
         incomingEdgeInventoryDigest: digest("incoming-inventory"),
         outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
@@ -110,7 +110,7 @@ describe("parseRetirementReceipt", () => {
     const v2: RetirementReceipt = {
       ...v1,
       schemaVersion: 2,
-      inventoryRead: "not-applicable",
+      inventoryRead: "reachable",
       receiptId: receiptId({
         schemaVersion: 2,
         subject: v1.subject,
@@ -124,6 +124,10 @@ describe("parseRetirementReceipt", () => {
     const missingQuality = candidate(v2);
     delete missingQuality.inventoryRead;
     expect(parseRetirementReceipt(canonicalize(missingQuality))).toBeNull();
+
+    const nonApplicableWorkUnit = candidate(v2);
+    nonApplicableWorkUnit.inventoryRead = "not-applicable";
+    expect(parseRetirementReceipt(canonicalize(nonApplicableWorkUnit))).toBeNull();
   });
 
   it.each([
@@ -171,7 +175,7 @@ describe("parseRetirementReceipt", () => {
       kind: "decompose",
       preparationId: digest("preparation"),
       allocation,
-      cutMapDigest: digest("cut-map"),
+      cutMapDigest: canonicalDigest(allocation),
       sourceInventoryDigest: digest("source-inventory"),
       incomingEdgeInventoryDigest: digest("incoming-inventory"),
       outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
@@ -210,6 +214,36 @@ describe("parseRetirementReceipt", () => {
     const invalid = candidate(receiptFor());
     invalid.receiptId = digest("not-the-derived-id");
     expect(parseRetirementReceipt(canonicalize(invalid))).toBeNull();
+  });
+
+  it("rejects decompose subject and allocation-digest mismatches", () => {
+    const base = candidate(receiptFor({ kind: "work-unit", name: "sample" }, "decompose", {
+      kind: "decompose",
+      preparationId: digest("preparation"),
+      allocation,
+      cutMapDigest: canonicalDigest(allocation),
+      sourceInventoryDigest: digest("source-inventory"),
+      incomingEdgeInventoryDigest: digest("incoming-inventory"),
+      outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
+      targets: [],
+    }));
+
+    const mismatchedSubject = structuredClone(base);
+    mismatchedSubject.subject = { kind: "work-unit", name: "other" };
+    const source = mismatchedSubject.source as Record<string, unknown>;
+    mismatchedSubject.receiptId = receiptId({
+      schemaVersion: 1,
+      subject: { kind: "work-unit", name: "other" },
+      transition: "decompose",
+      sourceBranch: source.branch as string,
+      sourceHead: source.head as string,
+    });
+    expect(parseRetirementReceipt(canonicalize(mismatchedSubject))).toBeNull();
+
+    const mismatchedDigest = structuredClone(base);
+    const result = mismatchedDigest.result as Record<string, unknown>;
+    result.cutMapDigest = digest("other-allocation");
+    expect(parseRetirementReceipt(canonicalize(mismatchedDigest))).toBeNull();
   });
 
   it("decodes a canonical rename receipt to its fully narrowed value", () => {

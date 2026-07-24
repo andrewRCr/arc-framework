@@ -15,6 +15,11 @@ import {
   type RetirementRecordEnumerationResult,
 } from "./retirement-record-enumeration.js";
 import {
+  queryRetirementDisposition,
+  type RetirementDispositionQuery,
+  type RetirementDispositionQueryResult,
+} from "./retirement-disposition-query.js";
+import {
   LEGACY_RETIREMENT_RECORD_NAMESPACE,
   RETIREMENT_RECORD_NAMESPACE,
 } from "./retirement-record-store.js";
@@ -59,6 +64,25 @@ export async function enumerateGitRetirementRecords(
     await appendUniqueEntries(exec, LEGACY_RETIREMENT_RECORD_NAMESPACE, historical, seen, entries);
   }
   return validateRetirementRecordEnumeration(entries);
+}
+
+/**
+ * Resolve one dependent disposition from evidence reachable from its ref.
+ *
+ * @param exec - Git process boundary
+ * @param dependentRef - Committed history trusted by the dependent
+ * @param input - Subject and dependent-specific lookup
+ * @returns One path-free disposition resolution
+ */
+export async function queryGitRetirementDisposition(
+  exec: GitExec,
+  dependentRef: string,
+  input: RetirementDispositionQuery,
+): Promise<RetirementDispositionQueryResult> {
+  return queryRetirementDisposition(
+    await enumerateGitRetirementRecords(exec, dependentRef),
+    input,
+  );
 }
 
 async function appendUniqueEntries(

@@ -1,6 +1,7 @@
 /** Closed-schema decoder for finalized retirement receipts at an untrusted JSON boundary. */
 
 import {
+  canonicalDigest,
   canonicalize,
   isCanonicalDigest,
   type CanonicalDigest,
@@ -190,6 +191,8 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
     const projection = parseProjection(parsed.retiringProjection);
     const result = parseResult(parsed.result);
     if (subject === null || source === null || projection === null || result === null
+      || (schemaVersion === 2
+        && ((subject.kind === "work-unit") === (parsed.inventoryRead === "not-applicable")))
       || (parsed.transition !== "abandon"
         && parsed.transition !== "decompose"
         && parsed.transition !== "park-planning"
@@ -231,6 +234,13 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
     if (
       validateReceiptMatrix(receipt, expectedLifecycle) !== null
       || receipt.retiringProjection.kind !== expectedProjection
+      || (receipt.result.kind === "decompose"
+        && (receipt.subject.kind !== "work-unit"
+          || receipt.result.allocation.origin.slug !== receipt.subject.name
+          || canonicalDigest(receipt.result.allocation) !== receipt.result.cutMapDigest))
+      || (receipt.result.kind === "rename"
+        && (receipt.subject.kind !== "work-unit"
+          || receipt.result.targetSlug === receipt.subject.name))
     ) return null;
     return receipt;
   } catch {

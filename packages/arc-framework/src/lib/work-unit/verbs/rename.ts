@@ -19,7 +19,7 @@ import type {
   RenameRetirementContext,
   RenameTransitionSourceEvidence,
 } from "../direct-retirement-driver.js";
-import type { RetirementReceipt } from "../retirement-authority.js";
+import type { InventoryRead, RetirementReceipt } from "../retirement-authority.js";
 
 /** Subject shapes with distinct identity-leg applicability. */
 export type RenameSubjectShape = "spawned" | "in-place" | "stub";
@@ -40,6 +40,7 @@ export interface RenamePlan {
   additionalPaths: readonly string[];
   worktreePath: string | null;
   baseBranch: string;
+  inventoryRead: Exclude<InventoryRead, "not-applicable">;
 }
 
 /** Result of the tracked commit plus applicable identity legs. */
@@ -213,7 +214,7 @@ async function runTrackedRename(
   });
   const receipt: RetirementReceipt = {
     schemaVersion: 2,
-    inventoryRead: "not-applicable",
+    inventoryRead: plan.inventoryRead,
     receiptId: id,
     subject: source.scope.subject,
     transition: "rename",

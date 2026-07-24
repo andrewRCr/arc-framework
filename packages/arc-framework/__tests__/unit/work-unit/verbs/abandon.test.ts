@@ -282,6 +282,7 @@ describe("runAbandon — started WU (active)", () => {
       artifactDigest: canonicalDigest({ artifact: "foo-source" }),
     });
     expect(recordedReceipts[0]?.transitionPatchDigest).toBe(patchDigest(TRANSITION_OPERATIONS));
+    expect(recordedReceipts[0]).toMatchObject({ schemaVersion: 2, inventoryRead: "tree-only" });
   });
 
   it("stages the transition before recording the receipt for the same commit", async () => {

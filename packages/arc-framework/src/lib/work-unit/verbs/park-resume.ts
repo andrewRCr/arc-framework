@@ -397,7 +397,7 @@ async function parkPlanning(
   }
   const receipt: RetirementReceipt = {
     schemaVersion: 2,
-    inventoryRead: "not-applicable",
+    inventoryRead: ctx.composed?.readQuality ?? "tree-only",
     receiptId: receiptId({
       schemaVersion: 2,
       subject: source.scope.subject,

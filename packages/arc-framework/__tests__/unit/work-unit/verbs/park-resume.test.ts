@@ -320,6 +320,8 @@ describe("runPark — park@Planning", () => {
     expect(recordedReceipts).toHaveLength(1);
     expect(recordedReceipts[0]).toMatchObject({
       transition: "park-planning",
+      schemaVersion: 2,
+      inventoryRead: "tree-only",
       authorization: "planning-relocated",
       source: { branch: "plan/foo", head: "a".repeat(40) },
       result: { kind: "relocate", plannedArtifactDigest: canonicalDigest({ artifact: "planned-foo" }) },

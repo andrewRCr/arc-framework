@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import { validateManagedPath } from "../../../../src/lib/kernel/canonical/managed-path.js";
 import type { RenameRetirementContext } from "../../../../src/lib/work-unit/direct-retirement-driver.js";
+import type { RetirementReceipt } from "../../../../src/lib/work-unit/retirement-authority.js";
 import {
   runRename,
   type RenamePlan,
@@ -27,6 +28,7 @@ function plan(shape: RenamePlan["shape"], resuming = false): RenamePlan {
     additionalPaths: [".arc/active/meta-sibling.md"],
     worktreePath: shape === "spawned" ? "/work/project.old-name" : null,
     baseBranch: "main",
+    inventoryRead: "reachable",
   };
 }
 
@@ -34,8 +36,9 @@ function buildContext(options: {
   shape?: RenamePlan["shape"];
   resuming?: boolean;
   failAt?: string;
-} = {}): { ctx: RunRenameContext; calls: string[] } {
+} = {}): { ctx: RunRenameContext; calls: string[]; recordedReceipts: RetirementReceipt[] } {
   const calls: string[] = [];
+  const recordedReceipts: RetirementReceipt[] = [];
   const selected = plan(options.shape ?? "spawned", options.resuming ?? false);
   const source = {
     scope: {
@@ -66,8 +69,9 @@ function buildContext(options: {
           },
         };
       },
-      record: async () => {
+      record: async (receipt) => {
         calls.push("record");
+        recordedReceipts.push(receipt);
         return { status: "recorded" as const, authorityVersion: "v2" };
       },
     },
@@ -153,10 +157,21 @@ function buildContext(options: {
       };
     },
   };
-  return { ctx, calls };
+  return { ctx, calls, recordedReceipts };
 }
 
 describe("runRename", () => {
+  it("records the composed inventory quality", async () => {
+    const { ctx, recordedReceipts } = buildContext();
+
+    await runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" });
+
+    expect(recordedReceipts[0]).toMatchObject({
+      schemaVersion: 2,
+      inventoryRead: "reachable",
+    });
+  });
+
   it("commits the tracked sweep before all five spawned identity legs", async () => {
     const { ctx, calls } = buildContext();
 

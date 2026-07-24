@@ -152,6 +152,7 @@ export async function runRenameCommand(
         additionalPaths,
         worktreePath: composed.worktreePathBySlug.get(subject.resolvedSlug) ?? null,
         baseBranch: command.baseBranch,
+        inventoryRead: composed.readQuality,
       };
     },
     mutateTracked: async (plan) => {
