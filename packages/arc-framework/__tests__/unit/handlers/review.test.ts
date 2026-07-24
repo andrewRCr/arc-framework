@@ -9,6 +9,9 @@ import {
   handleReviewReduce,
   handleReviewRespond,
 } from "../../../src/handlers/review.js";
+import {
+  LocalReviewRecordStoreError,
+} from "../../../src/scripts/review-gate/hosts/local/record-store-error.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
 import { reduceReviewRouting } from "../../../src/scripts/review-gate/policy/routing.js";
 import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
@@ -449,6 +452,24 @@ describe("handleReviewRespond", () => {
 });
 
 describe("handleReviewReduce", () => {
+  it("reports malformed local review records as corrupt state", async () => {
+    const write = vi.fn();
+
+    await handleReviewReduce("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => "{\"schemaVersion\":1,\"operationId\":\"local-operation\"}",
+      reduce: async () => {
+        throw new LocalReviewRecordStoreError("malformed-local-source");
+      },
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "corrupt-state", message: "malformed-local-source" },
+    });
+  });
+
   it("reads an operation request and emits one validated reduction envelope", async () => {
     const write = vi.fn();
     const target = {
