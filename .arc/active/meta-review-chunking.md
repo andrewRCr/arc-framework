@@ -17,7 +17,7 @@
 - **Next Task:** Begin Task 1.1 — Author and distribute the review-chunking method
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Author and distribute the review-chunking method
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

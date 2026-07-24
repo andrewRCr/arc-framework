@@ -335,46 +335,50 @@ the comparison; it tests whether recursive leaf chunks and hierarchical seams re
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The landed doctrine, selection resolver, review attachments, vocabulary cascade, distribution behavior,
   and first-application evidence satisfy the finalized design as one coherent work unit.
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source and test typechecking; 652 test files with 8,168
+  passing tests; and the production build all passed. Focused post-review Markdown and diff checks also passed.
+- _Success criteria:_ All 16 criteria are met. A two-pass adversarial verify found and closed one live terminology
+  cascade gap, then converged with no remaining finding; the integration-handoff pointer is finalized.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `review-chunking.md` ships as a configurable method, installs and updates correctly, and matches its `.arc/`
+- `[x]` `review-chunking.md` ships as a configurable method, installs and updates correctly, and matches its `.arc/`
   projection.
-- `[ ]` The method defines consumer→declaration dependency closure, test cohesion, judgment-led derivation,
+- `[x]` The method defines consumer→declaration dependency closure, test cohesion, judgment-led derivation,
   residual-attention pressure, recursive splitting, coverage, prose generality, holistic design review, and
   hierarchical seam review.
-- `[ ]` `chunk` is defined once as the review unit with the reserved delivery seam, and generic ARC work partitives
+- `[x]` `chunk` is defined once as the review unit with the reserved delivery seam, and generic ARC work partitives
   no longer collide with it.
-- `[ ]` `review.chunking_threshold_lines` and `review.chunking_threshold_files` ship as validated runtime settings
+- `[x]` `review.chunking_threshold_lines` and `review.chunking_threshold_files` ship as validated runtime settings
   with neutral `0` defaults and OR-at-equality semantics.
-- `[ ]` The exact-target resolver reports measured lines/files, every tripped dimension, a typed disposition, and
+- `[x]` The exact-target resolver reports measured lines/files, every tripped dimension, a typed disposition, and
   precomposed advisory text; a moved head forms a new canonical target that resolves independently.
-- `[ ]` The project instance configures `5000` changed lines and `150` changed files without changing package
+- `[x]` The project instance configures `5000` changed lines and `150` changed files without changing package
   defaults.
-- `[ ]` Frontline and local standard review can use complete curated chunk series within one carrier orchestration,
+- `[x]` Frontline and local standard review can use complete curated chunk series within one carrier orchestration,
   fresh bounded evaluator contexts, and one non-author aggregate whole-target result without adding review roles,
   approval stops, or changing one-PR merge topology.
-- `[ ]` One aggregate chunked invocation counts as one logical review pass; hosted and whole-target-only local
+- `[x]` One aggregate chunked invocation counts as one logical review pass; hosted and whole-target-only local
   carriers are ineligible, while provider hard limits remain independent source-capability facts.
-- `[ ]` Hosted review remains whole-PR, and no per-chunk receipt, scope identity, or review-gate runtime model is
+- `[x]` Hosted review remains whole-PR, and no per-chunk receipt, scope identity, or review-gate runtime model is
   introduced.
-- `[ ]` The coverage check reports no uncovered hunk, and every cross-chunk surface is represented in a seam chunk.
-- `[ ]` Under two independent carrier runs with the same evaluator configuration and identical arm protocol, the
+- `[x]` The coverage check reports no uncovered hunk, and every cross-chunk surface is represented in a seam chunk.
+- `[x]` Under two independent carrier runs with the same evaluator configuration and identical arm protocol, the
   comparison records a valid `supportive`, `contrary`, or explicitly accepted `inconclusive` outcome from raw
   pre-seam, pre-triage output; support requires strictly fewer treatment false blockers, contrary evidence has a
   resolved doctrine correction, and inconclusive evidence carries no supportive claim.
-- `[ ]` A separately classified `session-locus-model` stress test proves complete recursive coverage, pilots before
+- `[x]` A separately classified `session-locus-model` stress test proves complete recursive coverage, pilots before
   fan-out, records every irreducible large closure, aggregates through bounded hierarchical summaries, and preserves
   a SHA-bound advisory packet without changing the primary comparison's result or review authority.
-- `[ ]` The doc-heavy analog produces no false undefined/dangling finding caused solely by a definition in another
+- `[x]` The doc-heavy analog produces no false undefined/dangling finding caused solely by a definition in another
   chunk.
-- `[ ]` The first-application evidence is recorded in `analysis-review-chunking.md` as directional `n=1` evidence
+- `[x]` The first-application evidence is recorded in `analysis-review-chunking.md` as directional `n=1` evidence
   with its caveats and without review-obligation or mutation authority.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.
