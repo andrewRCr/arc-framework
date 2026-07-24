@@ -3,10 +3,10 @@
 - **Origin:** [internal] — surfaced at `review-surface-binding`'s create-spec Gate 1, when a proportionality read
   showed the design splitting into tiers whose justification could not be settled from inside that work unit.
 
-- **Purpose:** Settle the review-gate program at its target state and execute it: build the deterministic
-  integration loop and a thin merge guard, delete the shadow machinery the target does not need, retire the three
-  planned gate work units, and re-cut the backlog. Deletion is a legitimate outcome for any part of the program,
-  including shipped surface.
+- **Purpose:** Settle the review-gate program at its target state and execute it: build a mechanically deterministic
+  integration loop that preserves bounded agent judgment, add a thin merge guard, delete the shadow machinery the
+  target does not need, retire the three planned gate work units, and re-cut the backlog. Deletion is a legitimate
+  outcome for any part of the program, including shipped surface.
 
 ---
 
@@ -77,12 +77,16 @@ other concrete incident is recorded in the program's artifacts.
 ## Goals
 
 1. **One session, one procedure.** A session loads `integrate-work-unit.md` and runs the integration choreography
-   end-to-end. The agent never asks whether to run a review, which source to use, or whether a pass is
-   authorized — configuration and typed contract decide, with agent judgment inside those bounds.
-2. **Human involvement is exactly the judgment moments.** The human's judgment concerns are two — triaging findings
-   (fixes/changes) and approving the exact-head release (unlock plus integration) — and at convergence they
-   **coincide in one structured final integration gate** (the release approval rides the final disposition turn,
-   not a separate stop); exceeding a pass ceiling is a third, by exception. Everything else is deterministic.
+   end-to-end. The agent never asks whether to run a configured review, which configured source to try, or whether
+   an in-ceiling pass is authorized. Typed contracts decide mechanics and expose facts; the operating agent applies
+   bounded engineering judgment to applicability, interaction risk, and review strength without stopping when the
+   call is clear, and discloses the call as the loop advances.
+2. **Human stops track authority, not every judgment.** The human's authority concerns are applying finding-driven
+   fixes or durable deferrals and approving the exact-head release (unlock plus integration); when no earlier
+   mutation or commitment needs approval, final dispositions and release **coincide in one structured final
+   integration gate**. Exceeding an explicit pass ceiling is a third stop, by exception. Ordinary agent judgments
+   do not create permission turns: escalate material uncertainty, new authority, or a policy boundary; otherwise
+   act on the recommendation and keep it visible.
 3. **A thin merge guard that structurally prevents the recorded operator failure when armed.** No guarded reviewed
    merge lands without a deliberate unlock, and every new push re-locks — so an early-merge (PR #287) and a bot
    approval satisfying a generic required-approval count are both structurally blocked, at zero standing
@@ -112,10 +116,11 @@ This work unit does not own, and deliberately declines:
   WU removes its _consumer_ (see § Coordination seam) and hands RSB the consequence, but does not itself reshape
   RSB's spec.
 - **RSB's D14 consume-set, the _standard-review/local/frontline_ rewrite of `integrate-work-unit.md` /
-  `run-errand.md` (its D16), and its `core/` / `hosts/local/` prune-at-consumption calls.** The subsystem is
-  partitioned. Those two workflow files are a **shared surface**: RSB owns the standard-review/local/frontline
-  rewrite and the `invalid-input` rename; this WU adds the hosted-PR choreography + merge-guard wiring to the same
-  files (E1), merge-order-coordinated — not a claim to the whole file.
+  `run-errand.md` (its D16), and its `core/` / `hosts/local/` prune-at-consumption calls, outside A1's narrow
+  result-normalization correction.** The subsystem is partitioned. Those two workflow files are a **shared
+  surface**: RSB owns the landed standard-review/local/frontline rewrite and the `invalid-input` rename; this WU
+  adds the hosted-PR choreography + merge-guard wiring and removes redundant evaluator transcription from the
+  local result boundary, without reopening RSB's wider consume-set.
 - **Per-change-class merge rungs beyond the existing auto-merge lane**, and **auto-merge widening beyond trivial
   path-pure lanes** — someday/maybe, deliberately unfactored.
 - **A GitHub App, webhook, or resident controller / worker** — the shape the deletion removes; not rebuilt in
@@ -155,6 +160,13 @@ repository, pull request, exact head, provider, and durable host artifact; that 
 persistence boundary, with no local ledger or operation store. The CLI owns validation, identity, host mutation,
 and transition resolution; the agent owns the judgmental loop. No resident orchestrator.
 
+Review-result normalization follows the same ownership boundary. Immutable repository, target/tree, source,
+rubric, and guidance bindings already known to the runtime are injected by the adapter/runtime into the normalized
+result; an evaluator authors only evaluator-owned content such as completion status, coverage, findings, and run
+identity. An adapter that still accepts a supplied binding must require exact equality and reject a mismatch, but
+the ordinary path never asks an evaluator to transcribe a machine-owned digest. This removes retry churn without
+weakening exact-target validation and is the one narrow downstream correction to RSB's landed local boundary.
+
 **A2 — Review sources fire by policy, not by ask.** Frontline and standard review are independent roles.
 Frontline remains the optional early pass: method activation makes it eligible, and the existing routing facts
 resolve whether it skips or attempts. Standard review is the ordinary obligation-settling stream. Its
@@ -179,17 +191,36 @@ exactly when losing standard-review coverage or stopping to ask would bite harde
 normalized outcome rule, so it preserves deterministic coverage (Goal 1) without babysitting (A6) at small
 marginal cost — its consuming lane is real, which is what Goal 6 asks before building operational machinery.
 
-**A3 — Triage / disposition protocol.** When findings exist, the agent presents each with the reviewer's severity,
-the agent's re-grade under ARC's `review-triage` criteria (the configured materiality bar governs; the reviewer's
-own weighting stays visible), and a recommended disposition. The same turn carries the agent's follow-up-pass
-recommendation — absent an objection, the agent proceeds on it without a further stop (**opt-out, not opt-in**).
-Approved fixes commit atomically under the disposition approval; the next stop is the next triaged report. A fix
-produces a new head and therefore a new review target — nothing carries across a fix (consistent with RSB's D9).
+**A3 — Triage / disposition and review-applicability protocol.** When findings exist, the agent presents each with
+the reviewer's severity, the agent's re-grade under ARC's `review-triage` criteria (the configured materiality bar
+governs; the reviewer's own weighting stays visible), and a recommended disposition. The same turn carries the
+agent's follow-up recommendation — absent an objection, the agent proceeds on it without a separate pass-selection
+stop (**opt-out, not opt-in**). Finding-driven fixes and durable deferrals still require approval before mutation or
+commitment and land atomically. A complete record-only set that needs no mutation, external action, or durable
+commitment remains proposed and may ride to the combined final gate rather than forcing a pre-candidate permission
+turn.
 
-An explicit user- or project-directed supplemental review may add a domain-focused pass through any suitable
-skill, rubric, or agent profile. It enters the same triage and convergence loop but is never inferred from the
-configured source lists, never replaces or settles `standardReview` unless it actually runs the standard-review
-contract, and introduces no registry, scheduler, or configuration axis here.
+A changed head is always a new exact target for status, unlock, and merge authorization, but not every target
+movement automatically discards all prior review coverage. After a finding-driven fix, candidate-tail composition,
+composition correction, or base reconcile, the operating agent inspects the exact delta and chooses the
+proportionate follow-up: carry the prior complete review with targeted verification, run a focused supplemental
+check, or repeat the applicable complete review role. This is an engineering applicability judgment, not a
+machine-eligibility proof. Blocker/major fixes, behavioral or authority changes, contract movement, material scope
+expansion, interacting edits, and genuine uncertainty lean toward complete review; narrow deterministic
+record-only corrections and mechanical lifecycle products lean toward targeted verification. These are judgment
+signals, not a checklist whose satisfaction must be proven.
+
+The agent states the selected strength and its basis while advancing, but does not stop merely to ask permission for
+that selection. A carried pass remains a truthful record of the exact target it reviewed; the applicability
+judgment explains why its coverage still applies after the disclosed delta and never rewrites that historical
+binding. No fix-carry ledger, eligibility schema, interaction oracle, or persistent review state is introduced.
+
+A supplemental review may be user-directed, project-directed, or selected by the operating agent when observed risk
+warrants focused attention and existing harness permissions and budgets allow it. Agent-selected supplementation is
+disclosed as it runs and creates no authorization stop by default; new authority, material cost, or genuine scope
+uncertainty is surfaced. Supplemental output enters the same triage and convergence loop, never replaces or settles
+`standardReview` unless that invocation ran the standard-review contract, and introduces no registry, scheduler, or
+configuration axis here.
 
 **Disposition-report format (this loop's review surface only).** The report and the gates below use one consistent,
 scannable, structurally-**marked** format so the operator recognizes them at a glance; the exact rendering (marker
@@ -225,26 +256,32 @@ categories except the integration-readiness signal `0 unresolved`. A cycle with 
 approval. The final integration gate previews this record; after approval and the unchanged exact-head mechanical
 checks, the workflow updates the PR body immediately before merge. A later head mutation makes the record stale
 and requires replacement after re-convergence. The workflow composes the counts from the review outputs and
-dispositions it already handled; no receipt, fix-carry ledger, model registry, new state/schema, or `arc-cleared`
-validation is introduced.
+dispositions it already handled. When A3 carries complete review coverage across a later narrow delta, append a
+concise `Coverage` line naming the targeted verification and delta character so the final-head record never implies
+that a full pass ran where it did not. Omit it when every reported pass ran on the final head. This is disclosure
+from the live loop, not a receipt, fix-carry ledger, model registry, new state/schema, or `arc-cleared` validation.
 
 **A4 — Convergence is proposed, not asked.** Convergence is weak-signal — only minor / nitpick findings remaining,
-the same materiality bar as the `adversarial-review` exit gate. Before candidate assembly, that condition reduces
-the implementation head to `review-settled` and permits the existing candidate tail; it grants no prospective
-clearance over the not-yet-known candidate head. Composition, archive/readiness products, and their push produce a
-new exact target, so applicable frontline, standard, and explicitly requested supplemental review operations re-run
-there. Any base reconcile that changes that target returns through the review loop.
+the same materiality bar as the `adversarial-review` exit gate. Before candidate assembly, that condition permits
+the existing candidate tail when every mutation/commitment-bearing disposition is approved; a no-action
+record-only set may remain proposed for the combined final gate. Either path grants no prospective clearance over
+the not-yet-known candidate head. Composition, archive/readiness products, their push, and any base reconcile
+produce a new exact target. Apply A3's review-applicability judgment to each movement rather than mechanically
+rerunning every role: carry with targeted verification when the delta is confidently non-interacting, and re-run
+focused or complete review when its substance warrants it.
 
 On the final, base-clean candidate head, the agent proposes convergence **inside the final disposition turn as the
 existing integration interlock**, never as an earlier or additional stop. The marked gate surfaces the exact head,
-candidate-tail diff, PR state, merge method, lifecycle readiness, and clean base-drift result, and states its full
-consequence: approving applies the last dispositions, ends review, fires the exact-head unlock when available, and
-authorizes integration only after the resulting required status and the ordinary exact-head mechanical rechecks
-succeed unchanged. The unlock/status wait adds no second human stop; failure, drift, or mutation invalidates the
-approval and returns to review or the interlock as the existing lifecycle contract requires. A single open-ended
-`Approve (or redirect)?` is therefore informed integration authorization, while an informal "ok" outside the
-structured surface authorizes neither unlock nor merge. Redirecting (adjust a disposition, question a finding, call
-another pass, or request a composition correction) remains available at the same gate.
+candidate-tail diff, every carried-review applicability judgment and targeted verification, PR state, merge method,
+lifecycle readiness, and clean base-drift result, and states its full consequence: approving applies the last
+dispositions, performs any approved channel settlement, ends review, fires the exact-head unlock when available,
+and authorizes integration only after the resulting required status and the ordinary exact-head mechanical
+rechecks succeed unchanged. The unlock/status wait adds no second human stop; failure, drift, or mutation
+invalidates the approval and returns through A3's applicability decision or the interlock as the existing lifecycle
+contract requires. A single open-ended `Approve (or redirect)?` is therefore informed integration authorization,
+while an informal "ok" outside the structured surface authorizes neither unlock nor merge. Redirecting (adjust a
+disposition, question an applicability call, request another pass, or request a composition correction) remains
+available at the same gate.
 
 **A5 — Pass ceilings.** Configurable positive-integer caps on frontline and standard-review cycles keep passes from
 spiraling. Exhaustion is a driver-level `approval-required` state, not a provider outcome; exceeding a ceiling
@@ -520,7 +557,7 @@ as **11 live-closure + 7 RSB-consume + 2 RSB standard-review boundary**, with no
 | Partition                                                                          | Modules                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Owner / disposition                                                                                                                                                                                                                                                                                                                                                 |
 | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Live `arc review frontline resolve` closure — RSB-owned coordinated first edit** | 19 by transitive import from `handlers/review.ts`: 11 top-level `policy/` (`assurance-schema`, `frontline-command`, `frontline-outcome`, `frontline-resolution`, `frontline-semantic`, `frontline-source`, `standard-review-projection-schema`, `standard-review-schema`, `project-promotion-schema`, `routing-schema`, `routing`), 5 `core/` record/schema modules, `hosts/local/frontline-source-preferences.ts`, `providers/coderabbit/frontline-execution.ts` + `frontline-agent.ts` | RSB Tasks 1.1–1.3 perform the clean pre-GA rename (`independent-analysis` → `standard-review`) across the obligation field and schemas and make the frontline resolver accept an ordered source list. This WU consumes that landed contract and otherwise leaves the closure untouched. `-schema` siblings stay live — schema dormancy is not a directory property. |
-| **RSB's D14 consume-set**                                                          | `core/` + `hosts/local/` + **7 top-level `policy/`**: `activity`, `assurance`, `standard-review-projection`, `frontline-operation`, `frontline-carrier`, `frontline-response`, `frontline-follow-up`; plus `runtime/local-attestation.ts` (RSB's attest path, D12)                                                                                                                                                                                                                       | **RSB wires into production — this WU does not touch it.** The local command/channel namespace remains `local`; its configured standard-source identity is `delegated-agent`.                                                                                                                                                                                       |
+| **RSB's D14 consume-set**                                                          | `core/` + `hosts/local/` + **7 top-level `policy/`**: `activity`, `assurance`, `standard-review-projection`, `frontline-operation`, `frontline-carrier`, `frontline-response`, `frontline-follow-up`; plus `runtime/local-attestation.ts` (RSB's attest path, D12)                                                                                                                                                                                                                       | **RSB wires into production.** This WU preserves the set except for A1's narrow result-normalization correction that removes evaluator transcription of runtime-owned bindings. The local command/channel namespace remains `local`; its configured standard-source identity is `delegated-agent`.                                                                  |
 | **This WU's shadow tier**                                                          | `runtime/` (less `local-attestation.ts` and the re-entry cluster), `hosts/github/**`, `policy/self-hosting/**`, the hosted PR surfaces (D1), the ten `run-*.ts`, the CI workflows, the npm scripts                                                                                                                                                                                                                                                                                       | This WU cuts / re-homes (D1, D2).                                                                                                                                                                                                                                                                                                                                   |
 | **RSB's atomic re-entry retirement — carved out of this WU's `runtime/` cut**      | `runtime/review-reentry.ts`, `runtime/review-reentry-fallback.ts`, `runtime/review-wakeup-capability.ts`, `providers/coderabbit/frontline-plain.ts`, `core/contract-version-dispatch.ts`, `core/forward-evidence-eligibility.ts`, and `core/review-reentry-schema.ts`; RSB also removes the schema registration, four wakeup ports, and orphaned reconstruction symbols                                                                                                                  | **RSB Task 7.1.** This WU preserves the landed absence and never recreates any member of the retire-set.                                                                                                                                                                                                                                                            |
 | **RSB's standard-review boundary modules — joint disposition confirmed**           | `policy/standard-review.ts` and `policy/standard-review-guidance.ts` — the renamed pair outside the live closure and original D14 consume-list                                                                                                                                                                                                                                                                                                                                           | **RSB Task 7.2 keeps both.** Its standard-review policy consumes the guidance augmentation type, so the consumer test keeps the pair together. This WU neither deletes nor edits them.                                                                                                                                                                              |
@@ -543,8 +580,9 @@ not a survival requirement: preserve its state as found and never restore a clus
 **Obligation/default and trust-boundary confirm.** RSB keeps `standardReview` change-shaped; the driver owns source
 selection and opt-out. No configured standard source returns a clean no-op regardless of that obligation. A
 non-empty source list that cannot satisfy the target returns `unavailable`. Frontline stays independent. The
-`delegated-agent` receipt is durable but advisory, not evidence-grade; standard review settles only after the
-review ran and its dispositions converged.
+`delegated-agent` receipt is durable but advisory, not evidence-grade; an exact pass remains bound to the target it
+reviewed, while A3's disclosed applicability judgment determines whether later narrow target movement needs
+targeted verification or a new complete pass.
 
 **Selected-scope seam with `review-chunking`.** `arc review resolve` accepts the caller's selected review scope
 (`whole-target` or `chunked`) before ordered source resolution; omission preserves today's whole-target behavior.
@@ -600,14 +638,16 @@ two-copy shared surface (E1); `coordinate-pr-review.md` is project-local and is 
 invoke a verb, follow the returned `state -> nextAction` slot, and invoke the next — **all branching (obligation,
 config, provider selection, unlock availability) lives in the CLI's typed returns, never as prose conditionals.**
 Graceful degradation (§ C3) is then a typed return, not a prose config-check: an empty standard-source list returns
-the clean no-op terminal; a configured list with no eligible source returns `unavailable`. Judgment stays as
-minimal prose at exactly two points — the triage/disposition presentation (A3) and the convergence/unlock
-authorization gate (A4/B3). Explicit supplemental review enters that same triage/convergence loop but is neither
-auto-scheduled nor treated as standard-review satisfaction unless it ran the standard-review contract. This keeps
-the shipped workflow free of agent-interpreted control-flow growth and forward-compatible with the compiled-
-procedure direction (`strategy-procedure-evolution`: dispatch on precomputed slots, verbs over mechanics): when
-engine-owned control flow lands, this segment compiles cleanly rather than needing a rewrite — seam preservation,
-not a dependency on that model shipping (Goal 6).
+the clean no-op terminal; a configured list with no eligible source returns `unavailable`. Typed returns own
+mechanical state; they do not displace operating judgment. The workflow calls for agent judgment where facts alone
+cannot decide proportional review strength, applicability across a delta, interaction risk, or useful supplemental
+attention. Confident bounded calls advance without a permission stop and remain visible in the report/final gate;
+material uncertainty or new authority surfaces. Supplemental review enters the same triage/convergence loop but is
+neither automatically scheduled by a new controller nor treated as standard-review satisfaction unless it ran the
+standard-review contract. This keeps the shipped workflow free of agent-interpreted mechanical control-flow growth
+and forward-compatible with the compiled-procedure direction (`strategy-procedure-evolution`: dispatch on
+precomputed slots, verbs over mechanics) without pretending judgment can or should compile into a transition
+table — seam preservation, not a dependency on that model shipping (Goal 6).
 
 The driver composes at existing lifecycle boundaries rather than absorbing them: frontline and a
 `delegated-agent` standard source may run before PR creation; the opened PR enables hosted-PR standard sources;
@@ -622,8 +662,11 @@ rather than preceding it as another stop.
 
 Before requesting a hosted-PR source for a target already behind its base, the lifecycle reads the existing typed
 base-drift result. Substantive overlap produces a non-gating recommendation to reconcile before spending the hosted
-review; clean or regenerable-only drift stays silent. The advisory never mutates the target or replaces the final
-candidate boundary's authoritative reconcile and exact-head applicability checks.
+review; clean or regenerable-only drift stays silent. The operating agent may reconcile early when the overlap is
+clear and reviewing first would predictably waste a pass, then recompose the target and continue without a
+permission turn. A conflict, material interaction, or uncertain product decision stops for resolution. This early
+judgment never replaces the final candidate boundary's authoritative drift read, exact-head applicability
+assessment, or append-only discipline.
 
 ## Alternatives & Rationale
 
@@ -664,9 +707,12 @@ The immediate post-merge activation Errand is rollout of the already-shipped gua
 adds no design or product surface and exists only because GitHub resolves `repository_dispatch` from the default
 branch.
 
-**A durable fix-carry ledger across a fix, rejected (already RSB's rejection, inherited).** A fix produces a new
-head and therefore a new target; nothing carries across (A3). This trades one extra evaluator pass per fixed head
-for the absence of a durable fix ledger and its interrupt surface.
+**A durable fix-carry ledger across a fix, still rejected; blanket re-review is not its necessary alternative.**
+RSB rejected a second durable authority with fix-phase verbs and mid-fix crash recovery. That rejection stands.
+The earlier design treated “persist an evidence-grade carry chain” and “repeat a complete pass after every changed
+byte” as the only choices, overlooking the ordinary rung-2 alternative: the operating agent assesses the exact
+delta, discloses the applicability call, and selects targeted or complete follow-up. A3 adopts that judgmental path
+without reviving a ledger or claiming that an old exact-target result was emitted for a new head.
 
 ## Cross-cutting Considerations
 
@@ -696,9 +742,12 @@ cases, and PR-head-as-data assertions covering symlink/non-regular/out-of-root r
 execution. Setup coverage proves the packaged template installs with an exact manifest-matched CLI version and
 shares the self-hosting workflow's trust/status contract. Workflow/template fixtures cover local-only, hosted-only,
 mixed, clean, disposition-bearing, and no-review PR records, including exact reviewer identity, human triage
-attribution, review-cycle accounting, and refresh after a head change. Deletion review is reference-and-test
-checking: after the cut, a reachability re-walk from every production entry point shows no dangling import into
-deleted modules, and the deleted tests are gone with their subjects.
+attribution, review-cycle accounting, runtime-owned result bindings, and refresh after a head change. Workflow
+fixtures cover the judgment boundary rather than attempting to automate it: narrow fix, lifecycle-tail, and safe
+reconcile examples permit disclosed targeted verification without a permission stop; behavioral, authority, and
+uncertain-interaction examples call for complete review; no fixture turns those signals into an eligibility oracle.
+Deletion review is reference-and-test checking: after the cut, a reachability re-walk from every production entry
+point shows no dangling import into deleted modules, and the deleted tests are gone with their subjects.
 
 **Migration and rollout.** The branch-protection edit that adds the required `arc-cleared` context is the one
 breaking host-config change. Do not arm it on this WU's PR: the pinned `repository_dispatch` workflow does not
@@ -731,8 +780,10 @@ proof; exact default-branch guard activation is the durably-routed immediate pos
 1. A single session drives a real fixture PR carrying this WU's code through the configured review loop — frontline
    review active, at least one hosted-PR standard source requested and awaited via the bounded await verb, findings
    triaged through the disposition protocol, candidate preparation overlapped with review latency where useful, and
-   the final base-clean candidate head reviewed before the combined convergence/unlock/integration gate is proposed
-   — without asking whether to review, which source to try next, or whether an in-ceiling pass is authorized.
+   the final base-clean candidate covered by complete review or a disclosed applicability judgment plus targeted
+   verification before the combined convergence/unlock/integration gate is proposed — without asking whether to
+   review, which source to try next, whether an in-ceiling pass is authorized, or whether a confident bounded
+   follow-up-strength judgment may proceed.
 2. The merge guard is ready to arm: contract and fixture coverage proves born-lock, push-relock, planning-lane
    stamping, and exact-head unlock through the two authorized posters. The exact `main` activation and live
    planning-/reviewed-lane matrix are captured for the immediate post-merge Errand, not claimed from a branch where
@@ -750,7 +801,9 @@ proof; exact default-branch guard activation is the durably-routed immediate pos
 5. `delegated-agent` and both hosted-PR adapters remain independently selectable standard sources, while each pass
    invokes exactly one. Ordered fallback selects the next source only after `rate-limited` or
    `transient-unavailable`, consumes no pass for that attempt, and never replays an ambiguous or partially effected
-   request; frontline remains independent of standard-source selection and opt-out.
+   request; frontline remains independent of standard-source selection and opt-out. Normalized local results inject
+   runtime-owned target/source/rubric bindings rather than requiring evaluator transcription, while any accepted
+   supplied binding is still exact-match validated.
 6. The three gate WUs (`review-gate-enforcement-qualification`, `-promotion`, `review-gate-github-adapter`) are
    abandoned through the direct planned-stub transition with finalized receipts; their harvested seams land where
    § D3 assigns them; RSB is handed the two `core/` keep-as-contract modules as a consequence.
@@ -772,8 +825,9 @@ proof; exact default-branch guard activation is the durably-routed immediate pos
     when `standardReview` is non-exempt — proving the driver-owned opt-out and graceful degradation.
 12. Every reviewed WU and reviewed Errand PR publishes a final `## Review` record before merge: local and hosted-PR
     activity are separately attributed by product/model and pass count, while the approving GitHub identity and
-    final material-finding dispositions make human triage visible. Empty review segments add no section, and the
-    record remains disclosure rather than clearance evidence.
+    final material-finding dispositions make human triage visible. Any review carried across a later narrow delta
+    is disclosed with its targeted verification so the record does not imply a final-head full pass. Empty review
+    segments add no section, and the record remains disclosure rather than clearance evidence.
 13. ADR-028 is superseded by a new accepted ADR that records the replacement authority model; its historical body
     and amendments remain intact.
 
