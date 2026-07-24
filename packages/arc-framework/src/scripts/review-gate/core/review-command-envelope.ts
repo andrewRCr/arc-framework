@@ -27,6 +27,7 @@ import {
 } from "./gate-contract-v2-schema.js";
 import { LocalReviewerPayloadSchema } from "./local-review-payload.js";
 import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
+import { ReviewUnlockEnvelopeSchema } from "../unlock.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -35,6 +36,7 @@ const PersistedVersionSchema = z.number().int().positive();
 
 export const ReviewCommandModeSchema = z.enum([
   "review-readiness",
+  "review-unlock",
   "review-resolve",
   "review-frontline-resolve",
   "review-frontline-run",
@@ -495,6 +497,7 @@ function errorVariant<Mode extends ReviewCommandMode, Code extends string>(
 export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): KernelRegistry {
   for (const [id, schema] of [
     ["review-readiness-envelope", ReviewReadinessEnvelopeSchema],
+    ["review-unlock-envelope", ReviewUnlockEnvelopeSchema],
     ["review-resolve-envelope", ReviewResolveEnvelopeSchema],
     ["review-frontline-resolve-envelope", FrontlineResolveEnvelopeSchema],
     ["review-frontline-run-envelope", FrontlineRunEnvelopeSchema],

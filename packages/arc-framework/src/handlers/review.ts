@@ -41,6 +41,13 @@ import {
   ReviewReadinessRequestSchema,
   type ReviewReadinessRequest,
 } from "../scripts/review-gate/readiness.js";
+import {
+  ReviewUnlockEnvelopeSchema,
+  ReviewUnlockRequestSchema,
+  unlockReviewHead,
+  type ReviewUnlockRequest,
+} from "../scripts/review-gate/unlock.js";
+import { GhReviewUnlockPort } from "../scripts/review-gate/hosts/github/unlock.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import {
@@ -186,6 +193,54 @@ export async function handleReviewReadiness(
     dependencies,
     execute: (request, root) => dependencies.check(
       ReviewReadinessRequestSchema.parse(request),
+      root,
+    ),
+  });
+}
+
+export interface ReviewUnlockHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  unlock(request: ReviewUnlockRequest, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultReviewUnlockDependencies(): ReviewUnlockHandlerDependencies {
+  return {
+    resolveRoot: resolveArcRoot,
+    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    unlock: (request) => unlockReviewHead(
+      request,
+      new GhReviewUnlockPort(hostedGhRunner, evaluateReviewReadiness),
+    ),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
+/**
+ * Preflight and dispatch one exact-head clearance request as a JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleReviewUnlock(
+  source: string,
+  overrides: Partial<ReviewUnlockHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultReviewUnlockDependencies(), ...overrides };
+  await executeReviewHandler({
+    mode: "review-unlock",
+    source,
+    requestSchema: ReviewUnlockRequestSchema,
+    resultSchema: ReviewUnlockEnvelopeSchema,
+    dependencies,
+    execute: (request, root) => dependencies.unlock(
+      ReviewUnlockRequestSchema.parse(request),
       root,
     ),
   });

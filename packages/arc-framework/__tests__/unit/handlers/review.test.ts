@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   handleReviewReadiness,
   handleReviewResolve,
+  handleReviewUnlock,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
   handleReviewLocalAttest,
@@ -180,6 +181,51 @@ describe("handleReviewReadiness", () => {
           kind: "errand",
           slug: "demo",
         },
+      },
+    });
+  });
+});
+
+describe("handleReviewUnlock", () => {
+  it("emits one validated unlock envelope through an injected effect port", async () => {
+    const output: string[] = [];
+    const request = {
+      schemaVersion: 1,
+      treeRoot: "/candidate",
+      target: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: "a".repeat(40),
+      },
+      vehicle: {
+        kind: "errand",
+        slug: "demo",
+      },
+    };
+
+    await handleReviewUnlock("request.json", {
+      resolveRoot: () => "/trusted-cli",
+      readText: async () => JSON.stringify(request),
+      unlock: async (parsed) => ({
+        schemaVersion: 1,
+        mode: "review-unlock",
+        diagnostics: [],
+        state: "dispatched",
+        nextAction: "await-clearance",
+        payload: parsed.target,
+      }),
+      write: (text) => output.push(text),
+      setExitCode: vi.fn(),
+    });
+
+    expect(output).toHaveLength(1);
+    expect(JSON.parse(output[0] ?? "")).toMatchObject({
+      mode: "review-unlock",
+      state: "dispatched",
+      payload: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: "a".repeat(40),
       },
     });
   });

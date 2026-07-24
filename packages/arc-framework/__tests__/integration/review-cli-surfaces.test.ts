@@ -41,8 +41,10 @@ describe("packaged review CLI surfaces", () => {
     ]);
 
     expect(reviewHelp.exitCode).toBe(0);
+    expect(reviewHelp.stdout).toContain("readiness");
     expect(reviewHelp.stdout).toContain("resolve");
     expect(reviewHelp.stdout).toContain("hosted");
+    expect(reviewHelp.stdout).toContain("unlock");
     expect(hostedHelp.exitCode).toBe(0);
     expect(hostedHelp.stdout).toContain("request");
     expect(hostedHelp.stdout).toContain("await");
@@ -50,7 +52,9 @@ describe("packaged review CLI surfaces", () => {
   });
 
   it.each([
+    [["review", "readiness"], "review-readiness"],
     [["review", "resolve"], "review-resolve"],
+    [["review", "unlock"], "review-unlock"],
     [["review", "hosted", "request"], "review-hosted-request"],
     [["review", "hosted", "await"], "review-hosted-await"],
     [["review", "hosted", "settle"], "review-hosted-settle"],

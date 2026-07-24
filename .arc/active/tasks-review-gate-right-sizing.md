@@ -86,7 +86,7 @@ shadow runtime that currently contains their reusable pieces.
 _Purpose:_ Build the single readiness authority and its two authorized status posters so every guarded reviewed
 head is born locked while planning-only changes retain their existing lane.
 
-### `[ ]` **2.1 Implement the vehicle-aware readiness authority and unlock dispatch**
+### `[x]` **2.1 Implement the vehicle-aware readiness authority and unlock dispatch**
 
 - _Goal:_ Local preflight and host-side unlock accept or reject a head by the same lifecycle-readiness definition,
   and dispatch can never clear a different SHA than the one explicitly authorized.
@@ -104,12 +104,14 @@ head is born locked while planning-only changes retain their existing lane.
           dispatch ports. Only an exact open head with determinate workflow presence and ready products emits the
           SHA-bound `arc-clearance` payload; absence no-ops and every unreadable, stale, or failed path stops.
 
-    - `[ ]` **2.1.c Lock the command contract into CLI and integration coverage**
+    - `[x]` **2.1.c Lock the command contract into CLI and integration coverage**
 
-        - Register the readiness and unlock surfaces in `src/cli.ts` and `handlers/review.ts`, preserving the existing
-          review envelope conventions and one-envelope output guarantee.
-        - Add handler/integration tests that invoke the public CLI boundary with injected GitHub and filesystem
-          ports rather than testing Commander or live network behavior.
+        - Registered public `arc review readiness` and `arc review unlock` commands, strict handler envelopes, and
+          the developer-authenticated GitHub adapter. Handler tests inject filesystem/effect ports, while packaged
+          CLI coverage proves help visibility and strict malformed-input behavior without live network access.
+
+- _Outcome:_ Local and hosted unlock callers now share one exact-head lifecycle definition; default-branch workflow
+  presence controls dispatch availability, while absent or indeterminate host state cannot create clearance.
 
 ### `[ ]` **2.2 Build the pinned exact-head unlock workflow and status poster**
 

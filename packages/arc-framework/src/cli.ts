@@ -85,7 +85,9 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleReviewReadiness,
   handleReviewResolve,
+  handleReviewUnlock,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
   handleReviewHostedAwait,
@@ -827,6 +829,20 @@ logCmd
 const reviewCmd = program
   .command("review")
   .description("Resolve and execute review workflows");
+
+reviewCmd
+  .command("readiness")
+  .description("Validate exact-head lifecycle readiness as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewReadiness(input));
+
+reviewCmd
+  .command("unlock")
+  .description("Preflight and dispatch exact-head ARC clearance as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewUnlock(input));
 
 reviewCmd
   .command("resolve")
