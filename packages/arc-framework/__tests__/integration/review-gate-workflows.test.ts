@@ -26,6 +26,15 @@ function stepValue(workflow: string, jobName: string, stepId: string): Record<st
   return step as Record<string, unknown>;
 }
 
+function sectionBetween(content: string, start: string, end?: string): string {
+  const startIndex = content.indexOf(start);
+  if (startIndex === -1) throw new Error(`missing section start: ${start}`);
+  if (end === undefined) return content.slice(startIndex);
+  const endIndex = content.indexOf(end, startIndex + start.length);
+  if (endIndex === -1) throw new Error(`missing section end after "${start}": ${end}`);
+  return content.slice(startIndex, endIndex);
+}
+
 interface ClearanceStatusFixture {
   context: string;
   previousHead: string;
@@ -141,10 +150,7 @@ describe("trusted review-gate workflows", () => {
     expect(triggers?.workflow_dispatch).toMatchObject({
       inputs: { run_portability_pair: { type: "boolean", default: false } },
     });
-    const targetedJob = workflow.slice(
-      workflow.indexOf("  portability-cross-platform:"),
-      workflow.indexOf("  ci_ok:"),
-    );
+    const targetedJob = sectionBetween(workflow, "  portability-cross-platform:", "  ci_ok:");
     expect(targetedJob).not.toContain("needs.classify.outputs.weight");
     expect(targetedJob).not.toContain("github.event_name == 'pull_request'");
   });
@@ -230,9 +236,10 @@ describe("trusted review-gate workflows", () => {
     expect(packagedRules).toMatch(/implementation or finding-driven fix[\s\S]*structured approval gate/iu);
     expect(packagedRules).toMatch(/exact-head integration authorization/iu);
 
-    const candidate = packaged.slice(
-      packaged.indexOf("## Phase 2: Compose, sweep, ship"),
-      packaged.indexOf("### 13) Behind-base reconcile gate and merge"),
+    const candidate = sectionBetween(
+      packaged,
+      "## Phase 2: Compose, sweep, ship",
+      "### 13) Behind-base reconcile gate and merge",
     );
     expect(candidate).toContain("`review-settled`");
     expect(candidate).toContain("candidate-entry state");
@@ -252,9 +259,10 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
-    const releaseNotes = packaged.slice(
-      packaged.indexOf("### 8) Compose Release Notes Entry"),
-      packaged.indexOf("### 9) Compose Completion Notes"),
+    const releaseNotes = sectionBetween(
+      packaged,
+      "### 8) Compose Release Notes Entry",
+      "### 9) Compose Completion Notes",
     );
     expect(releaseNotes).toMatch(/shipped reader\/operator-visible outcomes/u);
     expect(releaseNotes).toMatch(/WU names or slugs[\s\S]*task or phase references[\s\S]*branches/u);
@@ -264,17 +272,19 @@ describe("trusted review-gate workflows", () => {
     expect(releaseNotes).toMatch(/\*\*Infrastructure\*\*[\s\S]*externally meaningful operational change/u);
     expect(releaseNotes).toMatch(/\*\*Breaking\s+Changes\*\*[\s\S]*affected stability contract[\s\S]*migration/u);
 
-    const completionNotes = packaged.slice(
-      packaged.indexOf("### 9) Compose Completion Notes"),
-      packaged.indexOf("### 10) Commit completion content"),
+    const completionNotes = sectionBetween(
+      packaged,
+      "### 9) Compose Completion Notes",
+      "### 10) Commit completion content",
     );
     expect(completionNotes).toMatch(/delivered scope[\s\S]*material deviations or supersessions/u);
     expect(completionNotes).toContain("verified evidence");
     expect(completionNotes).toMatch(/never repeat[\s\S]*(?:task list|git history)/iu);
 
-    const finalGate = packaged.slice(
-      packaged.indexOf("### 13) Behind-base reconcile gate and merge"),
-      packaged.indexOf("### 14) Post-merge worktree cleanup"),
+    const finalGate = sectionBetween(
+      packaged,
+      "### 13) Behind-base reconcile gate and merge",
+      "### 14) Post-merge worktree cleanup",
     );
     expect(finalGate).toMatch(/exact candidate-tail diff[\s\S]*not excerpts alone/u);
     expect(finalGate).toMatch(/task and notes cleanup[\s\S]*composition[\s\S]*cohort closeout/u);
@@ -332,10 +342,7 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
     );
-    const full = packaged.slice(
-      packaged.indexOf("### Ship — full protection"),
-      packaged.indexOf("### Ship — partial protection"),
-    );
+    const full = sectionBetween(packaged, "### Ship — full protection", "### Ship — partial protection");
     expect(full).toContain("arc base drift --json");
     expect(full).toContain("review applicability");
     expect(full).toMatch(/targeted verification[\s\S]*focused[\s\S]*complete review/u);
@@ -351,7 +358,7 @@ describe("trusted review-gate workflows", () => {
     expect(full).toMatch(/after approval[\s\S]*recompose[\s\S]*re-read PR status[\s\S]*base drift/u);
     expect(full).toContain("--match-head-commit {approved-head-sha}");
 
-    const partial = packaged.slice(packaged.indexOf("### Ship — partial protection"), packaged.indexOf("### Complete"));
+    const partial = sectionBetween(packaged, "### Ship — partial protection", "### Complete");
     expect(partial).toContain("direct base-branch commit");
     expect(partial).not.toContain("pre-merge");
     expect(partial).not.toContain("integration-interlock");
@@ -361,9 +368,10 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
     );
-    const frontline = packaged.slice(
-      packaged.indexOf("Compose the immutable policy target"),
-      packaged.indexOf("3. **Resolve the Errand PR**"),
+    const frontline = sectionBetween(
+      packaged,
+      "Compose the immutable policy target",
+      "3. **Resolve the Errand PR**",
     );
     expect(frontline).toContain("`findings / respond`");
     expect(frontline).toContain("`arc review respond -`");
@@ -371,9 +379,10 @@ describe("trusted review-gate workflows", () => {
     expect(frontline).toMatch(/`stale-target \/ select-scope`[\s\S]*recompose[\s\S]*rerun chunking/iu);
     expect(frontline).toContain("`blocked | unavailable | invalid-override / stop`");
 
-    const openPr = packaged.slice(
-      packaged.indexOf("4. **Enter the open PR.**"),
-      packaged.indexOf("5. **Settle the final head.**"),
+    const openPr = sectionBetween(
+      packaged,
+      "4. **Enter the open PR.**",
+      "5. **Settle the final head.**",
     );
     expect(openPr).toMatch(/rate-limited \| transient-unavailable \/ try-next-source/iu);
     expect(openPr).toMatch(/ambiguous delivery[\s\S]*terminal failure stops/iu);
@@ -386,17 +395,18 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
     );
-    const prResolution = packaged.slice(
-      packaged.indexOf("3. **Resolve the Errand PR**"),
-      packaged.indexOf("4. **Enter the open PR.**"),
+    const prResolution = sectionBetween(
+      packaged,
+      "3. **Resolve the Errand PR**",
+      "4. **Enter the open PR.**",
     );
     expect(prResolution).toMatch(/one merged match at the current head[\s\S]*skip review\/merge[\s\S]*Complete cleanup/iu);
 
-    const lanes = packaged.slice(packaged.indexOf("6. Land per lane:"), packaged.indexOf("### Ship — partial protection"));
+    const lanes = sectionBetween(packaged, "6. Land per lane:", "### Ship — partial protection");
     expect(lanes).toMatch(/Auto-merge-lane[\s\S]*--auto <merge-flag>[\s\S]*--match-head-commit/iu);
     expect(lanes).toMatch(/Reviewed-lane[\s\S]*owner review[\s\S]*head change restarts Step 4/iu);
 
-    const complete = packaged.slice(packaged.indexOf("### Complete"));
+    const complete = sectionBetween(packaged, "### Complete");
     expect(complete).toMatch(/arc errand close <slug>[\s\S]*reaps the branch[\s\S]*removes the record/iu);
     expect(complete).toMatch(/Unattended merge[\s\S]*finalize pass[\s\S]*next session-init's errand sweep/iu);
   });
@@ -411,9 +421,10 @@ describe("trusted review-gate workflows", () => {
     expect(packageIntegration).not.toContain("rev-list --left-right --count");
     expect(packageIntegration).not.toContain("git merge --no-edit origin/{base-branch}");
 
-    const gate = packageIntegration.slice(
-      packageIntegration.indexOf("### 13) Behind-base reconcile gate and merge"),
-      packageIntegration.indexOf("### 14) Post-merge worktree cleanup"),
+    const gate = sectionBetween(
+      packageIntegration,
+      "### 13) Behind-base reconcile gate and merge",
+      "### 14) Post-merge worktree cleanup",
     );
     expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
@@ -452,9 +463,10 @@ describe("trusted review-gate workflows", () => {
       readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
     ]);
     expect(packageIntegration).toBe(instanceIntegration);
-    const reviewSettlement = packageIntegration.slice(
-      packageIntegration.indexOf("### 6) Confirm review coordination"),
-      packageIntegration.indexOf("### 7) Spec-presence + alignment checks"),
+    const reviewSettlement = sectionBetween(
+      packageIntegration,
+      "### 6) Confirm review coordination",
+      "### 7) Spec-presence + alignment checks",
     );
     expect(reviewSettlement).not.toContain("git merge");
     expect(reviewSettlement).toContain("`review-settled`");
@@ -468,9 +480,10 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
-    const gate = packaged.slice(
-      packaged.indexOf("### 13) Behind-base reconcile gate and merge"),
-      packaged.indexOf("### 14) Post-merge worktree cleanup"),
+    const gate = sectionBetween(
+      packaged,
+      "### 13) Behind-base reconcile gate and merge",
+      "### 14) Post-merge worktree cleanup",
     );
     expect(gate).toContain("arc status {name} --json");
     expect(gate).toMatch(/`with-integration`[\s\S]*`shipped`[\s\S]*`completed`/u);
@@ -499,17 +512,15 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
-    const resume = packaged.slice(
-      packaged.indexOf("#### Resume entry"),
-      packaged.indexOf("### 2) Local diff preflight"),
-    );
+    const resume = sectionBetween(packaged, "#### Resume entry", "### 2) Local diff preflight");
     expect(resume).toMatch(/resolver `state: shipped`[\s\S]*open[\s\S]*not merged[\s\S]*Step 13/iu);
     expect(resume).toMatch(/PR already merged[\s\S]*Verify Phase 2 products[\s\S]*Step 13 tail/u);
     expect(resume).toContain("first incomplete candidate-tail step");
 
-    const gate = packaged.slice(
-      packaged.indexOf("### 13) Behind-base reconcile gate and merge"),
-      packaged.indexOf("### 14) Post-merge worktree cleanup"),
+    const gate = sectionBetween(
+      packaged,
+      "### 13) Behind-base reconcile gate and merge",
+      "### 14) Post-merge worktree cleanup",
     );
     expect(gate).toContain("requested composition correction");
     expect(gate).toMatch(/Append[\s\S]*never amend/u);
@@ -547,9 +558,10 @@ describe("trusted review-gate workflows", () => {
       readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
     ]);
     expect(packageIntegration).toBe(instanceIntegration);
-    const resumeEntry = packageIntegration.slice(
-      packageIntegration.indexOf("#### Resume entry"),
-      packageIntegration.indexOf("### 2) Local diff preflight"),
+    const resumeEntry = sectionBetween(
+      packageIntegration,
+      "#### Resume entry",
+      "### 2) Local diff preflight",
     );
     expect(resumeEntry).toContain("A merged PR proves only that the merge ran");
     expect(resumeEntry).toContain("Completion Notes");
