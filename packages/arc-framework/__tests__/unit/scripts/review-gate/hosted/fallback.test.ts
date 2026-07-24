@@ -84,4 +84,17 @@ describe("hosted source fallback", () => {
     });
     expect(unknown).toMatchObject({ state: "invalid-source-list", unknownProviders: ["unknown-pr"] });
   });
+
+  it("identifies duplicate configured providers separately from unknown providers", async () => {
+    const result = await resolveHostedFallback({
+      schemaVersion: 1,
+      providers: ["coderabbit-pr", "coderabbit-pr"],
+    }, { attempt: () => Promise.resolve({ kind: "completed" }) });
+
+    expect(result).toMatchObject({
+      state: "invalid-source-list",
+      unknownProviders: [],
+      duplicateProviders: ["coderabbit-pr"],
+    });
+  });
 });

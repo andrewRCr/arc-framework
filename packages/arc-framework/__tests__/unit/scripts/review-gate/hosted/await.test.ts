@@ -121,4 +121,29 @@ describe("hosted review await", () => {
     expect(first.handle).toEqual(handle);
     expect(second.handle).toEqual(handle);
   });
+
+  it.each(["readHead", "observe"] as const)(
+    "returns resumable pending when %s is aborted at the bounded deadline",
+    async (boundary) => {
+      const aborted = observer(() => boundary === "observe"
+        ? Promise.reject(new DOMException("timed out", "TimeoutError"))
+        : Promise.resolve({ kind: "pending" as const }));
+      if (boundary === "readHead") {
+        aborted.readHead = () => Promise.reject(new DOMException("timed out", "TimeoutError"));
+      }
+
+      const result = await awaitHostedReview({
+        schemaVersion: 1,
+        handle,
+        timeoutMs: 2_000,
+        pollIntervalMs: 500,
+      }, { clock: clock(), observers: [aborted] });
+
+      expect(result).toMatchObject({
+        state: "pending",
+        nextAction: "await",
+        handle,
+      });
+    },
+  );
 });

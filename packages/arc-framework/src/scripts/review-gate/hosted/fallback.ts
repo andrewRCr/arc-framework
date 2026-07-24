@@ -52,6 +52,7 @@ export type HostedFallbackResult =
     consumedPass: false;
     attemptedProviders: [];
     unknownProviders: string[];
+    duplicateProviders: HostedProviderId[];
   };
 
 /** Select one ordered hosted source, falling through only on proven safe unavailability. */
@@ -66,13 +67,17 @@ export async function resolveHostedFallback(
   const unknownProviders = parsedProviders.flatMap((parsed, index) =>
     parsed.success ? [] : [request.providers[index] ?? ""]);
   const knownProviders = parsedProviders.flatMap((parsed) => parsed.success ? [parsed.data] : []);
-  if (unknownProviders.length > 0 || new Set(knownProviders).size !== knownProviders.length) {
+  const duplicateProviders = [...new Set(knownProviders.filter(
+    (provider, index) => knownProviders.indexOf(provider) !== index,
+  ))];
+  if (unknownProviders.length > 0 || duplicateProviders.length > 0) {
     return {
       schemaVersion: 1,
       state: "invalid-source-list",
       consumedPass: false,
       attemptedProviders: [],
       unknownProviders,
+      duplicateProviders,
     };
   }
 

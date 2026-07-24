@@ -33,6 +33,7 @@ export const hostedGhRunner: HostedProcessRunner = {
   run: async (args, options) => {
     try {
       const result = await execa("gh", args, {
+        timeout: 60_000,
         ...(options?.signal === undefined ? {} : { cancelSignal: options.signal }),
       });
       return { stdout: result.stdout, stderr: result.stderr };
@@ -173,19 +174,20 @@ export class GhHostedReviewPort implements HostedGitHubPort {
     }
   }
 
-  async readReviews(target: HostedTarget): Promise<HostedGitHubReview[]> {
+  async readReviews(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubReview[]> {
     const values = pages(await this.read([
       apiPath(target, `pulls/${target.pullRequest}/reviews?per_page=100`),
       "--paginate",
       "--slurp",
-    ]), "reviews");
-    return values.map((value, index) => {
+    ], options), "reviews");
+    return values.flatMap((value, index) => {
       const item = record(value, `reviews[${index}]`);
       const state = string(item.state, `reviews[${index}].state`);
+      if (["DISMISSED", "PENDING"].includes(state)) return [];
       if (!["APPROVED", "CHANGES_REQUESTED", "COMMENTED"].includes(state)) {
         throw new HostedGitHubReadError("terminal-failure", `reviews[${index}].state: unsupported ${state}`);
       }
-      return {
+      return [{
         id: string(item.node_id, `reviews[${index}].node_id`),
         url: string(item.html_url, `reviews[${index}].html_url`),
         actorIdentity: integerString(record(item.user, `reviews[${index}].user`).id, `reviews[${index}].user.id`),
@@ -194,27 +196,44 @@ export class GhHostedReviewPort implements HostedGitHubPort {
         headSha: string(item.commit_id, `reviews[${index}].commit_id`),
         body: typeof item.body === "string" ? item.body : "",
         submittedAt: string(item.submitted_at, `reviews[${index}].submitted_at`),
-      };
+      }];
     });
   }
 
-  async readIssueComments(target: HostedTarget): Promise<HostedGitHubIssueComment[]> {
+  async readIssueComments(
+    target: HostedTarget,
+    options?: { signal?: AbortSignal },
+  ): Promise<HostedGitHubIssueComment[]> {
     return pages(await this.read([
       apiPath(target, `issues/${target.pullRequest}/comments?per_page=100`),
       "--paginate",
       "--slurp",
-    ]), "issue-comments").map((value, index) => issueComment(value, `issue-comments[${index}]`));
+    ], options), "issue-comments").map((value, index) => issueComment(value, `issue-comments[${index}]`));
   }
 
-  async readCheckRuns(target: HostedTarget): Promise<HostedGitHubCheckRun[]> {
-    const value = record(parse(
-      await this.read([apiPath(target, `commits/${target.headSha}/check-runs?filter=all&per_page=100`)]),
-      "check-runs",
-    ), "check-runs");
-    if (!Array.isArray(value.check_runs)) {
-      throw new HostedGitHubReadError("terminal-failure", "check-runs.check_runs: expected an array");
+  async readCheckRuns(
+    target: HostedTarget,
+    options?: { signal?: AbortSignal },
+  ): Promise<HostedGitHubCheckRun[]> {
+    const rawPages = parse(await this.read([
+      apiPath(target, `commits/${target.headSha}/check-runs?filter=all&per_page=100`),
+      "--paginate",
+      "--slurp",
+    ], options), "check-runs");
+    if (!Array.isArray(rawPages)) {
+      throw new HostedGitHubReadError("terminal-failure", "check-runs: expected page array");
     }
-    return value.check_runs.map((entry, index) => {
+    const entries = rawPages.flatMap((page, pageIndex) => {
+      const value = record(page, `check-runs.pages[${pageIndex}]`);
+      if (!Array.isArray(value.check_runs)) {
+        throw new HostedGitHubReadError(
+          "terminal-failure",
+          `check-runs.pages[${pageIndex}].check_runs: expected an array`,
+        );
+      }
+      return value.check_runs as unknown[];
+    });
+    return entries.map((entry, index) => {
       const item = record(entry, `check-runs[${index}]`);
       const app = item.app === null || item.app === undefined ? null : record(item.app, `check-runs[${index}].app`);
       const owner = app?.owner === null || app?.owner === undefined
@@ -233,7 +252,7 @@ export class GhHostedReviewPort implements HostedGitHubPort {
     });
   }
 
-  async readThreads(target: HostedTarget): Promise<HostedGitHubThread[]> {
+  async readThreads(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubThread[]> {
     const query = `query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100){nodes{id isResolved comments(first:100){nodes{id databaseId body url path line originalLine commit{oid} pullRequestReview{id} author{... on User{databaseId} ... on Bot{databaseId}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}}}`;
     const [owner, repo] = target.repository.split("/");
     const output = await this.read([
@@ -242,7 +261,7 @@ export class GhHostedReviewPort implements HostedGitHubPort {
       "-F", `owner=${owner ?? ""}`,
       "-F", `repo=${repo ?? ""}`,
       "-F", `number=${target.pullRequest}`,
-    ]);
+    ], options);
     const data = record(parse(output, "threads"), "threads");
     const repository = record(record(data.data, "threads.data").repository, "threads.data.repository");
     const pull = record(repository.pullRequest, "threads.data.repository.pullRequest");
@@ -265,10 +284,15 @@ export class GhHostedReviewPort implements HostedGitHubPort {
           const path = `threads[${index}].comments[${commentIndex}]`;
           const item = record(comment, path);
           const rawLine = item.line ?? item.originalLine;
+          const author = item.author === null || item.author === undefined
+            ? null
+            : record(item.author, `${path}.author`);
           return {
             id: integerString(item.databaseId, `${path}.databaseId`),
             reviewId: string(record(item.pullRequestReview, `${path}.pullRequestReview`).id, `${path}.reviewId`),
-            actorIdentity: integerString(record(item.author, `${path}.author`).databaseId, `${path}.author.databaseId`),
+            actorIdentity: author === null || author.databaseId === null || author.databaseId === undefined
+              ? null
+              : integerString(author.databaseId, `${path}.author.databaseId`),
             body: string(item.body, `${path}.body`),
             url: string(item.url, `${path}.url`),
             path: string(item.path, `${path}.path`),

@@ -32,7 +32,7 @@ export interface HostedGitHubReview {
 export interface HostedGitHubThreadComment {
   id: string;
   reviewId: string;
-  actorIdentity: string;
+  actorIdentity: string | null;
   body: string;
   url: string;
   path: string;
@@ -76,10 +76,10 @@ export type HostedGitHubWriteResult =
 
 export interface HostedGitHubPort extends HostedSettlementPort {
   createIssueComment(target: HostedTarget, body: string): Promise<HostedGitHubWriteResult>;
-  readReviews(target: HostedTarget): Promise<HostedGitHubReview[]>;
-  readThreads(target: HostedTarget): Promise<HostedGitHubThread[]>;
-  readIssueComments(target: HostedTarget): Promise<HostedGitHubIssueComment[]>;
-  readCheckRuns(target: HostedTarget): Promise<HostedGitHubCheckRun[]>;
+  readReviews(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubReview[]>;
+  readThreads(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubThread[]>;
+  readIssueComments(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubIssueComment[]>;
+  readCheckRuns(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubCheckRun[]>;
   findReplies(input: {
     target: HostedTarget;
     commentId: string;

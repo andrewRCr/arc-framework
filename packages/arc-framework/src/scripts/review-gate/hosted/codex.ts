@@ -97,24 +97,28 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
     return { kind: "created", artifact: result.artifact };
   }
 
-  readHead(handle: HostedRequestHandle): Promise<string> {
-    return this.github.readHead(handle.target);
+  readHead(handle: HostedRequestHandle, options?: { signal?: AbortSignal }): Promise<string> {
+    return this.github.readHead(handle.target, options);
   }
 
-  observe(handle: HostedRequestHandle): Promise<HostedObservation> {
-    return this.observeSince(handle.target, handle.artifact.createdAt);
+  observe(handle: HostedRequestHandle, options?: { signal?: AbortSignal }): Promise<HostedObservation> {
+    return this.observeSince(handle.target, handle.artifact.createdAt, options);
   }
 
   observeHandle(target: HostedTarget): Promise<HostedObservation> {
     return this.observeSince(target, "1970-01-01T00:00:00.000Z");
   }
 
-  private async observeSince(target: HostedTarget, requestedAt: string): Promise<HostedObservation> {
+  private async observeSince(
+    target: HostedTarget,
+    requestedAt: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<HostedObservation> {
     try {
       const [reviews, threads, comments] = await Promise.all([
-        this.github.readReviews(target),
-        this.github.readThreads(target),
-        this.github.readIssueComments(target),
+        this.github.readReviews(target, options),
+        this.github.readThreads(target, options),
+        this.github.readIssueComments(target, options),
       ]);
       const providerComments = comments.filter((comment) =>
         comment.actorIdentity === BOT_USER_ID

@@ -26,7 +26,7 @@ export interface HostedSettlementReply {
 
 export interface HostedSettlementPort {
   currentActorIdentity(): Promise<string>;
-  readHead(target: HostedTarget): Promise<string>;
+  readHead(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<string>;
   readThread(
     target: HostedTarget,
     threadId: string,
@@ -95,6 +95,13 @@ async function canonicalReply(
   return replies.length === 1 ? replies[0] ?? null : null;
 }
 
+async function targetIsCurrent(
+  request: HostedSettleEnvelope,
+  port: HostedSettlementPort,
+): Promise<boolean> {
+  return await port.readHead(request.target) === request.target.headSha;
+}
+
 /** Reply at the originating comment and resolve its live thread under exact actor/head checks. */
 export async function settleHostedFinding(
   input: unknown,
@@ -105,7 +112,7 @@ export async function settleHostedFinding(
   if (await dependencies.port.currentActorIdentity() !== request.actorIdentity) {
     return { ...base, state: "actor-mismatch", nextAction: "stop" };
   }
-  if (await dependencies.port.readHead(request.target) !== request.target.headSha) {
+  if (!await targetIsCurrent(request, dependencies.port)) {
     return { ...base, state: "stale-target", nextAction: "stop" };
   }
 
@@ -122,6 +129,9 @@ export async function settleHostedFinding(
 
   let reply = await canonicalReply(request, dependencies.port);
   if (reply === null) {
+    if (!await targetIsCurrent(request, dependencies.port)) {
+      return { ...base, state: "stale-target", nextAction: "stop" };
+    }
     await dependencies.port.postReply({
       target: request.target,
       commentId: request.finding.commentId,
@@ -131,6 +141,9 @@ export async function settleHostedFinding(
     if (reply === null) return { ...base, state: "ambiguous", nextAction: "stop" };
   }
 
+  if (!await targetIsCurrent(request, dependencies.port)) {
+    return { ...base, state: "stale-target", nextAction: "stop" };
+  }
   await dependencies.port.resolveThread(request.target, request.finding.threadId);
   const after = await dependencies.port.readThread(request.target, request.finding.threadId);
   if (after.kind !== "present" || !after.isResolved) {

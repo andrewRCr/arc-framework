@@ -82,24 +82,31 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
     return { kind: "created", artifact: result.artifact };
   }
 
-  readHead(handle: HostedRequestHandle): Promise<string> {
-    return this.github.readHead(handle.target);
+  readHead(handle: HostedRequestHandle, options?: { signal?: AbortSignal }): Promise<string> {
+    return this.github.readHead(handle.target, options);
   }
 
-  async observe(handle: HostedRequestHandle): Promise<HostedObservation> {
-    return this.observeSince(handle.target, handle.artifact.createdAt);
+  async observe(
+    handle: HostedRequestHandle,
+    options?: { signal?: AbortSignal },
+  ): Promise<HostedObservation> {
+    return this.observeSince(handle.target, handle.artifact.createdAt, options);
   }
 
   observeHandle(target: HostedTarget): Promise<HostedObservation> {
     return this.observeSince(target, "1970-01-01T00:00:00.000Z");
   }
 
-  private async observeSince(target: HostedTarget, requestedAt: string): Promise<HostedObservation> {
+  private async observeSince(
+    target: HostedTarget,
+    requestedAt: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<HostedObservation> {
     try {
       const [checks, reviews, threads] = await Promise.all([
-        this.github.readCheckRuns(target),
-        this.github.readReviews(target),
-        this.github.readThreads(target),
+        this.github.readCheckRuns(target, options),
+        this.github.readReviews(target, options),
+        this.github.readThreads(target, options),
       ]);
       const providerChecks = checks.filter((check) =>
         check.name === "CodeRabbit" && check.appOwnerIdentity === BOT_USER_ID);

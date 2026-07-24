@@ -105,4 +105,52 @@ describe("CodeRabbit hosted adapter", () => {
     await expect(transient.observeHandle(target)).resolves.toEqual({ kind: "transient-unavailable" });
     await expect(malformed.observeHandle(target)).resolves.toMatchObject({ kind: "terminal-failure" });
   });
+
+  it("threads bounded-await cancellation through every hosted read", async () => {
+    const signal = new AbortController().signal;
+    const observed: Array<AbortSignal | undefined> = [];
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readHead: (_target, options) => {
+        observed.push(options?.signal);
+        return Promise.resolve(HEAD);
+      },
+      readReviews: (_target, options) => {
+        observed.push(options?.signal);
+        return Promise.resolve([]);
+      },
+      readThreads: (_target, options) => {
+        observed.push(options?.signal);
+        return Promise.resolve([]);
+      },
+      readCheckRuns: (_target, options) => {
+        observed.push(options?.signal);
+        return Promise.resolve([]);
+      },
+    }));
+
+    await adapter.readHead({
+      schemaVersion: 1,
+      provider: "coderabbit-pr",
+      target,
+      artifact: {
+        kind: "issue-comment",
+        id: "IC_1",
+        url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+        createdAt: "2026-07-23T12:00:00.000Z",
+      },
+    }, { signal });
+    await adapter.observe({
+      schemaVersion: 1,
+      provider: "coderabbit-pr",
+      target,
+      artifact: {
+        kind: "issue-comment",
+        id: "IC_1",
+        url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+        createdAt: "2026-07-23T12:00:00.000Z",
+      },
+    }, { signal });
+
+    expect(observed).toEqual([signal, signal, signal, signal]);
+  });
 });

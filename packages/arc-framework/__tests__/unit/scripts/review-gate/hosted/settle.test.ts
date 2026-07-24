@@ -97,4 +97,39 @@ describe("hosted finding settlement", () => {
     expect(actor).toMatchObject({ state: "actor-mismatch", nextAction: "stop" });
     expect(head).toMatchObject({ state: "stale-target", nextAction: "stop" });
   });
+
+  it.each([
+    ["reply", [HEAD, "b".repeat(40)], 0, 0],
+    ["resolution", [HEAD, HEAD, "b".repeat(40)], 1, 0],
+  ] as const)(
+    "stops when the head changes immediately before %s mutation",
+    async (_boundary, heads, expectedReplies, expectedResolutions) => {
+      let replies = 0;
+      let resolutions = 0;
+      const remainingHeads = [...heads];
+      const result = await settleHostedFinding(request, {
+        port: port({
+          readHead: () => Promise.resolve(remainingHeads.shift() ?? HEAD),
+          postReply: () => {
+            replies += 1;
+            return Promise.resolve({ kind: "created", id: "PRRC_REPLY" });
+          },
+          findReplies: () => Promise.resolve(replies === 0 ? [] : [{
+            id: "PRRC_REPLY",
+            actorIdentity: request.actorIdentity,
+            body: request.reply,
+            inReplyToId: request.finding.commentId,
+          }]),
+          resolveThread: () => {
+            resolutions += 1;
+            return Promise.resolve({ kind: "resolved" });
+          },
+        }),
+      });
+
+      expect(result).toMatchObject({ state: "stale-target", nextAction: "stop" });
+      expect(replies).toBe(expectedReplies);
+      expect(resolutions).toBe(expectedResolutions);
+    },
+  );
 });

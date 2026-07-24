@@ -93,6 +93,10 @@ function nextDelay(attempt: number, intervalMs: number, remainingMs: number): nu
   return Math.min(intervalMs * (2 ** exponent), remainingMs);
 }
 
+function isDeadlineAbort(error: unknown): boolean {
+  return error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name);
+}
+
 /** Observe one already-requested review until it completes or the bounded call expires. */
 export async function awaitHostedReview(
   input: unknown,
@@ -121,7 +125,20 @@ export async function awaitHostedReview(
     }
 
     const signal = AbortSignal.timeout(remainingMs);
-    const actualHeadSha = await observer.readHead(request.handle, { signal });
+    let actualHeadSha: string;
+    try {
+      actualHeadSha = await observer.readHead(request.handle, { signal });
+    } catch (error) {
+      if (isDeadlineAbort(error)) {
+        return {
+          ...base(request.handle),
+          state: "pending",
+          nextAction: "await",
+          elapsedMs: dependencies.clock.now() - startedAt,
+        };
+      }
+      throw error;
+    }
     if (actualHeadSha !== request.handle.target.headSha) {
       return {
         ...base(request.handle),
@@ -132,7 +149,20 @@ export async function awaitHostedReview(
       };
     }
 
-    const rawObservation = await observer.observe(request.handle, { signal });
+    let rawObservation: unknown;
+    try {
+      rawObservation = await observer.observe(request.handle, { signal });
+    } catch (error) {
+      if (isDeadlineAbort(error)) {
+        return {
+          ...base(request.handle),
+          state: "pending",
+          nextAction: "await",
+          elapsedMs: dependencies.clock.now() - startedAt,
+        };
+      }
+      throw error;
+    }
     const parsed = HostedObservationSchema.safeParse(rawObservation);
     if (!parsed.success) {
       return {
