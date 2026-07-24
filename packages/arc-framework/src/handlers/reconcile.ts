@@ -11,6 +11,7 @@ import * as p from "@clack/prompts";
 
 import { createUserIOContext } from "../lib/io-context.js";
 import { getCurrentBranch } from "../lib/git/exec.js";
+import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
 import { queryGitRetirementDisposition } from "../lib/work-unit/git-retirement-record-enumeration.js";
 import {
@@ -101,7 +102,16 @@ async function resolveOwnedTarget(
   const requested = slugArg?.trim();
   if (requested !== undefined && requested !== "") {
     const match = matches.find((candidate) => candidate.slug === requested);
-    return match ?? {
+    if (match !== undefined) return match;
+    const archived = index.get(requested);
+    if (
+      branchToWorkUnitSlug(currentBranch) === requested
+      && archived?.phase === "Shipped"
+      && archived.location === "completed"
+    ) {
+      return { slug: requested, metaPath: archived.path };
+    }
+    return {
       slug: requested,
       reason: `work unit \`${requested}\` is not owned by branch \`${currentBranch}\``,
     };

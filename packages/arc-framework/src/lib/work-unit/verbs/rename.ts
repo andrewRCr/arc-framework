@@ -41,6 +41,7 @@ export interface RenamePlan {
   worktreePath: string | null;
   baseBranch: string;
   inventoryRead: Exclude<InventoryRead, "not-applicable">;
+  coordinationAdvisories: readonly string[];
 }
 
 /** Result of the tracked commit plus applicable identity legs. */
@@ -62,6 +63,7 @@ export type RunRenameResult =
 export interface RunRenameContext {
   retirement: RenameRetirementContext;
   preflight(params: { sourceSlug: string; targetSlug: string }): Promise<RenamePlan>;
+  onPrepared?(plan: RenamePlan): Promise<void>;
   mutateTracked(plan: RenamePlan): Promise<void>;
   regenerateReadiness(plan: RenamePlan): Promise<string | undefined>;
   commitTracked(plan: RenamePlan, receipt: RetirementReceipt): Promise<void>;
@@ -92,6 +94,7 @@ export async function runRename(
   let plan: RenamePlan;
   try {
     plan = await ctx.preflight(params);
+    await ctx.onPrepared?.(plan);
   } catch (error) {
     return { status: "rejected", reason: errorMessage(error) };
   }

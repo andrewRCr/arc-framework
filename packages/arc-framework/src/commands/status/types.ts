@@ -64,6 +64,7 @@ import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
+import type { CurrentWuReconcileSessionResult } from "../../lib/session-init/current-wu-reconcile.js";
 
 export type { RecommendedAction, WorktreeIdentity };
 
@@ -228,6 +229,12 @@ export interface SessionInitProbeResult {
   active: Probe<ActiveSessionInitResult>;
   domainRules: Probe<DomainRulesSessionInitResult>;
   releaseRouting: Probe<ReleaseRoutingValue>;
+  /**
+   * Read-only reconcile facts for the single active work unit. Present exactly
+   * on the single-WU arm; the workflow renders the precomposed guidance and
+   * never applies tracked edits during session entry.
+   */
+  currentWuReconcile?: Probe<CurrentWuReconcileSessionResult>;
   /**
    * Pre-computed in-flight worktree roster, identity-filtered. Present when the
    * orchestrator's gated second phase fires: worktree state `branch-gone`,
@@ -538,6 +545,10 @@ export interface SessionSharedProbes {
 
 /** Probe functions in session-init mode — bound to cwd and any required I/O. */
 export interface SessionInitProbes extends SessionSharedProbes {
+  /** Inspect one resolved active WU through the shared read-only reconcile planner. */
+  currentWuReconcile: (
+    input: { slug: string; metaPath: string },
+  ) => Promise<CurrentWuReconcileSessionResult>;
   /**
    * Physical-worktree detection (primary vs. linked). Local rev-parse only —
    * no network — so it rides every session-init pass. Folded onto the worktree

@@ -36,6 +36,7 @@ import type {
 import { newMemberDependencies } from "../decompose-cut-map.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
 import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
+import { findIntegratingDependentAdvisories } from "../transform-coordination.js";
 import {
   executeTransition,
   type ArtifactRunner,
@@ -460,7 +461,14 @@ async function sweepIncomingEdges(
 ): Promise<RepointedEdge[]> {
   const { executor } = ctx;
   const repointed: RepointedEdge[] = [];
+  const integrating = new Set(
+    ctx.composed === undefined
+      ? []
+      : findIntegratingDependentAdvisories(ctx.composed, originSlug)
+        .map((advisory) => advisory.dependent),
+  );
   for (const edge of incomingEdges) {
+    if (integrating.has(edge.dependent)) continue;
     const entry = index.get(edge.dependent);
     if (entry === undefined) continue;
     const writablePath = ctx.composed === undefined

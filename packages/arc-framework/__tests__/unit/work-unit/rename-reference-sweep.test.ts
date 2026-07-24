@@ -95,4 +95,23 @@ describe("sweepRenameReferences", () => {
     });
     expect(wrote).toBe(false);
   });
+
+  it("withholds an integrating dependent's exact meta from the rename sweep", async () => {
+    const content = renderMetaFile("integrating", { "Depends On": "sample" });
+    let wrote = false;
+
+    const result = await sweepRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+      excludedPaths: [".arc/active/meta-integrating.md"],
+    }, {
+      listFiles: async () => ["active/meta-integrating.md"],
+      readFile: async () => content,
+      writeFile: async () => { wrote = true; },
+    });
+
+    expect(result.changedPaths).toEqual([]);
+    expect(wrote).toBe(false);
+  });
 });

@@ -30,6 +30,8 @@ export interface RenameReferenceSweepParams {
   sourceSlug: string;
   targetSlug: string;
   cohortDocRelativePath?: string;
+  /** Exact current-checkout metas withheld from an in-flight coordination hazard. */
+  excludedPaths?: readonly string[];
 }
 
 /** Paths changed by the bounded reference sweep, relative to the repository root. */
@@ -89,6 +91,7 @@ export async function planRenameReferences(
   params: RenameReferenceSweepParams,
   ctx: RenameReferenceSweepContext = nodeContext,
 ): Promise<RenameReferencePlan> {
+  const excludedPaths = new Set(params.excludedPaths?.map((path) => path.replaceAll("\\", "/")) ?? []);
   const files = (await ctx.listFiles(params.arcRoot))
     .filter(isLifecycleTierFile)
     .sort();
@@ -96,6 +99,7 @@ export async function planRenameReferences(
   const edits: RenameReferenceEdit[] = [];
   for (const relativePath of files) {
     const path = join(params.arcRoot, relativePath);
+    if (excludedPaths.has(path.replaceAll("\\", "/"))) continue;
     const original = await ctx.readFile(path);
     let rewritten = rewriteBacktickedArtifactReferences(original, params.sourceSlug, params.targetSlug);
     if (basename(relativePath).startsWith("meta-") && basename(relativePath).endsWith(".md")) {

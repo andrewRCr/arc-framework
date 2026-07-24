@@ -287,7 +287,16 @@ export async function runSessionInitStatus(
   // auto-load sub-case (the active WU's missing SESSION-NOTES) without it. The
   // verdict finalizes `loadNeeded` (the safe sub-case upgrades it) and any
   // advisory `notesDriftSurface`.
-  const activeWuName = active.isOk() ? metaWorkUnitNameFromActive(active.value.path) : null;
+  const activePath = active.isOk() ? active.value.path : null;
+  const activeWuName = metaWorkUnitNameFromActive(activePath);
+  const currentWuReconcile =
+    active.isOk()
+    && active.value.resolution === "single"
+    && activePath !== null
+    && activeWuName !== null
+      ? await safeProbe("currentWuReconcile", () =>
+        probes.currentWuReconcile({ slug: activeWuName, metaPath: activePath }))
+      : undefined;
   const notesVerdict = qualifiedUser.isOk() && qualifiedUser.value.notesDrift
     ? resolveCleanArmNotesVerdict({ ...qualifiedUser.value.notesDrift, activeWuName })
     : null;
@@ -438,6 +447,7 @@ export async function runSessionInitStatus(
     active: toProbe(active),
     domainRules: toProbe(domainRules),
     releaseRouting: toProbe(releaseRouting),
+    ...(currentWuReconcile !== undefined ? { currentWuReconcile: toProbe(currentWuReconcile) } : {}),
     ...(roster !== undefined ? { roster: toProbe(roster) } : {}),
     ...(recovery !== undefined ? { recovery: toProbe(recovery) } : {}),
     ...(sweep !== undefined ? { sweep: toProbe(sweep) } : {}),

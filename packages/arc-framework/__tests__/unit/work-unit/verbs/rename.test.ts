@@ -29,6 +29,7 @@ function plan(shape: RenamePlan["shape"], resuming = false): RenamePlan {
     worktreePath: shape === "spawned" ? "/work/project.old-name" : null,
     baseBranch: "main",
     inventoryRead: "reachable",
+    coordinationAdvisories: [],
   };
 }
 
@@ -161,6 +162,26 @@ function buildContext(options: {
 }
 
 describe("runRename", () => {
+  it("surfaces prepared coordination advisories before tracked mutation", async () => {
+    const { ctx, calls } = buildContext();
+    const preflight = ctx.preflight;
+    ctx.preflight = async (request) => ({
+      ...await preflight(request),
+      coordinationAdvisories: ["coordinate integrating dependent"],
+    });
+    ctx.onPrepared = async (prepared) => {
+      calls.push(`surface:${prepared.coordinationAdvisories.join(",")}`);
+    };
+
+    await runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" });
+
+    expect(calls.slice(0, 3)).toEqual([
+      "preflight",
+      "surface:coordinate integrating dependent",
+      "capture",
+    ]);
+  });
+
   it("records the composed inventory quality", async () => {
     const { ctx, recordedReceipts } = buildContext();
 

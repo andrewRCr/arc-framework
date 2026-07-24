@@ -12,7 +12,32 @@ const FIXTURE_DIR = join(import.meta.dirname, "..", "..", "fixtures", "session-e
 function fixture(name: string): Record<string, unknown> {
   const normalized = readFileSync(join(FIXTURE_DIR, `session-init-${name}.json`), "utf8");
   const producerCompatible = normalized.replaceAll(/<DATE_\d+>/gu, "2026-01-02");
-  return JSON.parse(producerCompatible) as Record<string, unknown>;
+  const value = JSON.parse(producerCompatible) as Record<string, unknown>;
+  const active = value.active as { ok?: boolean; value?: { resolution?: string; path?: string | null } };
+  if (active.ok === true && active.value?.resolution === "single") {
+    const slug = active.value.path?.match(/meta-(.+)\.md$/u)?.[1] ?? "active-work-unit";
+    value.currentWuReconcile = {
+      ok: true,
+      value: {
+        status: "clean",
+        slug,
+        dependency: {
+          before: [],
+          after: [],
+          replacements: [],
+          drops: [],
+          discharged: [],
+          live: [],
+          conflicts: [],
+        },
+        trackedReferences: { edits: [] },
+        advisories: [],
+        recommendedAction: "skip",
+        recommendedPromptText: "",
+      },
+    };
+  }
+  return value;
 }
 
 function clone(value: Record<string, unknown>): Record<string, unknown> {

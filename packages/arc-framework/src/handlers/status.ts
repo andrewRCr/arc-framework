@@ -15,6 +15,7 @@
  */
 
 import { access, readdir, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 import * as p from "@clack/prompts";
 
@@ -80,6 +81,7 @@ import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-sourc
 import { runInboxState } from "../lib/session-init/inbox-state.js";
 import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-marker-surface.js";
 import { runNotesCompactionSessionAdvisory } from "../lib/session-init/notes-compaction-advisory.js";
+import { runCurrentWuReconcileSessionProbe } from "../lib/session-init/current-wu-reconcile.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
@@ -130,6 +132,7 @@ import {
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { queryGitRetirementDisposition } from "../lib/work-unit/git-retirement-record-enumeration.js";
 import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
@@ -533,6 +536,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
+      currentWuReconcile: async ({ slug, metaPath }) =>
+        runCurrentWuReconcileSessionProbe(
+          {
+            index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
+            queryDisposition: (input) => queryGitRetirementDisposition(gitExec, "HEAD", input),
+            readFile: (path) => io.readFile(resolve(cwd, path)),
+          },
+          { slug, metaPath },
+        ),
       roster: async () => {
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";

@@ -365,7 +365,9 @@ export async function prepareCurrentWuReconcile(
   let edges: string[];
   try {
     content = await ctx.readFile(op.metaPath);
-    edges = parseIdentifierList(parseMetaRecord(content)["Depends On"]);
+    const record = parseMetaRecord(content);
+    if (!Object.hasOwn(record, "Depends On")) throw new Error("Depends On field missing");
+    edges = parseIdentifierList(record["Depends On"]);
   } catch {
     const prepared = invalidPrepared(op, "invalid-meta");
     return { status: "conflict", prepared, reason: "invalid-meta" };

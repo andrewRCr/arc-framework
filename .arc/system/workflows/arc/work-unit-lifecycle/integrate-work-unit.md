@@ -376,6 +376,33 @@ After push, re-run required CI and routing on the new exact head before `pre-mer
 to the same Step 13 drift read. Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. Continue
 only when the authoritative result is `clean`.
 
+At the zero-behind head, apply the current WU's exact reconcile and parse its JSON:
+
+```bash
+arc wu reconcile {name} --apply --json
+```
+
+Accept only a schema-v1 result for the exact slug with status `clean`, `applied`, or `conflict`. Malformed,
+unrecognized, or command-failure output stops integration. `conflict` — including missing, ambiguous, corrupt, or
+otherwise unavailable replacement evidence — stops unmerged and surfaces the typed reason; the WU may remain
+`Integrating`.
+
+`clean` proceeds without a commit. On `applied`, run Tier 1 quality gates over the staged correction, then commit:
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): reconcile {name} before integration
+
+Context: meta-{name}.md (integration reconcile)
+```
+
+Repeat the Step 3 push extension contract and exact-head mutability action, then push through `workflowPush`.
+Rerun required CI and exact-head review coordination, and restart Step 13 from the authoritative base-drift read.
+The correction invalidates every prior base, lifecycle, review, and pre-merge checkpoint; rebuild them from the new
+head. Do not widen the review-readiness request or add a second merge-guard criterion.
+
 At the zero-behind final head, retain the `clean` result's `baseOid` as the current base-freshness evidence. Resolve
 authoritative lifecycle state:
 

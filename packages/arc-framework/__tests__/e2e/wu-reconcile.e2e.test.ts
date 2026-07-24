@@ -30,12 +30,17 @@ function meta(slug: string, branch: string, dependsOn: string): string {
 
 describe("arc wu reconcile", () => {
   let repo: string;
+  let receiptPath: string;
+  let receiptRelativePath: string;
+  let receiptContent: string;
 
   beforeEach(async () => {
     repo = await createTempRepo("arc-wu-reconcile-");
     const active = join(repo, ".arc", "active");
+    const planned = join(repo, ".arc", "backlog", "planned");
     const records = join(repo, ".arc", "system", ".internal", "retirement-receipts");
     await mkdir(active, { recursive: true });
+    await mkdir(planned, { recursive: true });
     await mkdir(records, { recursive: true });
     await writeFile(
       join(active, "meta-dependent.md"),
@@ -43,8 +48,8 @@ describe("arc wu reconcile", () => {
       "utf8",
     );
     await writeFile(
-      join(active, "meta-successor.md"),
-      meta("successor", "feat/successor", "[none]"),
+      join(planned, "meta-successor.md"),
+      meta("successor", "[none]", "[none]").replace("- **State:** Active", "- **State:** Planning"),
       "utf8",
     );
     const subject = { kind: "work-unit", name: "origin" };
@@ -67,11 +72,16 @@ describe("arc wu reconcile", () => {
       authorization: "identity-renamed",
       result: { kind: "rename", targetSlug: "successor", artifactDigest: DIGEST },
     };
-    await writeFile(
-      join(records, `${receiptId.replace(":", "-")}.json`),
-      canonicalize(receipt),
-      "utf8",
+    receiptRelativePath = join(
+      ".arc",
+      "system",
+      ".internal",
+      "retirement-receipts",
+      `${receiptId.replace(":", "-")}.json`,
     );
+    receiptPath = join(repo, receiptRelativePath);
+    receiptContent = canonicalize(receipt);
+    await writeFile(receiptPath, receiptContent, "utf8");
     await git(repo, ["add", "--all"]);
     await git(repo, ["commit", "-m", "fixture"]);
   });
@@ -103,9 +113,64 @@ describe("arc wu reconcile", () => {
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe(".arc/active/meta-dependent.md");
   });
 
+  it("surfaces a pending session reconcile without writing tracked state", async () => {
+    const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
+    const beforeMeta = await readFile(metaPath, "utf8");
+    const beforeStatus = await git(repo, ["status", "--porcelain"]);
+
+    const result = await runArc(["status", "--session-init", "--json"], repo);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      currentWuReconcile: {
+        ok: true,
+        value: {
+          status: "pending",
+          slug: "dependent",
+          recommendedAction: "surface",
+        },
+      },
+    });
+    expect(await readFile(metaPath, "utf8")).toBe(beforeMeta);
+    expect(await git(repo, ["status", "--porcelain"])).toBe(beforeStatus);
+  });
+
+  it("rechecks receipt evidence that appears after the dependent entered integration", async () => {
+    const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
+    await writeFile(
+      metaPath,
+      meta("dependent", "main", "`origin`").replace("- **State:** Active", "- **State:** Integrating"),
+      "utf8",
+    );
+    await git(repo, ["rm", receiptRelativePath]);
+    await git(repo, ["add", ".arc/active/meta-dependent.md"]);
+    await git(repo, ["commit", "-m", "enter integration before receipt"]);
+
+    const blocked = await runArc(["status", "--session-init", "--json"], repo);
+    expect(blocked.exitCode).toBe(0);
+    expect(JSON.parse(blocked.stdout)).toMatchObject({
+      currentWuReconcile: {
+        ok: true,
+        value: { status: "conflict", reason: "missing-evidence" },
+      },
+    });
+
+    await mkdir(join(repo, ".arc", "system", ".internal", "retirement-receipts"), { recursive: true });
+    await writeFile(receiptPath, receiptContent, "utf8");
+    await git(repo, ["add", receiptRelativePath]);
+    await git(repo, ["commit", "-m", "merge retirement evidence"]);
+    const applied = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
+
+    expect(applied.exitCode).toBe(0);
+    expect(JSON.parse(applied.stdout)).toMatchObject({
+      status: "applied",
+      dependency: { before: ["origin"], after: ["successor"] },
+    });
+  });
+
   it("refuses to write a work unit owned by another branch", async () => {
     const dependentPath = join(repo, ".arc", "active", "meta-dependent.md");
-    const successorPath = join(repo, ".arc", "active", "meta-successor.md");
+    const successorPath = join(repo, ".arc", "backlog", "planned", "meta-successor.md");
     const beforeDependent = await readFile(dependentPath, "utf8");
     const beforeSuccessor = await readFile(successorPath, "utf8");
 
@@ -140,5 +205,32 @@ describe("arc wu reconcile", () => {
     expect(await readFile(metaPath, "utf8")).toBe(before);
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
     expect(await git(repo, ["rev-parse", "HEAD"])).toBe(beforeHead);
+  });
+
+  it("reconciles an archived integration candidate from its conventional WU branch", async () => {
+    await git(repo, ["switch", "-c", "feat/dependent"]);
+    const completed = join(repo, ".arc", "completed", "2026", "dependent");
+    await mkdir(completed, { recursive: true });
+    const activePath = join(repo, ".arc", "active", "meta-dependent.md");
+    const completedPath = join(completed, "meta-dependent.md");
+    await writeFile(
+      completedPath,
+      meta("dependent", "[none]", "`origin`").replace("- **State:** Active", "- **State:** Shipped"),
+      "utf8",
+    );
+    await git(repo, ["rm", ".arc/active/meta-dependent.md"]);
+    await git(repo, ["add", ".arc/completed/2026/dependent/meta-dependent.md"]);
+    await git(repo, ["commit", "-m", "archive candidate"]);
+
+    const result = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "applied",
+      slug: "dependent",
+      stagedPaths: [".arc/completed/2026/dependent/meta-dependent.md"],
+    });
+    expect(await readFile(completedPath, "utf8")).toContain("- **Depends On:** `successor`");
+    await expect(readFile(activePath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

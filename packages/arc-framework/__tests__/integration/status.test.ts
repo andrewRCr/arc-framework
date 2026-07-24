@@ -195,6 +195,24 @@ function makeProbes(fixture: Fixture): StatusProbes {
   };
 }
 
+const cleanCurrentWuReconcile: SessionInitProbes["currentWuReconcile"] = async ({ slug }) => ({
+  status: "clean",
+  slug,
+  dependency: {
+    before: [],
+    after: [],
+    replacements: [],
+    drops: [],
+    discharged: [],
+    live: [],
+    conflicts: [],
+  },
+  trackedReferences: { edits: [] },
+  advisories: [],
+  recommendedAction: "skip",
+  recommendedPromptText: "",
+});
+
 function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
     user: async (identity) => stubUserSessionInit(identity),
@@ -218,6 +236,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    currentWuReconcile: cleanCurrentWuReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),
@@ -292,6 +311,7 @@ function makeResolvedReleaseModeSessionInitProbes(
       }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    currentWuReconcile: cleanCurrentWuReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),
@@ -540,6 +560,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       active: (identity, role) =>
         runActiveSessionInitStatus({ cwd: fixture.root, identity, role, exec: makeGitExec(fixture.root) }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+      currentWuReconcile: cleanCurrentWuReconcile,
       roster: async () => ({ entries: [], warnings: [] }),
       recovery: async () => ({ kind: "main-fallback" as const }),
       sweep: async () => ({ worktrees: [], warnings: [] }),
@@ -729,6 +750,7 @@ function makeRealWorktreeProbes(
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    currentWuReconcile: cleanCurrentWuReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),

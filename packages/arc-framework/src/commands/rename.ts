@@ -48,6 +48,7 @@ import {
   resolveRenameSubject,
   validateRenameRequest,
 } from "../lib/work-unit/rename-preflight.js";
+import { findIntegratingDependentAdvisories } from "../lib/work-unit/transform-coordination.js";
 import {
   runRename,
   type RenamePlan,
@@ -64,6 +65,7 @@ export interface RenameCommandContext {
   baseBranch: string;
   io: UserIOContext;
   retirement: RenameRetirementContext;
+  onPreparedAdvisories?(advisories: readonly string[]): Promise<void>;
 }
 
 /** Execute one explicit old-to-new work-unit rename. */
@@ -77,6 +79,9 @@ export async function runRenameCommand(
   const exec = command.io.exec;
   const ctx: RunRenameContext = {
     retirement: command.retirement,
+    onPrepared: async (plan) => {
+      await command.onPreparedAdvisories?.(plan.coordinationAdvisories);
+    },
     preflight: async (request) => {
       const names = validateRenameRequest(request.sourceSlug, request.targetSlug);
       const currentBranch = await getCurrentBranch(exec);
@@ -125,6 +130,7 @@ export async function runRenameCommand(
         ? null
         : await readRemoteBranchOid(exec, "origin", branches.oldBranch);
       const dirs = renameDirectories(writableSubject.entry, names.oldSlug, names.newSlug, writableSubject.resuming);
+      const coordination = findIntegratingDependentAdvisories(composed, names.oldSlug);
       if (!writableSubject.resuming) {
         const cohortDocRelativePath = await cohortDocumentPath(command.cwd, writableSubject.entry, lifecycleFs);
         referencePlan = await planRenameReferences({
@@ -132,6 +138,8 @@ export async function runRenameCommand(
           sourceSlug: names.oldSlug,
           targetSlug: names.newSlug,
           ...(cohortDocRelativePath === null ? {} : { cohortDocRelativePath }),
+          excludedPaths: coordination.flatMap((advisory) =>
+            advisory.writablePath === undefined ? [] : [advisory.writablePath]),
         }, referenceFs);
       }
       const additionalPaths = referencePlan?.changedPaths.filter(
@@ -153,6 +161,7 @@ export async function runRenameCommand(
         worktreePath: composed.worktreePathBySlug.get(subject.resolvedSlug) ?? null,
         baseBranch: command.baseBranch,
         inventoryRead: composed.readQuality,
+        coordinationAdvisories: coordination.map((advisory) => advisory.text),
       };
     },
     mutateTracked: async (plan) => {

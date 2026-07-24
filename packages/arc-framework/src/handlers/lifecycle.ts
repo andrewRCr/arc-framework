@@ -52,6 +52,7 @@ import {
   resolveComposedLifecycleIndex,
   type ComposedLifecycleIndexResult,
 } from "../lib/work-unit/composed-lifecycle-index.js";
+import { findIntegratingDependentAdvisories } from "../lib/work-unit/transform-coordination.js";
 import { resolveSlugState } from "../lib/work-unit/lifecycle-resolver.js";
 import {
   DISPATCH_MODE,
@@ -408,6 +409,9 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
     refuse(`cut-map origin \`${parsed.params.origin.slug}\` does not match the \`<origin>\` argument \`${originArg}\`.`);
     return;
   }
+  for (const advisory of findIntegratingDependentAdvisories(composed, originArg)) {
+    p.log.warn(advisory.text);
+  }
 
   const decomposeContext = {
     executor,
@@ -465,6 +469,10 @@ export async function handleRename(sourceSlug: string, targetSlug: string): Prom
     baseBranch: settings["branch.base"],
     io: base.io,
     retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
+    onPreparedAdvisories: (advisories) => {
+      for (const advisory of advisories) p.log.warn(advisory);
+      return Promise.resolve();
+    },
   }, { sourceSlug, targetSlug });
   if (result.status !== "renamed") {
     refuse(result.reason);
@@ -1210,9 +1218,13 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
     );
     return;
   }
+  const coordination = findIntegratingDependentAdvisories(composed, target);
 
   // Present the destructive cascade before any mutation, then gate on explicit confirmation.
-  p.note(plan.lines.join("\n"), `Abandon \`${target}\` — impact plan`);
+  p.note(
+    [...plan.lines, ...coordination.map((advisory) => `Coordination: ${advisory.text}`)].join("\n"),
+    `Abandon \`${target}\` — impact plan`,
+  );
   if (opts.yes !== true) {
     refuse(`Refusing to abandon \`${target}\` without \`--yes\` (safe default). Re-run with \`--yes\` to proceed.`);
     return;

@@ -27,9 +27,9 @@ pwd && arc status --session-init --json
 `pwd` should be the current repository root — the directory containing `.arc/`.
 The probe returns a single JSON envelope with these top-level slots: `identity`, `user`, `worktree`,
 `currentHusk`, `baseDistance`, `baseBranchSync`, `dirty`, `extensions`, `config`, `active`, `taskCursor`,
-`domainRules`, `recommendedCombinedPrompt`, `recovery`, `sweep`, `orphanBranchSweep`, `retiredSubdirs`,
-`errandSweep`, `errandState`, `materializableWorkUnits`, `workUnitState`, `inFlightComposition`,
-`cohortDocPath`, `inboxState`, `partialPushMarker`, and `compactionAdvisory`.
+`domainRules`, `releaseRouting`, `currentWuReconcile`, `recommendedCombinedPrompt`, `recovery`, `sweep`,
+`orphanBranchSweep`, `retiredSubdirs`, `errandSweep`, `errandState`, `materializableWorkUnits`, `workUnitState`,
+`inFlightComposition`, `cohortDocPath`, `inboxState`, `partialPushMarker`, and `compactionAdvisory`.
 
 Load [the probe-envelope reference][probe-envelope] when a slot's shape, presence condition, or provenance is
 needed beyond the procedural checks below.
@@ -727,6 +727,14 @@ tracked source documents the work.
 
   ```text
   **Stale base:** {baseBranchSync.value.recommendedPromptText}
+  ```
+
+- `currentWuReconcile.ok == true` AND `currentWuReconcile.value.recommendedAction == "surface"`: render
+  `currentWuReconcile.value.recommendedPromptText` verbatim. Detection only — do not apply tracked edits during
+  session initialization.
+
+  ```text
+  **Current WU reconcile:** {currentWuReconcile.value.recommendedPromptText}
   ```
 
 - `partialPushMarker.value.markers` non-empty: a cohort sibling's notes push has not yet arrived at origin — an

@@ -23,6 +23,7 @@ import {
   type ScaffoldCohortMembersParams,
 } from "../../../../src/lib/work-unit/verbs/decompose.js";
 import type { DecomposeParams, NewMemberEntry } from "../../../../src/lib/work-unit/decompose-cut-map.js";
+import type { ComposedLifecycleIndexResult } from "../../../../src/lib/work-unit/composed-lifecycle-index.js";
 import type { PreparedDecomposeRetirement } from "../../../../src/lib/work-unit/retirement-authority.js";
 import type {
   ExecuteTransitionContext,
@@ -564,6 +565,70 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
     expect(rewrite!.content).toContain("`other`");
     expect(rewrite!.content).not.toMatch(/\*\*Depends On:\*\*[^\n]*`mono`/);
     expect(h.staged).toContain(".arc/active/meta-dependent.md");
+  });
+
+  it("never mutates a live incoming edge owned by an integrating dependent", async () => {
+    const h = buildRunHarness(
+      [
+        { slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" },
+        { slug: "dependent", tier: "active", subdir: "", state: "Integrating", dependsOn: ["mono"] },
+      ],
+      { [`${CWD}/.arc/active`]: ["meta-mono.md", "draft-mono.md"] },
+    );
+    const selected = (slug: string, state: "Planning" | "Integrating", dependsOn: string[]) => ({
+      slug,
+      location: "active" as const,
+      state,
+      priority: "P1" as const,
+      dependsOn,
+      source: { kind: "active-meta" as const, location: "active" as const },
+      sources: [],
+    });
+    h.ctx.composed = {
+      index: new Map([
+        ["mono", {
+          slug: "mono",
+          phase: "Planning",
+          location: "active",
+          cohort: null,
+          dependsOn: [],
+          path: ".arc/active/meta-mono.md",
+        }],
+        ["dependent", {
+          slug: "dependent",
+          phase: "Integrating",
+          location: "active",
+          cohort: null,
+          dependsOn: ["mono"],
+          path: ".arc/active/meta-dependent.md",
+        }],
+      ]),
+      recordsBySlug: new Map([
+        ["mono", {
+          selected: selected("mono", "Planning", []),
+          currentTree: selected("mono", "Planning", []),
+          writablePath: ".arc/active/meta-mono.md",
+        }],
+        ["dependent", {
+          selected: selected("dependent", "Integrating", ["mono"]),
+          currentTree: selected("dependent", "Integrating", ["mono"]),
+          writablePath: ".arc/active/meta-dependent.md",
+        }],
+      ]),
+      qualityFacts: { warnings: [], resultMarks: [], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: true,
+      readQuality: "reachable",
+    } satisfies ComposedLifecycleIndexResult;
+
+    const result = await runDecompose(h.ctx, { cut: symmetricCut() });
+
+    expect(result.status).toBe("decomposed");
+    if (result.status !== "decomposed") return;
+    expect(result.result.repointed).toEqual([]);
+    expect(h.writes.some((write) => write.path.endsWith("meta-dependent.md"))).toBe(false);
+    expect(h.staged).not.toContain(".arc/active/meta-dependent.md");
   });
 
   it("applies each declared incoming disposition instead of pointing every dependent at every member", async () => {

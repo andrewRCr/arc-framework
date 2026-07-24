@@ -165,46 +165,35 @@ own branch and fails safely at lifecycle boundaries.
 - _Outcome:_ Every automatic tracked reconcile now runs within the dependent's own write ceremony: lifecycle entry
   carries one version-checked plan, while resume preserves distinct base-pointer and dependent-meta commits.
 
-### `[ ]` **2.4 Detect pending reconciles at session entry and fail closed at integration**
+### `[x]` **2.4 Detect pending reconciles at session entry and fail closed at integration**
 
 - _Goal:_ Read-only session entry makes pending repairs visible, while integration refuses a dependent whose own
   tracked reconcile cannot complete and transforms surface mid-integration coordination hazards.
 
-    - `[ ]` **2.4.a Add a read-only pending-reconcile session probe**
-        - Precompute clean/pending/conflict facts and CLI-owned advisory text for the active WU without editing its
-          tracked files. Add the typed slot through the session envelope schema, status handler, fixtures, and
-          unit/E2E tests; Phase 5 extends the same slot with tracked-reference edits and advisory findings.
+    - `[x]` **2.4.a Add a read-only pending-reconcile session probe**
+        - Added a typed single-active-WU envelope slot with CLI-owned clean/pending/conflict guidance, shared planner
+          facts, strict schema presence, real status-handler boundaries, and no write or staging capability.
 
-    - `[ ]` **2.4.b Render the session-entry advisory in both framework copies**
-        - Update package-source
-          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md` first, then
-          sync the generated `.arc/system/workflows/arc/session-lifecycle/session-init.md` project instance.
-          Dispatch only on the precomputed slot; do not add prose-side receipt lookup, comparison logic, or silent
-          apply behavior.
+    - `[x]` **2.4.b Render the session-entry advisory in both framework copies**
+        - Updated the package source and rendered project workflow to dispatch only on the precomputed
+          `recommendedAction` and render `recommendedPromptText` verbatim without applying tracked edits.
 
-    - `[ ]` **2.4.c Gate integration on the exact reconcile result**
-        - In `integrate-work-unit.md` Step 13, run `arc wu reconcile --apply --json` after authoritative base
-          reconciliation has brought reachable receipt evidence into the WU history and before the stable
-          exact-head pre-merge checkpoint. A real conflict or unavailable replacement stops the WU unmerged; it may
-          remain correctly `Integrating`.
-        - When the operation applies a rewrite, commit and push the candidate correction, rerun affected CI/review
-          coordination and base/lifecycle reads, then rebuild the exact-head checkpoint. Do not widen the
-          review-readiness request union or create a second merge-guard criterion.
+    - `[x]` **2.4.c Gate integration on the exact reconcile result**
+        - Step 13 now applies the exact current-WU reconcile after base convergence and before lifecycle and
+          exact-head authorization; conflicts stop unmerged, while applied corrections commit, push, and invalidate
+          every prior evidence checkpoint. Explicit archived-candidate authority is limited to its matching WU branch.
 
-    - `[ ]` **2.4.d Surface a transform whose dependent is already integrating**
-        - Use composed state during transform preparation to report each live incoming edge owned by an integrating
-          dependent as a coordination advisory at the transform interlock.
+    - `[x]` **2.4.d Surface a transform whose dependent is already integrating**
+        - Added stable composed-truth advisories before decompose, rename, and abandon mutation; integrating
+          dependents are withheld from decompose edge writes and the rename reference sweep even when locally writable.
 
-    - `[ ]` **2.4.e Prove read/write and authority boundaries**
-        - Build `test-first` (one behavior at a time):
-            - the current-WU session probe detects pending and conflicting tracked repairs with zero writes; any
-              identity-global repair remains the separate `arc user reconcile-references --apply` command
-            - integration with a resolvable receipt lands the rewrite before authorization
-            - integration resolves a reachable multi-hop rename chain to its final live or terminal disposition in
-              one apply
-            - integration with a missing/ambiguous target fails closed without merge authorization, including a
-              receipt that appears after the WU first entered `Integrating`
-            - a mid-integration dependent is surfaced but never mutated by the origin transform
+    - `[x]` **2.4.e Prove read/write and authority boundaries**
+        - Covered read-only pending/conflict session behavior, late-arriving evidence, archived-candidate apply,
+          multi-hop planner closure, integration ordering and fail-closed restart, and zero mutation of integrating
+          dependents across unit, integration-contract, and real-CLI boundaries.
+
+- _Outcome:_ Session entry and final integration now consume the same current-WU reconcile contract at distinct
+  read/write boundaries, while origin transforms preserve integrating dependents as coordination-only participants.
 
 ### `[ ]` **2.5 Route every lifecycle transform through the shared reconcile contract**
 

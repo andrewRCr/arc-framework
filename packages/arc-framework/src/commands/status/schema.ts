@@ -29,6 +29,29 @@ const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "va
 /** Thin routing view of a working-tree dirty-state result. */
 export const DirtyStateValueViewSchema = z.object({ state: z.enum(["clean", "dirty"]) }).loose();
 
+/** Routing view of the read-only current-WU reconcile session fact. */
+export const CurrentWuReconcileSessionValueViewSchema = z
+  .object({
+    status: z.enum(["clean", "pending", "conflict"]),
+    slug: NON_EMPTY_TEXT,
+    dependency: z.object({ conflicts: z.array(z.unknown()) }).loose(),
+    trackedReferences: z.object({ edits: z.array(z.unknown()) }).loose(),
+    advisories: z.array(z.string()),
+    reason: z.string().optional(),
+    recommendedAction: z.enum(["skip", "surface"]),
+    recommendedPromptText: z.string(),
+  })
+  .loose()
+  .superRefine((value, context) => {
+    const clean = value.status === "clean";
+    if (value.recommendedAction !== (clean ? "skip" : "surface")) {
+      context.addIssue({ code: "custom", path: ["recommendedAction"], message: "must match reconcile status" });
+    }
+    if ((value.recommendedPromptText === "") !== clean) {
+      context.addIssue({ code: "custom", path: ["recommendedPromptText"], message: "must match reconcile status" });
+    }
+  });
+
 /** Thin routing view of a worktree synchronization result. */
 export const WorktreeSyncValueViewSchema = z
   .object({
@@ -306,6 +329,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   active: probe(ActiveSessionInitValueViewSchema),
   domainRules: probe(DomainRulesSessionInitValueViewSchema),
   releaseRouting: probe(ReleaseRoutingValueViewSchema),
+  currentWuReconcile: probe(CurrentWuReconcileSessionValueViewSchema).optional(),
   roster: probe(WorktreeRosterValueViewSchema).optional(),
   recovery: probe(CascadeResolutionSchema).optional(),
   sweep: probe(StaleWorktreeSweepValueViewSchema).optional(),
@@ -401,6 +425,7 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
   }
 
   requireExactPresence(value, context, "errandState", value.worktree.ok && value.active.ok);
+  requireExactPresence(value, context, "currentWuReconcile", active?.resolution === "single");
   requireExactPresence(value, context, "workUnitState", rosterSuccessful);
   requireExactPresence(
     value,
@@ -497,7 +522,7 @@ export const SessionRecoverProbeResultSchema = SessionRecoverProbeResultRuntimeS
 >;
 
 type DeclaredInput<Value> = Value extends readonly (infer Item)[]
-  ? DeclaredInput<Item>[]
+  ? readonly DeclaredInput<Item>[]
   : Value extends object
     ? { [Key in keyof Value as string extends Key ? never : Key]: DeclaredInput<Value[Key]> }
     : Value;
