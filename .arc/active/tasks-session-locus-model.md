@@ -1003,6 +1003,54 @@ full guard set unchanged.
   first queued Errand after interruption or abandonment, criteria preserve that resume trail, and structural
   contracts reject the removed plan protocol while enforcing package/project parity.
 
+## **Phase 7.C:** Rename Composition
+
+_Purpose:_ Compose the locus model with `wu-rename`, which reached the base after this branch's own work was
+built. Neither side is broken alone; together, a rename leaves a locus record keyed to an identity that no longer
+exists. This phase closes that window before the two meet on mainline.
+
+_Design decisions:_ Spec D12. A record binds a renamed subject on two axes — `role.subject.key` (every rename
+shape) and the checkout-path `recordId` (spawned moves only) — and both rekey under deterministic-order record
+locks. Liveness disposition follows D6's frame matrix rather than teardown's stricter predicate, because rename
+preserves the work unit instead of retiring it: dead leases are reaped, entering-anchor leases rebase, foreign-live
+and unknown liveness refuse. Record authority stays in an injected driver so the worktree mutator's `move`
+operation stays mechanical.
+
+### `[x]` **7.C.a Add the lock-bound rename rekey driver** — D12
+
+- _Goal:_ One driver owns the rekey transaction: acquire the affected record locks in deterministic record-ID
+  order, revalidate roster and record generations under lock, apply the subject and path rekey, and resolve the
+  liveness disposition — so no caller reconstructs record authority.
+
+- _Outcome:_ `rename-locus.ts` holds the source and (on a move) target locks in record-ID order, revalidates the
+  roster head and exact record generation under lock, runs the injected physical move inside that window, then
+  mints the rekeyed record and removes the superseded one — replacing in place when the digest is unchanged.
+  Extracted the anchor selection `teardown-locus.ts` held privately into `locus/mutation-anchor.ts` so both
+  lock-holding mutations share one selection. Ownership of a live lease is full-anchor equality, matching the
+  owned-role pop rather than a looser pid/token comparison.
+
+### `[x]` **7.C.b Wire the rekey into the rename verb and command** — D12
+
+- _Goal:_ `runRename` drives the rekey through an injected seam for both applicable shapes, and the production
+  command binds the node driver — so a rename converges the locus record without the worktree mutator gaining
+  record authority.
+
+- _Outcome:_ Replaced the verb's `moveWorktree` seam with `rekeyLocus`, which owns the record transaction and
+  runs the physical move inside its lock window; the verb now rekeys every non-stub shape and reports a refusal
+  as a resumable partial rather than a renamed success. The command resolves the rekey's checkout coordinates
+  from the move resolution — destination for a landed move, primary for an in-place subject — and passes the
+  roster head as the expected generation.
+
+### `[x]` **7.C.c Cover the composed rename against real Git** — D12
+
+- _Goal:_ An end-to-end rename over a real worktree leaves a roster whose renamed subject resolves — no stale
+  record, no unmanaged checkout, no unresolved subject — closing the compatibility window this phase exists for.
+
+- _Outcome:_ `rename-locus-composition.test.ts` drives a real `git worktree move` and record rekey over a
+  renamed subject whose artifacts and marker already carry the new slug, then asserts against the locus roster
+  itself: one `managed-role` row at the new path with the renamed subject, `frame: idle`, no diagnostics, and
+  neither a `stale-record` row nor any row at the old path.
+
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`

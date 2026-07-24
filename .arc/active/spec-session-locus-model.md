@@ -1221,6 +1221,36 @@ Workflow changes use precomputed CLI verdicts and operation verbs:
 This keeps deterministic branching in TypeScript, typed record/slot structure in code, and only orientation,
 recommendation, and user-choice framing in workflow prose.
 
+### D12. Rename composition
+
+`arc rename` changes a work unit's slug and, for a spawned subject, its checkout path. A locus record binds both:
+`role.subject.key` carries the slug, and `recordId` is the canonical checkout-path digest. Every rename shape
+invalidates the first — the reader resolves `meta-<subject key>.md` and requires exactly one match, so an unrekeyed
+record reads `subject-unresolved` and surrenders its derived projection. A spawned rename additionally moves the
+worktree and invalidates the second, leaving a `stale-record` beside an `unmanaged-checkout`. Rename therefore
+rekeys both axes under the record lock; no roster inference reconciles a renamed subject.
+
+Liveness disposition selects whether the rekey proceeds. It follows the frame matrix (D6) rather than teardown's
+stricter predicate, because rename preserves the work unit instead of retiring it:
+
+- absent lease → rekey the role alone;
+- conclusively dead lease → rekey and clear the lease. A WU role with a dead lease already reads `idle` and the next
+  attaching operation reaps that lease (D6), so clearing changes no frame; carrying it forward would assert a lease
+  held by a proven-dead anchor at a session home the move may have invalidated;
+- live lease held by the entering anchor → rekey and rebase `sessionHomePath` onto the new checkout path;
+- live lease held by another anchor, or unknown liveness → refuse. A foreign live session stands in that checkout,
+  and unknown liveness never authorizes a mutation (D6).
+
+The transaction follows promotion's shape (D7). Rename acquires the old and, for a spawned move, the new record lock
+in deterministic record-ID order, revalidates the worktree roster generation and the exact record generation under
+lock, performs the physical `git worktree move`, mints the rekeyed record, removes the superseded one, then releases
+both locks. Mint-before-remove is deliberate: an interruption between the two leaves a `stale-record` at a path that
+no longer exists — visible and cleanable — where the inverse order would leave a live checkout with no role.
+Re-running the same rename recognizes the rekeyed record and completes idempotently.
+
+Record authority stays in an injected driver, mirroring guarded teardown (D10) rather than widening the worktree
+mutator: the `move` operation stays mechanical, and the driver owns lock acquisition, revalidation, and the rekey.
+
 ## Alternatives & Rationale
 
 ### Keep frame state in the harness summary
@@ -1466,6 +1496,11 @@ motivating failure.
     identity, and routine session narration renders no locus lines for expected state — unmanaged sibling
     worktrees, an unleased durable role, and clean reconciliation stay silent, with the model named only as
     "session locus" where diagnostics require it.
+17. Renaming a work unit rekeys its locus record on both binding axes — subject key for every shape, checkout-path
+    record ID for a spawned move — under deterministic-order record locks, so the renamed subject resolves without
+    leaving a stale record, an unmanaged checkout, or an unresolved subject. The rekey clears a conclusively dead
+    lease, rebases an entering-anchor lease onto the new path, refuses foreign-live and unknown liveness, and
+    re-runs idempotently.
 
 ## Open Questions
 

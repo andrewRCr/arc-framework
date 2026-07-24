@@ -7,12 +7,10 @@ import type { GitExec } from "../git/exec.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { acquireLocusLock, releaseLocusLock } from "../locus/lock.js";
+import { selectLocusMutationAnchor } from "../locus/mutation-anchor.js";
 import { deriveLocusRecordId } from "../locus/path-identity.js";
-import {
-  createPlatformProcessAncestryInspector,
-  createPlatformProcessInspector,
-} from "../locus/platform-inspectors.js";
-import { acquireSessionAnchor, verifyProcessAnchor } from "../locus/process-inspector.js";
+import { createPlatformProcessInspector } from "../locus/platform-inspectors.js";
+import { verifyProcessAnchor } from "../locus/process-inspector.js";
 import { readLocusRecord, removeLocusRecord } from "../locus/record-store.js";
 import { locusLockPath, locusRecordPath, resolveLocusRoot } from "../locus/root.js";
 import type { TeardownOccupancyDecision } from "./teardown-occupancy.js";
@@ -50,7 +48,7 @@ async function retireNodeCheckoutLocus(
     throw new Error("cannot retire checkout session locus: target is not the expected live roster generation");
   }
   const inspector = createPlatformProcessInspector();
-  const anchor = await selectMutationAnchor(inspector);
+  const anchor = await selectLocusMutationAnchor(inspector, "cannot retire checkout session locus");
   const root = await resolveLocusRoot({ identity: runtime.identity, scan: () => Promise.resolve(topology) });
   if (!root.ok) throw new Error(`cannot retire checkout session locus: ${root.message}`);
   const pathFlavor = process.platform === "win32" ? "windows" : "posix";
@@ -146,20 +144,6 @@ function exactTarget(
 ): { readonly path: string; readonly head: string } | null {
   const matches = worktrees.filter((candidate) => resolve(candidate.path) === checkoutPath);
   return matches.length === 1 ? matches[0] ?? null : null;
-}
-
-async function selectMutationAnchor(inspector: ReturnType<typeof createPlatformProcessInspector>) {
-  const selected = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (selected.kind === "process") return selected;
-  const command = await inspector.inspect(process.pid);
-  if (command.kind !== "present") throw new Error(`cannot retire checkout session locus: ${selected.reason}`);
-  return {
-    kind: "process" as const,
-    pid: command.pid,
-    startToken: command.startToken,
-    inspector: inspector.kind,
-    selector: "arc-command",
-  };
 }
 
 function digestBytes(bytes: Uint8Array): string {

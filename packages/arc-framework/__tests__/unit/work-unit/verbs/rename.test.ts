@@ -138,14 +138,21 @@ function buildContext(options: {
       calls.push("resolve-worktree");
       return { status: "move", from: "/work/project.old-name", to: "/work/project.new-name" };
     },
-    moveWorktree: async () => {
-      calls.push("move-worktree");
-      fail("move-worktree");
+    rekeyLocus: async (_plan, move) => {
+      calls.push("rekey-locus");
+      fail("rekey-locus");
       return {
-        mutation: "move",
-        from: "/work/project.old-name",
-        to: "/work/project.new-name",
-        locusHopped: true,
+        locus: { kind: "rekeyed", recordId: `sha256:${"d".repeat(64)}` },
+        ...(move.status === "move"
+          ? {
+              worktree: {
+                mutation: "move" as const,
+                from: move.from,
+                to: move.to,
+                locusHopped: true,
+              },
+            }
+          : {}),
       };
     },
   };
@@ -160,7 +167,7 @@ describe("runRename", () => {
       .resolves.toMatchObject({ status: "renamed", shape: "spawned", trackedCommit: "created" });
     expect(calls).toEqual([
       "preflight", "capture", "snapshot", "mutate", "stage", "patch", "artifact-digest", "record", "commit",
-      "branch", "notes", "remote", "marker", "resolve-worktree", "move-worktree",
+      "branch", "notes", "remote", "marker", "resolve-worktree", "rekey-locus",
     ]);
   });
 
@@ -192,7 +199,7 @@ describe("runRename", () => {
 
     await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
       .resolves.toMatchObject({ status: "renamed", trackedCommit: "existing" });
-    expect(calls).toEqual(["preflight", "branch", "notes", "remote", "marker", "resolve-worktree", "move-worktree"]);
+    expect(calls).toEqual(["preflight", "branch", "notes", "remote", "marker", "resolve-worktree", "rekey-locus"]);
   });
 
   it("rolls back the patch and record when the commit is refused", async () => {
@@ -212,7 +219,7 @@ describe("runRename", () => {
     expect(calls.at(-1)).toBe("notes");
   });
 
-  it.each(["branch", "notes", "remote", "marker", "move-worktree"] as const)(
+  it.each(["branch", "notes", "remote", "marker", "rekey-locus"] as const)(
     "resumes from the outstanding %s identity leg",
     async (failureLeg) => {
       const { ctx } = buildContext();
@@ -244,13 +251,16 @@ describe("runRename", () => {
         apply("marker");
         return "renamed";
       };
-      ctx.moveWorktree = async () => {
-        apply("move-worktree");
+      ctx.rekeyLocus = async () => {
+        apply("rekey-locus");
         return {
-          mutation: "move",
-          from: "/work/project.old-name",
-          to: "/work/project.new-name",
-          locusHopped: true,
+          locus: { kind: "rekeyed", recordId: `sha256:${"d".repeat(64)}` },
+          worktree: {
+            mutation: "move",
+            from: "/work/project.old-name",
+            to: "/work/project.new-name",
+            locusHopped: true,
+          },
         };
       };
 
@@ -261,8 +271,63 @@ describe("runRename", () => {
 
       await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
         .resolves.toMatchObject({ status: "renamed", trackedCommit: "existing" });
-      const order = ["branch", "notes", "remote", "marker", "move-worktree"];
+      const order = ["branch", "notes", "remote", "marker", "rekey-locus"];
       expect(mutations).toEqual(order.slice(order.indexOf(failureLeg)));
     },
   );
+});
+
+describe("runRename locus rekey", () => {
+  it("rekeys an in-place subject without resolving or performing a worktree move", async () => {
+    const { ctx, calls } = buildContext({ shape: "in-place" });
+    let requested: string | null = null;
+    ctx.rekeyLocus = async (_plan, move) => {
+      requested = move.status;
+      return { locus: { kind: "rekeyed", recordId: `sha256:${"d".repeat(64)}` } };
+    };
+
+    await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
+      .resolves.toMatchObject({ status: "renamed", shape: "in-place" });
+    expect(requested).toBe("in-place");
+    expect(calls).not.toContain("resolve-worktree");
+  });
+
+  it("hands the resolved move to the rekey rather than moving the worktree beside it", async () => {
+    const { ctx } = buildContext();
+    let handed: unknown = null;
+    ctx.rekeyLocus = async (_plan, move) => {
+      handed = move;
+      return {
+        locus: { kind: "rekeyed", recordId: `sha256:${"d".repeat(64)}` },
+        worktree: { mutation: "move", from: "/work/project.old-name", to: "/work/project.new-name", locusHopped: true },
+      };
+    };
+
+    const result = await runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" });
+
+    expect(handed).toEqual({ status: "move", from: "/work/project.old-name", to: "/work/project.new-name" });
+    expect(result).toMatchObject({
+      status: "renamed",
+      worktree: { mutation: "move", locusHopped: true },
+      locus: { kind: "rekeyed" },
+    });
+  });
+
+  it("surfaces a refused rekey as a resumable partial", async () => {
+    const { ctx } = buildContext();
+    ctx.rekeyLocus = async () => ({ locus: { kind: "refused", reason: "lease-live" } });
+
+    await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
+      .resolves.toEqual({ status: "partial", reason: "session locus rekey refused: lease-live" });
+  });
+
+  it("requests no rekey for a stub subject", async () => {
+    const { ctx } = buildContext({ shape: "stub" });
+    ctx.rekeyLocus = async () => {
+      throw new Error("stub rename must not rekey a locus record");
+    };
+
+    await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
+      .resolves.toMatchObject({ status: "renamed", shape: "stub", pendingIntegration: true });
+  });
 });
