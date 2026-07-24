@@ -112,6 +112,7 @@ function fixture() {
   const result = {
     status: "partial" as const,
     result: "clean" as const,
+    repositoryId: target.repositoryId,
     targetId: target.targetId,
     headSha: target.headSha,
     headTree: target.headTree,
@@ -124,10 +125,59 @@ function fixture() {
     applicabilityId: null,
     findings: [],
   };
-  return { admission, operation, result, source };
+  const evaluatorResult = {
+    status: result.status,
+    result: result.result,
+    evaluatorIdentity: result.evaluatorIdentity,
+    reviewRunId: result.reviewRunId,
+    applicabilityId: result.applicabilityId,
+    findings: result.findings,
+  };
+  return { admission, evaluatorResult, operation, result, source };
 }
 
 describe("local attest command", () => {
+  it("injects runtime-owned bindings into evaluator-authored terminal output", async () => {
+    const records = fixture();
+    const appendReceipt = vi.fn(async () => ({
+      ledgerVersion: 1,
+      durableEvidenceRef: "receipt.json#1",
+    }));
+
+    await expect(attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+      result: { ...records.evaluatorResult, status: "complete" },
+    }, {
+      withSourceLock,
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: records.operation }),
+        publishOperation: vi.fn(),
+      },
+      sourceStore: {
+        readSource: async () => records.source,
+        appendSource: vi.fn(),
+      },
+      receiptStore: {
+        readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+        appendReceipt,
+      },
+      resolveAuthority: async () => records.admission.authority,
+      resolveGuidanceDigest: async () => records.operation.guidanceDigest,
+      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
+    })).resolves.toMatchObject({
+      state: "attested-current",
+      nextAction: "reduce",
+    });
+    expect(appendReceipt).toHaveBeenCalledWith(expect.objectContaining({
+      targetId: records.operation.targetId,
+      rubricVersion: records.operation.requirement.rubricVersion,
+      rubricDigest: records.operation.requirement.rubricDigest,
+    }), 0);
+  });
+
   it("returns not-attestable for a non-terminal result without reading source or receipts", async () => {
     const records = fixture();
     const readSource = vi.fn();

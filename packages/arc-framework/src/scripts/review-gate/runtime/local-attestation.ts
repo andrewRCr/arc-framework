@@ -70,7 +70,8 @@ export function createLocalReviewReceipt(input: LocalReviewReceiptInput): Review
   if (result.status !== "complete" || result.result === null) {
     throw new LocalReviewReceiptError("invalid-input", "local review result is not attestable terminal evidence");
   }
-  if (result.targetId !== target.targetId
+  if ((result.repositoryId !== undefined && result.repositoryId !== target.repositoryId)
+    || result.targetId !== target.targetId
     || result.headSha !== target.headSha
     || result.headTree !== target.headTree) {
     throw new LocalReviewReceiptError("invalid-input", "local review result does not cover the exact target");
