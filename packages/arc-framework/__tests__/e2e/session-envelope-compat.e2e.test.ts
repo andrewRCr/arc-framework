@@ -11,9 +11,14 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { LocusAbsolutePathSchema } from "../../src/lib/locus/schema/limits.js";
 import {
   normalizeSessionEnvelope,
   prepareSessionEnvelopeFixture,
+  PRIMARY_TOKEN,
+  REMOTE_TOKEN,
+  WORKTREE_PARENT_TOKEN,
+  WORKTREE_TOKEN,
   type SessionEnvelopeFixture,
 } from "../helpers/session-envelope-compat.js";
 import { runArcNoTty } from "./helpers.js";
@@ -41,6 +46,43 @@ async function capture(
   expect(result.stdout).toBe(`${JSON.stringify(parsed)}\n`);
   return normalizeSessionEnvelope(parsed, fixture.normalization) as Record<string, unknown>;
 }
+
+describe("session envelope normalization contract", () => {
+  let fixture: SessionEnvelopeFixture | undefined;
+
+  afterEach(async () => {
+    await fixture?.cleanup();
+    fixture = undefined;
+  });
+
+  it("keeps every placeholder parseable as the absolute path it stands in for", () => {
+    // Normalized envelopes are replayed through schema validation, so a placeholder
+    // substituted into a path field has to satisfy the same schema the real path did.
+    for (const token of [
+      PRIMARY_TOKEN,
+      WORKTREE_PARENT_TOKEN,
+      WORKTREE_TOKEN,
+      REMOTE_TOKEN,
+    ]) {
+      expect(LocusAbsolutePathSchema.safeParse(token).success, token).toBe(true);
+    }
+  });
+
+  it("orders every fixture root deterministically against the primary", async () => {
+    // Roster rows sort on their checkout path. Siblings must extend the primary path so
+    // their order is fixed, rather than depending on which suffix the temp root drew.
+    fixture = await prepareSessionEnvelopeFixture("branch-gone");
+    const primary = fixture.primary;
+    const siblings = fixture.normalization.roots
+      .map(([path]) => path)
+      .filter((path) => path !== primary);
+
+    expect(siblings.length).toBeGreaterThan(0);
+    for (const path of siblings) {
+      expect(path.startsWith(primary), path).toBe(true);
+    }
+  });
+});
 
 describe("session envelope wire compatibility", () => {
   let fixture: SessionEnvelopeFixture | undefined;
@@ -162,7 +204,7 @@ describe("recovery-audit wire compatibility", () => {
     fixture = await prepareSessionEnvelopeFixture("active-resume");
     const missing = await capture(fixture, ["recover", "audit", "--json"]);
     expect(missing).toMatchObject({
-      seedPath: "<WORKTREE>/.arc/user/test-user/.internal/compaction-seed.json",
+      seedPath: `${WORKTREE_TOKEN}/.arc/user/test-user/.internal/compaction-seed.json`,
       verdict: { status: "stop", ready: false, stopReasons: [{ kind: "seed-missing" }] },
     });
 

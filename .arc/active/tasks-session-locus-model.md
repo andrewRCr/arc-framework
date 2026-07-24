@@ -1146,9 +1146,29 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
         - `locus-state-probe.ts` throws for every non-process anchor before calling the reader, while
           `acquireSessionAnchor`, `LocusAnchorSchema`, and the reader's `enteringAnchor` input all accept the
           unverifiable arm. Preserve an acquired unverifiable anchor as reader input and reserve the runtime-probe
-          error arm for genuine reader or root failures. Sequenced after the golden-fixture repair it depends on:
-          the e2e envelope goldens were captured under an unrecognized process boundary and therefore record the
-          defect as expected output, and their path redaction is not schema-valid once the slot carries real paths.
+          error arm for genuine reader or root failures. The e2e envelope goldens were captured under an
+          unrecognized process boundary and therefore record the defect as expected output, so the suite cannot
+          observe the slot at all until the fixtures are repaired first — hence the two increments below.
+
+        - `[x]` **7.E.b.i.1 Let the envelope fixtures observe a populated locus slot**
+            - Redaction emits path-shaped placeholders (`/redacted/primary`, `/redacted/worktree`), so a replayed
+              envelope satisfies the same absolute-path schema the real values did instead of failing ahead of the
+              assertion it targets. Fixture siblings now extend the primary repository path rather than drawing
+              independent temp roots, which fixes the order roster rows sort into — the old roots ordered a random
+              suffix against `wt-`, so a capture locked whichever order that run happened to produce, flaking at
+              roughly one run in fifteen per arm. Both constraints carry guards, since neither is observable in a
+              captured envelope until the slot populates: placeholders are asserted against the path schema itself,
+              and every fixture root against the primary prefix. Goldens regenerated.
+
+        - `[ ]` **7.E.b.i.2 Preserve the acquired unverifiable anchor**
+            - Drop the probe's non-process refusal and cover the unverifiable arm at the reader. Three suite
+              expectations record the old defect and must follow the real behavior: the recovery load-set stop
+              sharpens from `load-set-unresolved` to `load-set-drift` (recovery derives its frame from a locus role,
+              so a record-less checkout correctly reports drift against a seed written from active-meta
+              resolution); the lean-recover arm asserts `locusState`, `recoveryFrame`, and `loadSet` are all
+              unresolved; and the record-less residue arm reached `classification-unavailable` only because the
+              throw made classification unavailable — retarget it to `no-record-or-meta` and add a fixture that
+              produces a genuine unavailable classification so that arm keeps its coverage.
 
     - `[x]` **7.E.b.ii Keep the execute-bound queue read from discarding its valid entries** — S2-F4
         - `listExecuteBoundInboxEntries` returns file-ordered entries plus per-entry diagnostics instead of throwing
