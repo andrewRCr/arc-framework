@@ -204,6 +204,15 @@ export const LocalPrepareEnvelopeSchema = z.union([
   envelopeVariant("review-local-prepare", "exempt", "none", z.strictObject({})),
   envelopeVariant(
     "review-local-prepare",
+    "review-complete",
+    "reduce",
+    z.strictObject({
+      ...OperationPayloadShape,
+      target: ReviewTargetSchema,
+    }),
+  ),
+  envelopeVariant(
+    "review-local-prepare",
     "ready",
     "launch-review",
     z.strictObject({

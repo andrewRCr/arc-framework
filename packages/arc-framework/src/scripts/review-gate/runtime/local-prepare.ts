@@ -101,6 +101,16 @@ function cleanupExpired(state: LocalReviewState, nowInput: string): boolean {
   return now >= admittedAt + state.cleanupTtlMs;
 }
 
+/** Stable durable-state failure at the local prepare boundary. */
+export class LocalPrepareCommandError extends Error {
+  readonly code = "corrupt-state" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "LocalPrepareCommandError";
+  }
+}
+
 /** Derive, admit, optionally renew liveness, and prove one local review operation. */
 export async function prepareLocalReview(
   requestInput: unknown,
@@ -183,14 +193,23 @@ export async function prepareLocalReview(
   }
   const cleanupTtlMs = request.freshnessMs ?? DEFAULT_LOCAL_REVIEW_FRESHNESS_MS;
   const settled = await dependencies.withSourceLock(async () => {
-    let admitted: {
-      resolution: LocalReviewAdmissionResolution;
-      preparation: LocalReviewPreparation;
-    } | null = null;
+    let admitted:
+      | {
+          state: "prepared";
+          resolution: LocalReviewAdmissionResolution;
+          preparation: LocalReviewPreparation;
+        }
+      | {
+          state: "completed";
+          operationId: string;
+          persistedVersion: number;
+        }
+      | null = null;
     for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
       const existingVerification: {
         value?: { source: LocalReviewSource; reviewRoot: string };
         renewal?: LocalReviewSource;
+        completed?: true;
       } = {};
       const resolution = await resolveLocalReviewAdmission(admissionInput, {
         store: dependencies.operationStore,
@@ -201,19 +220,34 @@ export async function prepareLocalReview(
             || source.targetId !== state.targetId) {
             throw new Error("local review source reference mismatch");
           }
+          const ledger = await dependencies.readReceipts(state.targetId);
+          const receipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
+          if (receipts.length > 1) {
+            throw new LocalPrepareCommandError(
+              "local review operation has multiple terminal receipts",
+            );
+          }
+          if (receipts.length === 1) {
+            existingVerification.completed = true;
+            return;
+          }
           if (cleanupExpired(state, dependencies.now())) {
-            const ledger = await dependencies.readReceipts(state.targetId);
-            const hasReceipt = ledger.receipts.some((receipt) => receipt.requestId === state.requestId);
-            if (!hasReceipt) {
-              existingVerification.renewal = source;
-              return;
-            }
+            existingVerification.renewal = source;
+            return;
           }
           const materialized = await dependencies.materialize(source);
           existingVerification.value = { source, reviewRoot: materialized.reviewRoot };
         },
       });
       if (resolution.state === "existing") {
+        if (existingVerification.completed === true) {
+          admitted = {
+            state: "completed",
+            operationId: resolution.operationId,
+            persistedVersion: resolution.persistedVersion,
+          };
+          break;
+        }
         const renewal = existingVerification.renewal;
         if (renewal !== undefined) {
           const renewedState = LocalReviewStateSchema.parse({
@@ -227,6 +261,7 @@ export async function prepareLocalReview(
           );
           const materialized = await dependencies.materialize(renewal);
           admitted = {
+            state: "prepared",
             resolution,
             preparation: {
               persistedVersion: published.version,
@@ -241,6 +276,7 @@ export async function prepareLocalReview(
         const verified = existingVerification.value;
         if (verified === undefined) throw new Error("existing local review was not verified");
         admitted = {
+          state: "prepared",
           resolution,
           preparation: {
             persistedVersion: resolution.persistedVersion,
@@ -268,7 +304,7 @@ export async function prepareLocalReview(
             guidanceDigest: assurance.guidance.guidanceDigest,
           },
         );
-        admitted = { resolution, preparation };
+        admitted = { state: "prepared", resolution, preparation };
         break;
       } catch (error) {
         if (!isReviewVersionConflict(error)) throw error;
@@ -277,6 +313,20 @@ export async function prepareLocalReview(
     return admitted;
   });
   if (settled === null) throw new Error("local review preparation exceeded version-conflict retry attempts");
+  if (settled.state === "completed") {
+    return LocalPrepareEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-prepare",
+      diagnostics: diagnostics(allDiagnostics),
+      state: "review-complete",
+      nextAction: "reduce",
+      payload: {
+        operationId: settled.operationId,
+        persistedVersion: settled.persistedVersion,
+        target,
+      },
+    });
+  }
   const { resolution, preparation } = settled;
   const sourcePayload = createLocalReviewSourcePayload(resolution, preparation);
   return LocalPrepareEnvelopeSchema.parse({

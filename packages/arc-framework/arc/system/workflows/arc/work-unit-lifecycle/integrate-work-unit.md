@@ -166,6 +166,7 @@ evaluator identity and routing facts. For `local prepare`, supply only `contentK
 Follow only its typed `state` / `nextAction`:
 
 - `exempt / none` — continue.
+- `review-complete / reduce` — invoke `arc review reduce -` with the returned operation ID.
 - `ready / launch-review` — give the returned reviewer payload to the separately authorized evaluator, then submit
   its normalized result with the returned operation ID to `arc review local attest -`.
 - `unavailable / operator-repair` — stop and surface the binding diagnostics.

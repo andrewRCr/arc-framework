@@ -195,6 +195,11 @@ describe("review command envelopes", () => {
     }],
     [LocalPrepareEnvelopeSchema, {
       ...header("review-local-prepare"),
+      state: "review-complete", nextAction: "reduce",
+      payload: { operationId: "local-1", persistedVersion: 1, target },
+    }],
+    [LocalPrepareEnvelopeSchema, {
+      ...header("review-local-prepare"),
       state: "ready", nextAction: "launch-review",
       payload: {
         operationId: "local-1", persistedVersion: 1, target, request,

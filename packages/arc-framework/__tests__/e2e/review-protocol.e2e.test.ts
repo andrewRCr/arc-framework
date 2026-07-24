@@ -124,8 +124,8 @@ async function fixture(): Promise<string> {
   return root;
 }
 
-async function prepareLocal(root: string, freshnessMs?: number): Promise<LocalPreparePayload> {
-  const prepared = await invoke(root, ["review", "local", "prepare", "-"], {
+function localPrepareRequest(freshnessMs?: number) {
+  return {
     schemaVersion: 1,
     evaluatorIdentity: "reviewer-1",
     routingFacts: {
@@ -136,7 +136,15 @@ async function prepareLocal(root: string, freshnessMs?: number): Promise<LocalPr
       surfaceAuthority: "ordinary",
     },
     ...(freshnessMs === undefined ? {} : { freshnessMs }),
-  });
+  };
+}
+
+async function prepareLocal(root: string, freshnessMs?: number): Promise<LocalPreparePayload> {
+  const prepared = await invoke(
+    root,
+    ["review", "local", "prepare", "-"],
+    localPrepareRequest(freshnessMs),
+  );
   expect(prepared).toMatchObject({ state: "ready", nextAction: "launch-review" });
   return prepared.payload as LocalPreparePayload;
 }
@@ -223,6 +231,15 @@ describe("built review protocol", () => {
     expect(attested).toMatchObject({ state: "attested-current", nextAction: "reduce" });
     await expect(access(prepared.reviewerPayload.reviewRoot)).rejects.toMatchObject({ code: "ENOENT" });
 
+    await expect(invoke(
+      root,
+      ["review", "local", "prepare", "-"],
+      localPrepareRequest(),
+    )).resolves.toMatchObject({
+      state: "review-complete",
+      nextAction: "reduce",
+      payload: { operationId: prepared.operationId },
+    });
     await expect(invoke(root, ["review", "local", "resume", "-"], {
       schemaVersion: 1,
       operationId: prepared.operationId,
@@ -242,6 +259,15 @@ describe("built review protocol", () => {
       result: localResult(prepared, "findings"),
     })).resolves.toMatchObject({ state: "attested-current", nextAction: "reduce" });
 
+    await expect(invoke(
+      root,
+      ["review", "local", "prepare", "-"],
+      localPrepareRequest(),
+    )).resolves.toMatchObject({
+      state: "review-complete",
+      nextAction: "reduce",
+      payload: { operationId: prepared.operationId },
+    });
     const reduced = await invoke(root, ["review", "reduce", "-"], {
       schemaVersion: 1,
       operationId: prepared.operationId,
