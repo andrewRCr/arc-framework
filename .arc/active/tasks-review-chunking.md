@@ -282,9 +282,13 @@ the comparison; it tests whether recursive leaf chunks and hierarchical seams re
         - Partitioned every file and hunk exactly once across 17 sub-3,800-line leaves, four root seams, and one
           top-level seam; changed cross-leaf declarations travel as dependency context rather than false externals.
 
-    - `[ ]` **5.R.c Pilot the highest-risk leaf and its local seam**
-        - Run one difficult leaf and the seam that depends on it before fan-out; preserve raw reports before
-          triage and stop to revise the map if either evaluator reports partiality, overload, or a malformed scope.
+    - `[x]` **5.R.c Pilot the highest-risk leaf and its local seam**
+        - Completed the exact 43-file S2 leaf and bounded S2↔S1 recovery seam with no partiality, overload, or
+          malformed-scope caveat; preserved raw reports before primary adjudication and upheld seven distinct
+          findings plus one duplicate.
+        - Confirmed the disposable CodeRabbit `--agent` carrier over the same 2,264-line/288-hunk projection: all 43
+          files completed with two advisory findings and materially higher latency, without entering completeness
+          accounting.
 
     - `[ ]` **5.R.d Run the remaining leaf and hierarchical seam reviews**
         - Fan out only after the pilot passes, using the same evaluator capability and rubric for every bounded

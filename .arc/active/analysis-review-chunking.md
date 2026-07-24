@@ -1197,3 +1197,261 @@ must bind each finding to the tested base/head, originating chunk or seam, stabl
 correction boundary. After this work unit lands and `session-locus-model` reconciles with main, its owning session
 may consume the packet as review input but must revalidate every item against the moved exact target; the packet
 does not satisfy that later head's review obligation.
+
+### S2 pilot evidence
+
+The fresh evaluator reproduced the leaf's exact 43-file, 2,264-line, 288-hunk scope and reported
+`scopeCompletion: complete`, `contextOverload: none`, and `malformedScope: none`. Its raw report is preserved below
+before primary classification.
+
+```yaml
+scope: S2
+baseSha: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+headSha: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics:
+  files: 43
+  insertions: 1862
+  deletions: 402
+  lines: 2264
+  hunks: 288
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+dependencyContextInspected:
+  - packages/arc-framework/src/lib/locus/process-inspector.ts: acquireSessionAnchor
+  - packages/arc-framework/src/lib/locus/schema/record.ts: LocusAnchorSchema
+  - packages/arc-framework/src/lib/locus/state.ts: selectCheckoutWorkUnit/deriveLocusFrames
+  - packages/arc-framework/src/lib/recover/locus-context.ts: deriveRecoveryLocusContext
+  - packages/arc-framework/src/lib/handoff/locus-plan.ts: deriveHandoffLocusPlan
+  - packages/arc-framework/src/lib/locus/session-guidance.ts: deriveLocusSessionGuidance
+  - packages/arc-framework/src/lib/git/worktree-marker.ts: transient provenance and subject types
+  - packages/arc-framework/src/lib/errand/record.ts: readTransientInFlightIndexes
+  - packages/arc-framework/src/lib/git/in-flight-derivation.ts: locus/transient classification
+  - packages/arc-framework/src/lib/user-sync/inbox-writer.ts: listExecuteBoundInboxEntries
+  - packages/arc-framework/src/handlers/recover-probes.ts: createRecoverStatusProbes
+  - .arc/active/spec-session-locus-model.md: D1, D6, D9, and D10
+findings:
+  - id: S2-F1
+    title: The shared locus probe rejects the model's valid unverifiable-anchor state
+    severity: major
+    rubricDimension: correctness and failure behavior
+    stableLocus: packages/arc-framework/src/handlers/locus-state-probe.ts — runLocusStateProbe, head line 27
+    evidence: >
+      acquireSessionAnchor returns either a process anchor or an unverifiable anchor, and LocusAnchorSchema plus
+      readLocusState accept both. The adapter throws for every non-process result before calling readLocusState.
+    impact: >
+      Legitimate unrecognized invocation boundaries lose the whole locus snapshot, so init and recovery cannot
+      expose conservative state that the model explicitly represents.
+    correctionBoundary: >
+      Preserve an acquired unverifiable anchor as reader input and reserve the runtime-probe error arm for actual
+      reader/root failures.
+  - id: S2-F2
+    title: Stale-worktree cleanup can report a live occupied worktree as removable
+    severity: major
+    rubricDimension: trust boundaries and compatibility
+    stableLocus: >
+      packages/arc-framework/src/lib/session-init/stale-worktree-sweep.ts — retained-role candidate composition,
+      lines 203-235; packages/arc-framework/src/lib/session-init/locus-classification.ts — locusWorkUnitAtPath
+    evidence: >
+      The retained-role path reduces an exact locus row to only a name, then classifies all candidates using marker,
+      clean-tree, merge, and user-surface predicates without a live, unknown, or malformed occupancy veto.
+    impact: >
+      Session-init can offer teardown for a checkout still occupied by a live session even if a later guarded
+      remover would refuse.
+    correctionBoundary: >
+      Apply the complete locus occupancy veto before emitting a removable decision: live suppresses; unknown,
+      malformed, or ambiguous stays manual; only permitted absent/dead states continue.
+  - id: S2-F3
+    title: Recovery silently substitutes the primary checkout when physical-worktree identification fails
+    severity: major
+    rubricDimension: correctness and failure behavior
+    stableLocus: packages/arc-framework/src/commands/status/run.ts — runRecoverStatus, lines 516-538
+    evidence: >
+      A failed worktreeIdentity result becomes `{ kind: "primary" }`; that synthetic value enters the public
+      worktree slot and checkoutPathForIdentity, allowing recovery to select the primary row.
+    impact: >
+      A transient identity-probe failure can recover the wrong work unit or incorrectly report a between-WUs frame.
+    correctionBoundary: >
+      Make recovery-frame, load-set, and cursor derivation depend on successful physical-worktree identification.
+  - id: S2-F4
+    title: One malformed inbox entry erases all otherwise valid execute-bound recovery work
+    severity: major
+    rubricDimension: verification quality and missing cases
+    stableLocus: packages/arc-framework/src/lib/session-init/inbox-state.ts — runInboxState, lines 63-69
+    evidence: >
+      One whole-file listExecuteBoundInboxEntries call is wrapped by one try/catch and starts from an empty array.
+      Any malformed managed heading or disposition therefore discards every valid execute-bound title.
+    impact: >
+      One unrelated malformed capture can hide all queued execute-now siblings from init and recovery guidance.
+    correctionBoundary: >
+      Retain well-formed execute-bound titles in file order while accumulating per-entry diagnostics; add mixed
+      valid/malformed coverage.
+withstood:
+  - Shared Result/probe composition stays centralized and locus state/guidance remain consistently typed.
+  - Missing identity short-circuits identity-scoped readers; exact v3 materialization remains narrowly constrained.
+  - Transient marker evidence remains diagnostic-only and incomplete locus reads suppress branch cleanup.
+  - Broad recovery, handoff, schema, fixture, integration, and E2E coverage exists outside the named gaps.
+  - Session-envelope schemas remain strict and locus schemas stay under their own registry authority.
+verdict: non-clean
+```
+
+Primary source adjudication upheld all four findings:
+
+- **S2-F1 — upheld.** The adapter's line-27 throw contradicts the declared `SelectedSessionAnchor` union, the
+  persisted `LocusAnchorSchema`, the reader's `enteringAnchor: LocusAnchor` input, and D5's explicit instruction
+  that state mutation proceeds with an unverifiable anchor at unknown liveness.
+- **S2-F2 — upheld.** `locusWorkUnitAtPath` discards lease/frame/diagnostic state, while the new retained-role test
+  positively expects `removable` for a leaseless retained role and provides no live/unknown case. D10 and Success
+  Criterion 9 require live suppression and unknown/manual behavior before an advisory can offer removal.
+- **S2-F3 — upheld.** The recovery composer uses a synthetic primary identity after probe failure to choose a
+  checkout and derive the recovery frame. D9 requires recovery to consume validated reader facts and says missing,
+  mismatched, ambiguous, or unknown state stops rather than guesses. Existing fallback coverage exercises
+  session-init, not a safe recovery identity failure.
+- **S2-F4 — upheld.** The queue reader throws whole-file on any malformed heading/disposition, and the caller's
+  single catch clears the entire queue. Coverage separates an all-valid queue from a sole-malformed entry but omits
+  the mixed case required by D9's well-formed-in-file-order plus malformed-diagnostics contract.
+
+The leaf therefore passes the **reviewability** pilot despite being non-clean: its exact scope completed without
+partiality, overload, or malformed-boundary caveats, and each finding has a stable, source-grounded correction
+boundary. Finding density is outcome evidence, not a reason to redraw a successfully bounded leaf.
+
+### CodeRabbit S2 carrier shadow
+
+One approved CodeRabbit CLI invocation ran as
+`coderabbit review --agent --committed --base-commit fa64b32b63ab05f47e35fca5f5e644ff0dbd9742 -c REVIEW_SCOPE.md`
+inside a disposable Git projection. Its two synthetic commits reproduced the exact S2 diff—43 files, 1,862
+insertions, 402 deletions, and 288 hunks—at the original repository paths. The projection added unchanged
+dependency context and did not mutate either real worktree.
+
+The raw structured findings are preserved unchanged:
+
+```json
+{"type":"finding","severity":"major","fileName":"packages/arc-framework/src/commands/status/schema.ts","codegenInstructions":"Verify each finding against current code. Fix only still-valid issues, skip the rest with a brief reason, keep changes minimal, and validate.\n\nIn @packages/arc-framework/src/commands/status/schema.ts around lines 328 - 329, Update the strict-current schemas containing locusState and locusGuidance, including both SessionInitProbeResult and SessionRecoverProbeResult, to require locusGuidance instead of marking it optional. Keep the field validated with LocusSessionGuidanceSchema so runtime-validated envelopes match the exported required-field contract.","suggestions":[]}
+{"type":"finding","severity":"minor","fileName":"packages/arc-framework/__tests__/unit/session-init/materializable-errands.test.ts","codegenInstructions":"Verify each finding against current code. Fix only still-valid issues, skip the rest with a brief reason, keep changes minimal, and validate.\n\nIn @packages/arc-framework/__tests__/unit/session-init/materializable-errands.test.ts around lines 56 - 76, Add a distinct matching entry via errand({ slug: \"malformed-awaiting\", branch: \"chore/malformed-awaiting\" }) in the entries array of the “excludes open, legacy, malformed awaiting, local, and work-unit bases” test, and configure the awaiting-merge record to use the same slug/branch so it no longer collides with the open paused record. Preserve the existing assertions and other exclusion cases.","suggestions":[]}
+{"type":"complete","status":"review_completed","findings":2,"reviewedFileCount":43}
+```
+
+Primary classification:
+
+- **CR-S2-1 — upheld, major.** Both strict runtime schemas make `locusGuidance` optional while the exported
+  `SessionInitProbeResult` and `SessionRecoverProbeResult` contracts require it and both producers always emit it.
+  The unchecked `as z.ZodType<...>` assertions hide that runtime/type mismatch, allowing incomplete external
+  envelopes to validate.
+- **CR-S2-2 — upheld as a minor verification weakness.** The malformed-awaiting record reuses the default
+  open-paused slug and branch. The current flat-map implementation still evaluates both, so this is not a present
+  production defect; distinct identity/branch evidence is nevertheless needed for the test to prove that exclusion
+  independently rather than permit a future first-record/deduplicating implementation to mask it.
+
+The carrier result is **compatible but slower**: CodeRabbit completed every projected file with exit zero and no
+partiality/overload signal, but took materially longer than the Codex leaf evaluator. Its findings remain shadow
+evidence and do not enter the 23-invocation completeness accounting.
+
+### S2↔S1 recovery-frame seam pilot
+
+The fresh seam evaluator completed the bounded cross-leaf review with no overload or malformed-scope caveat. Its
+raw report is preserved before primary classification:
+
+```yaml
+scope: S2-S1-seam
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+dependencyContextInspected:
+  - packages/arc-framework/src/lib/locus/schema/state.ts
+  - packages/arc-framework/src/lib/locus/state.ts
+  - packages/arc-framework/src/lib/locus/subject-meta.ts
+  - packages/arc-framework/src/lib/load-set/projection.ts
+  - packages/arc-framework/src/handlers/recover.ts
+  - packages/arc-framework/__tests__/unit/status/run.test.ts
+  - packages/arc-framework/__tests__/unit/recover/audit.test.ts
+  - packages/arc-framework/__tests__/unit/recover/locus-context.test.ts
+  - packages/arc-framework/__tests__/unit/compaction-seed/emitter.test.ts
+  - packages/arc-framework/__tests__/integration/recovery-locus.test.ts
+findings:
+  - id: S2S1-001
+    title: Legacy Errand fallback can override a reader-owned recovery stop
+    severity: high
+    rubricDimension: correctness/failure behavior; trust boundaries/compatibility
+    stableLocus: packages/arc-framework/src/commands/status/run.ts — lines 534-548
+    evidence: >
+      deriveRecoveryLocusContext fails closed when state.recovery is not none on the current-none arm.
+      legacyLocusEligible checks only current.kind, checkout selection, and absence of managed residue; a successful
+      legacyErrand result then replaces the failed recoveryContext.
+    impact: >
+      An authoritative stop or unresolved recovery verdict can become a successful legacy-Errand frame.
+    correctionBoundary: >
+      Allow legacy fallback only from explicitly clean, record-free state; cover recovery stop/residue and
+      reconciliation-stop snapshots with a valid legacy candidate.
+  - id: S2S1-002
+    title: Cold and between-work-unit recovery silently drops active-extension context
+    severity: high
+    rubricDimension: correctness/failure behavior; repository contract coherence
+    stableLocus: >
+      packages/arc-framework/src/lib/recover/locus-context.ts — lines 314-328;
+      packages/arc-framework/src/commands/status/run.ts — lines 483-550;
+      packages/arc-framework/src/lib/compaction-seed/emitter.ts — lines 173-205
+    evidence: >
+      baseLoadSet hard-codes activeExtensions to an empty array. runRecoverStatus resolves extensions but does not
+      supply them to recovery derivation, and the seed emitter replaces the session-init load set with that
+      projection for cold/no-parent recovery.
+    impact: >
+      Required extension context can disappear from both seed and fresh load set, letting the audit agree on the
+      same incomplete manifest.
+    correctionBoundary: >
+      Thread a successfully resolved active-extension set into recovery derivation and seed emission; keep probe
+      failure visible and cover cold transient/frame-none recovery with active extensions.
+  - id: S2S1-003
+    title: Recovery checkout selection masks worktree-identity failure as primary
+    severity: medium
+    rubricDimension: correctness/failure behavior
+    stableLocus: packages/arc-framework/src/commands/status/run.ts — lines 516-533
+    evidence: >
+      Failed worktreeIdentity becomes primary and supplies the checkout path to recovery derivation.
+    impact: >
+      A linked checkout identity failure can select the primary checkout's frame instead of returning a probe error.
+    correctionBoundary: >
+      Keep physical checkout identity as a Result through recovery authority selection and add a linked-idle-WU
+      failure test.
+  - id: S2S1-004
+    title: Recovery audit does not bind the worktree-local seed to its repository root
+    severity: medium
+    rubricDimension: trust boundaries/compatibility
+    stableLocus: >
+      packages/arc-framework/src/handlers/recover.ts — lines 62-130;
+      packages/arc-framework/src/lib/recover/audit.ts — lines 180-226 and 337-391
+    evidence: >
+      CompactionSeed requires repoRoot and the emitter records cwd, but handleRecoverAudit does not pass current cwd
+      into auditRecoveryState and the audit never compares seed.repoRoot.
+    impact: >
+      A copied or stale seed from another linked worktree can pass when branch, head, dirty paths, and load set
+      coincide.
+    correctionBoundary: >
+      Canonicalize and compare seed root with the current worktree root before declaring ready; add linked-worktree
+      and foreign-repository mismatch tests.
+withstood:
+  coherence-maintainability: Warm WU and transient recovery share one locus-derived frame/load-set/cursor authority.
+  correctness-failure: Exact-row, live-row, parent-edge, claim, and malformed-cursor checks fail closed.
+  intent-scope: The seam consistently moves recovery from soft active metadata to reader-owned locus state.
+  trust-compatibility: Strict schemas, safe identity paths, exact hints, and bounded legacy compatibility mostly hold.
+  verification: Warm/cold roles, stages, idle WUs, hints, probe independence, and legacy precedence are covered.
+  repository-contract: Session-envelope registration and producer/schema compatibility remain centralized.
+verdict: non-clean
+```
+
+Primary adjudication upheld three distinct seam findings and one duplicate:
+
+- **S2S1-001 — upheld.** `legacyLocusEligible` does not require `state.recovery.kind === "none"` or clean
+  reconciliation before replacing a failed reader-derived context.
+- **S2S1-002 — upheld.** The cold base manifest hard-codes no extensions; neither the recover composer nor the seed
+  re-projection supplies the already-resolved extension set, so seed and audit can agree on the same omission.
+- **S2S1-003 — duplicate of S2-F3.** It adds cross-seam evidence but not a fifth distinct defect.
+- **S2S1-004 — upheld.** `repoRoot` is required and emitted but absent from the audit input and comparison, leaving
+  worktree-local seed isolation unproved and unenforced.
+
+The seam also passes the **reviewability** pilot: it completed every dimension at bounded context, produced stable
+cross-leaf findings without loading the whole target, and did not require a map revision. Together the leaf and
+seam clear the predeclared fail-fast gate for broader fan-out.
