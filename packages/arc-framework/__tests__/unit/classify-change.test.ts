@@ -151,13 +151,13 @@ describe("classify-change.sh lane", () => {
   }
 
   it("preserves the legacy auto lane for planning artifacts", async () => {
-    expect(await lane([".arc/active/tasks-example.md", ".arc/backlog/planned/meta-other.md"])).toBe("auto");
+    expect(await lane([".arc/active/tasks-example.md", ".arc/backlog/planned/other/meta-other.md"])).toBe("auto");
   });
 
   it("fails safe for empty, mixed, and arbitrary pathnames", async () => {
     expect(await lane([])).toBe("reviewed");
     expect(await lane([".arc/active/tasks-example.md", "README.md"])).toBe("reviewed");
-    expect(await lane([".arc/active/tasks-line\nbreak.md"])).toBe("auto");
+    expect(await lane([".arc/active/tasks-line\nbreak.md"])).toBe("reviewed");
   });
 });
 
