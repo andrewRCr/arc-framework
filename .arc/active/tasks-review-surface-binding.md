@@ -228,6 +228,8 @@ validation are test-first; the Commander wiring is test-after.
           request mechanism; identical facts reproduce byte-identical admission records
         - An identical retry returns and re-verifies the persisted operation without publishing or rebuilding, while
           any keyed-fact difference derives a new operation identity
+        - A receipt-less retry after an installed-runtime upgrade refreshes only the trusted attesting-runtime binding,
+          preserving operation/request identity and the existing cleanup clock
 
     - `[x]` **4.1.e Wire the `arc review local prepare` handler and command**
         - Added the production prepare composition and the file/stdin handler seam, registered `review local prepare`,

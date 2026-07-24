@@ -360,6 +360,12 @@ After that receipt-less operation expires, an explicit `local prepare` is a new 
 only `updatedAt` and `cleanupTtlMs`, then re-materializes the same immutable source. The rule is
 never-destroy-while-live, not never-create.
 
+An installed-runtime upgrade does not change what the evaluator reviewed, but it does change which trusted runtime
+can attest the result. For a receipt-less identical retry, `local prepare` version-refreshes only the operation's
+attesting runtime identity before re-verifying the same source; it preserves the existing cleanup clock unless that
+clock independently expired. A completed operation retains the runtime identity already recorded in its receipt and
+returns directly to reduction. This keeps request and operation identity stable without stranding a live review.
+
 That predicate is also the **operationId re-acquisition path**. `local resume` takes an `operationId`, and after a
 lost session the caller no longer has one; re-running `local prepare` from the same working tree derives the same
 identity and returns it, dispatching directly to reduction when that operation already completed. No enumeration
@@ -440,11 +446,12 @@ an evidence-admissibility window). The redundant scalar identities are cross-val
 every read. Register it in the closed durable-record inventory alongside the existing variants.
 
 **The `local-review` admission snapshot is immutable and never phase-advanced.** Target, request, authority,
-policy, rubric, source, and guidance fields are fixed at admission. The sole versioned mutation is an explicit
-prepare-after-expiry renewal for a receipt-less operation, which updates only `updatedAt` and `cleanupTtlMs` before
-re-materializing the same source. The complete admission snapshot is stored because its semantic identities are
-one-way digests and cannot reconstruct the records attestation must validate. Publication state is **derived, never
-stored**: whether the receipt and disposition records exist is read from their stores, and whether the source is
+policy, rubric, source, and guidance fields are fixed at admission. The only versioned mutations are receipt-less
+prepare renewal: expiry updates `updatedAt` and `cleanupTtlMs`, while an installed-runtime upgrade updates only the
+trusted attesting runtime identity before re-materializing the same source. The complete admission snapshot is
+stored because its semantic identities are one-way digests and cannot reconstruct the records attestation must
+validate. Publication state is **derived, never stored**: whether the receipt and disposition records exist is read
+from their stores, and whether the source is
 materialized is read from the pin and detached checkout. `local attest` and `local resume` re-read all of those on
 every entry (D5, D12), so a stored phase would duplicate derivable state and introduce a disagreement mode — a torn
 write between appending a record and advancing a phase would manufacture exactly the `corrupt-state` condition the

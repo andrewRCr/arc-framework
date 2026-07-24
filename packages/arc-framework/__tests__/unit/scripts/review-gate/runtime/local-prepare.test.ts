@@ -7,7 +7,7 @@ import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/
 import type { LocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import { projectLocalReviewGuidance } from "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { DEFAULT_LOCAL_REVIEW_POLICY_BINDING } from "../../../../../src/scripts/review-gate/policy/local-review-policy.js";
-import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
+import { attestLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
 import {
   LocalPrepareRequestSchema,
   prepareLocalReview,
@@ -197,6 +197,7 @@ describe("local review preparation request", () => {
       let persistedState: ReviewOperationState | null = null;
       let persistedSource: LocalReviewSource | null = null;
       let receipts: ReviewReceiptV2[] = [];
+      let runtimeIdentity = "arc-cli/0.1.0";
       const materialize = vi.fn(async () => ({ reviewRoot: "/tmp/review-root" }));
       const dependencies = {
         sweep: async () => undefined,
@@ -209,7 +210,7 @@ describe("local review preparation request", () => {
           authorIdentity: "author-1",
           evaluatorIdentity: "evaluator-1",
           attestationRuntimeKind: "arc-cli",
-          runtimeIdentity: "arc-cli/0.1.0",
+          runtimeIdentity,
           attestationMechanism: "local-attestation" as const,
         }),
         composeAssurance: async () => ({
@@ -265,60 +266,90 @@ describe("local review preparation request", () => {
       };
 
       const launched = await prepareLocalReview(request, dependencies);
-      const state = persistedState as ReviewOperationState | null;
       const source = persistedSource as LocalReviewSource | null;
+      const initialState = persistedState as ReviewOperationState | null;
       if (launched.state !== "ready"
-        || state === null
-        || state.kind !== "local-review"
+        || initialState === null
+        || initialState.kind !== "local-review"
         || source === null) {
         throw new Error("local review was not prepared");
       }
-      receipts = [createLocalReviewReceipt({
-        target,
-        requirement: state.requirement,
-        carrier: {
-          target,
-          request: state.request,
-          attestation: state.attestation,
+      runtimeIdentity = "arc-cli/0.2.0";
+      await expect(prepareLocalReview(request, dependencies)).resolves.toMatchObject({
+        state: "ready",
+        nextAction: "launch-review",
+        payload: {
+          operationId: initialState.operationId,
+          persistedVersion: 2,
         },
-        result: {
-          status: "complete",
-          result,
-          targetId: target.targetId,
-          headSha: target.headSha,
-          headTree: target.headTree,
-          rubricVersion: state.requirement.rubricVersion,
-          rubricDigest: state.requirement.rubricDigest,
-          sourceDigest: source.sourceDigest,
-          guidanceDigest: state.guidanceDigest,
-          evaluatorIdentity: state.request.evaluatorIdentity,
-          reviewRunId: `run-${result}`,
-          applicabilityId: null,
-          findings: result === "findings"
-            ? [{
-                findingId: "finding-1",
-                severity: "major",
-                locus: "src/index.ts:1",
-                evidenceUrlOrId: "review:finding-1",
-              }]
-            : [],
-        },
-        runtimeIdentity: "arc-cli/0.1.0",
-        attestationMechanism: "local-attestation",
+      });
+      const state = persistedState as ReviewOperationState | null;
+      if (state === null || state.kind !== "local-review") {
+        throw new Error("local review runtime binding was not renewed");
+      }
+      expect(state.updatedAt).toBe(initialState.updatedAt);
+      expect(state.cleanupTtlMs).toBe(initialState.cleanupTtlMs);
+      expect(state.attestation.runtimeIdentity).toBe(runtimeIdentity);
+      const attestationResult = {
+        status: "complete" as const,
+        result,
+        targetId: target.targetId,
+        headSha: target.headSha,
+        headTree: target.headTree,
+        rubricVersion: state.requirement.rubricVersion,
+        rubricDigest: state.requirement.rubricDigest,
         sourceDigest: source.sourceDigest,
         guidanceDigest: state.guidanceDigest,
-      })];
+        evaluatorIdentity: state.request.evaluatorIdentity,
+        reviewRunId: `run-${result}`,
+        applicabilityId: null,
+        findings: result === "findings"
+          ? [{
+              findingId: "finding-1",
+              severity: "major" as const,
+              locus: "src/index.ts:1",
+              evidenceUrlOrId: "review:finding-1",
+            }]
+          : [],
+      };
+      await expect(attestLocalReviewCommand({
+        schemaVersion: 1,
+        operationId: state.operationId,
+        result: attestationResult,
+      }, {
+        withSourceLock: dependencies.withSourceLock,
+        operationStore: dependencies.operationStore,
+        sourceStore: dependencies.sourceStore,
+        receiptStore: {
+          readReceipts: dependencies.readReceipts,
+          appendReceipt: async (receipt) => {
+            receipts = [receipt];
+            return {
+              ledgerVersion: receipts.length,
+              durableEvidenceRef: "receipts.json#1",
+            };
+          },
+        },
+        resolveAuthority: dependencies.resolveAuthority,
+        resolveGuidanceDigest: async () => state.guidanceDigest,
+        confirmTarget: dependencies.confirmTarget,
+        inspectMaterialization: async () => "materialized",
+        releaseMaterialization: async () => undefined,
+      })).resolves.toMatchObject({
+        state: "attested-current",
+        nextAction: "reduce",
+      });
 
       await expect(prepareLocalReview(request, dependencies)).resolves.toMatchObject({
         state: "review-complete",
         nextAction: "reduce",
         payload: {
           operationId: state.operationId,
-          persistedVersion: 1,
+          persistedVersion: 2,
           target,
         },
       });
-      expect(materialize).toHaveBeenCalledOnce();
+      expect(materialize).toHaveBeenCalledTimes(2);
     },
   );
 });

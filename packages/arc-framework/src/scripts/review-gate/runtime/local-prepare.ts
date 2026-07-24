@@ -208,7 +208,10 @@ export async function prepareLocalReview(
     for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
       const existingVerification: {
         value?: { source: LocalReviewSource; reviewRoot: string };
-        renewal?: LocalReviewSource;
+        renewal?: {
+          source: LocalReviewSource;
+          refreshLiveness: boolean;
+        };
         completed?: true;
       } = {};
       const resolution = await resolveLocalReviewAdmission(admissionInput, {
@@ -231,8 +234,10 @@ export async function prepareLocalReview(
             existingVerification.completed = true;
             return;
           }
-          if (cleanupExpired(state, dependencies.now())) {
-            existingVerification.renewal = source;
+          const refreshLiveness = cleanupExpired(state, dependencies.now());
+          if (refreshLiveness
+            || state.attestation.runtimeIdentity !== authority.runtimeIdentity) {
+            existingVerification.renewal = { source, refreshLiveness };
             return;
           }
           const materialized = await dependencies.materialize(source);
@@ -252,14 +257,22 @@ export async function prepareLocalReview(
         if (renewal !== undefined) {
           const renewedState = LocalReviewStateSchema.parse({
             ...resolution.persistedState,
-            updatedAt: dependencies.now(),
-            cleanupTtlMs,
+            ...(renewal.refreshLiveness
+              ? {
+                  updatedAt: dependencies.now(),
+                  cleanupTtlMs,
+                }
+              : {}),
+            attestation: {
+              ...resolution.persistedState.attestation,
+              runtimeIdentity: authority.runtimeIdentity,
+            },
           });
           const published = await dependencies.operationStore.publishOperation(
             renewedState,
             resolution.persistedVersion,
           );
-          const materialized = await dependencies.materialize(renewal);
+          const materialized = await dependencies.materialize(renewal.source);
           admitted = {
             state: "prepared",
             resolution,
@@ -267,7 +280,7 @@ export async function prepareLocalReview(
               persistedVersion: published.version,
               state: renewedState,
               sourceRef: renewedState.sourceRef,
-              sourceDigest: renewal.sourceDigest,
+              sourceDigest: renewal.source.sourceDigest,
               reviewRoot: materialized.reviewRoot,
             },
           };
