@@ -44,6 +44,8 @@ const DEFAULTS: ConfigSettings = {
   "merge.strategy": "merge",
   "platform.type": "github",
   "review.frontline_sources": "[]",
+  "review.chunking_threshold_lines": "0",
+  "review.chunking_threshold_files": "0",
   "pm.mode": "none",
   "team.mode": "false",
   "session.remote_sync": "enabled",

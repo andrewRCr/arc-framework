@@ -106,6 +106,33 @@ describe("validate-config.sh — frontline review source", () => {
   );
 });
 
+describe("validate-config.sh — review chunking thresholds", () => {
+  it.each([
+    ["review.chunking_threshold_lines", "0"],
+    ["review.chunking_threshold_lines", "9007199254740991"],
+    ["review.chunking_threshold_files", "0"],
+    ["review.chunking_threshold_files", "150"],
+  ])("accepts %s boundary %s", async (key, value) => {
+    const result = await runValidateConfig(`${key}: ${value}\n`);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(`PASS  ${key}: ${value}`);
+    expect(result.stdout).not.toContain(`Unknown key: '${key}'`);
+  });
+
+  it.each([
+    ["review.chunking_threshold_lines", "-1"],
+    ["review.chunking_threshold_lines", "1.5"],
+    ["review.chunking_threshold_files", "+1"],
+    ["review.chunking_threshold_files", "9007199254740992"],
+  ])("rejects out-of-domain %s value %s", async (key, value) => {
+    const result = await runValidateConfig(`${key}: ${value}\n`);
+
+    expect(result.code).toBe(2);
+    expect(result.stdout).toContain(`ERROR ${key}: '${value}'`);
+  });
+});
+
 describe("validate-config.sh — session.init_load.notes", () => {
   it.each(["manual", "prompt", "always"])("accepts %s", async (value) => {
     const result = await runValidateConfig(`session.init_load.notes: ${value}\n`);

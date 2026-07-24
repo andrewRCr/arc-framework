@@ -58,50 +58,25 @@ _Design decisions:_ Two independent non-negative integer settings use `0` as the
 at equality; a validated canonical review target supplies `diffBaseSha..headSha`; the CLI computes exact-target
 facts and precomposes the advisory through the common review-command envelope.
 
-### `[ ]` **2.1 Model chunking thresholds and exact-target diff facts**
+### `[x]` **2.1 Model chunking thresholds and exact-target diff facts**
 
 - _Goal:_ A pure, typed policy decision can distinguish disabled, below-threshold, and consideration-worthy targets
   from validated project settings and one exact Git range.
 
-- _Approach:_ Extend the canonical change-fact substrate rather than creating a second target parser; keep numeric
-  diff statistics distinct from the existing status/path record where their Git framing differs.
+    - `[x]` **2.1.a Add validated non-negative threshold settings**
+        - Added full-status-only threshold settings, safe unsigned-integer parsing, shared shell validation, and
+          complete typed fixture coverage while retaining configuration normalization at the command boundary.
 
-    Build `test-first` (one behavior at a time):
+    - `[x]` **2.1.b Resolve byte-safe exact-target line and file counts**
+        - Added exact-range `--numstat -z` measurement with byte-safe normal, rename/copy, binary, empty, malformed,
+          unsafe-token, missing-object, invalid-range, and aggregate-overflow handling.
 
-    - `[ ]` **2.1.a Add validated non-negative threshold settings**
-        - Add `review.chunking_threshold_lines` and `review.chunking_threshold_files` to `ConfigSettings`,
-          `status-reader.ts` defaults, required `ConfigSettings` fixtures, the package/project `validate-config.sh`
-          copies, and known-key validation.
-        - Add a pure command-boundary parser that converts the raw config strings to typed thresholds. Accept
-          config-normalized unsigned base-10 safe integers including `0`; reject signs, fractions, embedded
-          whitespace, overflow, and malformed values with typed diagnostics. Preserve the existing parser behavior
-          that normalizes legitimate outer whitespace and surrounding YAML quotes.
-        - Generalize the shell validator's commit-specific unsigned-safe-integer helper and use the shared domain
-          with key-specific minima rather than duplicating numeric validation.
-        - Keep both settings out of the session-init subset: the review resolver reads them only at the review
-          operation that consumes them.
+    - `[x]` **2.1.c Resolve the advisory disposition and rendered message**
+        - Added the pure disabled/below-threshold/consider-chunks policy with equality and OR tripwires, complete
+          tripped-dimension reporting, and a precomposed consideration advisory.
 
-    - `[ ]` **2.1.b Resolve byte-safe exact-target line and file counts**
-        - Add `packages/arc-framework/src/lib/change-stats.ts` beside the canonical change-fact substrate. Consume
-          validated Git object IDs from `ReviewTarget`, measure `diffBaseSha..headSha` with `--numstat -z` and the
-          same rename/copy flags as change facts, and use the existing injectable raw Git boundary.
-        - Parse normal records, rename/copy records with their blank path sentinel and two NUL-delimited endpoints,
-          and binary `-` / `-` records without decoding path bytes. Count additions plus deletions for text entries
-          and one logical file per diff record; binary entries contribute only to the file count.
-        - Treat empty output as known `0` lines / `0` files. Return explicit unknown/failure for malformed framing,
-          missing objects, invalid ranges, unsafe numeric tokens, or aggregate overflow rather than treating an
-          unmeasured target as small.
-
-    - `[ ]` **2.1.c Resolve the advisory disposition and rendered message**
-        - Add a pure policy module under `src/scripts/review-gate/policy/` that consumes validated thresholds and
-          optional exact-target metrics and returns `disabled`, `below-threshold`, or `consider-chunks`.
-        - Short-circuit `disabled` before Git measurement when both thresholds are `0`; emit no measured facts or
-          advisory. Carry a missing/unreadable-config warning with the documented `0` / `0` fallback, but reject an
-          explicitly malformed threshold.
-        - Report measured lines/files, configured thresholds, and every tripped dimension; equality trips, and
-          either enabled dimension is sufficient.
-        - Precompose the user-facing advisory for `consider-chunks`; keep boundary drawing, source selection, and
-          review invocation outside the resolver.
+- _Outcome:_ The policy foundation now fails closed on unmeasured targets while keeping disabled configuration
+  Git-free and session initialization free of review-only settings.
 
 ### `[ ]` **2.2 Expose the typed `arc review chunking` resolver**
 
