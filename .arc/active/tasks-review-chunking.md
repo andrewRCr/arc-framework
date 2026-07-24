@@ -78,47 +78,25 @@ facts and precomposes the advisory through the common review-command envelope.
 - _Outcome:_ The policy foundation now fails closed on unmeasured targets while keeping disabled configuration
   Git-free and session initialization free of review-only settings.
 
-### `[ ]` **2.2 Expose the typed `arc review chunking` resolver**
+### `[x]` **2.2 Expose the typed `arc review chunking` resolver**
 
 - _Goal:_ Workflows and explicit callers can obtain one machine-readable recommendation for an immutable target
   without reimplementing config or Git comparisons in prose.
 
-- _Note:_ Execution precondition: before starting this task, verify the branch contains
-  `review-surface-binding`'s registered common review-command envelope. If it does not, stop and reconcile onto a
-  mainline containing that increment; do not create a parallel public review protocol.
+    - `[x]` **2.2.a Define the versioned command request and result**
+        - Registered a strict canonical-target request plus disabled, below-threshold, consider-chunks, and shared
+          typed-error envelopes without adding mutation or review-source behavior.
 
-    Build `test-first` (one behavior at a time):
+    - `[x]` **2.2.b Wire the command through the existing review CLI composition**
+        - Added the thin handler and `arc review chunking resolve <file | ->` composition over config reading,
+          identity validation, byte-preserving Git, measurement, and pure policy.
 
-    - `[ ]` **2.2.a Define the versioned command request and result**
-        - Add a strict versioned request schema carrying the canonical `ReviewTarget`; validate its derived
-          `targetId` with the existing target contract, then use `diffBaseSha..headSha` as the only measured range.
-        - Extend the common `ReviewCommandModeSchema`, review-command envelope, and review-domain schema registry
-          with `review-chunking-resolve` variants: disabled / `none` without metrics or advisory; below-threshold /
-          `continue-review` with metrics; and consider-chunks / `select-review-scope` with metrics, every tripped
-          dimension, and precomposed advisory.
-        - Keep the command read-only. It must not draw chunks, select or invoke a review source, mutate review state,
-          or create satisfying evidence.
-        - Use the common typed error envelope and nonzero exit for invalid input/target identity, explicitly invalid
-          thresholds, missing Git objects, malformed numeric stats, and unsafe totals. A missing or unreadable config
-          returns disabled from the documented defaults with a diagnostic and successful exit.
+    - `[x]` **2.2.c Prove the public command boundary**
+        - Covered schema variants and errors, handler emission, real Git/config behavior, binary and moving-HEAD
+          targets, and built-CLI file/stdin transport with exactly one JSON envelope.
 
-    - `[ ]` **2.2.b Wire the command through the existing review CLI composition**
-        - Add `handleReviewChunkingResolve` beside `handleReviewFrontlineResolve` in
-          `packages/arc-framework/src/handlers/review.ts`, reusing `resolveArcRoot`, stdin/file JSON handling,
-          `readConfigSettings`, canonical target validation, and the injectable raw Git boundary.
-        - Register `arc review chunking resolve <file | ->` in `src/cli.ts` with the existing JSON-in/JSON-out
-          command convention.
-        - Keep measurement and policy in library modules; the handler remains a thin composition root.
-
-    - `[ ]` **2.2.c Prove the public command boundary**
-        - Unit-test config normalization/errors; normal, rename/copy, binary, empty, malformed, and overflow stat
-          framing; the disabled/single-axis/dual-axis/equality policy matrix; target validation; and every registered
-          success/error envelope.
-        - Integration-test handler composition against real Git/config fixtures, including zero-threshold no-Git
-          short-circuit, binary-only changes, missing objects, malformed config, and a second canonical target after
-          `HEAD` moves.
-        - Keep E2E coverage at the public transport boundary: file and stdin input, one success and one error,
-          exactly one JSON envelope on stdout, and no prompt or review-provider side effect.
+- _Outcome:_ The shared review protocol now exposes a read-only exact-target attention tripwire that fails closed
+  without drawing review boundaries or invoking a reviewer.
 
 ### `[ ]` **2.3 Ship neutral defaults and configure self-hosting policy**
 

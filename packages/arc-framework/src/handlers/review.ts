@@ -3,11 +3,13 @@
 import { readFile } from "node:fs/promises";
 import { ZodError, type ZodType } from "zod";
 
-import { gitExec } from "../lib/io-context.js";
+import { createRawGitExec, gitExec } from "../lib/io-context.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
+  ReviewChunkingResolveEnvelopeSchema,
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
   LocalResumeEnvelopeSchema,
@@ -16,6 +18,7 @@ import {
   ReviewCommandErrorEnvelopeSchema,
   type ReviewCommandMode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
+import { ReviewChunkingResolveRequestSchema } from "../scripts/review-gate/core/review-chunking-command-schema.js";
 import { createLocalFrontlineSourcePreferenceReader } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
 import {
   LocalTargetDerivationError,
@@ -26,6 +29,7 @@ import {
   resolveFrontlineCommand,
 } from "../scripts/review-gate/policy/frontline-command.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
+import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
@@ -189,6 +193,51 @@ export async function handleReviewFrontlineResolve(
     source,
     requestSchema: FrontlineCommandRequestSchema,
     resultSchema: FrontlineResolveEnvelopeSchema,
+    dependencies,
+    execute: dependencies.resolve,
+  });
+}
+
+export interface ReviewChunkingResolveHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  resolve(request: unknown, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultReviewChunkingResolveDependencies(): ReviewChunkingResolveHandlerDependencies {
+  return {
+    resolveRoot: resolveArcRoot,
+    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    resolve: (request, root) => resolveReviewChunkingCommand(request, {
+      readSettings: () => readConfigSettings(root),
+      exec: createRawGitExec(root),
+    }),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
+/**
+ * Resolve one exact target's review-chunking recommendation as JSON.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleReviewChunkingResolve(
+  source: string,
+  overrides: Partial<ReviewChunkingResolveHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultReviewChunkingResolveDependencies(), ...overrides };
+  await executeReviewHandler({
+    mode: "review-chunking-resolve",
+    source,
+    requestSchema: ReviewChunkingResolveRequestSchema,
+    resultSchema: ReviewChunkingResolveEnvelopeSchema,
     dependencies,
     execute: dependencies.resolve,
   });

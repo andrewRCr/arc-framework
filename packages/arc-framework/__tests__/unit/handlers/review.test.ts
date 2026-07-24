@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
   handleReviewLocalAttest,
@@ -215,6 +216,53 @@ describe("handleReviewFrontlineResolve", () => {
     expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
       schemaVersion: 1,
       mode: "review-frontline-resolve",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+});
+
+describe("handleReviewChunkingResolve", () => {
+  it("emits exactly one validated success envelope", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    await handleReviewChunkingResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({ schemaVersion: 1, target }),
+      resolve: async () => ({
+        schemaVersion: 1,
+        mode: "review-chunking-resolve",
+        diagnostics: [],
+        state: "disabled",
+        nextAction: "none",
+        payload: { target },
+      }),
+      write,
+      setExitCode,
+    });
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-chunking-resolve",
+      state: "disabled",
+    });
+    expect(setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("emits one typed error envelope for invalid input", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    await handleReviewChunkingResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => "{}",
+      resolve: vi.fn(),
+      write,
+      setExitCode,
+    });
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-chunking-resolve",
       error: { code: "invalid-input" },
     });
     expect(setExitCode).toHaveBeenCalledWith(1);

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
+  ReviewChunkingResolveEnvelopeSchema,
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
   LocalResumeEnvelopeSchema,
@@ -151,6 +152,30 @@ const dispositionProposal = proposeDispositionSet(createDispositionSet({
 
 describe("review command envelopes", () => {
   it.each([
+    [ReviewChunkingResolveEnvelopeSchema, {
+      ...header("review-chunking-resolve"),
+      state: "disabled", nextAction: "none", payload: { target },
+    }],
+    [ReviewChunkingResolveEnvelopeSchema, {
+      ...header("review-chunking-resolve"),
+      state: "below-threshold", nextAction: "continue-review",
+      payload: {
+        target,
+        metrics: { lines: 2, files: 1 },
+        thresholds: { lines: 10, files: 5 },
+      },
+    }],
+    [ReviewChunkingResolveEnvelopeSchema, {
+      ...header("review-chunking-resolve"),
+      state: "consider-chunks", nextAction: "select-review-scope",
+      payload: {
+        target,
+        metrics: { lines: 10, files: 5 },
+        thresholds: { lines: 10, files: 5 },
+        tripped: ["lines", "files"],
+        advisory: "Consider cohesive review chunks.",
+      },
+    }],
     [FrontlineResolveEnvelopeSchema, {
       ...header("review-frontline-resolve"),
       state: "skipped", nextAction: "none",
