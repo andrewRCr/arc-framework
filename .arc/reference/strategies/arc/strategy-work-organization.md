@@ -143,7 +143,7 @@ demand alone, exactly as a small-but-novel design is `heavy` by derivation alone
 promotes `heavy → novel`: when settling the design requires _inventing_ concepts or models that do not yet exist in
 the problem domain (synthesis, research, discovery) rather than _composing_ a real design from existing patterns.
 The axes are asymmetric here, and the asymmetry falls out of their nature — **scale is endurance** (breadth that is
-chunkable, parallelizable, and self-limiting, since runaway breadth trips decomposition into a cohort, so it caps at
+decomposable, parallelizable, and self-limiting, since runaway breadth trips decomposition into a cohort, so it caps at
 `heavy`); **derivation is depth** (serial, context-saturating, unbounded, so only it reaches the top). `novel` is a
 distinct _kind_, not just more weight; its recorded purpose is **primarily** parallelism / sequencing (you can hold
 roughly one genuinely-novel stream — the strongest "don't double up" signal) and **secondarily** an advisory
@@ -1197,9 +1197,9 @@ that happen to touch the same file are still two PRs, sequenced (rebase the seco
 batching them to dodge a rebase is the rider anti-pattern. This is the concern-identity-not-file-identity rule
 of [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing applied to packaging; see it for the rule itself. A freshly
 scaffolded _provisional_ stub auto-merges — it is `meta-*`/`draft-*` under `backlog/` with no design authority.
-When a routing sweep is large enough that one auto-merge PR would exceed a reviewer's reach, chunk it by
-concern-coherence into multiple same-lane PRs — the chunk plan surfaced at the drain's confirmation interlock.
-Under partial protection, where routing writes are direct base commits rather than PRs, chunking degrades to
+When a routing sweep is large enough that one auto-merge PR would exceed a reviewer's reach, split it by
+concern-coherence into multiple same-lane PRs — the split plan surfaces at the drain's confirmation interlock.
+Under partial protection, where routing writes are direct base commits rather than PRs, the split becomes
 coherent commit boundaries.
 
 **The review threshold.** The prefix split above is the fast path; the principle beneath it is a four-condition
@@ -1255,7 +1255,7 @@ for a solo maintainer it stands in for the missing second pair of eyes.
 
 ARC defines two work classes that share commit and review machinery but differ in tracking and lifecycle:
 
-- **Work Unit (WU)** — a bounded chunk of design-bearing or trackable work with its own branch, a
+- **Work Unit (WU)** — a bounded unit of design-bearing or trackable work with its own branch, a
   `meta-{name}.md`, a lifecycle (Planning → Active → Integrating → Shipped), and one PR. Activated via the
   planning entry point (spawn or cold-start; see [§ Branching](#branching)).
 - **Errand** — a single self-evident concern below the WU wrapper, **below floor on both intrinsic `Class` axes**

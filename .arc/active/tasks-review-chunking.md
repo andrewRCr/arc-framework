@@ -170,34 +170,25 @@ and project guidance.
 _Design decisions:_ The stale public `docs/` tree is excluded entirely; its terminology will be reconciled in one
 dedicated publication sweep rather than through private-development patching.
 
-### `[ ]` **4.1 Reconcile the shipped terminology surface**
+### `[x]` **4.1 Reconcile the shipped terminology surface**
 
 - _Goal:_ Packaged ARC content reserves `chunk` for the review unit without altering the underlying Work Unit,
   review-increment, routing-batch, or delivery meanings.
 
-- **Additional Context:** `notes-review-chunking.md` § Terminology cascade — execution recipe
+    - `[x]` **4.1.a Classify the authoritative package-source matches**
+        - Reclassified the fresh package-source lexical set as reserved review terminology or conflicting generic
+          partitives, including templates; the public `docs/` tree remained untouched.
 
-    - `[ ]` **4.1.a Classify the authoritative package-source matches**
-        - Run a fresh case-insensitive lexical-family search for `chunk` across
-          `packages/arc-framework/arc/`—including derivatives such as `chunked`—and classify each match as the new
-          review unit, a generic ARC work partitive requiring replacement, or a legitimate non-ARC domain usage.
-        - Include templates and vocabulary-adjacent definitions; treat the live grep as authoritative rather than
-          copying a planning-time locus list.
-        - Do not search or edit `docs/`; it is outside this work unit's maintained terminology surface.
+    - `[x]` **4.1.b Rewrite conflicting shipped usages by their actual concept**
+        - Replaced generic uses with work unit, review increment, logical group, decomposition, or routing-split
+          language while preserving the downstream delivery seam and all defined review-chunk usages.
 
-    - `[ ]` **4.1.b Rewrite conflicting shipped usages by their actual concept**
-        - Replace generic usages with `work unit`, `review increment`, `batch`, `group`, or another existing precise
-          noun as appropriate.
-        - Reconcile delivery-split wording in work-organization and inbox-routing surfaces without redefining review
-          chunks or forward-referencing unshipped topology.
+    - `[x]` **4.1.c Project every managed counterpart safely**
+        - Applied package-first Framework edits to their instance counterparts and left Scaffolded project documents
+          independent for Task 4.2; the surviving package matches now describe only review chunks.
 
-    - `[ ]` **4.1.c Project every managed counterpart safely**
-        - Apply Framework changes package → `.arc/`; apply Configurable changes separately in both copies with
-          targeted edits that preserve project overrides.
-        - Treat package templates by their rendered classification: project Framework counterparts receive the
-          rendered terminology change, while Scaffolded project documents are independent project content handled
-          in Task 4.2 rather than projected from their package template.
-        - Run focused package-sync checks and table formatting for touched tables.
+- _Outcome:_ Shipped methodology now reserves `chunk` for the controlled review boundary without changing routing,
+  execution, decomposition, or delivery semantics.
 
 ### `[ ]` **4.2 Reconcile project-only terminology and prove closure**
 
