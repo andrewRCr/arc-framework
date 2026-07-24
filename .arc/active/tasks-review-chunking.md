@@ -190,32 +190,25 @@ dedicated publication sweep rather than through private-development patching.
 - _Outcome:_ Shipped methodology now reserves `chunk` for the controlled review boundary without changing routing,
   execution, decomposition, or delivery semantics.
 
-### `[ ]` **4.2 Reconcile project-only terminology and prove closure**
+### `[x]` **4.2 Reconcile project-only terminology and prove closure**
 
 - _Goal:_ Internal project guidance and historical decision records no longer use generic ARC work language that
   conflicts with the controlled term, while unrelated technical uses remain intact.
 
-    - `[ ]` **4.2.a Classify project-only matches by audience and semantic domain**
-        - Re-run the same case-insensitive lexical-family search over `.arc/reference/` and `.arc/system/`,
-          separating managed counterparts, internal ADR/PRD guidance, historical quotations or research, and
-          unrelated context-window/data chunking.
-        - Preserve legitimate non-review technical meanings rather than forcing a repository-global synonym.
+    - `[x]` **4.2.a Classify project-only matches by audience and semantic domain**
+        - Reclassified the live project-reference and system matches, preserving context-retrieval and
+          knowledge-addressing chunks as legitimate technical meanings.
 
-    - `[ ]` **4.2.b Reconcile internal ARC terminology**
-        - Update project-owned ADRs, project guidance, and scaffolded project documents where `chunk` is merely a
-          generic partitive for a Work Unit, review increment, or routing batch.
-        - Limit accepted-ADR edits to exact, meaning-preserving terminology corrections under the ADR correction
-          rule; do not reframe a decision, append amendment provenance, or add author-history notes to living
-          guidance.
+    - `[x]` **4.2.b Reconcile internal ARC terminology**
+        - Corrected the scaffolded project PRD and accepted ADR vocabulary with exact meaning-preserving replacements
+          for Work Units, review increments, and decomposable scale.
 
-    - `[ ]` **4.2.c Prove controlled-vocabulary closure**
-        - Re-run the lexical-family search over the maintained package and project roots and account for every
-          surviving match as the defined review unit, a legitimate non-review technical usage, or verbatim
-          historical/research evidence whose preservation is required for record accuracy.
-        - Confirm no surviving living-guidance match uses `chunk` as a generic Work Unit, review increment, routing
-          batch, or delivery partitive.
-        - Check package/instance equality for Framework files and inspect expected differences for Configurable
-          files; leave no hand-maintained allowlist that can stale.
+    - `[x]` **4.2.c Prove controlled-vocabulary closure**
+        - Re-ran both maintained-root searches, accounted for every survivor as the review unit, its method/config
+          identity, or a non-review technical usage, and verified managed Framework equality.
+
+- _Outcome:_ Living package and project guidance no longer uses `chunk` generically; surviving non-review matches
+  remain confined to context retrieval and knowledge-addressing semantics.
 
 ## **Phase 5:** First-application evidence
 
