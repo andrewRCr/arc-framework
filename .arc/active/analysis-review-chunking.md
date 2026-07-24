@@ -2888,3 +2888,39 @@ verdict: changes-requested
 Primary adjudication upheld D-F1 directly from the recipe and tests. D-D1 is globally deduplicated against E2 even
 though root D did not receive root B's child reports. Root D passes reviewability and adds one distinct seam-owned
 distribution finding.
+
+### Top-level seam
+
+The fresh top-level evaluator received only the four bounded root summaries, exact-union coverage proof, and named
+cross-root contracts. It completed every dimension without overload or malformed scope and did not reconstruct the
+333-file diff. All six outputs duplicate already adjudicated root findings:
+
+```yaml
+scope: top-level-seam
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+newFindings: []
+duplicates:
+  - duplicateOf: A-F2 attach can replace a newer live lease using stale dead-liveness evidence
+  - duplicateOf: A-F4 transient provisioning drops the selected parent generation
+  - duplicateOf: A-F1 operational consumers discard reader-owned trust diagnostics
+  - duplicateOf: A-F3 open outcomes ignore authoritative provisioning mutations
+  - duplicateOf: B-F1 lost-response promotion replay drops the originating-capture handle
+  - duplicateOf: D-F1 fresh installations omit updated Errand and housekeeping entry skills
+withstood:
+  - Live promotion exact-claim, record, lease, marker, branch, parent-lock, and retirement ordering adds no defect.
+  - Recovery and handoff compare current/recovery tokens, diagnostic-clean active rows, and suspended parent edges.
+  - Cross-root CLI registration and typed result routing add no defect beyond supplied findings.
+  - Transient claimId remains generation-bearing while durable WU subjects consistently carry null claims.
+  - Package/project mirrors are exact at inspected sites; distribution drift is limited to recipe inclusion.
+  - Targeted tests cover cross-root ordering and projection; missing cases remain localized in existing findings.
+verdict: changes-requested-no-new-findings
+```
+
+Primary adjudication retained all six outputs as exact duplicates of the root findings. The top seam therefore
+passes reviewability: it reconciled every named cross-root edge from bounded summaries and targeted loci, added no
+finding inflation, and never loaded the descendant reports or monolithic patch wholesale.
