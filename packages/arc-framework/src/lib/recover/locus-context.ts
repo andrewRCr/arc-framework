@@ -323,7 +323,6 @@ function baseLoadSet(options: {
     sessionType: null,
     planningStage: null,
     taskListPath: null,
-    activeExtensions: [],
     cohortDocPath: null,
   });
 }

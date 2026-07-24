@@ -40,7 +40,6 @@ export interface ReadLocusEnvelopeOptions {
   evidenceIO: LocusEvidenceIO;
   subjectMetaIO: SubjectMetaIO;
   identityGlobalUserDir?: string | null;
-  activeExtensions: readonly string[];
 }
 
 /** Acquire, join, derive, and producer-validate one complete public roster. */
@@ -190,7 +189,6 @@ async function projectWorkUnitMeta(
     identityGlobalUserDir: options.identityGlobalUserDir,
     metaRoot,
     candidates: checkout.metas,
-    activeExtensions: options.activeExtensions,
     io: options.subjectMetaIO,
   });
 }

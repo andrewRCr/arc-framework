@@ -79,7 +79,6 @@ describe("checkout-directed subject projection", () => {
         { kind: "read", name: "meta-other.md", path: `${cwd}/.arc/active/meta-other.md`, text: files.get(`${cwd}/.arc/active/meta-other.md`) ?? "" },
         { kind: "read", name: "meta-demo.md", path: demoMetaPath, text: files.get(demoMetaPath) ?? "" },
       ],
-      activeExtensions: ["pre-pr-open"],
       io: subjectIO(files),
     });
 
@@ -119,7 +118,6 @@ describe("checkout-directed subject projection", () => {
       identity: "andrew",
       metaRoot: { kind: "maintainer" },
       candidates: [{ kind: "read", name: "meta-demo.md", path: metaPath, text: files.get(metaPath) ?? "" }],
-      activeExtensions: [],
       io: subjectIO(files),
     });
     expect(result).toMatchObject({
@@ -144,7 +142,6 @@ describe("checkout-directed subject projection", () => {
       identity: "andrew",
       metaRoot: { kind: "contributor", identity: "andrew" },
       candidates: [{ kind: "read", name: "meta-demo.md", path: metaPath, text: files.get(metaPath) ?? "" }],
-      activeExtensions: [],
       io: subjectIO(files),
     });
     expect(result).toMatchObject({
@@ -168,7 +165,6 @@ describe("checkout-directed subject projection", () => {
       identity: "andrew",
       metaRoot: { kind: "maintainer" },
       candidates: [{ kind: "read", name: "meta-demo.md", path: metaPath, text: files.get(metaPath) ?? "" }],
-      activeExtensions: [],
       io: subjectIO(files),
     });
     expect(result).toMatchObject({ kind: "resolved", taskCursor: { status: "malformed" } });

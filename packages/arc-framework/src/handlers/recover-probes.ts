@@ -40,22 +40,20 @@ export function createRecoverStatusProbes(
   const extensionsP = runExtensionsSessionInitStatus({ cwd });
   return {
     locusState: async (identity) => {
-      const [resolved, extensions] = await Promise.all([resolvedSettingsP, extensionsP]);
+      const resolved = await resolvedSettingsP;
       return runLocusStateProbe({
         cwd,
         identity,
         baseBranch: resolved.settings["branch.base"],
-        activeExtensions: extensions.active,
         exec: gitExec,
       });
     },
     legacyErrand: async (identity, role, workingMemoryPath) => {
       if (identity === null) return null;
-      const [branchResult, snapshot, active, extensions] = await Promise.all([
+      const [branchResult, snapshot, active] = await Promise.all([
         gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"]),
         readTransientIdentitySnapshot({ exec: gitExec, identity }),
         runActiveSessionInitStatusInternal({ cwd, identity, role, exec: gitExec }),
-        extensionsP,
       ]);
       if (snapshot.kind === "absent") return null;
       if (snapshot.kind === "error") throw new Error(`Legacy identity ${snapshot.stage} read failed: ${snapshot.message}`);
@@ -88,7 +86,6 @@ export function createRecoverStatusProbes(
         sessionType: parent.sessionType,
         planningStage: parent.planningStage,
         taskListPath: parent.taskListPath ?? null,
-        activeExtensions: extensions.active,
         cohortDocPath,
       }), ".arc/system/workflows/arc/supplemental/run-errand.md");
       const taskCursor = parent.taskListPath === undefined || parent.taskListPath === null

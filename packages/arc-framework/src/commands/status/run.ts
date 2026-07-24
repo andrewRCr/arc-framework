@@ -423,7 +423,6 @@ export async function runSessionInitStatus(
       sessionType: activeValue.sessionType,
       planningStage: activeValue.planningStage,
       taskListPath: activeValue.taskListPath ?? null,
-      activeExtensions: extensions.isOk() ? extensions.value.active : [],
       cohortDocPath,
       cohortDoc,
       workingMemoryPath: workingMemoryPath ?? null,
@@ -611,7 +610,6 @@ function loadSetFromState(options: {
   sessionType: ActiveSessionInitResult["sessionType"];
   planningStage: ActiveSessionInitResult["planningStage"];
   taskListPath: string | null;
-  activeExtensions: readonly string[];
   cohortDocPath: string | null;
   cohortDoc: SessionResult<string | null>;
   workingMemoryPath: string | null;
@@ -625,7 +623,6 @@ function loadSetFromState(options: {
       sessionType: options.sessionType,
       planningStage: options.planningStage,
       taskListPath: options.taskListPath,
-      activeExtensions: options.activeExtensions,
       cohortDocPath: options.cohortDocPath,
       workingMemoryPath: options.workingMemoryPath,
     }),

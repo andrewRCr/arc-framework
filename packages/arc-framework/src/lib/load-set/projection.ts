@@ -6,6 +6,10 @@
  * or git reads, keeping the status envelope and compaction seed schema on one
  * shared context-load contract.
  *
+ * Extension bodies are never load-set entries: active-extension names reach
+ * workflow fire-points through the status envelope's own extensions slot, so
+ * they are not an input here.
+ *
  * @module
  */
 
@@ -46,13 +50,6 @@ export interface LoadSetProjectionInput {
   planningStage: LoadSetPlanningStage | null;
   /** Active task-list path relative to the repo root, or `null` when none applies. */
   taskListPath: string | null;
-  /**
-   * Active extension names from the session-init extensions slot.
-   *
-   * Names stay in the status envelope for workflow fire-points to consult.
-   * Extension bodies are intentionally excluded from the session load set.
-   */
-  activeExtensions: readonly string[];
   /** Active cohort coordination doc path, or `null` when none resolved. */
   cohortDocPath: string | null;
 }

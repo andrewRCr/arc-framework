@@ -1201,18 +1201,7 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           between two existing tests — one covering the tombstone without a locus, one covering the locus-owned
           arm without asserting the tombstone — so the new case pairs their fixtures.
 
-    - `[ ]` **7.E.b.v Make recovery depend on proven physical identity** — S2-F3, S2S1-001, S2S1-002, S2S1-004
-        - `runRecoverStatus` converts a failed worktree-identity probe into a synthetic `primary`, which then feeds
-          the public worktree slot, checkout selection, and frame derivation; the legacy Errand fallback can replace
-          a reader-owned recovery stop because eligibility never inspects the recovery or reconciliation verdict;
-          `baseLoadSet` hard-codes an empty active-extension set that both the seed and the fresh load set then
-          agree on; and the audit never compares the seed's repository root, so a seed copied from another linked
-          worktree passes when branch, head, dirty paths, and load set coincide.
-
-        - _Shape:_ Four independent defects across three files, verified against source at entry — they do **not**
-          share a fix. `.1` and `.2` sit adjacent in the same composer but differ in kind (propagate-a-failure vs.
-          widen-a-predicate); `.3` is an isolated audit comparison; `.4` needs a signature change and is sequenced
-          last so its golden regeneration lands once, after the others have settled.
+    - `[x]` **7.E.b.v Make recovery depend on proven physical identity** — S2-F3, S2S1-001, S2S1-002, S2S1-004
 
         - `[x]` **7.E.b.v.1 Stop substituting a synthetic primary for a failed identity probe** — S2-F3
             - Physical checkout identity now stays a `Result` through recovery authority selection: the worktree
@@ -1246,13 +1235,27 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
               and a binary check does not justify moving every recovery-audit golden. It runs ahead of the branch
               and head comparisons, since those are meaningless if the roots already disagree.
 
-        - `[ ]` **7.E.b.v.4 Give cold and between-work-unit recovery its real active-extension set** — S2S1-002
-            - `baseLoadSet` hard-codes every projection input — `activeExtensions: []`, `activeWorkUnit: null`, and
-              five more — and `deriveRecoveryLocusContext` is not passed the extension or active-meta context it
-              would need, so both the `current.kind === "none"` arm and the parentless transient arm derive a load
-              set that omits what the session actually has. The composer already resolves both probes; thread them
-              through. This moves goldens: `recovery-audit-*.json`, both `session-envelope-compat` recovery-audit
-              arms, and the `session-init.e2e` seed-audit arm shift together as one consequence.
+        - `[x]` **7.E.b.v.4 Remove the inert active-extension projection input** — S2S1-002
+            - The finding does not reproduce and its prescribed threading would have been provably inert:
+              `resolveLoadSetManifest` declared `activeExtensions` and never read it, so the recovery base manifest
+              and the work-unit projection — which call the same function — produce identical output either way.
+              Extension bodies are excluded from every load set by design and their names travel in the envelope's
+              extensions slot, so no context was being dropped. Removed the dead parameter and the pass-through
+              chain carrying it across eighteen files, which also deleted five `runExtensionsSessionInitStatus`
+              reads performed solely to feed it. The test count was unchanged and no golden moved, which is the
+              evidence that nothing observable depended on it; the projection's exclusion contract is now enforced
+              by the type rather than by a test that passes extensions in. Rejection recorded in
+              `notes-session-locus-model.md` § Chunked-review finding triage.
+
+        - _Outcome:_ The bundle's four "unknown rendered as absent" reports split three ways, which is why they
+          shared no fix. Two were real substitutions of an unestablished fact (`.1`, `.2`), one was a binding the
+          audit never made at all (`.3`), and one was a value that only looked substituted (`.4`) — its input was
+          inert, so the honest correction was deletion, the inverse of what the finding prescribed. `.1` carries
+          the transferable lesson: the defect lived one layer below its reported locus, because
+          `resolveWorktreeIdentity` returned a plausible default rather than reporting failure, so the call-site
+          fix the finding described would have compiled, passed, and changed nothing in production. Verifying a
+          finding against source means reaching the layer that manufactures the value, not just the one that
+          consumes it.
 
     - `[ ]` **7.E.b.vi Stop the absent seed hint acting as a generation wildcard** — S1-F2
         - A current-version seed may omit its locus hint after an unavailable probe, and the audit then treats

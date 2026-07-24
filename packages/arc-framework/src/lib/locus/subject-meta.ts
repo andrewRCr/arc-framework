@@ -49,7 +49,6 @@ export async function projectCheckoutSubjectMeta(options: {
   identityGlobalUserDir?: string | null;
   metaRoot: { kind: "maintainer" } | { kind: "contributor"; identity: string };
   candidates: readonly MetaEvidence[];
-  activeExtensions: readonly string[];
   io: SubjectMetaIO;
 }): Promise<SubjectMetaProjection> {
   const expectedPath = options.metaRoot.kind === "maintainer"
@@ -124,7 +123,6 @@ export async function projectCheckoutSubjectMeta(options: {
       sessionType,
       planningStage,
       taskListPath,
-      activeExtensions: options.activeExtensions,
       cohortDocPath,
     }),
   };

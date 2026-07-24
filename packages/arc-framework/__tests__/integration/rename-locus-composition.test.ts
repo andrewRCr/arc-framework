@@ -140,7 +140,6 @@ describe("rename composition with the session locus model", () => {
         realpath: (path) => import("node:fs/promises").then(({ realpath }) => realpath(path)),
         lstat: (path) => import("node:fs/promises").then(({ lstat }) => lstat(path)),
       },
-      activeExtensions: [],
     });
 
     if (!envelope.ok) throw new Error("locus roster is unavailable after the rename");

@@ -70,7 +70,6 @@ import type { LocusRefusalReason } from "../lib/locus/schema/index.js";
 import { formatErrandOpenResult } from "./errand.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
-import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import { closeGroomAtRuntime } from "../lib/groom/close-runtime.js";
 import { settleGroomAtRuntime } from "../lib/groom/tail-runtime.js";
 
@@ -290,7 +289,6 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
     await rollbackOpen();
     emitPlanError("topology", "Primary checkout unavailable.", opts.json === true); return;
   }
-  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
   const identityGlobalUserDir = (await resolveUserSurfaceResolver({
     cwd, identity: SlugSchema.parse(identity), exec: io.exec,
   })).identityGlobalRoot;
@@ -301,7 +299,7 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
       readFile: (path) => readFile(path, "utf8"),
       pathExists: async (path) => access(path).then(() => true, () => false), realpath, lstat,
     },
-    identityGlobalUserDir, activeExtensions: activeExtensions.active, enteringAnchor: anchor,
+    identityGlobalUserDir, enteringAnchor: anchor,
     readPrimarySafety: (path) => readPrimarySafety({ primaryPath: path, baseBranch: base, exec: io.exec }),
   });
   const existingRows = state.roster.rows.filter((row) => row.role?.subject.kind === "groom"

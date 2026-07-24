@@ -4,7 +4,6 @@ import { access, lstat, readFile, realpath } from "node:fs/promises";
 
 import type { LocusEnvelopeV1 } from "../lib/locus/schema/index.js";
 import { formatLocusEnvelope, validateLocusEnvelope } from "../commands/locus.js";
-import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import { createLocusEvidenceIO } from "../lib/locus/evidence.js";
 import { readLocusEnvelope } from "../lib/locus/reader.js";
 import { createPlatformProcessInspector } from "../lib/locus/platform-inspectors.js";
@@ -66,7 +65,6 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
   if (!io.execInput) return;
   const execInput = io.execInput;
   const { settings } = await readConfigSettings(cwd);
-  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
   const identityGlobalUserDir = (await resolveUserSurfaceResolver({
     cwd, identity: SlugSchema.parse(identity), exec: io.exec,
   })).identityGlobalRoot;
@@ -94,7 +92,7 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
         }
         return abandonOrdinaryErrandAtRuntime({
           slug: key, protection: "full", base: common.base, identity, identityGlobalUserDir,
-          activeExtensions: activeExtensions.active, postCreateScript: common.postCreateScript,
+          postCreateScript: common.postCreateScript,
           registeredHarnessDirs: common.registeredHarnessDirs, exec: io.exec, execInput,
           clearExecuteBound: async (record) => {
             if (record.originEntry === null) return { kind: "idempotent" };
@@ -204,7 +202,6 @@ export async function handleLocus(options: LocusCliOptions): Promise<void> {
   if (cwd === null) return;
   const identity = await resolveIdentity({ exec: gitExec });
   const inspector = createPlatformProcessInspector();
-  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
   const identityGlobalUserDir = identity === null
     ? null
     : (await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: gitExec }))
@@ -221,7 +218,6 @@ export async function handleLocus(options: LocusCliOptions): Promise<void> {
         lstat,
       },
       identityGlobalUserDir,
-      activeExtensions: activeExtensions.active,
     }),
     output: {
       stdout: (text) => process.stdout.write(text),

@@ -20,7 +20,6 @@ import { basename } from "node:path";
 import * as p from "@clack/prompts";
 
 import { runActiveInFlight } from "../commands/active.js";
-import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import {
   removeCurrentInboxEntry,
   runUserInboxRemove,
@@ -326,7 +325,6 @@ export async function handleErrandMaterialize(
     branchCreated = true;
     const primaryPath = await resolvePrimaryWorktreePath(io.exec);
     if (primaryPath === null) throw new Error("Primary checkout is unavailable");
-    const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
     const identityGlobalUserDir = (await resolveUserSurfaceResolver({
       cwd, identity: SlugSchema.parse(identity), exec: io.exec,
     })).identityGlobalRoot;
@@ -344,7 +342,6 @@ export async function handleErrandMaterialize(
       postCreateScript: settings["worktree.post_create"],
       registeredHarnessDirs: settings["worktree.harness_dirs"],
       identityGlobalUserDir,
-      activeExtensions: activeExtensions.active,
       exec: io.exec,
       execInput: io.execInput,
     });
@@ -482,7 +479,6 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
     }), opts.json === true);
     return;
   }
-  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
   const identityGlobalUserDir = (await resolveUserSurfaceResolver({
     cwd,
     identity: SlugSchema.parse(identity),
@@ -506,7 +502,6 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
       postCreateScript: settings["worktree.post_create"],
       registeredHarnessDirs: settings["worktree.harness_dirs"],
       identityGlobalUserDir,
-      activeExtensions: activeExtensions.active,
       exec: io.exec,
       execInput: io.execInput,
     });
@@ -749,7 +744,6 @@ export async function handleErrandLeave(slug: string, opts: ErrandLeaveOptions):
     );
     return;
   }
-  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
   const identityGlobalUserDir = (await resolveUserSurfaceResolver({
     cwd,
     identity: SlugSchema.parse(identity),
@@ -766,7 +760,6 @@ export async function handleErrandLeave(slug: string, opts: ErrandLeaveOptions):
       updatedAt: new Date().toISOString(),
       identity,
       identityGlobalUserDir,
-      activeExtensions: activeExtensions.active,
       postCreateScript: settings["worktree.post_create"],
       registeredHarnessDirs: settings["worktree.harness_dirs"],
       exec: io.exec,
@@ -875,7 +868,6 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
           recommendedPromptText: "Partial Errand close does not permit --force.",
         });
       } else {
-        const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
         const identityGlobalUserDir = (await resolveUserSurfaceResolver({
           cwd,
           identity: SlugSchema.parse(identity),
@@ -888,7 +880,6 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
           cwd,
           identity,
           identityGlobalUserDir,
-          activeExtensions: activeExtensions.active,
           postCreateScript: settings["worktree.post_create"],
           registeredHarnessDirs: settings["worktree.harness_dirs"],
           exec: io.exec,
@@ -1034,7 +1025,6 @@ export async function handleErrandAbandon(slug: string, opts: ErrandAbandonOptio
     );
     return;
   }
-  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
   const identityGlobalUserDir = (await resolveUserSurfaceResolver({
     cwd,
     identity: SlugSchema.parse(identity),
@@ -1050,7 +1040,6 @@ export async function handleErrandAbandon(slug: string, opts: ErrandAbandonOptio
         cwd,
         identity,
         identityGlobalUserDir,
-        activeExtensions: activeExtensions.active,
         postCreateScript: settings["worktree.post_create"],
         registeredHarnessDirs: settings["worktree.harness_dirs"],
         exec: io.exec,
@@ -1073,7 +1062,6 @@ export async function handleErrandAbandon(slug: string, opts: ErrandAbandonOptio
         base: settings["branch.base"],
         identity,
         identityGlobalUserDir,
-        activeExtensions: activeExtensions.active,
         postCreateScript: settings["worktree.post_create"],
         registeredHarnessDirs: settings["worktree.harness_dirs"],
         exec: io.exec,
@@ -1231,7 +1219,6 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
   const wuName = rawName !== undefined && rawName !== "" ? rawName : slug;
   const type = opts.type?.trim();
 
-  const activeExtensions = await runExtensionsSessionInitStatus({ cwd });
   const identityGlobalUserDir = (await resolveUserSurfaceResolver({
     cwd, identity: SlugSchema.parse(identity), exec: io.exec,
   })).identityGlobalRoot;
@@ -1241,7 +1228,7 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
       slug, name: wuName, type: type !== undefined && type !== "" ? type : "feat", floor,
       owner: identity, priority: opts.priority, class: opts.class, protection: "full",
       base: settings["branch.base"], identity, identityGlobalUserDir,
-      activeExtensions: activeExtensions.active, postCreateScript: settings["worktree.post_create"],
+      postCreateScript: settings["worktree.post_create"],
       registeredHarnessDirs: settings["worktree.harness_dirs"], exec: io.exec, execInput: io.execInput,
     });
   } catch (error) {

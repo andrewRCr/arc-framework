@@ -32,7 +32,6 @@ export interface AbandonOrdinaryErrandRuntimeOptions {
   readonly base: string;
   readonly identity: string;
   readonly identityGlobalUserDir: string;
-  readonly activeExtensions: readonly string[];
   readonly postCreateScript: string;
   readonly registeredHarnessDirs: string;
   readonly exec: GitExec;
@@ -288,7 +287,6 @@ async function readRuntimeState(
       lstat,
     },
     identityGlobalUserDir: options.identityGlobalUserDir,
-    activeExtensions: options.activeExtensions,
     enteringAnchor: anchor,
     readPrimarySafety: (path) => readPrimarySafety({ primaryPath: path, baseBranch: options.base, exec: options.exec }),
   });

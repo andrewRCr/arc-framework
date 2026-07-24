@@ -47,7 +47,6 @@ describe("readLocusEnvelope", () => {
       pathFlavor: "posix",
       evidenceIO: evidenceIO({ listDirectory: async () => { throw missing; } }),
       subjectMetaIO,
-      activeExtensions: [],
     });
 
     expect(result).toEqual({
@@ -99,7 +98,6 @@ describe("readLocusEnvelope", () => {
       pathFlavor: "posix",
       evidenceIO: io,
       subjectMetaIO,
-      activeExtensions: [],
     });
 
     expect(result).toMatchObject({ mode: "locus", ok: false, error: { code } });
@@ -145,7 +143,6 @@ describe("readLocusEnvelope", () => {
         inspectAnchor: async () => "live",
       }),
       subjectMetaIO,
-      activeExtensions: [],
     });
 
     expect(result).toMatchObject({
@@ -164,7 +161,6 @@ describe("readLocusState", () => {
       pathFlavor: "posix",
       evidenceIO: evidenceIO({ listDirectory: async () => { throw missing; } }),
       subjectMetaIO,
-      activeExtensions: [],
       identityGlobalUserDir: "/repo/.arc/user/andrew",
       enteringAnchor: {
         kind: "process",
@@ -194,7 +190,6 @@ describe("readLocusState", () => {
       pathFlavor: "posix",
       evidenceIO: evidenceIO({ listDirectory: async () => { throw missing; } }),
       subjectMetaIO,
-      activeExtensions: [],
       identityGlobalUserDir: "/repo/.arc/user/andrew",
       enteringAnchor: { kind: "unverifiable", reason: "Unrecognized process boundary: sh" },
       readPrimarySafety: async () => ({ kind: "complete", clean: true, onBase: true, branch: "main" }),

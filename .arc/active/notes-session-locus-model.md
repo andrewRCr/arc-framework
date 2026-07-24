@@ -137,6 +137,17 @@ bounded. Some findings sit in two causes — the grouping drives the work, it is
 - **6 carved** to a follow-on unit — the systematic generation-capability contract and its failure-injection test
   substrate: `L4-F2` (≡ `A-F2`), `L4-F4`, `A-F4`, `E4-F2`, `W1-F5`, and the whole-lifecycle portion of `P1-V1`.
 - **1 already resolved** — `R1-F5`, corrected by the handoff commit that follows the reviewed head.
+- **1 did not reproduce** — `S2S1-002`, rejected on verification during Phase 7.E execution (below).
+
+**`S2S1-002` does not reproduce.** The finding reads a hard-coded `activeExtensions: []` in the recovery base
+manifest as dropped context that both the seed and the fresh load set then agree on. `resolveLoadSetManifest`
+declares that input and never reads it: extension bodies are excluded from every load set by design, and
+active-extension names reach workflows through the status envelope's own extensions slot. Both the work-unit
+projection and the recovery base call that same function, so an empty set and a populated one produce identical
+manifests — verified by a temporary invariance check over both the execution and between-work-units shapes. The
+compaction seed carries no extensions field at all, so there is nothing to drift and nothing for the audit to
+agree on incorrectly. What was real is the inverse of the prescribed fix: a required parameter no output depended
+on, threaded through eighteen files. It was removed rather than populated, which makes the exclusion structural.
 
 **Why the carve is decomposition rather than deferral.** The carved set is one design question — what exact
 generation capability every mutator carries, and where it is revalidated under lock — plus the failure-injection

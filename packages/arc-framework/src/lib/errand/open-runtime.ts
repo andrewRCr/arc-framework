@@ -49,7 +49,6 @@ export interface OpenOrdinaryErrandRuntimeOptions {
   readonly postCreateScript: string;
   readonly registeredHarnessDirs: string;
   readonly identityGlobalUserDir: string;
-  readonly activeExtensions: readonly string[];
   readonly exec: GitExec;
   readonly execInput: GitExecInput;
 }
@@ -97,7 +96,6 @@ export async function openOrdinaryErrandAtRuntime(
             lstat,
           },
           identityGlobalUserDir: options.identityGlobalUserDir,
-          activeExtensions: options.activeExtensions,
           enteringAnchor: selectedAnchor,
           readPrimarySafety: (path) => readPrimarySafety({
             primaryPath: path,

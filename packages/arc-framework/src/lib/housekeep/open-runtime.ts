@@ -2,7 +2,6 @@
 
 import { access, lstat, readFile, realpath } from "node:fs/promises";
 
-import { runExtensionsSessionInitStatus } from "../../commands/extensions.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import type { GitExecInput } from "../git/exec.js";
 import { mintClaimId, projectLocusIdentity, TransientIdentityRecordV3Schema } from "../errand/identity-record.js";
@@ -166,7 +165,6 @@ export async function readHousekeepState(
   anchor: LocusAnchor,
   inspector: ReturnType<typeof createPlatformProcessInspector>,
 ): Promise<LocusStateV1> {
-  const activeExtensions = await runExtensionsSessionInitStatus({ cwd: options.cwd });
   const root = (await resolveUserSurfaceResolver({
     cwd: options.cwd, identity: SlugSchema.parse(options.identity), exec: options.io.exec,
   })).identityGlobalRoot;
@@ -176,7 +174,7 @@ export async function readHousekeepState(
     subjectMetaIO: {
       readFile: (path) => readFile(path, "utf8"),
       pathExists: async (path) => access(path).then(() => true, () => false), realpath, lstat,
-    }, identityGlobalUserDir: root, activeExtensions: activeExtensions.active, enteringAnchor: anchor,
+    }, identityGlobalUserDir: root, enteringAnchor: anchor,
     readPrimarySafety: (path) => readPrimarySafety({ primaryPath: path, baseBranch: options.base, exec: options.io.exec }),
   });
 }

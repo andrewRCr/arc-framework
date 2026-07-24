@@ -333,15 +333,13 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // early-return above runs first to avoid leaving an unawaited rejection on
     // the non-JSON exit path.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
-    const locusExtensionsP = runExtensionsSessionInitStatus({ cwd });
     const probes: SessionHandoffProbes = {
       locusState: async (id) => {
-        const [resolved, extensions] = await Promise.all([resolvedSettingsP, locusExtensionsP]);
+        const resolved = await resolvedSettingsP;
         return runLocusStateProbe({
           cwd,
           identity: id,
           baseBranch: resolved.settings["branch.base"],
-          activeExtensions: extensions.active,
           exec: gitExec,
         });
       },
@@ -421,12 +419,11 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     let locusStatePromise: Promise<LocusStateV1> | undefined;
     const getLocusState = (id: string): Promise<LocusStateV1> => {
       locusStatePromise ??= (async () => {
-        const [resolved, extensions] = await Promise.all([resolvedSettingsP, extensionsP]);
+        const resolved = await resolvedSettingsP;
         return runLocusStateProbe({
           cwd,
           identity: id,
           baseBranch: resolved.settings["branch.base"],
-          activeExtensions: extensions.active,
           exec: gitExec,
         });
       })();

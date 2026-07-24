@@ -3,7 +3,6 @@
 import { access, lstat, readFile, realpath } from "node:fs/promises";
 import { relative } from "node:path";
 
-import { runExtensionsSessionInitStatus } from "../../commands/extensions.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { classifyTransientWorktreeProvenance, readWorktreeMarkerGeneration } from "../git/worktree-marker.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
@@ -104,7 +103,6 @@ export async function readGroomRuntimeState(
   anchor: LocusProcessAnchor,
   inspector: ReturnType<typeof createPlatformProcessInspector>,
 ): Promise<LocusStateV1> {
-  const activeExtensions = await runExtensionsSessionInitStatus({ cwd: options.cwd });
   const root = (await resolveUserSurfaceResolver({
     cwd: options.cwd, identity: SlugSchema.parse(options.identity), exec: options.exec,
   })).identityGlobalRoot;
@@ -115,7 +113,7 @@ export async function readGroomRuntimeState(
       readFile: (path) => readFile(path, "utf8"),
       pathExists: async (path) => access(path).then(() => true, () => false), realpath, lstat,
     },
-    identityGlobalUserDir: root, activeExtensions: activeExtensions.active, enteringAnchor: anchor,
+    identityGlobalUserDir: root, enteringAnchor: anchor,
     readPrimarySafety: (path) => readPrimarySafety({ primaryPath: path, baseBranch: options.base, exec: options.exec }),
   });
 }

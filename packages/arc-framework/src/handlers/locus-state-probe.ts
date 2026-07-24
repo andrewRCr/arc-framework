@@ -16,7 +16,6 @@ export interface LocusStateProbeOptions {
   readonly cwd: string;
   readonly identity: string;
   readonly baseBranch: string;
-  readonly activeExtensions: readonly string[];
   readonly exec: GitExec;
 }
 
@@ -44,7 +43,6 @@ export async function runLocusStateProbe(options: LocusStateProbeOptions): Promi
       lstat,
     },
     identityGlobalUserDir,
-    activeExtensions: options.activeExtensions,
     enteringAnchor: anchor,
     readPrimarySafety: (primaryPath) => readPrimarySafety({
       primaryPath,
