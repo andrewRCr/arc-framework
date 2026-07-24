@@ -2833,3 +2833,58 @@ verdict: clean-no-new-seam-findings
 Primary adjudication retained all three outputs as duplicates of already source-verified findings. Root C passes
 reviewability and, crucially, consumed the pilot S2↔S1 result without reconstructing that child body or inflating
 the finding set.
+
+### Root D operations-and-methodology seam
+
+The fresh root-D evaluator consumed bounded P1, X1, M1, and R1 summaries and inspected the operation-to-methodology
+contracts. It completed every dimension without overload or malformed scope. One result is globally new; the other
+is new only relative to D's children and duplicates E2 across roots:
+
+```yaml
+scope: root-D-operations-methodology
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: D-F1
+    title: Fresh installations omit the updated Errand and housekeeping entry skills
+    severity: medium
+    stableLocus: >
+      packages/arc-framework/init-recipe.json — lines 95-104;
+      packages/arc-framework/arc/system/.internal/skills/arc-errand/SKILL.md;
+      packages/arc-framework/arc/system/.internal/skills/arc-housekeep/SKILL.md;
+      packages/arc-framework/__tests__/integration/locus-methodology-contracts.test.ts — lines 134-159;
+      packages/arc-framework/__tests__/integration/framework-sync.test.ts — lines 229-239
+    evidence: >
+      Both changed package skills exist, but neither belongs to the unconditional init recipe or resulting
+      self-hosted manifest. The methodology test proves only package/project byte equality and asserts recipe
+      membership for the concurrency strategy and drain-inbox workflow; framework-sync defines expected manifest
+      membership from the same incomplete recipe.
+    impact: >
+      A fresh installation receives the rewritten workflows and CLI references without their canonical entry
+      skills, while the pre-existing self-hosted checkout masks the omission.
+    correctionBoundary: >
+      Add both skills to unconditional recipe membership, regenerate the manifest through normal installation, and
+      assert fresh-init installation plus command/workflow references for both files.
+crossRootDuplicates:
+  - id: D-D1
+    duplicateOf: E2 partial settlement mutates inbox before role ownership
+    title: Partial Errand settlement mutates inbox before authorizing the role generation
+    stableLocus: packages/arc-framework/src/lib/errand/partial-settle-runtime.ts — lines 56-129
+    note: >
+      D independently reaches the same inbox-before-record-lock ordering and adds close-versus-abandon consequences,
+      but the root defect was already source-verified and counted under E2.
+withstood:
+  - Changed direct package/project mirror loci contain no additional byte drift.
+  - No CLI option mismatch exists beyond M1's errand-open --type defect.
+  - Handoff's exact-lease release/null-lease path adds no defect beyond supplied authority ambiguities.
+  - The recipe correctly adds concurrent-work and drain-inbox; the defect is incomplete skill membership.
+verdict: changes-requested
+```
+
+Primary adjudication upheld D-F1 directly from the recipe and tests. D-D1 is globally deduplicated against E2 even
+though root D did not receive root B's child reports. Root D passes reviewability and adds one distinct seam-owned
+distribution finding.
