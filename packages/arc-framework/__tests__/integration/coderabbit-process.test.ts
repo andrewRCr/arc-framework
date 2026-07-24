@@ -18,6 +18,38 @@ afterEach(async () => {
 });
 
 describe("CodeRabbit process boundary", () => {
+  it("closes ambient stdin before launching the provider", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-coderabbit-process-"));
+    roots.push(root);
+
+    const result = await executeBoundedFrontlineCarrier({
+      timeoutMs: 1_000,
+      execute: ({ remainingMs, signal }) => runCodeRabbitProcess(
+        process.execPath,
+        [
+          "-e",
+          "process.stdin.resume(); process.stdin.once('end', () => process.stdout.write('stdin-closed'))",
+        ],
+        {
+          cwd: root,
+          remainingMs,
+          signal,
+          interaction: {
+            terminalPrompts: "forbidden",
+            presenters: "forbidden",
+            ambientStdin: "closed",
+          },
+        },
+      ),
+    });
+
+    expect(result).toMatchObject({
+      canceled: false,
+      exitCode: 0,
+      stdout: "stdin-closed",
+    });
+  });
+
   it("terminates a hung child when the frontline execution deadline expires", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-coderabbit-process-"));
     roots.push(root);

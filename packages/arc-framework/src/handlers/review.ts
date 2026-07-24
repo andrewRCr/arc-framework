@@ -4,8 +4,12 @@ import { readFile } from "node:fs/promises";
 import { z, ZodError, type ZodType } from "zod";
 
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import { createRawGitExec, gitExec } from "../lib/io-context.js";
+import { createGitExec, createRawGitExec, gitExec } from "../lib/io-context.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import {
@@ -332,13 +336,14 @@ export interface ReviewFrontlineRunHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultFrontlineRunDependencies(): ReviewFrontlineRunHandlerDependencies {
+function defaultFrontlineRunDependencies(context: InteractionContext): ReviewFrontlineRunHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     resolveRoot: resolveArcRoot,
     readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
     run: (request, root) => runFrontlineReviewCommand(
       request,
-      createFrontlineRunDependencies({ exec: gitExec, cwd: root }),
+      createFrontlineRunDependencies({ exec, cwd: root, interaction: context.subprocess }),
     ),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => {
@@ -352,13 +357,20 @@ function defaultFrontlineRunDependencies(): ReviewFrontlineRunHandlerDependencie
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
  * @returns Resolves after stdout and exit status are assigned.
  */
 export async function handleReviewFrontlineRun(
   source: string,
   overrides: Partial<ReviewFrontlineRunHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultFrontlineRunDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultFrontlineRunDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-frontline-run",
     source,

@@ -143,6 +143,12 @@ describe("repository command-input inventory", () => {
     expect(bypasses).toEqual([]);
   });
 
+  it("routes the close-stdin frontline provider through the interaction-context adapter", () => {
+    const command = snapshot.source.commands.find((entry) => entry.path === "review frontline run");
+
+    expect(command?.action?.interactionContext).toBe(true);
+  });
+
   it("routes lifecycle and errand command boundaries through the interaction-context adapter", () => {
     const adapterCommands = new Map(snapshot.source.commands.map((command) => [
       command.path,

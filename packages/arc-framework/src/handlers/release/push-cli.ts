@@ -16,12 +16,13 @@ import { readFile } from "node:fs/promises";
 
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
-import { gitExec } from "../../lib/io-context.js";
+import { createGitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import {
   runPushabilityStatus,
   runWorktreeSyncStatus,
 } from "../../lib/git/index.js";
+import type { GitExec } from "../../lib/git/exec.js";
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
 import { normalizeGitRejection } from "../../lib/git/process-error.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
@@ -82,15 +83,16 @@ export async function handleReleasePush(
     return;
   }
 
+  const exec = createGitExec(context.subprocess);
   const settings = await resolveAllSettings({
     cwd,
-    exec: gitExec,
+    exec,
     readFile: (path) => readFile(path, "utf-8"),
   });
 
-  const currentBranch = (await resolveCurrentBranchName(gitExec)) ?? "";
+  const currentBranch = (await resolveCurrentBranchName(exec)) ?? "";
   const remoteSyncEnabled = settings.settings["session.remote_sync"] === "enabled";
-  const worktreeSync = await runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+  const worktreeSync = await runWorktreeSyncStatus({ exec, remoteSyncEnabled });
 
   const result = await runReleasePush({
     cwd,
@@ -100,13 +102,13 @@ export async function handleReleasePush(
     currentBranch,
     runPushability: () =>
       runPushabilityStatus({
-        exec: gitExec,
+        exec,
         access,
         target: "worktree",
         worktreeBranch: currentBranch,
         worktreeSyncState: worktreeSync.state,
       }),
-    spawnPush: createRealSpawnPush(context),
+    spawnPush: createRealSpawnPush(exec),
   });
 
   if (result.exitCode !== 0) {
@@ -122,14 +124,13 @@ export async function handleReleasePush(
  * Reshapes the helper's `failed` arm into the orchestrator's first-class
  * `exitCode` field so audit attribution uses structured process evidence.
  */
-const createRealSpawnPush = (context: InteractionContext): SpawnPush => async ({ branch, args, cwd }) => {
+const createRealSpawnPush = (exec: GitExec): SpawnPush => async ({ branch, args, cwd }) => {
   const result = await pushWorktreeBranch({
-    exec: gitExec,
+    exec,
     branch,
     args,
     cwd,
     inheritStdio: true,
-    interaction: context.subprocess,
   });
   if (result.status === "success") {
     return { status: "success", stdout: result.stdout, stderr: result.stderr };

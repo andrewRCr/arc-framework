@@ -1038,7 +1038,10 @@ frontlineCmd
   .description("Execute one exact-target frontline review as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewFrontlineRun(input));
+  .action(withInteractionContext(
+    { machineReadable: true },
+    (context, input: string) => handleReviewFrontlineRun(input, {}, context),
+  ));
 
 reviewCmd
   .command("chunking")
