@@ -1209,6 +1209,43 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           agree on; and the audit never compares the seed's repository root, so a seed copied from another linked
           worktree passes when branch, head, dirty paths, and load set coincide.
 
+        - _Shape:_ Four independent defects across three files, verified against source at entry — they do **not**
+          share a fix. `.1` and `.2` sit adjacent in the same composer but differ in kind (propagate-a-failure vs.
+          widen-a-predicate); `.3` is an isolated audit comparison; `.4` needs a signature change and is sequenced
+          last so its golden regeneration lands once, after the others have settled.
+
+        - `[ ]` **7.E.b.v.1 Stop substituting a synthetic primary for a failed identity probe** — S2-F3
+            - `runRecoverStatus` collapses a failed `worktreeIdentity` slot to `{ kind: "primary" }`, and
+              `checkoutPathForIdentity` then resolves that to `roster.primaryPath`. In a linked worktree whose
+              identity probe fails, recovery therefore derives its frame from the **primary's** role, selects the
+              primary for the legacy-eligibility read, and publishes `identity.kind: "primary"` on the worktree
+              slot — three consumers agreeing on a fact none of them established. Propagate the probe failure
+              instead of substituting; recovery stops rather than guessing which checkout it occupies.
+
+        - `[ ]` **7.E.b.v.2 Require a clean reader verdict before the legacy Errand fallback** — S2S1-001
+            - `legacyLocusEligible` tests `current.kind === "none"`, an absent checkout work-unit role, and the
+              absence of any `frame === "residue"` row — but never `state.recovery.kind` or
+              `state.reconciliation.kind`. `refuseUnresolvedResidue` fails closed on `recovery.kind !== "none"`,
+              so a reader-owned `residue` or `stop` verdict carrying no residue-framed row produces a derivation
+              error that the legacy frame then replaces. Reconciliation is inspected by neither path. Require both
+              verdicts clean before the fallback may stand in.
+
+        - `[ ]` **7.E.b.v.3 Bind the recovery audit to the seed's repository root** — S2S1-004
+            - `repoRoot` is required by the seed schema and written by the emitter, then read nowhere:
+              `AuditRecoveryStateOptions` carries no fresh counterpart and `auditRecoveryState` never compares one.
+              A seed copied from a sibling linked worktree passes whenever branch, head, dirty paths, and load set
+              coincide. Supply the live root from the handler — which already holds `cwd` and resolves its git
+              values in one place — and stop on mismatch under a new audit stop kind. Settle like-for-like
+              resolution against the emitter's own root derivation rather than assuming the two agree.
+
+        - `[ ]` **7.E.b.v.4 Give cold and between-work-unit recovery its real active-extension set** — S2S1-002
+            - `baseLoadSet` hard-codes every projection input — `activeExtensions: []`, `activeWorkUnit: null`, and
+              five more — and `deriveRecoveryLocusContext` is not passed the extension or active-meta context it
+              would need, so both the `current.kind === "none"` arm and the parentless transient arm derive a load
+              set that omits what the session actually has. The composer already resolves both probes; thread them
+              through. This moves goldens: `recovery-audit-*.json`, both `session-envelope-compat` recovery-audit
+              arms, and the `session-init.e2e` seed-audit arm shift together as one consequence.
+
     - `[ ]` **7.E.b.vi Stop the absent seed hint acting as a generation wildcard** — S1-F2
         - A current-version seed may omit its locus hint after an unavailable probe, and the audit then treats
           expected-null against any freshly resolved live generation as a match, so ready recovery can leave record,
