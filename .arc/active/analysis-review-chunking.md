@@ -1983,3 +1983,200 @@ Primary classification:
   rollback. The reviewer overlooked the earlier evidence-shape guard.
 
 L4 passes reviewability and contributes five distinct findings after source adjudication.
+
+### E2 leaf evidence
+
+The fresh E2 evaluator reproduced 13 files, 2,390 changed lines, and 27 hunks exactly. It reviewed every owned
+hunk without overload or malformed scope:
+
+```yaml
+scope: E2
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 13, insertions: 2366, deletions: 24, changedLines: 2390, zeroContextHunks: 27}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: E2-F1
+    title: Failed provisioning can roll back an identity while leaving its durable locus behind
+    severity: high
+    stableLocus: packages/arc-framework/src/lib/errand/open.ts — lines 271-275 and 344-375
+    evidence: >
+      Every refused or failed provisioning result triggers identity rollback without inspecting the evidence kind.
+      Provisioning can preserve marker/record evidence after a durable write, including a lock-release failure.
+    impact: >
+      Open or resume can leave a role referring to an identity generation that rollback removed or restored.
+    correctionBoundary: >
+      Roll back identity only for identity-only evidence, or prove exact rollback of every owned durable artifact;
+      cover failures after record and lease creation.
+  - id: E2-F2
+    title: Partial settlement mutates the inbox before proving entering-process ownership
+    severity: high
+    stableLocus: packages/arc-framework/src/lib/errand/partial-settle-runtime.ts — lines 77-95 and 104-139
+    evidence: >
+      settleInbox runs before record-lock acquisition and before popOwnedLocusRole verifies the exact live anchor.
+      The initial roster check proves only that a lease ID exists.
+    impact: >
+      A foreign session can close or remove another active partial Errand's capture and then receive a generation
+      refusal, leaving role and capture state inconsistent.
+    correctionBoundary: >
+      Lock and validate record, subject, lease, and exact anchor before settlement, retaining the lock through the
+      owned pop; prove foreign and raced generations do not call settleInbox.
+  - id: E2-F3
+    title: Recovery provisioning can mutate local state while reporting idempotent
+    severity: medium
+    stableLocus: packages/arc-framework/src/lib/errand/open.ts — lines 152-165 and 277-293
+    evidence: >
+      A recovered existing identity fixes claimKind as idempotent. Later provisioning may create a checkout,
+      record, and lease, but the final result derives its outcome only from claimKind.
+    impact: >
+      Callers and audit output receive a false no-mutation result after substantial local state creation.
+    correctionBoundary: >
+      Derive the outcome from the whole operation or expose provisioning's applied/idempotent disposition; assert
+      the successful interrupted-open recovery result.
+withstood:
+  - Core/runtime separation and typed identity, materialization, and link boundaries remain understandable.
+  - Exact branch preparation, CAS creation, legacy refusal, and remote-preservation checks otherwise fail closed.
+  - Link, pause-proof, resume-authorization, materialization, and partial-open ancestry have useful coverage.
+verdict: changes-requested
+```
+
+Primary adjudication upheld all three findings. `open.ts` ignores the evidence discriminator and derives its final
+outcome only from `claimKind`; `partial-settle-runtime.ts` visibly settles before acquiring and validating locked
+role ownership. E2 passes reviewability and contributes three distinct findings.
+
+### E3 leaf evidence
+
+The fresh E3 evaluator reproduced 15 files, 2,339 changed lines, and 20 hunks exactly. It completed the full scope
+without overload or malformed-scope evidence:
+
+```yaml
+scope: E3
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 15, insertions: 2233, deletions: 106, changedLines: 2339, zeroContextHunks: 20}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: E3-F1
+    title: Close can finalize an Errand whose local occupancy was never removed
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/lib/errand/close-locus.ts — lines 69-132;
+      packages/arc-framework/src/lib/errand/close-runtime.ts — lines 87-136;
+      packages/arc-framework/src/lib/errand/leave.ts — lines 89-109
+    evidence: >
+      Leave persists the awaiting-merge tail before local cleanup. If cleanup fails, close later accepts merged host
+      truth without proving occupancy absence, then deletes refs, inbox state, and identity.
+    impact: >
+      Close can delete a branch beneath a retained or live checkout and erase the identity needed for recovery.
+    correctionBoundary: >
+      Prove exact slug/claim occupancy absent before mutation or safely complete leave cleanup under the exact
+      record and lease generation; refuse live, ambiguous, malformed, or unverifiable occupancy.
+  - id: E3-F2
+    title: Leave mutates the checkout before validating the locked role and lease generation
+    severity: high
+    stableLocus: packages/arc-framework/src/lib/errand/leave-runtime.ts — lines 174-243
+    evidence: >
+      After a stale roster read and path-lock acquisition, leave switches the primary checkout or removes the
+      spawned worktree before popOwnedLocusRole performs the first locked exact-generation validation.
+    impact: >
+      A record or lease race can mutate a checkout belonging to the newer generation before returning refusal.
+    correctionBoundary: >
+      Read and validate record ID, path, subject, lease ID, and entering anchor immediately after lock acquisition
+      and before any Git mutation; retain that proof for conditional role removal.
+withstood:
+  - Leave, close, abandon, and retire stay cohesive around the ordinary-v3 terminal lifecycle.
+  - Exact host coordinates, branch OIDs, legacy guards, and remote deletion leases otherwise remain bounded.
+  - Tests cover lifecycle truth, persistence ordering, exact-ref movement, and replay.
+verdict: changes-requested
+```
+
+Primary adjudication upheld both findings. The pinned source confirms the persisted tail precedes cleanup, close has
+no occupancy gate before destructive retirement, and leave mutates the checkout before its locked owned-role proof.
+E3 passes reviewability and contributes two distinct findings.
+
+### E4 leaf evidence
+
+The fresh E4 evaluator reproduced four files, 1,493 changed lines, and 53 hunks exactly. It completed all owned
+source and tests without overload or malformed scope:
+
+```yaml
+scope: E4
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 4, insertions: 1190, deletions: 303, changedLines: 1493, zeroContextHunks: 53}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: E4-F1
+    title: Promotion recovery is not bound to the source Errand generation
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/lib/errand/promote.ts — lines 78-84;
+      packages/arc-framework/src/lib/errand/promote-runtime.ts — lines 299-326 and 360-375
+    evidence: >
+      Identity-absent recovery matches work-unit name, branch, generated meta, and a live lease. exactTarget also
+      accepts a work-unit row by name without source slug or claim provenance.
+    impact: >
+      A retired or live Errand can recover through an unrelated same-name work unit and retire the wrong identity.
+    correctionBoundary: >
+      Persist source slug and claim ID as durable promotion provenance and require that exact generation for
+      work-unit-frame idempotence and identity-absent recovery.
+  - id: E4-F2
+    title: Locked revalidation accepts a replacement lease and returns the stale lease ID
+    severity: medium
+    stableLocus: packages/arc-framework/src/lib/errand/promote-runtime.ts — lines 173, 425, 448, and 476
+    evidence: >
+      Target and parent revalidation require the same process anchor but not the observed lease ID. The receipt is
+      then built from the stale pre-lock row while the current parent lease may be released.
+    impact: >
+      Same-process release and reattach can authorize mutation of a new lease generation and report the old ID.
+    correctionBoundary: >
+      Compare locked lease generations, model any allowed replay state explicitly, and build the receipt from the
+      validated post-mutation record.
+  - id: E4-F3
+    title: Dirty-state recovery accepts arbitrary index and worktree states for the meta path
+    severity: medium
+    stableLocus: packages/arc-framework/src/lib/errand/promote-runtime.ts — lines 329-338
+    evidence: >
+      Recovery accepts every porcelain status whose path equals the meta path, ignoring its XY state once worktree
+      contents match the generated meta.
+    impact: >
+      User-created staged, modified, or divergent meta state can be treated as promotion-owned recovery evidence.
+    correctionBoundary: >
+      Parse status unambiguously and accept only the exact transaction-produced state, normally one untracked
+      generated meta; refuse and test staged or tracked modifications.
+verificationFindings:
+  - id: E4-V1
+    title: Derivation-floor promotion lost integration coverage during the runtime rewrite
+    severity: medium
+    stableLocus: >
+      packages/arc-framework/__tests__/integration/errand-promote.test.ts — floor fixture near line 299;
+      packages/arc-framework/__tests__/unit/errand/promote.test.ts — floor fixtures near lines 54-168
+    evidence: >
+      The removed integration suite exercised derivation routing to plan branch, Planning state, and draft-design.
+      Every replacement integration and unit fixture fixes floor to scale.
+    impact: >
+      Derivation routing can regress while the rewritten promotion suite remains green.
+    correctionBoundary: >
+      Add a real-runtime derivation promotion covering branch rename, planning metadata and workflow, preserved
+      head, locus transition, identity retirement, and replay.
+withstood:
+  - Composition/runtime separation, typed outcomes, lock ordering, and explicit recovery seams are understandable.
+  - Frame replacement precedes identity retirement and several partial branch, meta, and marker retries are covered.
+  - Full protection, exact initial Errand claim matching, process anchors, and Git branch validation otherwise hold.
+verdict: changes-requested
+```
+
+Primary adjudication upheld all three runtime findings and the separate verification finding. Source inspection
+confirmed name-only recovery, same-anchor lease rollover, and XY-insensitive porcelain acceptance. A base-to-head
+test comparison confirmed that the removed derivation-floor integration scenario has no replacement: every new
+owned fixture uses `floor: "scale"`. E4 passes reviewability and contributes three distinct runtime findings plus
+one verification weakness.
