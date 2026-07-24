@@ -163,6 +163,43 @@ function recoveryWorkUnitLocus(): LocusStateV1 {
   };
 }
 
+/**
+ * Two idle work-unit roles — one at the primary checkout, one at a linked
+ * checkout — with no current generation. Which frame recovery derives depends
+ * entirely on physical worktree identity, so a substituted identity selects the
+ * wrong work unit rather than failing visibly.
+ */
+function twoCheckoutIdleLocus(): LocusStateV1 {
+  const state = recoveryWorkUnitLocus();
+  const primaryRow = state.roster.rows[0];
+  if (primaryRow === undefined || primaryRow.recordId === null) {
+    throw new Error("missing work-unit fixture row");
+  }
+  primaryRow.lease = null;
+  primaryRow.frame = "idle";
+  state.roster.rows.push({
+    ...primaryRow,
+    checkoutPath: "/repo/wt-b",
+    primary: false,
+    recordId: `sha256:${"d".repeat(64)}`,
+    role: {
+      kind: "work-unit",
+      subject: { kind: "work-unit", key: "linked-wu", claimId: null },
+      parentCheckoutPath: null,
+      originEntry: null,
+    },
+  });
+  state.current = { kind: "none" };
+  state.recovery = { kind: "none" };
+  state.primaryAvailability = {
+    kind: "occupied",
+    checkoutPath: "/repo",
+    recordId: primaryRow.recordId,
+    leaseState: "absent",
+  };
+  return state;
+}
+
 function userResult(overrides: Partial<UserStatusResult> = {}): UserStatusResult {
   return {
     identity: "andrew",
@@ -1268,6 +1305,39 @@ describe("runRecoverStatus — lean recover envelope", () => {
       ok: true,
       value: expect.objectContaining({ kind: "resolved", workflow: "process-task-loop" }),
     });
+  });
+
+  it("resolves the linked checkout's own work unit, not the primary's", async () => {
+    const state = twoCheckoutIdleLocus();
+    const linkedRecordId = state.roster.rows[1]?.recordId;
+    const probes = sessionRecoverProbes({
+      locusState: vi.fn(async () => state),
+      worktreeIdentity: vi.fn(async () => ({ kind: "linked" as const, path: "/repo/wt-b" })),
+    });
+
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.recoveryFrame).toEqual({
+      ok: true,
+      value: expect.objectContaining({ kind: "resolved", activeRecordId: linkedRecordId }),
+    });
+  });
+
+  it("refuses a recovery frame when physical worktree identity cannot be established", async () => {
+    const probes = sessionRecoverProbes({
+      locusState: vi.fn(async () => twoCheckoutIdleLocus()),
+      worktreeIdentity: vi.fn(async () => {
+        throw new Error("unable to read current working directory");
+      }),
+    });
+
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+
+    // Substituting `primary` here would resolve a plausible-but-wrong frame: the
+    // primary checkout carries its own idle WU role.
+    expect(result.recoveryFrame.ok).toBe(false);
+    expect(result.loadSet.ok).toBe(false);
+    expect(result.worktree.ok).toBe(false);
   });
 
   it("isolates an inconsistent locus projection across derived recovery slots", async () => {

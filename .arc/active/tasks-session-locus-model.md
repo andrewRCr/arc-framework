@@ -1214,13 +1214,18 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           widen-a-predicate); `.3` is an isolated audit comparison; `.4` needs a signature change and is sequenced
           last so its golden regeneration lands once, after the others have settled.
 
-        - `[ ]` **7.E.b.v.1 Stop substituting a synthetic primary for a failed identity probe** — S2-F3
-            - `runRecoverStatus` collapses a failed `worktreeIdentity` slot to `{ kind: "primary" }`, and
-              `checkoutPathForIdentity` then resolves that to `roster.primaryPath`. In a linked worktree whose
-              identity probe fails, recovery therefore derives its frame from the **primary's** role, selects the
-              primary for the legacy-eligibility read, and publishes `identity.kind: "primary"` on the worktree
-              slot — three consumers agreeing on a fact none of them established. Propagate the probe failure
-              instead of substituting; recovery stops rather than guessing which checkout it occupies.
+        - `[x]` **7.E.b.v.1 Stop substituting a synthetic primary for a failed identity probe** — S2-F3
+            - Physical checkout identity now stays a `Result` through recovery authority selection: the worktree
+              slot, frame derivation, and legacy eligibility each fail rather than reading a substituted
+              `primary`, matching the shape handoff derivation already used. Threading the call site alone would
+              have been inert — `resolveWorktreeIdentity` swallowed every failure and returned `primary`
+              _including after git had already proven the checkout linked_, so the probe slot was never an error
+              in production. That arm now raises `WorktreeIdentityError`; the resolver reports only what it
+              establishes and the "surface nothing" default moves to the orientation caller that wants it.
+              The both-dirs-unresolved arm deliberately still returns `primary`: `locusState` fails on the same
+              git outage and gates derivation, so it carries no recovery hazard. The paired tests fix the stakes —
+              with two idle work-unit roles in the roster, substitution selected a plausible _wrong_ work unit
+              rather than failing visibly.
 
         - `[ ]` **7.E.b.v.2 Require a clean reader verdict before the legacy Errand fallback** — S2S1-001
             - `legacyLocusEligible` tests `current.kind === "none"`, an absent checkout work-unit role, and the

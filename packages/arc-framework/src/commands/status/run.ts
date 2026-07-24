@@ -513,31 +513,38 @@ export async function runRecoverStatus(
     releaseRoutingTask,
   ]);
 
-  const worktreeIdentity: WorktreeIdentity = worktreeIdentitySlot.isOk()
-    ? worktreeIdentitySlot.value
-    : { kind: "primary" };
-  const enrichedWorktree = worktree.map((value) => ({
-        ...value,
-        identity: worktreeIdentity,
-      } satisfies SessionRecoverWorktreeValue));
+  // Physical checkout identity stays a Result through authority selection: which
+  // row recovery resolves depends on it, so an unestablished identity fails the
+  // derived slots rather than standing in a synthetic primary.
+  const enrichedWorktree = worktree.andThen((value) =>
+    worktreeIdentitySlot.map((identityValue) => ({
+      ...value,
+      identity: identityValue,
+    } satisfies SessionRecoverWorktreeValue)));
 
   const deriveContext = fromThrowable(
-    (state: Parameters<typeof deriveRecoveryLocusContext>[0]["state"]) => deriveRecoveryLocusContext({
-      state,
-      checkoutPath: checkoutPathForIdentity(state, worktreeIdentity),
+    (input: {
+      state: Parameters<typeof deriveRecoveryLocusContext>[0]["state"];
+      identity: WorktreeIdentity;
+    }) => deriveRecoveryLocusContext({
+      state: input.state,
+      checkoutPath: checkoutPathForIdentity(input.state, input.identity),
       identity,
       workingMemoryPath: workingMemoryPath ?? null,
     }),
     (cause) => new SessionCompositionError("derive-recovery-locus", "recoveryFrame", cause),
   );
-  let recoveryContext = locusState.andThen(deriveContext);
-  const legacyCheckoutSelection = locusState.isOk()
+  let recoveryContext = locusState.andThen((state) => worktreeIdentitySlot.andThen(
+    (identityValue) => deriveContext({ state, identity: identityValue }),
+  ));
+  const legacyCheckoutSelection = locusState.isOk() && worktreeIdentitySlot.isOk()
     ? selectCheckoutWorkUnit(
         locusState.value,
-        checkoutPathForIdentity(locusState.value, worktreeIdentity),
+        checkoutPathForIdentity(locusState.value, worktreeIdentitySlot.value),
       )
     : null;
   const legacyLocusEligible = locusState.isOk()
+    && worktreeIdentitySlot.isOk()
     && locusState.value.current.kind === "none"
     && legacyCheckoutSelection?.kind === "none"
     && !locusState.value.roster.rows.some((row) => row.kind === "managed-role" && row.frame === "residue");
