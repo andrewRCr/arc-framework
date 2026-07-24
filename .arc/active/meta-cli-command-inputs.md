@@ -12,11 +12,12 @@
 - **Task List:** `tasks-cli-command-inputs.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Frontline review pass 1 — findings fixed; Tier 3 green
+- **Last Completed:** Base reconciled with `main`; command-input coverage extended over the newly landed commands
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 3 — commit review fixes, optionally rerun frontline review, then open the PR
+- **Next Action:** integrate-work-unit Step 3 — push the branch and open the PR; review input arrives as
+  `review-chunking`'s validation findings, so no frontline rerun
 
 - **PR URL:** [none]
 - **Completed:** [none]
