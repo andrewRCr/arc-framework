@@ -150,7 +150,7 @@ describe("runReleaseSetupUninstall", () => {
 
     const result = await runReleaseSetupUninstall({
       settings: buildSettings({ value: "true", source: "git-config" }),
-      input: uninstallInput(),
+      input: uninstallInput({ cleanupVerified: true }),
       marker: marker([existingHarness()]),
       cleanupResult: {
         ok: false,
@@ -165,6 +165,25 @@ describe("runReleaseSetupUninstall", () => {
     expect(removeHarness).not.toHaveBeenCalled();
     expect(recordOptOut).not.toHaveBeenCalled();
     expect(stdout.join("")).toContain("user-curated allowlist entry drifted from canonical pattern set");
+  });
+
+  it("aborts a recorded uninstall when cleanup evidence is absent", async () => {
+    const removeHarness = vi.fn();
+    const recordOptOut = vi.fn();
+
+    const result = await runReleaseSetupUninstall({
+      settings: buildSettings({ value: "true", source: "git-config" }),
+      input: uninstallInput(),
+      marker: marker([existingHarness()]),
+      cleanupResult: null,
+      removeHarness,
+      recordOptOut,
+      writeStdout: () => undefined,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(removeHarness).not.toHaveBeenCalled();
+    expect(recordOptOut).not.toHaveBeenCalled();
   });
 
   it("emits a schemaVersion 1 JSON envelope with uninstall result and post-op opt-in state", async () => {

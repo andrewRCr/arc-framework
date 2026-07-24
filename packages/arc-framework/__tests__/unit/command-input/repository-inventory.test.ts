@@ -14,6 +14,7 @@ import {
   commandInputPolicyDeclarations,
   commandInputRegistrations,
 } from "../../../src/command-input-registrations.js";
+import type { CommandInputDeclaration } from "../../../src/lib/command-input/declaration.js";
 
 const sourceRoot = resolve(import.meta.dirname, "../../../src");
 
@@ -142,6 +143,33 @@ describe("repository command-input inventory", () => {
     expect(bypasses).toEqual([]);
   });
 
+  it("routes lifecycle and errand command boundaries through the interaction-context adapter", () => {
+    const adapterCommands = new Map(snapshot.source.commands.map((command) => [
+      command.path,
+      command.action?.interactionContext === true,
+    ]));
+    const expected = [
+      "decompose",
+      "rename",
+      "demote",
+      "park",
+      "resume",
+      "materialize",
+      "activate",
+      "deactivate",
+      "integrate",
+      "reopen",
+      "archive",
+      "teardown",
+      "set-stage",
+      "finalize",
+      "repoint-design",
+      "errand retire",
+    ];
+
+    expect(expected.filter((command) => adapterCommands.get(command) !== true)).toEqual([]);
+  });
+
   it("renders a stable descriptive table without writing a tracked artifact", () => {
     const rendered = renderCommandInputInventory(inventory);
 
@@ -198,5 +226,32 @@ describe("repository command-input inventory", () => {
       .filter((entry) => entry.siteId.startsWith("interaction.") || entry.automationFlags.includes("--no-input"))
       .map((entry) => entry.commandPath))].sort();
     expect(NO_INPUT_MATRIX.map((entry) => entry.commandPath).sort()).toEqual(interactionCommands);
+  });
+
+  it("rejects duplicate explicit policy ownership instead of silently taking the last declaration", () => {
+    const command = snapshot.source.commands.find((candidate) => candidate.path === "status");
+    const option = command?.options[0];
+    expect(option).toBeDefined();
+    const policy: CommandInputDeclaration = {
+      commandPath: "status",
+      aliases: [],
+      sites: [{
+        id: `option.${option?.flags.match(/--([a-z0-9-]+)/u)?.[1] ?? "unknown"}`,
+        source: { file: option?.file ?? "cli.ts", line: option?.line ?? 1 },
+        origin: "syntax",
+        acquisition: "optional",
+        schemaOwnership: "none",
+        cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "status handler",
+        subprocess: "none",
+      }],
+    };
+
+    expect(() => buildRepositoryCommandInputInventoryFromSnapshot(
+      snapshot,
+      commandInputRegistrations,
+      [...commandInputPolicyDeclarations, policy, policy],
+    )).toThrow(/duplicate site identity/ui);
   });
 });

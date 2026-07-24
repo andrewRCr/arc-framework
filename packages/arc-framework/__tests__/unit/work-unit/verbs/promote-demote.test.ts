@@ -208,7 +208,11 @@ describe("runPromote — the Class gate", () => {
     const result = await runPromote(ctx, { name: "foo", class: "Heavy" });
 
     expect(result.status).toBe("moved");
-    expect(calls).toContain("class:.arc/backlog/planned/foo/meta-foo.md:Heavy");
+    expect(calls).toContain("class:.arc/backlog/provisional/foo/meta-foo.md:Heavy");
+    expect(calls.indexOf("class:.arc/backlog/provisional/foo/meta-foo.md:Heavy"))
+      .toBeLessThan(calls.findIndex((call) => call.startsWith("relocate:")));
+    expect(calls.indexOf("class:.arc/backlog/provisional/foo/meta-foo.md:Heavy"))
+      .toBeLessThan(calls.findIndex((call) => call.startsWith("side:")));
   });
 
   it("treats a missing recorded Class as unresolved", async () => {
@@ -219,7 +223,30 @@ describe("runPromote — the Class gate", () => {
     const result = await runPromote(ctx, { name: "foo", class: "Heavy" });
 
     expect(result.status).toBe("moved");
-    expect(calls).toContain("class:.arc/backlog/planned/foo/meta-foo.md:Heavy");
+    expect(calls).toContain("class:.arc/backlog/provisional/foo/meta-foo.md:Heavy");
+  });
+
+  it("rejects before relocation when Class persistence is not wired", async () => {
+    const { ctx, calls } = buildCtx([PROVISIONAL("[TBD]")]);
+    ctx.executor.writeClassField = undefined;
+
+    const result = await runPromote(ctx, { name: "foo", class: "Heavy" });
+
+    expect(result.status).toBe("rejected");
+    expect(calls).toEqual([]);
+  });
+
+  it("reports a Class-write failure before relocation or readiness side-effects", async () => {
+    const { ctx, calls } = buildCtx([PROVISIONAL("[TBD]")]);
+    ctx.executor.writeClassField = async () => {
+      calls.push("class:attempt");
+      throw new Error("Class write failed");
+    };
+
+    const result = await runPromote(ctx, { name: "foo", class: "Heavy" });
+
+    expect(result.status).toBe("rejected");
+    expect(calls).toEqual(["class:attempt"]);
   });
 });
 

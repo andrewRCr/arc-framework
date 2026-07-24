@@ -13,6 +13,7 @@ const mockLogInfo = vi.fn();
 const mockNote = vi.fn();
 const mockSelect = vi.fn();
 const mockIoExec = vi.fn();
+const mockCreateUserIOContext = vi.fn();
 const mockSpinnerStart = vi.fn();
 const mockSpinnerStop = vi.fn();
 vi.mock("@clack/prompts", () => ({
@@ -32,12 +33,15 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 }));
 
 vi.mock("../../../src/lib/io-context.js", () => ({
-  createUserIOContext: () => ({
-    exec: mockIoExec,
-    readFile: vi.fn(async () => "meta"),
-    writeFile: vi.fn(),
-    mkdir: vi.fn(),
-  }),
+  createUserIOContext: (...args: unknown[]) => {
+    mockCreateUserIOContext(...args);
+    return {
+      exec: mockIoExec,
+      readFile: vi.fn(async () => "meta"),
+      writeFile: vi.fn(),
+      mkdir: vi.fn(),
+    };
+  },
   prepareGitRefVerification: vi.fn(),
   readGitBlobBytes: vi.fn(),
 }));
@@ -513,6 +517,26 @@ describe("handleMaterialize", () => {
     });
     expect(mockSpinnerStart).toHaveBeenCalledWith("Materializing in place...");
     expect(mockSpinnerStop).toHaveBeenCalledWith("Materialize complete.");
+  });
+
+  it("propagates forbidden subprocess interaction to the network boundary", async () => {
+    const subprocess = {
+      terminalPrompts: "forbidden" as const,
+      presenters: "forbidden" as const,
+      ambientStdin: "closed" as const,
+    };
+
+    await handleMaterialize("foo", {}, {
+      interaction: "forbidden",
+      terminal: "non-interactive",
+      confirmation: "ask",
+      machineReadable: false,
+      promptInput: process.stdin,
+      promptOutput: process.stdout,
+      subprocess,
+    });
+
+    expect(mockCreateUserIOContext).toHaveBeenCalledWith(subprocess);
   });
 
   it("refuses when the requested slug is not a remote-only materialize candidate", async () => {

@@ -31,23 +31,49 @@ describe("command-input no-input matrix", () => {
         await git(cwd, ["add", "."]);
         await git(cwd, ["commit", "-m", "chore: initialize fixture"]);
       }
+      if (entry.setup !== undefined) {
+        const commitment = entry.setup === "provisional-stub" ? "provisional" : "planned";
+        const stubbed = await runArcNoTty(
+          [
+            "--no-input",
+            "stub",
+            "matrix",
+            "--commitment",
+            commitment,
+            "--priority",
+            "P2",
+          ],
+          cwd,
+          { timeout: 10_000, env: { CI: "false" } },
+        );
+        expect(stubbed.exitCode, JSON.stringify(stubbed)).toBe(0);
+        await git(cwd, ["add", "."]);
+        await git(cwd, ["commit", "-m", "chore: add matrix work unit"]);
+      }
       const before = entry.preservesWorktree === true ? await git(cwd, ["status", "--porcelain=v1"]) : undefined;
       const result = await run(cwd);
       const after = entry.preservesWorktree === true ? await git(cwd, ["status", "--porcelain=v1"]) : undefined;
       return { result, mutationPreserved: before === after };
     };
-    const runs = entry.stdin === undefined
-      ? await Promise.all([
-          invoke((cwd) => runArc(["--no-input", ...entry.args], cwd, { timeout: 10_000, env: { CI: "false" } }))
-            .then((run) => ({ signal: "--no-input", ...run })),
-          invoke((cwd) => runArc(entry.args.slice(), cwd, { timeout: 10_000, env: { CI: "true" } }))
-            .then((run) => ({ signal: "CI", ...run })),
-          invoke((cwd) => runArcNoTty(entry.args.slice(), cwd, { timeout: 10_000, env: { CI: "false" } }))
-            .then((run) => ({ signal: "non-TTY", ...run })),
-        ])
-      : [{ signal: "explicit stdin", ...await invoke((cwd) => runArcWithStdin(
-          ["--no-input", ...entry.args], cwd, entry.stdin ?? "", { timeout: 10_000, env: { CI: "false" } },
-        )) }];
+    const runs = await Promise.all([
+      invoke((cwd) => entry.stdin === undefined
+        ? runArc(["--no-input", ...entry.args], cwd, { timeout: 10_000, env: { CI: "false" } })
+        : runArcWithStdin(
+            ["--no-input", ...entry.args],
+            cwd,
+            entry.stdin,
+            { timeout: 10_000, env: { CI: "false" } },
+          ))
+        .then((run) => ({ signal: "--no-input", ...run })),
+      invoke((cwd) => entry.stdin === undefined
+        ? runArc(entry.args.slice(), cwd, { timeout: 10_000, env: { CI: "true" } })
+        : runArcWithStdin(entry.args.slice(), cwd, entry.stdin, { timeout: 10_000, env: { CI: "true" } }))
+        .then((run) => ({ signal: "CI", ...run })),
+      invoke((cwd) => entry.stdin === undefined
+        ? runArcNoTty(entry.args.slice(), cwd, { timeout: 10_000, env: { CI: "false" } })
+        : runArcWithStdin(entry.args.slice(), cwd, entry.stdin, { timeout: 10_000, env: { CI: "false" } }))
+        .then((run) => ({ signal: "non-TTY", ...run })),
+    ]);
 
     for (const { signal, result, mutationPreserved } of runs) {
       expect(result.timedOut, `${signal}: ${JSON.stringify(result)}`).not.toBe(true);

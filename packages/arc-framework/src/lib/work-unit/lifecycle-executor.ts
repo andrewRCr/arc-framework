@@ -229,9 +229,9 @@ export interface ExecuteTransitionContext {
    * Write the meta `Class` core-table field at `metaPath` (read → rewrite cell →
    * write). The weight-axis sibling of {@link writeBranchField}: the planning
    * ceremonies persist the resolved `Class` (`Light` / `Heavy` / `Novel`) at their
-   * finalize fire-points through this seam. Not a transition leg (no edge declares
-   * it) — the planning-finalize verb invokes it directly — so it reaches the executor
-   * as an optional seam; absent in contexts that never finalize planning.
+   * finalize fire-points through this seam. Promotion also uses it as an
+   * input-declared pre-relocation encoding leg when it acquires an unresolved Class.
+   * It remains optional for contexts whose operations never persist Class.
    */
   writeClassField?: (metaPath: string, value: string) => Promise<void>;
 
@@ -304,7 +304,7 @@ export interface ExecuteTransitionContext {
 // ---------------------------------------------------------------------------
 
 /** The encoding legs, in their canonical fire order. */
-export type EncodingLeg = "setPhase" | "artifacts" | "reconcileWorktree" | "reconcileBranch";
+export type EncodingLeg = "setPhase" | "classField" | "artifacts" | "reconcileWorktree" | "reconcileBranch";
 
 /**
  * The post-side-effect meta writes, in their fire order — the finalize block that
@@ -313,7 +313,7 @@ export type EncodingLeg = "setPhase" | "artifacts" | "reconcileWorktree" | "reco
  * and the declared side-effects have landed; a throw among them is forward-only
  * recoverable (finish the write), distinct from a pre-side-effect leg throw.
  */
-export type FinalizeWrite = "branchField" | "classField" | "currentWorkflowField" | "softFields" | "stageMeta";
+export type FinalizeWrite = "branchField" | "currentWorkflowField" | "softFields" | "stageMeta";
 
 /**
  * Canonical leg order. `setPhase` precedes `artifacts` so the meta is edited at
@@ -322,6 +322,7 @@ export type FinalizeWrite = "branchField" | "classField" | "currentWorkflowField
  * would otherwise refuse the worktree's checked-out branch.
  */
 const LEG_ORDER: readonly EncodingLeg[] = [
+  "classField",
   "setPhase",
   "artifacts",
   "reconcileWorktree",
@@ -497,7 +498,7 @@ export async function executeTransition(
   const legsFired: EncodingLeg[] = [];
   const advisories: string[] = [];
   for (const leg of LEG_ORDER) {
-    if (!legDeclared(record, leg)) continue;
+    if (!legDeclared(record, leg, inputs)) continue;
     try {
       const advisory = await fireLeg(ctx, leg, record, slug, metaPath, inputs);
       if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
@@ -535,13 +536,6 @@ export async function executeTransition(
   try {
     // 7. Project the meta `Branch` field from the edge's branch-affecting leg.
     branchFieldWritten = await applyBranchField(ctx, record, metaPath, inputs);
-
-    // 7.25 Persist a Class acquired for an unresolved provisional stub after relocation.
-    if (inputs.persistClass !== undefined && metaPath !== null) {
-      failedWrite = "classField";
-      if (ctx.writeClassField === undefined) throw new Error("Class persistence is unavailable.");
-      await ctx.writeClassField(effectiveMetaPath(record, metaPath, inputs), inputs.persistClass);
-    }
 
     // 7.5 Clear the meta `Current Workflow` when the edge declares it stale.
     failedWrite = "currentWorkflowField";
@@ -605,11 +599,13 @@ function lookupRejection(verb: Verb, position: LifecyclePosition | null): string
 }
 
 /** Whether the edge declares the given encoding leg. */
-function legDeclared(record: TransitionRecord, leg: EncodingLeg): boolean {
+function legDeclared(record: TransitionRecord, leg: EncodingLeg, inputs: TransitionInputs): boolean {
   const e = record.encodingUpdates;
   switch (leg) {
     case "setPhase":
       return e.setPhase === true;
+    case "classField":
+      return inputs.persistClass !== undefined;
     case "artifacts":
       return e.artifacts !== undefined;
     case "reconcileWorktree":
@@ -630,6 +626,9 @@ function validateInputs(
 ): string | null {
   const e = record.encodingUpdates;
 
+  if (inputs.persistClass !== undefined && ctx.writeClassField === undefined) {
+    return "Class persistence is unavailable.";
+  }
   if (e.artifacts === "relocate" && inputs.toDir === undefined) {
     return "this transition relocates artifacts but no `toDir` was supplied.";
   }
@@ -685,6 +684,13 @@ async function fireLeg(
         throw new Error("set-phase requires a resolved meta path and target phase.");
       }
       await ctx.setPhase({ metaPath, phase: record.to.phase });
+      return undefined;
+    }
+    case "classField": {
+      if (metaPath === null || inputs.persistClass === undefined || ctx.writeClassField === undefined) {
+        throw new Error("Class persistence requires a resolved meta path, value, and writer.");
+      }
+      await ctx.writeClassField(metaPath, inputs.persistClass);
       return undefined;
     }
     case "artifacts": {

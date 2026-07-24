@@ -160,4 +160,38 @@ describe("command-input inventory reconciliation", () => {
 
     expect(result.entries.filter((entry) => entry.siteId.startsWith("prompt.name-"))).toHaveLength(2);
   });
+
+  it("rejects a declaration whose interaction selector no longer resolves", () => {
+    const stale = declaration();
+    stale.sites[3] = {
+      ...stale.sites[3]!,
+      source: {
+        file: "handlers/create.ts",
+        interaction: { kind: "prompt", callee: "p.text", occurrence: 2 },
+      },
+    };
+
+    expect(() => reconcileCommandInputInventory({
+      source: { commands: cli.commands, interactions: interactions.sites },
+      declarations: [stale],
+      sourceFiles: { "cli.ts": "handleCreate", "handlers/create.ts": handlerText },
+    })).toThrow(/interaction selector no longer resolves/u);
+  });
+
+  it("matches declared symbols literally instead of interpreting regex metacharacters", () => {
+    const literal = declaration();
+    literal.sites[3] = {
+      ...literal.sites[3]!,
+      source: { file: "handlers/create.ts", symbol: "create$name.value" },
+    };
+
+    expect(() => reconcileCommandInputInventory({
+      source: { commands: cli.commands, interactions: [] },
+      declarations: [literal],
+      sourceFiles: {
+        "cli.ts": "handleCreate",
+        "handlers/create.ts": "const create$nameXvalue = true;",
+      },
+    })).toThrow(/source locus/u);
+  });
 });

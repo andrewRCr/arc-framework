@@ -80,8 +80,9 @@ function sourceExists(
   const content = sourceFiles[source.file];
   if (content === undefined) return false;
   if (source.line !== undefined && (source.line < 1 || source.line > content.split(/\r?\n/u).length)) return false;
-  if (source.symbol !== undefined && !new RegExp(`\\b${source.symbol.replaceAll("$", "\\$")}\\b`, "u").test(content)) {
-    return false;
+  if (source.symbol !== undefined) {
+    const escaped = source.symbol.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    if (!new RegExp(`(?<![\\w$])${escaped}(?![\\w$])`, "u").test(content)) return false;
   }
   return true;
 }
@@ -158,17 +159,23 @@ export function reconcileCommandInputInventory(input: {
           : interactionsBySelector.get(
             `${site.source.file}|${selector.kind}|${selector.callee}|${String(selector.occurrence)}`,
           );
-        if (interaction !== undefined) {
-          const key = interactionKey(interaction);
-          if (claimedInteractions.has(key)) {
-            throw new CommandInputInventoryError(
-              `Interaction site is multiply classified: ${key}`,
-              "command-input.inventory.duplicate",
-            );
-          }
-          claimedInteractions.add(key);
-          liveSource = interaction;
+        if (interaction === undefined) {
+          throw new CommandInputInventoryError(
+            `Declared interaction selector no longer resolves: ${site.source.file}:${String(
+              site.source.line ?? site.source.interaction?.occurrence ?? "?",
+            )}`,
+            "command-input.inventory.stale-source",
+          );
         }
+        const key = interactionKey(interaction);
+        if (claimedInteractions.has(key)) {
+          throw new CommandInputInventoryError(
+            `Interaction site is multiply classified: ${key}`,
+            "command-input.inventory.duplicate",
+          );
+        }
+        claimedInteractions.add(key);
+        liveSource = interaction;
       }
       entries.push({
         identity: `${declaration.commandPath}:${site.id}`,

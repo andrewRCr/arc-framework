@@ -107,6 +107,7 @@ export function buildRepositoryCommandInputInventoryFromSnapshot(
       sites: [...syntaxSites(command, registrations)],
     });
   }
+  const explicitPolicySites = new Set<string>();
   for (const policy of policyDeclarations) {
     let declaration = byCommand.get(policy.commandPath);
     if (declaration === undefined) {
@@ -120,9 +121,11 @@ export function buildRepositoryCommandInputInventoryFromSnapshot(
       throw new Error(`Policy declaration names an unknown command: ${policy.commandPath}`);
     }
     for (const site of policy.sites) {
+      const policyKey = `${policy.commandPath}:${site.id}`;
       const existing = declaration.sites.findIndex((candidate) => candidate.id === site.id);
-      if (existing === -1) declaration.sites.push(site);
+      if (explicitPolicySites.has(policyKey) || existing === -1) declaration.sites.push(site);
       else declaration.sites.splice(existing, 1, site);
+      explicitPolicySites.add(policyKey);
     }
   }
   return reconcileCommandInputInventory({

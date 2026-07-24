@@ -7,6 +7,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  acquireInteractiveInstallInputs,
   runReleaseSetupInstall,
   type ReleaseSetupInstallInput,
 } from "../../../../../src/handlers/release/setup/install.js";
@@ -228,6 +229,29 @@ describe("runReleaseSetupInstall", () => {
     expect(stdout.join("")).toContain("result: aborted");
   });
 
+  it("aborts without state changes when workflow verification is absent independently of trust", async () => {
+    const upsertHarness = vi.fn();
+    const recordOptIn = vi.fn();
+
+    const result = await runReleaseSetupInstall({
+      settings: buildSettings({ value: "false", source: "default" }),
+      marker: marker([]),
+      input: installInput({
+        harness: "claude-code",
+        mode: "default-prompt",
+        trustAccepted: true,
+        workflowVerified: false,
+      }),
+      upsertHarness,
+      recordOptIn,
+      writeStdout: () => undefined,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(upsertHarness).not.toHaveBeenCalled();
+    expect(recordOptIn).not.toHaveBeenCalled();
+  });
+
   it("records marker and opt-in after accepted default-prompt workflow verification", async () => {
     const stdout: string[] = [];
     const upsertHarness = vi.fn<(entry: HarnessEntry) => Promise<MarkerWriteResult>>()
@@ -368,5 +392,53 @@ describe("runReleaseSetupInstall", () => {
 
     expect(result.exitCode).toBe(1);
     expect(stderr.join("")).toContain("release setup marker does not match schema v1");
+  });
+});
+
+describe("interactive release setup acquisition", () => {
+  const resolved = <T>(value: T) => Promise.resolve({
+    kind: "resolved" as const,
+    value,
+    source: "prompt" as const,
+  });
+
+  it("stops immediately when harness acquisition is cancelled", async () => {
+    const mode = vi.fn(() => resolved<HarnessMode>("bypass"));
+    const trust = vi.fn(() => resolved(true));
+    const workflow = vi.fn(() => resolved(true));
+
+    const result = await acquireInteractiveInstallInputs({
+      trustAccepted: false,
+      workflowVerified: false,
+    }, {
+      harness: async () => ({ kind: "cancelled" }),
+      mode,
+      trust,
+      workflow,
+    });
+
+    expect(result).toEqual({ kind: "cancelled" });
+    expect(mode).not.toHaveBeenCalled();
+    expect(trust).not.toHaveBeenCalled();
+    expect(workflow).not.toHaveBeenCalled();
+  });
+
+  it("does not request workflow evidence after trust is declined", async () => {
+    const workflow = vi.fn(() => resolved(true));
+
+    const result = await acquireInteractiveInstallInputs({
+      harness: "codex",
+      mode: "bypass",
+      trustAccepted: false,
+      workflowVerified: false,
+    }, {
+      harness: () => resolved("unused"),
+      mode: () => resolved<HarnessMode>("bypass"),
+      trust: () => resolved(false),
+      workflow,
+    });
+
+    expect(result).toEqual({ kind: "cancelled" });
+    expect(workflow).not.toHaveBeenCalled();
   });
 });

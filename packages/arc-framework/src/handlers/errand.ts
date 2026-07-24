@@ -651,7 +651,7 @@ export async function handleErrandClose(
  * this removes the now-redundant record and pushes the removal, leaving the
  * renamed branch untouched. There is no reap and so no containment gate.
  */
-export async function handleErrandRetire(slug: string): Promise<void> {
+export async function handleErrandRetire(slug: string, context?: InteractionContext): Promise<void> {
   p.intro("arc errand retire");
 
   const cwd = requireArcProjectRoot();
@@ -674,7 +674,7 @@ export async function handleErrandRetire(slug: string): Promise<void> {
     return;
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   if (!io.execInput) {
     p.log.error("The stdin git seam is unavailable — cannot remove the errand record.");
     process.exitCode = 1;

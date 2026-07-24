@@ -19,7 +19,7 @@
  * @module
  */
 
-import { basename, join, resolve } from "node:path";
+import { basename, join, posix, resolve, win32 } from "node:path";
 import { lstat, mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
@@ -342,7 +342,10 @@ export const TeardownCommandInputSchema = z.object({
     /^[a-z][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/u,
     "Branch must use a type/slug-safe-name shape.",
   ).optional(),
-  husk: z.string().startsWith("/").optional(),
+  husk: z.string().refine(
+    (value) => posix.isAbsolute(value) || win32.isAbsolute(value),
+    "Husk path must be absolute.",
+  ).optional(),
   force: z.boolean().optional(),
 }).strict().superRefine((value, refinement) => {
   if (value.branch !== undefined && (value.name !== undefined || value.husk !== undefined || value.force === true)) {
@@ -641,11 +644,15 @@ export interface DecomposeOptions {
  * cut-map's judgment (members, distribution, dispositions) is authored upstream;
  * the command never fabricates it.
  */
-export async function handleDecompose(origin: string | undefined, opts: DecomposeOptions): Promise<void> {
+export async function handleDecompose(
+  origin: string | undefined,
+  opts: DecomposeOptions,
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc decompose");
   const input = parseLifecycleCommand(DecomposeCommandInputSchema, { origin: origin?.trim(), ...opts });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const originArg = input.origin;
@@ -750,14 +757,18 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
 }
 
 /** `arc rename <slug> <new-slug>` — atomically rename a work unit and its applicable identities. */
-export async function handleRename(sourceSlug: string, targetSlug: string): Promise<void> {
+export async function handleRename(
+  sourceSlug: string,
+  targetSlug: string,
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc rename");
   const input = parseLifecycleCommand(RenameCommandInputSchema, {
     slug: sourceSlug.trim(), newSlug: targetSlug.trim(),
   });
   if (input === null) return;
   const { slug: renameSource, newSlug: renameTarget } = input;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
   const { settings } = await readConfigSettings(base.cwd);
   const result = await runRenameCommand({
@@ -820,9 +831,10 @@ async function handleBacklogMove(
   slug: string | undefined,
   run: (ctx: BacklogMoveContext, params: { name: string }) => Promise<BacklogMoveResult>,
   label: string,
+  context?: InteractionContext,
 ): Promise<void> {
   p.intro(`arc ${verb}`);
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const target = await resolveVerbTargetOrReport(verb, slug, base.cwd);
@@ -896,11 +908,11 @@ export async function handlePromote(
 }
 
 /** `arc demote <slug>` — lower a planned stub back to provisional. */
-export function handleDemote(slug: string | undefined): Promise<void> {
+export function handleDemote(slug: string | undefined, context?: InteractionContext): Promise<void> {
   const input = parseLifecycleCommand(DemoteCommandInputSchema, { slug: slug?.trim() || undefined });
   return input === null
     ? Promise.resolve()
-    : handleBacklogMove("demote", input.slug, runDemote, "Demoted");
+    : handleBacklogMove("demote", input.slug, runDemote, "Demoted", context);
 }
 
 // ---------------------------------------------------------------------------
@@ -919,11 +931,15 @@ export interface ActivateOptions {
  * type and orientation inputs (`--type` / `--task` / `--action`); the working branch
  * is composed `<type>/<slug>`. Discharges satisfied `Depends On` edges via the table.
  */
-export async function handleActivate(slug: string | undefined, opts: ActivateOptions): Promise<void> {
+export async function handleActivate(
+  slug: string | undefined,
+  opts: ActivateOptions,
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc activate");
   const input = parseLifecycleCommand(ActivateCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const target = await resolveVerbTargetOrReport("activate", input.slug, base.cwd);
@@ -946,11 +962,11 @@ export async function handleActivate(slug: string | undefined, opts: ActivateOpt
 }
 
 /** `arc deactivate [slug]` — undo a premature activation (Active → Planning). */
-export async function handleDeactivate(slug: string | undefined): Promise<void> {
+export async function handleDeactivate(slug: string | undefined, context?: InteractionContext): Promise<void> {
   p.intro("arc deactivate");
   const input = parseLifecycleCommand(DeactivateCommandInputSchema, { slug: slug?.trim() || undefined });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const target = await resolveVerbTargetOrReport("deactivate", input.slug, base.cwd);
@@ -1061,11 +1077,15 @@ function parkRunContextRefusal(wc: WriteContext): string {
 }
 
 /** `arc park [slug]` — shelve a started WU off the active set. Refuses without `--reason`. */
-export async function handlePark(slug: string | undefined, opts: ParkOptions): Promise<void> {
+export async function handlePark(
+  slug: string | undefined,
+  opts: ParkOptions,
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc park");
   const input = parseLifecycleCommand(ParkCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const target = await resolveVerbTargetOrReport("park", input.slug, base.cwd);
@@ -1180,11 +1200,15 @@ export interface MaterializeOptions {
  * `arc resume <slug>` — re-attach a parked WU's preserved branch. Spawns a fresh
  * worktree by default; `--here` re-attaches in the current checkout (no spawn).
  */
-export async function handleResume(slug: string | undefined, opts: ResumeOptions = {}): Promise<void> {
+export async function handleResume(
+  slug: string | undefined,
+  opts: ResumeOptions = {},
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc resume");
   const input = parseLifecycleCommand(ResumeCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const target = await resolveVerbTargetOrReport("resume", input.slug, base.cwd);
@@ -1307,11 +1331,12 @@ async function fetchMaterializeBranch(exec: GitExec, branch: string): Promise<vo
 export async function handleMaterialize(
   slug: string | undefined,
   opts: MaterializeOptions = {},
+  context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc materialize");
   const input = parseLifecycleCommand(MaterializeCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const { executor, settings } = await buildExecutor(base);
@@ -1414,11 +1439,15 @@ export interface IntegrateOptions {
  * are never fabricated. A non-`Active` source falls to the table's illegal-edge
  * rejection.
  */
-export async function handleIntegrate(slug: string | undefined, opts: IntegrateOptions): Promise<void> {
+export async function handleIntegrate(
+  slug: string | undefined,
+  opts: IntegrateOptions,
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc integrate");
   const input = parseLifecycleCommand(IntegrateCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const target = await resolveVerbTargetOrReport("integrate", input.slug, base.cwd);
@@ -1476,11 +1505,15 @@ async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | 
  * a positively-merged PR is likewise refused — post-merge rework is a new
  * origin-linked WU. `--keep-pr` converts the PR to a draft instead of closing it.
  */
-export async function handleReopen(slug: string | undefined, opts: ReopenOptions): Promise<void> {
+export async function handleReopen(
+  slug: string | undefined,
+  opts: ReopenOptions,
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc reopen");
   const input = parseLifecycleCommand(ReopenCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const target = await resolveVerbTargetOrReport("reopen", input.slug, base.cwd);
@@ -1608,11 +1641,15 @@ export interface ArchiveOptions {
  * command's. Judgment — merge approval, archival timing — is the integration
  * ceremony's; this runs the deterministic sweep once that call is made.
  */
-export async function handleArchive(slug: string | undefined, opts: ArchiveOptions = {}): Promise<void> {
+export async function handleArchive(
+  slug: string | undefined,
+  opts: ArchiveOptions = {},
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc archive");
   const input = parseLifecycleCommand(ArchiveCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const target = await resolveVerbTargetOrReport("archive", input.slug, base.cwd);
@@ -1706,11 +1743,15 @@ function reportTeardownResult(
  * The WU path requires an explicit name — a retired WU has no `active/` meta to
  * default from.
  */
-export async function handleTeardown(name: string | undefined, opts: TeardownOptions = {}): Promise<void> {
+export async function handleTeardown(
+  name: string | undefined,
+  opts: TeardownOptions = {},
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc teardown");
   const input = parseLifecycleCommand(TeardownCommandInputSchema, { name: name?.trim() || undefined, ...opts });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const wuName = input.name;
@@ -1834,11 +1875,12 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
 export async function handleSetStage(
   stage: string | undefined,
   opts?: { advance?: boolean },
+  context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc set-stage");
   const input = parseLifecycleCommand(SetStageCommandInputSchema, { stage: stage?.trim(), advance: opts?.advance });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const stageArg = input.stage;
@@ -1883,6 +1925,7 @@ export async function handleSetStage(
 export async function handleFinalizeStage(
   firePoint: string | undefined,
   opts?: { class?: string },
+  context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc finalize");
   const input = parseLifecycleCommand(FinalizeCommandInputSchema, {
@@ -1890,7 +1933,7 @@ export async function handleFinalizeStage(
     class: opts?.class,
   });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const firePointArg = input.firePoint;
@@ -1942,11 +1985,14 @@ export async function handleFinalizeStage(
  * `runRepointDesign`) on an unrecognized event. Verb spelling is provisional,
  * pending idiomatic-alignment.
  */
-export async function handleRepointDesign(event: string | undefined): Promise<void> {
+export async function handleRepointDesign(
+  event: string | undefined,
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc repoint-design");
   const input = parseLifecycleCommand(RepointDesignCommandInputSchema, { event: event?.trim() });
   if (input === null) return;
-  const base = await resolveVerbBase();
+  const base = await resolveVerbBase(context);
   if (base === null) return;
 
   const eventArg = input.event;

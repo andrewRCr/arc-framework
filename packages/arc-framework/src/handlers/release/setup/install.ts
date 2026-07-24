@@ -33,6 +33,7 @@ import {
 } from "../../../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
 import { declareInteractionSite, type CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
+import type { InputResolution } from "../../../lib/command-input/resolution.js";
 
 import { runReleaseOptIn, type RunReleaseOptResult } from "../record.js";
 
@@ -54,6 +55,20 @@ export const ReleaseSetupInstallInputSchema = z.object({
 
 /** Fully validated release setup installation input. */
 export type ReleaseSetupInstallInput = z.infer<typeof ReleaseSetupInstallInputSchema>;
+
+export interface InteractiveInstallInputs {
+  readonly harness: string;
+  readonly mode: HarnessMode;
+  readonly trustAccepted: true;
+  readonly workflowVerified: true;
+}
+
+export interface InteractiveInstallPrompts {
+  readonly harness: () => Promise<InputResolution<string>>;
+  readonly mode: () => Promise<InputResolution<HarnessMode>>;
+  readonly trust: (opts: TrustAcknowledgmentOptions) => Promise<InputResolution<boolean>>;
+  readonly workflow: (opts: WorkflowVerificationOptions) => Promise<InputResolution<boolean>>;
+}
 
 /** Registry contribution owned by release setup install. */
 export const releaseSetupInstallInputRegistration = {
@@ -343,10 +358,6 @@ export async function handleReleaseSetupInstall(
 
   let harness = parsedSyntax.data.harness;
   let mode = parsedSyntax.data.mode;
-  if (installsHarness && context.interaction === "allowed") {
-    harness ??= await promptForHarness();
-    mode ??= await promptForMode();
-  }
   if (installsHarness && context.interaction === "forbidden") {
     const missing = [
       ...(harness === undefined ? ["--harness <name>"] : []),
@@ -363,21 +374,15 @@ export async function handleReleaseSetupInstall(
 
   let trustAccepted = context.confirmation === "accept";
   let workflowVerified = parsedSyntax.data.workflowVerified;
-  if (installsHarness && context.interaction === "allowed" && harness !== undefined && mode !== undefined) {
-    if (!trustAccepted) {
-      trustAccepted = await promptForTrustAcknowledgment({
-        harness,
-        mode,
-        message: buildTrustAcknowledgmentMessage(mode),
-      }) === true;
-    }
-    if (!workflowVerified) {
-      workflowVerified = await promptForWorkflowVerification({
-        harness,
-        mode,
-        requiresPromptObservation: mode === "default-prompt",
-      }) === true;
-    }
+  if (installsHarness && context.interaction === "allowed") {
+    const acquired = await acquireInteractiveInstallInputs({
+      harness,
+      mode,
+      trustAccepted,
+      workflowVerified,
+    });
+    if (acquired.kind !== "resolved") return;
+    ({ harness, mode, trustAccepted, workflowVerified } = acquired.value);
   }
   const input = ReleaseSetupInstallInputSchema.parse({
     ...(harness === undefined ? {} : { harness }),
@@ -399,12 +404,70 @@ export async function handleReleaseSetupInstall(
   }
 }
 
-async function promptForHarness(): Promise<string | undefined> {
-  const value = await p.text({ message: "Harness name?" });
-  return p.isCancel(value) || value.trim() === "" ? undefined : value.trim();
+/**
+ * Acquire the interactive install sequence without continuing past cancellation
+ * or a declined protected-evidence gate.
+ *
+ * @param input - Already supplied values and evidence.
+ * @param prompts - Injectable prompt boundary.
+ * @returns A complete authoritative input set or cancellation.
+ */
+export async function acquireInteractiveInstallInputs(
+  input: {
+    readonly harness?: string;
+    readonly mode?: HarnessMode;
+    readonly trustAccepted: boolean;
+    readonly workflowVerified: boolean;
+  },
+  prompts: InteractiveInstallPrompts = {
+    harness: promptForHarness,
+    mode: promptForMode,
+    trust: promptForTrustAcknowledgment,
+    workflow: promptForWorkflowVerification,
+  },
+): Promise<InputResolution<InteractiveInstallInputs>> {
+  let { harness, mode } = input;
+  if (harness === undefined) {
+    const acquired = await prompts.harness();
+    if (acquired.kind !== "resolved") return { kind: "cancelled" };
+    harness = acquired.value;
+  }
+  if (mode === undefined) {
+    const acquired = await prompts.mode();
+    if (acquired.kind !== "resolved") return { kind: "cancelled" };
+    mode = acquired.value;
+  }
+  if (!input.trustAccepted) {
+    const acquired = await prompts.trust({
+      harness,
+      mode,
+      message: buildTrustAcknowledgmentMessage(mode),
+    });
+    if (acquired.kind !== "resolved" || !acquired.value) return { kind: "cancelled" };
+  }
+  if (!input.workflowVerified) {
+    const acquired = await prompts.workflow({
+      harness,
+      mode,
+      requiresPromptObservation: mode === "default-prompt",
+    });
+    if (acquired.kind !== "resolved" || !acquired.value) return { kind: "cancelled" };
+  }
+  return {
+    kind: "resolved",
+    value: { harness, mode, trustAccepted: true, workflowVerified: true },
+    source: "derived",
+  };
 }
 
-async function promptForMode(): Promise<HarnessMode | undefined> {
+async function promptForHarness(): Promise<InputResolution<string>> {
+  const value = await p.text({ message: "Harness name?" });
+  return p.isCancel(value) || value.trim() === ""
+    ? { kind: "cancelled" }
+    : { kind: "resolved", value: value.trim(), source: "prompt" };
+}
+
+async function promptForMode(): Promise<InputResolution<HarnessMode>> {
   const value = await p.select<HarnessMode>({
     message: "Harness mode?",
     options: [
@@ -412,7 +475,9 @@ async function promptForMode(): Promise<HarnessMode | undefined> {
       { value: "bypass", label: "Bypass" },
     ],
   });
-  return p.isCancel(value) ? undefined : value;
+  return p.isCancel(value)
+    ? { kind: "cancelled" }
+    : { kind: "resolved", value, source: "prompt" };
 }
 
 function renderCurrentState(opts: {
@@ -640,18 +705,18 @@ async function promptForIdempotency(): Promise<SetupInstallIdempotencyChoice | n
 
 async function promptForTrustAcknowledgment(
   opts: TrustAcknowledgmentOptions,
-): Promise<boolean | null> {
+): Promise<InputResolution<boolean>> {
   const accepted = await p.confirm({
     message: `${opts.message}\n\nHarness: ${opts.harness}`,
     initialValue: false,
   });
-  if (p.isCancel(accepted)) return null;
-  return accepted;
+  if (p.isCancel(accepted)) return { kind: "cancelled" };
+  return { kind: "resolved", value: accepted, source: "prompt" };
 }
 
 async function promptForWorkflowVerification(
   opts: WorkflowVerificationOptions,
-): Promise<boolean | null> {
+): Promise<InputResolution<boolean>> {
   const prompt = opts.requiresPromptObservation
     ? `Confirm harness write and direct prompt observation passed for ${opts.harness}.`
     : `Confirm bypass-mode setup workflow completed for ${opts.harness}.`;
@@ -659,8 +724,8 @@ async function promptForWorkflowVerification(
     message: prompt,
     initialValue: false,
   });
-  if (p.isCancel(verified)) return null;
-  return verified;
+  if (p.isCancel(verified)) return { kind: "cancelled" };
+  return { kind: "resolved", value: verified, source: "prompt" };
 }
 
 function formatMarkerReadError(error: MarkerStorageError): string {

@@ -266,12 +266,18 @@ program
   .description("Split a work unit into a cohort of members per a structured cut-map file")
   .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
   .option("--finalize <receipt-id>", "Verify the staged allocation and replace its preparation with a finalized receipt")
-  .action((origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts));
+  .action(withInteractionContext(
+    {},
+    (context, origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts, context),
+  ));
 
 program
   .command("rename <slug> <new-slug>")
   .description("Rename a work unit and its branch, workspace, remote, marker, and worktree identities")
-  .action((slug: string, newSlug: string) => handleRename(slug, newSlug));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string, newSlug: string) => handleRename(slug, newSlug, context),
+  ));
 
 program
   .command("promote [slug]")
@@ -285,14 +291,20 @@ program
 program
   .command("demote [slug]")
   .description("Lower a planned stub back to provisional")
-  .action((slug: string | undefined) => handleDemote(slug));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined) => handleDemote(slug, context),
+  ));
 
 program
   .command("park [slug]")
   .description("Shelve a started work unit off the active set (defaults to the current WU)")
   .option("--reason <text>", "Why the work unit is being parked (required)")
   .option("--land <commit>", "Stage an exact planning transition on a partial-protection base")
-  .action((slug: string | undefined, opts: ParkOptions) => handlePark(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: ParkOptions) => handlePark(slug, opts, context),
+  ));
 
 program
   .command("resume [slug]")
@@ -301,7 +313,10 @@ program
     + "`--here` re-attaches in the current worktree.",
   )
   .option("--here", "Re-attach in the current worktree instead of spawning a new one")
-  .action((slug: string | undefined, opts: ResumeOptions) => handleResume(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: ResumeOptions) => handleResume(slug, opts, context),
+  ));
 
 program
   .command("materialize [slug]")
@@ -310,7 +325,10 @@ program
     + "`--here` checks it out in the current worktree.",
   )
   .option("--here", "Check out in the current worktree instead of spawning a new one")
-  .action((slug: string | undefined, opts: MaterializeOptions) => handleMaterialize(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: MaterializeOptions) => handleMaterialize(slug, opts, context),
+  ));
 
 program
   .command("activate [slug]")
@@ -318,25 +336,37 @@ program
   .option("--type <type>", "Working-branch type, e.g. `feat` — composes `<type>/<slug>` (required)")
   .option("--task <task>", "First task to orient on → meta `Next Task` (required)")
   .option("--action <action>", "Next action pointer → meta `Next Action` (required)")
-  .action((slug: string | undefined, opts: ActivateOptions) => handleActivate(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: ActivateOptions) => handleActivate(slug, opts, context),
+  ));
 
 program
   .command("deactivate [slug]")
   .description("Undo a premature activation: Active → Planning (defaults to the current WU)")
-  .action((slug: string | undefined) => handleDeactivate(slug));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined) => handleDeactivate(slug, context),
+  ));
 
 program
   .command("integrate [slug]")
   .description("Open review on an Active work unit: Active → Integrating (defaults to the current WU); marks phase entry, not the merge")
   .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
   .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
-  .action((slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts, context),
+  ));
 
 program
   .command("reopen [slug]")
   .description("Withdraw an Integrating work unit back to Active (defaults to the current WU); closes its open PR")
   .option("--keep-pr", "Convert the PR to a draft instead of closing it")
-  .action((slug: string | undefined, opts: ReopenOptions) => handleReopen(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: ReopenOptions) => handleReopen(slug, opts, context),
+  ));
 
 program
   .command("abandon [slug]")
@@ -352,7 +382,10 @@ program
   .description("Sweep a shipped work unit to completed/ (defaults to the current WU); computes the dated path")
   .option("--pr-url <url>", "Integration PR URL → meta `PR URL` (absent writes a placeholder + warns)")
   .option("--completed <date>", "Completion date YYYY-MM-DD → meta `Completed` (defaults to today)")
-  .action((slug: string | undefined, opts: ArchiveOptions) => handleArchive(slug, opts));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string | undefined, opts: ArchiveOptions) => handleArchive(slug, opts, context),
+  ));
 
 program
   .command("teardown [name]")
@@ -363,7 +396,10 @@ program
     "--force",
     "Tear down a retired/parked origin (unmerged branch) using its finalized retirement receipt",
   )
-  .action((name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts));
+  .action(withInteractionContext(
+    {},
+    (context, name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts, context),
+  ));
 
 program
   .command("set-stage <stage>")
@@ -375,7 +411,10 @@ program
     "--advance",
     "Advance to <stage> at a stage boundary: also reset `Next Action` to the `[begin current workflow]` sentinel",
   )
-  .action((stage: string, opts: { advance?: boolean }) => handleSetStage(stage, opts));
+  .action(withInteractionContext(
+    {},
+    (context, stage: string, opts: { advance?: boolean }) => handleSetStage(stage, opts, context),
+  ));
 
 program
   .command("finalize <fire-point>")
@@ -384,7 +423,10 @@ program
     + "at its fire-point: create-spec | generate-tasks | verify",
   )
   .option("--class <value>", "Resolved Class to persist (Light | Heavy | Novel) — required at create-spec / generate-tasks")
-  .action((firePoint: string, opts: { class?: string }) => handleFinalizeStage(firePoint, opts));
+  .action(withInteractionContext(
+    {},
+    (context, firePoint: string, opts: { class?: string }) => handleFinalizeStage(firePoint, opts, context),
+  ));
 
 program
   .command("repoint-design <event>")
@@ -392,7 +434,10 @@ program
     "Advance the current work unit's design pointer (meta `Design`) at a planning event: "
     + "draft-created | spec-finalized",
   )
-  .action((event: string) => handleRepointDesign(event));
+  .action(withInteractionContext(
+    {},
+    (context, event: string) => handleRepointDesign(event, context),
+  ));
 
 const errand = program
   .command("errand")
@@ -446,7 +491,10 @@ errand
 errand
   .command("retire <slug>")
   .description("Retire a promoted errand's record (the renamed branch survives as the work-unit branch)")
-  .action((slug: string) => handleErrandRetire(slug));
+  .action(withInteractionContext(
+    {},
+    (context, slug: string) => handleErrandRetire(slug, context),
+  ));
 
 errand
   .command("promote <slug>")
