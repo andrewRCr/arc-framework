@@ -2507,3 +2507,74 @@ Primary adjudication upheld R1-F1 through F4. R1-F5 is upheld only at the stale 
 `review-chunking` is the canonical integration-order obligation, while requiring a `Depends On` declaration or an
 exact-head local metadata record is rejected because the relationship was intentionally not modeled as a WU
 dependency. R1 passes reviewability and contributes five document-coherence findings after narrowing F5.
+
+### X1 leaf evidence
+
+The fresh X1 evaluator reproduced its exact ten-file manifest, 1,636 changed lines, and 39 hunks. It completed the
+CLI-facing slice without overload, partiality, or malformed scope:
+
+```yaml
+scope: X1
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 10, insertions: 1623, deletions: 13, changedLines: 1636, zeroContextHunks: 39}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: X1-F1
+    title: Human roster output hides row diagnostics
+    severity: medium
+    stableLocus: packages/arc-framework/src/commands/locus.ts — lines 15-40
+    evidence: >
+      Each public row carries its own diagnostics array, but formatLocusEnvelope renders only the envelope-level
+      diagnostics and formatRow ignores row.diagnostics.
+    impact: >
+      Human operators cannot see row-specific dead or unknown leases, malformed records, cross-identity evidence,
+      missing markers, or unresolved subjects that JSON consumers receive.
+    correctionBoundary: >
+      Render each row's diagnostics within its block and cover at least one row diagnostic in human-output tests.
+  - id: X1-F2
+    title: JSON mutation commands can escape without a typed result
+    severity: medium
+    stableLocus: >
+      packages/arc-framework/src/handlers/locus.ts — lines 51-80, 122-149, and 202-212;
+      packages/arc-framework/src/cli.ts — lines 1069-1072
+    evidence: >
+      Resolve performs identity, configuration, extension, slug, and user-surface preparation before its catch;
+      attach and release also prepare configuration and dependencies before their catch. Null boundary returns and
+      setup exceptions therefore bypass emitMutation, while the CLI catch emits ordinary stderr.
+    impact: >
+      The public --json option cannot reliably deliver the promised single typed mutation result for setup and
+      boundary failures, so automation must parse an undocumented second failure channel.
+    correctionBoundary: >
+      Convert the complete post-dispatch preparation boundary and unavailable prerequisites into typed mutation
+      errors when JSON is requested; assert one stdout JSON line and exit 1 for configuration, identity, user-
+      surface, and IO failures.
+  - id: X1-F3
+    title: Human locus mutation output omits its terminating newline
+    severity: low
+    stableLocus: >
+      packages/arc-framework/src/handlers/locus.ts — lines 168-171;
+      packages/arc-framework/src/handlers/errand.ts — lines 524-546
+    evidence: >
+      The reused formatter omits a newline in every human branch. Errand output passes through an interactive
+      logger, but locus writes the raw text directly to stdout or stderr.
+    impact: >
+      Attach, release, and resolve leave the next shell prompt on the same line, and no owned human mutation-output
+      test detects the regression.
+    correctionBoundary: >
+      Append exactly one newline at the raw locus stream boundary and cover a human success and refusal.
+withstood:
+  - Exact record and lease operands remain distinct and reach generation-aware runtimes.
+  - Resolve action validation rejects unsupported actions with a schema-validated result.
+  - Successful read envelopes are producer-validated and JSON read output has the declared exit behavior.
+  - Owned tests cover substantial adoption, lease, replay, routing, and cleanup behavior.
+verdict: changes-requested
+```
+
+Primary adjudication upheld all three findings. The row schema and formatter directly establish X1-F1; the setup
+ordering and top-level catch establish X1-F2 against the CLI's typed-result promise; and the formatter/raw-write
+composition establishes X1-F3. X1 passes reviewability and contributes two material runtime findings plus one
+low-severity output-compatibility defect.
