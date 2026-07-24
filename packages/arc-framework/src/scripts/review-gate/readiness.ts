@@ -159,6 +159,11 @@ function fact(code: string, path: string, message: string): ReviewReadinessFact 
   return { code, path, message };
 }
 
+function errorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null || !("code" in error)) return null;
+  return typeof error.code === "string" ? error.code : null;
+}
+
 function invalid(
   request: ReviewReadinessRequest,
   facts: readonly ReviewReadinessFact[],
@@ -290,8 +295,10 @@ async function readDirectory(
       };
     }
     return { entries: await fs.readdir(candidate) };
-  } catch {
-    return { fact: fact("missing-artifact", relativePath, "The required directory is missing or unreadable.") };
+  } catch (error) {
+    return errorCode(error) === "ENOENT"
+      ? { fact: fact("missing-artifact", relativePath, "The required directory is missing.") }
+      : { fact: fact("unreadable-artifact", relativePath, "The required directory is unreadable.") };
   }
 }
 
@@ -364,11 +371,26 @@ function completionFacts(content: string, path: string): ReviewReadinessFact[] {
     sections.length !== 1
     || body.length === 0
     || /^\[(?:none|tbd)\]$/iu.test(body)
-    || /^(?:<!--[\s\S]*-->\s*)+$/u.test(body)
+    || containsOnlyHtmlComments(body)
   ) {
     return [fact("malformed-completion-notes", path, "Completion Notes must be unique and non-empty.")];
   }
   return [];
+}
+
+function containsOnlyHtmlComments(value: string): boolean {
+  let cursor = 0;
+  let comments = 0;
+  while (cursor < value.length) {
+    while (cursor < value.length && /\s/u.test(value[cursor] ?? "")) cursor += 1;
+    if (cursor === value.length) return comments > 0;
+    if (!value.startsWith("<!--", cursor)) return false;
+    const end = value.indexOf("-->", cursor + 4);
+    if (end === -1) return false;
+    comments += 1;
+    cursor = end + 3;
+  }
+  return comments > 0;
 }
 
 const RELEASE_NOTE_CATEGORIES = [
@@ -505,7 +527,10 @@ async function findArchiveCandidates(
     if (!/^\d{4}-q[1-4]$/u.test(quarterEntry.name)) continue;
     const quarterPath = `.arc/completed/${quarterEntry.name}`;
     const quarter = await readDirectory(root, quarterPath, fs);
-    if (quarter.entries === undefined) continue;
+    if (quarter.entries === undefined) {
+      facts.push(quarter.fact ?? fact("unreadable-artifact", quarterPath, "The archive quarter is unreadable."));
+      continue;
+    }
     for (const archiveEntry of quarter.entries) {
       const match = new RegExp(`^([0-9]+)_${escapeRegExp(slug)}$`, "u").exec(archiveEntry.name);
       if (match === null) continue;
@@ -600,10 +625,22 @@ async function collectMetaPaths(
   relativePath: string,
   fs: ReviewReadinessFs,
   recursive: boolean,
-): Promise<string[]> {
+): Promise<{ paths: string[]; facts: ReviewReadinessFact[] }> {
   const directory = await readDirectory(root, relativePath, fs);
-  if (directory.entries === undefined) return [];
+  if (directory.entries === undefined) {
+    return directory.fact?.code === "missing-artifact"
+      ? { paths: [], facts: [] }
+      : {
+        paths: [],
+        facts: [directory.fact ?? fact(
+          "unreadable-artifact",
+          relativePath,
+          "The lifecycle directory is unreadable.",
+        )],
+      };
+  }
   const paths: string[] = [];
+  const facts: ReviewReadinessFact[] = [];
   for (const entry of directory.entries) {
     const child = `${relativePath}/${entry.name}`;
     const absolute = resolve(root, child);
@@ -611,40 +648,51 @@ async function collectMetaPaths(
       const stat = await fs.lstat(absolute);
       if (stat.isSymbolicLink()) continue;
       if (stat.isDirectory()) {
-        if (recursive) paths.push(...await collectMetaPaths(root, child, fs, true));
+        if (recursive) {
+          const nested = await collectMetaPaths(root, child, fs, true);
+          paths.push(...nested.paths);
+          facts.push(...nested.facts);
+        }
       } else if (stat.isFile() && /^meta-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/u.test(entry.name)) {
         paths.push(child);
       }
     } catch {
-      continue;
+      facts.push(fact("unreadable-artifact", child, "The lifecycle entry could not be inspected."));
     }
   }
-  return paths;
+  return { paths, facts };
 }
 
 async function hasOpenCohortMember(
   root: string,
   cohort: string,
   fs: ReviewReadinessFs,
-): Promise<boolean> {
+): Promise<{ open: boolean; facts: ReviewReadinessFact[] }> {
   const roots: Array<{ path: string; recursive: boolean }> = [
     { path: ".arc/active", recursive: false },
     { path: ".arc/backlog/planned", recursive: true },
     { path: ".arc/backlog/provisional", recursive: true },
   ];
   for (const source of roots) {
-    for (const path of await collectMetaPaths(root, source.path, fs, source.recursive)) {
+    const collected = await collectMetaPaths(root, source.path, fs, source.recursive);
+    if (collected.facts.length > 0) return { open: false, facts: collected.facts };
+    for (const path of collected.paths) {
       const result = await readRegularFile(root, path, fs);
-      if (result.content === undefined) continue;
+      if (result.content === undefined) {
+        if (result.fact !== undefined) return { open: false, facts: [result.fact] };
+        continue;
+      }
       try {
         const memberCohort = parseMetaRecord(result.content).Cohort;
-        if (memberCohort === cohort || memberCohort?.startsWith(`${cohort}/`) === true) return true;
+        if (memberCohort === cohort || memberCohort?.startsWith(`${cohort}/`) === true) {
+          return { open: true, facts: [] };
+        }
       } catch {
         continue;
       }
     }
   }
-  return false;
+  return { open: false, facts: [] };
 }
 
 function validCohortCloseout(content: string, slug: string): boolean {
@@ -672,7 +720,8 @@ async function cohortCoordinateFacts(
   }
   const coordinator = `.arc/backlog/planned/${coordinate}/cohort-${leaf}.md`;
   const openMembers = await hasOpenCohortMember(root, coordinate, fs);
-  if (openMembers) {
+  if (openMembers.facts.length > 0) return openMembers.facts;
+  if (openMembers.open) {
     const active = await readRegularFile(root, coordinator, fs);
     if (active.fact === undefined) return [];
     return active.fact.code === "missing-artifact"

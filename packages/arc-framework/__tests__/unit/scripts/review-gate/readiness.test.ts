@@ -22,10 +22,12 @@ interface FakeFsOptions {
   kinds?: Record<string, "file" | "directory" | "symlink">;
   realpaths?: Record<string, string>;
   unreadable?: readonly string[];
+  unreadableDirectories?: readonly string[];
+  missingRoot?: boolean;
 }
 
 function buildFs(files: Record<string, string>, options: FakeFsOptions = {}): ReviewReadinessFs {
-  const directories = new Set<string>([ROOT]);
+  const directories = new Set<string>(options.missingRoot === true ? [] : [ROOT]);
   for (const path of [...Object.keys(files), ...Object.keys(options.kinds ?? {})]) {
     const segments = path.split("/");
     while (segments.length > 2) {
@@ -56,6 +58,9 @@ function buildFs(files: Record<string, string>, options: FakeFsOptions = {}): Re
       return content;
     },
     readdir: async (path) => {
+      if (options.unreadableDirectories?.includes(path) === true) {
+        throw Object.assign(new Error(`EACCES: ${path}`), { code: "EACCES" });
+      }
       if (!directories.has(path)) throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
       const prefix = path === "/" ? "/" : `${path}/`;
       const names = new Set<string>();
@@ -135,27 +140,10 @@ function readinessRequest(
 
 describe("evaluateReviewReadiness", () => {
   it("accepts a manual-cadence work unit without inventing Release Notes applicability", async () => {
-    const result = await evaluateReviewReadiness({
-      schemaVersion: 1,
-      treeRoot: ROOT,
-      target: {
-        repository: "owner/repo",
-        pullRequest: 42,
-        headSha: SHA,
-      },
-      pullRequest: {
-        repository: "owner/repo",
-        number: 42,
-        state: "open",
-        headBranch: "feat/demo",
-        headSha: SHA,
-      },
-      vehicle: {
-        kind: "work-unit",
-        slug: "demo",
-        archiveCadence: "manual",
-      },
-    }, { fs: buildFs({ [`${ROOT}/.arc/active/meta-demo.md`]: manualMeta() }) });
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "manual" }),
+      { fs: buildFs({ [`${ROOT}/.arc/active/meta-demo.md`]: manualMeta() }) },
+    );
 
     expect(result).toMatchObject({
       mode: "review-readiness",
@@ -178,27 +166,10 @@ describe("evaluateReviewReadiness", () => {
 
 An uncategorized note is not a complete public release entry.
 `;
-    const result = await evaluateReviewReadiness({
-      schemaVersion: 1,
-      treeRoot: ROOT,
-      target: {
-        repository: "owner/repo",
-        pullRequest: 42,
-        headSha: SHA,
-      },
-      pullRequest: {
-        repository: "owner/repo",
-        number: 42,
-        state: "open",
-        headBranch: "feat/demo",
-        headSha: SHA,
-      },
-      vehicle: {
-        kind: "work-unit",
-        slug: "demo",
-        archiveCadence: "manual",
-      },
-    }, { fs: buildFs({ [`${ROOT}/.arc/active/meta-demo.md`]: content }) });
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "manual" }),
+      { fs: buildFs({ [`${ROOT}/.arc/active/meta-demo.md`]: content }) },
+    );
 
     expect(result).toMatchObject({
       state: "invalid",
@@ -216,6 +187,22 @@ An uncategorized note is not a complete public release entry.
     const content = manualMeta().replace(
       "The exact candidate is composed and ready for integration.",
       "[none]",
+    );
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "manual" }),
+      { fs: buildFs({ [`${ROOT}/.arc/active/meta-demo.md`]: content }) },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "malformed-completion-notes" }] },
+    });
+  });
+
+  it("rejects Completion Notes containing only multiple HTML comments", async () => {
+    const content = manualMeta().replace(
+      "The exact candidate is composed and ready for integration.",
+      "<!-- first -->\n\n<!-- second -->",
     );
     const result = await evaluateReviewReadiness(
       readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "manual" }),
@@ -247,27 +234,10 @@ The release exposes one new integration control.
 
 Projects enabling the context must install the pinned workflow.
 `;
-    const result = await evaluateReviewReadiness({
-      schemaVersion: 1,
-      treeRoot: ROOT,
-      target: {
-        repository: "owner/repo",
-        pullRequest: 42,
-        headSha: SHA,
-      },
-      pullRequest: {
-        repository: "owner/repo",
-        number: 42,
-        state: "open",
-        headBranch: "feat/demo",
-        headSha: SHA,
-      },
-      vehicle: {
-        kind: "work-unit",
-        slug: "demo",
-        archiveCadence: "manual",
-      },
-    }, { fs: buildFs({ [`${ROOT}/.arc/active/meta-demo.md`]: content }) });
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "manual" }),
+      { fs: buildFs({ [`${ROOT}/.arc/active/meta-demo.md`]: content }) },
+    );
 
     expect(result.state).toBe("ready");
   });
@@ -278,82 +248,33 @@ Projects enabling the context must install the pinned workflow.
       renderedRef: "abc1234",
       records: [],
     })}\n`;
-    const result = await evaluateReviewReadiness({
-      schemaVersion: 1,
-      treeRoot: ROOT,
-      target: {
-        repository: "owner/repo",
-        pullRequest: 42,
-        headSha: SHA,
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
+      {
+        fs: buildFs({
+          [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: shippedMeta(),
+          [`${ROOT}/.arc/backlog/ROADMAP.md`]: roadmap,
+        }),
       },
-      pullRequest: {
-        repository: "owner/repo",
-        number: 42,
-        state: "open",
-        headBranch: "feat/demo",
-        headSha: SHA,
-      },
-      vehicle: {
-        kind: "work-unit",
-        slug: "demo",
-        archiveCadence: "with-integration",
-      },
-    }, {
-      fs: buildFs({
-        [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: shippedMeta(),
-        [`${ROOT}/.arc/backlog/ROADMAP.md`]: roadmap,
-      }),
-    });
+    );
 
     expect(result.state).toBe("ready");
   });
 
   it("accepts an exact Errand identity without work-unit products", async () => {
-    const result = await evaluateReviewReadiness({
-      schemaVersion: 1,
-      treeRoot: ROOT,
-      target: {
-        repository: "owner/repo",
-        pullRequest: 42,
-        headSha: SHA,
-      },
-      pullRequest: {
-        repository: "owner/repo",
-        number: 42,
-        state: "open",
-        headBranch: "fix/demo",
-        headSha: SHA,
-      },
-      vehicle: {
-        kind: "errand",
-        slug: "demo",
-      },
-    }, { fs: buildFs({}) });
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" }),
+      { fs: buildFs({}) },
+    );
 
     expect(result.state).toBe("ready");
   });
 
   it("rejects a feature branch presented as an Errand even when its slug matches", async () => {
-    const result = await evaluateReviewReadiness({
-      schemaVersion: 1,
-      treeRoot: ROOT,
-      target: {
-        repository: "owner/repo",
-        pullRequest: 42,
-        headSha: SHA,
-      },
-      pullRequest: {
-        repository: "owner/repo",
-        number: 42,
-        state: "open",
-        headBranch: "feat/demo",
-        headSha: SHA,
-      },
-      vehicle: {
-        kind: "errand",
-        slug: "demo",
-      },
-    }, { fs: buildFs({}) });
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "errand", slug: "demo" }),
+      { fs: buildFs({}) },
+    );
 
     expect(result).toMatchObject({
       state: "invalid",
@@ -436,6 +357,43 @@ Projects enabling the context must install the pinned workflow.
     });
   });
 
+  it.each([
+    ["missing", buildFs({}, { missingRoot: true }), "missing-root"],
+    ["symlinked", buildFs({}, { kinds: { [ROOT]: "symlink" } }), "symlinked-root"],
+    ["non-directory", buildFs({}, { kinds: { [ROOT]: "file" } }), "non-directory-root"],
+  ])("rejects a %s supplied root explicitly", async (_case, fs, code) => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" }),
+      { fs },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      diagnostics: [{ code, path: ROOT }],
+    });
+  });
+
+  it("propagates an unreadable archive-quarter enumeration", async () => {
+    const quarter = `${ROOT}/.arc/completed/2026-q3`;
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
+      {
+        fs: buildFs(
+          { [`${quarter}/07_demo/meta-demo.md`]: shippedMeta() },
+          { unreadableDirectories: [quarter] },
+        ),
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      diagnostics: [{
+        code: "unreadable-artifact",
+        path: ".arc/completed/2026-q3",
+      }],
+    });
+  });
+
   it("rejects malformed metadata and the wrong lifecycle cadence distinctly", async () => {
     const malformed = manualMeta().replace(
       /^\| `Integrating`.*$/mu,
@@ -471,6 +429,7 @@ Projects enabling the context must install the pinned workflow.
       records: [],
     })}\n`;
     const meta = shippedMeta().replace("- **Cohort:** [none]", "- **Cohort:** alpha");
+    expect(meta).not.toBe(shippedMeta());
     const result = await evaluateReviewReadiness(
       readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
       {
@@ -492,6 +451,39 @@ Projects enabling the context must install the pinned workflow.
     });
   });
 
+  it("requires planned coordination while another cohort member remains open", async () => {
+    const roadmap = `${composeProjectReadinessView({
+      title: "Roadmap: Project Status",
+      renderedRef: "abc1234",
+      records: [],
+    })}\n`;
+    const meta = shippedMeta().replace("- **Cohort:** [none]", "- **Cohort:** alpha");
+    const openMember = renderMetaFile("other", {
+      State: "Active",
+      Branch: "feat/other",
+      Cohort: "alpha",
+    });
+    expect(meta).not.toBe(shippedMeta());
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
+      {
+        fs: buildFs({
+          [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: meta,
+          [`${ROOT}/.arc/active/meta-other.md`]: openMember,
+          [`${ROOT}/.arc/backlog/ROADMAP.md`]: roadmap,
+        }),
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      diagnostics: [{
+        code: "missing-cohort-coordination",
+        path: ".arc/backlog/planned/alpha/cohort-alpha.md",
+      }],
+    });
+  });
+
   it("accepts a well-formed final cohort closeout and ignores unrelated malformed inputs", async () => {
     const roadmap = `${composeProjectReadinessView({
       title: "Roadmap: Project Status",
@@ -499,6 +491,7 @@ Projects enabling the context must install the pinned workflow.
       records: [],
     })}\n`;
     const meta = shippedMeta().replace("- **Cohort:** [none]", "- **Cohort:** alpha");
+    expect(meta).not.toBe(shippedMeta());
     const closeout = `# Cohort: alpha
 
 ---
@@ -535,11 +528,37 @@ Projects enabling the context must install the pinned workflow.
     expect(result.state).toBe("ready");
   });
 
+  it("rejects a stale project-readiness render", async () => {
+    const roadmap = `${composeProjectReadinessView({
+      title: "Roadmap: Project Status",
+      renderedRef: "abc1234",
+      records: [],
+    })}\nUnexpected stale content.\n`;
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
+      {
+        fs: buildFs({
+          [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: shippedMeta(),
+          [`${ROOT}/.arc/backlog/ROADMAP.md`]: roadmap,
+        }),
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      diagnostics: [{
+        code: "project-readiness-mismatch",
+        path: ".arc/backlog/ROADMAP.md",
+      }],
+    });
+  });
+
   it.each([
     ["wrong slug", { headBranch: "feat/other" }, "vehicle-branch-mismatch"],
     ["stale head", { headSha: "b".repeat(40) }, "stale-head"],
     ["closed PR", { state: "closed" as const }, "pull-request-closed"],
     ["wrong repository", { repository: "owner/other" }, "pull-request-mismatch"],
+    ["wrong PR number", { number: 43 }, "pull-request-mismatch"],
   ])("rejects %s before reading lifecycle products", async (_case, pullRequest, code) => {
     const result = await evaluateReviewReadiness(
       readinessRequest(
