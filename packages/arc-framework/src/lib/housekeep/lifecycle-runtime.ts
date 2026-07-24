@@ -28,6 +28,7 @@ import type {
   LocusRowV1,
   LocusStateV1,
 } from "../locus/schema/index.js";
+import { untrustedRefusalReason } from "../locus/trusted-row.js";
 import { classifyHousekeepChangedPaths } from "./path-policy.js";
 import { exactHousekeepRow, exactPartialHousekeepRow, readHousekeepState } from "./open-runtime.js";
 import { resolveExecutionNextOffer, type ExecutionNextOffer } from "./execution-offer.js";
@@ -51,10 +52,16 @@ export async function closeHousekeepAtRuntime(
   const record = recordResult.record;
   const runtime = await runtimeState(options);
   if (runtime.kind === "refused") return runtime.result;
-  const row = record === null
+  const occupancy = record === null
     ? exactPartialHousekeepRow(runtime.state, options.slug)
     : exactHousekeepRow(runtime.state, record);
-  if (row === null) {
+  if (occupancy.kind === "untrusted") {
+    return refusal(
+      untrustedRefusalReason(occupancy.reasons),
+      `Housekeeping occupancy is not trusted: ${occupancy.reasons.join(", ")}.`,
+    );
+  }
+  if (occupancy.kind === "absent") {
     if (record === null) {
       return success("housekeep-close", "idempotent", null, null, "Housekeeping occupancy is already closed.");
     }
@@ -65,10 +72,11 @@ export async function closeHousekeepAtRuntime(
       "housekeep-close", "idempotent", record, null, "Housekeeping change request is awaiting merge.", offer.nextOffer,
     );
   }
-  if (row.checkoutPath === null) return refusal("checkout-missing", "Housekeeping checkout path is absent.");
-  const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: row.checkoutPath })).stdout;
+  const row = occupancy.value.row;
+  const checkoutPath = occupancy.value.checkoutPath;
+  const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
   if (dirty !== "") return refusal("preservation-unproven", "Housekeeping checkout has uncommitted changes.");
-  const head = (await options.io.exec("git", ["rev-parse", "HEAD"], { cwd: row.checkoutPath })).stdout.trim();
+  const head = (await options.io.exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
   if (record?.state === "awaiting-merge") {
     if (head !== record.changeRequest.headSha) {
       return refusal("preservation-unproven", "Housekeeping head moved after its review tail was preserved.");
@@ -102,8 +110,8 @@ export async function closeHousekeepAtRuntime(
     );
   }
 
-  const base = (await options.io.exec("git", ["merge-base", pinned.head, head], { cwd: row.checkoutPath })).stdout.trim();
-  const changed = await changedPaths(options, base, head, row.checkoutPath);
+  const base = (await options.io.exec("git", ["merge-base", pinned.head, head], { cwd: checkoutPath })).stdout.trim();
+  const changed = await changedPaths(options, base, head, checkoutPath);
   const policy = classifyHousekeepChangedPaths(changed);
   if (policy.kind === "refused") {
     return refusal("identity-conflict", `Housekeeping diff contains non-routing paths: ${policy.paths.join(", ")}`);
@@ -168,11 +176,18 @@ export async function settleHousekeepAtRuntime(
 
   const runtime = await runtimeState(options);
   if (runtime.kind === "refused") return createLocusMutationResult({ ...runtime.result, operation });
-  const row = exactHousekeepRow(runtime.state, record);
-  if (row !== null) {
-    if (row.checkoutPath === null) return refusal("checkout-missing", "Housekeeping checkout path is absent.", operation);
-    const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: row.checkoutPath })).stdout;
-    const actual = (await options.io.exec("git", ["rev-parse", "HEAD"], { cwd: row.checkoutPath })).stdout.trim();
+  const occupancy = exactHousekeepRow(runtime.state, record);
+  if (occupancy.kind === "untrusted") {
+    return refusal(
+      untrustedRefusalReason(occupancy.reasons),
+      `Housekeeping occupancy is not trusted: ${occupancy.reasons.join(", ")}.`,
+      operation,
+    );
+  }
+  if (occupancy.kind === "trusted") {
+    const { row, checkoutPath } = occupancy.value;
+    const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
+    const actual = (await options.io.exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
     if (dirty !== "" || actual !== expectedHead) {
       return refusal("preservation-unproven", "Housekeeping checkout is dirty or moved from its exact head.", operation);
     }
@@ -204,15 +219,20 @@ async function abandonPartialHousekeep(
 ): Promise<LocusMutationResultV1> {
   const runtime = await runtimeState(options);
   if (runtime.kind === "refused") return createLocusMutationResult({ ...runtime.result, operation: "housekeep-abandon" });
-  const row = exactPartialHousekeepRow(runtime.state, options.slug);
-  if (row === null) {
+  const occupancy = exactPartialHousekeepRow(runtime.state, options.slug);
+  if (occupancy.kind === "untrusted") {
+    return refusal(
+      untrustedRefusalReason(occupancy.reasons),
+      `Partial housekeeping occupancy is not trusted: ${occupancy.reasons.join(", ")}.`,
+      "housekeep-abandon",
+    );
+  }
+  if (occupancy.kind === "absent") {
     return success("housekeep-abandon", "idempotent", null, null, "Partial housekeeping generation is already retired.");
   }
-  if (row.checkoutPath === null || row.role === null) {
-    return refusal("record-malformed", "Partial housekeeping occupancy is incomplete.", "housekeep-abandon");
-  }
-  const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: row.checkoutPath })).stdout;
-  const head = (await options.io.exec("git", ["rev-parse", "HEAD"], { cwd: row.checkoutPath })).stdout.trim();
+  const { row, checkoutPath } = occupancy.value;
+  const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
+  const head = (await options.io.exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
   const pinned = await pinGroomOpenedBaseHead(options.io.exec, { remote: "origin", baseRef: options.base });
   if (dirty !== "" || pinned.kind !== "pinned" || head !== pinned.head) {
     return refusal(

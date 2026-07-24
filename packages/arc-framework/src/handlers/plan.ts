@@ -65,6 +65,7 @@ import { planLocusAllocation } from "../lib/locus/allocator.js";
 import { provisionTransientLocus } from "../lib/locus/provisioning.js";
 import { createNodeProvisioningDependencies } from "../lib/locus/provisioning-runtime.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
+import { projectTrustedLocusRow, untrustedRefusalReason } from "../lib/locus/trusted-row.js";
 import type { LocusRefusalReason } from "../lib/locus/schema/index.js";
 import { formatErrandOpenResult } from "./errand.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
@@ -309,20 +310,31 @@ export async function handlePlanOpen(anchorSlug: string, opts: PlanOpenOptions):
     await rollbackOpen();
     emitPlanFailure("duplicate-locus", "Exact grooming occupancy is ambiguous.", opts.json === true); return;
   }
-  const existing = existingRows[0];
-  if (existing !== undefined) {
-    if (existing.checkoutPath === null || existing.recordId === null || existing.lease === null) {
+  const candidate = existingRows[0];
+  if (candidate !== undefined) {
+    const trusted = projectTrustedLocusRow(candidate);
+    if (trusted.kind !== "trusted") {
+      await rollbackOpen();
+      emitPlanFailure(
+        untrustedRefusalReason(trusted.reasons),
+        `Exact grooming occupancy is not trusted: ${trusted.reasons.join(", ")}.`,
+        opts.json === true,
+      );
+      return;
+    }
+    const { row: existing, checkoutPath, recordId } = trusted.value;
+    if (existing.lease === null) {
       await rollbackOpen();
       emitPlanFailure("record-malformed", "Exact grooming occupancy is incomplete.", opts.json === true); return;
     }
     emitPlanResult(appendDirectedCommandAdvisory(createLocusMutationResult({
       outcome: "idempotent", operation: "plan-open",
-      allocation: { kind: existing.primary === true ? "primary" : "spawned", checkoutPath: existing.checkoutPath },
-      recordId: existing.recordId, leaseId: existing.lease.leaseId,
-      activeLocusPath: existing.checkoutPath, sessionHomePath: existing.lease.sessionHomePath,
+      allocation: { kind: existing.primary === true ? "primary" : "spawned", checkoutPath },
+      recordId, leaseId: existing.lease.leaseId,
+      activeLocusPath: checkoutPath, sessionHomePath: existing.lease.sessionHomePath,
       identity: projectLocusIdentity(record), originEntry: null,
       restoredParent: null, nextOffer: null,
-      recommendedPromptText: `Grooming set is already open at ${existing.checkoutPath}.`
+      recommendedPromptText: `Grooming set is already open at ${checkoutPath}.`
         + (resumeAdvisory === null ? "" : ` ${resumeAdvisory}`),
     })), opts.json === true);
     return;

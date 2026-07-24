@@ -31,6 +31,12 @@ import { createNodeProvisioningDependencies } from "./provisioning-runtime.js";
 import type { LocusAnchor, LocusMutationResultV1, LocusRefusalReason, LocusRowV1 } from "./schema/index.js";
 import { deriveTransientAdoptionCandidate } from "./reconciliation.js";
 import { resolveLocusGeneration, type LocusResolveSubject } from "./resolve-driver.js";
+import {
+  projectTrustedLocusRow,
+  trustedLocusRows,
+  untrustedRefusalReason,
+  type TrustedLocusRow,
+} from "./trusted-row.js";
 
 export interface LocusCommandRuntimeOptions {
   readonly checkout?: string;
@@ -382,30 +388,52 @@ async function prepare(
   const inspector = createPlatformProcessInspector();
   const state = await readHousekeepState(options, anchor, inspector);
   const target = options.checkout === undefined ? null : resolve(options.cwd, options.checkout);
-  const candidates = state.roster.rows.filter((row) => row.recordId !== null && row.checkoutPath !== null
-    && row.kind === "managed-role"
-    && (target === null || row.checkoutPath === target)
+  const addressed = state.roster.rows.filter((row) =>
+    (target === null || row.checkoutPath === target)
     && (options.recordId === undefined || row.recordId === options.recordId));
-  const activeRecordId = options.recordId === undefined && state.current.kind === "resolved"
-    ? state.current.activeRecordId : null;
-  const selected = target === null && activeRecordId !== null
-    ? candidates.find((row) => row.recordId === activeRecordId)
-    : candidates.length === 1 ? candidates[0] : undefined;
-  if (selected?.recordId === null || selected?.recordId === undefined
-    || selected.checkoutPath === null || selected.role === null) {
-    return {
-      kind: "result",
-      result: refusal(operation, target === null ? "role-conflict" : "checkout-missing", "Select one trusted managed checkout."),
-    };
+
+  // An explicitly addressed row is reported on its own terms: the operator named one checkout or
+  // record, so an untrusted match must say why rather than read as "nothing matched".
+  let selected: TrustedLocusRow | undefined;
+  if (target !== null || options.recordId !== undefined) {
+    const only = addressed.length === 1 ? addressed[0] : undefined;
+    if (only === undefined) {
+      return { kind: "result", result: refusal(
+        operation,
+        addressed.length === 0 ? "checkout-missing" : "duplicate-locus",
+        addressed.length === 0
+          ? "No session locus role is registered at the requested checkout."
+          : "More than one session locus role matches the requested checkout.",
+      ) };
+    }
+    const trusted = projectTrustedLocusRow(only);
+    if (trusted.kind !== "trusted") {
+      return { kind: "result", result: refusal(
+        operation,
+        untrustedRefusalReason(trusted.reasons),
+        `The requested checkout's session locus role is not trusted: ${trusted.reasons.join(", ")}.`,
+      ) };
+    }
+    selected = trusted.value;
+  } else {
+    const trusted = trustedLocusRows(addressed);
+    const activeRecordId = state.current.kind === "resolved" ? state.current.activeRecordId : null;
+    selected = activeRecordId !== null
+      ? trusted.find((entry) => entry.recordId === activeRecordId)
+      : trusted.length === 1 ? trusted[0] : undefined;
+  }
+  if (selected === undefined) {
+    return { kind: "result", result: refusal(operation, "role-conflict", "Select one trusted managed checkout.") };
   }
   const runtime = createNodeProvisioningDependencies({
     exec: options.io.exec, identity: options.identity, anchor, inspector,
     pathFlavor: process.platform === "win32" ? "windows" : "posix", base: options.base,
-    branch: selected.identity?.branch ?? null, postCreateScript: options.postCreateScript,
+    branch: selected.row.identity?.branch ?? null, postCreateScript: options.postCreateScript,
     registeredHarnessDirs: options.registeredHarnessDirs,
   });
   return {
-    kind: "ready", row: { ...selected, recordId: selected.recordId, checkoutPath: selected.checkoutPath },
+    kind: "ready",
+    row: { ...selected.row, recordId: selected.recordId, checkoutPath: selected.checkoutPath },
     checkoutPath: selected.checkoutPath, anchor, inspector, runtime,
   };
 }

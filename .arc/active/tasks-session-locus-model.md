@@ -1086,7 +1086,7 @@ that leaf's preserved report instead of a fresh whole-target pass. `7.E.a` runs 
 predicate it defines. Findings are advisory until verified against source; the disposition set, carve rationale,
 and recorded risk live in `notes-session-locus-model.md` § Chunked-review finding triage.
 
-### `[ ]` **7.E.a Define the trusted-row predicate consumers must satisfy**
+### `[x]` **7.E.a Define the trusted-row predicate consumers must satisfy**
 
 - _Findings:_ A-F1
 
@@ -1094,6 +1094,43 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   command-preparation and idempotent-open selector requires it — so a cross-identity, marker-missing,
   subject-unresolved, or otherwise diagnostic-bearing record can no longer reach lease mutation or occupancy reuse
   by passing a structural-coordinates check alone.
+
+    - `[x]` **7.E.a.i Add the trusted-row projection**
+        - `locus/trusted-row.ts` projects a row into its narrowed trusted form (non-null record ID, checkout path,
+          and role) or the deduplicated `LocusStopReason` set explaining why not. The authority-fatal code set is
+          **derived** from the intersection of `LocusDiagnosticCode` and `LocusStopReason` rather than restated, so
+          a code added to either enum cannot silently escape it; a test asserts the derivation over every published
+          code. Unverifiable liveness (`lease-unknown`, `lock-unknown`) is fatal, matching the refusal
+          `attachLocusLease` already performs; a dead lease or lock is not, since replacement and break exist to act
+          on exactly that.
+
+    - `[x]` **7.E.a.ii Require trust in locus attach and release preparation**
+        - `prepare` now separates addressing from trust: an explicitly named checkout or record reports on its own
+          terms — absent, ambiguous, or untrusted-with-reasons — while the ambient arm selects among trusted rows
+          only. Refusals carry the row's actual reasons instead of one generic message, and the projection subsumed
+          the three ad-hoc coordinate re-narrowings. Attach and release both inherit this through the shared helper.
+
+    - `[x]` **7.E.a.iii Require trust in the housekeep occupancy selectors**
+        - `exactHousekeepRow` and `exactPartialHousekeepRow` return a three-way occupancy — absent continues to
+          allocation, untrusted refuses with its reasons — so neither can provision over occupancy whose authority
+          is unestablished. Ambiguous multi-match now refuses as `duplicate-locus` rather than reading as absent,
+          matching the groom selector's existing behavior. The type change surfaced three further consumers in
+          `lifecycle-runtime.ts` (close, settle, partial-abandon) that had silently treated any non-match as absent;
+          all three now refuse untrusted occupancy before destructive cleanup. Untrusted never rolls back the
+          identity claim — the occupancy exists and retiring its identity would strand it.
+
+    - `[x]` **7.E.a.iv Require trust in the groom occupancy selector**
+        - The `handlers/plan.ts` selector never filtered row kind, so a `stale-record` row carrying a matching groom
+          subject and lease returned an idempotent success naming a checkout path with no live worktree. It now
+          requires the projection and refuses untrusted occupancy on the same rule as the housekeep selectors.
+
+- _Outcome:_ Trust is now a proven property rather than an asserted one — the surface used "trusted" in seven
+  places while every consumer decided it from structural coordinates alone. The authority-fatal set is derived
+  from the intersection of the diagnostic and stop-reason enums, so it cannot drift from either, and unverifiable
+  liveness joins it because `attachLocusLease` already refused there; the projection makes that refusal reachable
+  from consumers that performed no liveness check at all. Threading it widened the consumer set from the four
+  reported loci to seven: typing occupancy as a three-way result forced every caller to answer what an untrusted
+  match means, and three destructive `lifecycle-runtime.ts` paths had been treating it as absent.
 
 ### `[ ]` **7.E.b Stop rendering unknown state as absent**
 

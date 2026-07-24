@@ -22,7 +22,14 @@ import { readPrimarySafety } from "../locus/primary-safety.js";
 import { provisionTransientLocus } from "../locus/provisioning.js";
 import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
 import { readLocusState } from "../locus/reader.js";
-import type { LocusAnchor, LocusMutationResultV1, LocusStateV1 } from "../locus/schema/index.js";
+import type {
+  LocusAnchor,
+  LocusMutationResultV1,
+  LocusRowV1,
+  LocusStateV1,
+  LocusStopReason,
+} from "../locus/schema/index.js";
+import { projectTrustedLocusRow, untrustedRefusalReason, type TrustedLocusRow } from "../locus/trusted-row.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 
@@ -67,11 +74,21 @@ export async function openHousekeepAtRuntime(options: OpenHousekeepRuntimeOption
     claimApplied = claimed.kind === "applied" && claimed.value.kind === "claimed";
     state = claimApplied ? state : await readHousekeepState(options, anchor, inspector);
     const existing = exactHousekeepRow(state, record);
-    if (existing !== null) {
+    // No rollback on the untrusted arm: the occupancy exists, only its authority is unestablished,
+    // and retiring the identity would strand it. A freshly applied claim cannot match a pre-claim
+    // roster read, so this arm always names a pre-existing generation.
+    if (existing.kind === "untrusted") {
+      return refusal(
+        untrustedRefusalReason(existing.reasons),
+        `Housekeeping occupancy for \`${options.slug}\` is not trusted: ${existing.reasons.join(", ")}.`,
+      );
+    }
+    if (existing.kind === "trusted") {
+      const { row, checkoutPath, recordId } = existing.value;
       return success(
-        "idempotent", record, existing.checkoutPath, existing.lease?.sessionHomePath ?? existing.checkoutPath,
-        existing.recordId, existing.lease?.leaseId ?? null,
-        existing.primary === true ? "primary" : "spawned",
+        "idempotent", record, checkoutPath, row.lease?.sessionHomePath ?? checkoutPath,
+        recordId, row.lease?.leaseId ?? null,
+        row.primary === true ? "primary" : "spawned",
       );
     }
     if (claimed.value.kind === "wait") {
@@ -82,10 +99,17 @@ export async function openHousekeepAtRuntime(options: OpenHousekeepRuntimeOption
     }
   } else {
     const existing = exactPartialHousekeepRow(state, options.slug);
-    if (existing !== null) {
+    if (existing.kind === "untrusted") {
+      return refusal(
+        untrustedRefusalReason(existing.reasons),
+        `Housekeeping occupancy for \`${options.slug}\` is not trusted: ${existing.reasons.join(", ")}.`,
+      );
+    }
+    if (existing.kind === "trusted") {
+      const { row, checkoutPath, recordId } = existing.value;
       return success(
-        "idempotent", null, existing.checkoutPath, existing.lease?.sessionHomePath ?? existing.checkoutPath,
-        existing.recordId, existing.lease?.leaseId ?? null,
+        "idempotent", null, checkoutPath, row.lease?.sessionHomePath ?? checkoutPath,
+        recordId, row.lease?.leaseId ?? null,
         "primary",
       );
     }
@@ -157,18 +181,41 @@ export async function readHousekeepState(
   });
 }
 
-export function exactHousekeepRow(state: LocusStateV1, record: HousekeepIdentityRecord) {
-  const rows = state.roster.rows.filter((row) => row.role?.kind === "housekeep"
+/**
+ * Occupancy for one exact housekeeping subject.
+ *
+ * `absent` continues to allocation; `untrusted` refuses. Collapsing the two would let provisioning
+ * run against occupancy whose authority is unestablished.
+ */
+export type ExactHousekeepOccupancy =
+  | { readonly kind: "absent" }
+  | { readonly kind: "trusted"; readonly value: TrustedLocusRow }
+  | { readonly kind: "untrusted"; readonly reasons: readonly LocusStopReason[] };
+
+export function exactHousekeepRow(
+  state: LocusStateV1,
+  record: HousekeepIdentityRecord,
+): ExactHousekeepOccupancy {
+  return exactOccupancy(state.roster.rows.filter((row) => row.role?.kind === "housekeep"
     && row.role.subject.kind === "errand"
-    && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId);
-  return rows.length === 1 ? rows[0] ?? null : null;
+    && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId));
 }
 
-export function exactPartialHousekeepRow(state: LocusStateV1, slug: string) {
-  const rows = state.roster.rows.filter((row) => row.role?.kind === "housekeep"
+export function exactPartialHousekeepRow(state: LocusStateV1, slug: string): ExactHousekeepOccupancy {
+  return exactOccupancy(state.roster.rows.filter((row) => row.role?.kind === "housekeep"
     && row.role.subject.kind === "housekeep"
-    && row.role.subject.key === slug && row.role.subject.claimId === null);
-  return rows.length === 1 ? rows[0] ?? null : null;
+    && row.role.subject.key === slug && row.role.subject.claimId === null));
+}
+
+function exactOccupancy(rows: readonly LocusRowV1[]): ExactHousekeepOccupancy {
+  const only = rows.length === 1 ? rows[0] : undefined;
+  if (only === undefined) {
+    return rows.length === 0 ? { kind: "absent" } : { kind: "untrusted", reasons: ["duplicate-locus"] };
+  }
+  const trusted = projectTrustedLocusRow(only);
+  return trusted.kind === "trusted"
+    ? { kind: "trusted", value: trusted.value }
+    : { kind: "untrusted", reasons: trusted.reasons };
 }
 
 async function rollbackClaim(options: OpenHousekeepRuntimeOptions, record: HousekeepIdentityRecord): Promise<void> {
