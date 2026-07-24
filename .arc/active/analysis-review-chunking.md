@@ -2738,3 +2738,58 @@ Primary adjudication upheld all four findings. The exact source demonstrates eac
 reader diagnostics, selected lease generation, provisioning mutation state, and selected parent generation are
 available in one child but discarded before a neighboring child acts. Root A therefore passes reviewability and
 adds four genuinely seam-owned findings without reconstructing the four child diffs.
+
+### Root B transient-lifecycle seam
+
+The fresh root-B evaluator consumed bounded E1-E5 summaries and targeted the identity-to-lifecycle transitions. It
+completed every dimension without overload or malformed scope, producing one new finding and one explicit
+duplicate:
+
+```yaml
+scope: root-B-transient-lifecycle
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: B-F1
+    title: Lost-response promotion replay drops the originating-capture handle
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/lib/errand/promote.ts — lines 78-84 and 124-142;
+      packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md — lines 101-107;
+      packages/arc-framework/__tests__/unit/errand/promote.test.ts — lines 74-94;
+      packages/arc-framework/__tests__/integration/errand-promote.test.ts — lines 83-95
+    evidence: >
+      After successful promotion retires the Errand identity, replay enters the identity-absent recovery arm and
+      calls success with a null record. The result derives originEntry only from that record, while the workflow
+      requires the returned originEntry after committing the minted meta. Lost-response tests assert only outcome.
+    impact: >
+      An inbox-origin promotion can leave its execute-bound capture visible after lost-response recovery, permitting
+      the already-promoted concern to be offered for duplicate execution.
+    correctionBoundary: >
+      Retain the exact origin title and source digest in a replay-safe promotion post-image until capture settlement
+      completes, and test lost response through replay, meta commit, and exact capture removal.
+duplicates:
+  - id: B-D1
+    duplicateOf: E5 adoption loses source digest before identity publication
+    title: Lifecycle settlement is title-qualified rather than adopted-generation-qualified
+    stableLocus: >
+      packages/arc-framework/src/handlers/errand.ts — adoption and settlement callbacks;
+      packages/arc-framework/src/lib/errand/identity-record.ts — origin projection
+    note: >
+      The seam adds close, abandon, and promotion consequences, but the missing persisted source digest is the same
+      root defect already counted in E5.
+withstood:
+  - Live promotion revalidates the exact Errand claim, target record, lease anchor, and warm parent under locks.
+  - Promotion converts the frame before retiring Errand identity.
+  - Branch, meta, marker, and role post-images are recognized when identity retirement itself fails.
+  - Close and abandon retain identity when their inbox-settlement dependency refuses or errors.
+verdict: changes-requested
+```
+
+Primary adjudication upheld B-F1: the recovery arm demonstrably passes `null` to the only source of `originEntry`,
+and both tests omit the field on the identity-absent replay. B-D1 remains a duplicate of E5 rather than inflating
+the packet. Root B passes reviewability and adds one distinct seam-owned finding.
