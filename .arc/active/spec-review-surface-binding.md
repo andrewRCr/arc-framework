@@ -123,8 +123,8 @@ Responsibility divides as follows:
    vehicle, project-policy, and runtime bindings; consumes explicit project routing facts; binds effective method
    activity and work-unit assurance; creates the requirement and request; persists the lightweight admitted
    operation record; then materializes the immutable `local-change-set` carrier. It returns `ready` once that
-   materialization verifies, and emits a complete typed reviewer payload. The operation record is written once, at
-   admission; `ready` is a derived reading of the materialization, not a second durable state (D6).
+   materialization verifies, and emits a complete typed reviewer payload. Admission facts are written once;
+   `ready` is a derived reading of the materialization, not a second durable phase (D6).
 2. **Launch.** For local analysis, the agent gives the prepared payload to the separately authorized
    independent evaluator. This step is outside the CLI.
 3. **Run frontline.** `arc review frontline run` is the provider-effectful sibling. It consumes one complete `ready`
@@ -183,11 +183,11 @@ Reason-class discriminants make every multi-action row exact:
   attestation refuses. Attestation appends nothing in those cases.
 
 **The pass cap is not a `frontline run` terminal.** `pass-cap-exhausted` stays a variant of the shipped normalized
-outcome union — durable records may carry it, and `reduce` maps it (D10) — but the CLI never produces one. The
-shipped resolver reaches its cap only by declining a _follow-up_ after approved dispositions, and because a fix
-produces a new head and therefore a new target, that decline surfaces as advisory follow-up text in `respond` /
-`reduce` output (D9), not as a run outcome. Enumerating it as a `frontline run` state would publish a transition no
-sequence of legal calls can reach.
+outcome union — durable records may carry it, and `reduce` maps it (D10) — but the CLI never produces one. After
+approved fixes, `respond` / `reduce` emits typed follow-up advice containing the next `pass` and `maxPasses`; the
+caller supplies those fields to a new effect-free `frontline resolve` request for the changed target. The resolver
+declines a follow-up whose pass exceeds the cap. Because a fix produces a new head and therefore a new target, that
+decline remains advisory follow-up control rather than a run outcome.
 
 Those edges, plus `local prepare: unavailable` (a declared project policy binding that fails to parse or names an
 unregistered source — see D8), are the protocol's only operator-repair surfaces. A valid domain outcome —
@@ -223,7 +223,7 @@ record exists.
 
 | Command             | Caller-supplied request fields                                                                                                                                                                |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `frontline resolve` | `schemaVersion`, `changeSet`, `invocation`, optional `maxPasses`; effect-free                                                                                                                 |
+| `frontline resolve` | `schemaVersion`, `changeSet`, `invocation`, optional `pass` and `maxPasses`; effect-free                                                                                                      |
 | `frontline run`     | `schemaVersion`, exact `target` from the project / host adapter, the complete `ready` resolution returned by resolve (which carries the authorized `pass`), optional `timeoutMs`              |
 | `local prepare`     | `schemaVersion`, `evaluatorIdentity`, the five caller-owned `routingFacts` fields, optional `freshnessMs`                                                                                     |
 | `local attest`      | `schemaVersion`, `operationId`, normalized `result`                                                                                                                                           |
@@ -347,7 +347,9 @@ difference in those facts admits a new operation (a new head, by construction, i
 retry is idempotent: it returns the same `operationId` and re-verifies rather than rebuilds an intact
 materialization, so repeating `local prepare` while an evaluator is running cannot pull the checkout out from under
 it. It does create a pin or checkout that is _absent_ — the recoverable case publish-first makes reachable when an
-invocation fails between publication and pin creation (D5). The rule is never-destroy, not never-create.
+invocation fails between publication and pin creation (D5). After that operation expires without a receipt, an
+explicit `local prepare` is a new liveness request: it version-renews only `updatedAt` and `cleanupTtlMs`, then
+re-materializes the same immutable source. The rule is never-destroy-while-live, not never-create.
 
 That predicate is also the **operationId re-acquisition path**. `local resume` takes an `operationId`, and after a
 lost session the caller no longer has one; re-running `local prepare` from the same working tree derives the same
@@ -408,10 +410,11 @@ ordinary case once HEAD moves, since `targetId` changes with it — still has a 
 would never reap it and its pin would block Git maintenance indefinitely. Expiry is readable from the record's own
 cleanup TTL, so the sweep needs no enumeration affordance beyond the pins it is already walking.
 
-The sweep cannot strand a live prepare: it reaps only records that are absent or already expired, and a prepare
-publishes a fresh record before its pin exists. The registered descriptor and receipt reference survive cleanup, so
-the historical record does not depend on an ephemeral path while an in-flight retry stays protected from Git
-pruning.
+The sweep cannot strand a live prepare: one repository-shared source lock serializes sweep classification and
+release with prepare renewal, publication, and materialization. Within that lock, a new prepare publishes a fresh
+record before its pin exists, and the sweep reaps only records that are absent or already expired. The registered
+descriptor and receipt reference survive cleanup, so the historical record does not depend on an ephemeral path
+while an in-flight retry stays protected from Git pruning.
 
 ### D6 — Local operation state
 
@@ -426,8 +429,10 @@ snapshot, and a plain cleanup TTL (the bound on how long an abandoned pin surviv
 an evidence-admissibility window). The redundant scalar identities are cross-validated against the snapshot on
 every read. Register it in the closed durable-record inventory alongside the existing variants.
 
-**The `local-review` record is written once, at admission, and never advanced.** Every field above is fixed at
-admission; none is mutable afterward. The complete admission snapshot is stored because its semantic identities are
+**The `local-review` admission snapshot is immutable and never phase-advanced.** Target, request, authority,
+policy, rubric, source, and guidance fields are fixed at admission. The sole versioned mutation is an explicit
+prepare-after-expiry renewal for a receipt-less operation, which updates only `updatedAt` and `cleanupTtlMs` before
+re-materializing the same source. The complete admission snapshot is stored because its semantic identities are
 one-way digests and cannot reconstruct the records attestation must validate. Publication state is **derived, never
 stored**: whether the receipt and disposition records exist is read from their stores, and whether the source is
 materialized is read from the pin and detached checkout. `local attest` and `local resume` re-read all of those on
@@ -649,20 +654,22 @@ bounds only how long an abandoned pin and detached checkout survive before the s
 evidence-admissibility window, because nothing here is downstream evidence. Attestation is gated on the
 _materialization_, not the clock: while the pinned source is still present, a late `local attest` records its
 advisory receipt normally; once the sweep has reaped the materialization, `local attest` and `local resume` find no
-checkout to attest against and return `expired -> rerun-review`. Re-entry does not extend the TTL, and re-preparing
-re-materializes at the current head.
+checkout to attest against and return `expired -> rerun-review`. Re-entry through `local resume` does not extend
+the TTL. An explicit `local prepare` after expiry renews the same receipt-less operation's cleanup clock and
+re-materializes its immutable exact-head source; a changed head still derives a new target and operation.
 
 Corrupt durable state fails loudly: a malformed registered record, or a digest or reference mismatch, emits the
 strict `corrupt-state` error envelope and exits 1. On the frontline lane, where an operation record does carry a
 completion claim, a claim whose required evidence is missing is corrupt on the same terms. No repair action or
 success state accompanies any of them.
 
-There is no receipt / guidance partial publication to recover: attestation appends a single advisory receipt
-atomically, and the local operation record is written once at admission (D6), so it is never mid-advance and there
-is no pending second write. A crash after the receipt but before dispositions leaves a findings receipt with no
-disposition record, which reduction and resume read as `findings -> respond` — an ordinary continuation, not a
-corrupt in-between. Expected compare-and-swap residue never surfaces. There is no `repair-required` state: with no
-durable fix machinery, an unrelated head transition is simply `stale-target`.
+There is no receipt / guidance partial publication to recover: attestation appends one advisory terminal receipt
+per local operation atomically, and the local operation carries no completion phase (D6), so there is no pending
+second write. An exact receipt replay is idempotent; a divergent or duplicate terminal receipt is `corrupt-state`.
+A crash after the receipt but before dispositions leaves a findings receipt with no disposition record, which
+reduction and resume read as `findings -> respond` — an ordinary continuation, not a corrupt in-between. Expected
+compare-and-swap residue never surfaces. There is no `repair-required` state: with no durable fix machinery, an
+unrelated head transition is simply `stale-target`.
 
 Treat a receipt's exact-target validity and its current applicability as separate facts. `local attest` first loads
 the operation and the receipt store. An already-recorded exact receipt replays identically regardless of the
@@ -964,10 +971,11 @@ signal.
 
 **Concurrency.** Sibling worktrees share the Git-common identity record and the durable-record namespaces. Every
 mutation is append-only or version-checked, and every mutating handler reloads and retries internally, so expected
-compare-and-swap residue never reaches the operator. Publish-first ordering (D5) is what keeps the sweep and a
-concurrent prepare from interfering: a sibling's live prepare has a published, unexpired record before its pin
-exists, and the sweep reaps only records that are absent or already expired — so it can never reap a live
-sibling's pin, and there is no pre-publication pin for it to find.
+compare-and-swap residue never reaches the operator. One repository-shared source lock serializes sweep
+classification and release with prepare publication, liveness renewal, materialization, resume repair, attestation,
+and cleanup. Publish-first ordering remains the within-lock invariant: a new operation is durable before its pin
+exists. The same lock makes an expired operation's reclassification and renewal indivisible, so the sweep cannot
+release a source that a concurrent prepare has made live again.
 
 **Testing.** Contract tests exercise every legal command-specific `state` / `nextAction` pair and reject impossible
 fields. Failure-injection tests cover the recovery surface enumerated in Success Criteria. Integration tests enter
