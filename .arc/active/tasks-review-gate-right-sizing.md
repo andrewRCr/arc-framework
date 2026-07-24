@@ -91,37 +91,12 @@ head is born locked while planning-only changes retain their existing lane.
 - _Goal:_ Local preflight and host-side unlock accept or reject a head by the same lifecycle-readiness definition,
   and dispatch can never clear a different SHA than the one explicitly authorized.
 
-    - `[ ]` **2.1.a Define vehicle readiness once in the CLI**
+    - `[x]` **2.1.a Define vehicle readiness once in the CLI**
 
-        - Add one narrow readiness module under `src/scripts/review-gate/` over the closed request union
-          `work-unit { slug, archiveCadence } | errand { slug }`.
-        - For a WU, bind the requested slug to the guarded PR before validating products: require its slug to match
-          the live PR head branch and its SHA to remain the exact head; under `with-integration`, also require the
-          archived meta's `PR URL` to name that repository and PR; under `manual`, require the active meta's branch
-          to match the PR head.
-        - Validate the exact cadence-specific products already required by `integrate-work-unit.md`:
-          `with-integration` requires the completed `Shipped` meta, Completion Notes, any present Release Notes to
-          be well-formed, archive/cohort closeout, and coherent project-readiness view; `manual` requires the active
-          `Integrating` meta, Completion Notes, and any present Release Notes to be well-formed, with archive/
-          readiness products remaining post-merge. Leave Release Notes applicability as the workflow's composition
-          judgment; do not add a marker or re-infer it in the guard. For an Errand, validate strict
-          slug/branch/PR/head identity and apply its explicit exemption from WU composition products.
-        - Reuse `parseMetaRecord`, `resolveLifecyclePosition`, and the narrow project-readiness render/compare
-          primitives. Do not use the fail-soft lifecycle/status indexes as guard authority or create a generalized
-          readiness engine.
-        - Resolve only required paths inside the supplied root; reject missing, duplicate, malformed,
-          wrong-cadence, non-regular, symlinked, or out-of-root inputs. Return structured invalid facts rather than
-          a boolean, and expose the check through the review handler for local preflight and pinned-workflow use.
-        - Build `test-first` (one behavior at a time):
-            - each WU cadence accepts only its required integration products, validates Release Notes when present,
-              and does not invent an applicability signal when they are absent;
-            - a wrong WU slug, mismatched PR head branch, wrong archived PR URL, or stale SHA blocks;
-            - an exact Errand identity is ready without WU artifacts, while missing or contradictory identity
-              blocks;
-            - each absent, duplicate, malformed, mismatched, symlinked, non-regular, or escaping input blocks with
-              its exact fact;
-            - unrelated files, fail-soft index behavior, and the caller's current checkout do not influence the
-              supplied tree.
+        - Added one strict readiness evaluator and handler envelope over exact live PR/head identity and the closed
+          WU/Errand vehicle union. Cadence-specific WU checks validate secure supplied-tree artifacts, archive and
+          cohort closeout, Completion Notes, optional Release Notes, and the rendered project-readiness view;
+          Errands remain explicitly exempt from WU products.
 
     - `[ ]` **2.1.b Add exact-head unlock preflight and dispatch**
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  handleReviewReadiness,
   handleReviewResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
@@ -127,6 +128,62 @@ const respondProposalRequest = {
     }],
   },
 };
+
+describe("handleReviewReadiness", () => {
+  it("emits exactly one validated readiness envelope through the handler seam", async () => {
+    const output: string[] = [];
+    const request = {
+      schemaVersion: 1,
+      treeRoot: "/tree",
+      target: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: "a".repeat(40),
+      },
+      pullRequest: {
+        repository: "owner/repo",
+        number: 42,
+        state: "open",
+        headBranch: "fix/demo",
+        headSha: "a".repeat(40),
+      },
+      vehicle: {
+        kind: "errand",
+        slug: "demo",
+      },
+    };
+
+    await handleReviewReadiness("request.json", {
+      resolveRoot: () => "/trusted-cli",
+      readText: async () => JSON.stringify(request),
+      check: async (parsed) => ({
+        schemaVersion: 1,
+        mode: "review-readiness",
+        diagnostics: [],
+        state: "ready",
+        nextAction: "none",
+        payload: {
+          target: parsed.target,
+          vehicle: parsed.vehicle,
+        },
+      }),
+      write: (text) => output.push(text),
+      setExitCode: vi.fn(),
+    });
+
+    expect(output).toHaveLength(1);
+    expect(JSON.parse(output[0] ?? "")).toMatchObject({
+      mode: "review-readiness",
+      state: "ready",
+      payload: {
+        vehicle: {
+          kind: "errand",
+          slug: "demo",
+        },
+      },
+    });
+  });
+});
 
 function localReceiptFixture() {
   const receiptTarget = createReviewTarget({

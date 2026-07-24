@@ -35,6 +35,12 @@ import {
   resolveReviewPolicy,
   type ReviewPolicyCommandRequest,
 } from "../scripts/review-gate/policy/review-policy-driver.js";
+import {
+  evaluateReviewReadiness,
+  ReviewReadinessEnvelopeSchema,
+  ReviewReadinessRequestSchema,
+  type ReviewReadinessRequest,
+} from "../scripts/review-gate/readiness.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import {
@@ -138,6 +144,51 @@ async function resolveConfiguredReviewPolicy(
       : "review.standard_max_passes"],
   );
   return resolveReviewPolicy({ ...request, sources, maxPasses });
+}
+
+export interface ReviewReadinessHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  check(request: ReviewReadinessRequest, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultReviewReadinessDependencies(): ReviewReadinessHandlerDependencies {
+  return {
+    resolveRoot: resolveArcRoot,
+    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    check: (request) => evaluateReviewReadiness(request),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
+/**
+ * Evaluate exact-head vehicle readiness and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleReviewReadiness(
+  source: string,
+  overrides: Partial<ReviewReadinessHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultReviewReadinessDependencies(), ...overrides };
+  await executeReviewHandler({
+    mode: "review-readiness",
+    source,
+    requestSchema: ReviewReadinessRequestSchema,
+    resultSchema: ReviewReadinessEnvelopeSchema,
+    dependencies,
+    execute: (request, root) => dependencies.check(
+      ReviewReadinessRequestSchema.parse(request),
+      root,
+    ),
+  });
 }
 
 /**
