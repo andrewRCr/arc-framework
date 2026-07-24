@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "strategy-trigger-overfire",
-  "origin": "description",
-  "intent": "Rescope over-firing strategy triggers that duplicate the operational methods during the task loop",
-  "branch": "chore/strategy-trigger-overfire",
-  "createdAt": "2026-07-24T01:11:34.628Z",
-  "returnBranch": "main"
-}
