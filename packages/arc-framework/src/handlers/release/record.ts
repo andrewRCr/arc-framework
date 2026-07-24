@@ -33,7 +33,9 @@ import {
   resolveIdentity,
   type GitExec,
 } from "../../lib/git/index.js";
-import { gitExec } from "../../lib/io-context.js";
+import { createUserIOContext, gitExec } from "../../lib/io-context.js";
+import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
+import { declareCliOptionSite, type CommandInputDeclaration } from "../../lib/command-input/declaration.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { resolveReleaseRouting, type ReleaseRoutingValue } from "../../lib/release/routing.js";
 import {
@@ -182,6 +184,15 @@ interface ReleaseStatusJsonEnvelope {
   releaseRouting: ReleaseRoutingValue;
 }
 
+/** Machine-output policy owned by the release status adapter. */
+export const releaseStatusCommandInputPolicyDeclarations = [{
+  commandPath: "release status", aliases: [], sites: [declareCliOptionSite("json", {
+    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })],
+}] satisfies readonly CommandInputDeclaration[];
+
 /**
  * Run the `arc release status` sub-command. Renders the resolved opt-in flag
  * and three interlock states with provenance — human-readable lines by
@@ -254,22 +265,26 @@ export function runReleaseStatus(
  * runs `resolveAllSettings`, and delegates to {@link runReleaseStatus}.
  * Resolver warnings stream to stderr so JSON-mode stdout stays pure.
  */
-export async function handleReleaseStatus(opts: { json?: boolean }): Promise<void> {
+export async function handleReleaseStatus(
+  opts: { json?: boolean },
+  context?: InteractionContext,
+): Promise<void> {
   const cwd = resolveArcRoot(process.cwd());
   if (cwd === null) {
     process.stderr.write(`${ARC_PROJECT_ROOT_ERROR}\n`);
     process.exitCode = 1;
     return;
   }
+  const exec = context === undefined ? gitExec : createUserIOContext(context.subprocess).exec;
   const settings = await resolveAllSettings({
     cwd,
-    exec: gitExec,
+    exec,
     readFile: (path) => readFile(path, "utf-8"),
     warn: (message) => {
       process.stderr.write(`${message}\n`);
     },
   });
-  const identity = await resolveIdentity({ exec: gitExec });
+  const identity = await resolveIdentity({ exec });
   const marker = await readMarker({ cwd, identity });
   const result = runReleaseStatus({ settings, marker, json: opts.json });
   if (result.exitCode !== 0) {

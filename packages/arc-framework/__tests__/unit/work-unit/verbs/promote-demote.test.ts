@@ -42,6 +42,8 @@ interface MetaSpec {
   state: string;
   /** The meta's recorded `Class`; defaults to `Novel` (a realized value). */
   cls?: string;
+  /** Model a legacy flat-field meta whose Class field is absent. */
+  omitClass?: boolean;
   /** The meta's declared cohort; destination projection never infers this from `subdir`. */
   cohort?: string;
 }
@@ -76,12 +78,17 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
     }
     const filename = `meta-${meta.slug}.md`;
     ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
+    const coreFields = meta.omitClass === true
+      ? `- **State:** \`${meta.state}\`\n` +
+        `- **Owner:** \`andrew\`\n` +
+        `- **Branch:** \`[none]\`\n` +
+        `- **Priority:** \`P1\``
+      : `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
+        `|-----------|-----------|------------|-----------|--------------|\n` +
+        `| \`${meta.state}\` | \`andrew\` | \`[none]\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |`;
     files.set(
       `${dirAbs}/${filename}`,
-      `# Metadata: ${meta.slug}\n\n` +
-        `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
-        `|-----------|-----------|------------|-----------|--------------|\n` +
-        `| \`${meta.state}\` | \`andrew\` | \`[none]\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |\n\n` +
+      `# Metadata: ${meta.slug}\n\n${coreFields}\n\n` +
         `- **Cohort:** \`${meta.cohort ?? "[none]"}\`\n` +
         `- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n` +
         `- **Next Action:** continue.\n\n---\n`,
@@ -133,6 +140,9 @@ function buildCtx(metas: MetaSpec[], pruneDirs: Record<string, string[]> = {}): 
     reconcileBranch: async () => {},
     reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
     writeBranchField: async () => {},
+    writeClassField: async (path, value) => {
+      calls.push(`class:${path}:${value}`);
+    },
     writeCurrentWorkflowField: async () => {},
     writeDesignField: async () => {},
     writeSoftFields: async (path, updates) => {
@@ -188,6 +198,55 @@ describe("runPromote — the Class gate", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/provisional/i);
     expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
+  });
+
+  it("persists an explicitly acquired Class while promoting an unresolved stub", async () => {
+    const { ctx, calls } = buildCtx([PROVISIONAL("[TBD]")], {
+      [`${CWD}/.arc/backlog/provisional/foo`]: [],
+    });
+
+    const result = await runPromote(ctx, { name: "foo", class: "Heavy" });
+
+    expect(result.status).toBe("moved");
+    expect(calls).toContain("class:.arc/backlog/provisional/foo/meta-foo.md:Heavy");
+    expect(calls.indexOf("class:.arc/backlog/provisional/foo/meta-foo.md:Heavy"))
+      .toBeLessThan(calls.findIndex((call) => call.startsWith("relocate:")));
+    expect(calls.indexOf("class:.arc/backlog/provisional/foo/meta-foo.md:Heavy"))
+      .toBeLessThan(calls.findIndex((call) => call.startsWith("side:")));
+  });
+
+  it("treats a missing recorded Class as unresolved", async () => {
+    const { ctx, calls } = buildCtx([{ ...PROVISIONAL(), omitClass: true }], {
+      [`${CWD}/.arc/backlog/provisional/foo`]: [],
+    });
+
+    const result = await runPromote(ctx, { name: "foo", class: "Heavy" });
+
+    expect(result.status).toBe("moved");
+    expect(calls).toContain("class:.arc/backlog/provisional/foo/meta-foo.md:Heavy");
+  });
+
+  it("rejects before relocation when Class persistence is not wired", async () => {
+    const { ctx, calls } = buildCtx([PROVISIONAL("[TBD]")]);
+    ctx.executor.writeClassField = undefined;
+
+    const result = await runPromote(ctx, { name: "foo", class: "Heavy" });
+
+    expect(result.status).toBe("rejected");
+    expect(calls).toEqual([]);
+  });
+
+  it("reports a Class-write failure before relocation or readiness side-effects", async () => {
+    const { ctx, calls } = buildCtx([PROVISIONAL("[TBD]")]);
+    ctx.executor.writeClassField = async () => {
+      calls.push("class:attempt");
+      throw new Error("Class write failed");
+    };
+
+    const result = await runPromote(ctx, { name: "foo", class: "Heavy" });
+
+    expect(result.status).toBe("rejected");
+    expect(calls).toEqual(["class:attempt"]);
   });
 });
 

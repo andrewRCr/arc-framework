@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   runReleaseSetupUninstall,
-  type CleanupVerification,
+  type ReleaseSetupUninstallInput,
 } from "../../../../../src/handlers/release/setup/uninstall.js";
 import type { ConfigSettings } from "../../../../../src/commands/config/types.js";
 import type { ResolvedSettingsResult } from "../../../../../src/lib/config/resolved-settings.js";
@@ -55,48 +55,47 @@ function existingHarness(overrides: Partial<HarnessEntry> = {}): HarnessEntry {
   };
 }
 
+function uninstallInput(overrides: Partial<ReleaseSetupUninstallInput> = {}): ReleaseSetupUninstallInput {
+  return { harness: "claude-code", cleanupVerified: false, json: false, ...overrides };
+}
+
 describe("runReleaseSetupUninstall", () => {
-  it("requires --harness before reading marker state", async () => {
-    const readMarker = vi.fn<() => Promise<MarkerReadResult>>().mockResolvedValue(marker([]));
+  it("surfaces marker read failures before cleanup", async () => {
     const stderr: string[] = [];
 
     const result = await runReleaseSetupUninstall({
       settings: buildSettings({ value: "false", source: "default" }),
-      readMarker,
+      input: uninstallInput(),
+      marker: { ok: false, error: { kind: "io", message: "marker unavailable" } },
       writeStdout: () => undefined,
       writeStderr: (msg) => stderr.push(msg),
     });
 
     expect(result.exitCode).toBe(1);
-    expect(readMarker).not.toHaveBeenCalled();
-    expect(stderr.join("")).toContain("missing required option --harness");
+    expect(stderr.join("")).toContain("marker unavailable");
   });
 
   it("succeeds as a no-op when the requested harness is already uninstalled", async () => {
-    const cleanup = vi.fn<CleanupVerification>();
     const removeHarness = vi.fn();
     const recordOptOut = vi.fn();
     const stdout: string[] = [];
 
     const result = await runReleaseSetupUninstall({
       settings: buildSettings({ value: "false", source: "default" }),
-      harness: "claude-code",
-      readMarker: async () => marker([]),
-      cleanup,
+      input: uninstallInput(),
+      marker: marker([]),
       removeHarness,
       recordOptOut,
       writeStdout: (msg) => stdout.push(msg),
     });
 
     expect(result.exitCode).toBe(0);
-    expect(cleanup).not.toHaveBeenCalled();
     expect(removeHarness).not.toHaveBeenCalled();
     expect(recordOptOut).not.toHaveBeenCalled();
     expect(stdout.join("")).toContain("result: no-op acknowledged");
   });
 
-  it("passes canonical raw patterns to cleanup before removing the last marker entry and opting out", async () => {
-    const cleanup = vi.fn<CleanupVerification>().mockResolvedValue({ ok: true });
+  it("renders canonical raw patterns before removing the last marker entry and opting out", async () => {
     const removeHarness = vi.fn<(name: string) => Promise<MarkerWriteResult>>()
       .mockResolvedValue(marker([]) as MarkerWriteResult);
     const recordOptOut = vi.fn<() => Promise<{ exitCode: number }>>().mockResolvedValue({ exitCode: 0 });
@@ -104,19 +103,17 @@ describe("runReleaseSetupUninstall", () => {
 
     const result = await runReleaseSetupUninstall({
       settings: buildSettings({ value: "true", source: "git-config" }),
-      harness: "claude-code",
-      readMarker: async () => marker([existingHarness()]),
-      cleanup,
+      input: uninstallInput({ cleanupVerified: true }),
+      marker: marker([existingHarness()]),
+      cleanupResult: { ok: true },
       removeHarness,
       recordOptOut,
       writeStdout: (msg) => stdout.push(msg),
     });
 
     expect(result.exitCode).toBe(0);
-    expect(cleanup).toHaveBeenCalledWith(expect.objectContaining({
-      harness: "claude-code",
-      patterns: ["arc release commit:*", "arc release push:*"],
-    }));
+    expect(stdout.join("")).toContain("pattern: arc release commit:*");
+    expect(stdout.join("")).toContain("pattern: arc release push:*");
     expect(removeHarness).toHaveBeenCalledWith("claude-code");
     expect(recordOptOut).toHaveBeenCalledTimes(1);
     expect(stdout.join("")).toContain("result: uninstall recorded");
@@ -133,9 +130,9 @@ describe("runReleaseSetupUninstall", () => {
 
     const result = await runReleaseSetupUninstall({
       settings: buildSettings({ value: "true", source: "git-config" }),
-      harness: "claude-code",
-      readMarker: async () => marker([existingHarness(), sibling]),
-      cleanup: async () => ({ ok: true }),
+      input: uninstallInput({ cleanupVerified: true }),
+      marker: marker([existingHarness(), sibling]),
+      cleanupResult: { ok: true },
       removeHarness: async () => marker([sibling]) as MarkerWriteResult,
       recordOptOut,
       writeStdout: (msg) => stdout.push(msg),
@@ -153,12 +150,12 @@ describe("runReleaseSetupUninstall", () => {
 
     const result = await runReleaseSetupUninstall({
       settings: buildSettings({ value: "true", source: "git-config" }),
-      harness: "claude-code",
-      readMarker: async () => marker([existingHarness()]),
-      cleanup: async () => ({
+      input: uninstallInput({ cleanupVerified: true }),
+      marker: marker([existingHarness()]),
+      cleanupResult: {
         ok: false,
         reason: "user-curated allowlist entry drifted from canonical pattern set",
-      }),
+      },
       removeHarness,
       recordOptOut,
       writeStdout: (msg) => stdout.push(msg),
@@ -170,16 +167,34 @@ describe("runReleaseSetupUninstall", () => {
     expect(stdout.join("")).toContain("user-curated allowlist entry drifted from canonical pattern set");
   });
 
+  it("aborts a recorded uninstall when cleanup evidence is absent", async () => {
+    const removeHarness = vi.fn();
+    const recordOptOut = vi.fn();
+
+    const result = await runReleaseSetupUninstall({
+      settings: buildSettings({ value: "true", source: "git-config" }),
+      input: uninstallInput(),
+      marker: marker([existingHarness()]),
+      cleanupResult: null,
+      removeHarness,
+      recordOptOut,
+      writeStdout: () => undefined,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(removeHarness).not.toHaveBeenCalled();
+    expect(recordOptOut).not.toHaveBeenCalled();
+  });
+
   it("emits a schemaVersion 1 JSON envelope with uninstall result and post-op opt-in state", async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
 
     const result = await runReleaseSetupUninstall({
       settings: buildSettings({ value: "true", source: "git-config" }),
-      harness: "claude-code",
-      json: true,
-      readMarker: async () => marker([existingHarness()]),
-      cleanup: async () => ({ ok: true }),
+      input: uninstallInput({ cleanupVerified: true, json: true }),
+      marker: marker([existingHarness()]),
+      cleanupResult: { ok: true },
       removeHarness: async () => marker([]) as MarkerWriteResult,
       recordOptOut: async () => ({ exitCode: 0 }),
       writeStdout: (msg) => stdout.push(msg),

@@ -105,6 +105,36 @@ describe("production GitExec", () => {
     expect(JSON.parse(result.stdout)).toEqual({ sentinel: "preserved", indexFile });
   });
 
+  it("applies forbidden terminal policy per invocation without blocking explicit process completion", async () => {
+    const exec = createExecaGitExec();
+    const forbidden = {
+      terminalPrompts: "forbidden",
+      presenters: "forbidden",
+      ambientStdin: "closed",
+    } as const;
+    const script = [
+      "let input = '';",
+      "process.stdin.on('data', (chunk) => { input += chunk; });",
+      "process.stdin.on('end', () => process.stdout.write(JSON.stringify({",
+      "terminal: process.env.GIT_TERMINAL_PROMPT,",
+      "editor: process.env.GIT_EDITOR,",
+      "pager: process.env.GIT_PAGER,",
+      "input",
+      "})));",
+    ].join("");
+
+    const forbiddenResult = await exec(execPath, ["-e", script], { interaction: forbidden });
+    expect(JSON.parse(forbiddenResult.stdout)).toEqual({
+      terminal: "0",
+      editor: "true",
+      pager: "cat",
+      input: "",
+    });
+
+    const ordinary = await exec(execPath, ["-e", "process.stdout.write(process.env.GIT_TERMINAL_PROMPT ?? 'unset')"]);
+    expect(ordinary.stdout).toBe(process.env.GIT_TERMINAL_PROMPT ?? "unset");
+  });
+
   it("normalizes non-zero, canceled, output-limit, and spawn failures", async () => {
     await expect(gitExec("git", ["not-a-command"])).rejects.toMatchObject({
       kind: "nonzero-exit",

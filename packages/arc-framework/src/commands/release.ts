@@ -63,24 +63,27 @@ export type {
   RunReleaseStatusResult,
 } from "../handlers/release/record.js";
 export type {
-  ChooseIdempotency,
-  ChooseIdempotencyOptions,
+  ReleaseSetupInstallInput,
   RunReleaseSetupInstallOptions,
   RunReleaseSetupInstallResult,
+  ReleaseSetupInstallOptions,
   SetupInstallIdempotencyChoice,
 } from "../handlers/release/setup/install.js";
 export type {
   RunReleaseSetupPrintPatternsOptions,
   RunReleaseSetupPrintPatternsResult,
+  ReleaseSetupPrintPatternsOptions,
 } from "../handlers/release/setup/print-patterns.js";
 export type {
-  CleanupVerification,
   CleanupVerificationOptions,
   CleanupVerificationResult,
+  ReleaseSetupUninstallInput,
   RunReleaseSetupUninstallOptions,
   RunReleaseSetupUninstallResult,
+  ReleaseSetupUninstallOptions,
 } from "../handlers/release/setup/uninstall.js";
 export type {
   RunReleaseSetupVerifyOptions,
   RunReleaseSetupVerifyResult,
+  ReleaseSetupVerifyOptions,
 } from "../handlers/release/setup/verify.js";

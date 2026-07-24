@@ -237,7 +237,7 @@ describe("release commit hook ordering", () => {
   });
 
   it.runIf(process.platform !== "win32")(
-    "leaves -F - stdin available to Git when validation is disabled",
+    "leaves explicitly selected -F - stdin available when interaction is forbidden",
     async () => {
       await writeFile(join(repository, ".arc", "system", "arc-config.yml"), [
         "branch.base: main",
@@ -249,7 +249,7 @@ describe("release commit hook ordering", () => {
       ].join("\n"));
 
       const result = await runShell([
-        "arc release commit -F - <<'ARC_TEST_MESSAGE'",
+        "arc --no-input release commit -F - <<'ARC_TEST_MESSAGE'",
         "unrestricted disabled message",
         "ARC_TEST_MESSAGE",
       ].join("\n"), {
@@ -257,7 +257,7 @@ describe("release commit hook ordering", () => {
         PATH: `${arcBin}:${process.env.PATH ?? ""}`,
       });
 
-      expect(result.exitCode).toBe(0);
+      expect(result.exitCode, JSON.stringify(result)).toBe(0);
       expect(await gitOutput(["log", "-1", "--format=%B"])).toBe("unrestricted disabled message");
     },
   );
@@ -415,7 +415,7 @@ describe("release commit byte preservation", () => {
   );
 
   it.runIf(process.platform !== "win32")(
-    "isolates file snapshots from caller mutation, inherits stdin, and cleans both outcomes",
+    "isolates file snapshots, closes ambient non-TTY stdin, and cleans both outcomes",
     async () => {
       await installCapturingCommitMsgHook();
       const sourcePath = join(repository, "message source '$HOME;.txt");
@@ -449,7 +449,7 @@ describe("release commit byte preservation", () => {
       expect(await readFile(hookCapture)).toEqual(message);
       expect(await readFile(sourcePath, "utf8")).toBe("short\n");
       if (process.platform === "linux") {
-        expect(await readFile(stdinCapture, "utf8")).toMatch(/^pipe:\[\d+\]\n$/u);
+        expect(await readFile(stdinCapture, "utf8")).toBe("/dev/null\n");
       }
       expect(await transientSnapshots()).toEqual([]);
 
@@ -464,7 +464,7 @@ describe("release commit byte preservation", () => {
       expect(failure.exitCode).toBe(1);
       expect(await readFile(hookCapture)).toEqual(message);
       if (process.platform === "linux") {
-        expect(await readFile(stdinCapture, "utf8")).toMatch(/^pipe:\[\d+\]\n$/u);
+        expect(await readFile(stdinCapture, "utf8")).toBe("/dev/null\n");
       }
       expect(await transientSnapshots()).toEqual([]);
     },
