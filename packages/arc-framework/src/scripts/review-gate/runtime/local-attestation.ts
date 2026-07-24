@@ -43,49 +43,60 @@ export interface LocalReviewAttestationInput extends LocalReviewReceiptInput {
   expectedLedgerVersion: number;
 }
 
+/** Stable caller-input or durable-binding failure while composing a local receipt. */
+export class LocalReviewReceiptError extends Error {
+  constructor(
+    readonly code: "invalid-input" | "corrupt-state",
+    message: string,
+  ) {
+    super(message);
+    this.name = "LocalReviewReceiptError";
+  }
+}
+
 /** Revalidate one complete local result into its exact advisory receipt. */
 export function createLocalReviewReceipt(input: LocalReviewReceiptInput): ReviewReceiptV2 {
   const target = validateReviewTarget(input.target);
   const requirement = validateReviewRequirement(target, input.requirement);
   const request = validateReviewRequest(target, input.carrier.request);
   if (request.requirementId !== requirement.requirementId) {
-    throw new Error("local review request does not match its requirement");
+    throw new LocalReviewReceiptError("corrupt-state", "local review request does not match its requirement");
   }
   if (request.carrier.kind !== "local-change-set"
     || request.carrier.adapterId !== "local") {
-    throw new Error("local review request does not use the exact local carrier");
+    throw new LocalReviewReceiptError("corrupt-state", "local review request does not use the exact local carrier");
   }
   const result = NormalizedLocalReviewResultSchema.parse(input.result);
   if (result.status !== "complete" || result.result === null) {
-    throw new Error("local review result is not attestable terminal evidence");
+    throw new LocalReviewReceiptError("invalid-input", "local review result is not attestable terminal evidence");
   }
   if (result.targetId !== target.targetId
     || result.headSha !== target.headSha
     || result.headTree !== target.headTree) {
-    throw new Error("local review result does not cover the exact target");
+    throw new LocalReviewReceiptError("invalid-input", "local review result does not cover the exact target");
   }
   if (result.rubricVersion !== requirement.rubricVersion
     || result.rubricDigest !== requirement.rubricDigest) {
-    throw new Error("local review result does not match the required rubric");
+    throw new LocalReviewReceiptError("invalid-input", "local review result does not match the required rubric");
   }
   if (result.sourceDigest !== ReviewCanonicalDigestSchema.parse(input.sourceDigest)) {
-    throw new Error("local review result source digest mismatch");
+    throw new LocalReviewReceiptError("invalid-input", "local review result source digest mismatch");
   }
   if (result.guidanceDigest !== ReviewCanonicalDigestSchema.parse(input.guidanceDigest)) {
-    throw new Error("local review result guidance digest mismatch");
+    throw new LocalReviewReceiptError("invalid-input", "local review result guidance digest mismatch");
   }
   if (result.evaluatorIdentity !== request.evaluatorIdentity
     || input.carrier.attestation.evaluatorIdentity !== request.evaluatorIdentity) {
-    throw new Error("local review result evaluator identity mismatch");
+    throw new LocalReviewReceiptError("invalid-input", "local review result evaluator identity mismatch");
   }
   if (request.authorIdentity === result.evaluatorIdentity) {
-    throw new Error("local review author cannot attest self-review");
+    throw new LocalReviewReceiptError("corrupt-state", "local review author cannot attest self-review");
   }
   if (input.runtimeIdentity !== input.carrier.attestation.runtimeIdentity) {
-    throw new Error("local review attesting runtime identity mismatch");
+    throw new LocalReviewReceiptError("corrupt-state", "local review attesting runtime identity mismatch");
   }
   if (input.attestationMechanism !== input.carrier.attestation.mechanism) {
-    throw new Error("local review attestation mechanism mismatch");
+    throw new LocalReviewReceiptError("corrupt-state", "local review attestation mechanism mismatch");
   }
   const receipt = createReviewReceipt({
     target,

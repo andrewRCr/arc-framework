@@ -9,12 +9,26 @@ import {
   handleReviewReduce,
   handleReviewRespond,
 } from "../../../src/handlers/review.js";
+import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import {
+  createLocalReviewAdmission,
+} from "../../../src/scripts/review-gate/core/local-operation.js";
 import {
   LocalReviewRecordStoreError,
 } from "../../../src/scripts/review-gate/hosts/local/record-store-error.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
 import { reduceReviewRouting } from "../../../src/scripts/review-gate/policy/routing.js";
+import {
+  createLocalReviewReceipt,
+} from "../../../src/scripts/review-gate/runtime/local-attestation.js";
 import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
+import {
+  LocalPrepareCommandError,
+} from "../../../src/scripts/review-gate/runtime/local-prepare.js";
 
 const target = {
   schemaVersion: 2 as const,
@@ -109,6 +123,78 @@ const respondProposalRequest = {
     }],
   },
 };
+
+function localReceiptFixture() {
+  const receiptTarget = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: "a".repeat(40),
+    diffBaseTree: "b".repeat(40),
+    headSha: "c".repeat(40),
+    headTree: "d".repeat(40),
+  });
+  const requirement = createReviewRequirement({
+    target: receiptTarget,
+    projection: {
+      obligation: "recommended",
+      reasons: ["routine-code"],
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "standard-review/v1" }),
+      retrigger: "full-final",
+      count: 1,
+    },
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
+    initialAdmission: "checkpoint",
+  });
+  if (requirement === null) throw new Error("expected local review requirement");
+  const admission = createLocalReviewAdmission({
+    target: receiptTarget,
+    requirement,
+    authority: {
+      vehicle: { kind: "work-unit", identity: "review-surface-binding" },
+      authorIdentity: "author-1",
+      evaluatorIdentity: "evaluator-1",
+      attestationRuntimeKind: "arc-cli",
+      runtimeIdentity: "arc-cli/0.1.0",
+      attestationMechanism: "local-attestation",
+    },
+    policyBindingDigest: canonicalDigest({ policy: "local" }),
+    requestMechanism: "local-attestation",
+  });
+  const sourceDigest = canonicalDigest({ source: receiptTarget.targetId });
+  const guidanceDigest = canonicalDigest({ guidance: "standard" });
+  return {
+    target: receiptTarget,
+    requirement,
+    carrier: {
+      target: receiptTarget,
+      request: admission.carrier.request,
+      attestation: admission.carrier.attestation,
+    },
+    runtimeIdentity: admission.authority.runtimeIdentity,
+    attestationMechanism: admission.authority.attestationMechanism,
+    sourceDigest,
+    guidanceDigest,
+    result: {
+      status: "complete" as const,
+      result: "clean" as const,
+      targetId: receiptTarget.targetId,
+      headSha: receiptTarget.headSha,
+      headTree: receiptTarget.headTree,
+      rubricVersion: requirement.rubricVersion,
+      rubricDigest: requirement.rubricDigest,
+      sourceDigest,
+      guidanceDigest,
+      evaluatorIdentity: admission.authority.evaluatorIdentity,
+      reviewRunId: "run-1",
+      applicabilityId: null,
+      findings: [],
+    },
+  };
+}
 
 describe("handleReviewFrontlineResolve", () => {
   it("emits the shared invalid-input error envelope for malformed input", async () => {
@@ -282,6 +368,34 @@ describe("handleReviewLocalPrepare", () => {
     });
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
+
+  it("emits corrupt-state for a persisted local source binding mismatch", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewLocalPrepare("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({
+        schemaVersion: 1,
+        evaluatorIdentity: "reviewer",
+        routingFacts: {},
+      }),
+      prepare: async () => {
+        throw new LocalPrepareCommandError("local review source reference mismatch");
+      },
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-local-prepare",
+      error: {
+        code: "corrupt-state",
+        message: "local review source reference mismatch",
+      },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
 });
 
 describe("handleReviewLocalAttest", () => {
@@ -314,6 +428,44 @@ describe("handleReviewLocalAttest", () => {
       + "\"payload\":{\"operationId\":\"local-operation\",\"persistedVersion\":1}}\n",
     );
   });
+
+  it.each(["target", "rubric", "evaluator"] as const)(
+    "emits invalid-input for a semantic %s mismatch in the submitted result",
+    async (mismatch) => {
+      const fixture = localReceiptFixture();
+      const result = {
+        ...fixture.result,
+        ...(mismatch === "target"
+          ? { targetId: canonicalDigest({ target: "different" }) }
+          : mismatch === "rubric"
+            ? { rubricDigest: canonicalDigest({ rubric: "different" }) }
+            : { evaluatorIdentity: "different-evaluator" }),
+      };
+      const write = vi.fn();
+      const setExitCode = vi.fn();
+
+      await handleReviewLocalAttest("-", {
+        resolveRoot: () => "/repo",
+        readText: async () => JSON.stringify({
+          schemaVersion: 1,
+          operationId: "local-operation",
+          result,
+        }),
+        attest: async (request) => createLocalReviewReceipt({
+          ...fixture,
+          result: (request as { result: typeof result }).result,
+        }),
+        write,
+        setExitCode,
+      });
+
+      expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+        mode: "review-local-attest",
+        error: { code: "invalid-input" },
+      });
+      expect(setExitCode).toHaveBeenCalledWith(1);
+    },
+  );
 });
 
 describe("handleReviewLocalResume", () => {

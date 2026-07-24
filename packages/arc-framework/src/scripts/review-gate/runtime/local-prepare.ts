@@ -218,7 +218,7 @@ export async function prepareLocalReview(
           if (source === null
             || source.sourceDigest !== state.sourceDigest
             || source.targetId !== state.targetId) {
-            throw new Error("local review source reference mismatch");
+            throw new LocalPrepareCommandError("local review source reference mismatch");
           }
           const ledger = await dependencies.readReceipts(state.targetId);
           const receipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
