@@ -506,7 +506,10 @@ program
   .command("update")
   .description("Update ARC framework files to the latest version")
   .option("-q, --quiet", "Suppress changelog output")
-  .action(handleUpdate);
+  .action(withInteractionContext(
+    {},
+    (context, opts: { quiet?: boolean }) => handleUpdate(opts, context),
+  ));
 
 program
   .command("health")

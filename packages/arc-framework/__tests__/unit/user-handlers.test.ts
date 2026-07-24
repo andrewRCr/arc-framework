@@ -184,7 +184,7 @@ vi.mock("../../src/handlers/push-recovery.js", () => ({
 }));
 
 const {
-  handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus,
+  handleUserAdd, handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus,
   handleUserOpen, handleUserClose, handleUserCompact,
 } = await import("../../src/handlers/user.js");
 
@@ -228,6 +228,26 @@ function resetMockDefaults() {
   });
   mockResolveArcRoot.mockReturnValue(process.cwd());
 }
+
+describe("handleUserAdd", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    process.exitCode = undefined;
+  });
+
+  afterEach(() => {
+    process.exitCode = undefined;
+  });
+
+  it("sets a failing exit code for an invalid identity", async () => {
+    await handleUserAdd("!!!");
+
+    expect(mockRunUserAdd).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+});
 
 // --- handleUserPush tests ---
 

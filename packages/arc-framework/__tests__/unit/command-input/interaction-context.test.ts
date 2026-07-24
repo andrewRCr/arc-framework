@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   resolveCommandInteractionContext,
   resolveInteractionContext,
+  resolveProcessInteractionContext,
   withInteractionContext,
   type InteractionSignals,
 } from "../../../src/lib/command-input/index.js";
@@ -18,6 +19,23 @@ const signals = (overrides: Partial<InteractionSignals> = {}): InteractionSignal
 });
 
 describe("interaction context", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("treats CI=1 as a non-interactive environment", () => {
+    vi.stubEnv("CI", "1");
+    const promptStream = { isTTY: true } as NodeJS.ReadStream & NodeJS.WriteStream;
+
+    expect(resolveProcessInteractionContext({
+      noInput: false,
+      machineReadable: false,
+      yes: "absent",
+      promptInput: promptStream,
+      promptOutput: promptStream,
+    })).toMatchObject({ interaction: "forbidden" });
+  });
+
   it("decodes Commander's negated --no-input option", () => {
     const action = withInteractionContext({}, (context) => context.interaction);
     const command = {

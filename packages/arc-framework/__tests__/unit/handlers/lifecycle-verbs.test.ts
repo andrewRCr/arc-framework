@@ -11,11 +11,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
 const mockNote = vi.fn();
+const mockSelect = vi.fn();
 const mockIoExec = vi.fn();
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
   note: (...a: unknown[]) => mockNote(...a),
+  select: (...a: unknown[]) => mockSelect(...a),
+  isCancel: () => false,
   log: { error: (...a: unknown[]) => mockLogError(...a), info: (...a: unknown[]) => mockLogInfo(...a) },
 }));
 
@@ -326,6 +329,14 @@ describe("handleStub", () => {
     await handleStub(undefined, { commitment: "provisional", priority: "P1" });
     expect(mockRunStub).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses an absent name before eliciting handler-level inputs", async () => {
+    await handleStub(undefined, {});
+
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockRunStub).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });

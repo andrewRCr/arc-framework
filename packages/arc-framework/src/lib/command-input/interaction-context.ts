@@ -37,6 +37,11 @@ export interface InteractionContext {
   };
 }
 
+function isCiEnvironment(): boolean {
+  const value = process.env.CI?.trim().toLowerCase();
+  return value === "true" || value === "1";
+}
+
 /** Commander surface needed to resolve inherited and command-local options. */
 export interface InteractionCommand {
   readonly opts: () => Readonly<Record<string, unknown>>;
@@ -107,7 +112,7 @@ export function resolveProcessInteractionContext(input: {
     noInput: input.noInput,
     machineReadable: input.machineReadable,
     yes: input.yes,
-    ci: process.env.CI === "true",
+    ci: isCiEnvironment(),
     promptInputIsTTY: promptInput.isTTY,
     promptOutputIsTTY: promptOutput.isTTY,
   }, { input: promptInput, output: promptOutput });
@@ -134,7 +139,7 @@ export function resolveCommandInteractionContext(
   const promptInput = policy.promptInput ?? process.stdin;
   const promptOutput = policy.promptOutput ?? process.stdout;
   const environment = policy.environment ?? {
-    ci: process.env.CI === "true",
+    ci: isCiEnvironment(),
     promptInputIsTTY: promptInput.isTTY,
     promptOutputIsTTY: promptOutput.isTTY,
   };

@@ -62,6 +62,21 @@ describe("command-input declarations", () => {
     expect(Object.isFrozen(result.sites[0])).toBe(true);
   });
 
+  it("deep-freezes an interaction selector after validation", () => {
+    const value = declaration();
+    value.sites[0] = {
+      ...value.sites[0]!,
+      source: {
+        file: "src/commands/example.ts",
+        interaction: { kind: "prompt", callee: "p.text", occurrence: 1 },
+      },
+    };
+
+    const result = defineCommandInputDeclaration(value);
+
+    expect(Object.isFrozen(result.sites[0]?.source.interaction)).toBe(true);
+  });
+
   it.each([
     {
       label: "safe default without a default source",

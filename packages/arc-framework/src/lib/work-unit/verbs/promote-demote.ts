@@ -132,7 +132,9 @@ export async function runPromote(ctx: BacklogMoveContext, params: BacklogMovePar
   }
 
   const fromDir = posix.dirname(entry.path);
-  const recordedClass = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, entry.path))).Class;
+  const recordedClass = parseMetaRecord(
+    await executor.indexFs.readFile(join(executor.cwd, entry.path)),
+  ).Class ?? "[TBD]";
   const classIsUnresolved = recordedClass === "[TBD]";
   const cls = classIsUnresolved ? params.class : recordedClass;
   if (

@@ -519,6 +519,11 @@ export async function handleStub(
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false, machineReadable: false, yes: "absent",
   });
+  const parsedName = SlugSchema.safeParse(name?.trim());
+  if (!parsedName.success) {
+    refuse(parsedName.error.issues.map((issue) => issue.message).join("\n"));
+    return;
+  }
   let commitment = opts.commitment;
   let priority = opts.priority;
   if (context.interaction === "allowed") {
@@ -551,7 +556,7 @@ export async function handleStub(
     return;
   }
   const parsed = StubCommandInputSchema.safeParse({
-    name: name?.trim(), commitment, priority,
+    name: parsedName.data, commitment, priority,
     ...(opts.origin === undefined ? {} : { origin: opts.origin }),
     ...(opts.design === undefined ? {} : { design: opts.design }),
     ...(opts.cohort === undefined ? {} : { cohort: opts.cohort }),

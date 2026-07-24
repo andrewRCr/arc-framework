@@ -130,6 +130,18 @@ describe("repository command-input inventory", () => {
     expect(bypasses).toEqual([]);
   });
 
+  it("routes every terminal-prompt subprocess command through the interaction-context adapter", () => {
+    const subprocessCommands = new Set(inventory.entries
+      .filter((entry) => entry.subprocess === "terminal-prompts")
+      .map((entry) => entry.commandPath));
+    const bypasses = snapshot.source.commands
+      .filter((command) => subprocessCommands.has(command.path))
+      .filter((command) => command.action?.interactionContext !== true)
+      .map((command) => command.path);
+
+    expect(bypasses).toEqual([]);
+  });
+
   it("renders a stable descriptive table without writing a tracked artifact", () => {
     const rendered = renderCommandInputInventory(inventory);
 
@@ -148,6 +160,18 @@ describe("repository command-input inventory", () => {
       .filter((entry) => entry.schemaOwnership === "owned")
       .filter((entry) => !propertiesByCommand.get(entry.commandPath)?.has(entry.schemaField ?? ""))
       .map((entry) => `${entry.identity} -> ${String(entry.schemaField)}`);
+
+    expect(mismatches).toEqual([]);
+  });
+
+  it("maps every registered syntax site to a real command-schema field", () => {
+    const mismatches = commandInputRegistrations.flatMap((registration) => {
+      const schema = z.toJSONSchema(registration.schema) as { properties?: Readonly<Record<string, unknown>> };
+      const properties = new Set(Object.keys(schema.properties ?? {}));
+      return Object.entries(registration.schemaFields ?? {})
+        .filter(([, field]) => !properties.has(field))
+        .map(([site, field]) => `${registration.commandPath}:${site} -> ${field}`);
+    });
 
     expect(mismatches).toEqual([]);
   });

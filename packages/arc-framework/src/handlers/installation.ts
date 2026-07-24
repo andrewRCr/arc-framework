@@ -23,6 +23,7 @@ import { runWithSpinner, isHandledError, requireArcProjectRoot } from "./shared.
 import { createSyncOutput } from "../lib/sync-output.js";
 import { readChangelog, filterChangelogRange, buildChangelogDisplay } from "../lib/changelog.js";
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 
 /** Terminal-process policy owned by the update adapter. */
 export const installationCommandInputPolicyDeclarations = [{
@@ -38,7 +39,10 @@ export const installationCommandInputPolicyDeclarations = [{
 
 // --- Update ---
 
-export async function handleUpdate(options: { quiet?: boolean } = {}): Promise<void> {
+export async function handleUpdate(
+  options: { quiet?: boolean } = {},
+  interaction?: InteractionContext,
+): Promise<void> {
   p.intro("arc update");
 
   const output = createSyncOutput(false);
@@ -51,7 +55,7 @@ export async function handleUpdate(options: { quiet?: boolean } = {}): Promise<v
     const result = await runWithSpinner(
       output,
       "Updating ARC framework files...",
-      () => runUpdate({ cwd, io: createIOContext(), templateDir, recipe }),
+      () => runUpdate({ cwd, io: createIOContext(interaction?.subprocess), templateDir, recipe }),
       "Update complete.",
     );
 

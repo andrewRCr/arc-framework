@@ -42,6 +42,8 @@ interface MetaSpec {
   state: string;
   /** The meta's recorded `Class`; defaults to `Novel` (a realized value). */
   cls?: string;
+  /** Model a legacy flat-field meta whose Class field is absent. */
+  omitClass?: boolean;
 }
 
 /** Build an injectable index fs over a fixed set of backlog metas. */
@@ -74,12 +76,17 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
     }
     const filename = `meta-${meta.slug}.md`;
     ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
+    const coreFields = meta.omitClass === true
+      ? `- **State:** \`${meta.state}\`\n` +
+        `- **Owner:** \`andrew\`\n` +
+        `- **Branch:** \`[none]\`\n` +
+        `- **Priority:** \`P1\``
+      : `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
+        `|-----------|-----------|------------|-----------|--------------|\n` +
+        `| \`${meta.state}\` | \`andrew\` | \`[none]\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |`;
     files.set(
       `${dirAbs}/${filename}`,
-      `# Metadata: ${meta.slug}\n\n` +
-        `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
-        `|-----------|-----------|------------|-----------|--------------|\n` +
-        `| \`${meta.state}\` | \`andrew\` | \`[none]\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |\n\n` +
+      `# Metadata: ${meta.slug}\n\n${coreFields}\n\n` +
         `- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n` +
         `- **Next Action:** continue.\n\n---\n`,
     );
@@ -192,6 +199,17 @@ describe("runPromote — the Class gate", () => {
 
   it("persists an explicitly acquired Class while promoting an unresolved stub", async () => {
     const { ctx, calls } = buildCtx([PROVISIONAL("[TBD]")], {
+      [`${CWD}/.arc/backlog/provisional/foo`]: [],
+    });
+
+    const result = await runPromote(ctx, { name: "foo", class: "Heavy" });
+
+    expect(result.status).toBe("moved");
+    expect(calls).toContain("class:.arc/backlog/planned/foo/meta-foo.md:Heavy");
+  });
+
+  it("treats a missing recorded Class as unresolved", async () => {
+    const { ctx, calls } = buildCtx([{ ...PROVISIONAL(), omitClass: true }], {
       [`${CWD}/.arc/backlog/provisional/foo`]: [],
     });
 

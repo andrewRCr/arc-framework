@@ -218,6 +218,7 @@ function contradiction(site: z.output<typeof CommandInputSiteSchema>): string | 
 
 function freezeDeclaration(value: ParsedCommandInputDeclaration): ParsedCommandInputDeclaration {
   for (const site of value.sites) {
+    if (site.source.interaction !== undefined) Object.freeze(site.source.interaction);
     Object.freeze(site.source);
     Object.freeze(site.automation.flags);
     Object.freeze(site.automation.acceptedSyntax);

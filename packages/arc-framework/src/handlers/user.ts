@@ -72,6 +72,7 @@ export async function handleUserAdd(
   const parsed = UserAddInputSchema.safeParse({ identity: normalizedIdentity });
   if (!parsed.success) {
     p.log.error("Invalid identity — must contain at least one alphanumeric character.");
+    process.exitCode = 1;
     return;
   }
   const identity = parsed.data.identity;

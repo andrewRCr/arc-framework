@@ -39,7 +39,6 @@ export const logStandaloneInputRegistration = {
   schema: LogStandaloneInputSchema,
   schemaFields: {
     "option.since": "since",
-    "option.ref": "ref",
     "option.limit": "limit",
     "option.all": "all",
     "option.category": "category",

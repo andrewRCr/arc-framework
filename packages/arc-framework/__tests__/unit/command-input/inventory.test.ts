@@ -132,4 +132,32 @@ describe("command-input inventory reconciliation", () => {
       sourceFiles: { "cli.ts": "handleCreate", "handlers/create.ts": handlerText },
     })).toThrow(/source locus/u);
   });
+
+  it("reconciles two interaction sites that share one source line", () => {
+    const sameLineText = 'import * as p from "@clack/prompts"; p.text({ message: "A" }); p.text({ message: "B" });';
+    const sameLineInteractions = scanInteractionSource({
+      file: "handlers/create.ts",
+      sourceText: sameLineText,
+    });
+    const value = declaration();
+    value.sites = [
+      ...value.sites.slice(0, 3),
+      ...([1, 2] as const).map((occurrence) => ({
+        ...value.sites[3]!,
+        id: `prompt.name-${String(occurrence)}`,
+        source: {
+          file: "handlers/create.ts",
+          interaction: { kind: "prompt" as const, callee: "p.text", occurrence },
+        },
+      })),
+    ];
+
+    const result = reconcileCommandInputInventory({
+      source: { commands: cli.commands, interactions: sameLineInteractions.sites },
+      declarations: [value],
+      sourceFiles: { "cli.ts": "handleCreate", "handlers/create.ts": sameLineText },
+    });
+
+    expect(result.entries.filter((entry) => entry.siteId.startsWith("prompt.name-"))).toHaveLength(2);
+  });
 });

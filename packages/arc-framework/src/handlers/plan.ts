@@ -60,7 +60,7 @@ export const PlanCheckInputSchema = z.object({ name: SlugSchema.optional(), json
 export const planCheckInputRegistration = {
   commandPath: "plan check",
   schema: PlanCheckInputSchema,
-  schemaFields: { "option.name": "name", "option.stub": "stub", "option.json": "json" },
+  schemaFields: { "option.name": "name", "option.json": "json" },
 } satisfies CommandInputRegistration;
 
 /** Machine-output policy owned by the planning preflight adapter. */

@@ -86,8 +86,8 @@ function sourceExists(
   return true;
 }
 
-function interactionKey(site: Pick<DiscoveredInteractionSite, "file" | "line">): string {
-  return `${site.file}:${String(site.line)}`;
+function interactionKey(site: Pick<DiscoveredInteractionSite, "file" | "line" | "column">): string {
+  return `${site.file}:${String(site.line)}:${String(site.column)}`;
 }
 
 function interactionSelectorKeys(
@@ -153,7 +153,8 @@ export function reconcileCommandInputInventory(input: {
       } else if (site.source.line !== undefined || site.source.interaction !== undefined) {
         const selector = site.source.interaction;
         const interaction = selector === undefined
-          ? interactions.get(interactionKey({ file: site.source.file, line: site.source.line ?? 0 }))
+          ? [...interactions.values()].find((candidate) =>
+              candidate.file === site.source.file && candidate.line === (site.source.line ?? 0))
           : interactionsBySelector.get(
             `${site.source.file}|${selector.kind}|${selector.callee}|${String(selector.occurrence)}`,
           );
