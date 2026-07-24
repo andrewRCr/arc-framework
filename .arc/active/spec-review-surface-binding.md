@@ -124,7 +124,9 @@ Responsibility divides as follows:
    activity and work-unit assurance; creates the requirement and request; persists the lightweight admitted
    operation record; then materializes the immutable `local-change-set` carrier. It returns `ready` once that
    materialization verifies, and emits a complete typed reviewer payload. Admission facts are written once;
-   `ready` is a derived reading of the materialization, not a second durable phase (D6).
+   `ready` is a derived reading of the materialization, not a second durable phase (D6). Re-preparing an operation
+   that already has its terminal receipt returns `review-complete -> reduce` without restoring the completed
+   materialization.
 2. **Launch.** For local analysis, the agent gives the prepared payload to the separately authorized
    independent evaluator. This step is outside the CLI.
 3. **Run frontline.** `arc review frontline run` is the provider-effectful sibling. It consumes one complete `ready`
@@ -165,7 +167,7 @@ hand-maintained runtime schema.
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `frontline resolve` | `skipped -> none`; `offered -> bind-source` when no source resolved; `offered -> obtain-authorization` when a source resolved; `ready -> run-frontline`                                 |
 | `frontline run`     | `clean -> none`; `findings -> respond`; `unavailable -> retry \| operator-repair`; `timed-out -> retry`; `stale-target -> prepare-current-target`; `failed -> retry \| operator-repair` |
-| `local prepare`     | `exempt -> none`; `ready -> launch-review`; `unavailable -> operator-repair`; `stale-target -> prepare-current-target`                                                                  |
+| `local prepare`     | `exempt -> none`; `review-complete -> reduce`; `ready -> launch-review`; `unavailable -> operator-repair`; `stale-target -> prepare-current-target`                                     |
 | `local attest`      | `attested-current -> reduce`; `stale-target -> prepare-current-target`; `expired -> rerun-review`; `not-attestable -> rerun-review`                                                     |
 | `respond`           | `awaiting-approval -> obtain-approval`; `ready-to-fix -> apply-fix`; `settled -> reduce`; `already-settled -> reduce`; `stale-target -> prepare-current-target`                         |
 | `reduce`            | `findings -> respond`; `settled -> none`; `advisory-complete -> none`; `retryable -> retry`; `stale-target -> prepare-current-target`                                                   |
@@ -188,6 +190,10 @@ approved fixes, `respond` / `reduce` emits typed follow-up advice containing the
 caller supplies those fields to a new effect-free `frontline resolve` request for the changed target. The resolver
 declines a follow-up whose pass exceeds the cap. Because a fix produces a new head and therefore a new target, that
 decline remains advisory follow-up control rather than a run outcome.
+
+The complete `ready` envelope is also an untrusted `frontline run` request field. Its schema requires `pass` to be
+no greater than `maxPasses` and requires the envelope allowance to equal `frontlineReview.maxPasses`;
+contradictory bindings fail request parsing before target preparation, persistence, or provider execution.
 
 Those edges, plus `local prepare: unavailable` (a declared project policy binding that fails to parse or names an
 unregistered source — see D8), are the protocol's only operator-repair surfaces. A valid domain outcome —
@@ -297,7 +303,8 @@ non-ready variants never fabricate operations, evidence references, or targets t
   `authorization-rejected`) carry no executable identity. Stale execution is itself a durable typed outcome;
   findings never live only in the command response.
 - `local prepare: ready` returns `operationId`, `persistedVersion`, full `target` and `request`, the exact typed
-  `reviewerPayload`, and `sourceRef` plus `sourceDigest`. `exempt`, `unavailable`, and `stale-target` omit
+  `reviewerPayload`, and `sourceRef` plus `sourceDigest`. `review-complete` returns the existing operation, version,
+  and exact target for reduction without a reviewer payload. `exempt`, `unavailable`, and `stale-target` omit
   synthetic operation fields; stale returns the attempted and current target. Prepare's staleness check precedes
   publication (D5), so no prepare `stale-target` ever carries an operation.
 - `local attest: attested-current` returns the operation / version, exact target, source reference, receipt
@@ -346,15 +353,18 @@ policy-binding digest, and request mechanism all match a live operation for this
 difference in those facts admits a new operation (a new head, by construction, is a different target). An identical
 retry is idempotent: it returns the same `operationId` and re-verifies rather than rebuilds an intact
 materialization, so repeating `local prepare` while an evaluator is running cannot pull the checkout out from under
-it. It does create a pin or checkout that is _absent_ — the recoverable case publish-first makes reachable when an
-invocation fails between publication and pin creation (D5). After that operation expires without a receipt, an
-explicit `local prepare` is a new liveness request: it version-renews only `updatedAt` and `cleanupTtlMs`, then
-re-materializes the same immutable source. The rule is never-destroy-while-live, not never-create.
+it. Once the operation has exactly one terminal receipt, the same retry returns `review-complete -> reduce` and
+does not recreate its released source. Before completion, it does create a pin or checkout that is _absent_ — the
+recoverable case publish-first makes reachable when an invocation fails between publication and pin creation (D5).
+After that receipt-less operation expires, an explicit `local prepare` is a new liveness request: it version-renews
+only `updatedAt` and `cleanupTtlMs`, then re-materializes the same immutable source. The rule is
+never-destroy-while-live, not never-create.
 
 That predicate is also the **operationId re-acquisition path**. `local resume` takes an `operationId`, and after a
 lost session the caller no longer has one; re-running `local prepare` from the same working tree derives the same
-identity and returns it. No enumeration affordance is added to the operation-state port — the derivation _is_ the
-lookup, which is why target and actor facts key the operation rather than a minted opaque id.
+identity and returns it, dispatching directly to reduction when that operation already completed. No enumeration
+affordance is added to the operation-state port — the derivation _is_ the lookup, which is why target and actor
+facts key the operation rather than a minted opaque id.
 
 ### D5 — Immutable local review source
 
@@ -626,13 +636,15 @@ retries the same operation and never promotes an inferred result.
 
 **Where `pass` comes from.** The provider adapter requires an explicit `pass`, so the protocol must say who assigns
 it: `frontline run` takes it from the `ready` resolution it consumes, never from a request field and never by
-reading prior operations. A first resolution over a head authorizes pass 1. After findings are dispositioned, the
-shipped follow-up resolver may authorize one more — and it authorizes it **at the changed head**, returning pass 2
-against the new target. That is the real shape of the two-pass allowance: not two runs at one head, but an initial
-run plus one follow-up run across the fix boundary. Pass numbering therefore does _not_ reset per head; it tracks
-the advisory chain the resolver authorizes, and a chain is spent once it reaches its allowance. Pass counts remain
-advisory bookkeeping in the operation-state record — a caller that never consults the follow-up resolver simply
-starts a new chain, which is the same latitude every advisory surface in this design carries.
+reading prior operations. The run boundary revalidates that the carried pass does not exceed its allowance and
+that the allowance equals the semantic record before any effect. A first resolution over a head authorizes pass 1.
+After findings are dispositioned, the shipped follow-up resolver may authorize one more — and it authorizes it
+**at the changed head**, returning pass 2 against the new target. That is the real shape of the two-pass allowance:
+not two runs at one head, but an initial run plus one follow-up run across the fix boundary. Pass numbering therefore
+does _not_ reset per head; it tracks the advisory chain the resolver authorizes, and a chain is spent once it reaches
+its allowance. Pass counts remain advisory bookkeeping in the operation-state record — a caller that never consults
+the follow-up resolver simply starts a new chain, which is the same latitude every advisory surface in this design
+carries.
 
 Stale or mismatched targets fail closed and produce typed outcomes. A stale run never becomes evidence for a newer
 head even when its result is otherwise complete.
@@ -656,7 +668,8 @@ _materialization_, not the clock: while the pinned source is still present, a la
 advisory receipt normally; once the sweep has reaped the materialization, `local attest` and `local resume` find no
 checkout to attest against and return `expired -> rerun-review`. Re-entry through `local resume` does not extend
 the TTL. An explicit `local prepare` after expiry renews the same receipt-less operation's cleanup clock and
-re-materializes its immutable exact-head source; a changed head still derives a new target and operation.
+re-materializes its immutable exact-head source. A completed operation instead returns directly to reduction and
+never recreates the released materialization; a changed head still derives a new target and operation.
 
 Corrupt durable state fails loudly: a malformed registered record, or a digest or reference mismatch, emits the
 strict `corrupt-state` error envelope and exits 1. On the frontline lane, where an operation record does carry a
@@ -1030,8 +1043,9 @@ host-side enforcement; the required-check boundary stays explicit.
    the evaluator runs cannot change the source digest or satisfy attestation for different bytes; the operation pin
    keeps the range reachable through branch deletion and Git maintenance, and resume recreates the identical review
    root.
-7. Contract tests exercise every legal command-specific state/action pair, reject impossible fields, and prove that
-   per-state payloads, strict error variants, and domain outcomes retain their distinct field and exit semantics.
+7. Contract tests exercise every legal command-specific state/action pair, reject impossible fields and frontline
+   pass bindings before effects, and prove that per-state payloads, strict error variants, and domain outcomes
+   retain their distinct field and exit semantics.
 8. Integration tests enter through the CLI or production launcher rather than manually composing library calls, so
    every delivered port has a non-test production caller and a user-reachable path.
 9. The prune-at-consumption pass leaves no dormant review module unclassified: each of the 23 is consumed, retired
@@ -1049,6 +1063,8 @@ host-side enforcement; the required-check boundary stays explicit.
     a true orphan pin (no operation record) is reaped, and an expired operation whose `operationId` is no longer
     derivable — because HEAD moved after abandonment — is reaped with its materialization on the next
     `local prepare` or `local resume`. A live unexpired operation's pin is never reaped by a concurrent sweep.
+13. Re-running `local prepare` after either a clean or findings receipt returns the same operation directly to
+    reduction and does not recreate the completed source.
 
 ## Open Questions
 
