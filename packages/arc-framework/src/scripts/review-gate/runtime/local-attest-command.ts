@@ -124,22 +124,6 @@ export async function attestLocalReviewCommand(
   if (request.result.sourceDigest !== state.sourceDigest) {
     throw new LocalAttestCommandError("invalid-input", "local review result source digest mismatch");
   }
-  const authority = await dependencies.resolveAuthority(state.request.evaluatorIdentity);
-  if (canonicalize(authority.vehicle) !== canonicalize(state.vehicle)
-    || authority.authorIdentity !== state.request.authorIdentity
-    || authority.evaluatorIdentity !== state.request.evaluatorIdentity
-    || authority.attestationRuntimeKind !== state.attestationRuntimeKind
-    || authority.runtimeIdentity !== state.attestation.runtimeIdentity
-    || authority.attestationMechanism !== state.attestation.mechanism) {
-    throw new LocalAttestCommandError("invalid-input", "local review attestation authority mismatch");
-  }
-  const guidanceDigest = await dependencies.resolveGuidanceDigest(authority, state);
-  if (guidanceDigest !== state.guidanceDigest) {
-    throw new LocalAttestCommandError("corrupt-state", "local review delivered guidance changed");
-  }
-  if (request.result.guidanceDigest !== guidanceDigest) {
-    throw new LocalAttestCommandError("invalid-input", "local review result guidance digest mismatch");
-  }
   const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
   const existing = ledger.receipts.find((receipt) => (
     receipt.requestId === state.requestId
@@ -154,7 +138,7 @@ export async function attestLocalReviewCommand(
       attestation: state.attestation,
     },
     result: request.result,
-    runtimeIdentity: authority.runtimeIdentity,
+    runtimeIdentity: state.attestation.runtimeIdentity,
     attestationMechanism: state.attestation.mechanism,
     sourceDigest: state.sourceDigest,
     guidanceDigest: state.guidanceDigest,
@@ -232,6 +216,22 @@ export async function attestLocalReviewCommand(
         currentTarget: beforeAppend.currentTarget,
       },
     });
+  }
+  const authority = await dependencies.resolveAuthority(state.request.evaluatorIdentity);
+  if (canonicalize(authority.vehicle) !== canonicalize(state.vehicle)
+    || authority.authorIdentity !== state.request.authorIdentity
+    || authority.evaluatorIdentity !== state.request.evaluatorIdentity
+    || authority.attestationRuntimeKind !== state.attestationRuntimeKind
+    || authority.runtimeIdentity !== state.attestation.runtimeIdentity
+    || authority.attestationMechanism !== state.attestation.mechanism) {
+    throw new LocalAttestCommandError("invalid-input", "local review attestation authority mismatch");
+  }
+  const guidanceDigest = await dependencies.resolveGuidanceDigest(authority, state);
+  if (guidanceDigest !== state.guidanceDigest) {
+    throw new LocalAttestCommandError("corrupt-state", "local review delivered guidance changed");
+  }
+  if (request.result.guidanceDigest !== guidanceDigest) {
+    throw new LocalAttestCommandError("invalid-input", "local review result guidance digest mismatch");
   }
   const appended = await appendReceiptWithRetry(
     dependencies.receiptStore,

@@ -279,6 +279,64 @@ describe("local attest command", () => {
     expect(appendReceipt).not.toHaveBeenCalled();
   });
 
+  it.each(["authority", "guidance"] as const)(
+    "returns stale-target before current %s drift can mask the moved head",
+    async (drift) => {
+      const records = fixture();
+      const appendReceipt = vi.fn();
+      const resolveAuthority = vi.fn(async () => drift === "authority"
+        ? { ...records.admission.authority, runtimeIdentity: "arc-cli/changed" }
+        : records.admission.authority);
+      const resolveGuidanceDigest = vi.fn(async () => drift === "guidance"
+        ? digest("changed-guidance")
+        : records.operation.guidanceDigest);
+      const currentTarget = createReviewTarget({
+        ...targetInput(records.operation.target),
+        headSha: objectId("e"),
+        headTree: objectId("f"),
+      });
+
+      await expect(attestLocalReviewCommand({
+        schemaVersion: 1,
+        operationId: records.operation.operationId,
+        result: { ...records.result, status: "complete" },
+      }, {
+        operationStore: {
+          readOperation: async () => ({ version: 1, state: records.operation }),
+          publishOperation: vi.fn(),
+        },
+        sourceStore: {
+          readSource: async () => records.source,
+          appendSource: vi.fn(),
+        },
+        receiptStore: {
+          readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+          appendReceipt,
+        },
+        resolveAuthority,
+        resolveGuidanceDigest,
+        confirmTarget: async () => ({
+          state: "stale-target",
+          attemptedTarget: records.operation.target,
+          currentTarget,
+        }),
+        inspectMaterialization: async () => "materialized",
+        releaseMaterialization,
+      })).resolves.toMatchObject({
+        state: "stale-target",
+        nextAction: "prepare-current-target",
+        payload: {
+          receiptRecorded: false,
+          attemptedTarget: records.operation.target,
+          currentTarget,
+        },
+      });
+      expect(resolveAuthority).not.toHaveBeenCalled();
+      expect(resolveGuidanceDigest).not.toHaveBeenCalled();
+      expect(appendReceipt).not.toHaveBeenCalled();
+    },
+  );
+
   it("appends once and returns attested-current when the target remains unchanged", async () => {
     const records = fixture();
     const order: string[] = [];
