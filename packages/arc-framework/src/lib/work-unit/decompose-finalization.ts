@@ -8,6 +8,11 @@ import { newMemberDependencies } from "./decompose-cut-map.js";
 import { parseDecomposePreparationRecord } from "./decompose-preparation.js";
 import { decomposeInventoryDigests, type DecomposeInventories } from "./decompose-inventory.js";
 import { replaceDependencySlot } from "./decompose-sweep.js";
+import {
+  deriveDecomposeSuccessorCandidates,
+  projectPendingRetirementLifecycle,
+  type RetirementLifecycleResult,
+} from "./retirement-lifecycle-result.js";
 import { resolveRetirementRecordRelativePath } from "./retirement-record-store.js";
 import type {
   DecomposePreparationLocator,
@@ -49,7 +54,12 @@ export interface DecomposeFinalizationContext {
 }
 
 export type DecomposeFinalizationResult =
-  | { status: "recorded"; receipt: RetirementReceipt; authorityVersion: string }
+  | {
+      status: "recorded";
+      receipt: RetirementReceipt;
+      authorityVersion: string;
+      lifecycle: RetirementLifecycleResult;
+    }
   | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string };
 
 function equal(left: unknown, right: unknown): boolean {
@@ -203,10 +213,19 @@ export async function finalizeDecomposeRetirement(
       ? { ...receiptBase, schemaVersion: 1 }
       : { ...receiptBase, schemaVersion: 2, inventoryRead: record.inventoryRead };
     await ctx.replaceAndStageRecord(locator.receiptId, stored, canonicalize(receipt), projection.stagedPaths);
+    const authorityVersion = canonicalDigest({ previousAuthorityVersion: expectedAuthorityVersion, receipt });
     return {
       status: "recorded",
       receipt,
-      authorityVersion: canonicalDigest({ previousAuthorityVersion: expectedAuthorityVersion, receipt }),
+      authorityVersion,
+      lifecycle: projectPendingRetirementLifecycle({
+        slug: record.allocation.origin.slug,
+        branch: receipt.source.branch,
+        transition: "decompose",
+        receiptId: receipt.receiptId,
+        authorityVersion,
+        successorCandidates: deriveDecomposeSuccessorCandidates(record.allocation),
+      }),
     };
   } catch (error) {
     return {

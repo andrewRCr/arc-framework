@@ -378,6 +378,7 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
       [
         `Origin:  ${originArg}`,
         `Receipt: ${resolveRetirementRecordRelativePath(finalized.receipt.receiptId)}`,
+        `Cleanup: after landing — \`arc teardown ${originArg}\``,
       ].join("\n"),
       "Decompose finalized",
     );
@@ -445,9 +446,9 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
     `Re-pointed: ${repointed.length === 0 ? "none" : repointed.map((r) => r.dependent).join(", ")}`,
   ];
   if (teardown !== null) {
-    // The started origin's branch + worktree teardown is deferred to post-merge —
-    // surface the exact command rather than reaping the live branch mid-transform.
-    lines.push(`Teardown:   post-merge — \`arc teardown ${teardown.slug} --force\` (branch \`${teardown.branch}\`)`);
+    lines.push(
+      `Cleanup:    after finalize + landing — \`arc teardown ${teardown.slug}\` (branch \`${teardown.branch}\`)`,
+    );
   }
   if (preparation !== null) {
     lines.push(
@@ -819,7 +820,7 @@ export async function handlePark(slug: string | undefined, opts: ParkOptions): P
   // tree / target the primary). park@Active preserves the branch and tore the
   // worktree down in-verb, so it owes no teardown.
   if (result.outcome.status === "ok" && result.outcome.from?.phase === "Planning") {
-    parkedLines.push(`Teardown:  post-action — \`arc teardown ${target} --force\``);
+    parkedLines.push(`Teardown:  after landing — \`arc teardown ${target}\``);
   }
   reportOutcome("Parked", parkedLines, result.outcome);
 }
@@ -1245,13 +1246,10 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
     refuse(result.reason);
     return;
   }
-  // A started WU's branch + worktree teardown is out-of-band — surface the exact
-  // post-action command (the in-verb teardown legs were dropped to avoid the
-  // self-teardown defect; see the abandon edges in lifecycle-transitions).
-  const abandonedLines = [`Work unit: ${target}`];
-  if (state === "planning" || state === "active") {
-    abandonedLines.push(`Teardown:  post-action — \`arc teardown ${target} --force\``);
-  }
+  const abandonedLines = [
+    `Work unit: ${target}`,
+    `Cleanup:   after landing — \`arc teardown ${target}\``,
+  ];
   reportOutcome("Abandoned", abandonedLines, result.outcome);
 }
 
@@ -1356,15 +1354,13 @@ function reportTeardownResult(
 /**
  * `arc teardown <name>` — physical cleanup (branch + worktree) of a retired work
  * unit: reap the branch, remove the linked worktree (in-place is a no-op), and
- * prune the stale tracking ref. Two modes (default `shipped`; `--force` selects
- * `abandoned`):
+ * prune the stale tracking ref. The verb infers its evidence-backed mode:
  *
  * - default — post-merge cleanup of a `completed/` WU; gated on `completed/`
  *   arc-state + the merged-safe push-state durability check.
- * - `--force` — cleanup of a retired / parked origin (a decompose origin removed
- *   into its members, a `park@Planning` shelf) whose branch is unmerged. The flag
- *   selects non-shipped cleanup; transition-specific receipt evidence authorizes
- *   each destructive operation. Refuses a `completed/` WU (use the default path).
+ * - unshipped — cleanup of a retired / parked origin whose branch is unmerged;
+ *   transition-specific receipt evidence authorizes each destructive operation.
+ *   `--force` is accepted as a compatibility spelling and grants no authority.
  *
  * `arc teardown --branch chore/<slug>` is the recordless cheap-branch sibling:
  * it skips the WU arc-state gate but keeps the merged-safe containment check,
@@ -1387,7 +1383,7 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
       return;
     }
     if (opts.force === true) {
-      refuse("`arc teardown --branch <branch>` is always merged-safe; `--force` is only for work-unit teardown.");
+      refuse("`arc teardown --branch <branch>` is always merged-safe; `--force` is a work-unit compatibility flag.");
       return;
     }
     if (opts.husk !== undefined) {
@@ -1457,7 +1453,7 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
     {
       name: wuName ?? "",
       base: baseBranch,
-      mode: opts.force ? "abandoned" : "shipped",
+      ...(opts.force ? { mode: "abandoned" as const } : {}),
       protection: settings["branch.protection"] === "full" ? "full" : "partial",
       huskPath: opts.husk,
     },

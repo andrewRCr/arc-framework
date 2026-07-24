@@ -516,7 +516,7 @@ describe("runDecompose — origin teardown via the reserved edges (Task 3.2)", (
     if (result.status !== "decomposed") return;
     expect(result.result.origin).toBe("retired");
     expect(h.removed).toContain(`${CWD}/.arc/active/meta-mono.md`);
-    // Teardown is out-of-band (post-merge `arc teardown --force`): the verb fires no
+    // Teardown is deferred (post-landing `arc teardown`): the verb fires no
     // in-verb branch / worktree legs and instead returns the locators for the workflow.
     expect(h.branchOps).toEqual([]);
     expect(h.worktreeOps).toEqual([]);
@@ -586,6 +586,21 @@ describe("runDecompose — origin teardown via the reserved edges (Task 3.2)", (
     expect(h.branchOps).toEqual([]);
     expect(h.worktreeOps).toEqual([]);
     expect(result.result.teardown).toBeNull();
+    expect(result.result.lifecycle).toEqual({
+      subject: { slug: "mono", branch: "feat/mono" },
+      transition: "decompose",
+      authority: { kind: "not-applicable", reason: "extraction" },
+      cleanup: {
+        branch: { status: "not-applicable" },
+        worktree: { status: "not-applicable" },
+        userWorkspace: { status: "not-applicable" },
+      },
+      successorReadiness: {
+        candidates: ["alpha"],
+        actionable: false,
+        remedy: null,
+      },
+    });
   });
 });
 

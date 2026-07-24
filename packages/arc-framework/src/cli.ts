@@ -315,12 +315,12 @@ program
 
 program
   .command("teardown [name]")
-  .description("Post-merge cleanup of a shipped work unit: reap the merged branch, remove the worktree, prune stale refs")
+  .description("Evidence-backed cleanup of a retired work unit: reap refs, remove or husk its worktree, and prune")
   .option("--branch <branch>", "Reap a merged recordless chore/<slug> branch by exact name")
   .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
   .option(
     "--force",
-    "Tear down a retired/parked origin (unmerged branch) using its finalized retirement receipt",
+    "Compatibility spelling for receipt-backed cleanup; grants no additional authority",
   )
   .action((name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts));
 

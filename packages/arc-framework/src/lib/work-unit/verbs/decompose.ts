@@ -53,6 +53,11 @@ import { resolveSlugState } from "../lifecycle-resolver.js";
 import type { Location, Phase } from "../lifecycle-state.js";
 import { artifactMatcher, pruneEmptyBacklogSource } from "../mutators/relocate-artifacts.js";
 import type { PreparedDecomposeRetirement } from "../retirement-authority.js";
+import {
+  deriveDecomposeSuccessorCandidates,
+  projectExtractionLifecycle,
+  type RetirementLifecycleResult,
+} from "../retirement-lifecycle-result.js";
 
 /** Filesystem seam for writing the scaffolded member metas + drafts. */
 export interface CohortMemberScaffoldFs {
@@ -277,13 +282,13 @@ export interface RepointedEdge {
 }
 
 /**
- * The started origin's out-of-band teardown locators — what the workflow's
- * post-merge `arc teardown <slug> --force` call targets. Resolved from meta
+ * The started origin's deferred cleanup locators — what the workflow's
+ * post-landing `arc teardown <slug>` call targets. Resolved from meta
  * fields (never `git branch` inference), since `arc teardown` does the git-roster
  * branch / worktree resolution itself at teardown time.
  */
 export interface OriginTeardown {
-  /** The retired origin slug — the `arc teardown <slug> --force` target. */
+  /** The retired origin slug — the `arc teardown <slug>` target. */
   slug: string;
   /** The origin's branch (from the meta `Branch` field) — surfaced for the allocation-map PR description. */
   branch: string;
@@ -306,6 +311,12 @@ export interface DecomposeResult {
    * <slug> --force` post-merge with these.
    */
   teardown: OriginTeardown | null;
+  /**
+   * Complete lifecycle result for extraction, whose non-retirement authority is
+   * known immediately. Receipt-backed retirement receives this result from
+   * finalization, after the preparation is replaced by its receipt.
+   */
+  lifecycle: RetirementLifecycleResult | null;
 }
 
 /** The outcome of a `runDecompose` — a rejection reason, or the structured account of what it did. */
@@ -354,7 +365,7 @@ export async function runPreparedDecompose(
  * in-verb leg: firing it here would trip on the verb's own staged (uncommitted)
  * tree and, in-place, target the un-removable primary worktree. Instead
  * `runDecompose` returns its locators in `result.teardown`, and the workflow runs
- * `arc teardown <slug> --force` once the decompose has committed and merged. A
+ * `arc teardown <slug>` once the decompose has finalized and landed. A
  * backlog-stub origin owns no branch / worktree, so `teardown` is `null` there as
  * on the extraction shape.
  *
@@ -435,7 +446,7 @@ export async function runDecompose(
     }
 
     // A started origin's branch + worktree teardown is deferred out-of-band — return
-    // its locators for the workflow's post-merge `arc teardown --force`. A backlog
+    // its locators for the workflow's post-landing `arc teardown`. A backlog
     // stub owns no branch / worktree, so none is owed.
     if (originStarted) {
       teardown = { slug: originSlug, branch: originRecord.Branch ?? "[none]" };
@@ -454,6 +465,13 @@ export async function runDecompose(
       repointed,
       origin: originRetired ? "retired" : "survived",
       teardown,
+      lifecycle: originRetired
+        ? null
+        : projectExtractionLifecycle(
+            originSlug,
+            originRecord.Branch,
+            deriveDecomposeSuccessorCandidates(cut),
+          ),
     },
   };
 }
@@ -502,7 +520,7 @@ async function sweepIncomingEdges(
  * edge — `decompose@planning` for a started origin, the artifacts-only
  * `decompose@planned` / `decompose@provisional` for a backlog stub. Every edge
  * fires `artifacts: remove` alone; a started origin's branch + worktree teardown
- * is out-of-band (post-merge `arc teardown --force`), never an in-verb leg. The
+ * is deferred (post-landing `arc teardown`), never an in-verb leg. The
  * `remove` runner deletes the origin's artifact set and prunes the emptied
  * backlog subdir so a retired stub leaves no orphaned cohort dir.
  */

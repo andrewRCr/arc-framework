@@ -183,6 +183,25 @@ describe("finalizeDecomposeRetirement", () => {
       transition: "decompose",
       result: { kind: "decompose", preparationId: locator.preparationId },
     });
+    expect(result.lifecycle).toEqual({
+      subject: { slug: "origin", branch: "plan/origin" },
+      transition: "decompose",
+      authority: {
+        kind: "receipt-backed",
+        receiptId: locator.receiptId,
+        authorityVersion: result.authorityVersion,
+      },
+      cleanup: {
+        branch: { status: "pending" },
+        worktree: { status: "pending" },
+        userWorkspace: { status: "pending" },
+      },
+      successorReadiness: {
+        candidates: ["member-b"],
+        actionable: false,
+        remedy: null,
+      },
+    });
     expect(queryRetirementDisposition({
       status: "valid",
       records: [{

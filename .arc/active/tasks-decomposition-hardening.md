@@ -298,49 +298,33 @@ origin-disposition shape.
 _Purpose:_ Separate pre-commit transform recording from authoritative cleanup, then route landed retirement and
 rename residue through the existing evidence-backed teardown / sweep substrate.
 
-### `[ ]` **4.1 Return one retirement lifecycle result and defer cleanup until landing**
+### `[x]` **4.1 Return one retirement lifecycle result and defer cleanup until landing**
 
 - _Goal:_ Every retirement transform reports cleanup and successor state consistently without granting destructive
   authority or discarding session context before its receipt and tracked result are authoritative.
 
-- _Note:_ See `notes-decomposition-hardening.md` § Landed transform terminal invariants.
+    - `[x]` **4.1.a Define the shared retirement lifecycle result**
+        - Added a discriminated result for receipt-backed and extraction authority, independent cleanup legs, and
+          typed successor readiness with CLI-owned remedy argv/text.
 
-    - `[ ]` **4.1.a Define the shared retirement lifecycle result**
-        - Add a typed result carrying subject, transition, successor readiness, and independent `branch`,
-          `worktree`, and `userWorkspace` projections using
-          `not-applicable | pending | completed | blocked`.
-        - Model authority as
-          `{ kind: "receipt-backed", receiptId, authorityVersion } |
-          { kind: "not-applicable", reason: "extraction" }`. Project extraction through the second arm with every
-          retirement-cleanup leg `not-applicable`; never synthesize or null-fill receipt fields.
+    - `[x]` **4.1.b Keep pre-commit transform terminals non-destructive**
+        - Finalized decompose and abandon now report pending cleanup; extraction reports structural
+          non-applicability. Abandon no longer deletes refs or closes the live per-WU workspace after recording.
 
-    - `[ ]` **4.1.b Keep pre-commit transform terminals non-destructive**
-        - Make decompose finalization and abandon return pending cleanup descriptors without stamping / detaching the
-          worktree, deleting refs, or closing the per-WU user workspace. Interrupted and unmerged transforms retain
-          their live session context.
+    - `[x]` **4.1.c Factor the receipt-backed teardown planner**
+        - Ordinary `arc teardown <slug>` now infers shipped versus receipt-backed cleanup from authoritative
+          lifecycle state and reuses the existing teardown planner. `--force` remains an authority-neutral alias.
 
-    - `[ ]` **4.1.c Factor the receipt-backed teardown planner**
-        - Reuse `runTeardown()` and `teardown-retirement-driver.ts` for receipt revalidation, exact-head /
-          cleanliness proof, remote disposition, husk stamping, ref cleanup, and replay; do not add a transform-local
-          terminal driver.
-        - Let `arc teardown <slug>` infer receipt-authorized non-shipped mode from authoritative evidence.
-          Preserve `--force` only as a compatibility spelling; the flag never grants authority.
+    - `[x]` **4.1.d Derive successor readiness from complete member dependencies**
+        - Candidate derivation uses each member's complete projected dependency set. The shared projection emits one
+          default-spawn remedy only for a unique authoritative candidate and never selects among several.
 
-    - `[ ]` **4.1.d Derive successor readiness from complete member dependencies**
-        - Derive candidates from each new member's complete projected `Depends On` set (internal cut edges plus
-          allocated external dependencies), not an internal-edge-only graph.
-        - Keep the pre-landed projection non-actionable. Once receipt and members are authoritative, precompose a
-          spawn-anchored `arc start <slug>` remedy only for one candidate; list multiple candidates without choosing.
+    - `[x]` **4.1.e Prove result and pre-landing invariants**
+        - Added focused result, transform, teardown, handler, and integration coverage for authority discrimination,
+          non-destructive recording, complete dependency derivation, and zero/one/many successor projections.
 
-    - `[ ]` **4.1.e Prove result and pre-landing invariants**
-        - Build `test-first` (one behavior at a time):
-            - decompose, abandon, and extraction return the complete shared result shape
-            - receipt-backed results require receipt identity/version; extraction admits neither and reports
-              authority plus every cleanup leg `not-applicable`
-            - an uncommitted or unmerged receipt stamps no husk, deletes no ref, and retains the per-WU workspace
-            - candidate derivation includes internal and allocated external dependencies
-            - zero, one, and multiple candidates produce no remedy, one precomposed remedy, and no selected remedy
-              respectively
+- _Outcome:_ Transform recording now yields one typed, non-actionable lifecycle account; destructive cleanup stays
+  behind the existing receipt-backed teardown authority and successor actions remain gated on landed evidence.
 
 ### `[ ]` **4.2 Defer spawned rename self-moves into an operational marker**
 

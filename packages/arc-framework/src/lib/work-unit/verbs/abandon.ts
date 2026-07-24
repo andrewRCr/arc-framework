@@ -12,13 +12,9 @@
  *
  * - `provisional` / `planned` — a branchless backlog stub: just remove the
  *   artifact set.
- * - `planning` / `active` — a started WU: remove the artifact set in-verb; its
- *   branch + worktree teardown is **out-of-band**, a post-action `arc teardown
- *   <name> --force` (the in-verb teardown legs tripped the `worktree-clean` guard
- *   on the verb's own staged removal and, in-place, targeted the un-removable
- *   primary worktree — see the abandon edges in `lifecycle-transitions`).
- * - `parked` — delete the preserved branch, but tear down no worktree (a parked
- *   WU has none, so no self-teardown to defer).
+ * - `planning` / `active` / `parked` — remove the artifact set in-verb, record
+ *   the receipt, and defer branch, worktree, and per-WU workspace cleanup until
+ *   that evidence is authoritative on the protection-aware base.
  *
  * `integrating` and merged / `shipped` are illegal (the table's marked cells):
  * post-merge backout is a new origin-linked WU (ADR-026 amendment), never a
@@ -55,6 +51,10 @@ import {
   type RetirementAuthorityScope,
   type RetirementReceipt,
 } from "../retirement-authority.js";
+import {
+  projectPendingRetirementLifecycle,
+  type RetirementLifecycleResult,
+} from "../retirement-lifecycle-result.js";
 import { validFromStates } from "./dispatch.js";
 
 /** Filesystem seam for the `remove` artifact disposition — list, delete files, drop the emptied subdir. */
@@ -116,9 +116,10 @@ export type AbandonResult =
       outcome: TransitionOutcome;
       receipt: RetirementReceipt;
       authorityVersion: string;
+      lifecycle: RetirementLifecycleResult;
     };
 
-/** Started states whose branch + worktree teardown is deferred to a post-action `arc teardown --force`. */
+/** Started states whose branch + worktree cleanup is deferred until receipt landing. */
 const STARTED: ReadonlySet<LifecycleState> = new Set(["planning", "active"]);
 
 /** Source states whose abandon cascade deletes a branch in-verb — only `parked` (no worktree to self-teardown). */
@@ -135,25 +136,27 @@ export interface AbandonPlan {
 /**
  * Compose the destructive-cascade impact plan for a resolved source state, gated on
  * the state's table cell: a backlog stub removes only artifacts; a started WU
- * removes artifacts in-verb and defers branch + worktree teardown to a post-action
- * `arc teardown <name> --force`; a parked WU deletes its branch in-verb but has no
- * worktree. Pure: the handler resolves the state + branch, prints these lines, and
+ * removes artifacts in-verb and defers cleanup to a landed-evidence
+ * `arc teardown <name>`; a parked WU follows the same receipt-backed branch path.
+ * Pure: the handler resolves the state + branch, prints these lines, and
  * refuses without explicit confirmation.
  *
  * @param state - The target WU's resolved lifecycle state.
- * @param branch - The WU's branch (for the parked branch-delete leg), or null when none.
- * @param name - The WU slug, for the started-state post-action teardown command.
+ * @param branch - The WU's recorded branch, retained for the stable planning API.
+ * @param name - The WU slug for the landed cleanup command.
  * @returns The legality verdict and the impact-plan lines (empty when illegal).
  */
-export function planAbandon(state: LifecycleState, branch: string | null, name: string): AbandonPlan {
+export function planAbandon(state: LifecycleState, _branch: string | null, name: string): AbandonPlan {
   if (!validFromStates("abandon").includes(state)) return { legal: false, lines: [] };
   const lines = ["Artifacts: remove the work unit's artifact set"];
-  if (STARTED.has(state)) {
-    lines.push(`Teardown:  post-action — \`arc teardown ${name} --force\` (branch + worktree)`);
-  } else if (IN_VERB_BRANCH_DELETE.has(state)) {
-    lines.push(`Branch:    delete \`${branch ?? "[none]"}\` (local + remote)`);
+  if (STARTED.has(state) || IN_VERB_BRANCH_DELETE.has(state)) {
+    lines.push(`Teardown:  after landing — \`arc teardown ${name}\` (receipt-backed cleanup)`);
   }
-  lines.push("Workspace: remove the user session workspace");
+  lines.push(
+    STARTED.has(state) || IN_VERB_BRANCH_DELETE.has(state)
+      ? "Workspace: close after landed cleanup"
+      : "Workspace: not applicable",
+  );
   lines.push("ROADMAP:   remove its row");
   return { legal: true, lines };
 }
@@ -161,9 +164,8 @@ export function planAbandon(state: LifecycleState, branch: string | null, name: 
 /**
  * Run `abandon`: resolve the source state, compose the per-cell operands, and
  * dispatch the destructive cascade. A started WU's branch + worktree teardown is
- * **not** fired here — it is deferred to a post-action `arc teardown --force` (see
- * the abandon edges in `lifecycle-transitions`); only a `parked` WU deletes its
- * branch in-verb. Rejects without confirmation (the `confirmation` guard) or from an
+ * **not** fired here — it is deferred to receipt-authorized `arc teardown` after
+ * landing. Rejects without confirmation (the `confirmation` guard) or from an
  * illegal source (the table's lookup — `integrating` / merged / `shipped`).
  *
  * @param ctx - The executor seams plus the artifact-removal fs.
@@ -240,26 +242,16 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
     return { status: "rejected", reason: "Cannot record abandon evidence: retirement authority already exists." };
   }
 
-  const deferredCleanup: Array<{ label: string; run: () => Promise<unknown> }> = [];
   const workspaceHandler = executor.sideEffects?.["user-workspace"];
   const transitionExecutor = {
     ...executor,
     scaffoldOrRemove,
-    reconcileBranch: (op: Parameters<typeof executor.reconcileBranch>[0]) => {
-      deferredCleanup.push({ label: "branch cleanup", run: () => executor.reconcileBranch(op) });
-      return Promise.resolve();
-    },
+    reconcileBranch: () => Promise.resolve(),
     sideEffects: workspaceHandler === undefined
       ? executor.sideEffects
       : {
           ...executor.sideEffects,
-          "user-workspace": (effectCtx: Parameters<typeof workspaceHandler>[0]) => {
-            deferredCleanup.push({
-              label: "user workspace cleanup",
-              run: async () => await workspaceHandler(effectCtx),
-            });
-            return Promise.resolve(undefined);
-          },
+          "user-workspace": () => Promise.resolve(undefined),
         },
   };
   const outcome = await executeTransition(transitionExecutor, { verb: "abandon", slug: name, inputs });
@@ -314,21 +306,19 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
-  const advisories = [...outcome.advisories];
-  for (const { label, run } of deferredCleanup) {
-    try {
-      await run();
-    } catch (err) {
-      advisories.push(
-        `Abandon evidence was recorded, but ${label} did not complete: ${err instanceof Error ? err.message : String(err)}.`,
-      );
-    }
-  }
+  const lifecycle = projectPendingRetirementLifecycle({
+    slug: name,
+    branch: receipt.source.branch,
+    transition: "abandon",
+    receiptId: receipt.receiptId,
+    authorityVersion: recorded.authorityVersion,
+  });
   return {
     status: "abandoned",
-    outcome: advisories.length === outcome.advisories.length ? outcome : { ...outcome, advisories },
+    outcome,
     receipt,
     authorityVersion: recorded.authorityVersion,
+    lifecycle,
   };
 }
 
