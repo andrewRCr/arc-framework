@@ -370,13 +370,10 @@ activation ready for its immediate post-merge Errand.
         - Accepted ADR-029 with the CLI/agent/human authority split and thin-lock posture; changed only ADR-028's
           status so its App-gate decision and amendments remain intact as history.
 
-    - `[ ]` **5.2.b Preflight and authorize the closed abandonment batch**
+    - `[x]` **5.2.b Preflight and authorize the closed abandonment batch**
 
-        - Re-query all three exact slugs with `arc status <slug> --json`; require `state: planned`, no branch or
-          occupied worktree, and the expected qualification → promotion → adapter dependency chain.
-        - Invoke each `arc abandon <slug>` impact-plan path without `--yes`, surface the complete three-slug
-          destructive batch and planned capture cleanup, and stop for one explicit authorization of that closed
-          batch before any artifact removal.
+        - Verified all three slugs are unoccupied planned stubs with the expected dependency chain and generated
+          each safe-default impact plan. No live identity-global capture still targets these slugs.
 
     - `[ ]` **5.2.c Abandon the three planned stubs and close their capture claims**
 
