@@ -1132,7 +1132,7 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   reported loci to seven: typing occupancy as a three-way result forced every caller to answer what an untrusted
   match means, and three destructive `lifecycle-runtime.ts` paths had been treating it as absent.
 
-### `[ ]` **7.E.b Stop rendering unknown state as absent**
+### `[x]` **7.E.b Stop rendering unknown state as absent**
 
 - _Findings:_ S2-F1, S2-F3, S2-F4, S2S1-001, S2S1-002, S2S1-004, E1-F2, S1-F2, W1-F4
 
@@ -1273,6 +1273,24 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
         - The defect was again codified as expected behavior — the "returns ready" audit test asserted
           `locusHint: { expected: null, actual: LOCUS_HINT, match: true }`. It is now a named test for the
           pre-model compatibility arm, so the permissive path is a recorded decision rather than an accident.
+
+    - `[x]` **7.E.b.vii Guard the captured arms against undeclared slot failures**
+        - Held for this task's close so it landed once against the finished slot set. Each session-envelope golden
+          now declares which slots may be `{ ok: false }` — every healthy arm declares none, and `identity-missing`
+          declares the two whose failure is the point. A new failure becomes a deliberate edit to that declaration
+          rather than a silent capture the suite ratifies. Verified against the original incident by injecting
+          `locusState: { ok: false }` into the orient arm: the guard fails where the whole suite previously stayed
+          green. This closes the capture half of the problem only — a hand-written expectation that describes the
+          code, as `7.E.b.vi` found, is not reachable by a golden invariant.
+
+- _Outcome:_ The nine reports collapsed to fewer mechanisms than findings, and not all of them were defects: one
+  (`S2S1-002`) did not reproduce and inverted into a deletion. What recurred instead was where the defects lived.
+  Twice the defect sat below its reported locus — `resolveWorktreeIdentity` manufacturing a plausible default, and
+  the compaction seed discarding the fact its own audit needed — so the reported call site was the symptom, not the
+  cause. Twice the green suite was asserting the defect as expected behavior, which is why a task about unknown
+  state closes with a guard about captured state. Both ratifications trace to an unspecified absence case: where
+  the design said what a present value means and nothing about a missing one, the implementation supplied an
+  answer and a test recorded it.
 
 ### `[ ]` **7.E.c Prove exact authority before destructive dispatch**
 

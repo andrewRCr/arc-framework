@@ -26,6 +26,34 @@ import { runArcNoTty } from "./helpers.js";
 const GOLDEN_DIR = join(import.meta.dirname, "..", "fixtures", "session-envelope");
 const UPDATE_GOLDENS = process.env.UPDATE_SESSION_ENVELOPE_GOLDENS === "1";
 
+/**
+ * Slots each golden arm is allowed to carry as `{ ok: false }`, by dotted path.
+ *
+ * A healthy arm declares none. `identity-missing` is the one arm whose failures
+ * are the point: with no identity there is no locus reader and no user surface.
+ */
+const EXPECTED_FAILED_SLOTS: Record<string, string[]> = {
+  "recovery-audit-dirty-path-drift.json": [],
+  "recovery-audit-ready.json": [],
+  "session-init-active-resume.json": [],
+  "session-init-branch-gone.json": [],
+  "session-init-current-husk.json": [],
+  "session-init-identity-missing.json": ["locusState", "user"],
+  "session-init-orient.json": [],
+};
+
+/** Collect the dotted path of every `{ ok: false }` object in a captured envelope. */
+function failedSlotPaths(node: unknown, path = ""): string[] {
+  if (node === null || typeof node !== "object") return [];
+  if (Array.isArray(node)) {
+    return node.flatMap((item, index) => failedSlotPaths(item, `${path}[${index}]`));
+  }
+  const here = (node as { ok?: unknown }).ok === false ? [path === "" ? "<root>" : path] : [];
+  const nested = Object.entries(node).flatMap(([key, value]) =>
+    failedSlotPaths(value, path === "" ? key : `${path}.${key}`));
+  return [...here, ...nested];
+}
+
 async function expectGolden(name: string, value: unknown): Promise<void> {
   const content = `${JSON.stringify(value)}\n`;
   const path = join(GOLDEN_DIR, name);
@@ -82,6 +110,20 @@ describe("session envelope normalization contract", () => {
       expect(path.startsWith(primary), path).toBe(true);
     }
   });
+
+  it.each(Object.entries(EXPECTED_FAILED_SLOTS))(
+    "carries only declared failed slots in %s",
+    async (name, expected) => {
+      // A golden records whatever the code produced, including a slot that should
+      // never have failed. Declaring the failures per arm makes a new one a
+      // deliberate edit here rather than a silent capture the suite ratifies.
+      const golden = JSON.parse(
+        await readFile(join(GOLDEN_DIR, name), "utf8"),
+      ) as unknown;
+
+      expect(failedSlotPaths(golden)).toEqual(expected);
+    },
+  );
 });
 
 describe("session envelope wire compatibility", () => {
