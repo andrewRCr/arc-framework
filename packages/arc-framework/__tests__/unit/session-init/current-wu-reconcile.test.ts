@@ -38,6 +38,7 @@ describe("runCurrentWuReconcileSessionProbe", () => {
       slug: "dependent",
       dependency: { before: ["retired"], after: ["successor"] },
       recommendedAction: "surface",
+      recommendedCommand: ["arc", "wu", "reconcile", "dependent", "--apply", "--json"],
     });
     expect(result.recommendedPromptText).toContain("arc wu reconcile dependent --apply --json");
     expect(reads).toBe(1);
@@ -54,6 +55,7 @@ describe("runCurrentWuReconcileSessionProbe", () => {
       status: "conflict",
       reason: "ambiguous-evidence",
       recommendedAction: "surface",
+      recommendedCommand: ["arc", "wu", "reconcile", "dependent", "--json"],
     });
     expect(result.recommendedPromptText).toMatch(/blocked.*ambiguous-evidence/iu);
   });
@@ -68,6 +70,7 @@ describe("runCurrentWuReconcileSessionProbe", () => {
     expect(result).toMatchObject({
       status: "clean",
       recommendedAction: "skip",
+      recommendedCommand: null,
       recommendedPromptText: "",
     });
   });

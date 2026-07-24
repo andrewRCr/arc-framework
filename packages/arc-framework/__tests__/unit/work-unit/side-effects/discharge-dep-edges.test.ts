@@ -15,7 +15,13 @@
 import { describe, it, expect } from "vitest";
 
 import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { receiptId } from "../../../../src/lib/canonical/receipt-id.js";
 import { buildLifecycleIndexFromMetas } from "../../../../src/lib/work-unit/lifecycle-index.js";
+import type { RetirementReceipt } from "../../../../src/lib/work-unit/retirement-authority.js";
+import type {
+  RetirementRecordEnumerationResult,
+} from "../../../../src/lib/work-unit/retirement-record-enumeration.js";
 import type {
   RetirementDispositionQueryResult,
 } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
@@ -42,6 +48,47 @@ function queryResults(
   results: Readonly<Record<string, RetirementDispositionQueryResult>>,
 ): (input: { retiredSubject: string }) => Promise<RetirementDispositionQueryResult> {
   return ({ retiredSubject }) => Promise.resolve(results[retiredSubject] ?? { status: "absent" });
+}
+
+function renameEnumeration(
+  retiredSubject = "origin",
+  targetSlug = "successor",
+): RetirementRecordEnumerationResult {
+  const subject = { kind: "work-unit", name: retiredSubject } as const;
+  const source = {
+    branch: `feat/${retiredSubject}`,
+    head: "a".repeat(40),
+    artifactDigest: canonicalDigest(`source:${retiredSubject}`),
+  };
+  const candidate: RetirementReceipt = {
+    schemaVersion: 1,
+    receiptId: receiptId({
+      schemaVersion: 1,
+      subject,
+      transition: "rename",
+      sourceBranch: source.branch,
+      sourceHead: source.head,
+    }),
+    subject,
+    transition: "rename",
+    source,
+    transitionPatchDigest: canonicalDigest(`patch:${retiredSubject}`),
+    retiringProjection: { kind: "direct-transition" },
+    authorization: "identity-renamed",
+    result: {
+      kind: "rename",
+      targetSlug,
+      artifactDigest: canonicalDigest(`target:${targetSlug}`),
+    },
+  };
+  return {
+    status: "valid",
+    records: [{
+      id: candidate.receiptId,
+      content: "",
+      record: { kind: "receipt", value: candidate },
+    }],
+  };
 }
 
 /**
@@ -457,6 +504,67 @@ describe("current-WU dependency reconcile apply", () => {
       queryDisposition,
       readFile: async () => reads++ === 0 ? original : meta("Active", ["changed"]),
       writeFile: async (_path, content) => { writes.push(content); },
+      stagePaths: async (paths) => { stages.push(paths); },
+    }, { slug: "dependent", metaPath: DEPENDENT_PATH, apply: true });
+
+    expect(result).toMatchObject({ status: "conflict", reason: "stale-content" });
+    expect(writes).toEqual([]);
+    expect(stages).toEqual([]);
+  });
+
+  it("discovers a structured reference transition without a Depends On edge", async () => {
+    const metaContent = meta("Active", []);
+    const specPath = ".arc/active/spec-dependent.md";
+    const specContent = "See `spec-origin.md`.\n";
+    const files = new Map([[DEPENDENT_PATH, metaContent], [specPath, specContent]]);
+    const result = await runCurrentWuReconcile({
+      index,
+      queryDisposition: () => Promise.resolve({ status: "absent" }),
+      enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+      listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, specPath]),
+      readFile: (path) => Promise.resolve(files.get(path)!),
+      writeFile: () => Promise.resolve(),
+      stagePaths: () => Promise.resolve(),
+    }, { slug: "dependent", metaPath: DEPENDENT_PATH, apply: false });
+
+    expect(result).toMatchObject({
+      status: "pending",
+      prepared: {
+        plan: {
+          dependency: { before: [], after: [] },
+          trackedReferences: {
+            edits: [{
+              path: specPath,
+              replacements: [{ subject: "origin", targetSlug: "successor" }],
+            }],
+          },
+        },
+        edits: [{ path: specPath, content: "See `spec-successor.md`.\n" }],
+      },
+    });
+  });
+
+  it("guards every scanned artifact before writing or staging the bounded batch", async () => {
+    const metaContent = meta("Active", []);
+    const specPath = ".arc/active/spec-dependent.md";
+    const specContent = "See `spec-origin.md`.\n";
+    const reads = new Map<string, number>();
+    const writes: string[] = [];
+    const stages: Array<readonly string[]> = [];
+    const result = await runCurrentWuReconcile({
+      index,
+      queryDisposition: () => Promise.resolve({ status: "absent" }),
+      enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+      listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, specPath]),
+      readFile: (path) => {
+        const count = reads.get(path) ?? 0;
+        reads.set(path, count + 1);
+        if (path === specPath) {
+          return Promise.resolve(count === 0 ? specContent : `${specContent}stale\n`);
+        }
+        return Promise.resolve(metaContent);
+      },
+      writeFile: async (path) => { writes.push(path); },
       stagePaths: async (paths) => { stages.push(paths); },
     }, { slug: "dependent", metaPath: DEPENDENT_PATH, apply: true });
 

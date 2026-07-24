@@ -20,6 +20,14 @@ import {
 import { canonicalDigest, type CanonicalDigest } from "../../canonical/canonical-json.js";
 import type { LifecycleIndex } from "../lifecycle-index.js";
 import { resolveSlugState } from "../lifecycle-resolver.js";
+import {
+  enumerateReferenceTransitions,
+  planReferenceReconcile,
+  type ReferenceAdvisory,
+  type ReferenceTransitionConflict,
+  type TrackedReferenceReplacement,
+} from "../reference-reconcile.js";
+import type { RetirementRecordEnumerationResult } from "../retirement-record-enumeration.js";
 import type {
   RetirementDispositionQuery,
   RetirementDispositionQueryResult,
@@ -42,6 +50,7 @@ export type DependencyReconcileConflictReason =
   | "version-conflict"
   | "namespace-corrupt"
   | "rename-cycle"
+  | "reference-history-conflict"
   | "invalid-meta"
   | "stale-content";
 
@@ -71,19 +80,31 @@ export interface DependencyReconcileComponent {
   conflicts: readonly DependencyReconcileConflict[];
 }
 
-/** Extensible current-WU reconcile shape; later phases add populated reference components. */
+/** One mechanically rewritable tracked-reference artifact. */
+export interface TrackedReferencePlanEdit {
+  path: string;
+  replacements: readonly TrackedReferenceReplacement[];
+}
+
+/** Typed tracked-reference component shared by CLI and session consumers. */
+export interface TrackedReferenceReconcileComponent {
+  edits: readonly TrackedReferencePlanEdit[];
+  conflicts?: readonly ReferenceTransitionConflict[];
+}
+
+/** Complete current-WU reconcile plan across dependency, tracked, and advisory components. */
 export type CurrentWuReconcilePlan =
   | {
       status: "ready";
       dependency: DependencyReconcileComponent;
-      trackedReferences: { edits: readonly never[] };
-      advisories: readonly string[];
+      trackedReferences: TrackedReferenceReconcileComponent;
+      advisories: readonly ReferenceAdvisory[];
     }
   | {
       status: "conflict";
       dependency: DependencyReconcileComponent;
-      trackedReferences: { edits: readonly never[] };
-      advisories: readonly string[];
+      trackedReferences: TrackedReferenceReconcileComponent;
+      advisories: readonly ReferenceAdvisory[];
     };
 
 /** Pure dependency-plan inputs. */
@@ -101,10 +122,17 @@ export interface CurrentWuReconcileEdit {
   content: string;
 }
 
+/** Exact content version checked even when its artifact needs no write. */
+export interface CurrentWuReconcileGuard {
+  path: string;
+  expectedContentDigest: CanonicalDigest;
+}
+
 /** Complete current-WU plan carried unchanged from inspection into apply. */
 export interface PreparedCurrentWuReconcile {
   slug: string;
   plan: CurrentWuReconcilePlan;
+  guards?: readonly CurrentWuReconcileGuard[];
   edits: readonly CurrentWuReconcileEdit[];
 }
 
@@ -112,6 +140,8 @@ export interface PreparedCurrentWuReconcile {
 export interface CurrentWuReconcileContext {
   index: LifecycleIndex;
   queryDisposition: (input: RetirementDispositionQuery) => Promise<RetirementDispositionQueryResult>;
+  enumerateRetirementRecords?: () => Promise<RetirementRecordEnumerationResult>;
+  listArtifactPaths?: (slug: string, metaPath: string) => Promise<readonly string[]>;
   readFile: (path: string) => Promise<string>;
   writeFile: (path: string, content: string) => Promise<void>;
   stagePaths: (paths: readonly string[]) => Promise<void>;
@@ -120,7 +150,7 @@ export interface CurrentWuReconcileContext {
 /** Read-only dependencies for producing one exact current-WU reconcile plan. */
 export type CurrentWuReconcilePrepareContext = Pick<
   CurrentWuReconcileContext,
-  "index" | "queryDisposition" | "readFile"
+  "index" | "queryDisposition" | "enumerateRetirementRecords" | "listArtifactPaths" | "readFile"
 >;
 
 /** Mutation dependencies for applying a previously prepared exact plan. */
@@ -379,25 +409,51 @@ export async function prepareCurrentWuReconcile(
     edges,
     queryDisposition: ctx.queryDisposition,
   });
-  const nextContent = setMetaBulletFields(content, {
+
+  const artifactPaths = ctx.listArtifactPaths === undefined
+    ? [op.metaPath]
+    : canonicalEdges(await ctx.listArtifactPaths(op.slug, op.metaPath));
+  if (!artifactPaths.includes(op.metaPath)) artifactPaths.push(op.metaPath);
+  artifactPaths.sort(byteSort);
+  const artifacts = await Promise.all(artifactPaths.map(async (path) => ({
+    path,
+    content: path === op.metaPath ? content : await ctx.readFile(path),
+  })));
+  const referencePlan = await prepareReferencePlan(ctx, artifacts);
+  const combinedPlan: CurrentWuReconcilePlan = {
+    status: plan.status === "conflict" || referencePlan.status === "conflict" ? "conflict" : "ready",
+    dependency: plan.dependency,
+    trackedReferences: {
+      edits: referencePlan.edits.map(({ path, replacements }) => ({ path, replacements })),
+      ...(referencePlan.conflicts.length > 0 ? { conflicts: referencePlan.conflicts } : {}),
+    },
+    advisories: referencePlan.advisories,
+  };
+  const nextByPath = new Map(referencePlan.edits.map((edit) => [edit.path, edit.content]));
+  nextByPath.set(op.metaPath, setMetaBulletFields(nextByPath.get(op.metaPath) ?? content, {
     "Depends On": renderEdgeList([...plan.dependency.after]),
-  });
-  const edits: CurrentWuReconcileEdit[] = plan.status === "ready" && nextContent !== content
-    ? [{
-        path: op.metaPath,
-        expectedContentDigest: canonicalDigest(content),
-        content: nextContent,
-      }]
+  }));
+  const guards = artifacts.map(({ path, content: artifactContent }) => ({
+    path,
+    expectedContentDigest: canonicalDigest(artifactContent),
+  }));
+  const edits: CurrentWuReconcileEdit[] = combinedPlan.status === "ready"
+    ? artifacts.flatMap(({ path, content: artifactContent }) => {
+        const nextContent = nextByPath.get(path) ?? artifactContent;
+        return nextContent === artifactContent
+          ? []
+          : [{ path, expectedContentDigest: canonicalDigest(artifactContent), content: nextContent }];
+      })
     : [];
-  const prepared: PreparedCurrentWuReconcile = { slug: op.slug, plan, edits };
-  if (plan.status === "conflict") {
+  const prepared: PreparedCurrentWuReconcile = { slug: op.slug, plan: combinedPlan, guards, edits };
+  if (combinedPlan.status === "conflict") {
     return {
       status: "conflict",
       prepared,
-      reason: plan.dependency.conflicts[0]?.reason ?? "invalid-meta",
+      reason: plan.dependency.conflicts[0]?.reason ?? "reference-history-conflict",
     };
   }
-  if (edits.length === 0) return { status: "clean", prepared };
+  if (edits.length === 0 && combinedPlan.advisories.length === 0) return { status: "clean", prepared };
   return { status: "pending", prepared };
 }
 
@@ -421,14 +477,14 @@ export async function applyPreparedCurrentWuReconcile(
   }
   if (prepared.edits.length === 0) return { status: "clean", prepared };
 
-  for (const edit of prepared.edits) {
+  for (const guard of prepared.guards ?? prepared.edits) {
     let current: string;
     try {
-      current = await ctx.readFile(edit.path);
+      current = await ctx.readFile(guard.path);
     } catch {
       return { status: "conflict", prepared, reason: "stale-content" };
     }
-    if (canonicalDigest(current) !== edit.expectedContentDigest) {
+    if (canonicalDigest(current) !== guard.expectedContentDigest) {
       return { status: "conflict", prepared, reason: "stale-content" };
     }
   }
@@ -444,6 +500,7 @@ function invalidPrepared(
 ): PreparedCurrentWuReconcile {
   return {
     slug: op.slug,
+    guards: [],
     edits: [],
     plan: {
       status: "conflict",
@@ -460,6 +517,29 @@ function invalidPrepared(
       advisories: [],
     },
   };
+}
+
+async function prepareReferencePlan(
+  ctx: CurrentWuReconcilePrepareContext,
+  artifacts: ReadonlyArray<{ path: string; content: string }>,
+): Promise<ReturnType<typeof planReferenceReconcile>> {
+  if (ctx.enumerateRetirementRecords === undefined || ctx.listArtifactPaths === undefined) {
+    return planReferenceReconcile({ transitions: [], artifacts });
+  }
+  const projected = enumerateReferenceTransitions(await ctx.enumerateRetirementRecords());
+  if (projected.status === "conflict") {
+    return {
+      status: "conflict",
+      edits: [],
+      advisories: [],
+      conflicts: [{ subject: "", reason: projected.reason }],
+    };
+  }
+  return planReferenceReconcile({ transitions: projected.transitions, artifacts });
+}
+
+function byteSort(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 /** Dependencies for {@link dischargeDepEdges}. */

@@ -397,6 +397,7 @@ const cleanCurrentWuReconcile: SessionInitProbes["currentWuReconcile"] = async (
   trackedReferences: { edits: [] },
   advisories: [],
   recommendedAction: "skip",
+  recommendedCommand: null,
   recommendedPromptText: "",
 });
 
@@ -1825,6 +1826,7 @@ describe("runSessionInitStatus — current work-unit reconcile", () => {
           conflicts: [],
         },
         recommendedAction: "surface" as const,
+        recommendedCommand: ["arc", "wu", "reconcile", slug, "--apply", "--json"],
         recommendedPromptText: "Apply the pending tracked reconcile.",
       })),
     });

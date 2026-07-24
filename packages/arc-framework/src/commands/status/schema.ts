@@ -35,10 +35,35 @@ export const CurrentWuReconcileSessionValueViewSchema = z
     status: z.enum(["clean", "pending", "conflict"]),
     slug: NON_EMPTY_TEXT,
     dependency: z.object({ conflicts: z.array(z.unknown()) }).loose(),
-    trackedReferences: z.object({ edits: z.array(z.unknown()) }).loose(),
-    advisories: z.array(z.string()),
+    trackedReferences: z.object({
+      edits: z.array(z.object({
+        path: NON_EMPTY_TEXT,
+        replacements: z.array(z.object({
+          subject: NON_EMPTY_TEXT,
+          targetSlug: NON_EMPTY_TEXT,
+        })),
+      })),
+      conflicts: z.array(z.object({
+        subject: z.string(),
+        reason: z.enum([
+          "ambiguous-history",
+          "rename-cycle",
+          "version-conflict",
+          "namespace-corrupt",
+        ]),
+      })).optional(),
+    }).loose(),
+    advisories: z.array(z.object({
+      path: NON_EMPTY_TEXT,
+      line: z.number().int().positive(),
+      context: z.string(),
+      referenceKind: z.enum(["narrative", "dangling-artifact"]),
+      subject: NON_EMPTY_TEXT,
+      suggestedDisposition: z.enum(["review-rename", "remove-or-retarget"]),
+    })),
     reason: z.string().optional(),
     recommendedAction: z.enum(["skip", "surface"]),
+    recommendedCommand: z.array(z.string()).nullable(),
     recommendedPromptText: z.string(),
   })
   .loose()
@@ -49,6 +74,9 @@ export const CurrentWuReconcileSessionValueViewSchema = z
     }
     if ((value.recommendedPromptText === "") !== clean) {
       context.addIssue({ code: "custom", path: ["recommendedPromptText"], message: "must match reconcile status" });
+    }
+    if ((value.recommendedCommand === null) !== clean) {
+      context.addIssue({ code: "custom", path: ["recommendedCommand"], message: "must match reconcile status" });
     }
   });
 

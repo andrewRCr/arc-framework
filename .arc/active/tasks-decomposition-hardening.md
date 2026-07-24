@@ -395,51 +395,35 @@ substrate behaves consistently across verbs, worktrees, and user state.
 - _Outcome:_ Rename now conserves identity across the full closed self-title set, including research and analysis
   companions, without widening automatic heading edits or narrowing the existing artifact-set matcher.
 
-### `[ ]` **5.2 Surface ambiguous prose and dangling branch-private references**
+### `[x]` **5.2 Surface ambiguous prose and dangling branch-private references**
 
 - _Goal:_ Ambiguous slug mentions and references to a decomposed origin become actionable advisories, while
   one-to-one branch-private references reconcile only from the owning branch.
 
-- _Note:_ See `notes-decomposition-hardening.md` § Reference reconciliation authority and mutation invariants.
+    - `[x]` **5.2.a Build a bounded advisory reference scanner**
+        - Added path/line/context findings over exact ARC slug tokens, excluding structured code spans and returning
+          typed narrative or dangling-reference dispositions without prose mutation.
 
-    - `[ ]` **5.2.a Build a bounded advisory reference scanner**
-        - Scan slug-token matches inside active/planned/provisional WU artifacts, requiring no adjacent
-          `[a-z0-9-]` character and excluding structured spans already handled automatically. Return path,
-          line/anchor context, reference kind, and suggested disposition without editing prose.
+    - `[x]` **5.2.b Discover reference transitions from current-WU history**
+        - Projected authenticated reachable receipts independently of dependency edges and composed only unique,
+          acyclic rename chains; referenced ambiguous or cyclic subjects refuse mechanical edits.
 
-    - `[ ]` **5.2.b Discover reference transitions from current-WU history**
-        - Add a storage-agnostic query that enumerates valid retirement transitions reachable from the current WU's
-          committed history independently of `Depends On`. Compose a unique acyclic rename chain to its final target;
-          surface ambiguous or cyclic histories.
+    - `[x]` **5.2.c Distinguish rename and decompose outcomes**
+        - Unique renames rewrite exact backticked artifact references while leaving narrative mentions advisory;
+          decompose and removal receipts surface dangling artifact references without selecting a replacement.
 
-    - `[ ]` **5.2.c Distinguish rename and decompose outcomes**
-        - Rename surfaces narrative mentions for author judgment; decompose additionally identifies backticked
-          references to removed origin artifacts as dangling because no single replacement is authoritative.
+    - `[x]` **5.2.d Reconcile private tracked references from their own flow**
+        - Extended the shared current-WU reconcile plan, CLI, session slot, and lifecycle callers with receipt-derived
+          tracked edits, typed advisories/conflicts, CLI-owned argv, complete artifact guards, and bounded staging.
 
-    - `[ ]` **5.2.d Reconcile private tracked references from their own flow**
-        - Scan the current WU's artifact group using its reachable transition set. Add mechanically rewritable
-          receipt-derived edits to the tracked-reference component of the shared `arc wu reconcile` plan; add
-          prose/dangling hits to its read-only advisory component.
-        - Capture the exact content version for every candidate path. `--apply` must validate the complete
-          current-WU path set before its first write, stage only the plan-declared paths as one bounded batch, and
-          refuse all tracked edits when any file is stale. Lifecycle ceremonies consume this same plan; a
-          reference-only WU can invoke the precomposed apply remedy as its own review increment.
-        - Extend Phase 2's session-envelope slot with structured-reference pending/conflict facts, advisory hits,
-          and CLI-owned `arc wu reconcile --apply --json` argv. The existing package-source/generated workflow
-          dispatch renders that typed surface without prose-side scanning; activation, resume, and integration
-          callsites consume the extended plan without a second trigger.
+    - `[x]` **5.2.e Prove discovery, token, and branch-isolation boundaries**
+        - Covered reference-only discovery and apply, chain composition and refusal, slug-alphabet boundaries,
+          structured-span exclusion, dangling decompose references, all-or-nothing stale guards, read-only status,
+          and foreign-worktree byte isolation through unit and real-CLI tests.
 
-    - `[ ]` **5.2.e Prove discovery, token, and branch-isolation boundaries**
-        - Build `test-first` (one behavior at a time):
-            - a reference-only WU with no `Depends On` edge still discovers the reachable transition
-            - read-only CLI/session output exposes its pending structured edits and advisory hits, and the
-              precomposed `arc wu reconcile --apply --json` remedy applies through the shared command
-            - unique rename chains resolve to the final target; ambiguity and cycles surface without edits
-            - common-word slugs match complete ARC tokens, not substrings or prefix/suffix-hyphen neighbors
-            - already-rewritten code spans do not also appear as prose findings
-            - decompose dangling artifact refs surface with no guessed target
-            - one stale artifact makes the guarded batch write and stage nothing
-            - another worktree's tracked files remain byte-identical until that WU runs its own ceremony
+- _Outcome:_ Current-WU history now drives one guarded dependency/reference reconciliation transaction: deterministic
+  structured repairs can apply from the owning checkout while ambiguous narrative and removed-origin references
+  remain explicit, typed author decisions.
 
 ### `[ ]` **5.3 Reconcile managed user references under the notes write discipline**
 

@@ -210,6 +210,7 @@ const cleanCurrentWuReconcile: SessionInitProbes["currentWuReconcile"] = async (
   trackedReferences: { edits: [] },
   advisories: [],
   recommendedAction: "skip",
+  recommendedCommand: null,
   recommendedPromptText: "",
 });
 

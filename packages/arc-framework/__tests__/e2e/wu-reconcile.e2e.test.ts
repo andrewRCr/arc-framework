@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -113,6 +114,72 @@ describe("arc wu reconcile", () => {
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe(".arc/active/meta-dependent.md");
   });
 
+  it("surfaces and applies reference-only reconcile through the shared command", async () => {
+    const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
+    const specPath = join(repo, ".arc", "active", "spec-dependent.md");
+    await writeFile(metaPath, meta("dependent", "main", "[none]"), "utf8");
+    await writeFile(specPath, "See `spec-origin.md`; origin remains narrative context.\n", "utf8");
+    await git(repo, ["add", "--all"]);
+    await git(repo, ["commit", "-m", "reference-only dependent"]);
+    const before = await readFile(specPath, "utf8");
+
+    const planned = await runArc(["wu", "reconcile", "dependent", "--json"], repo);
+    expect(planned.exitCode).toBe(0);
+    expect(JSON.parse(planned.stdout)).toMatchObject({
+      status: "pending",
+      dependency: { before: [], after: [] },
+      trackedReferences: {
+        edits: [{
+          path: ".arc/active/spec-dependent.md",
+          replacements: [{ subject: "origin", targetSlug: "successor" }],
+        }],
+      },
+      advisories: [{
+        path: ".arc/active/spec-dependent.md",
+        referenceKind: "narrative",
+        subject: "origin",
+        suggestedDisposition: "review-rename",
+      }],
+    });
+    expect(await readFile(specPath, "utf8")).toBe(before);
+
+    const status = await runArc(["status", "--session-init", "--json"], repo);
+    expect(status.exitCode).toBe(0);
+    expect(JSON.parse(status.stdout)).toMatchObject({
+      currentWuReconcile: {
+        ok: true,
+        value: {
+          status: "pending",
+          recommendedCommand: [
+            "arc",
+            "wu",
+            "reconcile",
+            "dependent",
+            "--apply",
+            "--json",
+          ],
+          recommendedPromptText: expect.stringContaining(
+            "arc wu reconcile dependent --apply --json",
+          ),
+        },
+      },
+    });
+    expect(await readFile(specPath, "utf8")).toBe(before);
+
+    const applied = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
+    expect(applied.exitCode).toBe(0);
+    expect(JSON.parse(applied.stdout)).toMatchObject({
+      status: "applied",
+      stagedPaths: [".arc/active/spec-dependent.md"],
+    });
+    expect(await readFile(specPath, "utf8")).toBe(
+      "See `spec-successor.md`; origin remains narrative context.\n",
+    );
+    expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe(
+      ".arc/active/spec-dependent.md",
+    );
+  });
+
   it("surfaces a pending session reconcile without writing tracked state", async () => {
     const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
     const beforeMeta = await readFile(metaPath, "utf8");
@@ -185,6 +252,24 @@ describe("arc wu reconcile", () => {
     expect(await readFile(dependentPath, "utf8")).toBe(beforeDependent);
     expect(await readFile(successorPath, "utf8")).toBe(beforeSuccessor);
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
+  });
+
+  it("leaves another worktree byte-identical until its own reconcile ceremony", async () => {
+    const sibling = await mkdtemp(join(tmpdir(), "arc-wu-reconcile-sibling-"));
+    await git(repo, ["worktree", "add", "-b", "feat/sibling", sibling]);
+    try {
+      const siblingMeta = join(sibling, ".arc", "active", "meta-dependent.md");
+      const before = await readFile(siblingMeta, "utf8");
+
+      const result = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
+
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({ status: "applied" });
+      expect(await readFile(siblingMeta, "utf8")).toBe(before);
+      expect(await git(sibling, ["status", "--porcelain"])).toBe("");
+    } finally {
+      await git(repo, ["worktree", "remove", "--force", sibling]);
+    }
   });
 
   it("keeps an owned clean reconcile invisible", async () => {

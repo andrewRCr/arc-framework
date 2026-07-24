@@ -22,9 +22,10 @@ export interface CurrentWuReconcileSessionResult {
   slug: string;
   dependency: CurrentWuReconcilePlan["dependency"];
   trackedReferences: CurrentWuReconcilePlan["trackedReferences"];
-  advisories: readonly string[];
+  advisories: CurrentWuReconcilePlan["advisories"];
   reason?: DependencyReconcileConflictReason;
   recommendedAction: "skip" | "surface";
+  recommendedCommand: readonly string[] | null;
   recommendedPromptText: string;
 }
 
@@ -48,10 +49,12 @@ export async function runCurrentWuReconcileSessionProbe(
       trackedReferences: result.prepared.plan.trackedReferences,
       advisories: result.prepared.plan.advisories,
       recommendedAction: "skip",
+      recommendedCommand: null,
       recommendedPromptText: "",
     };
   }
   if (result.status === "pending") {
+    const hasTrackedEdits = result.prepared.edits.length > 0;
     return {
       status: "pending",
       slug: op.slug,
@@ -59,10 +62,15 @@ export async function runCurrentWuReconcileSessionProbe(
       trackedReferences: result.prepared.plan.trackedReferences,
       advisories: result.prepared.plan.advisories,
       recommendedAction: "surface",
-      recommendedPromptText:
-        `Current work unit \`${op.slug}\` has pending tracked reconcile edits. `
-        + `Apply them in its own review increment with `
-        + `\`arc wu reconcile ${op.slug} --apply --json\`.`,
+      recommendedCommand: hasTrackedEdits
+        ? ["arc", "wu", "reconcile", op.slug, "--apply", "--json"]
+        : ["arc", "wu", "reconcile", op.slug, "--json"],
+      recommendedPromptText: hasTrackedEdits
+        ? `Current work unit \`${op.slug}\` has pending tracked reconcile edits. `
+          + `Apply them in its own review increment with `
+          + `\`arc wu reconcile ${op.slug} --apply --json\`.`
+        : `Current work unit \`${op.slug}\` has advisory reference findings. `
+          + `Inspect them with \`arc wu reconcile ${op.slug} --json\`.`,
     };
   }
   return {
@@ -73,6 +81,7 @@ export async function runCurrentWuReconcileSessionProbe(
     advisories: result.prepared.plan.advisories,
     reason: result.reason,
     recommendedAction: "surface",
+    recommendedCommand: ["arc", "wu", "reconcile", op.slug, "--json"],
     recommendedPromptText:
       `Current work unit \`${op.slug}\` reconcile is blocked (${result.reason}). `
       + `Inspect with \`arc wu reconcile ${op.slug} --json\` before applying tracked repairs.`,

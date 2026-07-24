@@ -13,7 +13,11 @@ import { createUserIOContext } from "../lib/io-context.js";
 import { getCurrentBranch } from "../lib/git/exec.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
-import { queryGitRetirementDisposition } from "../lib/work-unit/git-retirement-record-enumeration.js";
+import {
+  enumerateGitRetirementRecords,
+  queryGitRetirementDisposition,
+} from "../lib/work-unit/git-retirement-record-enumeration.js";
+import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
 import {
   runCurrentWuReconcile,
   type CurrentWuReconcileResult,
@@ -33,7 +37,7 @@ interface ReconcileEnvelope {
   slug: string;
   dependency: CurrentWuReconcileResult["prepared"]["plan"]["dependency"];
   trackedReferences: CurrentWuReconcileResult["prepared"]["plan"]["trackedReferences"];
-  advisories: readonly string[];
+  advisories: CurrentWuReconcileResult["prepared"]["plan"]["advisories"];
   edits: ReadonlyArray<{ path: string; expectedContentDigest: string }>;
   stagedPaths: readonly string[];
   reason?: string;
@@ -61,6 +65,9 @@ export async function handleWuReconcile(
   const result = await runCurrentWuReconcile({
     index,
     queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
+    enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
+    listArtifactPaths: (slug, metaPath) =>
+      listCurrentWuArtifactPaths(slug, metaPath, (path) => readdir(resolve(cwd, path))),
     readFile: (path) => io.readFile(resolve(cwd, path)),
     writeFile: (path, content) => io.writeFile(resolve(cwd, path), content),
     stagePaths: async (paths) => {
@@ -172,9 +179,11 @@ function emitHuman(envelope: ReconcileEnvelope): void {
   }
   const action = envelope.status === "applied" ? "Applied" : "Pending";
   p.log.info(
-    `${action} dependency reconcile for \`${envelope.slug}\`: `
+    `${action} reconcile for \`${envelope.slug}\`: dependency `
     + `${envelope.dependency.before.join(", ") || "[none]"} → `
-    + `${envelope.dependency.after.join(", ") || "[none]"}.`,
+    + `${envelope.dependency.after.join(", ") || "[none]"}; `
+    + `${envelope.trackedReferences.edits.length} tracked reference edit(s); `
+    + `${envelope.advisories.length} advisory finding(s).`,
   );
 }
 

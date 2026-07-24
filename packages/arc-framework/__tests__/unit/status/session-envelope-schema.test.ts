@@ -33,6 +33,7 @@ function fixture(name: string): Record<string, unknown> {
         trackedReferences: { edits: [] },
         advisories: [],
         recommendedAction: "skip",
+        recommendedCommand: null,
         recommendedPromptText: "",
       },
     };

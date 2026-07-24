@@ -132,7 +132,11 @@ import {
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
-import { queryGitRetirementDisposition } from "../lib/work-unit/git-retirement-record-enumeration.js";
+import {
+  enumerateGitRetirementRecords,
+  queryGitRetirementDisposition,
+} from "../lib/work-unit/git-retirement-record-enumeration.js";
+import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
 import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
@@ -541,6 +545,9 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           {
             index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
             queryDisposition: (input) => queryGitRetirementDisposition(gitExec, "HEAD", input),
+            enumerateRetirementRecords: () => enumerateGitRetirementRecords(gitExec, "HEAD"),
+            listArtifactPaths: (slug, ownedMetaPath) =>
+              listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(resolve(cwd, path))),
             readFile: (path) => io.readFile(resolve(cwd, path)),
           },
           { slug, metaPath },
