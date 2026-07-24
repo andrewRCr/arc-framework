@@ -39,11 +39,11 @@ unexpected mode, required check/source, App/environment, action-activation, or h
 and after each mutation. Resume only from the last verified checkpoint; commands are compare-and-stop or idempotent.
 Never use `--admin`, direct base pushes, force pushes, or an empty required-check set.
 
-The operational rubric is `independent-analysis/v1`:
+The operational rubric is `standard-review/v1`:
 
 ```yaml
 semantics_version: review-gate/v2
-rubric_version: independent-analysis/v1
+rubric_version: standard-review/v1
 project_augmentation: self-hosting-review/v1
 checks:
   - coherence-and-maintainability
@@ -265,7 +265,7 @@ review's full `commit_id`; connected-account failure maps to unavailable only un
 qualification contract below.
 
 Hosted Codex rubric transport is versioned top-level `AGENTS.md` Review guidelines plus the owned trigger comment,
-which names `independent-analysis/v1` and repeats its five focus dimensions. Resolve the effective guidance digest for
+which names `standard-review/v1` and repeats its five focus dimensions. Resolve the effective guidance digest for
 every changed path and reject missing/conflicting nested guidance. Codex is satisfying only after controlled probes
 exercise every dimension under that digest and trigger; ledger metadata alone is insufficient.
 
@@ -296,7 +296,7 @@ symptom) but was observed to reappear 2026-07-11. Re-probe current behavior here
 state; its presence remains progress evidence only, never verdict.
 
 | Probe                             | Required observation                                                                        |
-|-----------------------------------|---------------------------------------------------------------------------------------------|
+| --------------------------------- | ------------------------------------------------------------------------------------------- |
 | Exempt                            | No provider spend; truthful successful or pending shadow projection                         |
 | Recommended declined/accepted     | No spend before consent; admitted request only after consent                                |
 | Required clean/findings           | Reservation precedes one request; clean evidence or immutable finding ids bind full head    |
@@ -328,7 +328,7 @@ downstream GitHub adapter. Provider satisfaction and conversation settlement are
 may qualify while declaring coordinator-owned thread settlement. A CodeRabbit native approval without a controller
 reservation and substantive full-head evidence is non-satisfying; `request_changes_workflow` can approve after thread
 resolution even when no qualifying CodeRabbit review occurred. If CodeRabbit becomes satisfying, the same reviewed
-enablement commit must author the provider instructions implementing `independent-analysis/v1` and update
+enablement commit must author the provider instructions implementing `standard-review/v1` and update
 `rubric_version`.
 
 Coordinator FIX closure requires an authorized `begin-fix`, one carried-finding head push, exact-head CI, a
@@ -606,7 +606,7 @@ without the other: snapshots treat `{post_pr_open,pre_merge}` as one cutover sta
 The emergency workflow has no ARC App credential. GitHub delivers its typed `review-gate-repair`
 `repository_dispatch` only to default-branch workflow code; the developer credential that sends the event never enters
 Actions. The read-only validation job proves the live environment, immutable workflow SHA, complete permission/call
-graph, exact PR head, and bounded `independent-analysis/v1` attestation. The protected writer alone receives
+graph, exact PR head, and bounded `standard-review/v1` attestation. The protected writer alone receives
 `statuses: write`, executes no repository code, and writes constant context `review-repair-ok` as Actions App id
 `15368`.
 

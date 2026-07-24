@@ -85,7 +85,7 @@ export function computePolicyVersion(input: PolicyVersionInput): string {
 /**
  * Derive the forward policy identity from normalized admission semantics.
  *
- * @param input - Complete non-target semantics for one independent-analysis requirement.
+ * @param input - Complete non-target semantics for one standard-review requirement.
  * @returns The canonical domain-separated policy digest.
  */
 export function computeReviewPolicyVersion(input: ReviewPolicyVersionInput): string {

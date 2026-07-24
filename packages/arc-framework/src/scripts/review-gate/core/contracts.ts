@@ -51,7 +51,7 @@ export interface CapabilitySet {
 }
 
 /** Kinds of review obligation. */
-export const REQUIREMENT_KINDS = ["peer-approval", "independent-analysis", "specialist-review"] as const;
+export const REQUIREMENT_KINDS = ["peer-approval", "standard-review", "specialist-review"] as const;
 /** Member of the closed review-obligation kind set. */
 export type RequirementKind = (typeof REQUIREMENT_KINDS)[number];
 /** Requirement obligation levels. */

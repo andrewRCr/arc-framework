@@ -23,9 +23,9 @@ function typescriptFiles(directory: string): string[] {
 
 function requirement(obligation: "required" | "recommended"): ReviewRequirement {
   return {
-    schemaVersion: 1, id: "analysis", kind: "independent-analysis", obligation,
-    acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }], count: 1,
-    initialAdmission: "automatic", policyVersion: "a".repeat(64), rubricVersion: "independent-analysis/v1",
+    schemaVersion: 1, id: "analysis", kind: "standard-review", obligation,
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }], count: 1,
+    initialAdmission: "automatic", policyVersion: "a".repeat(64), rubricVersion: "standard-review/v1",
     reasons: ["code-surface"], changeSetId: "b".repeat(64), headSha: "c".repeat(40),
   };
 }
@@ -46,7 +46,7 @@ function input(
 
 describe("integrated review-gate contract", () => {
   it("keeps native guidance rendering outside controller runtime composition", () => {
-    const forbidden = /(?:renderIndependentAnalysisReviewerInstructions|SELF_HOSTING_REVIEW_GUIDANCE_BLOCK)/u;
+    const forbidden = /(?:renderStandardReviewReviewerInstructions|SELF_HOSTING_REVIEW_GUIDANCE_BLOCK)/u;
     const violations = typescriptFiles(join(REVIEW_GATE_ROOT, "runtime"))
       .filter((path) => forbidden.test(readFileSync(path, "utf8")));
 

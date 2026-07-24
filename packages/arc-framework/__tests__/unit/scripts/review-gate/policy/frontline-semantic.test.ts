@@ -16,8 +16,12 @@ function preferences(input: {
   project?: string | null;
 } = {}): FrontlineSourcePreferenceReader {
   return {
-    readDeveloperSourceId: vi.fn().mockResolvedValue(input.developer ?? null),
-    readProjectSourceId: vi.fn().mockResolvedValue(input.project ?? null),
+    readDeveloperSourceIds: vi.fn().mockResolvedValue(input.developer === undefined || input.developer === null
+      ? []
+      : [input.developer]),
+    readProjectSourceIds: vi.fn().mockResolvedValue(input.project === undefined || input.project === null
+      ? []
+      : [input.project]),
   };
 }
 
@@ -50,8 +54,8 @@ describe("frontline semantic resolution", () => {
       },
       diagnostics: [],
     });
-    expect(reader.readDeveloperSourceId).not.toHaveBeenCalled();
-    expect(reader.readProjectSourceId).not.toHaveBeenCalled();
+    expect(reader.readDeveloperSourceIds).not.toHaveBeenCalled();
+    expect(reader.readProjectSourceIds).not.toHaveBeenCalled();
   });
 
   it("selects a source for attempt and caps the default at two passes", async () => {

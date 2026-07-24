@@ -183,10 +183,10 @@ platform.type: github
 
 # --- Review ---
 
-# Default registered source for optional frontline pre-publication review.
-# One safe registry ID only; never a command, executable, or reviewer identity.
-# Empty means unbound. Per-developer override: `git config arc.frontlineSource <source-id>`.
-review.frontline_source: coderabbit-cli
+# Ordered registered sources for optional frontline pre-publication review.
+# Safe registry IDs only; never commands, executables, or reviewer identities.
+# Empty means unbound. Add developer overrides with `git config --add arc.frontlineSources <source-id>`.
+review.frontline_sources: [coderabbit-cli]
 
 # --- Project Management ---
 

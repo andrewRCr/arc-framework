@@ -7,7 +7,7 @@ import {
   sortByCanonicalBytes,
   type KernelRegistry,
 } from "../../../lib/kernel/index.js";
-import { IndependentAnalysisObligationProjectionSchema } from "../policy/independent-analysis-projection-schema.js";
+import { StandardReviewObligationProjectionSchema } from "../policy/standard-review-projection-schema.js";
 import {
   CoreRoutingReasonSchema,
   ProjectRoutingReasonSchema,
@@ -115,7 +115,7 @@ function isSortedUnique(values: readonly unknown[]): boolean {
 const ReviewPolicyVersionFieldsSchema = z.strictObject({
   schemaVersion: z.literal(2),
   semanticsVersion: ReviewGateV2SemanticsSchema,
-  kind: z.literal("independent-analysis"),
+  kind: z.literal("standard-review"),
   obligation: z.enum(["recommended", "required"]),
   rubricVersion: ReviewIdentifierSchema,
   rubricDigest: ReviewCanonicalDigestSchema,
@@ -147,7 +147,7 @@ const ReviewRequirementFieldsSchema = z.strictObject({
   schemaVersion: z.literal(2),
   semanticsVersion: ReviewGateV2SemanticsSchema,
   targetId: ReviewCanonicalDigestSchema,
-  kind: z.literal("independent-analysis"),
+  kind: z.literal("standard-review"),
   obligation: z.enum(["recommended", "required"]),
   reasons: z.array(z.union([CoreRoutingReasonSchema, ProjectRoutingReasonSchema])).min(1),
   rubricVersion: ReviewIdentifierSchema,
@@ -183,7 +183,7 @@ export type ReviewRequirementV2 = z.infer<typeof ReviewRequirementV2Schema>;
 
 export const ReviewRequirementCreationInputSchema = z.strictObject({
   target: ReviewTargetSchema,
-  projection: IndependentAnalysisObligationProjectionSchema,
+  projection: StandardReviewObligationProjectionSchema,
   acceptableSources: z.array(ReviewAcceptedSourceSchema).min(1),
   initialAdmission: z.enum(["automatic", "checkpoint"]),
 });

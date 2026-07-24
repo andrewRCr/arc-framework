@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ReviewRequest } from "../../../../../../src/scripts/review-gate/core/execution.js";
-import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../../../../../../src/scripts/review-gate/policy/independent-analysis.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../../../../../src/scripts/review-gate/policy/standard-review.js";
 import {
   CodexProviderAdapter,
   buildCodexReviewCommand,
@@ -34,8 +34,8 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     changeSetId: "c".repeat(64),
     policyVersion: "d".repeat(64),
     semanticsVersion: "review-gate/v1",
-    rubricVersion: "independent-analysis/v1",
-    requirementId: "independent-analysis",
+    rubricVersion: "standard-review/v1",
+    requirementId: "standard-review",
     sourceIdentity: "codex-pr",
     coverage: "full",
     coverageFromSha: DIFF_BASE,
@@ -52,9 +52,9 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
 function context(overrides: Partial<CodexRunContext> = {}): CodexRunContext {
   return {
     requestIdentity: "request-1",
-    requirementId: "independent-analysis",
+    requirementId: "standard-review",
     policyVersion: "d".repeat(64),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     baseRef: "main",
     diffBaseSha: DIFF_BASE,
     headSha: HEAD,
@@ -89,7 +89,7 @@ function cleanComment(overrides: Partial<Extract<CodexSignal, { kind: "issue-com
 describe("hosted Codex adapter", () => {
   it("builds an actor-required rubric command with the effective guidance digest", () => {
     expect(buildCodexReviewCommand("e".repeat(64))).toContain("@codex review");
-    expect(buildCodexReviewCommand("e".repeat(64))).toContain("independent-analysis/v1");
+    expect(buildCodexReviewCommand("e".repeat(64))).toContain("standard-review/v1");
     expect(buildCodexReviewCommand("e".repeat(64))).toContain("e".repeat(64));
   });
 
@@ -162,8 +162,8 @@ describe("hosted Codex adapter", () => {
         qualified: true,
         guidanceDigest: "e".repeat(64),
         forwardGuidanceDigest: `sha256:${"f".repeat(64)}`,
-        rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-        rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
       }),
       acknowledgeUserTrigger: async () => ({
         kind: "acknowledged",
@@ -203,7 +203,7 @@ describe("hosted Codex adapter", () => {
           qualified: true,
           guidanceDigest: "e".repeat(64),
           forwardGuidanceDigest: `sha256:${"f".repeat(64)}`,
-          rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+          rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
           rubricDigest: `sha256:${"0".repeat(64)}`,
         }),
       },

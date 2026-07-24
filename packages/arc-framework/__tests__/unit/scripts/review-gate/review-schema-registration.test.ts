@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import {
   SchemaError,
@@ -10,9 +11,13 @@ import {
 import {
   registerReviewDomainSchemas,
 } from "../../../../src/scripts/review-gate/core/register-review-schemas.js";
+import {
+  assertReviewDurableRecordInventory,
+} from "../../../../src/scripts/review-gate/core/schema-inventory.js";
 
 const kernelIdentities = ["priority", "slug", "work-class", "work-unit-state"];
 const reviewIdentities = [
+  "approved-disposition-record",
   "approved-disposition-set",
   "canonical-change",
   "canonical-change-set",
@@ -31,17 +36,33 @@ const reviewIdentities = [
   "fix-authorization",
   "fix-authorization-consumption",
   "fix-authorization-preimage",
+  "frontline-execution-outcome",
+  "frontline-outcome-digest-preimage",
+  "frontline-outcome-record",
   "frontline-run-state",
   "local-disposition-terminal",
-  "independent-analysis-contract",
-  "independent-analysis-obligation-projection",
-  "independent-analysis-rubric-digest-preimage",
+  "local-review-policy-binding",
+  "local-review-policy-binding-digest-preimage",
+  "local-review-source",
+  "local-review-source-digest-preimage",
+  "local-review-state",
+  "standard-review-contract",
+  "standard-review-obligation-projection",
+  "standard-review-rubric-digest-preimage",
   "project-routing-promotion",
   "provider-native-conversation-closure",
   "proposed-disposition-set",
   "normalized-review-finding",
   "review-applicability",
   "review-applicability-id-preimage",
+  "review-command-error-envelope",
+  "review-frontline-resolve-envelope",
+  "review-frontline-run-envelope",
+  "review-local-attest-envelope",
+  "review-local-prepare-envelope",
+  "review-local-resume-envelope",
+  "review-reduce-envelope",
+  "review-respond-envelope",
   "review-assurance-input",
   "review-guidance-digest-preimage",
   "review-lifecycle-tail-proof",
@@ -50,9 +71,9 @@ const reviewIdentities = [
   "review-policy-version-preimage",
   "review-receipt",
   "review-receipt-ledger",
-  "review-reentry-result",
   "review-request",
   "review-request-id-preimage",
+  "review-reduction-projection",
   "review-requirement",
   "review-requirement-id-preimage",
   "review-response-input",
@@ -85,7 +106,7 @@ describe("review schema registration", () => {
     expect(registry.meta("review-requirement")?.version).toBe(2);
     expect(registry.meta("review-receipt")?.version).toBe(2);
     expect(registry.meta("review-receipt-ledger")?.version).toBe(2);
-    expect(registry.meta("independent-analysis-rubric-digest-preimage")?.version).toBe(1);
+    expect(registry.meta("standard-review-rubric-digest-preimage")?.version).toBe(1);
     expect(registry.meta("review-guidance-digest-preimage")?.version).toBe(2);
     expect(registry.meta("review-policy-version-preimage")?.version).toBe(2);
     expect(registry.meta("review-lifecycle-tail-proof")?.version).toBe(2);
@@ -101,6 +122,18 @@ describe("review schema registration", () => {
     expect(() => registerReviewDomainSchemas(registry)).toThrowError(SchemaError);
     expect(createKernelRegistry().ids()).toEqual(kernelIdentities);
     expect(registry.ids()).toEqual([...reviewIdentities, ...kernelIdentities].sort());
+  });
+
+  it("rejects a durable-record inventory entry whose registered version diverges", () => {
+    const registry = createKernelRegistry();
+    registry.register(z.string(), {
+      id: "review-target",
+      version: 1,
+      migrationPosture: "strict-current",
+    });
+
+    expect(() => assertReviewDurableRecordInventory(registry))
+      .toThrow("review-target inventory version 2 does not match registered version 1");
   });
 
   it("keeps review imports and vocabulary out of kernel schema modules", () => {

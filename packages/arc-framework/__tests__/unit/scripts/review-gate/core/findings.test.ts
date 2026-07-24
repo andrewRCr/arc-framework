@@ -14,7 +14,7 @@ function evidence(overrides: Partial<Evidence> = {}): Evidence {
     result: "findings",
     evidenceUrlOrId: "evidence:1",
     policyVersion: "b".repeat(64),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     coverage: "full",
     coverageFromSha: "c".repeat(40),
     coverageThroughSha: "d".repeat(40),

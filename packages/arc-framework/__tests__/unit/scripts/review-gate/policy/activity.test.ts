@@ -64,7 +64,7 @@ describe("review method activity port", () => {
     });
   });
 
-  it("keeps each activity adjustment isolated from independent analysis", () => {
+  it("keeps each activity adjustment isolated from standard review", () => {
     const baseline = reduceReviewRouting(facts);
     const selfInactive = reduceReviewRouting({
       ...facts,
@@ -78,12 +78,12 @@ describe("review method activity port", () => {
     expect(selfInactive).toMatchObject({
       authorSelfReview: "exempt",
       frontlineAction: baseline.frontlineAction,
-      independentAnalysis: baseline.independentAnalysis,
+      standardReview: baseline.standardReview,
     });
     expect(frontlineInactive).toMatchObject({
       authorSelfReview: baseline.authorSelfReview,
       frontlineAction: "skip",
-      independentAnalysis: baseline.independentAnalysis,
+      standardReview: baseline.standardReview,
     });
   });
 

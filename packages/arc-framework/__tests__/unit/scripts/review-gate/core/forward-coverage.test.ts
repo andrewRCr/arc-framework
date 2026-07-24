@@ -11,8 +11,8 @@ import {
   type ForwardCoverageLink,
 } from "../../../../../src/scripts/review-gate/core/forward-coverage.js";
 import {
-  INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
-} from "../../../../../src/scripts/review-gate/policy/independent-analysis.js";
+  STANDARD_REVIEW_RUBRIC_IDENTITY,
+} from "../../../../../src/scripts/review-gate/policy/standard-review.js";
 
 const objectId = (character: string): string => character.repeat(40);
 
@@ -43,8 +43,8 @@ function link(
     projection: {
       obligation: "required",
       reasons: ["sensitive-change-set"],
-      rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-      rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
       retrigger,
       count: 1,
     },

@@ -83,10 +83,10 @@ function projection(): GateProjection {
   return {
     schemaVersion: 1,
     conclusion: "success",
-    summary: "independent-analysis: clean",
+    summary: "standard-review: clean",
     blockers: [],
     requirementExecutions: [{
-      requirementId: "independent-analysis",
+      requirementId: "standard-review",
       state: "clean",
       sourceIdentity: "codex-cli",
       detail: "non-blocking",
@@ -109,9 +109,9 @@ function pendingProjection(): GateProjection {
   return {
     ...projection(),
     conclusion: "pending",
-    summary: "independent-analysis: queued",
+    summary: "standard-review: queued",
     requirementExecutions: [{
-      requirementId: "independent-analysis",
+      requirementId: "standard-review",
       state: "queued",
       sourceIdentity: "coderabbit-pr",
       detail: "request reserved",
@@ -335,7 +335,7 @@ describe("GitHub verdict publication", () => {
     });
 
     expect(checks.mutations.map((mutation) => mutation.name)).toEqual(names);
-    expect(checks.mutations.every((mutation) => mutation.output.summary.includes("independent-analysis: clean")))
+    expect(checks.mutations.every((mutation) => mutation.output.summary.includes("standard-review: clean")))
       .toBe(true);
     expect(refs).toHaveLength(names.length);
   });

@@ -254,7 +254,7 @@ describe("SelfHostingReconcileRuntime", () => {
     if (first === undefined) throw new Error("missing requirement fixture");
     const policy: SelfHostingPolicy = {
       ...SELF_HOSTING_POLICY,
-      requirementTemplates: [first, { ...first, id: "independent-analysis-secondary" }],
+      requirementTemplates: [first, { ...first, id: "standard-review-secondary" }],
     };
     const { runtime } = harness({ policy });
 
@@ -378,14 +378,14 @@ describe("SelfHostingReconcileRuntime", () => {
     }];
     provider.normalizeEvidence = async () => [{
       schemaVersion: 1,
-      requirementId: "independent-analysis",
+      requirementId: "standard-review",
       sourceKind: "agent",
       sourceIdentity: "coderabbit-pr",
       result: "clean",
       evidenceUrlOrId: "https://github.test/review-clean",
       reviewRunId: "run-clean",
       policyVersion: computePolicyVersion({ policy: coderabbitPolicy() }),
-      rubricVersion: "independent-analysis/v1",
+      rubricVersion: "standard-review/v1",
       coverage: "full",
       coverageFromSha: DIFF_BASE,
       coverageThroughSha: HEAD,
@@ -431,8 +431,8 @@ describe("SelfHostingReconcileRuntime", () => {
       changeSetId: computeChangeSetId({ baseRef: "main", diffBaseSha: DIFF_BASE, headSha: oldHead }),
       policyVersion: computePolicyVersion({ policy }),
       semanticsVersion: "review-gate/v1",
-      rubricVersion: "independent-analysis/v1",
-      requirementId: "independent-analysis",
+      rubricVersion: "standard-review/v1",
+      requirementId: "standard-review",
       sourceIdentity: "coderabbit-pr",
       coverage: "full",
       coverageFromSha: DIFF_BASE,
@@ -663,7 +663,7 @@ describe("SelfHostingReconcileRuntime", () => {
       commentNodeId: "IC_require",
       actor: { login: "maintainer", expectedActorId: "maintainer-1" },
       actorNodeId: "U_maintainer",
-      body: "/review-gate require independent-analysis needs a second look",
+      body: "/review-gate require standard-review needs a second look",
       createdAt: NOW.toISOString(),
       updatedAt: NOW.toISOString(),
       durableRef: "https://github.test/pull/7#issuecomment-1",
@@ -696,7 +696,7 @@ describe("SelfHostingReconcileRuntime", () => {
       commentNodeId: "IC_require",
       actor: { login: "maintainer", expectedActorId: "maintainer-1" },
       actorNodeId: "U_maintainer",
-      body: "/review-gate require independent-analysis needs a second look",
+      body: "/review-gate require standard-review needs a second look",
       createdAt: NOW.toISOString(),
       updatedAt: NOW.toISOString(),
       durableRef: "https://github.test/pull/7#issuecomment-1",
@@ -719,7 +719,7 @@ describe("SelfHostingReconcileRuntime", () => {
 
     expect(decision.projection.conclusion).toBe("pending");
     expect(decision.projection.requirementExecutions[0]).toMatchObject({
-      requirementId: "independent-analysis",
+      requirementId: "standard-review",
       state: "not-requested",
     });
   });

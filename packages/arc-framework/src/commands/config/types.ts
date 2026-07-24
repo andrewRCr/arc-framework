@@ -22,7 +22,7 @@ export interface ConfigSettings {
   "commit.context_pattern": string;
   "merge.strategy": string;
   "platform.type": string;
-  "review.frontline_source": string;
+  "review.frontline_sources": string;
   "pm.mode": string;
   "team.mode": string;
   "session.remote_sync": string;
