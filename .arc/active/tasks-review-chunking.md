@@ -276,11 +276,11 @@ the comparison; it tests whether recursive leaf chunks and hierarchical seams re
         - Kept the original comparison fixed as inconclusive and defined the scalability run as a separate staged
           test with reusable SHA-bound advisory output.
 
-    - `[ ]` **5.R.b Pin the settled target and draw the recursive closure hierarchy**
-        - Wait for `session-locus-model` to settle its concurrent edits, then bind the exact base/head and patch
-          digest without mutating its worktree.
-        - Prove complete file/hunk union coverage, record leaf metrics and external/pre-existing annotations, and
-          assign every sibling and domain boundary to a named seam.
+    - `[x]` **5.R.b Pin the settled target and draw the recursive closure hierarchy**
+        - Bound the clean implementation tip at `0c5dd045a` without mutating its worktree: 333 files, 43,754 changed
+          lines, 1,525 hunks, validated canonical target identity, and a reproducible zero-context patch digest.
+        - Partitioned every file and hunk exactly once across 17 sub-3,800-line leaves, four root seams, and one
+          top-level seam; changed cross-leaf declarations travel as dependency context rather than false externals.
 
     - `[ ]` **5.R.c Pilot the highest-risk leaf and its local seam**
         - Run one difficult leaf and the seam that depends on it before fan-out; preserve raw reports before

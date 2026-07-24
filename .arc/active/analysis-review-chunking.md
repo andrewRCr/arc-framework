@@ -972,13 +972,13 @@ verification used a disposable archive of the exact head with the repository's i
 Passing tests do not refute the verification findings below: those findings identify unexercised states or
 early-exit coverage, not failures in the cases the suite currently runs.
 
-| Measure                                           | Baseline | Treatment | Delta |
-| ------------------------------------------------- | -------: | --------: | ----: |
-| Raw scope findings                                |        7 |         8 |    +1 |
-| Raw seam findings                                 |        2 |         1 |    -1 |
-| Aggregate distinct findings                       |        9 |         8 |    -1 |
-| Aggregate blocker-severity findings               |        0 |         0 |     0 |
-| Classified declaration-split false blockers       |        0 |         0 |     0 |
+| Measure                                     | Baseline | Treatment | Delta |
+| ------------------------------------------- | -------: | --------: | ----: |
+| Raw scope findings                          |        7 |         8 |    +1 |
+| Raw seam findings                           |        2 |         1 |    -1 |
+| Aggregate distinct findings                 |        9 |         8 |    -1 |
+| Aggregate blocker-severity findings         |        0 |         0 |     0 |
+| Classified declaration-split false blockers |        0 |         0 |     0 |
 
 Every declaration-split candidate was checked against the complete declaration-consumer graph:
 
@@ -1044,11 +1044,126 @@ pathological monolith can be decomposed into genuinely reviewable leaf chunks an
 baseline arm, cannot change the zero/zero classification above, and carries no review or mutation authority for its
 target.
 
-### Target and staged execution
+### Pinned target and metrics
 
-Use `session-locus-model` only after its concurrent edits settle. At that point record its immutable canonical
-target, patch digest, complete file/line/hunk totals, recursive partition hierarchy, and exact union-coverage proof
-before invoking an evaluator. Do not mutate its worktree.
+`session-locus-model` settled its implementation at `0c5dd045a`; its clean worktree then added only handoff commit
+`6f0237287`, whose `Next Action` explicitly points review back to the implementation tip. The target therefore
+excludes that session-state-only commit. Its diff base is the reconciled main parent `ebe446fe2`; using a newer main
+tip would introduce unrelated post-reconcile changes rather than review the branch's exact implementation.
+
+```json
+{
+  "schemaVersion": 2,
+  "semanticsVersion": "review-gate/v2",
+  "kind": "change-set",
+  "repositoryId": "40a11822-248f-4be0-ae17-c24dfb4ae35a",
+  "baseRef": "main",
+  "diffBaseSha": "ebe446fe2506927ec88b944dd4a7b13feb4c048e",
+  "diffBaseTree": "5d32a6b812bb204ef3e0727ec66b3fb98c7d6545",
+  "headSha": "0c5dd045ac345e5121b49ffbbca3708594e1b82f",
+  "headTree": "b32498d2e2c8bd39c6872d6b12dbc37bf594b556",
+  "targetId": "sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b"
+}
+```
+
+The CLI validated that target identity and returned `consider-chunks` with both project tripwires firing. The
+immutable diff contains 333 logical files, 40,246 insertions, 3,508 deletions, 43,754 changed lines, and 1,525
+zero-context hunks. Its canonical zero-context patch digest is
+`sha256:926dae239bc1dacbb430ef3fe98255720192def2471a2147bb4b1b6b586c6d88`.
+
+### Recursive ownership map
+
+The old six-domain treatment map remains useful only as a seed: its two largest scopes would still be 17,000 and
+13,000 changed lines. The recursive map below assigns every changed file and hunk to one leaf while allowing a
+consumer context to repeat a targeted changed declaration as dependency context. Metrics count owned review body
+once; repeated dependency context does not create another ownership claim.
+
+| Root | Leaf | Owned contract                                             |   Files | Insertions | Deletions |      Lines |     Hunks |
+| ---- | ---- | ---------------------------------------------------------- | ------: | ---------: | --------: | ---------: | --------: |
+| A    | L1   | Locus schemas, record/state identity, registry, and store  |      23 |      3,502 |         0 |      3,502 |        23 |
+| A    | L2   | Allocation, mutation authority, locks, and reconciliation  |      17 |      3,412 |         0 |      3,412 |        17 |
+| A    | L3   | Process inspection, ancestry, reader, and roster           |      12 |      2,549 |         0 |      2,549 |        12 |
+| A    | L4   | Provisioning, command runtime, and entry guidance          |      11 |      2,463 |         0 |      2,463 |        11 |
+| B    | E1   | Errand identity records, claims, transactions, and proofs  |      17 |      3,763 |        17 |      3,780 |        37 |
+| B    | E2   | Errand open, link, materialize, and partial settlement     |      13 |      2,366 |        24 |      2,390 |        27 |
+| B    | E3   | Errand close, leave, abandon, and retirement               |      15 |      2,233 |       106 |      2,339 |        20 |
+| B    | E4   | Errand-to-work-unit promotion                              |       4 |      1,190 |       303 |      1,493 |        53 |
+| B    | E5   | Errand handler orchestration and round-trip tests          |       6 |      1,860 |       422 |      2,282 |       169 |
+| C    | W1   | Linked placement, marker/roster, rename, and reconcile     |      27 |      2,547 |       221 |      2,768 |       193 |
+| C    | W2   | Work-unit lifecycle, teardown, retirement, and verbs       |      36 |      1,632 |       147 |      1,779 |       141 |
+| C    | S1   | Compaction-seed and recovery authority                     |      15 |      1,970 |        60 |      2,030 |        81 |
+| C    | S2   | Session-init, status, envelopes, and recovery projection   |      43 |      1,862 |       402 |      2,264 |       288 |
+| D    | P1   | Groom, housekeep, handoff, inbox, and user-sync operations |      25 |      2,950 |        72 |      3,022 |        53 |
+| D    | X1   | CLI locus surface and cross-domain round trips             |      10 |      1,623 |        13 |      1,636 |        39 |
+| D    | M1   | Maintained methodology, distribution, CI, and parity tests |      52 |      1,576 |     1,389 |      2,965 |       354 |
+| D    | R1   | Work-unit design, task, note, meta, and roadmap records    |       7 |      2,748 |       332 |      3,080 |         7 |
+|      |      | **Exact union**                                            | **333** | **40,246** | **3,508** | **43,754** | **1,525** |
+
+The ownership classifier uses ordered first-match predicates over the exact changed-file inventory:
+
+- **R1:** `.arc/active/**` and `.arc/backlog/**`.
+- **M1:** both maintained `arc/**` methodology projections; `.arc/reference/**`; `.arc/system/**`; package recipe,
+  metadata, and CI; and the framework-sync, init, update, methodology-contract, and review-workflow parity tests.
+- **L1:** locus `schema/**`, state, record store, registry, root, path identity, subject metadata, errors, the
+  locus-state fixture, and their direct unit tests.
+- **L2:** allocator, evidence, lock, mutation, primary-safety, reconcile/resolve drivers, reconciliation, entry
+  boundary, and their direct unit tests.
+- **L3:** platform/process inspection, process ancestry/execution, reader, roster, the native inspector integration
+  test, and their direct unit tests.
+- **L4:** command/provisioning runtime and types, provisioning authority/marker, session guidance,
+  user-sync-exclusion coverage, and their direct unit tests.
+- **E1:** errand change-request lifecycle, identity record/snapshot/claims/transaction/transitions, record/index,
+  canonical receipt identity, and their direct unit/integration tests.
+- **E2:** errand open, link, materialization, partial settlement, pause-head proof, the open E2E boundary, and their
+  direct unit/integration tests.
+- **E3:** errand abandon, close, leave, retirement, and their direct unit/integration tests.
+- **E4:** errand promotion runtime/adapter and its direct unit/integration tests.
+- **E5:** the shared errand handler, handler tests, legacy containment, and the complete errand/locus round trips.
+- **W1:** linked-worktree setup, markers/rosters/scaffold, in-flight derivation, work-unit locus/rename/reconcile,
+  start/rename/active commands, rename composition, and their direct tests.
+- **W2:** work-unit lifecycle executor/guards/transitions, teardown/retirement, lifecycle verbs and handler, the
+  lifecycle-exit and park/resume boundaries, and their direct tests.
+- **S1:** compaction-seed and recover libraries/handlers, recovery-locus integration, and direct unit tests.
+- **S2:** session-init, session-envelope, and status libraries/commands/handlers/fixtures, session-init/envelope E2E,
+  status integration/formatting, and direct unit tests.
+- **P1:** groom, housekeep, handoff, inbox/user-sync libraries and commands, plan/housekeep handlers, housekeep E2E,
+  user-inbox integration, and direct unit tests.
+- **X1:** root CLI registration, locus command/handler, change facts/classification, shared E2E helpers, locus
+  mutation/routing round trips, start dispatch, and direct handler tests.
+
+Standard-library, third-party, and unchanged repository declarations are external or pre-existing. Changed
+cross-leaf declarations are never annotated external: the owning hunk stays in its leaf, while the consumer leaf
+receives the exact declaration hunk as named dependency context.
+
+### Hierarchical seam ownership
+
+| Root                            | Children           | Root seam ownership                                                                         |
+| ------------------------------- | ------------------ | ------------------------------------------------------------------------------------------- |
+| A — locus authority             | L1, L2, L3, L4     | Schema/state identity through mutation, process evidence, reconciliation, and provisioning  |
+| B — transient lifecycle         | E1, E2, E3, E4, E5 | Identity-generation transitions through entry, exit, promotion, and handler orchestration   |
+| C — work-unit/session lifecycle | W1, W2, S1, S2     | Physical placement, rename/teardown, recovery frames, session-init, and status projection   |
+| D — operations and methodology  | P1, X1, M1, R1     | CLI/operation dispatch, shipped workflow claims, distribution parity, and work-unit records |
+
+The top-level seam owns every changed edge between roots: locus authority consumed by errand/work-unit/session
+operations; errand promotion and work-unit placement composition; recovery/session projections over transient and
+durable loci; CLI registration into all runtime roots; and methodology/record claims about those implementations.
+It also checks duplicate abstractions, inconsistent identity/generation vocabulary, and failure-policy drift across
+roots.
+
+The highest residual-attention leaf is **S2** for the fail-fast pilot: 43 files and 288 code/fixture hunks spanning
+session-init and status projections. Its pilot seam is the S2↔S1 recovery-frame boundary; the later C-root seam
+consumes that preserved report and reviews the remaining W1/W2/S1/S2 surfaces without re-reading the pilot body.
+
+### Coverage proof and invocation shape
+
+The ordered classifier assigned all 333 logical files and all 1,525 zero-context hunks exactly once. Leaf totals
+reproduce 40,246 insertions, 3,508 deletions, and 43,754 changed lines; there is no unmatched file or hunk. Every
+leaf is below 3,800 changed lines. Hunk density remains an explicit pressure signal—especially M1, S2, W1, and
+E5—rather than being hidden by the line totals.
+
+The complete carrier shape is 17 leaf contexts, four root-seam/domain-summary contexts, one top-level seam, and one
+fresh aggregate: 23 evaluator invocations if the pilot passes without redrawing the map. The S2 pilot and its
+recovery-frame seam are part of that accounting, not extra exploratory reviews.
 
 Execution is fail-fast:
 
