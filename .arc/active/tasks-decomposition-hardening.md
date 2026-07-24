@@ -446,43 +446,33 @@ substrate behaves consistently across verbs, worktrees, and user state.
   invoke it from authoritative base evidence while notes history, baseline truth, sibling workspaces, and
   judgment-owned references remain untouched.
 
-### `[ ]` **5.4 Close the cross-worktree and cross-verb transform acceptance matrix**
+### `[x]` **5.4 Close the cross-worktree and cross-verb transform acceptance matrix**
 
 - _Goal:_ Real temporary-repository tests demonstrate that the four verbs share one authoritative, deterministic,
   self-healing substrate under the parallel conditions that exposed the original failures.
 
-- _Note:_ Cross-cutting confirmation over module slices already built test-first; this parent is test-after system
-  acceptance, not a second implementation path.
+    - `[x]` **5.4.a Reproduce linked-worktree and remote-only dependents**
+        - Confirmed composed inventory and receipt behavior across linked and remote-only branches, deferred
+          dependent-owned reconciliation, foreign-worktree byte isolation, and pre-mutation subject refusal.
 
-    - `[ ]` **5.4.a Reproduce linked-worktree and remote-only dependents**
-        - Run decompose/rename with the only incoming dependent on another linked worktree and in a remote-only
-          branch; verify inventory inclusion, receipt publication, deferred private reconciliation, and zero
-          foreign-branch commits. Also prove a remote-only or semantically divergent transform subject refuses
-          before filesystem access.
+    - `[x]` **5.4.b Reproduce degraded and concurrent transitions**
+        - Confirmed unreachable-oracle fallback, strict prepare/finalize authority, enlarged-inventory refusal,
+          integrating-dependent advisories, and fail-closed unresolved reconciliation.
 
-    - `[ ]` **5.4.b Reproduce degraded and concurrent transitions**
-        - Verify unreachable remote prepare/finalize behavior, a rename whose composed-oracle refresh cannot reach
-          origin but proceeds from reachable truth, newly enlarged inventory refusal, an integrating dependent
-          advisory, and fail-closed integration of an unresolved repoint.
+    - `[x]` **5.4.c Reproduce projection and terminal failures**
+        - Confirmed index-bound readiness projection, spawned self-rename deferral, started-origin retirement,
+          authority-gated cleanup and successor offers, and truthful post-land residue handling.
 
-    - `[ ]` **5.4.c Reproduce projection and terminal failures**
-        - Keep the retiring remote branch alive during ROADMAP regen, invoke spawned rename from inside its own
-          worktree, and retire a started decompose origin. Under full and partial protection, assert no phantom row
-          or locus move; complete transition staging before an index-only render despite divergent worktree
-          content; no cleanup or successor launch before the transform is authoritative; the exact
-          receipt-less extraction authority arm; and the expected post-land teardown / readiness offer afterward.
+    - `[x]` **5.4.d Exercise reference and user-state conservation**
+        - Confirmed artifact-title and token boundaries, reference-only and chained history, advisory exclusions,
+          guarded current-WU apply, private replay, managed user retargeting, and baseline-visible disk drift.
 
-    - `[ ]` **5.4.d Exercise reference and user-state conservation**
-        - Cover the closed self-title registry including decorated specs / `research-*` / `analysis-*`,
-          slug-alphabet boundaries, reference-only discovery without a `Depends On` edge, unique rename chains and
-          ambiguous/cyclic history, narrative and dangling advisories, shared-command detect/apply behavior,
-          guarded multi-file staging, private-branch replay, suffix-preserving `WU_Target` retargeting from
-          protection-aware-base evidence, truthful post-repair baseline drift, and excluded
-          unknown-companion/sibling/completed/adopter-facing content.
+    - `[x]` **5.4.e Confirm abandon, park, and every decomposition shape**
+        - Confirmed abandon and park dispositions plus symmetric, cohortless, extraction, in-cohort extraction,
+          existing-home, and backlog-source decomposition shapes.
 
-    - `[ ]` **5.4.e Confirm abandon, park, and every decomposition shape**
-        - Demonstrate abandon's dropped incoming edge, park's shared read/regen with no incoming action, and the
-          cohortless plus pre-existing parent-position/non-symmetric shape matrix.
+- _Outcome:_ The shared lifecycle substrate now has one cross-verb acceptance set spanning real CLI, integration,
+  and deterministic failure seams, with no transform-specific workaround required to satisfy the matrix.
 
 ## **Phase 6:** Verification
 
