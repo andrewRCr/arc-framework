@@ -60,7 +60,6 @@ arc:
   1. When you finish a **single task** (one checkbox item):
      - **First**: Run incremental quality checks on modified files — **Tier 1** — using the
        [quality-gate-commands method][arc-methods-qg]
-       - **Tier boundaries:** See [Quality Gates Strategy][quality-gates].
        - Task list may specify additional checkpoints (including E2E) — those are mandatory; otherwise
          use judgment on whether changes warrant extra validation
      - **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions list
@@ -302,7 +301,6 @@ updates**. Always update the task list file before reporting completion.
 
 ---
 
-[quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [config-arch]: ../../../reference/strategies/arc/strategy-configurability-architecture.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [arc-ext-task-quality]: ../../extensions/post-task-quality.md
