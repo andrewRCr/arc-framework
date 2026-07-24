@@ -167,3 +167,39 @@ The leaf partition is reusable as a delivery map, not only a review map. Each Ph
 leaf-scoped subtasks at entry, so its re-review is a bounded delta against that leaf's preserved report rather
 than a fresh pass over the whole target. That keeps the post-fix review obligation proportional to the fix delta
 and closes the loop with the method this branch motivated.
+
+### `7.E.c.i` carve boundary — settled 2026-07-24
+
+`L2-F1`'s correction boundary reads "carry an exact generation capability into every subject driver and
+revalidate it before identity, ref, checkout, teardown, or role-pop mutation" — wording indistinguishable from the
+systematic generation-capability contract carved to a follow-on unit with `L4-F2`, `L4-F4`, `A-F4`, `E4-F2`, and
+`W1-F5`. Read literally, the leaf rebuilds what the carve exists to defer. Source says otherwise.
+
+**The capability is already carried and revalidated on all three abandon paths.** `abandon-runtime.ts` re-reads
+the record under its lock and compares `recordId` and `checkoutPath`; `housekeep/lifecycle-runtime.ts` and
+`groom/close-runtime.ts` both check marker provenance against `{slug, claimId}` and HEAD against `expectedHead`,
+then call `popOwnedLocusRole` with `recordId`, an `expectedSubject` carrying the claim, and `expectedLeaseId`.
+Every one proves an exact generation before its destructive pop.
+
+**The defect is one degree narrower than the finding states.** Each driver derives its expected generation from
+its _own_ roster read by slug rather than from the generation the resolve path selected and validated, so each is
+internally consistent but unbound to the caller's selection. The race window is exactly between those two
+selections. `resolveLocusGeneration` validates record, lease, claim, and checkout, then discards all of it and
+dispatches with `(subject, action, key)`.
+
+**Fix shape:** thread the already-validated identifiers into the three drivers and have each assert its
+re-derived generation equals the caller's, refusing on mismatch. The `resume` arm of the same dispatch is the
+working precedent — it binds record and lease under lock and refuses with "the dead transient generation changed
+before resume." A resolve-side pre-check is **not** viable: all three drivers acquire the same record lock
+themselves, so locking before dispatch deadlocks or refuses against itself. Revalidation can only happen inside
+each driver, under the lock it already takes.
+
+**Stop tripwire.** Re-carve to the follow-on unit if the fix requires _either_ introducing a shared capability
+type or abstraction, _or_ touching any mutator outside the three abandon drivers. Neither should be necessary:
+the values exist on both sides of the seam, and the race is constructible deterministically by replacing the
+record between selection and dispatch, so no failure-injection substrate is needed.
+
+**Open before implementing:** where each driver derives its expected values from is inferred from the dispatch
+signature passing only `key`, not traced to source. If a driver already accepts an externally supplied
+generation, its fix is smaller still; nothing found suggests any needs the comparison built from scratch, which
+is the case that would favor carving instead.
