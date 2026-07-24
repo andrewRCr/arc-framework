@@ -1142,6 +1142,48 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   stop, dropped active-extension context, the seed unbound to its repository root, malformed identity authority
   read as empty, the absent seed hint acting as a generation wildcard, and the cleared local tombstone.
 
+    - `[ ]` **7.E.b.i Accept the unverifiable anchor the model represents** — S2-F1
+        - `locus-state-probe.ts` throws for every non-process anchor before calling the reader, while
+          `acquireSessionAnchor`, `LocusAnchorSchema`, and the reader's `enteringAnchor` input all accept the
+          unverifiable arm. Preserve an acquired unverifiable anchor as reader input and reserve the runtime-probe
+          error arm for genuine reader or root failures. Sequenced after the golden-fixture repair it depends on:
+          the e2e envelope goldens were captured under an unrecognized process boundary and therefore record the
+          defect as expected output, and their path redaction is not schema-valid once the slot carries real paths.
+
+    - `[x]` **7.E.b.ii Keep the execute-bound queue read from discarding its valid entries** — S2-F4
+        - `listExecuteBoundInboxEntries` returns file-ordered entries plus per-entry diagnostics instead of throwing
+          whole-file, so one malformed capture no longer hides every queued sibling. Entry boundaries still come
+          from the complete heading list, so skipping a malformed heading cannot widen the preceding entry's body,
+          and `locateInboxEntries` keeps throwing for the mutation path, whose batches stay all-or-nothing. The two
+          consumers take opposite arms deliberately: session-init guidance degrades gracefully, while
+          `resolveExecutionNextOffer` fails closed because it must prove the completed capture is no longer
+          execute-bound and an unreadable capture cannot be excluded from that set.
+
+    - `[ ]` **7.E.b.iii Report unreadable transient identity authority as unknown** — E1-F2
+        - `readTransientInFlightIndexes` returns empty maps on snapshot error and iterates complete snapshots
+          without propagating their diagnostics, so tip/tree failure is indistinguishable from absent authority and
+          malformed entries vanish from a partial index. Return complete/absent/error with diagnostics and require
+          consumers to surface unknown rather than classifying live transient branches as non-transient.
+
+    - `[ ]` **7.E.b.iv Preserve the local tombstone under locus-owned suppression** — W1-F4
+        - The `locusOwned` early return in `in-flight-derivation.ts` clears the flag by which a local no-meta
+          worktree shadows its same-branch remote twin, letting a remote candidate carrying stale active meta
+          survive deduplication and archived or terminal work reappear as in flight.
+
+    - `[ ]` **7.E.b.v Make recovery depend on proven physical identity** — S2-F3, S2S1-001, S2S1-002, S2S1-004
+        - `runRecoverStatus` converts a failed worktree-identity probe into a synthetic `primary`, which then feeds
+          the public worktree slot, checkout selection, and frame derivation; the legacy Errand fallback can replace
+          a reader-owned recovery stop because eligibility never inspects the recovery or reconciliation verdict;
+          `baseLoadSet` hard-codes an empty active-extension set that both the seed and the fresh load set then
+          agree on; and the audit never compares the seed's repository root, so a seed copied from another linked
+          worktree passes when branch, head, dirty paths, and load set coincide.
+
+    - `[ ]` **7.E.b.vi Stop the absent seed hint acting as a generation wildcard** — S1-F2
+        - A current-version seed may omit its locus hint after an unavailable probe, and the audit then treats
+          expected-null against any freshly resolved live generation as a match, so ready recovery can leave record,
+          lease, active path, session home, and parent generation entirely unbound. Distinguish legacy seeds from
+          current unavailable-locus emission and stop on the latter.
+
 ### `[ ]` **7.E.c Prove exact authority before destructive dispatch**
 
 - _Findings:_ L2-F1, L4-F1, L4-F3, S2-F2, E2-F2, E3-F1, E3-F2, E4-F1, E4-F3

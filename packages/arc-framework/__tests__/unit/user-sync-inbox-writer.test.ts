@@ -96,10 +96,13 @@ describe("mutateInboxEntries", () => {
       { kind: "mark", title: "Second atomic", sourceDigest: secondDigest },
     ]);
 
-    expect(listExecuteBoundInboxEntries(marked.content)).toEqual([
-      { title: "First atomic", sourceDigest: firstDigest },
-      { title: "Second atomic", sourceDigest: secondDigest },
-    ]);
+    expect(listExecuteBoundInboxEntries(marked.content)).toEqual({
+      entries: [
+        { title: "First atomic", sourceDigest: firstDigest },
+        { title: "Second atomic", sourceDigest: secondDigest },
+      ],
+      diagnostics: [],
+    });
   });
 
   it("replays an exact mark, unmark, and removal without widening the write", () => {
@@ -175,7 +178,26 @@ describe("mutateInboxEntries", () => {
       "- _Disposition:_ `execute-bound`",
       "- _Disposition:_ `execute-bound`\n- _Dispatch:_ `dispatch-7`",
     );
-    expect(() => listExecuteBoundInboxEntries(legacy)).toThrow(/Malformed USER-INBOX disposition fields/);
+    // The read reports the unreadable entry instead of discarding the whole queue with it.
+    const listing = listExecuteBoundInboxEntries(legacy);
+    expect(listing.entries).toEqual([]);
+    expect(listing.diagnostics).toEqual([expect.stringMatching(/Malformed USER-INBOX disposition fields/)]);
+  });
+
+  it("keeps well-formed execute-bound entries when a sibling heading is malformed", () => {
+    const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest: firstDigest },
+      { kind: "mark", title: "Second atomic", sourceDigest: secondDigest },
+    ]);
+    // Corrupt only the first heading; the second entry stays byte-identical.
+    const corrupted = marked.content.replace("### `[ ]` **First atomic**", "### `[ ]` First atomic");
+
+    const listing = listExecuteBoundInboxEntries(corrupted);
+
+    expect(listing.entries).toEqual([{ title: "Second atomic", sourceDigest: secondDigest }]);
+    expect(listing.diagnostics).toEqual([expect.stringMatching(/Malformed USER-INBOX entry heading/)]);
   });
 });
 

@@ -60,17 +60,13 @@ export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
       && !parse.entry.raw.includes("- _Disposition:_ `execute-bound`")
       && !parse.entry.raw.includes("- _Dispatch:_"),
   ).length;
-  let pendingExecuteBound: string[] = [];
-  const executeBoundDiagnostics: string[] = [];
-  try {
-    pendingExecuteBound = listExecuteBoundInboxEntries(options.content).map((entry) => entry.title);
-  } catch (error) {
-    executeBoundDiagnostics.push(error instanceof Error ? error.message : String(error));
-  }
+  // Per-entry diagnostics, never a whole-queue discard: one malformed capture must not hide the
+  // queued siblings that read cleanly.
+  const listing = listExecuteBoundInboxEntries(options.content);
   return {
     routableCount,
     housekeepNeeded: routableCount > 0,
-    pendingExecuteBound,
-    executeBoundDiagnostics,
+    pendingExecuteBound: listing.entries.map((entry) => entry.title),
+    executeBoundDiagnostics: [...listing.diagnostics],
   };
 }

@@ -18,12 +18,13 @@ export function resolveExecutionNextOffer(options: {
   readonly completedTitle: string | null;
   readonly parentCheckoutPath: string | null;
 }): ExecutionOfferResolution {
-  let entries;
-  try {
-    entries = listExecuteBoundInboxEntries(options.content);
-  } catch (error) {
-    return { kind: "refused", reason: error instanceof Error ? error.message : String(error) };
-  }
+  const listing = listExecuteBoundInboxEntries(options.content);
+  // Fails closed where the init guidance path degrades gracefully: this path must prove the
+  // completed capture is no longer execute-bound, and a capture that could not be read cannot be
+  // excluded from that set.
+  const unreadable = listing.diagnostics[0];
+  if (unreadable !== undefined) return { kind: "refused", reason: unreadable };
+  const entries = listing.entries;
   const completedTitle = options.completedTitle?.trim() ?? null;
   if (completedTitle !== null && entries.some((entry) => entry.title === completedTitle)) {
     return { kind: "refused", reason: `Completed capture '${completedTitle}' remains execute-bound.` };

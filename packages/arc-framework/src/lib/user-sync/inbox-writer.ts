@@ -68,20 +68,38 @@ interface LocatedInboxEntry {
 
 const DISPOSITION_LINE = "- _Disposition:_ `execute-bound`";
 
-function locateInboxEntries(lines: readonly string[]): LocatedInboxEntry[] {
+/**
+ * Locate entries without letting one malformed heading discard the rest.
+ *
+ * Boundaries come from the complete heading list, so skipping a malformed heading never widens the
+ * preceding entry's body.
+ */
+function locateInboxEntriesResilient(
+  lines: readonly string[],
+): { entries: LocatedInboxEntry[]; diagnostics: string[] } {
   const headings = [...entryHeadingLines(lines)];
   const entries: LocatedInboxEntry[] = [];
+  const diagnostics: string[] = [];
   for (const [offset, heading] of headings.entries()) {
     const title = matchInboxEntryTitle(heading.line);
-    if (title === null) {
-      throw new Error(`Malformed USER-INBOX entry heading: ${heading.line.trim()}`);
-    }
     let end = heading.index + 1;
     const next = headings[offset + 1];
     while (end < lines.length && end !== next?.index && !isSectionBoundary(lines[end] ?? "")) end++;
+    if (title === null) {
+      diagnostics.push(`Malformed USER-INBOX entry heading: ${heading.line.trim()}`);
+      continue;
+    }
     entries.push({ start: heading.index, end, title });
   }
-  return entries;
+  return { entries, diagnostics };
+}
+
+/** Locate entries for mutation, where any malformed heading must abort the whole batch. */
+function locateInboxEntries(lines: readonly string[]): LocatedInboxEntry[] {
+  const located = locateInboxEntriesResilient(lines);
+  const first = located.diagnostics[0];
+  if (first !== undefined) throw new Error(first);
+  return located.entries;
 }
 
 function executeBoundMark(
@@ -150,11 +168,37 @@ export function inspectInboxEntry(content: string, title: string): InspectedInbo
 }
 
 /** List every well-formed execute-bound capture in file order. */
-export function listExecuteBoundInboxEntries(content: string): ExecuteBoundInboxEntry[] {
+export interface ExecuteBoundInboxListing {
+  /** Well-formed execute-bound entries, in file order. */
+  readonly entries: readonly ExecuteBoundInboxEntry[];
+  /** One message per entry that could not be read. */
+  readonly diagnostics: readonly string[];
+}
+
+/**
+ * List the visible execute-bound queue, retaining every entry that reads cleanly.
+ *
+ * A malformed heading or disposition block is reported against that entry alone. Failing the whole
+ * read would let one unrelated capture hide every queued sibling from init and recovery guidance.
+ *
+ * @param content - Complete `USER-INBOX` content.
+ * @returns File-ordered entries plus per-entry diagnostics.
+ */
+export function listExecuteBoundInboxEntries(content: string): ExecuteBoundInboxListing {
   const lines = content.split("\n");
-  return locateInboxEntries(lines).flatMap((entry) => executeBoundMark(lines, entry) !== null
-    ? [{ title: entry.title, sourceDigest: unboundDigest(lines, entry) }]
-    : []);
+  const located = locateInboxEntriesResilient(lines);
+  const entries: ExecuteBoundInboxEntry[] = [];
+  const diagnostics = [...located.diagnostics];
+  for (const entry of located.entries) {
+    try {
+      if (executeBoundMark(lines, entry) !== null) {
+        entries.push({ title: entry.title, sourceDigest: unboundDigest(lines, entry) });
+      }
+    } catch (error) {
+      diagnostics.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  return { entries, diagnostics };
 }
 
 /** Apply one all-or-nothing title/digest-qualified inbox mutation batch. */
