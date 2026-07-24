@@ -389,9 +389,11 @@ second load set from branch or meta discovery.
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
 
-**Transient-resume mode**: load the selected row's `derived.loadSet`. Ordinary Errands load universal context and
-WORKING-MEMORY, skip WU artifacts, then load [run-errand][run-errand] in resume mode; groom and housekeep roles
-load their owning workflows. A mismatch between the row-derived load set and top-level `loadSet` stops as a probe
+**Transient-resume mode**: a transient row carries no `derived` projection, and top-level `loadSet` is projected
+from the entering checkout's active-meta resolution rather than the transient role — consume neither as this arm's
+load set. Read items 1–6 and WORKING-MEMORY (item 8.2), skip every WU artifact, then load the role's owning
+workflow: [run-errand][run-errand] in resume mode for an ordinary Errand, [draft-design][draft-design] for groom,
+[drain-inbox][drain-inbox] for housekeep. A selected transient row carrying a `derived` projection stops as a probe
 contract failure.
 
 **Project identity and agent context:**
