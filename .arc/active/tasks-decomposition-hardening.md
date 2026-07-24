@@ -195,32 +195,27 @@ own branch and fails safely at lifecycle boundaries.
 - _Outcome:_ Session entry and final integration now consume the same current-WU reconcile contract at distinct
   read/write boundaries, while origin transforms preserve integrating dependents as coordination-only participants.
 
-### `[ ]` **2.5 Route every lifecycle transform through the shared reconcile contract**
+### `[x]` **2.5 Route every lifecycle transform through the shared reconcile contract**
 
 - _Goal:_ Decompose, rename, and abandon publish enough shared evidence for every dependent to reconcile, while park
   shares inventory and projection behavior without inventing an incoming-edge action.
 
-    - `[ ]` **2.5.a Partition shared-visible and branch-private dependents**
-        - Preserve the existing common path: when composed truth carries an agreeing current-tree `writablePath`,
-          keep that mechanically safe shared-visible rewrite inside the transform commit.
-        - Ref-only, linked-worktree, remote-only, or divergent local candidates contribute semantic inventory but
-          no write authority; encode their dependent-specific disposition in the receipt and issue no write against
-          another checkout or branch. Never pass a ref-qualified pseudo-path to a filesystem mutator.
+    - `[x]` **2.5.a Partition shared-visible and branch-private dependents**
+        - Added one stable composed-truth partition for shared-visible, branch-private, and coordination-only
+          dependents. Decompose writes only exact `writablePath` entries; rename excludes observed divergent or
+          integrating metas from its broad current-tree sweep.
 
-    - `[ ]` **2.5.b Bring every verb onto the common result model**
-        - Decompose publishes authored replace/drop mappings, rename publishes old-to-new retargeting, and abandon
-          publishes an abandoned/drop result. Park retains its slug and inherits only the composed read and staged
-          ROADMAP path.
+    - `[x]` **2.5.b Bring every verb onto the common result model**
+        - Verified producer receipts project authored decompose replace/drop, rename retarget, and abandon removal
+          through the shared query, while park evidence remains deliberately non-actionable for incoming edges.
 
-    - `[ ]` **2.5.c Prove transition parity and no foreign-branch writes**
-        - Extend the verb and direct-retirement-driver suites with mixed shared/private dependents.
-        - Build `test-first` (one behavior at a time):
-            - each retiring identity produces the legal receipt projection and replays idempotently
-            - shared-visible rewrites land once in-transform; branch-private metas remain byte-identical
-            - a current-tree writable candidate remains on the fast path while a divergent same-slug ref candidate
-              falls back to receipt evidence without a foreign write
-            - abandon no longer leaves an incoming edge without discoverable disposition
-            - park performs no receipt-driven incoming-edge mutation
+    - `[x]` **2.5.c Prove transition parity and no foreign-branch writes**
+        - Covered mixed shared/private decompose and rename paths, divergent same-slug exclusion, bounded
+          direct-driver paths, producer-to-query parity, deterministic replay, discoverable abandon removal, and
+          park's zero-action projection.
+
+- _Outcome:_ Every retiring transform now combines semantic visibility with only exact current-checkout mutation
+  authority; private dependents receive durable receipt evidence without an origin-side write.
 
 ## **Phase 3:** First-class cohortless decomposition
 

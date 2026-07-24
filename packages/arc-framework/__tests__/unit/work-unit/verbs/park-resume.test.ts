@@ -36,6 +36,7 @@ import {
   validateReceiptMatrix,
   type RetirementReceipt,
 } from "../../../../src/lib/work-unit/retirement-authority.js";
+import { queryRetirementDisposition } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
 import {
   runPark,
   runResume,
@@ -339,6 +340,17 @@ describe("runPark — park@Planning", () => {
     if (recorded === undefined) throw new Error("expected a park receipt");
     expect(validateReceiptMatrix(recorded, "planned")).toBeNull();
     expect(validateReceiptMatrix(recorded, "nonexistent")).toBe("evidence-mismatch");
+    expect(queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: recorded.receiptId,
+        content: "",
+        record: { kind: "receipt", value: recorded },
+      }],
+    }, {
+      retiredSubject: "foo",
+      dependentSlug: "consumer",
+    })).toEqual({ status: "absent" });
   });
 
   it("preserves the advisory returned by deferred workspace cleanup", async () => {

@@ -10,6 +10,7 @@ import {
   type DecomposeFinalizationProjection,
 } from "../../../src/lib/work-unit/decompose-finalization.js";
 import { decomposeInventoryDigests } from "../../../src/lib/work-unit/decompose-inventory.js";
+import { queryRetirementDisposition } from "../../../src/lib/work-unit/retirement-disposition-query.js";
 import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/retirement-record-store.js";
 import type {
   DecomposePreparationLocator,
@@ -181,6 +182,20 @@ describe("finalizeDecomposeRetirement", () => {
       receiptId: locator.receiptId,
       transition: "decompose",
       result: { kind: "decompose", preparationId: locator.preparationId },
+    });
+    expect(queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: result.receipt.receiptId,
+        content: "",
+        record: { kind: "receipt", value: result.receipt },
+      }],
+    }, {
+      retiredSubject: "origin",
+      dependentSlug: "consumer",
+    })).toMatchObject({
+      status: "unique",
+      disposition: { kind: "replace", replacementTargets: ["member-a"] },
     });
     expect(h.replacements).toEqual([canonicalize(result.receipt)]);
   });

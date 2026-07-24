@@ -33,6 +33,7 @@ import {
   validateReceiptMatrix,
   type RetirementReceipt,
 } from "../../../../src/lib/work-unit/retirement-authority.js";
+import { queryRetirementDisposition } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
 import { planAbandon, runAbandon, type AbandonContext, type AbandonParams } from "../../../../src/lib/work-unit/verbs/abandon.js";
 
 const CWD = "/repo";
@@ -330,6 +331,20 @@ describe("runAbandon — started WU (active)", () => {
     if (recorded === undefined) throw new Error("expected an abandon receipt");
     expect(validateReceiptMatrix(recorded, "nonexistent")).toBeNull();
     expect(validateReceiptMatrix(recorded, "planned")).toBe("evidence-mismatch");
+    expect(queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: recorded.receiptId,
+        content: "",
+        record: { kind: "receipt", value: recorded },
+      }],
+    }, {
+      retiredSubject: "foo",
+      dependentSlug: "consumer",
+    })).toMatchObject({
+      status: "unique",
+      disposition: { kind: "abandoned" },
+    });
   });
 
   it("removes the artifact set but defers branch + worktree teardown out-of-band", async () => {

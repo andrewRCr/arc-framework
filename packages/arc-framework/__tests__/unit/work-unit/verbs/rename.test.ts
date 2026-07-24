@@ -4,6 +4,7 @@ import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js
 import { validateManagedPath } from "../../../../src/lib/kernel/canonical/managed-path.js";
 import type { RenameRetirementContext } from "../../../../src/lib/work-unit/direct-retirement-driver.js";
 import type { RetirementReceipt } from "../../../../src/lib/work-unit/retirement-authority.js";
+import { queryRetirementDisposition } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
 import {
   runRename,
   type RenamePlan,
@@ -190,6 +191,24 @@ describe("runRename", () => {
     expect(recordedReceipts[0]).toMatchObject({
       schemaVersion: 2,
       inventoryRead: "reachable",
+      transition: "rename",
+      result: { kind: "rename", targetSlug: "new-name" },
+    });
+    const [recorded] = recordedReceipts;
+    if (recorded === undefined) throw new Error("expected a rename receipt");
+    expect(queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: recorded.receiptId,
+        content: "",
+        record: { kind: "receipt", value: recorded },
+      }],
+    }, {
+      retiredSubject: "old-name",
+      dependentSlug: "consumer",
+    })).toMatchObject({
+      status: "unique",
+      disposition: { kind: "retarget", targetSlug: "new-name" },
     });
   });
 

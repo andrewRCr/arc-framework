@@ -114,4 +114,29 @@ describe("sweepRenameReferences", () => {
     expect(result.changedPaths).toEqual([]);
     expect(wrote).toBe(false);
   });
+
+  it("rewrites a shared-visible dependent while leaving an excluded divergent peer byte-identical", async () => {
+    const content = renderMetaFile("dependent", { "Depends On": "sample" });
+    const files = new Map([
+      [".arc/active/meta-shared.md", content],
+      [".arc/active/meta-divergent.md", content],
+    ]);
+
+    const result = await sweepRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+      excludedPaths: [".arc/active/meta-divergent.md"],
+    }, {
+      listFiles: async () => ["active/meta-divergent.md", "active/meta-shared.md"],
+      readFile: async (path) => files.get(path) ?? "",
+      writeFile: async (path, updated) => {
+        files.set(path, updated);
+      },
+    });
+
+    expect(result.changedPaths).toEqual([".arc/active/meta-shared.md"]);
+    expect(files.get(".arc/active/meta-shared.md")).toContain("- **Depends On:** `renamed-sample`");
+    expect(files.get(".arc/active/meta-divergent.md")).toBe(content);
+  });
 });

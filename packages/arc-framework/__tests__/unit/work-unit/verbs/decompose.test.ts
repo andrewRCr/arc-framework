@@ -29,7 +29,11 @@ import type {
   ExecuteTransitionContext,
   SideEffectHandler,
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
-import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
+import type {
+  DirEntry,
+  LifecycleIndexEntry,
+  LifecycleIndexFs,
+} from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
 
 const CWD = "/repo";
@@ -565,6 +569,89 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
     expect(rewrite!.content).toContain("`other`");
     expect(rewrite!.content).not.toMatch(/\*\*Depends On:\*\*[^\n]*`mono`/);
     expect(h.staged).toContain(".arc/active/meta-dependent.md");
+  });
+
+  it("rewrites only the shared-visible member of a mixed dependent inventory", async () => {
+    const h = buildRunHarness(
+      [
+        { slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" },
+        { slug: "shared", tier: "active", subdir: "", state: "Active", dependsOn: ["mono"] },
+        { slug: "private", tier: "active", subdir: "", state: "Active", dependsOn: ["mono"] },
+      ],
+      { [`${CWD}/.arc/active`]: ["meta-mono.md", "draft-mono.md"] },
+    );
+    const selected = (slug: string, dependsOn: string[]) => ({
+      slug,
+      location: "active" as const,
+      state: slug === "mono" ? "Planning" as const : "Active" as const,
+      priority: "P1" as const,
+      dependsOn,
+      source: {
+        kind: "active-meta" as const,
+        location: "active" as const,
+        path: `.arc/active/meta-${slug}.md`,
+      },
+      sources: [],
+    });
+    h.ctx.composed = {
+      index: new Map<string, LifecycleIndexEntry>([
+        ["mono", {
+          slug: "mono",
+          phase: "Planning",
+          location: "active",
+          cohort: null,
+          dependsOn: [],
+          path: ".arc/active/meta-mono.md",
+        }],
+        ...["private", "shared"].map((slug) => [slug, {
+          slug,
+          phase: "Active",
+          location: "active",
+          cohort: null,
+          dependsOn: ["mono"] as string[],
+          path: `.arc/active/meta-${slug}.md`,
+        }] as const),
+      ]),
+      recordsBySlug: new Map([
+        ["mono", {
+          selected: selected("mono", []),
+          currentTree: selected("mono", []),
+          writablePath: ".arc/active/meta-mono.md",
+        }],
+        ["shared", {
+          selected: selected("shared", ["mono"]),
+          currentTree: selected("shared", ["mono"]),
+          writablePath: ".arc/active/meta-shared.md",
+        }],
+        ["private", {
+          selected: { ...selected("private", ["mono"]), priority: "P2" as const },
+          currentTree: selected("private", ["mono"]),
+        }],
+      ]),
+      qualityFacts: { warnings: [], resultMarks: [], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: true,
+      readQuality: "reachable",
+    } satisfies ComposedLifecycleIndexResult;
+
+    const result = await runDecompose(h.ctx, {
+      cut: symmetricCut({
+        incomingEdges: ["private", "shared"].map((dependent) => ({
+          dependent,
+          disposition: { kind: "replace" as const, replacementTargets: ["alpha"] },
+        })),
+      }),
+    });
+
+    expect(result).toMatchObject({
+      status: "decomposed",
+      result: { repointed: [{ dependent: "shared", to: ["alpha"] }] },
+    });
+    expect(h.writes.some((write) => write.path.endsWith("meta-shared.md"))).toBe(true);
+    expect(h.writes.some((write) => write.path.endsWith("meta-private.md"))).toBe(false);
+    expect(h.staged).toContain(".arc/active/meta-shared.md");
+    expect(h.staged).not.toContain(".arc/active/meta-private.md");
   });
 
   it("never mutates a live incoming edge owned by an integrating dependent", async () => {

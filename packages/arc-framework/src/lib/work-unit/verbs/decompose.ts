@@ -36,7 +36,7 @@ import type {
 import { newMemberDependencies } from "../decompose-cut-map.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
 import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
-import { findIntegratingDependentAdvisories } from "../transform-coordination.js";
+import { partitionTransformDependents } from "../transform-coordination.js";
 import {
   executeTransition,
   type ArtifactRunner,
@@ -461,19 +461,19 @@ async function sweepIncomingEdges(
 ): Promise<RepointedEdge[]> {
   const { executor } = ctx;
   const repointed: RepointedEdge[] = [];
-  const integrating = new Set(
-    ctx.composed === undefined
-      ? []
-      : findIntegratingDependentAdvisories(ctx.composed, originSlug)
-        .map((advisory) => advisory.dependent),
+  const partitions = new Map(
+    (ctx.composed === undefined ? [] : partitionTransformDependents(ctx.composed, originSlug))
+      .map((partition) => [partition.dependent, partition] as const),
   );
   for (const edge of incomingEdges) {
-    if (integrating.has(edge.dependent)) continue;
     const entry = index.get(edge.dependent);
     if (entry === undefined) continue;
+    const partition = partitions.get(edge.dependent);
     const writablePath = ctx.composed === undefined
       ? entry.path
-      : ctx.composed.recordsBySlug.get(edge.dependent)?.writablePath;
+      : partition?.authority === "shared-visible"
+        ? partition.writablePath
+        : undefined;
     if (writablePath === undefined) continue;
     const abs = join(executor.cwd, writablePath);
     const before = await executor.indexFs.readFile(abs);

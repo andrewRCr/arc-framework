@@ -137,6 +137,33 @@ function abandonReceipt(
   return { ...common, schemaVersion: 2, inventoryRead: evidenceQuality };
 }
 
+function parkReceipt(): RetirementReceipt {
+  const subject = { kind: "work-unit", name: "origin" } as const;
+  const source = {
+    branch: "plan/origin",
+    head: "e".repeat(40),
+    artifactDigest: canonicalDigest("source:park"),
+  };
+  return {
+    schemaVersion: 2,
+    inventoryRead: "reachable",
+    receiptId: receiptId({
+      schemaVersion: 2,
+      subject,
+      transition: "park-planning",
+      sourceBranch: source.branch,
+      sourceHead: source.head,
+    }),
+    subject,
+    transition: "park-planning",
+    source,
+    transitionPatchDigest: canonicalDigest("patch:park"),
+    retiringProjection: { kind: "direct-transition" },
+    authorization: "planning-relocated",
+    result: { kind: "relocate", plannedArtifactDigest: canonicalDigest("target:park") },
+  };
+}
+
 describe("retirement disposition query", () => {
   it("projects one reachable receipt without exposing storage paths", () => {
     const result = queryRetirementDisposition(
@@ -206,12 +233,25 @@ describe("retirement disposition query", () => {
       expected: { kind: "abandoned" },
     },
   ])("admits the $label disposition", ({ candidate, expected }) => {
-    const result = queryRetirementDisposition(
+    const first = queryRetirementDisposition(
+      enumeration(candidate),
+      { retiredSubject: "origin", dependentSlug: "consumer" },
+    );
+    const replay = queryRetirementDisposition(
       enumeration(candidate),
       { retiredSubject: "origin", dependentSlug: "consumer" },
     );
 
-    expect(result).toMatchObject({ status: "unique", disposition: expected });
+    expect(first).toMatchObject({ status: "unique", disposition: expected });
+    expect(replay).toEqual(first);
+  });
+
+  it("treats park evidence as non-actionable on every replay", () => {
+    const evidence = enumeration(parkReceipt());
+    const query = { retiredSubject: "origin", dependentSlug: "consumer" };
+
+    expect(queryRetirementDisposition(evidence, query)).toEqual({ status: "absent" });
+    expect(queryRetirementDisposition(evidence, query)).toEqual({ status: "absent" });
   });
 
   it.each(["degraded", "unknown"] as const)(

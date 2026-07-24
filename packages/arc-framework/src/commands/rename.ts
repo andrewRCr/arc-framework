@@ -48,7 +48,10 @@ import {
   resolveRenameSubject,
   validateRenameRequest,
 } from "../lib/work-unit/rename-preflight.js";
-import { findIntegratingDependentAdvisories } from "../lib/work-unit/transform-coordination.js";
+import {
+  findIntegratingDependentAdvisories,
+  transformDependentMutationExclusions,
+} from "../lib/work-unit/transform-coordination.js";
 import {
   runRename,
   type RenamePlan,
@@ -138,8 +141,7 @@ export async function runRenameCommand(
           sourceSlug: names.oldSlug,
           targetSlug: names.newSlug,
           ...(cohortDocRelativePath === null ? {} : { cohortDocRelativePath }),
-          excludedPaths: coordination.flatMap((advisory) =>
-            advisory.writablePath === undefined ? [] : [advisory.writablePath]),
+          excludedPaths: transformDependentMutationExclusions(composed, names.oldSlug, command.cwd),
         }, referenceFs);
       }
       const additionalPaths = referencePlan?.changedPaths.filter(
