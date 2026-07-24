@@ -2924,3 +2924,16 @@ verdict: changes-requested-no-new-findings
 Primary adjudication retained all six outputs as exact duplicates of the root findings. The top seam therefore
 passes reviewability: it reconciled every named cross-root edge from bounded summaries and targeted loci, added no
 finding inflation, and never loaded the descendant reports or monolithic patch wholesale.
+
+### CodeRabbit installation-seam carrier shadow
+
+The third usable CodeRabbit `--agent` shadow ran on a disposable installation-seam projection. It completed seven
+tracked files with zero findings: the init recipe, self-hosted manifest, both Errand/housekeep skill mirrors, and
+framework-sync coverage. The newly added `locus-methodology-contracts.test.ts` was untracked in the projection and
+therefore outside `--uncommitted`; the carrier result is recorded as seven-file advisory evidence, not eight-file
+coverage and never completeness authority.
+
+One preceding invocation pointed at the parent worktree, immediately returned `review_skipped` with no changes, and
+contributed no evidence. Total CodeRabbit calls were four: the S2 and E1 shadows, this completed seam shadow, and the
+no-change setup skip—within the predeclared fewer-than-five ceiling. The disposable projection was removed after
+the completed run.
