@@ -2327,3 +2327,183 @@ Primary adjudication upheld all three findings. The exact-parent selector is fol
 single-parent requirement, current schema-version seeds can omit locus while audit treats absence as wildcard, and
 the exported ready-report schema does not enforce the comparison its semantics advertise. S1 passes reviewability
 and contributes three distinct findings.
+
+### P1 leaf evidence
+
+The fresh P1 evaluator reproduced 25 files, 3,022 changed lines, and 53 hunks exactly. It completed the owned scope
+without overload or malformed scope:
+
+```yaml
+scope: P1
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 25, insertions: 2950, deletions: 72, changedLines: 3022, zeroContextHunks: 53}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: P1-F1
+    title: Tail settlement is not replay-safe after branch deletion
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/lib/groom/tail-runtime.ts — lines 72-86;
+      packages/arc-framework/src/lib/housekeep/lifecycle-runtime.ts — lines 169-195
+    evidence: >
+      Both paths remove occupancy and exact branch refs before retiring the identity. A failure after remote/local
+      deletion retains identity, while replay requires those refs at the expected head.
+    impact: >
+      A merged or abandoned generation can become a permanent global tail that blocks reuse.
+    correctionBoundary: >
+      Model a durable replayable settlement state or accept every proven post-deletion state idempotently; inject
+      failures after each deletion and before identity publication.
+  - id: P1-F2
+    title: Partial grooming can lose occupancy before identity retirement
+    severity: high
+    stableLocus: packages/arc-framework/src/lib/groom/close-runtime.ts — lines 74-82
+    evidence: >
+      Partial close removes the worktree and role before rollbackIdentityClaim. Any later identity transaction
+      failure leaves the claim, but replay refuses because exactGroomRow finds no occupancy.
+    impact: >
+      An open global groom identity can remain with no supported close recovery.
+    correctionBoundary: >
+      Persist settlement before occupancy removal or permit exact identity retirement with absent occupancy under
+      preserved head and path-policy proof; inject every identity-stage failure.
+  - id: P1-F3
+    title: Partial housekeeping bypasses the pure-routing path policy
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/lib/housekeep/lifecycle-runtime.ts — lines 87-109;
+      packages/arc-framework/src/lib/housekeep/open-runtime.ts — lines 83-99
+    evidence: >
+      Full close classifies changed paths. Partial close proves only that checkout HEAD equals the freshly fetched
+      base, while partial open records no opened-base generation from which to derive the write set.
+    impact: >
+      Arbitrary direct-base changes can complete as an accepted pure-routing housekeeping sweep.
+    correctionBoundary: >
+      Bind partial open to an exact base generation and apply the same changed-path policy before close.
+  - id: P1-F4
+    title: Grooming authorization is basename-based rather than exact-path-based
+    severity: medium
+    stableLocus: packages/arc-framework/src/lib/groom/path-policy.ts — lines 16-33
+    evidence: >
+      Any matching meta/draft basename anywhere below planned or provisional is accepted for a claimed member.
+    impact: >
+      A generation can write a duplicate member artifact under an unrelated subtree while passing validation.
+    correctionBoundary: >
+      Resolve exact allowed member paths and compare normalized repository-relative paths; cover duplicate and
+      relocated members.
+verificationFindings:
+  - id: P1-V1
+    title: Owned tests omit the destructive lifecycle failure boundaries
+    severity: medium
+    stableLocus: >
+      packages/arc-framework/__tests__/e2e/housekeep.e2e.test.ts — near line 47;
+      packages/arc-framework/__tests__/unit/groom/path-policy.test.ts — near line 7
+    evidence: >
+      Owned tests cover mark-execute and pure helpers but do not execute groom or housekeep open/close/settle across
+      occupancy removal, ref deletion, and identity publication.
+    impact: >
+      The stranded-generation paths above can survive the suite.
+    correctionBoundary: >
+      Add integration failure injection after every externally visible lifecycle mutation and replay each post-image.
+withstood:
+  - Inbox mutation uses source digests, identity-wide locking, and same-directory atomic replacement.
+  - Exact provenance, lease, subject, and head checks guard destructive occupancy cleanup.
+  - Handoff planning refuses ambiguous, incomplete, recovery, and invalid-parent states.
+verdict: changes-requested
+```
+
+Primary adjudication upheld all four runtime findings and the verification weakness. The source orders branch or
+occupancy destruction before fallible identity publication, skips path classification for partial housekeeping,
+and accepts claimed member basenames below any backlog subtree. P1 passes reviewability and contributes four
+distinct runtime findings plus one verification weakness.
+
+### R1 leaf evidence
+
+The fresh R1 evaluator reproduced seven files, 3,080 changed lines, and seven hunks exactly. Despite each document
+being one large hunk, it completed every owned artifact without overload or malformed scope:
+
+```yaml
+scope: R1
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 7, insertions: 2748, deletions: 332, changedLines: 3080, zeroContextHunks: 7}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: R1-F1
+    title: Advisory entry can create immediate residue
+    severity: high
+    stableLocus: >
+      .arc/active/spec-session-locus-model.md — lines 99-108 and 674-683;
+      .arc/active/tasks-session-locus-model.md — lines 939-946
+    evidence: >
+      Entry accepts and persists an unverifiable anchor with unknown liveness, while the frame matrix classifies any
+      non-WU managed role with unknown liveness as residue and current selection considers live leases only.
+    impact: >
+      A successful advisory warm entry can become non-current and unrecoverable immediately.
+    correctionBoundary: >
+      Define a usable invoking-operation/current-frame proof that preserves the deletion veto, or refuse creation;
+      cover accepted-unverifiable entry through handoff and recovery.
+  - id: R1-F2
+    title: Leaseless work-unit selection is not defined
+    severity: high
+    stableLocus: >
+      .arc/active/spec-session-locus-model.md — lines 310-315 and 674-683;
+      .arc/active/tasks-session-locus-model.md — lines 929-937
+    evidence: >
+      Ordinary WU entry is intentionally leaseless and tasks claim exact-checkout selection, but the normative
+      current algorithm selects only live entering-anchor leases and gives no checkout-based idle-WU rule.
+    impact: >
+      Independent implementations can legitimately return current none, blocking WU recovery, handoff, and parent
+      derivation.
+    correctionBoundary: >
+      Specify trusted directed/current-checkout evidence, ambiguity rules, and current projection for null-lease WUs.
+  - id: R1-F3
+    title: Changed-head re-entry has contradictory rules
+    severity: medium
+    stableLocus: >
+      .arc/active/spec-session-locus-model.md — lines 843-847 and 1031-1038;
+      .arc/active/tasks-session-locus-model.md — lines 948-955
+    evidence: >
+      The task outcome says head drift proceeds with warnings, while D7 refuses changed remote heads and D8 treats
+      changed-head as non-authorizing.
+    impact: >
+      Implementation and verification lack one authoritative answer for an open change request whose head moved.
+    correctionBoundary: >
+      Choose one rule across D7, D8, outcomes, criteria, and tests, including checkout SHA and push safety.
+  - id: R1-F4
+    title: The executive lease description contradicts the settled amendment
+    severity: medium
+    stableLocus: .arc/active/spec-session-locus-model.md — lines 37-38 and 310-315
+    evidence: >
+      The introduction calls leases session-scoped while the settled rule makes them verb-scoped.
+    impact: >
+      Progressive readers receive the reverse of a central right-sizing decision.
+    correctionBoundary: >
+      Use verb-scoped language consistently in the introduction and summaries.
+  - id: R1-F5
+    title: Verification handoff metadata is stale and ambiguous
+    severity: medium
+    stableLocus: .arc/active/meta-session-locus-model.md — lines 15-19
+    evidence: >
+      The blocker alternates between pr-decomposition and soon review-chunking, while the Task 8.1 line hint points
+      near 1008 instead of the actual line 1078.
+    impact: >
+      A later session cannot identify one canonical prerequisite and receives an unreliable resume locator.
+    correctionBoundary: >
+      Name review-chunking as the canonical integration-order blocker and correct the Task 8.1 locator.
+withstood:
+  - Planned-to-active artifact transition and obsolete planned-artifact removal are structurally complete.
+  - Identity, occupancy, record generation, cleanup, and ordering contracts are otherwise extensively specified.
+  - Phase 8 remains unchecked and does not falsely claim final verification.
+verdict: changes-requested
+```
+
+Primary adjudication upheld R1-F1 through F4. R1-F5 is upheld only at the stale blocker text and line locator:
+`review-chunking` is the canonical integration-order obligation, while requiring a `Depends On` declaration or an
+exact-head local metadata record is rejected because the relationship was intentionally not modeled as a WU
+dependency. R1 passes reviewability and contributes five document-coherence findings after narrowing F5.
