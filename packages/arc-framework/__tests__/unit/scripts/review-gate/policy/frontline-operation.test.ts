@@ -205,6 +205,37 @@ describe("frontline operation continuity", () => {
     expect(order).toEqual(["pending", "execute", "outcome", "terminal"]);
   });
 
+  it.each([
+    ["timed-out", { class: "execution-timeout" }],
+    ["failed", { class: "unexpected-adapter-failure" }],
+  ] as const)("persists a pre-launch %s terminal without executable identity", async (outcomeName, reason) => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+
+    await expect(executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute: async () => ({
+        outcome: normalizedOutcome(outcomeName, reason),
+        executableIdentity: null,
+      }),
+      now: () => "2026-07-23T19:00:00Z",
+    }, executionBinding())).resolves.toMatchObject({
+      persistedVersion: 2,
+      executableIdentity: null,
+      outcome: { outcome: outcomeName },
+    });
+    expect([...operationStore.records.values()].at(-1)?.state).toMatchObject({
+      kind: "frontline-run",
+      outcome: outcomeName,
+    });
+    expect([...outcomeStore.records.values()].at(-1)?.record).toMatchObject({
+      executableIdentity: null,
+      outcome: { outcome: outcomeName },
+    });
+  });
+
   it("reloads the operation after a concurrent exact pending publication", async () => {
     const operationStore = memoryStore();
     const outcomeStore = memoryOutcomeStore();

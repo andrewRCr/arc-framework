@@ -101,15 +101,18 @@ export const FrontlineOutcomeRecordSchema = FrontlineOutcomeRecordObjectSchema.s
       path: ["outcomeDigest"],
     });
   }
-  // Staleness can be detected either before executable resolution or by a launched provider.
-  if (record.outcome.outcome === "stale-target") return;
-  const launched = outcomeRequiredExecutable(record.outcome);
-  if (launched !== (record.executableIdentity !== null)) {
+  const executableRequirement = outcomeExecutableRequirement(record.outcome);
+  if (executableRequirement === "required" && record.executableIdentity === null) {
     context.addIssue({
       code: "custom",
-      message: launched
-        ? "launched outcomes require executable identity"
-        : "never-launched outcomes cannot carry executable identity",
+      message: "launched outcomes require executable identity",
+      path: ["executableIdentity"],
+    });
+  }
+  if (executableRequirement === "forbidden" && record.executableIdentity !== null) {
+    context.addIssue({
+      code: "custom",
+      message: "never-launched outcomes cannot carry executable identity",
       path: ["executableIdentity"],
     });
   }
@@ -135,14 +138,24 @@ export function createFrontlineOutcomeRecord(
   });
 }
 
-function outcomeRequiredExecutable(outcome: FrontlineExecutionOutcome): boolean {
-  if (outcome.outcome === "pass-cap-exhausted") return false;
+function outcomeExecutableRequirement(
+  outcome: FrontlineExecutionOutcome,
+): "required" | "forbidden" | "optional" {
+  if (
+    outcome.outcome === "stale-target"
+    || outcome.outcome === "timed-out"
+    || outcome.outcome === "failed"
+  ) {
+    return "optional";
+  }
+  if (outcome.outcome === "pass-cap-exhausted") return "forbidden";
   if (outcome.outcome === "unavailable") {
     return outcome.reason.class !== "source-unbound"
-      && outcome.reason.class !== "capability-unsupported";
+      && outcome.reason.class !== "capability-unsupported"
+      ? "required"
+      : "forbidden";
   }
-  if (outcome.outcome === "failed") return outcome.reason.class !== "authorization-rejected";
-  return true;
+  return "required";
 }
 
 const ReductionBaseShape = {
