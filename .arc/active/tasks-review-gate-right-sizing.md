@@ -113,40 +113,31 @@ head is born locked while planning-only changes retain their existing lane.
 - _Outcome:_ Local and hosted unlock callers now share one exact-head lifecycle definition; default-branch workflow
   presence controls dispatch availability, while absent or indeterminate host state cannot create clearance.
 
-### `[ ]` **2.2 Build the pinned exact-head unlock workflow and status poster**
+### `[x]` **2.2 Build the pinned exact-head unlock workflow and status poster**
 
 - _Goal:_ The default branch independently re-runs readiness against PR files as inert data and posts
   `arc-cleared` only to the dispatched exact head through a least-privilege, environment-gated writer.
 
-    - `[ ]` **2.2.a Author the pinned unlock workflow from the repair trust boundary**
+    - `[x]` **2.2.a Author the pinned unlock workflow from the repair trust boundary**
 
-        - Derive `.github/workflows/arc-clearance.yml` from `review-gate-repair.yml`: accept only the
-          `arc-clearance` `repository_dispatch` type, pin actions, disable persisted credentials, and check out
-          trusted workflow/CLI code separately from the requested PR tree.
-        - Run the pinned CLI readiness command over the PR-head checkout as data; never execute the PR's scripts,
-          dependencies, workflow, or build output.
+        - Added `.github/workflows/arc-clearance.yml` with one exact dispatch type, SHA-pinned actions, a trusted
+          workflow-SHA checkout, and a detached PR-head data checkout with credentials disabled. Trusted source
+          installs dependencies without scripts and invokes the shared readiness CLI against the data root.
 
-    - `[ ]` **2.2.b Isolate exact-head status publication**
+    - `[x]` **2.2.b Isolate exact-head status publication**
 
-        - Pass the validated full SHA and readiness result into a separate job using the secretless
-          `arc-clearance` environment and only the permissions needed to create the `arc-cleared` commit status.
-          The environment uses a default-branch deployment policy and no required reviewer; writer isolation is
-          least-privilege containment, not a second authorization gate.
-        - Re-fetch the live PR head before publication, refuse a stale payload, and never post success to a branch
-          name, merge ref, workflow SHA, or replacement head.
-        - Build `test-first` (one behavior at a time):
-            - ready and still-current payload posts success to the requested SHA;
-            - failed readiness or head movement posts no success;
-            - the writer receives no PR-supplied executable input.
+        - The secretless `arc-clearance` environment contains the only status-writing job. It receives only the
+          validated SHA and readiness envelope, revalidates repository/PR/head identity from live host data, and
+          posts `arc-cleared` only to that full SHA with pull-request read and status-write permissions.
 
-    - `[ ]` **2.2.c Add workflow contract and trust-boundary fixtures**
+    - `[x]` **2.2.c Add workflow contract and trust-boundary fixtures**
 
-        - Extend `packages/arc-framework/__tests__/integration/review-gate-workflows.test.ts` with parsed-workflow
-          assertions for the exact dispatch type, pinned actions, split permissions/jobs, `arc-clearance`
-          environment policy, detached data checkout, shared CLI readiness, exact-SHA publication, and absence of
-          a duplicate YAML artifact list or PR-supplied executable input.
-        - Add fixture-backed status-history cases proving a new SHA has no inherited `arc-cleared` success and an
-          unlock for the preceding SHA cannot clear it.
+        - Extended parsed-workflow coverage across the dispatch, action pins, split job permissions, detached data
+          checkout, shared readiness invocation, environment isolation, and exact-SHA writer. A status-history
+          fixture proves success remains scoped to its original head and a stale unlock cannot clear a replacement.
+
+- _Outcome:_ The reviewed lane is born locked per SHA and can be cleared only by trusted default-branch code after
+  lifecycle readiness succeeds against inert PR data and the requested head remains live at publication time.
 
 ### `[ ]` **2.3 Add the base-derived planning-lane `arc-cleared` stamp**
 

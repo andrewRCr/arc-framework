@@ -31,6 +31,28 @@ function stepValue(workflow: string, jobName: string, stepId: string): Record<st
   return step as Record<string, unknown>;
 }
 
+interface ClearanceStatusFixture {
+  context: string;
+  previousHead: string;
+  replacementHead: string;
+  statuses: Array<{
+    context: string;
+    sha: string;
+    state: "success";
+  }>;
+}
+
+function hasClearanceSuccess(
+  fixture: ClearanceStatusFixture,
+  sha: string,
+): boolean {
+  return fixture.statuses.some(
+    (status) => status.context === fixture.context
+      && status.sha === sha
+      && status.state === "success",
+  );
+}
+
 describe("trusted review-gate workflows", () => {
   it("keeps the review relay secretless and checkout-free", async () => {
     const workflow = await read("review-gate-wakeup.yml");
@@ -767,5 +789,103 @@ describe("trusted review-gate workflows", () => {
     expect(qualify).toContain("ARC_REVIEW_GATE_APP_PRIVATE_KEY: ${{ secrets.ARC_REVIEW_GATE_APP_PRIVATE_KEY }}");
     expect(qualify).toContain("review-gate-token-qualification-${{ github.run_id }}-${{ github.run_attempt }}");
     expect(qualify).not.toMatch(/echo.*(?:TOKEN|PRIVATE_KEY)|steps\..*\.outputs\.token/iu);
+  });
+
+  it("validates clearance with pinned code while treating the detached PR checkout only as data", async () => {
+    const clearance = await read("arc-clearance.yml");
+    const workflow = load(clearance) as {
+      on?: unknown;
+      permissions?: unknown;
+    };
+    expect(workflow.on).toEqual({ repository_dispatch: { types: ["arc-clearance"] } });
+    expect(workflow.permissions).toEqual({});
+
+    const validation = jobValue(clearance, "validate");
+    expect(validation.permissions).toEqual({
+      contents: "read",
+      "pull-requests": "read",
+    });
+    expect(validation).not.toHaveProperty("environment");
+    expect(validation).not.toHaveProperty("statuses");
+
+    const trustedCheckout = stepValue(clearance, "validate", "trusted-checkout");
+    expect(trustedCheckout.with).toMatchObject({
+      ref: "${{ github.workflow_sha }}",
+      "persist-credentials": false,
+    });
+    expect(trustedCheckout.with).not.toHaveProperty("path");
+
+    const dataCheckout = stepValue(clearance, "validate", "data-checkout");
+    expect(dataCheckout.with).toMatchObject({
+      ref: "${{ steps.target.outputs.head_sha }}",
+      path: "_arc_pr_data",
+      "persist-credentials": false,
+    });
+
+    const readiness = stepValue(clearance, "validate", "readiness");
+    expect(readiness.run).toContain(
+      "./node_modules/.bin/tsx packages/arc-framework/src/cli.ts review readiness",
+    );
+    expect(readiness.run).toContain("treeRoot:$treeRoot");
+    expect(readiness.run).toContain('test "$(jq -r .state <<<"$result")" = ready');
+
+    const executableSteps = (validation.steps as Array<Record<string, unknown>>)
+      .filter((step) => typeof step.run === "string");
+    for (const step of executableSteps) {
+      expect(step["working-directory"]).not.toBe("_arc_pr_data");
+      expect(step.run).not.toMatch(/(?:bash|node|npm|npx|tsx)\s+_arc_pr_data\//u);
+    }
+    expect(clearance).not.toMatch(/(?:npm|npx|tsx).*(?:github\.event\.client_payload|_arc_pr_data\/)/u);
+  });
+
+  it("isolates clearance publication and binds success to the still-current full SHA", async () => {
+    const clearance = await read("arc-clearance.yml");
+    const writer = jobValue(clearance, "write-status");
+    expect(writer.needs).toBe("validate");
+    expect(writer.if).toBe("${{ needs.validate.result == 'success' }}");
+    expect(writer.environment).toBe("arc-clearance");
+    expect(writer.permissions).toEqual({
+      "pull-requests": "read",
+      statuses: "write",
+    });
+    expect(writer).not.toHaveProperty("secrets");
+
+    const steps = writer.steps;
+    expect(Array.isArray(steps)).toBe(true);
+    expect(steps).toHaveLength(1);
+    const publish = (steps as Array<Record<string, unknown>>)[0] ?? {};
+    expect(publish).not.toHaveProperty("uses");
+    expect(publish.env).toMatchObject({
+      PR_NUMBER: "${{ github.event.client_payload.pull_request }}",
+      STATUS_CONTEXT: "arc-cleared",
+      VALIDATED_HEAD: "${{ needs.validate.outputs.head_sha }}",
+      READINESS_JSON: "${{ needs.validate.outputs.readiness_json }}",
+    });
+    expect(publish.run).toContain('test "$(jq -r .state <<<"$READINESS_JSON")" = ready');
+    expect(publish.run).toContain('test "$(jq -r .payload.target.headSha <<<"$READINESS_JSON")" = "$VALIDATED_HEAD"');
+    expect(publish.run).toContain('pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"');
+    expect(publish.run).toContain('live_head="$(jq -r .head.sha <<<"$pull_request")"');
+    expect(publish.run).toContain('test "$live_head" = "$VALIDATED_HEAD"');
+    expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$VALIDATED_HEAD"');
+    expect(publish.run).not.toMatch(/statuses\/\$(?:HEAD_BRANCH|GITHUB_HEAD_REF)|refs\/pull|merge-ref/u);
+    expect(JSON.stringify(writer)).not.toMatch(/_arc_pr_data|client_payload\.(?:slug|vehicle_kind|archive_cadence)/u);
+  });
+
+  it("does not inherit clearance across heads or let a stale unlock clear its replacement", async () => {
+    const fixture = JSON.parse(await readRepositoryFile(
+      "packages/arc-framework/__tests__/fixtures/review-gate/clearance-status-history.json",
+    )) as ClearanceStatusFixture;
+    expect(hasClearanceSuccess(fixture, fixture.previousHead)).toBe(true);
+    expect(hasClearanceSuccess(fixture, fixture.replacementHead)).toBe(false);
+
+    const statusesAfterStaleUnlock = fixture.previousHead === fixture.replacementHead
+      ? [...fixture.statuses, {
+        context: fixture.context,
+        sha: fixture.previousHead,
+        state: "success" as const,
+      }]
+      : fixture.statuses;
+    expect(statusesAfterStaleUnlock).toBe(fixture.statuses);
+    expect(hasClearanceSuccess({ ...fixture, statuses: statusesAfterStaleUnlock }, fixture.replacementHead)).toBe(false);
   });
 });
