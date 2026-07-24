@@ -6,6 +6,16 @@ import type {
   PolicyDecisionProjection,
 } from "./execution.js";
 import type { GateVerdict } from "./verdict.js";
+import type {
+  ReviewReceiptV2,
+  ReviewRequestV2,
+  ReviewRequirementV2,
+  ReviewTarget,
+} from "./gate-contract-v2-schema.js";
+import {
+  evaluateForwardRequirement,
+  type ForwardRequirementEvaluationInput,
+} from "./requirements.js";
 
 /** Inputs retained in a projection without host formatting. */
 export interface GateProjectionInput {
@@ -15,6 +25,23 @@ export interface GateProjectionInput {
   ledgerVersion: number | null;
   receiptRefs: string[];
   evidence: GateEvidenceProjection[];
+}
+
+/** Dormant forward-only projection; operational v1 reduction remains a separate compatibility surface. */
+export interface ForwardGateProjection {
+  schemaVersion: 2;
+  semanticsVersion: "review-gate/v2";
+  conclusion: "pending" | "failure" | "success";
+  summary: string;
+  blockers: Array<{ code: string; detail: string }>;
+  target: ReviewTarget;
+  requirement: ReviewRequirementV2 | null;
+  request: ReviewRequestV2 | null;
+  receipt: ReviewReceiptV2 | null;
+  coverage?: {
+    treatment: "none" | "direct" | "carry" | "incremental" | "final-full";
+    applicabilityId: string | null;
+  };
 }
 
 function plain(value: string): string {
@@ -56,5 +83,34 @@ export function renderGateProjection(input: GateProjectionInput): GateProjection
       sourceIdentity: plain(evidence.sourceIdentity),
       evidenceRef: plain(evidence.evidenceRef),
     })),
+  };
+}
+
+/** Validate and project one exact v2 requirement chain without activating it as merge authority. */
+export function renderForwardGateProjection(
+  input: ForwardRequirementEvaluationInput,
+): ForwardGateProjection {
+  const evaluation = evaluateForwardRequirement(input);
+  const conclusion = evaluation.state === "inapplicable" || evaluation.state === "clean"
+    ? "success"
+    : evaluation.state === "unrequested" || evaluation.state === "pending"
+      ? "pending"
+      : "failure";
+  const blockers = conclusion === "failure"
+    ? [{ code: `standard-review:${evaluation.state}`, detail: `standard review is ${evaluation.state}` }]
+    : [];
+  const summary = evaluation.requirement === null
+    ? "standard review: exempt"
+    : `standard review: ${evaluation.state}; requirement ${evaluation.requirement.requirementId}`;
+  return {
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    conclusion,
+    summary,
+    blockers,
+    target: evaluation.target,
+    requirement: evaluation.requirement,
+    request: evaluation.request,
+    receipt: evaluation.receipt,
   };
 }

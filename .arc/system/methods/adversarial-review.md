@@ -1,21 +1,27 @@
 ---
 name: adversarial-review
 description: Fresh-context adversarial review mechanism for planning and verification fire-points.
+related:
+  - frontline-review
+  - implementation-audit
+  - standard-review
 override-active: false
 ---
 
 # Method: adversarial-review
 
 > - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec],
->   [generate-tasks.md][generate-tasks], [verify-work-unit.md][verify-work-unit]
+>   [generate-tasks.md][generate-tasks], [verify-work-unit.md][verify-work-unit],
+>   [integrate-work-unit.md][integrate-work-unit]
 > - **When:** A stage boundary runs its readiness, finalization, task-generation, or work-unit verification gate
 >   and has a supplied rubric to attack.
 >
 > - **Signature:** `adversarial-review(rubric, artifacts, orientation, pass-cap, prior-findings?,
 >   partition-map?)` → findings report
 > - **Contract:** Given a supplied rubric and stage artifacts, run that rubric adversarially with fresh context,
->   primary-held judgment, and convergence-oriented follow-up. Findings are advisory until the primary verifies
->   them against source; the method never creates a hard stage gate by itself.
+>   primary-held judgment, caller-owned launch policy, and convergence-oriented follow-up. Findings are advisory for
+>   mutation until the primary verifies and disposes them; the method never creates a hard gate or satisfying
+>   evidence by itself.
 
 ## adversarial-review.override
 
@@ -46,17 +52,19 @@ never applied blindly.
 passes attack the settled artifact and the prior fixes, not only the original report, so the loop can catch
 regressions or second-order breaks before the stage closes.
 
-**Advisory and `Class`-scaled.** Launching the mechanism is an accept-or-decline offer whose recommendation
-posture scales with the work unit's `Class`. It informs the stage interlock; it does not replace the interlock or
-make the stage impossible to approve.
+**Launch-neutral and caller-scaled.** The caller owns launch policy. An offer callout marks a discretionary
+invocation whose recommendation posture and pass cap may scale with the work unit's `Class`; a required invocation
+is unconditional and uses the same mechanism without an offer. The mechanism never weakens the caller's obligation
+or replaces its interlock.
 
 ### Invocation contract
 
 The primary agent is the runtime. It marshals the fire-point inputs, spawns each fresh pass, verifies returned
 findings against source, applies dispositions, and decides under the exit gate whether the loop has converged. A
-subagent performs exactly one pass. It receives only the pass-specific context serialized from the
-subagent-context inputs below; it never receives private loop-control state such as `pass-cap`, convergence
-decisions, or spawn bookkeeping.
+reviewer performs exactly one pass. The reviewer never edits the target, assigns dispositions, closes conversations,
+or attests its own result. It receives only the pass-specific context serialized from the subagent-context inputs
+below; it never receives private loop-control state such as `pass-cap`, convergence decisions, or spawn bookkeeping.
+After the pass returns, only an authorized adapter may attest a completed exact target as satisfying evidence.
 
 **Signature — canonical callsite.** The fenced block below is the call expression: a workflow invokes the method
 by instantiating it. Its single top-level key is the method name — the shape that identifies a method call
@@ -134,6 +142,8 @@ Partition map:
 Attack the artifact against the rubric. Try to break it. Do not manufacture findings:
 if the artifact holds up, say that plainly and specifically.
 
+Do not edit the target, assign dispositions, close conversations, or attest the result.
+
 Return exactly this report shape:
 {report-schema}
 
@@ -141,9 +151,9 @@ For each finding, include source-grounded evidence. The primary will verify ever
 finding against source before acting on it.
 ```
 
-**Fire-point offer shape.** Launching the mechanism is user discretion, so a workflow callsite is a stop-class
-control point: surfacing the offer is never skippable; running the pass is the user's call. A fire-point wraps
-the instantiated signature block in the stop-class callout, with the method name and posture in the lead:
+**Fire-point offer shape.** When caller policy makes invocation discretionary, the workflow callsite is a stop-class
+control point: surfacing the offer is never skippable; running the pass is the user's call. The fire-point wraps the
+instantiated signature block in the stop-class callout, with the method name and posture in the lead:
 
 ```markdown
 > [!IMPORTANT]
@@ -227,6 +237,8 @@ defines correctness for that stage:
 | create-spec finalization    | draft + spec                                      |
 | generate-tasks finalization | spec + task list                                  |
 | verify-work-unit            | spec + task list + the diff under verification    |
+| frontline review            | exact change target + `implementation-audit` lens |
+| standard review             | exact change target + `implementation-audit` lens |
 
 Also include a non-exhaustive key-file pointer list when the stage has known implementation or reference loci.
 Keep the list neutral: "key files, not necessarily complete" is orientation, while "the files I think are
@@ -289,4 +301,5 @@ source verification, disposition, and exit-gate rules as a standard pass.
 [create-spec]: ../workflows/arc/create-spec.md
 [generate-tasks]: ../workflows/arc/generate-tasks.md
 [verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
+[integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [sub-agent-scope]: ../rules/DEV-RULES.ARC.md#sub-agent-scope

@@ -8,7 +8,7 @@ Accepted (Parts 2, 3, 6 superseded by ADR-010)
 
 ADR-001 established 11 principles and 19 conventions, drawing a sharp boundary between what defines ARC (principles)
 and what's configurable (conventions). ADR-003 designed the configuration and extension point system that makes
-conventions adjustable. But a question remains: how do new adopters *start* with ARC?
+conventions adjustable. But a question remains: how do new adopters _start_ with ARC?
 
 The framework currently presents as all-or-nothing. ~55 files, 8 strategies, 12+ workflows, session ceremonies,
 commit hooks, archive processes. An adopter evaluating ARC must decide: commit to the full system, or walk away.
@@ -109,7 +109,7 @@ The agent loads these documents during session-init and follows the guidance the
 
 This means an essentials adopter whose config says `commit.format: any` will still have an agent that produces
 well-formatted conventional commits — because the agent read the development methodology strategy, which
-describes conventional commits as the recommended format. The difference: the hook won't *reject*
+describes conventional commits as the recommended format. The difference: the hook won't _reject_
 non-conventional commits.
 
 **This is intentional, not a conflict.** The separation is:
@@ -118,7 +118,7 @@ non-conventional commits.
 - **Prose** = quality guidance (what's the recommended approach?)
 - **Essentials** = same guidance, less enforcement
 
-Adopters choosing essentials typically want to avoid *friction* (hook rejection, ceremony blocking), not *quality*
+Adopters choosing essentials typically want to avoid _friction_ (hook rejection, ceremony blocking), not _quality_
 (well-formatted commits, thorough documentation). The agent producing quality output even when not enforced is a
 feature — it demonstrates the convention's value and may motivate the adopter to turn enforcement on later.
 
@@ -128,8 +128,8 @@ Profiles address one axis of adoption flexibility: **enforcement depth**. A seco
 complete adoption flexibility: **method customization**.
 
 **The gap profiles don't cover:** An adopter who wants `[JIRA-XXX] description` as their commit format doesn't
-want ARC's conventional commits *or* no enforcement — they want *their* format. A team using Jira for task
-tracking doesn't want to skip task completion tracking — they want to track completion *in Jira*. These are
+want ARC's conventional commits _or_ no enforcement — they want _their_ format. A team using Jira for task
+tracking doesn't want to skip task completion tracking — they want to track completion _in Jira_. These are
 active alternative practices, not absence of preference.
 
 Three adopter postures exist:
@@ -211,8 +211,8 @@ requirement; implementation details are downstream.
 ### Negative
 
 - **"Essentials" may underwhelm.** If the only tangible difference is relaxed hooks and different post-init
-  messaging, adopters may wonder what they gained. The value is in what they *don't* encounter (friction), which
-  is harder to perceive than what they *do* get. Documentation must make the progressive path feel intentional,
+  messaging, adopters may wonder what they gained. The value is in what they _don't_ encounter (friction), which
+  is harder to perceive than what they _do_ get. Documentation must make the progressive path feel intentional,
   not like "we just turned some stuff off."
 - **Agent over-delivery may confuse.** An essentials adopter who chose `commit.format: any` may be surprised
   when the agent still produces conventional commits. The behavior is correct (guidance without enforcement) but

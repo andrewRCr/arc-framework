@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { GitExec } from "../../../../../src/lib/git/exec.js";
+import type { RawGitExec } from "../../../../../src/lib/change-facts.js";
 import type { GateProjection } from "../../../../../src/scripts/review-gate/core/execution.js";
 import type { HttpFetch } from "../../../../../src/scripts/review-gate/hosts/github/api/http.js";
 import { SELF_HOSTING_POLICY } from "../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
@@ -66,8 +67,10 @@ function baseEnv(overrides: Partial<ReconcileMainEnv> = {}): ReconcileMainEnv {
 function harness() {
   const captured: { config?: ReconcileRuntimeConfig; io?: CompositionIo } = {};
   const sentinelExec = (async () => ({ stdout: "" })) as GitExec;
+  const sentinelRawExec = (async () => ({ stdout: new Uint8Array() })) as RawGitExec;
   const fetchSeam = (async () => ({ status: 200, headers: { get: () => null }, text: async () => "" })) as HttpFetch;
   const createGitExec = vi.fn(() => sentinelExec);
+  const createRawGitExec = vi.fn(() => sentinelRawExec);
   const createRuntime = vi.fn(async (config: ReconcileRuntimeConfig, io: CompositionIo) => {
     captured.config = config;
     captured.io = io;
@@ -77,15 +80,33 @@ function harness() {
     createRuntime,
     fetch: fetchSeam,
     createGitExec,
+    createRawGitExec,
     policy: SELF_HOSTING_POLICY,
     now: NOW,
   };
-  return { deps, captured, createGitExec, createRuntime, sentinelExec, fetchSeam };
+  return {
+    deps,
+    captured,
+    createGitExec,
+    createRawGitExec,
+    createRuntime,
+    sentinelExec,
+    sentinelRawExec,
+    fetchSeam,
+  };
 }
 
 describe("runReconcileMain", () => {
   it("resolves the environment into a composition config and reports the reconcile status", async () => {
-    const { deps, captured, createGitExec, sentinelExec, fetchSeam } = harness();
+    const {
+      deps,
+      captured,
+      createGitExec,
+      createRawGitExec,
+      sentinelExec,
+      sentinelRawExec,
+      fetchSeam,
+    } = harness();
 
     const result = await runReconcileMain(baseEnv(), deps);
 
@@ -101,7 +122,9 @@ describe("runReconcileMain", () => {
       mode: "shadow",
     });
     expect(createGitExec).toHaveBeenCalledWith("ghs_readtoken");
+    expect(createRawGitExec).toHaveBeenCalledWith("ghs_readtoken");
     expect(captured.io?.exec).toBe(sentinelExec);
+    expect(captured.io?.rawExec).toBe(sentinelRawExec);
     expect(captured.io?.fetch).toBe(fetchSeam);
   });
 

@@ -29,16 +29,16 @@ The classification taxonomy (Framework, Configurable, Scaffolded, Project-Owned)
 orthogonal layer system (Core, arc-in-git) govern merge behavior, installation scope, and
 update strategy.
 
-| Consumer | What It References | Role |
-| --- | --- | --- |
-| `STRATEGY-INDEX.md` | Prefix naming rationale | Links to § Why Prefixes Matter |
-| `strategies/README.md` | `strategy-` prefix convention | Explains naming rationale |
-| `arc-config.yml` (template) | Self-declares as Configurable | Header comment |
-| `arc-methods.md` | Self-declares as Configurable | Header comment |
-| `arc-extensions.md` | Self-declares as Configurable | Header comment |
-| `strategy-configurability-architecture.md` | Full taxonomy + layer model | Consumer and contributor |
-| `session-init.md` | Reading strategy per classification | Reads-in-full vs on-demand |
-| ADR-008, ADR-009 | Layer architecture decisions | Architectural foundation |
+| Consumer                                   | What It References                  | Role                           |
+| ------------------------------------------ | ----------------------------------- | ------------------------------ |
+| `STRATEGY-INDEX.md`                        | Prefix naming rationale             | Links to § Why Prefixes Matter |
+| `strategies/README.md`                     | `strategy-` prefix convention       | Explains naming rationale      |
+| `arc-config.yml` (template)                | Self-declares as Configurable       | Header comment                 |
+| `arc-methods.md`                           | Self-declares as Configurable       | Header comment                 |
+| `arc-extensions.md`                        | Self-declares as Configurable       | Header comment                 |
+| `strategy-configurability-architecture.md` | Full taxonomy + layer model         | Consumer and contributor       |
+| `session-init.md`                          | Reading strategy per classification | Reads-in-full vs on-demand     |
+| ADR-008, ADR-009                           | Layer architecture decisions        | Architectural foundation       |
 
 **WU3 relevance:** CLI tooling needs the file inventory (classification + layer) to know which
 files to install per `pm.mode` and how to handle updates (overwrite vs three-way merge vs skip).
@@ -53,16 +53,16 @@ files to install per `pm.mode` and how to handle updates (overwrite vs three-way
 Twelve config keys with varying reach. The table below shows only keys with 5+ consumers —
 the full set is in arc-config.yml inline comments.
 
-| Config Key | Consumers | Enforcement | Blast Radius |
-| --- | --- | --- | --- |
-| `pm.mode` | 14 files | Agent reads at session-init and workflow branch points | High |
-| `branch.protection` | 10 files | `pre-commit` githook + workflow conditionals | High |
-| `merge.strategy` | 11 files | Agent reads during integration workflows | High |
-| `commit.format` | 10 files | `commit-msg` githook | High |
-| `commit.context_footer` | 8 files | `commit-msg` githook | Medium |
-| `hooks.commit_msg` | 7 files | `commit-msg` githook (self-gating) | Medium |
-| `branch.base` | 7 files | `pre-commit` githook + workflow references | Medium |
-| `platform.type` | 5 files | Agent reads for CLI command selection | Low |
+| Config Key              | Consumers | Enforcement                                            | Blast Radius |
+| ----------------------- | --------- | ------------------------------------------------------ | ------------ |
+| `pm.mode`               | 14 files  | Agent reads at session-init and workflow branch points | High         |
+| `branch.protection`     | 10 files  | `pre-commit` githook + workflow conditionals           | High         |
+| `merge.strategy`        | 11 files  | Agent reads during integration workflows               | High         |
+| `commit.format`         | 10 files  | `commit-msg` githook                                   | High         |
+| `commit.context_footer` | 8 files   | `commit-msg` githook                                   | Medium       |
+| `hooks.commit_msg`      | 7 files   | `commit-msg` githook (self-gating)                     | Medium       |
+| `branch.base`           | 7 files   | `pre-commit` githook + workflow references             | Medium       |
+| `platform.type`         | 5 files   | Agent reads for CLI command selection                  | Low          |
 
 **Enforcement pattern:** Githooks read config at runtime via `arc_config_get`. Workflows
 document behavior. Strategies explain design rationale. Methods define overridable defaults.
@@ -81,21 +81,21 @@ Eight configurable methods. Each follows a consistent pattern: DEV-RULES.ARC def
 a specific workflow invokes the method, and `strategy-configurability-architecture.md` documents
 the override path.
 
-| Method | Invoking Workflow | Rule Source | Other Consumers |
-| --- | --- | --- | --- |
-| `commit-format` | `prepare-commits.md` | DEV-RULES.ARC § Commit format | `arc-commit` SKILL |
-| `commit-context-format` | `prepare-commits.md` | DEV-RULES.ARC § Commit format | `arc-commit` SKILL |
-| `issue-triage` | `3_process-task-loop.md` | DEV-RULES.ARC § Discovered Work Routing | — |
-| `test-first` | `3_process-task-loop.md` | DEV-RULES.ARC § Test-first | `2_generate-tasks.md`, `manage-incidental-work.md` |
-| `session-state` | `session-init.md`, `session-handoff.md` | DEV-RULES.ARC § Session state | Templates, `integrate-external-content.md` |
-| `diff-review` | `integrate-work-unit.md` | — | `pre-merge.md`, `arc-config.yml` (gated) |
-| `review-triage` | `integrate-work-unit.md` | — | `pre-merge.md` |
-| `quality-gate-commands` | `3_process-task-loop.md` | DEV-RULES.PROJECT § Quality Gates | — |
+| Method                  | Invoking Workflow                       | Rule Source                             | Other Consumers                                    |
+| ----------------------- | --------------------------------------- | --------------------------------------- | -------------------------------------------------- |
+| `commit-format`         | `prepare-commits.md`                    | DEV-RULES.ARC § Commit format           | `arc-commit` SKILL                                 |
+| `commit-context-format` | `prepare-commits.md`                    | DEV-RULES.ARC § Commit format           | `arc-commit` SKILL                                 |
+| `issue-triage`          | `3_process-task-loop.md`                | DEV-RULES.ARC § Discovered Work Routing | —                                                  |
+| `test-first`            | `3_process-task-loop.md`                | DEV-RULES.ARC § Test-first              | `2_generate-tasks.md`, `manage-incidental-work.md` |
+| `session-state`         | `session-init.md`, `session-handoff.md` | DEV-RULES.ARC § Session state           | Templates, `integrate-external-content.md`         |
+| `self-review`           | `integrate-work-unit.md`                | —                                       | `pre-merge.md`, `arc-config.yml` (gated)           |
+| `review-triage`         | `integrate-work-unit.md`                | —                                       | `pre-merge.md`                                     |
+| `quality-gate-commands` | `3_process-task-loop.md`                | DEV-RULES.PROJECT § Quality Gates       | —                                                  |
 
 **Override coupling** (from arc-methods.md § Method Dependencies):
 
 - `commit-format` ↔ `commit-context-format` — both govern commit messages
-- `diff-review` → `review-triage` — review uses triage for finding classification
+- `self-review` → `review-triage` — review uses triage for finding classification
 
 ---
 
@@ -110,17 +110,17 @@ Two files with different update triggers:
 - **WORK-STATUS.md** (tracked) — updated at commit time and session handoff
 - **SESSION-NOTES.md** (gitignored) — written only at session handoff
 
-| File | Interaction | What It Does |
-| --- | --- | --- |
-| `session-init.md` | Reads both | Loads project state + personal context at session start |
-| `session-handoff.md` | Writes both | Captures state at session end |
-| `activate-work-unit.md` | Writes WORK-STATUS | Transitions to active work unit |
-| `archive-work-unit.md` | Writes WORK-STATUS | Resets to "no active work" defaults |
-| `3_process-task-loop.md` | References WORK-STATUS | Commit-time update rule (stage with task commits) |
-| `prepare-commits.md` | Reads SESSION-NOTES | Uses for uncommitted work context |
-| DEV-RULES.ARC | Defines rule | § Work status accuracy — must update at commit time |
-| ADR-007 | Defines architecture | Two-file split, git notes portability, team mode |
-| `strategy-team-coordination.md` | Documents adaptation | Team paths: `team/{name}/SESSION-NOTES.md` |
+| File                            | Interaction            | What It Does                                            |
+| ------------------------------- | ---------------------- | ------------------------------------------------------- |
+| `session-init.md`               | Reads both             | Loads project state + personal context at session start |
+| `session-handoff.md`            | Writes both            | Captures state at session end                           |
+| `activate-work-unit.md`         | Writes WORK-STATUS     | Transitions to active work unit                         |
+| `archive-work-unit.md`          | Writes WORK-STATUS     | Resets to "no active work" defaults                     |
+| `3_process-task-loop.md`        | References WORK-STATUS | Commit-time update rule (stage with task commits)       |
+| `prepare-commits.md`            | Reads SESSION-NOTES    | Uses for uncommitted work context                       |
+| DEV-RULES.ARC                   | Defines rule           | § Work status accuracy — must update at commit time     |
+| ADR-007                         | Defines architecture   | Two-file split, git notes portability, team mode        |
+| `strategy-team-coordination.md` | Documents adaptation   | Team paths: `team/{name}/SESSION-NOTES.md`              |
 
 **Lifecycle flow:** init reads → task loop references → handoff writes. WORK-STATUS is the
 primary state mechanism; SESSION-NOTES is supplemental context that may not exist.
@@ -137,24 +137,24 @@ change artifact locations, workflow steps, and which files are installed.
 
 #### Workflows with conditional logic
 
-| Workflow | What Changes by Mode |
-| --- | --- |
-| `session-init.md` § Step 5 | Discovery path: ROADMAP + backlog (arc-in-git) vs `active/` check (none/external) |
-| `1_create-prd.md` § Steps 1, 4 | Plan lookup and PRD save location |
-| `2_generate-tasks.md` § Finalize the task list | Task list save location |
-| `activate-work-unit.md` § Steps 1, 3, 7 | File move from backlog (arc-in-git) vs skip (none/external) |
-| `02_define-project.md` § Steps 4-5 | ROADMAP and PROJECT-STATUS creation (arc-in-git only) |
-| `archive-work-unit.md` § Step 5 | Next Action guidance text |
+| Workflow                                       | What Changes by Mode                                                              |
+| ---------------------------------------------- | --------------------------------------------------------------------------------- |
+| `session-init.md` § Step 5                     | Discovery path: ROADMAP + backlog (arc-in-git) vs `active/` check (none/external) |
+| `1_create-prd.md` § Steps 1, 4                 | Plan lookup and PRD save location                                                 |
+| `2_generate-tasks.md` § Finalize the task list | Task list save location                                                           |
+| `activate-work-unit.md` § Steps 1, 3, 7        | File move from backlog (arc-in-git) vs skip (none/external)                       |
+| `02_define-project.md` § Steps 4-5             | ROADMAP and PROJECT-STATUS creation (arc-in-git only)                             |
+| `archive-work-unit.md` § Step 5                | Next Action guidance text                                                         |
 
 #### Strategies with mode-specific content
 
-| Strategy | Mode Dependency |
-| --- | --- |
-| `strategy-backlog-organization.md` | Entire strategy is arc-in-git only |
-| `strategy-work-planning.md` | Core concepts + arc-in-git extensions (split content) |
-| `strategy-file-classification.md` | Layer column marks files as Core or arc-in-git |
-| `strategy-team-coordination.md` | ATOMIC-TASKS.md file requires arc-in-git |
-| `STRATEGY-INDEX.md` | Marks strategies with **(arc-in-git)** tag |
+| Strategy                           | Mode Dependency                                       |
+| ---------------------------------- | ----------------------------------------------------- |
+| `strategy-backlog-organization.md` | Entire strategy is arc-in-git only                    |
+| `strategy-work-planning.md`        | Core concepts + arc-in-git extensions (split content) |
+| `strategy-file-classification.md`  | Layer column marks files as Core or arc-in-git        |
+| `strategy-team-coordination.md`    | ATOMIC-TASKS.md file requires arc-in-git              |
+| `STRATEGY-INDEX.md`                | Marks strategies with **(arc-in-git)** tag            |
 
 #### arc-in-git exclusive artifacts
 
@@ -174,17 +174,17 @@ extensions can sync with external trackers.
 
 Two values (`partial`, `full`) that determine what work requires branches and PRs.
 
-| File | What Changes by Mode |
-| --- | --- |
-| `pre-commit` githook (both) | `partial` warns, `full` blocks direct base branch commits |
-| `strategy-work-organization.md` | Mode definitions, comparison table, choosing guidance |
-| `activate-planning-branch.md` | Planning branch mandatory (full) vs optional (partial solo) |
-| `1_create-prd.md` | Branch context note — planning branch required (full) vs optional |
-| `2_generate-tasks.md` | Branch context note — same pattern as create-prd |
-| `activate-work-unit.md` | Prerequisites — how artifacts arrived on base branch |
-| `archive-work-unit.md` | Step 0 branch requirement (full) vs direct commit (partial) |
-| `integrate-work-unit.md` | Archival routing in Next Step |
-| `manage-incidental-work.md` | Branch requirement for all changes under full protection |
+| File                            | What Changes by Mode                                              |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `pre-commit` githook (both)     | `partial` warns, `full` blocks direct base branch commits         |
+| `strategy-work-organization.md` | Mode definitions, comparison table, choosing guidance             |
+| `activate-planning-branch.md`   | Planning branch mandatory (full) vs optional (partial solo)       |
+| `1_create-prd.md`               | Branch context note — planning branch required (full) vs optional |
+| `2_generate-tasks.md`           | Branch context note — same pattern as create-prd                  |
+| `activate-work-unit.md`         | Prerequisites — how artifacts arrived on base branch              |
+| `archive-work-unit.md`          | Step 0 branch requirement (full) vs direct commit (partial)       |
+| `integrate-work-unit.md`        | Archival routing in Next Step                                     |
+| `manage-incidental-work.md`     | Branch requirement for all changes under full protection          |
 
 **Key behavioral difference:** Under full protection, lifecycle transitions (archival, planning,
 activation) all need branches. The natural pattern is batch branches that combine archival

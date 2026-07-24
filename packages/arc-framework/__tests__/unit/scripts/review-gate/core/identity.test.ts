@@ -4,7 +4,11 @@ import {
   canonicalizePlainJson,
   computeChangeSetId,
   computePolicyVersion,
+  computeReviewPolicyVersion,
 } from "../../../../../src/scripts/review-gate/core/identity.js";
+import {
+  STANDARD_REVIEW_RUBRIC_IDENTITY,
+} from "../../../../../src/scripts/review-gate/policy/standard-review.js";
 
 const diffBaseSha = "a".repeat(40);
 const headSha = "b".repeat(40);
@@ -46,6 +50,35 @@ describe("canonical review identities", () => {
     expect(computePolicyVersion({ policy, runtime: { rolloutMode: "shadow", capacity: "available" } })).toBe(
       computePolicyVersion({ policy, runtime: { rolloutMode: "final", capacity: "exhausted" } }),
     );
+  });
+
+  it("normalizes accepted sources into one domain-separated forward policy identity", () => {
+    const input = {
+      schemaVersion: 2 as const,
+      semanticsVersion: "review-gate/v2" as const,
+      kind: "standard-review" as const,
+      obligation: "required" as const,
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
+      retrigger: "full-final" as const,
+      count: 1 as const,
+      acceptableSources: [
+        { sourceKind: "human", qualifier: null },
+        { sourceKind: "agent", qualifier: "carrier/v1" },
+      ],
+      initialAdmission: "automatic" as const,
+    };
+    const identity = computeReviewPolicyVersion(input);
+
+    expect(identity).toBe("sha256:3b9fae719c2b253bade84ed3bfc82882bd1ef5735396158af3506a6e0dd7fd6b");
+    expect(computeReviewPolicyVersion({
+      ...input,
+      acceptableSources: [
+        ...input.acceptableSources.slice().reverse(),
+        input.acceptableSources[0]!,
+      ],
+    })).toBe(identity);
+    expect(computePolicyVersion({ policy: input })).not.toBe(identity);
   });
 
   it.each([

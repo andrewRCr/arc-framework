@@ -41,31 +41,31 @@ per-commit metadata churn.
 
 Three points require honest framing rather than validation:
 
-- *Merge to main is universally human-gated; production deploy varies.* High-maturity organizations automate production
+- _Merge to main is universally human-gated; production deploy varies._ High-maturity organizations automate production
   deploys behind observability, canary analysis, and rollback — not human abdication. ARC's integration-interlock means
   merge, not deploy.
-- *Approval-bundled machinery has precedent but industry trends toward separation where execution has external
-  visibility and low reversibility.* Bundling is idiomatic for local/reversible operations (pre-commit hooks,
+- _Approval-bundled machinery has precedent but industry trends toward separation where execution has external
+  visibility and low reversibility._ Bundling is idiomatic for local/reversible operations (pre-commit hooks,
   `git commit -am`); stakes asymmetry warrants a distinct signal. ARC adopts distinct-signal-per-intent rather than
   two-act separation because no equivalent state change occurs between ARC's commit and push events (unlike GitHub
   Merge Queue, where CI re-runs against rebased state during separation).
-- *Orthogonal ceremony (session handoff as off-stack ritual) has no direct VCS-tooling precedent.* Closest analogues
+- _Orthogonal ceremony (session handoff as off-stack ritual) has no direct VCS-tooling precedent._ Closest analogues
   are developer shutdown rituals and Graphite's submit-stack gate, but neither is a structural match. This is a design
   judgment, adopted because it reduces accidental cascade surface and consolidates next-session-serving bookkeeping
   into a single explicit act.
 
 **Alternatives considered:**
 
-- *Maintain the current model; fix sync, quality, and mobility concerns independently.* Rejected — symptoms recur
+- _Maintain the current model; fix sync, quality, and mobility concerns independently._ Rejected — symptoms recur
   under individual fixes because they share a missing frame.
-- *Expand `plan-user-sync-ux` to absorb the model.* Rejected — the constitutional reframing (commit control as
+- _Expand `plan-user-sync-ux` to absorb the model._ Rejected — the constitutional reframing (commit control as
   default, not principle) shouldn't be buried inside an implementation plan.
-- *Autonomy tiers that include skipping task review.* Rejected — inconsistent with ARC's identity. Deferred review is
+- _Autonomy tiers that include skipping task review._ Rejected — inconsistent with ARC's identity. Deferred review is
   a bounded convenience; it is not an autonomy tier.
-- *Full separation of approval from execution at the push-interlock (two human acts).* Rejected for the reason above —
+- _Full separation of approval from execution at the push-interlock (two human acts)._ Rejected for the reason above —
   absent a state-change checkpoint between the acts, separation introduces friction without new information to
   inspect.
-- *Global canonical-token approval grammar (e.g., `approved` parsed in arbitrary user prose).* Rejected during
+- _Global canonical-token approval grammar (e.g., `approved` parsed in arbitrary user prose)._ Rejected during
   implementation planning — see § Decision, "Approval signal vocabulary," for the structured-prompt alternative
   adopted in its place.
 
@@ -87,9 +87,9 @@ released by an approval signal — semantics drawn from safety-engineering and c
   active-control-mechanism semantics of an interlock.
 - **Stage / step / phase** — too generic; doesn't convey the hold-until-released invariant.
 
-Verb pairing: interlocks `release` / `engage` / `hold`. Auto-commit and auto-push *release* the relevant interlocks
-under configured conditions. Approval signals *release*; quality-gate failures *hold*; manual mode means the interlock
-is *engaged* by default until the user explicitly releases it.
+Verb pairing: interlocks `release` / `engage` / `hold`. Auto-commit and auto-push _release_ the relevant interlocks
+under configured conditions. Approval signals _release_; quality-gate failures _hold_; manual mode means the interlock
+is _engaged_ by default until the user explicitly releases it.
 
 **Linear autonomy stack** (task → commit → push → integrate):
 
@@ -105,7 +105,7 @@ is *engaged* by default until the user explicitly releases it.
 
 **Orthogonal ceremony:**
 
-- **Session handoff** is always human-invoked. *Inside* handoff, individual actions are configurable: status-file
+- **Session handoff** is always human-invoked. _Inside_ handoff, individual actions are configurable: status-file
   rotation, worktree push, notes push, quality-gate finalization. Handoff is not a rung in the autonomy ladder; it
   consolidates next-session-serving bookkeeping into a single explicit ritual.
 
@@ -117,21 +117,21 @@ is *engaged* by default until the user explicitly releases it.
 
 **Cascading rules:**
 
-- *Status-file timing.* Status-file updates fire only at session-handoff commits and workflow-ceremony commits
+- _Status-file timing._ Status-file updates fire only at session-handoff commits and workflow-ceremony commits
   (activate / integrate / sweep / deactivate / PRD generation / planning lifecycle operations). Task-completion
   code commits never touch the status file. This aligns state-change with the consumer boundary, eliminates
   per-commit metadata churn, and removes the per-commit shape/rotation judgment call.
 
-  *Tradeoff.* Handoff produces a dedicated `chore(status): handoff …` commit not bundled with code. This isn't
+  _Tradeoff._ Handoff produces a dedicated `chore(status): handoff …` commit not bundled with code. This isn't
   "dangling" — it's a clear session-boundary marker, naturally atomic, conventional-commit-friendly, and visible
   in PR history as the explicit handoff point. Reviewers benefit (code commits stay focused on code; status
   commits stay focused on pointer state). Auto-commit benefits (auto-fire scope is code-only, never has to
   maintain status consistency mid-stream). The rule is simpler than prior shape-vs-rotation field splits because
   workflow-ceremony commits become the only shape-change vector under the interlock model.
 
-- *Quality-gate failures always stop* regardless of autonomy level. The user approves the work, not bypassing gates.
+- _Quality-gate failures always stop_ regardless of autonomy level. The user approves the work, not bypassing gates.
 
-- *Approval signal vocabulary.* Each interlock specifies a signal class required to release it.
+- _Approval signal vocabulary._ Each interlock specifies a signal class required to release it.
 
   **Task-interlock and commit-interlock** admit affirmative responses to agent-emitted structured prompts. The
   agent ends each task-completion message with a boundary-aware prompt — `Proceed to Task X.Y?` (manual mode) or
@@ -143,7 +143,7 @@ is *engaged* by default until the user explicitly releases it.
   push request ("push this", "push to origin"). At handoff: the handoff invocation itself, when push timing is
   configured to auto-at-handoff. There is no per-commit auto-push and no canonical push phrase or skill.
 
-  *Approach rationale.* The approval signal is **anchored** by the agent's prompt rather than parsed from
+  _Approach rationale._ The approval signal is **anchored** by the agent's prompt rather than parsed from
   arbitrary user prose. A global token-grammar (e.g., `approved` parsed wherever it appears) must defend against
   colloquial uses ("approved, but also..." is iteration, not approval) via regex or denylist heuristics — parser
   surface that ages poorly. The structured prompt anchors what affirmation means at each boundary; no global parser
@@ -151,7 +151,7 @@ is *engaged* by default until the user explicitly releases it.
   with a structured "Awaiting direction — proceed to Next Action?" prompt. Adopting the same shape at task-completion
   makes the cognitive model uniform across ARC's session lifecycle.
 
-  *Push-timing reasoning.* Auto-push-at-handoff is the only "automatic" path because three properties argue against
+  _Push-timing reasoning._ Auto-push-at-handoff is the only "automatic" path because three properties argue against
   per-commit auto-push:
 
     - **Pairing.** Worktree-push and notes-push need to land at the same release event; handoff is the natural
@@ -164,12 +164,12 @@ is *engaged* by default until the user explicitly releases it.
       writes into deliberate single events; per-commit auto-push would compound race surface linearly with commit
       cadence.
 
-- *Bundled-cascade safety requirements.* When approval triggers a cascade (auto-commit or auto-commit+push):
+- _Bundled-cascade safety requirements._ When approval triggers a cascade (auto-commit or auto-commit+push):
   cascaded actions must be idempotent and reversible where possible; the cascade must be visibly logged (the agent
   narrates what fires) so the user sees what one approval triggered; a step-through mode must remain available as an
   escape hatch for high-stakes work.
 
-- *Reversibility and rollback is a first-class concern.* ARC provides protocol-level support for undoing bundled
+- _Reversibility and rollback is a first-class concern._ ARC provides protocol-level support for undoing bundled
   cascades. In the implementing WUs, this lands as a DEV-RULES paragraph (session-local scope, manual-confirmation,
   no dedicated skill or log-file infrastructure in v1). The reduced surface reflects the actual problem size: agent
   conversation context plus conventional commit footers cover cascade-identification needs without dedicated tracking
@@ -211,17 +211,17 @@ is *engaged* by default until the user explicitly releases it.
 
 ### Risks
 
-- *Approval-signal ambiguity in practice.* The structured-prompt approach mitigates this by anchoring affirmations
+- _Approval-signal ambiguity in practice._ The structured-prompt approach mitigates this by anchoring affirmations
   to agent-emitted prompts — any non-affirmative-first-word falls to manual handling, correctness-over-completeness
   by design. If false-negatives bite ("yeah, looks good" interpreted as iteration), relax the affirmative-word list
   later.
-- *Auto-commit producing bad atomic commits on complex tasks.* Mitigation: graceful fallback to dialogue when
+- _Auto-commit producing bad atomic commits on complex tasks._ Mitigation: graceful fallback to dialogue when
   `prepare-commits` complexity triggers fire.
-- *Handoff-only status rotation widens the crash-recovery gap.* Mid-session crash leaves rotation fields stale
+- _Handoff-only status rotation widens the crash-recovery gap._ Mid-session crash leaves rotation fields stale
   relative to task-list state. Mitigation: the existing trust hierarchy (task list > status file) in session-init
   already handles this — a rare fallback becomes a regular code path, arguably healthier for the trust hierarchy's
   robustness overall.
-- *Orthogonal-handoff ceremony lacks industrial precedent.* Mitigation: treat as a design judgment and monitor during
+- _Orthogonal-handoff ceremony lacks industrial precedent._ Mitigation: treat as a design judgment and monitor during
   implementation. Revisit if the orthogonal framing produces friction.
 
 ## Amending This Document

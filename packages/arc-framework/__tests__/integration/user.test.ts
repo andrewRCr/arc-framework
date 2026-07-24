@@ -38,6 +38,7 @@ import {
   runUserAdd,
   runUserClose,
   runUserOpen,
+  runUserRenameWorkspace,
   findStaleUserWuSubdirs,
   listUserWuSubdirContents,
   removeStaleUserWuSubdir,
@@ -603,6 +604,46 @@ describe("user save and load", () => {
     // Clone + push/pull/load runs near the 5s integration default; give this one test headroom under
     // fork-pool contention rather than widening the suite default.
   }, 15_000);
+});
+
+describe("user workspace rename", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+    await makeCommit(tempDir, "initial commit");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("moves session notes and saves their new manifest path non-interactively", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    const oldDir = join(userDir, "old-name");
+    const newDir = join(userDir, "new-name");
+    await mkdir(oldDir, { recursive: true });
+    await writeFile(join(oldDir, "SESSION-NOTES.md"), "# Preserved continuity\n", "utf8");
+
+    const result = await runUserRenameWorkspace({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      oldWuName: "old-name",
+      newWuName: "new-name",
+    });
+
+    expect(result.status).toBe("moved");
+    await expect(readFile(join(newDir, "SESSION-NOTES.md"), "utf8"))
+      .resolves.toBe("# Preserved continuity\n");
+    await expect(readFile(join(oldDir, "SESSION-NOTES.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    const head = await readHead(tempDir);
+    const saved = await io.readNote("refs/notes/arc/user/test-user", head);
+    const manifest = JSON.parse(saved ?? "null") as { files: Record<string, string> };
+    expect(manifest.files["new-name/SESSION-NOTES.md"]).toBe("# Preserved continuity\n");
+    expect(manifest.files["old-name/SESSION-NOTES.md"]).toBeUndefined();
+  });
 });
 
 describe("user load — backup and stale detection", () => {

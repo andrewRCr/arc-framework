@@ -36,6 +36,8 @@ import {
 } from "../lib/active/current-workflow-consistency.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
+import { SlugSchema } from "../lib/kernel/index.js";
+import { resolveArcPath } from "../lib/layout/index.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
@@ -149,7 +151,16 @@ export function resolveStartDispatch(
 }
 
 /** The flat `active/` tier a graduated WU lands in. */
-const ACTIVE_DIR = ".arc/active";
+const ACTIVE_DIR = resolveArcPath({ kind: "placement-root", tier: "active" });
+
+function projectActiveMetaPath(slugValue: string) {
+  return resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: SlugSchema.parse(slugValue),
+    artifact: "meta",
+  });
+}
 
 /** Placeholder written before the shell handler lands the start ceremony commit. */
 export const START_CEREMONY_PENDING_COMMIT = "[start ceremony pending]";
@@ -478,7 +489,7 @@ async function runGraduateThroughExecutor(
   // Heal the relocated meta against the code field model — a stub minted before a
   // field existed graduates missing it; reconcile inserts each absent bullet at its
   // declared default. Warn-and-backfill: the count surfaces as a ceremony notice.
-  const metaPath = `${ACTIVE_DIR}/meta-${params.name}.md`;
+  const metaPath = projectActiveMetaPath(params.name);
   const backfilled =
     (await ctx.reconcileMeta?.(metaPath, { "Current Workflow": PLANNING_WORKFLOWS[0] })) ?? [];
   // Persist a caller-supplied Class the stub's meta lacked — the same core-table
@@ -560,8 +571,8 @@ export type ColdStartOutcome =
  * Derive the cold-start WU name: an explicit name wins, else the branch's slug
  * (`feat/foo` → `foo`), else a prefixless branch verbatim (`foo` → `foo`).
  *
- * Returns `null` when the result is empty or not filename-safe (a multi-segment
- * branch like `team/sub/foo`), signaling the caller to require an explicit name.
+ * Returns `null` when the result is not a canonical work-unit slug, signaling
+ * the caller to require an explicit name.
  *
  * @param explicit - Operator-supplied name, if any.
  * @param branch - The current branch short-name.
@@ -572,8 +583,8 @@ export function deriveColdStartWuName(
   branch: string,
 ): string | null {
   const candidate = (explicit ?? branchToWorkUnitSlug(branch) ?? branch).trim();
-  if (candidate === "" || candidate.includes("/")) return null;
-  return candidate;
+  const parsed = SlugSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : null;
 }
 
 /**
@@ -685,7 +696,7 @@ export async function runColdStart(
       // Scoped pathspec — removes only the orphaned meta, never other untracked
       // work. The SESSION-NOTES seed is gitignored (per-WU subdir) and benign: it
       // doesn't drive active-WU detection and reconciles on the next user load.
-      const orphanMeta = `.arc/active/meta-${wuName}.md`;
+      const orphanMeta = projectActiveMetaPath(wuName);
       try {
         await ctx.io.exec("git", ["switch", cutFromBase], { cwd: params.worktreePath });
         await ctx.io.exec("git", ["branch", "-D", branch], { cwd: params.worktreePath });

@@ -91,14 +91,14 @@ configuration before execution, so absent credentials or other ambient input pro
 read. Explicit stdin data is not prompt interaction: a caller-selected `-`, `-F -`, or equivalent operand remains
 readable while unrelated child interaction stays forbidden.
 
-| Invocation signal | Interaction | Confirmation |
-| --- | --- | --- |
-| Ordinary interactive invocation | `allowed` | `ask` |
-| Global `--no-input` | `forbidden` | `ask` |
-| CI, non-TTY prompt streams, or machine-readable mode | `forbidden` | `ask` |
-| Authority-bearing command-local `--yes` | `forbidden` | `accept` |
-| Legacy no-input alias on `init`, `join`, `start`, or `user load` | `forbidden` | `ask` |
-| `--no-input` plus authority-bearing command-local `--yes` | `forbidden` | `accept` |
+| Invocation signal                                                | Interaction | Confirmation |
+|------------------------------------------------------------------|-------------|--------------|
+| Ordinary interactive invocation                                  | `allowed`   | `ask`        |
+| Global `--no-input`                                              | `forbidden` | `ask`        |
+| CI, non-TTY prompt streams, or machine-readable mode             | `forbidden` | `ask`        |
+| Authority-bearing command-local `--yes`                          | `forbidden` | `accept`     |
+| Legacy no-input alias on `init`, `join`, `start`, or `user load` | `forbidden` | `ask`        |
+| `--no-input` plus authority-bearing command-local `--yes`        | `forbidden` | `accept`     |
 
 `--no-input` is the uniform global automation flag. `--yes` remains command-local. Existing `init`, `join`, `start`,
 and inert `user load --yes` forms remain accepted as prompt-free compatibility aliases but add no confirmation
@@ -115,17 +115,17 @@ threads the resulting policy through pager, editor, and subprocess launch sites.
 Every acquired value or confirmation site declares one policy. Neither prompt presentation nor Clack's
 `initialValue` supplies a policy implicitly.
 
-| Site kind | Interactive behavior | No-input behavior |
-| --- | --- | --- |
-| Supplied or deterministically derived value | Parse through its schema; proceed on success | Same |
-| Parser-required positional (`<value>`) | Commander requires and parses it without prompting | Same |
-| Optional value without a default | Parse when supplied; otherwise preserve `undefined` | Same |
-| Optional value with a declared safe default | Prompt only at a declared prompt site; otherwise apply default | Apply default |
-| Handler-level required value | Elicit and validate | Refuse once with all missing values and accepted syntax |
-| Courtesy confirmation | Ask; cancellation or decline stops cleanly | Proceed because invocation carries intent |
-| Protected confirmation | Ask for positive confirmation | Require authority-bearing command-local `--yes` |
-| Interactive-only safety override | Ask after surfacing the degraded safety evidence | Refuse; neither `--yes` nor environment can substitute |
-| Required evidence or attestation | Elicit or accept a purpose-named evidence flag | Require that flag; `--yes` cannot substitute |
+| Site kind                                   | Interactive behavior                                           | No-input behavior                                       |
+|---------------------------------------------|----------------------------------------------------------------|---------------------------------------------------------|
+| Supplied or deterministically derived value | Parse through its schema; proceed on success                   | Same                                                    |
+| Parser-required positional (`<value>`)      | Commander requires and parses it without prompting             | Same                                                    |
+| Optional value without a default            | Parse when supplied; otherwise preserve `undefined`            | Same                                                    |
+| Optional value with a declared safe default | Prompt only at a declared prompt site; otherwise apply default | Apply default                                           |
+| Handler-level required value                | Elicit and validate                                            | Refuse once with all missing values and accepted syntax |
+| Courtesy confirmation                       | Ask; cancellation or decline stops cleanly                     | Proceed because invocation carries intent               |
+| Protected confirmation                      | Ask for positive confirmation                                  | Require authority-bearing command-local `--yes`         |
+| Interactive-only safety override            | Ask after surfacing the degraded safety evidence               | Refuse; neither `--yes` nor environment can substitute  |
+| Required evidence or attestation            | Elicit or accept a purpose-named evidence flag                 | Require that flag; `--yes` cannot substitute            |
 
 A safe default cannot broaden authority or add a risky effect beyond the invoked command. It may preserve state,
 reduce action, or select a documented baseline. Commander retains syntax-level acquisition: required operands remain
@@ -161,35 +161,35 @@ for `init` / `join` because those commands may acquire it, and for commands expo
 The following table settles the current prompt and non-prompt interaction gates. Rows may combine repeated prompt
 operations that share one command policy.
 
-| Site | Classification and cancellation | No-input contract | Protected boundary |
-| --- | --- | --- | --- |
-| `init`: project name | Safe derived default; cancel stops setup | `--name`, else directory name | Installation waits for complete config |
-| `init` / `join`: tools | Safe empty/current default; cancel stops setup | `--tools`, else empty/current | Skill and config writes wait for list |
-| `init`: PM mode | Safe default `none`; cancel stops setup | `--pm-mode`, else `none` | Installation waits for complete config |
-| `init`: team mode | Safe disabled default; cancel stops setup | `--team`, else disabled | Installation waits for complete config |
-| `init --reconfigure`: project name | Safe current-value default; cancel stops | `--name`, else current | Apply waits for complete config |
-| `init --reconfigure`: PM mode | Safe current-value default; cancel stops | `--pm-mode`, else current | Apply waits for complete config |
-| `init --reconfigure`: team mode | Safe current-value default; cancel stops | `--team`, else current | Apply waits for complete config |
-| `join`: role | Safe current/maintainer default; cancel stops | `--contributor`, else current/maintainer | Workspace writes wait for role, tools, identity |
-| Reconfigure removal: bulk choice | Safe classification-derived default; cancel stops | Remove Framework; keep Configurable/Scaffolded | No removal before complete decisions |
-| Reconfigure removal: per-file choice | Same classification default; cancel stops | Same | No removal before complete decisions |
-| `init` / `join`: identity | Handler-required when config cannot derive it; cancel stops | Derive `arc.identity` / `user.name`, else require `--identity` | No setup write before resolution |
-| `user open`: stale subdirectory | Optional safe default `keep`; cancel maps to `keep` | Keep; no `--yes` | Only explicit interactive `remove` deletes |
-| `user pull`: local overwrite | Protected; cancel or decline stops pull | Require `--yes` when overwrite would occur | Fetch/restore waits for confirmation |
-| `user sync`: contested direction | Optional safe default `save-only`; cancel stops before save | Save only; `--yes` never chooses `push` | Remote push requires chosen direction |
-| `user sync`: local overwrite | Protected; cancel or decline skips pull/load | Require `--yes` for overwrite | Restore waits for confirmation |
-| `user sync`: notes push | Configured `manual` saves only; `on-sync` pushes; `prompt` asks and decline leaves the authorized local save | Preserve `manual` / `on-sync`; `prompt` saves only unless `--yes` accepts push | Prompt-policy remote push waits |
-| `sync`: notes push | Configured `manual` saves only; `on-sync` pushes; `prompt` asks and decline leaves earlier authorized legs | Preserve `manual` / `on-sync`; `prompt` saves only unless `--yes` accepts push | Prompt-policy notes push waits |
-| `start`: resolved-plan confirmation | Courtesy; cancel stops start | Proceed; legacy `start --yes` aliases no-input | Start waits for resolved inputs/disposition |
-| `start`: indeterminate lifecycle-oracle override | Interactive-only safety override; cancel/decline stops | Refuse; `--yes`, `--no-input`, CI, and non-TTY cannot authorize | No branch or ceremony mutation while lifecycle truth is indeterminate |
-| Release install: existing-install action | Optional safe default `exit`; cancel is successful no-op | `--idempotency-action <exit\|re-verify\|update-markers\|add-harness>`, else `exit` | No mutation before the selected branch's inputs resolve |
-| Release install: trust acknowledgment | Protected; cancel or decline aborts | Require new command-local `--yes` | Marker/config writes wait |
-| Release install: workflow verification | Required external evidence; cancel or decline aborts | Require `--workflow-verified` | Writes wait for evidence |
-| Release uninstall: cleanup verification | Required external evidence; cancel/false refuses | Require `--cleanup-verified` | Marker removal waits for evidence |
-| `abandon`: destructive cascade | Protected flag-only lifecycle guard | Require `--yes` after impact plan | No retirement mutation before guard |
-| `view`: document pager | Interactive presentation; pager exit returns control | Render directly to stdout without a pager | Pager selection precedes renderer spawn |
-| `release commit`: editor/stdin | Editor allowed only when interaction is allowed | Require an existing deterministic message source; explicit `-F -` remains data | Refuse before Git editor spawn |
-| Git/external subprocess terminal input | Inherit only when interaction is allowed and the command supports it | Disable terminal prompts, editors, and pagers; close stdin unless explicitly selected as data | Spawn policy applies before child execution |
+| Site                                             | Classification and cancellation                                                                              | No-input contract                                                                             | Protected boundary                                                    |
+|--------------------------------------------------|--------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| `init`: project name                             | Safe derived default; cancel stops setup                                                                     | `--name`, else directory name                                                                 | Installation waits for complete config                                |
+| `init` / `join`: tools                           | Safe empty/current default; cancel stops setup                                                               | `--tools`, else empty/current                                                                 | Skill and config writes wait for list                                 |
+| `init`: PM mode                                  | Safe default `none`; cancel stops setup                                                                      | `--pm-mode`, else `none`                                                                      | Installation waits for complete config                                |
+| `init`: team mode                                | Safe disabled default; cancel stops setup                                                                    | `--team`, else disabled                                                                       | Installation waits for complete config                                |
+| `init --reconfigure`: project name               | Safe current-value default; cancel stops                                                                     | `--name`, else current                                                                        | Apply waits for complete config                                       |
+| `init --reconfigure`: PM mode                    | Safe current-value default; cancel stops                                                                     | `--pm-mode`, else current                                                                     | Apply waits for complete config                                       |
+| `init --reconfigure`: team mode                  | Safe current-value default; cancel stops                                                                     | `--team`, else current                                                                        | Apply waits for complete config                                       |
+| `join`: role                                     | Safe current/maintainer default; cancel stops                                                                | `--contributor`, else current/maintainer                                                      | Workspace writes wait for role, tools, identity                       |
+| Reconfigure removal: bulk choice                 | Safe classification-derived default; cancel stops                                                            | Remove Framework; keep Configurable/Scaffolded                                                | No removal before complete decisions                                  |
+| Reconfigure removal: per-file choice             | Same classification default; cancel stops                                                                    | Same                                                                                          | No removal before complete decisions                                  |
+| `init` / `join`: identity                        | Handler-required when config cannot derive it; cancel stops                                                  | Derive `arc.identity` / `user.name`, else require `--identity`                                | No setup write before resolution                                      |
+| `user open`: stale subdirectory                  | Optional safe default `keep`; cancel maps to `keep`                                                          | Keep; no `--yes`                                                                              | Only explicit interactive `remove` deletes                            |
+| `user pull`: local overwrite                     | Protected; cancel or decline stops pull                                                                      | Require `--yes` when overwrite would occur                                                    | Fetch/restore waits for confirmation                                  |
+| `user sync`: contested direction                 | Optional safe default `save-only`; cancel stops before save                                                  | Save only; `--yes` never chooses `push`                                                       | Remote push requires chosen direction                                 |
+| `user sync`: local overwrite                     | Protected; cancel or decline skips pull/load                                                                 | Require `--yes` for overwrite                                                                 | Restore waits for confirmation                                        |
+| `user sync`: notes push                          | Configured `manual` saves only; `on-sync` pushes; `prompt` asks and decline leaves the authorized local save | Preserve `manual` / `on-sync`; `prompt` saves only unless `--yes` accepts push                | Prompt-policy remote push waits                                       |
+| `sync`: notes push                               | Configured `manual` saves only; `on-sync` pushes; `prompt` asks and decline leaves earlier authorized legs   | Preserve `manual` / `on-sync`; `prompt` saves only unless `--yes` accepts push                | Prompt-policy notes push waits                                        |
+| `start`: resolved-plan confirmation              | Courtesy; cancel stops start                                                                                 | Proceed; legacy `start --yes` aliases no-input                                                | Start waits for resolved inputs/disposition                           |
+| `start`: indeterminate lifecycle-oracle override | Interactive-only safety override; cancel/decline stops                                                       | Refuse; `--yes`, `--no-input`, CI, and non-TTY cannot authorize                               | No branch or ceremony mutation while lifecycle truth is indeterminate |
+| Release install: existing-install action         | Optional safe default `exit`; cancel is successful no-op                                                     | `--idempotency-action <exit\|re-verify\|update-markers\|add-harness>`, else `exit`            | No mutation before the selected branch's inputs resolve               |
+| Release install: trust acknowledgment            | Protected; cancel or decline aborts                                                                          | Require new command-local `--yes`                                                             | Marker/config writes wait                                             |
+| Release install: workflow verification           | Required external evidence; cancel or decline aborts                                                         | Require `--workflow-verified`                                                                 | Writes wait for evidence                                              |
+| Release uninstall: cleanup verification          | Required external evidence; cancel/false refuses                                                             | Require `--cleanup-verified`                                                                  | Marker removal waits for evidence                                     |
+| `abandon`: destructive cascade                   | Protected flag-only lifecycle guard                                                                          | Require `--yes` after impact plan                                                             | No retirement mutation before guard                                   |
+| `view`: document pager                           | Interactive presentation; pager exit returns control                                                         | Render directly to stdout without a pager                                                     | Pager selection precedes renderer spawn                               |
+| `release commit`: editor/stdin                   | Editor allowed only when interaction is allowed                                                              | Require an existing deterministic message source; explicit `-F -` remains data                | Refuse before Git editor spawn                                        |
+| Git/external subprocess terminal input           | Inherit only when interaction is allowed and the command supports it                                         | Disable terminal prompts, editors, and pagers; close stdin unless explicitly selected as data | Spawn policy applies before child execution                           |
 
 Protected authority is phase-scoped. A compound sync may complete an independently authorized save or worktree leg
 before refusing a later push, but it cannot perform the mutation guarded by unresolved confirmation. Cancellation

@@ -11,6 +11,7 @@
 
 import { removeInboxEntry } from "../../lib/user-sync/index.js";
 import { resolveUserSurfaceResolver } from "../../lib/user-surfaces.js";
+import { SlugSchema } from "../../lib/kernel/index.js";
 import type { UserInboxRemoveOptions, UserInboxRemoveResult } from "./types.js";
 
 /**
@@ -26,7 +27,7 @@ import type { UserInboxRemoveOptions, UserInboxRemoveResult } from "./types.js";
  */
 export async function runUserInboxRemove(options: UserInboxRemoveOptions): Promise<UserInboxRemoveResult> {
   const { cwd, io, identity, slug } = options;
-  const inboxPath = (await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec }))
+  const inboxPath = (await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec }))
     .identityGlobalPath("USER-INBOX.md");
 
   let content: string;

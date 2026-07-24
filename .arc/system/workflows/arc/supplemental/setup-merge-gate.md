@@ -79,7 +79,7 @@ match the project's paths.
 ## Step 3: Require the merge-ok check in branch protection
 
 `merge-ok` must be the required status check on the base branch — NOT the heavy CI jobs directly (a
-path-filtered required check stalls at *Pending* and blocks the merge). Idempotent: read the current required
+path-filtered required check stalls at _Pending_ and blocks the merge). Idempotent: read the current required
 checks first, add `merge-ok` only if absent.
 
 ```bash

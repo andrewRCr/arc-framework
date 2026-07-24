@@ -28,6 +28,11 @@ _Purpose:_ {what this phase delivers and why this granularity}
 
 - _Goal:_ {one-line outcome the task targets — protected across completion}
 
+- _Context:_ {representative peer descriptor that wraps across physical lines and therefore makes every entry
+  in this root descriptor cluster loose}
+
+- **Additional Context:** `{context-file.md}` § {specific section}
+
     - {description bullet — replaced by `_Outcome:_` at `[x]`}
     - {another description bullet}
 
@@ -63,5 +68,5 @@ context the executor must read directly; point to exact sections rather than who
 
 ---
 
-[generate-tasks]: ../../system/workflows/arc/generate-tasks.md
-[task-list-formatting]: ../strategies/arc/strategy-task-list-formatting.md
+[generate-tasks]: ../../../../system/workflows/arc/generate-tasks.md
+[task-list-formatting]: ../../../strategies/arc/strategy-task-list-formatting.md

@@ -5,7 +5,7 @@
   `planned` stub (committed at drain). Surfaced live during `lifecycle-state-machine` draft-design (2026-06).
 - **Purpose:** Give ARC a **direction layer**: one new authored primitive — the **target** — held on a
   scope-paired managed surface (`VECTOR.PROJECT` / `VECTOR.USER`), plus the graph derivations and the advisory
-  recommender that answer "what should I do next, and *why*" at session-init discovery.
+  recommender that answer "what should I do next, and _why_" at session-init discovery.
 - **State:** Draft — groomed 2026-07-02 (holistic rewrite of the 2026-06-14 capture; research-grounded).
   Readiness: **maturing** — model, vocabulary, scope pair, authority, write model, and recommender posture are
   settled; open items are entry-grammar detail, verb naming, and sequencing.
@@ -14,20 +14,20 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Add a value/leverage counterpart to `Class`**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: goal-aware-direction`), housekeep drain (2026-07-18);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: goal-aware-direction`), housekeep drain (2026-07-18);
   captured during the architecture-direction discussion (2026-07-16). Split at drain: the appetite/continuation
   tripwire and grooming-mechanics pieces routed to `draft-planning-iteration-mechanics.md`.
-- *Concern:* `Class` prices cost (Light/Heavy/Novel) and scales ceremony to it, but nothing records what the effort
+- _Concern:_ `Class` prices cost (Light/Heavy/Novel) and scales ceremony to it, but nothing records what the effort
   buys — the pipeline faithfully executes low-leverage Heavy work with full discipline. Case study:
   `husk-lifecycle-drivers` — edge-case completion of an already-shipped DX convenience, several review cycles,
   correctly priced Heavy, never value-questioned. Industry prioritization frames (Shape Up appetite, WSJF, RICE)
   are all value-over-effort; ARC has only the denominator.
-- *Fold-in:* a coarse leverage enum (e.g. `Core / Multiplier / Comfort`) recorded beside `Class` at
+- _Fold-in:_ a coarse leverage enum (e.g. `Core / Multiplier / Comfort`) recorded beside `Class` at
   classification — the signal is the pair (`Heavy × Comfort` must justify itself at pick time). The value axis is
   this WU's domain; coordinate the enum's read surface with the recommender posture.
 
@@ -37,7 +37,7 @@
 
 ARC's planning model is **flat and local**: `Priority` + `Depends On` edges, nothing more. Between WUs,
 session-init's discovery arm can only surface "N unblocked P1s" with no reason to prefer one. The
-actually-correct next pick is often a *lower-priority* WU that is right for reasons ARC never captures —
+actually-correct next pick is often a _lower-priority_ WU that is right for reasons ARC never captures —
 `single-owner-wu-model` (a P2) was the correct pick only because it closed the `concurrent-work-conventions`
 cohort and because the near-term goal was `finalize-parallelism`. None of that reasoning lives in any rendered
 view, probe, or workflow — only in developer memory.
@@ -59,7 +59,7 @@ Three-term vocabulary, each word doing distinct work:
 
 - **`VECTOR`** — the surface (one managed doc per scope). Direction plus magnitude: each entry points at an
   outcome and carries a coarse distance.
-- **target** — the entry: an *outcome* ("parallelism fully operational"), never an output (a WU). Realized by
+- **target** — the entry: an _outcome_ ("parallelism fully operational"), never an output (a WU). Realized by
   WUs/cohorts via reference; survives their renames and decompositions; the degenerate one-WU case stays cheap.
   Deliberately not "milestone" (industry reads that as date/version-anchored release vocabulary).
 - **horizon** — the band: **Now / Next / Later** as coarse distance with a confidence/detail gradient (Now is
@@ -84,7 +84,7 @@ adjacent — where you are, then where you're heading.
 **Naming departure, owned:** research (2026-07-02) found no mainstream tool using a navigation metaphor as a
 literal surface name (entry nouns are Initiative/Objective/Goal). `VECTOR` is chosen knowingly: ARC's managed-doc
 names are already their own system (`WORKING-MEMORY` is no industry noun either), the sort constraint is real,
-and the name is grounded in the design — magnitude is the horizon distance, and vectors *compose*, which is
+and the name is grounded in the design — magnitude is the horizon distance, and vectors _compose_, which is
 precisely the recommender's two-scope fusion. The entry noun stays plain ("target") so prose keeps
 idiom-legibility where it matters. The freed modern-idiom name ("roadmap" — which by current PM doctrine means
 exactly this outcome-ordered doc) is deliberately not claimed: `ROADMAP.USER` is idiomatically broken, and
@@ -98,8 +98,8 @@ the established render-before-renderer pattern. Sketch (shape settles at spec, w
 - **slug** + one-line **outcome statement** (always required)
 - **horizon** — Now / Next / Later
 - **`Owner`** — the one name accountable for the outcome, who ratifies changes to the target. Reuses the
-  existing field name deliberately (same concept, different record type): a WU's `Owner` *executes*; a target's
-  `Owner` *answers for the outcome* and need not own any realizing WU. Follows `naming-conventions`' pending
+  existing field name deliberately (same concept, different record type): a WU's `Owner` _executes_; a target's
+  `Owner` _answers for the outcome_ and need not own any realizing WU. Follows `naming-conventions`' pending
   `Owner → DRI` evaluation if that lands.
 - **realized-by** — WU/cohort slug refs (never errands — below the spec-worthiness floor)
 - **done-signal** — optional falsifiable completion statement
@@ -132,13 +132,13 @@ used; **zero authority machinery ever** (single-writer by construction). Holds p
 this WU — those three queued errands, then `foo`, asked-for this week."
 
 The authored-vs-derived boundary is the load-bearing rule (per the personal-layer research: the strongest
-precedents make the personal layer a *view over shared state*, and staleness kills authored copies):
+precedents make the personal layer a _view over shared state_, and staleness kills authored copies):
 
 - **Derived, never restated:** the developer's in-flight WUs (roster) and their queued inbox commitments (the
   `_Hold:_` → proposed `_Queued:_` set on `INBOX.USER`). Membership is resolved at render time —
   resolve-don't-store — so an executed or drained errand vanishes from the view with zero vector maintenance.
 - **Authored — the only new data:** sequencing intents: ordering + a reason line over slug refs to things that
-  already exist. Intents *position* derived members; they never restate them.
+  already exist. Intents _position_ derived members; they never restate them.
 - **Graduation boundary:** a personal commitment that needs to be team-visible graduates to existing mechanisms —
   claim/start the WU, or take `Owner` of a project target. The personal vector is never a channel for
   team-facing promises. This keeps the privacy line crisp and blocks the two-sources-of-truth failure mode
@@ -156,7 +156,7 @@ Fuses project vector × personal view (authored intents ⊕ derived queued-set �
 reorders any surface by itself.
 
 Where it surfaces: session-init's discovery arm (the "N unblocked P1s" gap); advisory input to
-`assess-parallel-fit` (which ranks parallel *fit* today, not goal-progress); a candidate `arc next --why` verb.
+`assess-parallel-fit` (which ranks parallel _fit_ today, not goal-progress); a candidate `arc next --why` verb.
 Scope divergence is narrated, privately, in the operator's own session — "the project vector says X; your queue
 commits `foo` first" — and the resolution stays human. Nothing writes back; project state is never shadowed.
 (The one modest novelty the research flagged — narrated personal/project divergence — is contained here:
@@ -194,7 +194,7 @@ cohort-completion pull, unblock leverage (downstream fan-out). All pure computat
 - **Personal layer is precedented with named guardrails** (Linear My Issues = view-over-shared-state; GTD
   weekly review = reconciliation ceremony; Gothelf: personal layer read only by the individual). Our privacy +
   reference-don't-restate + housekeep sweep match all three.
-- **Vocabulary hygiene:** a mechanical now/next/later banding over *WUs* is a readiness view, not an outcome
+- **Vocabulary hygiene:** a mechanical now/next/later banding over _WUs_ is a readiness view, not an outcome
   NNL roadmap — naming must not overclaim (routed to `roadmap-tooling`).
 
 ## Priority interaction (watch item)
@@ -229,8 +229,8 @@ input, `arc next`. Settle at spec time.
   exist (a WU on the now/next path has a near activation horizon).
 - **`cli-substrate-adoption`** — sequencing preference only: typed parsing over hand-rolled; not a gate.
 - **arc-backend / `strategy-storage-evolution`** — self-check run (above); compose note recorded.
-- **Boundary — `cross-wu-coordination`:** distinct concern, kept distinct: design-time *relatedness* (pull
-  related work in, push refinements back) vs. this WU's pick-time *direction*. Both add reads at planning
+- **Boundary — `cross-wu-coordination`:** distinct concern, kept distinct: design-time _relatedness_ (pull
+  related work in, push refinements back) vs. this WU's pick-time _direction_. Both add reads at planning
   fire-points; neither absorbs the other.
 - **Consumes (shipped):** `arc status <slug>` lifecycle-state resolver; the roster probe; the dep-edge
   discharge behavior (`Depends On` as live gate).

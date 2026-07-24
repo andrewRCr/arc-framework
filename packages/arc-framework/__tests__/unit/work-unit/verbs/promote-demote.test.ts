@@ -44,6 +44,8 @@ interface MetaSpec {
   cls?: string;
   /** Model a legacy flat-field meta whose Class field is absent. */
   omitClass?: boolean;
+  /** The meta's declared cohort; destination projection never infers this from `subdir`. */
+  cohort?: string;
 }
 
 /** Build an injectable index fs over a fixed set of backlog metas. */
@@ -87,6 +89,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
     files.set(
       `${dirAbs}/${filename}`,
       `# Metadata: ${meta.slug}\n\n${coreFields}\n\n` +
+        `- **Cohort:** \`${meta.cohort ?? "[none]"}\`\n` +
         `- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n` +
         `- **Next Action:** continue.\n\n---\n`,
     );
@@ -250,6 +253,7 @@ describe("runPromote — cohort-nested relocation", () => {
     subdir: "coh/foo",
     state: "Planning",
     cls,
+    cohort: "coh",
   });
 
   it("relocates within the cohort segment and prunes the emptied source dirs", async () => {
@@ -296,6 +300,30 @@ describe("runPromote — cohort-nested relocation", () => {
     expect(result.reason).toMatch(/Class/i);
     expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
   });
+
+  it("preserves the exact indexed source while projecting from the declared cohort", async () => {
+    const source = ".arc/backlog/provisional/custom-source/foo";
+    const { ctx, calls } = buildCtx(
+      [{ slug: "foo", tier: "backlog/provisional", subdir: "custom-source/foo", state: "Planning", cohort: "coh", cls: "Novel" }],
+      { [`${CWD}/${source}`]: [] },
+    );
+
+    const result = await runPromote(ctx, { name: "foo" });
+
+    expect(result.status).toBe("moved");
+    expect(calls).toContain(`relocate:${source}->.arc/backlog/planned/coh/foo`);
+  });
+
+  it("rejects an invalid declared cohort before relocation", async () => {
+    const { ctx, calls } = buildCtx([
+      { slug: "foo", tier: "backlog/provisional", subdir: "legacy/foo", state: "Planning", cohort: "Not-A-Slug", cls: "Novel" },
+    ]);
+
+    const result = await runPromote(ctx, { name: "foo" });
+
+    expect(result.status).toBe("rejected");
+    expect(calls.some((call) => call.startsWith("relocate:"))).toBe(false);
+  });
 });
 
 describe("runDemote — the sticky inverse", () => {
@@ -321,7 +349,7 @@ describe("runDemote — the sticky inverse", () => {
 
   it("relocates a cohort-nested planned stub within its cohort segment", async () => {
     const { ctx, calls } = buildCtx(
-      [{ slug: "foo", tier: "backlog/planned", subdir: "coh/foo", state: "Planning" }],
+      [{ slug: "foo", tier: "backlog/planned", subdir: "coh/foo", state: "Planning", cohort: "coh" }],
       {
         [`${CWD}/.arc/backlog/planned/coh/foo`]: [],
         [`${CWD}/.arc/backlog/planned/coh`]: [],

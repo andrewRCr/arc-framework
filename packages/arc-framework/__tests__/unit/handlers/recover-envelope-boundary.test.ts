@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
     createRecoverStatusProbes: vi.fn(),
     gitConfigGet: vi.fn(),
+    readConfiguredIdentity: vi.fn(),
     readFile: vi.fn(),
     resolveUserSurfaceResolver: vi.fn(),
     runRecoverStatus: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("../../../src/commands/status.js", () => ({
 }));
 vi.mock("../../../src/lib/git/index.js", () => ({
     gitConfigGet: mocks.gitConfigGet,
+    readConfiguredIdentity: mocks.readConfiguredIdentity,
 }));
 vi.mock("../../../src/lib/io-context.js", () => ({ createGitExec: () => vi.fn() }));
 vi.mock("../../../src/lib/user-surfaces.js", () => ({
@@ -43,8 +45,9 @@ beforeEach(() => {
             return true;
         });
     mocks.gitConfigGet.mockImplementation((_exec: unknown, key: string) =>
-        Promise.resolve(key === "arc.identity" ? "test-user" : "maintainer"),
+        Promise.resolve(key === "arc.role" ? "maintainer" : undefined),
     );
+    mocks.readConfiguredIdentity.mockResolvedValue("test-user");
     mocks.resolveUserSurfaceResolver.mockResolvedValue({
         identityGlobalRoot: "/repo/.arc/user/test-user",
     });
@@ -55,6 +58,30 @@ afterEach(() => {
 });
 
 describe("recovery persisted-seed boundary", () => {
+    it("preserves configured identity absence and read-failure as identity-missing", async () => {
+        for (const outcome of [null, new Error("git unavailable")]) {
+            stdout = "";
+            if (outcome instanceof Error) mocks.readConfiguredIdentity.mockRejectedValueOnce(outcome);
+            else mocks.readConfiguredIdentity.mockResolvedValueOnce(outcome);
+
+            await handleRecoverAudit({ json: true });
+
+            expect(JSON.parse(stdout)).toMatchObject({
+                verdict: { stopReasons: [{ kind: "identity-missing" }] },
+            });
+        }
+    });
+
+    it("propagates an invalid configured identity before resolving user paths", async () => {
+        const error = Object.assign(new Error("Configured ARC identity is invalid"), {
+            code: "identity.invalid",
+        });
+        mocks.readConfiguredIdentity.mockRejectedValue(error);
+
+        await expect(handleRecoverAudit({ json: true })).rejects.toBe(error);
+        expect(mocks.resolveUserSurfaceResolver).not.toHaveBeenCalled();
+    });
+
     it.each([
         ["malformed JSON", "{not-json\n"],
         ["an older schema version", JSON.stringify({ schemaVersion: 0 })],

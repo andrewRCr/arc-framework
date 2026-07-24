@@ -102,26 +102,26 @@ path and rejected execution with `Rejected("approval required by policy, but Ask
 an interactive approval UI, this is the branch that would prompt. `N` means the sentinel allow rule matched and the
 command executed.
 
-| ID | Invocation | Prompted? | `argv0` from sentinel log | Direct / Wrapped | Observation |
-| --- | --- | ---: | --- | --- | --- |
-| T1 | `sentinel-cmd hello` | N | `/home/andrew/.local/bin/sentinel-cmd` | Direct after unwrap | Plain command matched `["sentinel-cmd"]`. |
-| T2 | `sentinel-cmd --message "hello world"` | N | `/home/andrew/.local/bin/sentinel-cmd` | Direct after unwrap | Double-quoted value with space matched. |
-| T3 | `sentinel-cmd --message "fix: foo & bar"` | N | `/home/andrew/.local/bin/sentinel-cmd` | Direct after unwrap | `&` inside double quotes matched; not treated as shell operator. |
-| T4 | `FOO=bar sentinel-cmd hello` | Y | none | Wrapped fallback | Env assignment made parser fail to unwrap; policy matched `/bin/bash`. |
-| T5 | `sentinel-cmd hello > /tmp/redirect.log` | Y | none | Wrapped fallback | Redirection made parser fail to unwrap; policy matched `/bin/bash`. |
-| T6 | `sentinel-cmd a && sentinel-cmd b` | N | two entries, `/home/andrew/.local/bin/sentinel-cmd` | Direct after unwrap | `&&` sequence matched because both simple commands matched. |
-| T7 | `sentinel-cmd a; sentinel-cmd b` | N | two entries, `/home/andrew/.local/bin/sentinel-cmd` | Direct after unwrap | `;` sequence matched because both simple commands matched. |
-| T8 | `sentinel-cmd --m "$(printf 'l1\nl2')"` | Y | none | Wrapped fallback | Command substitution made parser fail to unwrap. |
-| T9 | `sentinel-release commit -m "test"` | N | `/tmp/sentinel-cmd` | Direct after unwrap | Subcommand shape matched `["sentinel-release", "commit"]`. |
-| T10 | `sentinel-release push` | N | `/tmp/sentinel-cmd` | Direct after unwrap | Subcommand shape matched `["sentinel-release", "push"]`. |
-| T11 | `sentinel-release commit -m "$(printf 'subj\n\nbody')"` | Y | none | Wrapped fallback | Command substitution in flag value blocked unwrapping. |
+| ID  | Invocation                                              | Prompted? | `argv0` from sentinel log                           | Direct / Wrapped    | Observation                                                            |
+| --- | ------------------------------------------------------- | --------: | --------------------------------------------------- | ------------------- | ---------------------------------------------------------------------- |
+| T1  | `sentinel-cmd hello`                                    |         N | `/home/andrew/.local/bin/sentinel-cmd`              | Direct after unwrap | Plain command matched `["sentinel-cmd"]`.                              |
+| T2  | `sentinel-cmd --message "hello world"`                  |         N | `/home/andrew/.local/bin/sentinel-cmd`              | Direct after unwrap | Double-quoted value with space matched.                                |
+| T3  | `sentinel-cmd --message "fix: foo & bar"`               |         N | `/home/andrew/.local/bin/sentinel-cmd`              | Direct after unwrap | `&` inside double quotes matched; not treated as shell operator.       |
+| T4  | `FOO=bar sentinel-cmd hello`                            |         Y | none                                                | Wrapped fallback    | Env assignment made parser fail to unwrap; policy matched `/bin/bash`. |
+| T5  | `sentinel-cmd hello > /tmp/redirect.log`                |         Y | none                                                | Wrapped fallback    | Redirection made parser fail to unwrap; policy matched `/bin/bash`.    |
+| T6  | `sentinel-cmd a && sentinel-cmd b`                      |         N | two entries, `/home/andrew/.local/bin/sentinel-cmd` | Direct after unwrap | `&&` sequence matched because both simple commands matched.            |
+| T7  | `sentinel-cmd a; sentinel-cmd b`                        |         N | two entries, `/home/andrew/.local/bin/sentinel-cmd` | Direct after unwrap | `;` sequence matched because both simple commands matched.             |
+| T8  | `sentinel-cmd --m "$(printf 'l1\nl2')"`                 |         Y | none                                                | Wrapped fallback    | Command substitution made parser fail to unwrap.                       |
+| T9  | `sentinel-release commit -m "test"`                     |         N | `/tmp/sentinel-cmd`                                 | Direct after unwrap | Subcommand shape matched `["sentinel-release", "commit"]`.             |
+| T10 | `sentinel-release push`                                 |         N | `/tmp/sentinel-cmd`                                 | Direct after unwrap | Subcommand shape matched `["sentinel-release", "push"]`.               |
+| T11 | `sentinel-release commit -m "$(printf 'subj\n\nbody')"` |         Y | none                                                | Wrapped fallback    | Command substitution in flag value blocked unwrapping.                 |
 
 Additional follow-up tests:
 
-| ID | Invocation | Prompted? | Observation |
-| --- | --- | ---: | --- |
-| A1 | `sentinel-release commit -m "fix: foo & bar"` | N | This mirrors the realistic commit-message shape; it matched reliably. |
-| A2 | `sentinel-release commit -m $'subj\n\nbody'` | Y | ANSI-C `$'...'` quoting did not unwrap; policy fell back to `/bin/bash`. |
+| ID | Invocation                                    | Prompted? | Observation                                                              |
+| -- | --------------------------------------------- | --------: | ------------------------------------------------------------------------ |
+| A1 | `sentinel-release commit -m "fix: foo & bar"` |         N | This mirrors the realistic commit-message shape; it matched reliably.    |
+| A2 | `sentinel-release commit -m $'subj\n\nbody'`  |         Y | ANSI-C `$'...'` quoting did not unwrap; policy fell back to `/bin/bash`. |
 
 Runtime note: successful `codex exec --json` events still displayed commands as shell wrapped, for example
 `/bin/bash -lc 'sentinel-release commit -m "test"'`. The policy engine nevertheless unwrapped those shell strings

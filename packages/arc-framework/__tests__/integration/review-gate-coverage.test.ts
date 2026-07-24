@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { rm, symlink } from "node:fs/promises";
 
+import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { computeChangeSetId } from "../../src/scripts/review-gate/core/identity.js";
 import { resolveCoverageIdentity } from "../../src/scripts/review-gate/hosts/github/coverage.js";
+import { resolveSelfHostingReviewRouting } from "../../src/scripts/review-gate/policy/self-hosting/routing.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -65,7 +68,12 @@ describe("trusted-base coverage identity", () => {
       diffBaseSha: c0,
       headSha: h1,
       changeSetId: computeChangeSetId({ baseRef: "main", diffBaseSha: c0, headSha: h1 }),
-      changedPaths: [{ status: "added", path: "feature.txt" }],
+      changedPaths: [{
+        status: "added",
+        path: "feature.txt",
+        oldMode: "000000",
+        newMode: "100644",
+      }],
     });
   });
 
@@ -165,6 +173,180 @@ describe("trusted-base coverage identity", () => {
     expect(paths.has("with space.txt")).toBe(true);
     expect(paths.has("café.txt")).toBe(true);
     expect(paths.has("line\nbreak.txt")).toBe(true);
-    expect(result.changedPaths).toContainEqual({ status: "renamed", path: "renamed.txt", previousPath: "rename-me.txt" });
+    expect(result.changedPaths).toContainEqual({
+      status: "renamed",
+      path: "renamed.txt",
+      previousPath: "rename-me.txt",
+      oldMode: "100644",
+      newMode: "100644",
+    });
+  });
+
+  it("returns all six canonical statuses with exact modes and copy provenance", async () => {
+    const dir = await repo();
+    await write(dir, "modified.txt", "before\n");
+    await write(dir, "deleted.txt", "delete\n");
+    await write(dir, "renamed.txt", "rename\n");
+    await write(dir, "copy-source.txt", "copy\n");
+    await write(dir, "type-target", "regular\n");
+    await write(dir, ".arc/active/meta-owned.md", renderMetaFile("owned", { Owner: "andrew" }));
+    await write(dir, ".arc/active/tasks-owned.md", "before\n");
+    await commit(dir, "base shapes");
+    await git(dir, ["checkout", "-b", "pr-head"]);
+
+    await write(dir, "added.txt", "added\n");
+    await write(dir, "modified.txt", "after\n");
+    await git(dir, ["rm", "deleted.txt"]);
+    await git(dir, ["mv", "renamed.txt", "moved.txt"]);
+    await write(dir, "copied.txt", "copy\n");
+    await write(dir, ".arc/active/tasks-owned.md", "after\n");
+    await rm(join(dir, "type-target"));
+    await symlink("copy-source.txt", join(dir, "type-target"));
+    const head = await commit(dir, "all statuses");
+    await git(dir, ["checkout", "main"]);
+    await git(dir, ["update-ref", "refs/pull/9/head", head]);
+
+    const result = await resolveCoverageIdentity({
+      exec: makeGitExec(dir),
+      baseRemote: ".",
+      baseRef: "main",
+      headSha: head,
+      prNumber: 9,
+    });
+    if (result.kind !== "resolved") throw new Error("expected resolved");
+
+    expect(result.changedPaths).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: "added", path: "added.txt", oldMode: "000000", newMode: "100644" }),
+      expect.objectContaining({ status: "modified", path: "modified.txt", oldMode: "100644", newMode: "100644" }),
+      expect.objectContaining({ status: "deleted", path: "deleted.txt", oldMode: "100644", newMode: "000000" }),
+      expect.objectContaining({ status: "renamed", path: "moved.txt", previousPath: "renamed.txt" }),
+      expect.objectContaining({ status: "copied", path: "copied.txt", previousPath: "copy-source.txt" }),
+      expect.objectContaining({ status: "type-changed", path: "type-target", oldMode: "100644", newMode: "120000" }),
+    ]));
+
+    const routing = await resolveSelfHostingReviewRouting({
+      changeSet: { changeSet: "known", changes: result.changedPaths },
+      exec: makeGitExec(dir),
+      diffBaseSha: result.diffBaseSha,
+      headSha: result.headSha,
+      authorLogin: "andrewRCr",
+      authorMap: { andrewRCr: "andrew" },
+      changeDeterminacy: "ordinary",
+      assurance: { workContext: "work-unit", workClass: "Heavy" },
+      activity: { selfReview: true, frontlineReview: true },
+    });
+    expect(routing.facts).toMatchObject({
+      changeSetState: "known",
+      contentKind: "code-bearing",
+      reviewRisk: "sensitive",
+      ownership: "self",
+      surfaceAuthority: "planning-grooming",
+    });
+    expect(routing.decision).toMatchObject({
+      standardReview: "required",
+      retrigger: "full-final",
+      assuranceMode: "terminal-aggregate",
+      reasons: ["sensitive-change-set"],
+    });
+  });
+
+  it.each([
+    {
+      label: "rename source",
+      change: {
+        status: "renamed",
+        previousPath: "AGENTS.md",
+        path: "docs/renamed.md",
+        oldMode: "100644",
+        newMode: "100644",
+      },
+      expected: { contentKind: "documentation", surfaceAuthority: "constitutional" },
+    },
+    {
+      label: "copy destination",
+      change: {
+        status: "copied",
+        previousPath: "docs/source.md",
+        path: "packages/arc-framework/src/copied.ts",
+        oldMode: "100644",
+        newMode: "100644",
+      },
+      expected: { contentKind: "code-bearing", surfaceAuthority: "ordinary" },
+    },
+  ])("classifies both endpoints for a $label", async ({ change, expected }) => {
+    const dir = await repo();
+    const routing = await resolveSelfHostingReviewRouting({
+      changeSet: { changeSet: "known", changes: [change] },
+      exec: makeGitExec(dir),
+      diffBaseSha: "a".repeat(40),
+      headSha: "b".repeat(40),
+      authorLogin: "andrewRCr",
+      authorMap: { andrewRCr: "andrew" },
+      changeDeterminacy: "ordinary",
+      assurance: { workContext: "work-unit", workClass: "Light" },
+      activity: { selfReview: true, frontlineReview: true },
+    });
+
+    expect(routing.facts).toMatchObject({
+      changeSetState: "known",
+      reviewRisk: "sensitive",
+      ownership: "not-applicable",
+      ...expected,
+    });
+  });
+
+  it.each([
+    ["empty known set", { changeSet: "known", changes: [] }],
+    ["path-only legacy fact", { changeSet: "known", changes: [{ status: "modified", path: "src/file.ts" }] }],
+    ["four-status legacy fact", {
+      changeSet: "known",
+      changes: [{ status: "changed", path: "src/file.ts", oldMode: "100644", newMode: "100644" }],
+    }],
+    ["rename without origin", {
+      changeSet: "known",
+      changes: [{ status: "renamed", path: "new.ts", oldMode: "100644", newMode: "100644" }],
+    }],
+    ["copy without origin", {
+      changeSet: "known",
+      changes: [{ status: "copied", path: "copy.ts", oldMode: "100644", newMode: "100644" }],
+    }],
+  ])("fails closed for %s at the classifier-to-router boundary", async (_label, changeSet) => {
+    const dir = await repo();
+    const routing = await resolveSelfHostingReviewRouting({
+      changeSet,
+      exec: makeGitExec(dir),
+      diffBaseSha: "a".repeat(40),
+      headSha: "b".repeat(40),
+      authorLogin: "andrewRCr",
+      authorMap: { andrewRCr: "andrew" },
+      changeDeterminacy: "ordinary",
+      assurance: { workContext: "work-unit", workClass: "Light" },
+      activity: { selfReview: true, frontlineReview: true },
+    });
+
+    expect(routing.facts.changeSetState).toBe("unknown");
+    expect(routing.decision).toMatchObject({
+      standardReview: "required",
+      retrigger: "full-final",
+      reasons: ["unknown-change-set"],
+    });
+  });
+
+  it("fails sensitive when the byte-preserving diff contains malformed UTF-8", async () => {
+    const dir = await repo();
+    const { h1 } = await forkTopology(dir);
+    const zero = "0".repeat(40);
+    const object = "1".repeat(40);
+    const header = Buffer.from(`:000000 100644 ${zero} ${object} A\0`, "utf8");
+    const malformed = Buffer.concat([header, Buffer.from([0x66, 0x80, 0x6f, 0x00])]);
+
+    await expect(resolveCoverageIdentity({
+      exec: makeGitExec(dir),
+      rawExec: async () => ({ stdout: malformed }),
+      baseRemote: ".",
+      baseRef: "main",
+      headSha: h1,
+      prNumber: 5,
+    })).resolves.toEqual({ kind: "sensitive", reason: "diff-unresolvable" });
   });
 });

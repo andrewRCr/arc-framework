@@ -7,8 +7,9 @@
  */
 
 import { rm } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname } from "node:path";
 
+import { materializeWorkUnitSessionNotesPath } from "../../lib/handoff/session-notes-path.js";
 import type { UserCloseOptions } from "./types.js";
 
 /**
@@ -19,6 +20,7 @@ import type { UserCloseOptions } from "./types.js";
  */
 export async function runUserClose(options: UserCloseOptions): Promise<void> {
   const { cwd, identity, wuName } = options;
-  const wuDir = join(cwd, ".arc", "user", identity, wuName);
+  const sessionNotesPath = materializeWorkUnitSessionNotesPath(cwd, identity, wuName);
+  const wuDir = dirname(sessionNotesPath);
   await rm(wuDir, { recursive: true, force: true });
 }

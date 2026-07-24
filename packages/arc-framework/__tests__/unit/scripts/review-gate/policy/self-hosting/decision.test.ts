@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { resolveSelfHostingDecision } from "../../../../../../src/scripts/review-gate/policy/self-hosting/decision.js";
 import { SELF_HOSTING_POLICY } from "../../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
+import { reduceReviewRouting } from "../../../../../../src/scripts/review-gate/policy/routing.js";
+import type { ReviewRoutingFacts } from "../../../../../../src/scripts/review-gate/policy/routing-schema.js";
 
 const changeRequest = {
   schemaVersion: 1 as const,
@@ -15,19 +17,35 @@ const changeRequest = {
   changeSetId: "d".repeat(64),
 };
 
+const facts: ReviewRoutingFacts = {
+  schemaVersion: 1,
+  changeSetState: "known",
+  contentKind: "documentation",
+  reviewRisk: "routine",
+  changeDeterminacy: "ordinary",
+  ownership: "self",
+  surfaceAuthority: "planning-grooming",
+  assurance: { workContext: "work-unit", workClass: "Light" },
+  activity: { selfReview: true, frontlineReview: true },
+};
+
 describe("aggregate self-hosting policy decision", () => {
   it.each([
-    ["auto", "sensitive", "exempt", 0],
-    ["reviewed", "routine", "recommended", 1],
-    ["reviewed", "sensitive", "required", 1],
-  ] as const)("maps %s/%s to %s", (lane, risk, disposition, requirementCount) => {
+    [{ ...facts }, "auto", "exempt", 0],
+    [{ ...facts, ownership: "not-applicable" as const, surfaceAuthority: "ordinary" as const }, "reviewed", "recommended", 1],
+    [{ ...facts, reviewRisk: "sensitive" as const }, "reviewed", "required", 1],
+  ] as const)("derives %s presentation from normalized routing", (routingFacts, lane, disposition, requirementCount) => {
+    const routing = reduceReviewRouting(routingFacts);
     const decision = resolveSelfHostingDecision({
       policy: SELF_HOSTING_POLICY,
       changeRequest,
-      lane: { lane, reasons: lane === "auto" ? ["author-owned-artifacts"] : ["non-lane-path"] },
-      risk: { risk, reasons: risk === "sensitive" ? ["code-surface"] : ["routine-doc-surface"] },
+      routingFacts,
+      routing,
     });
 
+    expect(decision.routing).toEqual(routing);
+    expect(decision.reviewRisk).toBe(routingFacts.reviewRisk);
+    expect(decision.lane).toBe(lane);
     expect(decision.disposition).toBe(disposition);
     expect(decision.requirements).toHaveLength(requirementCount);
     if (requirementCount > 0) {
@@ -39,19 +57,44 @@ describe("aggregate self-hosting policy decision", () => {
     const decision = resolveSelfHostingDecision({
       policy: SELF_HOSTING_POLICY,
       changeRequest,
-      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      routingFacts: { ...facts, reviewRisk: "sensitive" },
+      routing: reduceReviewRouting({ ...facts, reviewRisk: "sensitive" }),
     });
 
     expect(decision).not.toHaveProperty("ciWeight");
     expect(decision).not.toHaveProperty("capacity");
   });
 
+  it("keeps source availability outside obligation policy", () => {
+    const routingFacts = { ...facts, reviewRisk: "sensitive" as const };
+    const routing = reduceReviewRouting(routingFacts);
+    const active = resolveSelfHostingDecision({
+      policy: SELF_HOSTING_POLICY,
+      changeRequest,
+      routingFacts,
+      routing,
+    });
+    const unavailable = resolveSelfHostingDecision({
+      policy: {
+        ...SELF_HOSTING_POLICY,
+        qualifications: SELF_HOSTING_POLICY.qualifications.map((source) => source.channel === "hosted"
+          ? { ...source, mode: "disabled" as const }
+          : source),
+      },
+      changeRequest,
+      routingFacts,
+      routing,
+    });
+
+    expect(unavailable.disposition).toBe(active.disposition);
+    expect(unavailable.requirements[0]?.obligation).toBe(active.requirements[0]?.obligation);
+  });
+
   it("changes policy binding when canonical policy data changes", () => {
     const input = {
       changeRequest,
-      lane: { lane: "reviewed" as const, reasons: ["non-lane-path" as const] },
-      risk: { risk: "sensitive" as const, reasons: ["code-surface" as const] },
+      routingFacts: { ...facts, reviewRisk: "sensitive" as const },
+      routing: reduceReviewRouting({ ...facts, reviewRisk: "sensitive" }),
     };
     const original = resolveSelfHostingDecision({ ...input, policy: SELF_HOSTING_POLICY });
     const changed = resolveSelfHostingDecision({

@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { lint } from "markdownlint/promise";
 import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -16,6 +17,8 @@ import {
   parseIdentifierList,
   parseMetaFile,
   parseMetaRecord,
+  normalizeMetaCoreTable,
+  parseReviewRubric,
   readActiveMetaCandidates,
   renderMetaFile,
   setMetaBulletFields,
@@ -24,6 +27,8 @@ import {
   setMetaCurrentWorkflow,
   setMetaDesign,
   setMetaFinalizeFields,
+  setMetaState,
+  setMetaTitle,
   reconcileMetaFields,
   validateMetaFieldBlockShape,
   META_FIELDS,
@@ -608,7 +613,10 @@ describe("renderMetaFile — bullet groups", () => {
     expect(md).toContain("- **Cohort:** [none]\n- **Depends On:** [none]");
     // ...blank line between groups, in order
     expect(md).toContain("- **Depends On:** [none]\n\n- **Origin:** [internal]");
-    expect(md).toContain("- **Task List:** [none]\n\n- **Current Workflow:** [none]\n- **Last Completed:** [none]");
+    expect(md).toContain(
+      "- **Task List:** [none]\n- **Review Rubric:** [none]\n\n" +
+      "- **Current Workflow:** [none]\n- **Last Completed:** [none]",
+    );
     expect(md).toContain("- **Blockers:** [none]\n\n- **Next Action:** Begin planning — draft the spec");
   });
 });
@@ -801,6 +809,7 @@ describe("reconcileMetaFields — forward-reconcile against the field model", ()
     expect(content).toContain("- **Origin:** [internal]");
     expect(content).toContain("- **Design:** [none]");
     expect(content).toContain("- **Task List:** [none]");
+    expect(content).toContain("- **Review Rubric:** [none]");
     expect(content).toContain("- **PR URL:** [none]");
     expect(content).toContain("- **Completed:** [none]");
 
@@ -808,6 +817,7 @@ describe("reconcileMetaFields — forward-reconcile against the field model", ()
       "Origin",
       "Design",
       "Task List",
+      "Review Rubric",
       "Current Workflow",
       "PR URL",
       "Completed",
@@ -1013,6 +1023,7 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
       Cohort: "gamma",
       Priority: "P1",
       "Task List": "tasks-foo.md",
+      "Review Rubric": "implementation-audit",
       "Last Completed": "Task 1.1 — kicked off (line ~10)",
       "Next Task": "Task 1.2 — next up (line ~20)",
       Blockers: "waiting on review",
@@ -1035,6 +1046,7 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
     expect(record["Depends On"]).toBe("[none]");
     expect(record.Cohort).toBe("[none]");
     expect(record["Task List"]).toBe("[none]");
+    expect(record["Review Rubric"]).toBe("[none]");
     expect(record["Last Completed"]).toBe("[none]");
     expect(record["Next Task"]).toBe("[none]");
     expect(record.Blockers).toBe("[none]");
@@ -1085,6 +1097,52 @@ describe("Class field — value-set semantics", () => {
       "",
     ].join("\n");
     expect(parseMetaRecord(content).Class).toBeNull();
+  });
+});
+
+describe("Review Rubric field — optional safe identity", () => {
+  it("renders semantic absence by default and resolves one safe identity", () => {
+    const absent = parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES))["Review Rubric"];
+    const resolved = parseMetaRecord(renderMetaFile("foo", {
+      ...SPAWN_OVERRIDES,
+      "Review Rubric": "implementation-audit",
+    }))["Review Rubric"];
+
+    expect(absent).toBe("[none]");
+    expect(parseReviewRubric(absent)).toBeNull();
+    expect(parseReviewRubric(resolved)).toBe("implementation-audit");
+  });
+
+  it.each([
+    "methods/security-audit.md",
+    "security-audit, privacy-audit",
+    "check authentication boundaries",
+    "../security-audit",
+    "[TBD]",
+  ])("rejects unsafe or non-scalar identity %s", (value) => {
+    expect(() => parseReviewRubric(value)).toThrow(/one safe rubric or method identity/u);
+  });
+
+  it("survives managed planning and execution projections", () => {
+    let content = renderMetaFile("foo", {
+      ...SPAWN_OVERRIDES,
+      "Review Rubric": "implementation-audit",
+    });
+    const transitions = [
+      (value: string): string => setMetaState(value, "Active"),
+      (value: string): string => setMetaBranch(value, "feat/foo"),
+      (value: string): string => setMetaClass(value, "Novel"),
+      (value: string): string => setMetaCurrentWorkflow(value, "create-spec"),
+      (value: string): string => setMetaDesign(value, "spec-foo.md"),
+      (value: string): string => setMetaFinalizeFields(value, { completed: "2026-07-20" }),
+      (value: string): string => reconcileMetaFields(value).content,
+    ];
+
+    for (const transition of transitions) {
+      content = transition(content);
+      expect(parseReviewRubric(parseMetaRecord(content)["Review Rubric"]))
+        .toBe("implementation-audit");
+    }
   });
 });
 
@@ -1316,6 +1374,106 @@ describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
     expect(() => setMetaBulletFields(noNextTask, { "Next Task": "[none]" })).toThrow(
       /Next Task.*not found/i,
     );
+  });
+});
+
+describe("setMetaTitle — managed heading rewrite", () => {
+  it("rewrites a CRLF heading without changing the document's line endings", () => {
+    const content = "# Metadata: old-name\r\n\r\n- **State:** Active\r\n";
+
+    expect(setMetaTitle(content, "new-name")).toBe(
+      "# Metadata: new-name\r\n\r\n- **State:** Active\r\n",
+    );
+  });
+});
+
+describe("normalizeMetaCoreTable — exact-span normalization", () => {
+  it("preserves authored inline-code markers around bracket sentinels", () => {
+    const before = [
+      "# Metadata: sentinel",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "|---|---|---|---|---|",
+      "| `Planning` | `andrew` | [none] | `[TBD]` | `P2` |",
+      "",
+      "- **Cohort:** [none]",
+    ].join("\n");
+
+    const after = normalizeMetaCoreTable(before);
+
+    expect(after).toMatch(/\|\s+`\[TBD\]`\s+\|/u);
+    expect(parseMetaRecord(after)).toEqual(parseMetaRecord(before));
+  });
+
+  it("re-renders only the managed table rows while preserving fields and CRLF framing", () => {
+    const prefix = "# Metadata: 表示\r\n\r\n";
+    const table = [
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "|---|---|---|---|---|",
+      "| `Active` | `開発者` | `feat/表示` | `Heavy` | `P1` |",
+    ].join("\r\n");
+    const suffix = "\r\n\r\n- **Cohort:** `team`\r\n- **Depends On:** `alpha`,\r\n  `beta`\r\n\r\n" +
+      "## Narrative\r\n\r\nProse ordering without a final newline.";
+    const before = `${prefix}${table}${suffix}`;
+    const after = normalizeMetaCoreTable(before);
+
+    expect(parseMetaRecord(after)).toEqual(parseMetaRecord(before));
+    expect(after.startsWith(prefix)).toBe(true);
+    expect(after.endsWith(suffix)).toBe(true);
+    expect(after).not.toBe(before);
+    expect(normalizeMetaCoreTable(after)).toBe(after);
+  });
+
+  it.each([
+    ["missing", "# Metadata: demo\n\n- **Cohort:** [none]\n", /no table found/i],
+    [
+      "malformed",
+      "# Metadata: demo\n\n| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
+        "| --- | --- | --- | --- | --- |\n\n- **Cohort:** [none]\n",
+      /expected adjacent/i,
+    ],
+    [
+      "unrecognized",
+      "# Metadata: demo\n\n| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 |\n",
+      /header not recognized/i,
+    ],
+    [
+      "duplicated",
+      "# Metadata: demo\n\n" +
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
+        "| --- | --- | --- | --- | --- |\n| `Active` | `a` | `b` | `Heavy` | `P1` |\n\n" +
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
+        "| --- | --- | --- | --- | --- |\n| `Active` | `a` | `b` | `Heavy` | `P1` |\n",
+      /duplicate/i,
+    ],
+  ])("fails loudly for a %s managed table", (_label, content, pattern) => {
+    expect(() => normalizeMetaCoreTable(content)).toThrow(pattern);
+  });
+
+  it("aligns wide values in every core value class for pinned MD060", async () => {
+    const before = [
+      "# Metadata: widths",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --- | --- | --- | --- | --- |",
+      "| `活動` | `é` | `feat/👩‍💻` | `✈️` | `1⃣` |",
+      "",
+      "- **Cohort:** [none]",
+    ].join("\n");
+    const after = normalizeMetaCoreTable(before);
+    const results = await lint({
+      strings: { "meta-widths.md": after },
+      config: { default: false, MD060: { style: "aligned" } },
+    });
+
+    expect(results["meta-widths.md"]).toEqual([]);
+    expect(parseMetaRecord(after)).toMatchObject({
+      State: "活動",
+      Owner: "é",
+      Branch: "feat/👩‍💻",
+      Class: "✈️",
+      Priority: "1⃣",
+    });
   });
 });
 

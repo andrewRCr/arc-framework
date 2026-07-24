@@ -72,3 +72,14 @@ export function validateFrontmatterShape(content: string): FrontmatterShape {
 export function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((x) => typeof x === "string");
 }
+
+/** Return stable diagnostics for fields outside one frontmatter schema's closed vocabulary. */
+export function unknownFrontmatterFields(
+  data: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+): string[] {
+  return Object.keys(data)
+    .filter((key) => !allowed.has(key))
+    .sort()
+    .map((key) => `unknown frontmatter field \`${key}\``);
+}

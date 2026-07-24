@@ -942,7 +942,7 @@ async function resolveLiveInboxOriginEntry(options: {
   const inboxPath = (
     await resolveUserSurfaceResolver({
       cwd: options.cwd,
-      identity: options.identity,
+      identity: SlugSchema.parse(options.identity),
       exec: options.io.exec,
     })
   ).identityGlobalPath("USER-INBOX.md");

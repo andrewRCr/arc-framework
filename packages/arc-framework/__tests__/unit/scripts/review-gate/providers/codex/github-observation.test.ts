@@ -16,9 +16,9 @@ const BOT_ID = "199175422";
 function context(): CodexRunContext {
   return {
     requestIdentity: "request-1",
-    requirementId: "independent-analysis",
+    requirementId: "standard-review",
     policyVersion: "b".repeat(64),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     baseRef: "main",
     diffBaseSha: "c".repeat(40),
     headSha: HEAD,
@@ -136,7 +136,7 @@ describe("GitHub hosted Codex observation", () => {
       reviewNodeId: "PRR_1",
       botUserId: BOT_ID,
       locus: "src/a.ts:7",
-      severity: "high",
+      severity: "major",
       url: "https://github.test/discussion/1",
     });
   });

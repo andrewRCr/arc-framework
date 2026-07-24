@@ -67,7 +67,7 @@ requires only adding identity directories. See `user/README.md` for the full dir
 ## Ownership
 
 Every work unit has a **single owner** — one Directly Responsible Individual (DRI) accountable for the
-work unit end to end. The meta `**Owner:**` field in `active/meta-{name}.md` *is* the assignment and the
+work unit end to end. The meta `**Owner:**` field in `active/meta-{name}.md` _is_ the assignment and the
 single source of assignment truth. Ownership is carried at work-unit granularity, not per task: a WU's
 tasks all belong to its one owner, so task lists carry no per-task ownership marker.
 
@@ -76,12 +76,12 @@ Non-owner contribution happens through three channels:
 - **PR review** — first-class and unchanged; anyone can review the owner's pull request.
 - **Pairing** — synchronous work with a single driver. Credit co-contributors with `Co-authored-by:`
   trailers on the relevant commits; this is an attribution convention, not a structural role.
-- **Handoff** — transferring a work unit to a new owner is a *sequential reassignment* of the
+- **Handoff** — transferring a work unit to a new owner is a _sequential reassignment_ of the
   `**Owner:**` field, never concurrent shared ownership. See
   [Person-to-Person Task Handoff](#person-to-person-task-handoff).
 
 Cross-person parallelism comes from running **multiple single-owner work units across identities**, not
-from multiple developers driving one WU's task list. When work surfaces that belongs to a *different*
+from multiple developers driving one WU's task list. When work surfaces that belongs to a _different_
 owner's work unit, the self/foreign asymmetry and the all-owner gate in [Concurrent Work][concurrent-work]
 govern it — reorder and re-home your own work freely; foreign-owned work you coordinate, not appropriate.
 
@@ -91,7 +91,7 @@ govern it — reorder and re-home your own work freely; foreign-owned work you c
 
 A structured approach for transferring active work between developer-agent pairs — vacation,
 rotation, workload rebalancing, or specialization change. Distinct from normal session handoff
-(same person, different session) in that the *reader changes*, not just the time boundary.
+(same person, different session) in that the _reader changes_, not just the time boundary.
 
 This protocol composes the existing [session-handoff][session-handoff] and
 [session-init][session-init] workflows with enhanced context for the different reader. No new
@@ -279,7 +279,7 @@ Configure these by populating the `.actions` section in the relevant file under
 - **[`post-work-unit-archive`][arc-ext-wu-archive]** — fires after a work unit is archived.
   Use to close epics or update project dashboards.
 
-No extension points are needed for task *assignment* — the meta `**Owner:**` field (WU-level) and
+No extension points are needed for task _assignment_ — the meta `**Owner:**` field (WU-level) and
 external tracker assignment serve different audiences and don't need real-time sync.
 
 ---

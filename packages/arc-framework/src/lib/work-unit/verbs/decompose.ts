@@ -23,6 +23,8 @@ import { join } from "node:path";
 
 import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { canonicalize } from "../../canonical/canonical-json.js";
+import { SlugSchema } from "../../kernel/index.js";
+import { resolveArcPath } from "../../layout/index.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import { repointDependsOn } from "../decompose-sweep.js";
 import type {
@@ -177,11 +179,17 @@ export async function scaffoldCohortMembers(
 ): Promise<ScaffoldedMember[]> {
   const { cohort, originContext, members, internalEdges, outgoingEdges = [] } = params;
   const scaffolded: ScaffoldedMember[] = [];
+  const cohortSegments = cohort.split("/").map((segment) => SlugSchema.parse(segment));
+  const validatedMembers = members.map((member) => ({
+    member,
+    slug: SlugSchema.parse(member.slug),
+  }));
+  const placement = { kind: "backlog", commitment: "planned", cohort: cohortSegments } as const;
 
-  for (const member of members) {
-    const dir = `.arc/backlog/planned/${cohort}/${member.slug}`;
-    const metaPath = `${dir}/meta-${member.slug}.md`;
-    const draftPath = `${dir}/draft-${member.slug}.md`;
+  for (const { member, slug } of validatedMembers) {
+    const dir = resolveArcPath({ kind: "work-unit-container", placement, slug });
+    const metaPath = resolveArcPath({ kind: "work-unit-artifact", placement, slug, artifact: "meta" });
+    const draftPath = resolveArcPath({ kind: "work-unit-artifact", placement, slug, artifact: "draft" });
 
     const overrides: MetaFieldOverrides = {
       State: "Planning",
@@ -191,16 +199,16 @@ export async function scaffoldCohortMembers(
       Priority: originContext.priority,
       Cohort: cohort,
       Origin: originContext.origin,
-      Design: `draft-${member.slug}.md`,
+      Design: `draft-${slug}.md`,
     };
-    const deps = newMemberDependencies({ internalEdges, outgoingEdges }, member.slug);
+    const deps = newMemberDependencies({ internalEdges, outgoingEdges }, slug);
     if (deps.length > 0) overrides["Depends On"] = deps.join(", ");
 
     await ensureDir(join(ctx.cwd, dir), ctx.fs.mkdir);
-    await ctx.fs.writeFile(join(ctx.cwd, metaPath), renderMetaFile(member.slug, overrides));
-    await ctx.fs.writeFile(join(ctx.cwd, draftPath), renderMemberDraft(member.slug, originContext.origin, cohort));
+    await ctx.fs.writeFile(join(ctx.cwd, metaPath), renderMetaFile(slug, overrides));
+    await ctx.fs.writeFile(join(ctx.cwd, draftPath), renderMemberDraft(slug, originContext.origin, cohort));
 
-    scaffolded.push({ slug: member.slug, metaPath, draftPath });
+    scaffolded.push({ slug, metaPath, draftPath });
   }
 
   return scaffolded;

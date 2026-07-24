@@ -98,6 +98,14 @@ describe("receipt cross-field matrix", () => {
       }),
       "planned",
     ],
+    [
+      receipt({
+        transition: "rename",
+        authorization: "identity-renamed",
+        result: { kind: "rename", targetSlug: "renamed", artifactDigest: digest("renamed") },
+      }),
+      "nonexistent",
+    ],
   ] as const)("accepts the fixed %s combination", (candidate, expectedLifecycle) => {
     expect(validateReceiptMatrix(candidate, expectedLifecycle)).toBeNull();
   });
@@ -108,6 +116,22 @@ describe("receipt cross-field matrix", () => {
     [receipt({ result: { kind: "relocate", plannedArtifactDigest: digest("planned") } }), "nonexistent"],
     [receipt({ transition: "decompose" }), "nonexistent"],
     [receipt({ transition: "park-planning" }), "planned"],
+    [
+      receipt({
+        transition: "rename",
+        authorization: "discard-confirmed",
+        result: { kind: "rename", targetSlug: "renamed", artifactDigest: digest("renamed") },
+      }),
+      "nonexistent",
+    ],
+    [
+      receipt({
+        transition: "abandon",
+        authorization: "identity-renamed",
+        result: { kind: "rename", targetSlug: "renamed", artifactDigest: digest("renamed") },
+      }),
+      "nonexistent",
+    ],
   ] as const)("rejects an unsupported cross-field combination", (candidate, expectedLifecycle) => {
     expect(validateReceiptMatrix(candidate, expectedLifecycle)).toBe("evidence-mismatch");
   });

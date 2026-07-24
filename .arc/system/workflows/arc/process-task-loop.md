@@ -60,7 +60,6 @@ arc:
   1. When you finish a **single task** (one checkbox item):
      - **First**: Run incremental quality checks on modified files — **Tier 1** — using the
        [quality-gate-commands method][arc-methods-qg]
-       - **Tier boundaries:** See [Quality Gates Strategy][quality-gates].
        - Task list may specify additional checkpoints (including E2E) — those are mandatory; otherwise
          use judgment on whether changes warrant extra validation
      - **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions list
@@ -160,12 +159,12 @@ arc:
      opt-in syntax.
 
      **Agent-proposed batch (atomicity-keyed).** A deferred-review scope may also originate from an agent
-     *proposal*, not only a user request — without breaking "the agent never self-invokes": the agent
+     _proposal_, not only a user request — without breaking "the agent never self-invokes": the agent
      proposes the scope, the user approves, and that approval is the invocation. At a parent task's entry,
      weigh whether its subtasks form one increment:
 
      - **Propose batching** when the subtasks will land as **one atomic commit** — one concern decomposed
-       for *planning*, not *delivery*; the review boundary should track the commit boundary. Secondary
+       for _planning_, not _delivery_; the review boundary should track the commit boundary. Secondary
        signals: shared-artifact rework whose intermediate states are individually incoherent;
        cross-subtask interdependence.
      - **Keep per-leaf** when a subtask carries a design decision needing course-correction before the
@@ -302,7 +301,6 @@ updates**. Always update the task list file before reporting completion.
 
 ---
 
-[quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [config-arch]: ../../../reference/strategies/arc/strategy-configurability-architecture.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [arc-ext-task-quality]: ../../extensions/post-task-quality.md

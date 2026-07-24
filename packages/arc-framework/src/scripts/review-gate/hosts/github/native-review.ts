@@ -4,7 +4,7 @@
  * Observes submitted reviews (REST), the aggregate `reviewDecision`, and review
  * threads (GraphQL), binding every actor to immutable ids. It never parses
  * CODEOWNERS or infers Code Owner identity, and a `COMMENTED` review or aggregate
- * host approval is never treated as independent analysis — a current qualified
+ * host approval is never treated as standard review — a current qualified
  * `APPROVED` satisfies peer approval only. Individual approval is atomic to the
  * head it was submitted against, so a head change staleness the approval under
  * the host's own dismissal semantics. Under self-hosting policy every unresolved

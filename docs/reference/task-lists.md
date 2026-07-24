@@ -125,7 +125,7 @@ Key elements to notice:
 ## Grouping Test and Implementation
 
 When test-first applies, group test and implementation together by concern — not as separate
-activities. The task is named for the *module*, not the activity.
+activities. The task is named for the _module_, not the activity.
 
 ```markdown
 ✅ - [ ] **1.1 `User` model**
@@ -140,7 +140,7 @@ activities. The task is named for the *module*, not the activity.
 ```
 
 Splitting test and implementation creates horizontal slicing — writing tests in bulk tests
-*imagined* behavior, not actual behavior. Grouping them together means each test cycle informs
+_imagined_ behavior, not actual behavior. Grouping them together means each test cycle informs
 the next.
 
 ## The Atomic Companion File

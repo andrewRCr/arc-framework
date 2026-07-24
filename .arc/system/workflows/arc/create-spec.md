@@ -9,6 +9,7 @@ arc:
     - classify-work-unit
     - assess-cohort-fit
     - assess-draft-readiness
+    - assess-design-proportionality
     - spec-review
     - adversarial-review
     - design-audit
@@ -82,6 +83,15 @@ work the block for the resolved form, then write and lightly iterate (Write and 
 surfaces heavier derivation than the form assumed, fire the re-entry valve per
 [resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry — re-resolve the form higher, or route to
 `draft-design` when the design direction is unshaped — rather than patch-and-limp.
+
+### Proportionality guard (all forms)
+
+As discovery crystallizes the settled design, run
+[`assess-design-proportionality`][assess-design-proportionality] with the chartered problem, the current spec
+candidate, and key existing substrate pointers when useful. Apply it at every form. On `proportionate`, continue
+silently. On `revise`, correct a wrong named mechanism, shape, or interface in the spec candidate when the design
+is already settled; when the finding exposes an unshaped or under-derived direction, fire
+[`resolve-planning-depth`][resolve-planning-depth]'s mid-stage re-entry valve and return to `draft-design`.
 
 ### `brief` — intent + scope + one signal
 
@@ -201,6 +211,10 @@ only when nothing is on disk yet):
 
 ## Finalize — review, retire the draft, persist `Class`, commit
 
+Re-run [`assess-design-proportionality`][assess-design-proportionality] over the saved spec before self-review.
+Handle `revise` through the same in-place correction or `draft-design` re-entry routing as the discovery guard;
+the finalization boundary proceeds only on `proportionate`.
+
 Before surfacing the spec for approval, run the [spec-review][spec-review] self-review on what you just wrote —
 a coherence + grounding pass scaled to the form (it collapses to a single minimal check at `brief`). Fold in the
 fixes it surfaces; carry anything that needs a decision into the review below. A finding that reopens design is
@@ -221,7 +235,7 @@ fresh context, distinct from both the self-review above and any team extension:
 
 ```yaml
 adversarial-review:
-  rubric:          # design-audit (efficacy + fit) + spec-review (coherence + grounding, at the resolved form)
+  rubric:          # assess-design-proportionality + design-audit + spec-review at the resolved form
   artifacts:       # spec-{name}.md + draft-{name}.md (when one fed it) + non-exhaustive key-file pointers
   orientation:
     - AGENT-BRIEF.ARC
@@ -296,6 +310,7 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 
 [work-planning]: ../../../reference/strategies/arc/strategy-work-planning.md
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
+[assess-design-proportionality]: ../../methods/assess-design-proportionality.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
 [assess-cohort-fit]: ../../methods/assess-cohort-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md

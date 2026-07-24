@@ -119,20 +119,22 @@ function commandName(syntax: string): string {
   return syntax.trim().split(/\s+/u)[0] ?? syntax;
 }
 
-function parseOperandSyntax(syntax: string): { name: string; required: boolean; variadic: boolean } | undefined {
-  const match = /([<[\]])([^<>[\]]+)([>\]])/u.exec(syntax);
-  if (match === null) return undefined;
-  const rawName = match[2] ?? "";
-  return {
-    name: rawName.replace(/\.\.\.$/u, ""),
-    required: match[1] === "<",
-    variadic: rawName.endsWith("..."),
-  };
+function parseOperandSyntax(syntax: string): readonly { name: string; required: boolean; variadic: boolean }[] {
+  const operands: { name: string; required: boolean; variadic: boolean }[] = [];
+  const pattern = /([<[])([^<>[\]]+)([>\]])/gu;
+  for (const match of syntax.matchAll(pattern)) {
+    const rawName = match[2] ?? "";
+    operands.push({
+      name: rawName.replace(/\.\.\.$/u, ""),
+      required: match[1] === "<",
+      variadic: rawName.endsWith("..."),
+    });
+  }
+  return operands;
 }
 
-function commandOperand(syntax: string, source: DiscoveredSourceLocus): DiscoveredOperand | undefined {
-  const parsed = parseOperandSyntax(syntax);
-  return parsed === undefined ? undefined : { ...parsed, ...source };
+function commandOperands(syntax: string, source: DiscoveredSourceLocus): readonly DiscoveredOperand[] {
+  return parseOperandSyntax(syntax).map((parsed) => ({ ...parsed, ...source }));
 }
 
 function chainedCalls(commandCall: ts.CallExpression): readonly ts.CallExpression[] {
@@ -203,7 +205,7 @@ function parseOption(
   }
   if (flags === undefined) return undefined;
 
-  const value = parseOperandSyntax(flags);
+  const value = parseOperandSyntax(flags)[0];
   let choices: readonly string[] = [];
   let defaultValue: string | number | boolean | undefined;
   let conflicts: readonly string[] = [];
@@ -295,8 +297,7 @@ export function scanCommanderSource(input: SourceInput): CommanderSourceScan {
           const calls = chainedCalls(node);
           const aliases: string[] = [];
           const operands: DiscoveredOperand[] = [];
-          const inlineOperand = commandOperand(syntax, locus(file, node, input.file));
-          if (inlineOperand !== undefined) operands.push(inlineOperand);
+          operands.push(...commandOperands(syntax, locus(file, node, input.file)));
           const options: DiscoveredOption[] = [];
           let allowUnknownOption = false;
           let action: DiscoveredAction | null = null;
@@ -308,10 +309,9 @@ export function scanCommanderSource(input: SourceInput): CommanderSourceScan {
             }
             if (chainedMethod?.name === "argument") {
               const argumentSyntax = stringValue(call.arguments[0]);
-              const operand = argumentSyntax === undefined
-                ? undefined
-                : commandOperand(argumentSyntax, locus(file, call, input.file));
-              if (operand !== undefined) operands.push(operand);
+              if (argumentSyntax !== undefined) {
+                operands.push(...commandOperands(argumentSyntax, locus(file, call, input.file)));
+              }
             }
             const option = parseOption(call, file, input.file);
             if (option !== undefined) options.push(option);

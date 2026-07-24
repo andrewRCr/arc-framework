@@ -27,6 +27,15 @@ artifacts.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Project registered session-locus schemas into the shipped bundle**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
+  `session-locus-model` planning close.
+- _Concern:_ the locus registry registers its versioned schemas, but registration alone does not place them in
+  `schemas/kernel.json`; without build-projection wiring, `arc schema` cannot introspect those contracts.
+- _Approach:_ compose the locus registry factory into the bundle output beside the kernel and session-envelope
+  families. Source the projection from the owning registry rather than re-declaring schemas.
+
 ### `[ ]` **Publish the session-envelope registry through the schema projection**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-20); captured during `cli-session-envelope`

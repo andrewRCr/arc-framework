@@ -54,6 +54,10 @@ const neutralExtension = [
   "",
 ].join("\n");
 
+const activatableMethod = (name: string, active: boolean): string => neutralMethod
+  .replaceAll("commit-format", name)
+  .replace("override-active: false", `active: ${String(active)}\noverride-active: false`);
+
 function fakeReader(files: Record<string, string>) {
   return (path: string) => {
     const content = files[path];
@@ -213,6 +217,26 @@ describe("validateFiles", () => {
           ) && d.includes("`override-active: false`"),
       ),
     ).toBe(true);
+  });
+
+  it("accepts registered review activation and action-neutral extension defaults", () => {
+    const validFiles = {
+      "packages/arc-framework/arc/system/methods/self-review.md": activatableMethod("self-review", true),
+      "packages/arc-framework/arc/system/methods/frontline-review.md": activatableMethod("frontline-review", false),
+      "packages/arc-framework/arc/system/extensions/pre-pr-open.md": neutralExtension
+        .replaceAll("post-task-quality", "pre-pr-open"),
+    };
+    expect(validateFiles(Object.keys(validFiles), fakeReader(validFiles))).toEqual({
+      pass: true,
+      diagnostics: [],
+    });
+
+    const drifted = {
+      "packages/arc-framework/arc/system/methods/self-review.md": activatableMethod("self-review", false),
+    };
+    const result = validateFiles(Object.keys(drifted), fakeReader(drifted));
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.includes("registry default true"))).toBe(true);
   });
 
   it("flags a package-source extension whose `.actions` body deviates from the placeholder", () => {

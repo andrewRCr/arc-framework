@@ -2,7 +2,8 @@
  * Package-source neutrality validator — pre-commit hook entry point.
  *
  * Framework package source must ship neutral defaults for per-file methods and
- * extensions: `active: false` / `override-active: false` frontmatter and
+ * extensions and methods: extension `active: false`, registered method
+ * activation defaults, `override-active: false`, and
  * `[No extension configured]` / `[No override configured]` placeholder bodies.
  * Local customizations (adopter overrides, a self-hosted project copy) legitimately
  * diverge — this check runs only against paths under
@@ -26,6 +27,10 @@ import {
   parseExtensionFrontmatter,
   parseMethodFrontmatter,
 } from "../lib/frontmatter/index.js";
+import {
+  defaultMethodActivation,
+  isActivatableMethodName,
+} from "../lib/method-activation-registry.js";
 
 /** Path classifications the neutrality validator dispatches on. */
 export type PackagePathClassification =
@@ -119,6 +124,14 @@ export function validateFiles(
         diagnostics.push(
           `${path}: package source must ship \`override-active: false\` (found true). Set to false; local override toggling belongs only in the .arc/ copy.`,
         );
+      }
+      if (isActivatableMethodName(fileBase)) {
+        const expected = defaultMethodActivation(fileBase);
+        if (parsed.frontmatter.active !== expected) {
+          diagnostics.push(
+            `${path}: package source must match the activation registry default ${String(expected)} (found ${String(parsed.frontmatter.active)}).`,
+          );
+        }
       }
       const body = extractSectionBody(content, `${fileBase}.override`);
       if (body === null) {

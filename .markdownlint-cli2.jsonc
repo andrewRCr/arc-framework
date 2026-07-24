@@ -17,15 +17,22 @@
         "MD033": false,
         "MD036": false,
         "MD040": false,
-        "MD041": false
+        "MD041": false,
+        "MD049": {
+            "style": "underscore"
+        },
+        "MD050": {
+            "style": "asterisk"
+        },
+        "MD060": {
+            "style": "aligned"
+        }
     },
 
     "gitignore": false,
 
     "globs": [
-        "**/*.md",
-        "!packages/arc-framework/arc/**/*.md",
-        "packages/arc-framework/arc/**/*.template.md"
+        "**/*.md"
     ],
 
     "ignores": [

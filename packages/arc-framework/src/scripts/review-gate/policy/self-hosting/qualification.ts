@@ -1,12 +1,13 @@
-/** Qualification rules for the repository-owned independent-analysis rubric. */
+/** Qualification rules for the repository-owned standard-review rubric. */
 
 import { parseSelfHostingPolicy, type SelfHostingPolicy, type SourceQualificationDeclaration } from "./schema.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../standard-review.js";
 
-/** Version of the shared independent-analysis rubric. */
-export const INDEPENDENT_ANALYSIS_RUBRIC_VERSION = "independent-analysis/v1";
+/** Version of the shared standard-review rubric. */
+export const STANDARD_REVIEW_RUBRIC_VERSION = "standard-review/v1";
 
 /** Stable rubric dimensions every qualified source must evaluate. */
-export const INDEPENDENT_ANALYSIS_RUBRIC = [
+export const STANDARD_REVIEW_RUBRIC = [
   "intent-and-scope",
   "correctness-and-failure-behavior",
   "trust-and-compatibility",
@@ -61,9 +62,19 @@ export function deriveHostedProviderDeclaration(
     || baseline.terminalUnavailableMode === "parser-only";
   return {
     sourceKind: "agent",
-    qualifier: INDEPENDENT_ANALYSIS_RUBRIC_VERSION,
+    qualifier: STANDARD_REVIEW_RUBRIC_VERSION,
     sourceIdentity: baseline.sourceIdentity,
-    rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_VERSION,
+    rubricVersion: STANDARD_REVIEW_RUBRIC_VERSION,
+    channel: "hosted",
+    guidance: {
+      baselineVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      baselineDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
+      projectAugmentationId: "self-hosting-review/v1",
+    },
+    admissionMode: baseline.requestActor === "controller" ? "automatic" : "checkpoint",
+    requestMechanism: baseline.requestActor === "controller" ? "provider-automatic" : "pr-author-command",
+    attestationAuthority: "arc-review-gate-app",
+    hostedImportAuthority: null,
     mode: satisfying ? "enabled" : partial ? "partial" : "disabled",
     exactCoverage: baseline.exactCoverage,
     durableResults: baseline.durableResults,
@@ -77,7 +88,6 @@ export function deriveHostedProviderDeclaration(
     providerBotUserId: baseline.providerBotUserId,
     guidanceDigest: baseline.guidanceDigest,
     terminalUnavailableMode: baseline.terminalUnavailableMode,
-    requestActor: baseline.requestActor,
   };
 }
 
@@ -131,13 +141,13 @@ export function selectReconcilePolicy(
 }
 
 /** Decide whether a declared source may satisfy the required rubric version. */
-export function qualifyIndependentAnalysisSource(
+export function qualifyStandardReviewSource(
   declaration: SourceQualificationDeclaration,
   requiredRubricVersion: string,
 ): SourceQualificationResult {
   const reasons: string[] = [];
   if (declaration.mode !== "enabled") reasons.push(`mode-${declaration.mode}`);
-  if (declaration.qualifier !== INDEPENDENT_ANALYSIS_RUBRIC_VERSION) reasons.push("wrong-qualifier");
+  if (declaration.qualifier !== STANDARD_REVIEW_RUBRIC_VERSION) reasons.push("wrong-qualifier");
   if (declaration.rubricVersion !== requiredRubricVersion) reasons.push("wrong-rubric-version");
   if (!declaration.exactCoverage) reasons.push("missing-exact-coverage");
   if (!declaration.durableResults) reasons.push("missing-durable-results");

@@ -11,7 +11,7 @@ const FIX = "b".repeat(40);
 const CHANGE = "c".repeat(64);
 const request: ReviewRequest = {
   schemaVersion: 1, repositoryId: "1", changeRequestId: "7", changeSetId: CHANGE,
-  policyVersion: "d".repeat(64), semanticsVersion: "review-gate/v1", rubricVersion: "independent-analysis/v1",
+  policyVersion: "d".repeat(64), semanticsVersion: "review-gate/v1", rubricVersion: "standard-review/v1",
   requirementId: "analysis", sourceIdentity: "coderabbit-pr", coverage: "full", coverageFromSha: "0".repeat(40),
   coverageThroughSha: OLD, generation: 0, actorIdentity: "302312524", requestMechanism: "automatic",
   requiredActorIdentity: "302312524", requestCommand: null,

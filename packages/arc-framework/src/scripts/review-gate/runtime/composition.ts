@@ -17,6 +17,7 @@ import { meetsMinimumPermission, type CapabilitySet, type ReviewRequirement } fr
 import type { ReviewReceipt } from "../core/execution.js";
 import type { GitHostAdapter, ReviewProviderAdapter, ReviewReceiptStore } from "../core/ports.js";
 import type { GitExec } from "../../../lib/git/exec.js";
+import type { RawGitExec } from "../../../lib/change-facts.js";
 import { GitHubHostAdapter } from "../hosts/github/adapter.js";
 import { GitHubGraphQLClient } from "../hosts/github/api/graphql.js";
 import type { HttpFetch } from "../hosts/github/api/http.js";
@@ -48,9 +49,8 @@ import {
   GitHubRestIssueCommentApi,
   type ReceiptWriteState,
 } from "../hosts/github/receipt-store.js";
-import { classifyReviewRisk } from "../policy/self-hosting/risk.js";
-import { resolveAutoLane, type ChangedPath } from "../policy/self-hosting/lane.js";
 import { resolveSelfHostingDecision } from "../policy/self-hosting/decision.js";
+import { resolveSelfHostingReviewRouting } from "../policy/self-hosting/routing.js";
 import {
   deriveAcceptedReviewerClaims,
   type SelfHostingPolicy,
@@ -108,6 +108,7 @@ export interface AttestRuntimeConfig extends SharedInfrastructureConfig {
 export interface CompositionIo {
   fetch: HttpFetch;
   exec: GitExec;
+  rawExec?: RawGitExec;
 }
 
 /** Test seams for the two boundary reads that would otherwise require a live host. */
@@ -185,17 +186,6 @@ function assertAttestConfig(config: AttestRuntimeConfig): void {
   assertNonEmpty(config.dispatchActorId, "dispatchActorId");
 }
 
-function riskPaths(changes: ChangedPath[]): string[] {
-  return changes.flatMap((change) => change.previousPath === undefined
-    ? [change.path]
-    : [change.path, change.previousPath]);
-}
-
-/** A changed code file flips the reviewed lane to sensitive risk. */
-function derivesCodeSurface(changes: ChangedPath[]): boolean {
-  return riskPaths(changes).some((path) => /\.(?:ts|tsx|js|jsx|mjs|cjs)$/u.test(path));
-}
-
 function composeCodeRabbitApi(
   observation: GitHubCodeRabbitObservationApi,
   trigger: GitHubCodeRabbitTriggerApi,
@@ -253,7 +243,7 @@ function codexCapabilities(policy: SelfHostingPolicy): CodexCapabilities {
   const enabled = declaration?.mode === "enabled";
   return {
     resolvedGuidance: enabled && declaration.guidanceDigest !== null,
-    actorRequiredRequest: enabled && declaration.requestActor === "pr-author",
+    actorRequiredRequest: enabled && declaration.requestMechanism === "pr-author-command",
     exactFullCoverage: enabled && declaration.exactCoverage,
     durableFindings: enabled && declaration.durableFindings,
     durableCleanResults: enabled && declaration.durableResults && declaration.distinctOutcomes,
@@ -286,7 +276,15 @@ export async function createSharedInfrastructure(
   const baseRemote = config.baseRemote ?? "origin";
   const hostRef = encodeHostRef({ owner: config.owner, repo: config.repo, number: config.pullRequestNumber });
   const checks = new GitHubRestCheckRunApi(rest, config.owner, config.repo, config.expectedAppId);
-  const host = new GitHubHostAdapter({ rest, gql, exec: io.exec, owner: config.owner, repo: config.repo, baseRemote }, checks);
+  const host = new GitHubHostAdapter({
+    rest,
+    gql,
+    exec: io.exec,
+    ...(io.rawExec === undefined ? {} : { rawExec: io.rawExec }),
+    owner: config.owner,
+    repo: config.repo,
+    baseRemote,
+  }, checks);
   const issueCommentApi = new GitHubRestIssueCommentApi(rest, config.owner, config.repo, config.pullRequestNumber);
   const verify = seams.verifyLaunchAuthority ?? verifyInstallationAuthority;
   const launchAuthority = await verify(rest, {
@@ -308,7 +306,12 @@ export async function createReconcileRuntime(
     throw new Error(`review-gate composition: launch authority failed — ${shared.launchAuthority.reason}`);
   }
 
-  const changeDeps: GitHubChangeRequestDeps = { rest: shared.rest, exec: io.exec, baseRemote: shared.baseRemote };
+  const changeDeps: GitHubChangeRequestDeps = {
+    rest: shared.rest,
+    exec: io.exec,
+    ...(io.rawExec === undefined ? {} : { rawExec: io.rawExec }),
+    baseRemote: shared.baseRemote,
+  };
   const resolveChangeFn = seams.resolveChange ?? resolveChangeRequest;
   const resolveChange = (): Promise<ChangeRequestResolution> => resolveChangeFn(changeDeps, shared.hostRef);
   const change = await resolveChange();
@@ -443,17 +446,16 @@ export async function createReconcileRuntime(
     mode: config.mode,
     expectedAppId: config.expectedAppId,
     resolveCiState: (headSha) => resolveCiState(shared.checks, headSha),
-    resolveLane: (input) => resolveAutoLane({
+    resolveRouting: (input) => resolveSelfHostingReviewRouting({
+      changeSet: { changeSet: "known", changes: input.changes },
       exec: io.exec,
       diffBaseSha: input.diffBaseSha,
       headSha: input.headSha,
       authorLogin: input.authorLogin,
       authorMap: config.policy.authorMap,
-      changes: input.changes,
-    }),
-    resolveRisk: (changes) => classifyReviewRisk({
-      paths: riskPaths(changes),
-      codeSurface: derivesCodeSurface(changes),
+      changeDeterminacy: "ordinary",
+      assurance: { workContext: "unscoped", workClass: "none" },
+      activity: { selfReview: true, frontlineReview: true },
     }),
     listCommandComments: () => commandReader.list(),
     readTriggerHistory: (headSha) => triggerHistory.read(headSha),
@@ -484,7 +486,12 @@ export async function createAttestRuntime(
   if (shared.launchAuthority.kind === "failed") {
     throw new Error(`review-gate composition: launch authority failed — ${shared.launchAuthority.reason}`);
   }
-  const changeDeps: GitHubChangeRequestDeps = { rest: shared.rest, exec: io.exec, baseRemote: shared.baseRemote };
+  const changeDeps: GitHubChangeRequestDeps = {
+    rest: shared.rest,
+    exec: io.exec,
+    ...(io.rawExec === undefined ? {} : { rawExec: io.rawExec }),
+    baseRemote: shared.baseRemote,
+  };
   const resolveChangeFn = seams.resolveChange ?? resolveChangeRequest;
   const resolveChange = (): Promise<ChangeRequestResolution> => resolveChangeFn(changeDeps, shared.hostRef);
   const initial = await resolveChange();
@@ -503,24 +510,23 @@ export async function createAttestRuntime(
           expectedActorId: config.dispatchActorId,
         })
       : await seams.resolveActorCapabilities();
-    const changes: ChangedPath[] = change.context.changedPaths.map((item) => ({
-      status: item.status,
-      path: item.path,
-      ...(item.previousPath === undefined ? {} : { previousPath: item.previousPath }),
-    }));
-    const lane = await resolveAutoLane({
+    const routing = await resolveSelfHostingReviewRouting({
+      changeSet: { changeSet: "known", changes: change.context.changedPaths },
       exec: io.exec,
       diffBaseSha: change.changeRequest.diffBaseSha,
       headSha: change.changeRequest.headSha,
       authorLogin: change.context.author.login,
       authorMap: config.policy.authorMap,
-      changes,
+      changeDeterminacy: "ordinary",
+      assurance: { workContext: "unscoped", workClass: "none" },
+      activity: { selfReview: true, frontlineReview: true },
     });
-    const risk = classifyReviewRisk({
-      paths: riskPaths(changes),
-      codeSurface: derivesCodeSurface(changes),
+    const decision = resolveSelfHostingDecision({
+      policy: config.policy,
+      changeRequest: change.changeRequest,
+      routingFacts: routing.facts,
+      routing: routing.decision,
     });
-    const decision = resolveSelfHostingDecision({ policy: config.policy, changeRequest: change.changeRequest, lane, risk });
     const requirement = decision.requirements[0];
     if (requirement === undefined || decision.requirements.length !== 1) {
       throw new Error("review-gate composition: attestation requirement unavailable");

@@ -1,16 +1,17 @@
 ---
 name: review-triage
-description: Four-way classification of review findings — fix-now, minor-fix, defer, reject
+description: Source-verified severity and disposition contract for review findings
 override-active: false
 ---
 
 # Method: review-triage
 
 > - **Workflow:** [integrate-work-unit.md][integrate-work-unit]
-> - **When:** Agent processes findings from any code review (self-review, AI tool, human reviewer)
+> - **When:** Agent processes findings from any code review
 >
-> - **Contract:** Every review finding gets an explicit, documented disposition. No finding is silently ignored.
->   Multiple self-evident `MINOR FIX` findings may be documented as one concise roll-up.
+> - **Contract:** For every finding, verify it independently against source, record severity and disposition, and
+>   include it in one complete disposition set. Present that set for approval before any fix or other mutation.
+>   Findings are never accepted, ignored, or applied solely on reviewer authority.
 
 ## review-triage.override
 
@@ -18,53 +19,69 @@ override-active: false
 
 ## review-triage.default
 
-Four-way classification for each finding. Evaluate validity (real issue or preference?), context (conflicts with
-documented deferrals? code scheduled for replacement?), and impact (functionality vs. code quality?).
+Process the complete finding set in three ordered legs.
 
-**FIX NOW** (material findings that must be addressed in the current change) if:
+### 1. Verify against source
 
-- Bug, security issue, or failure-path gap affecting delivered behavior
-- Documentation inconsistency that would make the delivered contract materially untrue
-- Significant maintainability or coherence issue in the changed surface
-- Any valid finding whose impact makes deferral incompatible with the current change's completion bar
+Verify every finding against source using the primary agent's own judgment. Record whether the finding is valid and
+the evidence that supports that decision. An invalid or misunderstood finding still receives an explicit `reject`
+disposition with rationale.
 
-**MINOR FIX** (valid, low-impact, safe-now findings) if:
+### 2. Classify two independent axes
 
-- Typo, formatting, or local naming correction
-- Small clarification or code-quality improvement with no material behavior change
-- Self-evident cleanup that is safe to include in the current review-fix increment
+For each verified finding record:
 
-**DEFER** (document reason) if:
+- severity: `blocker | major | minor`
+- disposition: `fix | defer | reject`
+- optional code-review-only `nit: true` for pure-polish findings
 
-- Code is scheduled for deletion in next phase
-- Already documented as strategic deferral
-- Requires substantial refactoring of temporary code
-- Part of a different feature or phase
+Severity measures materiality:
 
-**REJECT** (note reason) if:
+- `blocker` — correctness, safety, authority, or contract failure that independently prevents completion.
+- `major` — substantive correctness, coherence, compatibility, or verification gap that must settle before
+  completion unless an explicitly approved durable deferral applies.
+- `minor` — low-materiality defect or improvement that does not independently invalidate the change.
 
-- Conflicts with project standards
-- Out of scope for current work
-- Reviewer misunderstands the context
+Disposition records the approved action:
 
-**Documenting dispositions:** Include in the commit message that addresses the findings:
+- `fix` — correct it in the current bounded review-fix increment.
+- `defer` — leave the target unchanged and record the authorized durable destination and rationale.
+- `reject` — leave the target unchanged because the finding is invalid, conflicts with governing standards, or is
+  outside the reviewed change's responsibility.
+
+`nit` is valid only with `minor`. It is neither a severity nor a disposition, and the finding still requires one of
+`fix | defer | reject`. A nit always resolves as record-only. Other minor findings follow effective `minorGating:
+blocking | record-only`; the package default is `record-only`. Any unresolved `blocker` or `major` remains blocking.
+Record-only triage does not override a carrier-native blocking state, required conversation, or host requirement.
+
+### 3. Approve before mutation
+
+Present the complete disposition set together: finding identity and stable locus, source-verification result,
+severity, `nit` when present, proposed disposition, rationale, recommendation, and open questions. Obtain approval
+for the complete disposition set before applying any `fix`. A partial approval, changed finding set, or changed
+target requires a new proposal; no path may apply an individual fix early.
+
+Use one channel-neutral report with this field order for every finding:
 
 ```text
-Fixed:
-- [Finding 1 description]
-
-Minor fixes:
-- [Concise finding or grouped roll-up]
-
-Deferred:
-- [Finding X]: [Brief reason]
-
-Rejected:
-- [Finding Y]: [Brief reason]
+Finding: <identity> · <stable locus>
+Verified: <verified | not-supported> · <source evidence>
+Severity: <blocker | major | minor> [· nit]
+Disposition: <fix | defer | reject> · <blocking | record-only>
+Rationale: <why this fate follows from source and governing standards>
+Recommendation: <recommended action>
+Open questions: <questions or none>
 ```
 
-Every valid finding appears in the record. Several self-evident minor fixes may share one concise `Minor fixes`
-entry; grouping reduces noise without making the disposition implicit.
+The proposal record binds the exact target, policy and rubric identities, proposing actor, and the complete ordered
+finding set into one disposition-set identity. Approval names that identity, the approving actor, and approval time.
+Do not begin a fix from prose assent, a subset, or a report whose target or contents changed.
+
+After approval, apply all authorized `fix` dispositions as one review-fix increment and verify the affected change.
+`defer` and `reject` leave the target unchanged. Preserve every approved fate in the audience-visible disposition
+record supplied by the caller. When a fix produces a commit, its body records `Review disposition set: <identity>`
+and summarizes each included finding as `<identity>: <severity> / <disposition> — <rationale>`; the approved set
+remains the authority when a channel has a richer durable record.
 
 ---
 

@@ -127,6 +127,32 @@ describe("extractCurrentTaskRegion", () => {
     });
   });
 
+  it("stops at non-task H3 headings while ignoring headings inside fences", () => {
+    const content = taskList([
+      "### `[ ]` **1.1 Current parent**",
+      "",
+      "```markdown",
+      "### Example heading",
+      "```",
+      "",
+      "### Notes",
+      "",
+      "Exclude this section.",
+    ]);
+
+    expect(extractCurrentTaskRegion(content)).toEqual({
+      status: "found",
+      content: [
+        "### `[ ]` **1.1 Current parent**",
+        "",
+        "```markdown",
+        "### Example heading",
+        "```",
+        "",
+      ].join("\n"),
+    });
+  });
+
   it("preserves no-open and malformed states", () => {
     expect(extractCurrentTaskRegion(taskList([
       "### `[x]` **1.1 Complete**",

@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-ARC's interlock vocabulary (`commit_interlock`, `push_interlock`, `sync_interlock`) governs *when* the agent
+ARC's interlock vocabulary (`commit_interlock`, `push_interlock`, `sync_interlock`) governs _when_ the agent
 decides to release a commit or push. [ADR-016][adr-016] formalized that model. The interlock is workflow-level
 guidance, not enforcement: once the agent decides to invoke `git commit`, the actual invocation runs as a
 generic shell command and crosses the harness's shell-pattern-gate boundary on its way to the OS.
@@ -106,8 +106,8 @@ shortcuts) treats the wrapper as the single point of trust under opt-in and test
 Adopt the following trust model for the release wrappers and `arc sync`.
 
 **The release wrapper is the per-invocation trust boundary under opt-in.** Adopter opt-in (allowlist entries
-plus `arc.release.enabled: true`) controls *whether the harness prompts*; the wrapper's authorization
-scaffolding (interlock validation, refusal cascade, audit log) is *unconditional* once the wrapper is invoked.
+plus `arc.release.enabled: true`) controls _whether the harness prompts_; the wrapper's authorization
+scaffolding (interlock validation, refusal cascade, audit log) is _unconditional_ once the wrapper is invoked.
 There is no off switch on validation or audit logging — only on harness prompting. Documentation must hold this
 line to avoid the "I turned it off but it still does things" confusion at the seam between
 [DEV-RULES.ARC][dev-rules-arc], AGENT-BRIEF.ARC, and QUICK-REFERENCE.
@@ -189,39 +189,39 @@ choose the wrapper-trust path.
 
 ### Risks
 
-- *Layer-2 drift at the agent boundary.* If agents adopt the wrapper for invocations outside their configured
+- _Layer-2 drift at the agent boundary._ If agents adopt the wrapper for invocations outside their configured
   scope without surfacing the misuse, the audit log captures it but no real-time signal fires. Mitigation: keep
   the audit log queryable (jq-friendly JSONL), surface forensic patterns in the ergonomics WU's adopter-facing
   docs, and re-evaluate if dogfooding shows recurring drift.
-- *Schema lock at v1.* The audit-log schema is locked at `schemaVersion: 1`. Future additions (new commands,
+- _Schema lock at v1._ The audit-log schema is locked at `schemaVersion: 1`. Future additions (new commands,
   new outcome shapes, richer interlock-state captures) require a v2 with reader-compatibility coordination.
   Mitigation: the writer hand-rolls schema validation against an exhaustive type-level discriminator; v2 lands
   when a forcing function (multi-version dispatch, external tooling consuming the JSONL) appears.
-- *Harness allowlist grammar drift.* Argv-prefix matcher boundaries vary by harness and version; an empirical
+- _Harness allowlist grammar drift._ Argv-prefix matcher boundaries vary by harness and version; an empirical
   re-verification against the then-current Claude Code and Codex CLI runs at WU verification. Mitigation:
   documented fall-through cases (env-prefixed invocation, unusual quoting) carry forward as the
   documentation shape evolves.
-- *Future ARC commands inheriting the bypass without inheriting the scaffolding.* The bypass property is
+- _Future ARC commands inheriting the bypass without inheriting the scaffolding._ The bypass property is
   structural to any `child_process` git invocation; the authorization scaffolding (interlock validation, audit
   log, refusal codes) is not. Mitigation: the bypass-universality clause in the Decision section is the
   reference for future commands.
-- *Forensic gap on identity-absent / no-arc-project / dry-run paths.* Documented and structural — these paths
+- _Forensic gap on identity-absent / no-arc-project / dry-run paths._ Documented and structural — these paths
   cannot reach the identity-keyed audit-log destination, or have explicit no-execute semantics. Mitigation:
   the same gap holds for the release wrappers, so the boundary is consistent across all three commands;
   upstream context (early-return envelopes, error logs) carries the diagnostic for those paths.
 
 ### Alternatives Considered
 
-- *Defense-in-depth at both layers (harness prompt plus ARC validation per invocation).* Rejected — once ARC's
+- _Defense-in-depth at both layers (harness prompt plus ARC validation per invocation)._ Rejected — once ARC's
   interlock authorizes, the harness prompt adds nothing the user did not already decide. Redundant friction was
   the friction problem this work is solving.
-- *Kernel-side or OS-level git intercept (seccomp filter, FUSE shim, ptrace hook).* Rejected — too heavy,
+- _Kernel-side or OS-level git intercept (seccomp filter, FUSE shim, ptrace hook)._ Rejected — too heavy,
   OS-specific, adds dependencies on host security primitives, and crosses the user's environment in ways ARC's
   installer cannot reasonably manage.
-- *Harness-side custom matchers per tool (Claude Code plugin, Codex hook, etc.).* Rejected — per-harness work,
+- _Harness-side custom matchers per tool (Claude Code plugin, Codex hook, etc.)._ Rejected — per-harness work,
   doesn't compose across the harness ecosystem, and doesn't address the structural bypass property. Future ARC
   commands invoking git internally would each need a parallel matcher in each harness.
-- *No wrapper; agents continue using raw git under the harness prompt.* Rejected — the friction the wrapper
+- _No wrapper; agents continue using raw git under the harness prompt._ Rejected — the friction the wrapper
   resolves is real and recurring, and ARC's interlock model already carries the authorization decision the
   harness prompt is re-asking. The status quo is the documented "before opt-in" column of the trade-off table,
   preserved as the default for adopters who prefer it.
@@ -301,7 +301,7 @@ consumer contract existed, all release-audit writers and the runtime validator m
 `schemaVersion: 2`; no v1 reader, mixed-version compatibility layer, or audit-file migration was introduced. The
 decision itself is unchanged: whenever a release wrapper is invoked, its authorization, message preflight where
 applicable, and audit behavior remain unconditional, and the wrapper remains the per-invocation trust boundary.
-The original *Schema lock at v1* risk remains the point-in-time record; this amendment supersedes its version
+The original _Schema lock at v1_ risk remains the point-in-time record; this amendment supersedes its version
 reference, and `schemaVersion: 2` is now the locked writer and validator schema.
 
 ---

@@ -3,7 +3,7 @@
 import { meetsMinimumPermission, type CapabilitySet, type ReviewRequirement, type SourceKind } from "./contracts.js";
 import { parseEvidence, type Evidence } from "./evidence.js";
 import {
-  REVIEW_SEMANTICS_VERSION,
+  LEGACY_REVIEW_SEMANTICS_VERSION,
   type ReviewReceipt,
   type ReviewRequest,
 } from "./execution.js";
@@ -299,7 +299,7 @@ export function ingestAttestation(input: AttestationIngestInput): AttestationIng
     changeRequestId: input.changeRequestId,
     changeSetId: evidence.changeSetId,
     policyVersion: evidence.policyVersion,
-    semanticsVersion: REVIEW_SEMANTICS_VERSION,
+    semanticsVersion: LEGACY_REVIEW_SEMANTICS_VERSION,
     rubricVersion: evidence.rubricVersion,
     requirementId: evidence.requirementId,
     sourceIdentity: evidence.sourceIdentity,

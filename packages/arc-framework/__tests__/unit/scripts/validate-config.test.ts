@@ -68,6 +68,44 @@ describe("validate-config.sh — user.notes_push", () => {
   });
 });
 
+describe("validate-config.sh — retired review toggle", () => {
+  it("rejects review.pre_merge as an unknown key", async () => {
+    const result = await runValidateConfig("review.pre_merge: enabled\n");
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("WARN  Unknown key: 'review.pre_merge'");
+  });
+});
+
+describe("validate-config.sh — frontline review source", () => {
+  it("accepts an optional safe registry ID", async () => {
+    const result = await runValidateConfig("review.frontline_sources: [project-reviewer]\n");
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("PASS  review.frontline_sources entry is a safe registry ID");
+  });
+
+  it.each(["Review Agent", "review;agent", "review--agent", "review-agent-"])(
+    "rejects shell-shaped or malformed value %s",
+    async (value) => {
+      const result = await runValidateConfig(`review.frontline_sources: ${value}\n`);
+
+      expect(result.code).toBe(2);
+      expect(result.stdout).toContain("ERROR review.frontline_sources entries must be lowercase registry IDs");
+    },
+  );
+
+  it.each(["[project-reviewer", "project-reviewer]"])(
+    "rejects unmatched list brackets in %s",
+    async (value) => {
+      const result = await runValidateConfig(`review.frontline_sources: ${value}\n`);
+
+      expect(result.code).toBe(2);
+      expect(result.stdout).toContain("ERROR review.frontline_sources must use matched list brackets");
+    },
+  );
+});
+
 describe("validate-config.sh — session.init_load.notes", () => {
   it.each(["manual", "prompt", "always"])("accepts %s", async (value) => {
     const result = await runValidateConfig(`session.init_load.notes: ${value}\n`);

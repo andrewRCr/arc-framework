@@ -6,12 +6,19 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { createRegistry, type KernelSchemaMeta } from "../../../src/lib/kernel/index.js";
+import {
+  createKernelRegistry,
+  createRegistry,
+  type KernelSchemaMeta,
+} from "../../../src/lib/kernel/index.js";
 import {
   projectKernelSchemas,
   serializeKernelSchemaBundle,
   writeKernelSchemaArtifact,
 } from "../../../src/lib/kernel/schema/generate.js";
+import {
+  registerReviewDomainSchemas,
+} from "../../../src/scripts/review-gate/core/register-review-schemas.js";
 
 const temporaryRoots: string[] = [];
 const strict = (id: string): KernelSchemaMeta => ({ id, version: 1, migrationPosture: "strict-current" });
@@ -28,6 +35,117 @@ describe("kernel schema artifact generation", () => {
       "work-class",
       "work-unit-state",
     ]);
+  });
+
+  it("projects the composed review family with stable references and bytes", () => {
+    const first = registerReviewDomainSchemas(createKernelRegistry());
+    const second = registerReviewDomainSchemas(createKernelRegistry());
+    const firstBundle = projectKernelSchemas(first);
+
+    expect(Object.keys(firstBundle.schemas)).toEqual([
+      "approved-disposition-record",
+      "approved-disposition-set",
+      "canonical-change",
+      "canonical-change-set",
+      "change-path-fact",
+      "change-path-set",
+      "disposition-approval",
+      "disposition-report-item",
+      "disposition-set",
+      "disposition-set-preimage",
+      "disposition-set-state",
+      "finding-classification",
+      "finding-conversation-closure",
+      "finding-conversation-requirement",
+      "finding-disposition",
+      "finding-settlement",
+      "fix-authorization",
+      "fix-authorization-consumption",
+      "fix-authorization-preimage",
+      "frontline-execution-outcome",
+      "frontline-outcome-digest-preimage",
+      "frontline-outcome-record",
+      "frontline-run-state",
+      "local-disposition-terminal",
+      "local-review-policy-binding",
+      "local-review-policy-binding-digest-preimage",
+      "local-review-source",
+      "local-review-source-digest-preimage",
+      "local-review-state",
+      "normalized-review-finding",
+      "priority",
+      "project-routing-promotion",
+      "proposed-disposition-set",
+      "provider-native-conversation-closure",
+      "review-applicability",
+      "review-applicability-id-preimage",
+      "review-assurance-input",
+      "review-command-error-envelope",
+      "review-frontline-resolve-envelope",
+      "review-frontline-run-envelope",
+      "review-guidance-digest-preimage",
+      "review-lifecycle-tail-proof",
+      "review-local-attest-envelope",
+      "review-local-prepare-envelope",
+      "review-local-resume-envelope",
+      "review-method-activity",
+      "review-operation-state",
+      "review-policy-version-preimage",
+      "review-receipt",
+      "review-receipt-ledger",
+      "review-reduce-envelope",
+      "review-reduction-projection",
+      "review-request",
+      "review-request-id-preimage",
+      "review-requirement",
+      "review-requirement-id-preimage",
+      "review-respond-envelope",
+      "review-response-input",
+      "review-response-plan",
+      "review-routing-decision",
+      "review-routing-facts",
+      "review-rubric-overlay-resolution",
+      "review-severity",
+      "review-suspension-state",
+      "review-target",
+      "review-target-id-preimage",
+      "severity-gating-policy",
+      "severity-settlement-gate-result",
+      "slug",
+      "standard-review-contract",
+      "standard-review-obligation-projection",
+      "standard-review-rubric-digest-preimage",
+      "work-class",
+      "work-unit-review-assurance",
+      "work-unit-state",
+    ]);
+    expect(JSON.stringify(firstBundle.schemas["canonical-change-set"]))
+      .toContain('"$ref":"canonical-change.schema.json"');
+    expect(firstBundle.schemas["finding-classification"]?.properties?.severity)
+      .toEqual({ $ref: "review-severity.schema.json" });
+    expect(firstBundle.schemas["review-routing-facts"]?.properties?.activity)
+      .toEqual({ $ref: "review-method-activity.schema.json" });
+    const frontlineEnvelope = JSON.stringify(
+      firstBundle.schemas["review-frontline-resolve-envelope"],
+    );
+    const localPrepareEnvelope = JSON.stringify(
+      firstBundle.schemas["review-local-prepare-envelope"],
+    );
+    expect(frontlineEnvelope).toContain('"$ref":"review-routing-facts.schema.json"');
+    expect(frontlineEnvelope).toContain('"frontlineReview":{"type":"object"');
+    expect(frontlineEnvelope).toContain(
+      '"required":["schemaVersion","semanticsVersion","action","reasons","source","maxPasses","promptText"]',
+    );
+    expect(localPrepareEnvelope).toContain('"request":{"$ref":"review-request.schema.json"}');
+    expect(localPrepareEnvelope).toContain('"reviewerPayload":{"type":"object"');
+    expect(localPrepareEnvelope).toContain(
+      '"required":["schemaVersion","reviewRoot","diffBaseSha","headSha","sourceRef","sourceDigest",'
+      + '"guidance","guidanceDigest","reviewerInstructions"]',
+    );
+    expect(firstBundle.schemas["work-unit-review-assurance"]?.properties?.reviewRubric)
+      .toEqual({ $ref: "review-rubric-overlay-resolution.schema.json" });
+    expect(serializeKernelSchemaBundle(projectKernelSchemas(second)))
+      .toBe(serializeKernelSchemaBundle(firstBundle));
   });
 
   it("serializes identical bytes and ids across opposite registration orders", () => {

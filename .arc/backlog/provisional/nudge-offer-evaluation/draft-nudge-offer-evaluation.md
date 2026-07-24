@@ -12,7 +12,7 @@
 The unprompted housekeep nudge-offers — the `session-init` Orient-arm soft-offer and the `session-handoff`
 offer — may not earn their keep. The developer already knows what's pending and acts when they choose; surfacing
 the prompt loads/repeats context that isn't needed for the decision. The instinct is that what's useful is fast,
-*direct* intent ("I want to do this now"), not surfaced nudges.
+_direct_ intent ("I want to do this now"), not surfaced nudges.
 
 ## Approach
 

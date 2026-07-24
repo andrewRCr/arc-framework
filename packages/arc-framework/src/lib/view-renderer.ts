@@ -2,10 +2,9 @@
  * Renderer selection and one-shot pager composition for `arc view`.
  */
 
-import stringWidth from "string-width";
-
 import type { GitExec } from "./git/index.js";
 import { resolveGitConfigOverride } from "./config/resolve-override.js";
+import { displayWidth } from "./markdown/display-width.js";
 
 const FENCE_START_RE = /^\s{0,3}(?<marker>`{3,}|~{3,})/u;
 const HEADING_RE = /^\s{0,3}#{1,6}(?:\s|$)/u;
@@ -492,7 +491,7 @@ function wrapMarkdownProse(content: string, width: number): string {
       continue;
     }
     if (blockquote !== null && isParagraphLine(blockquote.body)) {
-      const innerWidth = width - stringWidth(blockquote.prefix);
+      const innerWidth = width - displayWidth(blockquote.prefix);
       if (innerWidth < 1) {
         output.push(line);
       } else {
@@ -532,7 +531,7 @@ function wrapMarkdownLine(line: string, width: number): string[] {
   const firstPrefix = listPrefix ?? leadingWhitespace;
   const continuationPrefix = listPrefix === undefined
     ? leadingWhitespace
-    : " ".repeat(stringWidth(listPrefix));
+    : " ".repeat(displayWidth(listPrefix));
   const body = withoutHardBreak.slice(firstPrefix.length).trim();
   if (body === "") return [line];
 
@@ -541,7 +540,7 @@ function wrapMarkdownLine(line: string, width: number): string[] {
   for (const word of body.split(/\s+/u)) {
     const separator = current === firstPrefix || current === continuationPrefix ? "" : " ";
     const candidate = `${current}${separator}${word}`;
-    if (stringWidth(candidate) <= width || current.trim() === "") {
+    if (displayWidth(candidate) <= width || current.trim() === "") {
       current = candidate;
       continue;
     }

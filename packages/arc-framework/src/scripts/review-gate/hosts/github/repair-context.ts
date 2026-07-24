@@ -5,6 +5,7 @@ import { meetsMinimumPermission, type CapabilitySet, type ReviewRequirement } fr
 import { computeChangeSetId } from "../../core/identity.js";
 import { arrayAt, digestAt, integerAt, objectAt, stringAt } from "../../core/validation.js";
 import { resolveSelfHostingDecision } from "../../policy/self-hosting/decision.js";
+import { resolveReviewRouting } from "../../policy/routing.js";
 import {
   deriveAcceptedReviewerClaims,
   type SelfHostingPolicy,
@@ -208,6 +209,17 @@ export async function resolveRepairAttestationContext(
     diffBaseSha: pullRequest.diffBaseSha,
     headSha: pullRequest.headSha,
   });
+  const routing = resolveReviewRouting({
+    schemaVersion: 1,
+    changeSetState: "known",
+    contentKind: "code-bearing",
+    reviewRisk: "sensitive",
+    changeDeterminacy: "ordinary",
+    ownership: "not-applicable",
+    surfaceAuthority: "ordinary",
+    assurance: { workContext: "unscoped", workClass: "none" },
+    activity: { selfReview: true, frontlineReview: true },
+  });
   const decision = resolveSelfHostingDecision({
     policy: input.policy,
     changeRequest: {
@@ -221,8 +233,8 @@ export async function resolveRepairAttestationContext(
       headSha: pullRequest.headSha,
       changeSetId,
     },
-    lane: { lane: "reviewed", reasons: ["non-lane-path"] },
-    risk: { risk: "sensitive", reasons: ["code-surface"] },
+    routingFacts: routing.facts,
+    routing: routing.decision,
   });
   const requirement: ReviewRequirement | undefined = decision.requirements[0];
   if (requirement === undefined || decision.requirements.length !== 1) {

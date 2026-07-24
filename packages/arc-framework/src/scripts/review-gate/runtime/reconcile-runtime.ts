@@ -49,9 +49,8 @@ import {
   resolveSelfHostingDecision,
   type SelfHostingDecision,
 } from "../policy/self-hosting/decision.js";
-import type { ChangedPath, LaneDecision } from "../policy/self-hosting/lane.js";
-import { qualifyIndependentAnalysisSource } from "../policy/self-hosting/qualification.js";
-import type { ReviewRiskDecision } from "../policy/self-hosting/risk.js";
+import { qualifyStandardReviewSource } from "../policy/self-hosting/qualification.js";
+import type { ReviewRoutingResolution } from "../policy/routing.js";
 import type { SelfHostingPolicy, SourceQualificationDeclaration } from "../policy/self-hosting/schema.js";
 import type { ContextMode } from "./rollout.js";
 import type {
@@ -67,12 +66,12 @@ export interface ReconcileCoordinates {
   hostRef: string;
 }
 
-/** Inputs a lane resolver derives from one canonical change read. */
-export interface LaneResolutionInput {
+/** Inputs the project routing adapter derives from one canonical change read. */
+export interface RoutingResolutionInput {
   authorLogin: string;
   diffBaseSha: string;
   headSha: string;
-  changes: ChangedPath[];
+  changes: HostChangeContext["changedPaths"];
 }
 
 /** Injected adapters, policy, and canonical resolvers for one reconcile runtime. */
@@ -87,10 +86,8 @@ export interface ReconcileRuntimeDependencies {
   expectedAppId: string;
   /** Resolve the pinned CI signal for a head, independent of the runtime's transport. */
   resolveCiState: (headSha: string) => Promise<"pending" | "failure" | "success">;
-  /** Resolve automatic-lane eligibility from the canonical change read. */
-  resolveLane: (input: LaneResolutionInput) => Promise<LaneDecision>;
-  /** Classify stable review risk from the canonical change read. */
-  resolveRisk: (changes: ChangedPath[]) => ReviewRiskDecision | Promise<ReviewRiskDecision>;
+  /** Resolve normalized ownership, authority, risk, and obligations from the canonical change read. */
+  resolveRouting: (input: RoutingResolutionInput) => Promise<ReviewRoutingResolution>;
   /** List current PR command comments for authorized-command ingestion. */
   listCommandComments: () => Promise<ReviewCommandComment[]>;
   /** Read complete current PR comment and immutable label history. */
@@ -102,8 +99,8 @@ interface ReconcileSnapshot {
   state: CanonicalReconcileState;
   changeRequest: NormalizedChangeRequest;
   context: HostChangeContext;
-  lane: LaneDecision;
-  risk: ReviewRiskDecision;
+  routingFacts: ReviewRoutingResolution["facts"];
+  routing: ReviewRoutingResolution["decision"];
   decision: SelfHostingDecision;
   evidence: Evidence[];
   ledgerReceipts: ReviewReceipt[];
@@ -316,14 +313,6 @@ function singleRequirement(decision: SelfHostingDecision): ReviewRequirement | u
   return decision.requirements[0];
 }
 
-function toChangedPaths(context: HostChangeContext): ChangedPath[] {
-  return context.changedPaths.map((change) => ({
-    status: change.status,
-    path: change.path,
-    ...(change.previousPath === undefined ? {} : { previousPath: change.previousPath }),
-  }));
-}
-
 /** Sources the policy licenses to run through the durable-record provider transport. */
 function qualifiedDurableSources(
   policy: SelfHostingPolicy,
@@ -332,7 +321,7 @@ function qualifiedDurableSources(
   return policy.qualifications.filter((declaration) => declaration.transport === "durable-record"
     && requirement.acceptableSources.some((accepted) => accepted.sourceKind === declaration.sourceKind
       && (accepted.qualifier === undefined || accepted.qualifier === declaration.qualifier))
-    && qualifyIndependentAnalysisSource(declaration, requirement.rubricVersion).qualified);
+    && qualifyStandardReviewSource(declaration, requirement.rubricVersion).qualified);
 }
 
 /** Production reconcile runtime bound to one pull request's live host state. */
@@ -352,14 +341,13 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
 
     const capabilities = await this.resolveAuthorCapabilities(context.author);
     const policyVersion = computePolicyVersion({ policy });
-    const [lane, risk, ciState, nativeObservation, ledger, triggerHistory] = await Promise.all([
-      this.deps.resolveLane({
+    const [routingResolution, ciState, nativeObservation, ledger, triggerHistory] = await Promise.all([
+      this.deps.resolveRouting({
         authorLogin: context.author.login,
         diffBaseSha: changeRequest.diffBaseSha,
         headSha: changeRequest.headSha,
-        changes: toChangedPaths(context),
+        changes: context.changedPaths,
       }),
-      Promise.resolve(this.deps.resolveRisk(toChangedPaths(context))),
       this.deps.resolveCiState(changeRequest.headSha),
       host.observeNativeReview({
         hostRef: coordinates.hostRef,
@@ -371,7 +359,12 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       this.deps.readTriggerHistory?.(changeRequest.headSha) ?? Promise.resolve([]),
     ]);
 
-    const decision = resolveSelfHostingDecision({ policy, changeRequest, lane, risk });
+    const decision = resolveSelfHostingDecision({
+      policy,
+      changeRequest,
+      routingFacts: routingResolution.facts,
+      routing: routingResolution.decision,
+    });
     const ledgerValid = ledger.kind === "valid";
     const ledgerEnvelopes = ledgerValid ? ledger.receipts : [];
     const ledgerReceipts = ledgerEnvelopes.map((envelope) => envelope.receipt);
@@ -428,8 +421,8 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       state,
       changeRequest,
       context,
-      lane,
-      risk,
+      routingFacts: routingResolution.facts,
+      routing: routingResolution.decision,
       decision,
       evidence,
       ledgerReceipts,
@@ -526,8 +519,8 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     const reduction = reduceSelfHostingGate({
       policy: this.deps.policy,
       changeRequest: snapshot.changeRequest,
-      lane: snapshot.lane,
-      risk: snapshot.risk,
+      routingFacts: snapshot.routingFacts,
+      routing: snapshot.routing,
       evidence: snapshot.evidence,
       receipts: [...snapshot.ledgerReceipts, ...transitionReceipts, ...commandReceipts],
       capacities: snapshot.capacities,

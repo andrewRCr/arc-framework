@@ -37,6 +37,10 @@ import {
   releaseSetupUninstallInputRegistration,
 } from "./handlers/release/setup/uninstall.js";
 import { releaseSetupVerifyInputRegistration } from "./handlers/release/setup/verify.js";
+import {
+  reviewCommandInputPolicyDeclarations,
+  reviewCommandInputRegistrations,
+} from "./handlers/review.js";
 import { startCommandInputPolicyDeclarations, startCommandInputRegistration } from "./handlers/start.js";
 import { statusCommandInputPolicyDeclarations, statusCommandInputRegistration } from "./handlers/status.js";
 import { syncCommandInputPolicyDeclarations } from "./handlers/sync.js";
@@ -65,6 +69,7 @@ export const commandInputRegistrations = [
   releaseSetupPrintPatternsInputRegistration,
   releaseSetupUninstallInputRegistration,
   releaseSetupVerifyInputRegistration,
+  ...reviewCommandInputRegistrations,
 ] as const satisfies readonly CommandInputRegistration[];
 
 /** Command-owned policy declarations composed without reinterpreting their domain semantics. */
@@ -88,6 +93,7 @@ export const commandInputPolicyDeclarations = [
   ...releaseSetupPrintPatternsInputPolicyDeclarations,
   ...releaseSetupUninstallInputPolicyDeclarations,
   ...releaseStatusCommandInputPolicyDeclarations,
+  ...reviewCommandInputPolicyDeclarations,
   ...startCommandInputPolicyDeclarations,
   ...statusCommandInputPolicyDeclarations,
   ...syncCommandInputPolicyDeclarations,

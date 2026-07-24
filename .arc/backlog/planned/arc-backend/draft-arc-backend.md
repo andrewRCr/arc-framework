@@ -23,20 +23,31 @@ This plan establishes the shape, audience fit, and forward-compat discipline; de
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Stop started or materialized WUs from leaving misleading backlog copies**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-23); observed during `review-chunking`
+  adversarial review.
+- _Concern:_ starting or materializing a WU leaves its backlog stub behind, so a fresh reader can resolve the stale
+  draft/meta copy instead of the settled artifacts in the active worktree. This produced a partly invalid review
+  finding against `review-surface-binding`.
+- _Fold-in:_ settle promotion semantics under placement-as-record and the materialized backing-store target. The
+  current-system correction may relocate the stub or flag/remove a backlog copy whose slug is already active, but
+  must not bake tracked-code-repository placement into the long-term substrate.
 
 ### `[ ]` **Review coupling-audit finding: storage address assumptions**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: arc-backend`), housekeep drain (2026-07-18); captured
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: arc-backend`), housekeep drain (2026-07-18); captured
   during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
-- *Concern:* the materialized backing-store design changes seven high-volatility address and artifact-family
+- _Concern:_ the materialized backing-store design changes seven high-volatility address and artifact-family
   assumptions, all currently ranked abstract.
-- *Approach:* during grooming, decide which assumptions become backing-store or materialization contracts and
+- _Approach:_ during grooming, decide which assumptions become backing-store or materialization contracts and
   preserve the ranked evidence as migration input.
-- *Packet:* `packet-edfd7344100348f1f6b6659c`; content digest
+- _Packet:_ `packet-edfd7344100348f1f6b6659c`; content digest
   `27b88f2bb84fff4f90e0618c018c76fb64f8ad9c4031e2f957b7cd38da609f7a`.
-- *Evidence:* `arc-root`, `draft-prefix`, `meta-prefix`, `notes-prefix`, `spec-prefix`, `tasks-prefix`, and
+- _Evidence:_ `arc-root`, `draft-prefix`, `meta-prefix`, `notes-prefix`, `spec-prefix`, `tasks-prefix`, and
   `typed-branch-prefixes`; corresponding `scan-result.json#class-*` anchors.
 
 ---
@@ -50,7 +61,7 @@ The organizing rule the whole design serves — apply it as a test to any artifa
 > (single-writer by the ownership discipline of the single-owner-WU model; git merge as backstop, never as
 > coordination mechanism) or **projection** (regenerated from records, never merged).
 
-If a piece of markdown is shared, mutable, *and* not on a record-migration path, that is a design gap — surface it.
+If a piece of markdown is shared, mutable, _and_ not on a record-migration path, that is a design gap — surface it.
 The record migrations (`operational-state-docs`, `wu-lifecycle-state-model`, `roadmap-tooling`, shared-inbox model)
 are therefore not adjacent work: they are the substrate's data layer being built in advance, and they deliver
 standalone value (solo-parallelism relief) before any storage flip.
@@ -63,10 +74,10 @@ ARC's canonical-store assumption today is "everything in `.arc/` lives in the pr
 serves solo dev well and strains along four concerns:
 
 - **(a) Agent/human ergonomics** — the in-repo model's strength: agents grep/edit any artifact instantly; humans
-  keep planning beside code. Any target must *preserve* this (why a SaaS/own-frontend pivot is a non-goal).
+  keep planning beside code. Any target must _preserve_ this (why a SaaS/own-frontend pivot is a non-goal).
 - **(b) Solo dev, multi-machine** — centralized canonical state without per-machine drift.
 - **(c) Privacy** — planning artifacts are public when the repo is. Invariant under in-repo storage; out-of-branch
-  tricks (notes, orphan refs) do **not** deliver it — (c) forces a *separate, private* repo.
+  tricks (notes, orphan refs) do **not** deliver it — (c) forces a _separate, private_ repo.
 - **(d) Git-history & PR-view pollution** — planning churn interleaved with code commits; tolerable solo, explodes
   with team size; no reliable filter exists today.
 
@@ -77,12 +88,12 @@ coordinated out-of-band; pure sync is not the load-bearing team value. Primary v
 **Research grounding (2026-07 — see `research-storage-landscape-2026-07.md`):** the industry has arrived at this
 decision space and split into camps with no convergence winner; designing one substrate with cheap transitions is
 the defensible position. Key external facts: silent write-loss under unguarded shared-mutable state is
-*empirically verified* (Letta: 18/24 concurrent appends lost to LWW); a separate-planning-git-repo is now a
+_empirically verified_ (Letta: 18/24 concurrent appends lost to LWW); a separate-planning-git-repo is now a
 shipped industry feature (OpenSpec Stores — "a store is just a git repo"); an event-log-in-git-refs substrate
 exists as a designed system (grite: "the git WAL is the source of truth, the CRDT projection a materialised
 view"); and beads' canonical-store churn (JSONL-in-git → Dolt-DB → partial walk-back in ~5 months, with data-loss
 bugs) demonstrates the cost of leaving the canonical-home seam ambiguous. Critically, the public
-"co-locate at scale" guidance defends *low-churn context/spec content* — which maps to the classes ARC keeps
+"co-locate at scale" guidance defends _low-churn context/spec content_ — which maps to the classes ARC keeps
 tracked — while nobody defends high-churn operational state in-repo at scale; **the industry's implicit category
 split confirms ARC's tracked-vs-materialized line.**
 
@@ -91,7 +102,7 @@ split confirms ARC's tracked-vs-materialized line.**
 ## Working Thesis: Git All the Way Down
 
 **The canonical store is a git repo — just not the project's code repo.** Per-user it is a private backing repo
-(Local); shared it is that same repo on a shared private remote (Shared tier). ARC *materializes* its content into
+(Local); shared it is that same repo on a shared private remote (Shared tier). ARC _materializes_ its content into
 a gitignored `.arc/` so agents and humans see ordinary local files (the chezmoi/dotfile-manager shape). This keeps
 every benefit ARC already has while solving (c) and (d), without becoming Linear/Notion.
 
@@ -137,10 +148,10 @@ references and reference-don't-embed.
 | **Shared**      | that repo, on a **shared private remote** (git-only)   | small team, multi-writer            | Planned (this north star) |
 | **Coordinated** | a **service fronting the same store**                  | high-parallelism / per-record authz | Provisional — split out   |
 
-**Local *is* tier-2; Shared is tier-2 on a shared remote with multi-writer discipline (version-checked writes,
+**Local _is_ tier-2; Shared is tier-2 on a shared remote with multi-writer discipline (version-checked writes,
 entry-granular records, optimistic push-retry); team is the multi-writer config, not a separate design.** Tiers
 1–3 require nothing hosted beyond git remotes (industry precedent: OpenSpec Stores). The Coordinated tier —
-self-hosted service *or* PM-SaaS composed as the coordination/visibility layer with the store staying canonical —
+self-hosted service _or_ PM-SaaS composed as the coordination/visibility layer with the store staying canonical —
 lives in `arc-coordination-service` and is deferred until demand or capacity exists.
 
 ### Materialization: Architecture B (render/projection)
@@ -148,7 +159,7 @@ lives in `arc-coordination-service` and is deferred until demand or capacity exi
 Canonical repo out-of-tree; ARC renders into a gitignored, plain-files `.arc/` (no nested `.git`). Matches
 ADR-022's record-canonical / markdown-is-a-projection decision. History browsing via `arc history <artifact>`.
 (Architecture A — nested checkout/worktree — rejected: cwd-following git surprises, two SCM roots, fights
-ADR-022.) The projection layer serves **more than one consumer**: markdown files for agents/humans *and* renderer
+ADR-022.) The projection layer serves **more than one consumer**: markdown files for agents/humans _and_ renderer
 queries for view/HUD surfaces (`arc-view`, `status-hud`) — the record→projection interface exposes typed reads,
 not only markdown-emit (compose-note routed to `operational-state-docs`).
 
@@ -170,12 +181,12 @@ store mapping — it is not swept into the shared store when a project goes Shar
   at the Shared tier, visible to the team **with provenance** — attribution, not isolation.
 - **Private user scope** (`SESSION-NOTES`, `WORKING-MEMORY`, personal captures) → **a per-user private store by
   default, at every tier** — the user's own repo, their own remote, structurally never entering the shared store.
-- **User-authored-but-shared** (inbox drains bound for project homes, locus visibility signals) → flows *through*
+- **User-authored-but-shared** (inbox drains bound for project homes, locus visibility signals) → flows _through_
   records into project scope; the shared-inbox model draws this line.
 
 Grounding: today's git notes ride the **shared origin repo** — user state already lives on team infrastructure,
 protected only by obscurity (no host renders notes). Ordinary files in a shared store would be rendered, diffed,
-and greppable — a strict visibility regression if absorbed naively. Per-user private stores are strictly *more*
+and greppable — a strict visibility regression if absorbed naively. Per-user private stores are strictly _more_
 private than today. Independent precedent: Swamp's namespaces are "provenance, not isolation" — everything shared
 is visible with attribution, **except** the private class (secrets/vaults), which "remain repo-local regardless of
 namespace configuration" — the same asymmetric model. A hosted per-user-namespace variant (server ACLs) is the
@@ -187,7 +198,7 @@ Coordinated-tier fallback, not the default. Locus-style machine-local state may 
 
 ## Placement Is a Record, Not an Address
 
-Directory placement (`backlog/{provisional,planned}` / `active/` / `completed/`) is today a state *encoding* —
+Directory placement (`backlog/{provisional,planned}` / `active/` / `completed/`) is today a state _encoding_ —
 a coupling smell: concurrent lifecycle transitions make placement a shared-mutable surface, and layout changes
 break readers. Target consequence: **lifecycle state is a record field; directory layout is a projection of it;
 relocating a WU is a record-field change ARC cannot break on.** Owner: `wu-lifecycle-state-model` (inbound capture
@@ -210,7 +221,7 @@ is deterministic, therefore CLI-computed, never agent judgment (procedure-evolut
 | ROADMAP edits + conflict resolution                   | Removed — derived projection, regenerated (`roadmap-tooling`)                                                                                                          |
 | Code commits                                          | Code only (plus tracked classes); no PM staging choreography                                                                                                           |
 
-The workflows' *shape* survives untouched — same firing points (increment close, handoff, session-init), same
+The workflows' _shape_ survives untouched — same firing points (increment close, handoff, session-init), same
 ceremonies; bodies change from mechanics-narration to verb invocation, which is the verbs-over-mechanics ratchet
 already in motion. **Sequencing rule that carries the ergonomics: migrate the interface first, the storage
 second.** Verbs + records land before the flip (Stage 0/1 before Stage 2, below); flip day then changes only
@@ -229,7 +240,7 @@ Named opens and seams:
 
 ## Code-Repo Footprint Policy
 
-Under true separation, *any* ARC language in the code repo is a policy question, not an inevitability. A team may
+Under true separation, _any_ ARC language in the code repo is a policy question, not an inevitability. A team may
 reasonably demand a code repo **completely free of ARC footprint**; the design must make that achievable without
 losing traceability. Leakage surfaces to govern: the `Context:` footer, the `Arc-Maintenance:` trailer (the noise
 mitigation is itself footprint), init-scaffolded editor settings (`.zed/`, `.vscode/` are tracked-file commits —
@@ -240,12 +251,12 @@ line, and commit/branch conventions.
 (footer → task), the **PM record captures the code linkage** (the task record stores the increment SHA at tick
 time — free if the fused increment-close verb lands). The store is the side that's allowed to remember; `arc`
 surfaces resolve SHA↔task in both directions for anyone with store access. Public viewers lose the linkage —
-which is the *point* of privacy-max, not a defect. Footer-bearing configurations keep today's in-history
+which is the _point_ of privacy-max, not a defect. Footer-bearing configurations keep today's in-history
 traceability; local-mode's freeform `Context:` remains the middle posture.
 
 Shape: a small **footprint policy** derived from the storage tier plus one explicit knob (exact form at PRD —
 check against Principles 8/9, no per-surface booleans). Default keeps footers (real value for most adopters);
-zero-footprint is a supported arm. *This resolves the former inbound-buffer item on `Context:` footer validity:*
+zero-footprint is a supported arm. _This resolves the former inbound-buffer item on `Context:` footer validity:_
 the footer validator queries the injected artifact resolver (seam already held by `commit-message-submission`);
 under materialized tiers it resolves against the store, degrades gracefully when the substrate is unavailable
 (warn-don't-block in CI/contributor clones), and footer participation is governed by this policy — artifact names
@@ -262,15 +273,15 @@ Per state subtype (audit ⊥ concurrency; both delivered):
   (git-canonical by fiat); optimistic append via push-retry at the Shared tier. Precedent: grite's WAL-in-refs.
 - **Small structured records** (`meta-*` fields, priority/ordering, lifecycle state, `VECTOR.PROJECT`) → **LWW +
   history**, version-checked; store-side.
-- **Prose** (`draft-*`, `spec-*`) → **git merge** as backstop; the coordination mechanism is *ownership*
+- **Prose** (`draft-*`, `spec-*`) → **git merge** as backstop; the coordination mechanism is _ownership_
   (single-owner-WU), not merge. CRDTs rejected for prose: structural convergence leaves 5–10% semantic conflicts
   (CodeCRDT study), and semantic correctness is what review carries.
 
-Empirical anchor: unguarded shared-mutable state loses writes *silently* (Letta, verified; LangGraph-class bugs in
+Empirical anchor: unguarded shared-mutable state loses writes _silently_ (Letta, verified; LangGraph-class bugs in
 production). Version-checked writes make stale reads harmless; entry-granular slug-keyed operations (ADR-022
 coordination requirement) make sweeps and drains commute instead of wholesale-rejecting.
 
-**Review receipts** *(resolves the former inbound-buffer item)*: receipts are an event-log record-class candidate
+**Review receipts** _(resolves the former inbound-buffer item)_: receipts are an event-log record-class candidate
 on the same substrate port — expected-version append, change-request identity, private/public projection all fit
 the store-side event shape; nothing forces them into `.arc/` projections. Residual choice (backend-canonical
 events vs. adapter-owned events using the same port) is owned jointly with the review-gate work at PRD time; the
@@ -280,7 +291,7 @@ port design here must not foreclose either.
 
 Not the concurrency algorithm — **multi-writer local-materialization freshness**: your local view can be stale
 because someone else moved canonical. Stance: version-checked writes prevent corruption; shared surfaces are
-deliberate-refresh; your own edits are always fresh. Decide whether that UX bet holds *before* the Shared tier
+deliberate-refresh; your own edits are always fresh. Decide whether that UX bet holds _before_ the Shared tier
 ships multi-writer.
 
 ---
@@ -310,7 +321,7 @@ found by this table are design work, not footnotes.
 ## Staging & Decomposition (chunked delivery; the flip is a point, not an era)
 
 - **Stage 0 — record migrations** (`operational-state-docs`, `wu-lifecycle-state-model`, `roadmap-tooling`,
-  shared-inbox model): Gate-A work, lands in-repo, standalone value now; *is* the substrate's data layer.
+  shared-inbox model): Gate-A work, lands in-repo, standalone value now; _is_ the substrate's data layer.
 - **Stage 1 — the storage seam:** every reader/writer routes through the storage abstraction; first
   implementation is the current in-repo layout (behavior-preserving strangler fig). Work-list = the merged
   coupling/blast-radius audit (`coupling-blast-radius-audit` capture). Chunked by subsystem; coexists with normal
@@ -350,7 +361,7 @@ matrix explosion.
 
 Notes remain the zero-config entry on the scaling axis today, and they retire into the substrate as an ordinary
 per-user-store artifact class (local-mode inbound item; stop-loss rule in force — no new notes machinery).
-Research sharpened the rationale: notes' *living* industry niche is commit-anchored provenance metadata (Agent
+Research sharpened the rationale: notes' _living_ industry niche is commit-anchored provenance metadata (Agent
 Note, git-ai) — precisely what ARC's user state is not — and peer systems storing freestanding records in git
 chose custom ref namespaces over notes for the same warts ARC hit. Cite in the pre-B rationale doc: build → learn
 → converge.
@@ -385,7 +396,7 @@ per-record authorization, SaaS-composition variant.
 
 ## External Interchange — OKF Projection
 
-Unchanged position (2026-06-13): OKF is an optional *projection target* off the record→markdown layer — emit the
+Unchanged position (2026-06-13): OKF is an optional _projection target_ off the record→markdown layer — emit the
 knowledge layer, never operational churn. Projection-ready, not adopt-now; owned with `idiomatic-alignment`.
 
 ## Non-Goals

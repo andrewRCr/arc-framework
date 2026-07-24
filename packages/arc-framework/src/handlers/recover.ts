@@ -17,11 +17,12 @@ import {
   resolveCompactionSeedPath,
 } from "../lib/compaction-seed/emitter.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
-import { gitConfigGet, type GitExec } from "../lib/git/index.js";
+import type { GitExec } from "../lib/git/index.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import { createGitExec } from "../lib/io-context.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { SlugSchema } from "../lib/kernel/index.js";
 import {
   auditRecoveryState,
   type RecoveryAuditStopReason,
@@ -31,6 +32,7 @@ import {
   assertRecoverAuditReport,
   type RecoverAuditReport,
 } from "../lib/recover/report.js";
+import { readIdentityPointers } from "./identity-pointers.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
 import { requireArcProjectRoot } from "./shared.js";
 
@@ -65,8 +67,11 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     return;
   }
 
-  const identityGlobalUserDir = (await resolveUserSurfaceResolver({ cwd, identity, exec: gitExec }))
-    .identityGlobalRoot;
+  const workingMemoryPath = (await resolveUserSurfaceResolver({
+    cwd,
+    identity: SlugSchema.parse(identity),
+    exec: gitExec,
+  })).workingMemoryPath;
   const seedPath = resolveCompactionSeedPath({ cwd, identity });
   let seedContent: string;
   try {
@@ -104,7 +109,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     identity,
     role,
     probes,
-    identityGlobalUserDir,
+    workingMemoryPath,
   });
 
   let statusOutput: string;
@@ -158,20 +163,6 @@ function dirtyStateFromUncommittedFiles(files: readonly string[]): DirtyStateRes
   return {
     state: files.length === 0 ? "clean" : "dirty",
     fileCount: files.length,
-  };
-}
-
-async function readIdentityPointers(gitExec: GitExec): Promise<{
-  identity: string | null;
-  role: string | null;
-}> {
-  const [identityRaw, roleRaw] = await Promise.all([
-    gitConfigGet(gitExec, "arc.identity"),
-    gitConfigGet(gitExec, "arc.role"),
-  ]);
-  return {
-    identity: normalizeGitConfigValue(identityRaw),
-    role: normalizeGitConfigValue(roleRaw),
   };
 }
 
@@ -246,12 +237,6 @@ function seedSummary(
     branch: seed.branch,
     sessionType: seed.sessionType,
   };
-}
-
-function normalizeGitConfigValue(value: string | undefined): string | null {
-  if (value === undefined) return null;
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? null : trimmed;
 }
 
 function errorMessage(err: unknown): string {

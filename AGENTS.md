@@ -15,14 +15,34 @@ it as bare `arc ...`.
 > PR review requested with `@codex review`). They are **not** standing instructions for development sessions —
 > do not apply this during ordinary work; apply only when performing an explicitly requested, hosted PR review._
 
-When a hosted review is requested, apply rubric `independent-analysis/v1` to the complete requested commit.
-Review the change independently across:
+<!-- arc:review-guidance:start -->
+Rubric: `standard-review/v1` / `sha256:cea850203b3e821cc9f81563b30d01c91a2cc85832fd2edff8b4a1da7dae6295`
 
-- intent and scope;
-- correctness and failure behavior;
-- trust boundaries and compatibility;
-- verification quality and missing cases;
-- coherence and maintainability.
+### Coverage and evaluator boundary
 
-Report every actionable finding at a stable code locus. Return a clean result only after all five dimensions have
-been considered for the full diff.
+- Review the complete exact requested change set, not a sample or only the latest fix.
+- Bind the review to the exact requested target.
+- Use a non-author evaluator working from source and governing project context.
+- Do not provide author conclusions, preferred fixes, self-verification claims, or suspected weak spots.
+
+### Rubric dimensions
+
+- Coherence and maintainability — Check whether the change remains understandable, cohesive, and maintainable.
+- Correctness and failure behavior — Check normal behavior, boundary cases, and explicit failure handling.
+- Intent and scope — Check that the complete change serves its stated intent without unrelated scope.
+- Trust boundaries and compatibility — Check authority boundaries, unsafe inputs, and compatibility obligations.
+- Verification quality and missing cases — Check that verification proves the behavior and covers material missing cases.
+- Repository contract coherence — Check repository-specific instructions, package boundaries, and self-hosting contracts.
+
+### Finding requirements
+
+- Actionable materiality — State the material impact and an actionable correction boundary.
+- Rubric failure explanation — Explain which rubric dimension fails and why.
+- Source-grounded evidence — Ground the finding in the reviewed source rather than speculation.
+- Stable locus — Name a stable code or document locus for the finding.
+
+### Clean-result rule
+
+- Return clean only after the complete requested change set and every rubric dimension were considered.
+- Unavailable, partial, ambiguous, or failed review is never clean.
+<!-- arc:review-guidance:end -->

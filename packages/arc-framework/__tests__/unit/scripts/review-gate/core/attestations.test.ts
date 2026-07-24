@@ -15,16 +15,16 @@ const CHANGE_SET = computeChangeSetId({ baseRef: "main", diffBaseSha: DIFF_BASE,
 const requirement: ReviewRequirement = {
   schemaVersion: 1,
   id: "analysis",
-  kind: "independent-analysis",
+  kind: "standard-review",
   obligation: "required",
   acceptableSources: [
-    { sourceKind: "agent", qualifier: "independent-analysis/v1" },
-    { sourceKind: "human", qualifier: "independent-analysis/v1" },
+    { sourceKind: "agent", qualifier: "standard-review/v1" },
+    { sourceKind: "human", qualifier: "standard-review/v1" },
   ],
   count: 1,
   initialAdmission: "automatic",
   policyVersion: "a".repeat(64),
-  rubricVersion: "independent-analysis/v1",
+  rubricVersion: "standard-review/v1",
   reasons: ["code-surface"],
   changeSetId: CHANGE_SET,
   headSha: HEAD,
@@ -114,13 +114,13 @@ describe("neutral attestations", () => {
     const human = manifest({
       sourceKind: "human",
       sourceIdentity: "human-1",
-      reviewerClaim: "independent-analysis/v1",
+      reviewerClaim: "standard-review/v1",
       reviewerRuntime: { kind: "human", version: "1" },
     });
     const humanContext = {
       ...context,
       authenticatedActor: { schemaVersion: 1 as const, actorIdentity: "human-1", permissions: ["write" as const] },
-      acceptedReviewerClaims: ["independent-analysis/v1"],
+      acceptedReviewerClaims: ["standard-review/v1"],
     };
     expect(validateAttestation(human, humanContext).ok).toBe(true);
     expect(validateAttestation(human, { ...humanContext, authorIdentity: "human-1" }).ok).toBe(false);
@@ -241,12 +241,12 @@ describe("repair attestation authority", () => {
     const humanContext = {
       ...repairContext,
       authenticatedActor: { schemaVersion: 1 as const, actorIdentity: "human-1", permissions: ["write" as const] },
-      acceptedReviewerClaims: ["independent-analysis/v1"],
+      acceptedReviewerClaims: ["standard-review/v1"],
     };
     expect(validateRepairAttestation(repairManifest({
       sourceKind: "human",
       sourceIdentity: "human-1",
-      reviewerClaim: "independent-analysis/v1",
+      reviewerClaim: "standard-review/v1",
       reviewerRuntime: { kind: "human", version: "1" },
     }), humanContext).ok).toBe(true);
   });

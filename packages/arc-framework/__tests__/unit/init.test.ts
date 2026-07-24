@@ -34,7 +34,7 @@ import {
   buildTokenMap,
 } from "../../src/lib/config/index.js";
 import {
-  resolveFileList, toOutputPath, classifyFile, fileLayer, buildManifestFiles, needsRendering,
+  resolveFileList, classifyFile, fileLayer, buildManifestFiles, needsRendering,
 } from "../../src/lib/classification.js";
 import { getFrameworkVersion } from "../../src/lib/version.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
@@ -265,42 +265,23 @@ describe("resolveFileList — actual recipe", () => {
     expect(files).toContain(TEAM_COORD);
   });
 
-  it("ships the scalable authoring method and workflow files", () => {
+  it("ships every planning method required by the installed authoring workflows", () => {
     const files = resolveFileList(actualRecipe, {
       "pm.mode": "none", "tools": "", "team.mode": "false",
     });
     expect(files).toContain("system/methods/classify-work-unit.md");
+    expect(files).toContain("system/methods/assess-cohort-fit.md");
+    expect(files).toContain("system/methods/assess-design-proportionality.md");
+    expect(files).toContain("system/methods/assess-draft-readiness.md");
+    expect(files).toContain("system/methods/adversarial-review.md");
+    expect(files).toContain("system/methods/design-audit.md");
     expect(files).toContain("system/methods/resolve-planning-depth.md");
     expect(files).toContain("system/methods/spec-review.md");
+    expect(files).toContain("system/methods/task-audit.md");
     expect(files).toContain("system/extensions/pre-spec-finalization-review.md");
     expect(files).toContain("system/workflows/arc/draft-design.md");
   });
 });
-
-// --- toOutputPath ---
-
-describe("toOutputPath", () => {
-  it("strips .template suffix from .template.md files", () => {
-    expect(toOutputPath("reference/PROJECT-PRD.template.md")).toBe("reference/PROJECT-PRD.md");
-  });
-
-  it("leaves non-template files unchanged", () => {
-    expect(toOutputPath("system/rules/DEV-RULES.ARC.md")).toBe(
-      "system/rules/DEV-RULES.ARC.md",
-    );
-  });
-
-  it("strips .template from middle of filename", () => {
-    expect(toOutputPath("backlog/ROADMAP.template.md")).toBe("backlog/ROADMAP.md");
-  });
-
-  it("leaves files with template in directory name unchanged", () => {
-    expect(toOutputPath("reference/templates/arc/work-unit/spec/template-spec-outline.md")).toBe(
-      "reference/templates/arc/work-unit/spec/template-spec-outline.md",
-    );
-  });
-});
-
 
 // --- classifyFile ---
 
@@ -313,10 +294,16 @@ describe("classifyFile", () => {
 
   it("classifies Configurable files", () => {
     expect(classifyFile("system/arc-config.yml")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-design-proportionality.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-cohort-fit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-draft-readiness.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/adversarial-review.md")).toBe("Configurable");
     expect(classifyFile("system/methods/classify-work-unit.md")).toBe("Configurable");
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/design-audit.md")).toBe("Configurable");
     expect(classifyFile("system/methods/resolve-planning-depth.md")).toBe("Configurable");
     expect(classifyFile("system/methods/spec-review.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/task-audit.md")).toBe("Configurable");
     expect(classifyFile("system/extensions/post-task-quality.md")).toBe("Configurable");
     expect(classifyFile("system/extensions/pre-spec-finalization-review.md")).toBe("Configurable");
     expect(classifyFile("system/rules/DEV-RULES.PROJECT.md")).toBe("Configurable");
@@ -330,7 +317,7 @@ describe("classifyFile", () => {
     expect(classifyFile("reference/briefs/AGENT-BRIEF.ARC.md")).toBe("Framework");
     expect(classifyFile("system/workflows/arc/process-task-loop.template.md")).toBe("Framework");
     // Per-file methods/extensions directory READMEs fall through to Framework —
-    // only the 8 methods + 8 extensions themselves are adopter-customizable.
+    // only the method and extension files themselves are adopter-customizable.
     expect(classifyFile("system/methods/README.md")).toBe("Framework");
     expect(classifyFile("system/extensions/README.md")).toBe("Framework");
   });
@@ -552,6 +539,52 @@ describe("runInit", () => {
       (c) => c[0] === "/project/.arc/reference/PROJECT-PRD.md",
     );
     expect(metaPrdWrite).toBeDefined();
+  });
+
+  it("fresh mode: rejects unsafe enumerated template paths before filesystem effects", async () => {
+    const recipe: Recipe = {
+      include_files: ["../outside.template.md"],
+      prompts: minimalRecipe.prompts,
+      conditions: {},
+    };
+    const io = mockIO({});
+
+    await expect(runInit({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
+      recipe,
+      prompts: DEFAULT_PROMPTS,
+      identityResult: "andrew",
+    })).rejects.toThrow();
+    expect(io.exclusiveCreate).not.toHaveBeenCalled();
+    expect(io.removeFile).not.toHaveBeenCalled();
+    expect(io.readFile).not.toHaveBeenCalled();
+    expect(io.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("fresh mode: rejects colliding template outputs before acquiring the init lock", async () => {
+    const recipe: Recipe = {
+      include_files: ["reference/foo.md", "reference/foo.template.md"],
+      prompts: minimalRecipe.prompts,
+      conditions: {},
+    };
+    const io = mockIO({});
+
+    await expect(runInit({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
+      recipe,
+      prompts: DEFAULT_PROMPTS,
+      identityResult: "andrew",
+    })).rejects.toMatchObject({ code: "layout.invalid-template-path" });
+    expect(io.exclusiveCreate).not.toHaveBeenCalled();
+    expect(io.removeFile).not.toHaveBeenCalled();
+    expect(io.readFile).not.toHaveBeenCalled();
+    expect(io.writeFile).not.toHaveBeenCalled();
   });
 
   it("fresh mode: stores identity via git config", async () => {

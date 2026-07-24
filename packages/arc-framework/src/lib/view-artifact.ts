@@ -7,9 +7,10 @@
  * @module
  */
 
-import { dirname, isAbsolute, join } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 import type { SessionNotesPathResult } from "./handoff/session-notes-path.js";
+import { materializeArcPath, resolveArcPath } from "./layout/index.js";
 import {
   VIEW_KINDS,
   type ResolvedViewTarget,
@@ -21,6 +22,7 @@ import {
 
 interface UserSurfacePaths {
   identityGlobalPath: (...segments: readonly string[]) => string;
+  workingMemoryPath: string;
 }
 
 export interface ViewArtifactDependencies {
@@ -85,8 +87,10 @@ async function resolveViewArtifactUnchecked(
       cwd: options.cwd,
       identity: options.identity,
     });
-    const filename = kind === "working-memory" ? "WORKING-MEMORY.md" : "USER-INBOX.md";
-    return presentOrAbsent(kind, surfaces.identityGlobalPath(filename), null, dependencies);
+    const path = kind === "working-memory"
+      ? surfaces.workingMemoryPath
+      : surfaces.identityGlobalPath("USER-INBOX.md");
+    return presentOrAbsent(kind, path, null, dependencies);
   }
 
   const target = await resolveTarget(options, dependencies);
@@ -156,7 +160,12 @@ async function resolveExactKind(
     case "notes":
       return presentOrAbsent(
         kind,
-        join(options.cwd, dirname(target.metaPath), `${kind}-${target.slug}.md`),
+        materializeArcPath(options.cwd, resolveArcPath({
+          kind: "work-unit-artifact",
+          placement: target.placement,
+          slug: target.slug,
+          artifact: kind,
+        })),
         target.slug,
         dependencies,
       );
@@ -197,7 +206,12 @@ async function resolveTaskPath(
     const pointer = absolute(cwd, target.taskListPath);
     if (await dependencies.pathExists(pointer)) return pointer;
   }
-  const conventional = join(cwd, dirname(target.metaPath), `tasks-${target.slug}.md`);
+  const conventional = materializeArcPath(cwd, resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: target.placement,
+    slug: target.slug,
+    artifact: "tasks",
+  }));
   return await dependencies.pathExists(conventional) ? conventional : null;
 }
 

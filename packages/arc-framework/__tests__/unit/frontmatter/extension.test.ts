@@ -67,6 +67,16 @@ describe("parseExtensionFrontmatter", () => {
     expect(result.errors.some((e) => e.includes("`active`"))).toBe(true);
   });
 
+  it("rejects method-only and unknown frontmatter fields", () => {
+    const content = validExtension.replace("active: false", [
+      "active: false",
+      "override-active: false",
+    ].join("\n"));
+
+    expect(parseExtensionFrontmatter(content, "post-task-quality").errors)
+      .toContain("unknown frontmatter field `override-active`");
+  });
+
   it("rejects non-array `related` as a type mismatch", () => {
     const content = [
       "---",

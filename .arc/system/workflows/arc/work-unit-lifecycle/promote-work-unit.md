@@ -24,7 +24,7 @@ rung; [`init-work-unit`][init-work-unit] covers `planned → active`.
 **Readiness rule (enforced here):** a `backlog/planned/` work unit carries a resolved `**Class:**`
 (`Light` / `Heavy` / `Novel`); `[TBD]` is legal only in `backlog/provisional/`. Planned-entry is the forcing point
 because the start decision — read off the ready list — precedes activation, and that decision needs the
-weight signal. This workflow states the *lifecycle constraint*; the triage that resolves the value lives in
+weight signal. This workflow states the _lifecycle constraint_; the triage that resolves the value lives in
 the [`classify-work-unit`][classify-work-unit] method (its single DRY home), loaded per the frontmatter
 declaration.
 

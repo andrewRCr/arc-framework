@@ -23,6 +23,7 @@ import { walkMarkdown } from "../../lib/fs/walk-markdown.js";
 import { parseExtensionFrontmatter } from "../../lib/frontmatter/index.js";
 import { classifyExtensionRefs } from "../../lib/extensions/orphan-detector.js";
 import { scanExtensionPoints, type ScanInput } from "../../lib/extensions/point-scanner.js";
+import { materializeArcPath, resolveArcPath } from "../../lib/layout/index.js";
 import type {
   ExtensionsSessionInitOptions,
   ExtensionsSessionInitResult,
@@ -38,7 +39,7 @@ function extensionsDir(cwd: string): string {
 
 /** Locate the workflows directory inside an ARC install. */
 function workflowsDir(cwd: string): string {
-  return join(cwd, ".arc", "system", "workflows");
+  return materializeArcPath(cwd, resolveArcPath({ kind: "procedure-root", family: "workflows" }));
 }
 
 /** Outcome of the extensions-directory scan. */
