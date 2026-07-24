@@ -71,6 +71,27 @@ describe("hosted finding settlement", () => {
     expect(result).toMatchObject({ state: "already-settled", nextAction: "complete" });
   });
 
+  it("stops without posting when multiple canonical replies already exist", async () => {
+    let posts = 0;
+    const result = await settleHostedFinding(request, {
+      port: port({
+        findReplies: () => Promise.resolve(["FIRST", "SECOND"].map((id) => ({
+          id,
+          actorIdentity: request.actorIdentity,
+          body: request.reply,
+          inReplyToId: request.finding.commentId,
+        }))),
+        postReply: () => {
+          posts += 1;
+          return Promise.resolve({ kind: "created", id: "THIRD" });
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({ state: "ambiguous", nextAction: "stop" });
+    expect(posts).toBe(0);
+  });
+
   it.each([
     ["missing-thread", { kind: "missing" as const }],
     ["missing-comment", {

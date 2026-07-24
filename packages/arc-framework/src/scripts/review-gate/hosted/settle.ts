@@ -85,14 +85,22 @@ function resultBase(request: HostedSettleEnvelope): HostedSettleBase {
 async function canonicalReply(
   request: HostedSettleEnvelope,
   port: HostedSettlementPort,
-): Promise<HostedSettlementReply | null> {
+): Promise<
+  | { kind: "missing" }
+  | { kind: "unique"; reply: HostedSettlementReply }
+  | { kind: "ambiguous" }
+> {
   const replies = await port.findReplies({
     target: request.target,
     commentId: request.finding.commentId,
     actorIdentity: request.actorIdentity,
     body: request.reply,
   });
-  return replies.length === 1 ? replies[0] ?? null : null;
+  if (replies.length === 0) return { kind: "missing" };
+  const reply = replies[0];
+  return replies.length === 1 && reply !== undefined
+    ? { kind: "unique", reply }
+    : { kind: "ambiguous" };
 }
 
 async function targetIsCurrent(
@@ -127,8 +135,11 @@ export async function settleHostedFinding(
     return { ...base, state: "already-settled", nextAction: "complete" };
   }
 
-  let reply = await canonicalReply(request, dependencies.port);
-  if (reply === null) {
+  let replyMatch = await canonicalReply(request, dependencies.port);
+  if (replyMatch.kind === "ambiguous") {
+    return { ...base, state: "ambiguous", nextAction: "stop" };
+  }
+  if (replyMatch.kind === "missing") {
     if (!await targetIsCurrent(request, dependencies.port)) {
       return { ...base, state: "stale-target", nextAction: "stop" };
     }
@@ -137,8 +148,8 @@ export async function settleHostedFinding(
       commentId: request.finding.commentId,
       body: request.reply,
     });
-    reply = await canonicalReply(request, dependencies.port);
-    if (reply === null) return { ...base, state: "ambiguous", nextAction: "stop" };
+    replyMatch = await canonicalReply(request, dependencies.port);
+    if (replyMatch.kind !== "unique") return { ...base, state: "ambiguous", nextAction: "stop" };
   }
 
   if (!await targetIsCurrent(request, dependencies.port)) {
@@ -153,6 +164,6 @@ export async function settleHostedFinding(
     ...base,
     state: "settled",
     nextAction: "complete",
-    replyId: reply.id,
+    replyId: replyMatch.reply.id,
   };
 }
