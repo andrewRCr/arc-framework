@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "retire-recovery-load-scoping",
-  "origin": "description",
-  "intent": "Commit the abandon cascade for the retired recovery-load-scoping work unit",
-  "branch": "chore/retire-recovery-load-scoping",
-  "createdAt": "2026-07-24T14:33:58.613Z",
-  "returnBranch": "main"
-}
