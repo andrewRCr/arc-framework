@@ -592,6 +592,32 @@ describe("deriveInFlight", () => {
     expect(result.warnings).toEqual([]);
   });
 
+  it("keeps a locus-owned checkout authoritative over its stale same-branch remote", async () => {
+    // Suppressing the residue advisory must not also surrender the branch location: the
+    // worktree carries no active meta, so the remote twin's stale one is archived work
+    // and must not survive deduplication as a live entry.
+    const exec = makeExec({
+      worktrees: [{ path: "/wt/done", branch: "feat/done" }],
+      localRefs: ["feat/done"],
+      liveBranches: ["feat/done"],
+      metas: {
+        "origin/feat/done:.arc/active/meta-done.md": metaContent({ branch: "feat/done" }),
+      },
+    });
+
+    const { entries, residue } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+      locusState: locusStateFixture({ rows: [managedWorkUnitRow("done", "/wt/done")] }),
+    });
+
+    expect(entries).toEqual([]);
+    // Still not residue — the locus owns the branch; only the tombstone survives.
+    expect(residue).toEqual([]);
+  });
+
   it("keeps branch cleanup indeterminate when the complete locus read is unavailable", async () => {
     const result = await deriveInFlight({
       exec: makeExec({}), branches: ["fix/legacy"], identity: null, teamMode: false, locusState: null,

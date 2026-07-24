@@ -952,7 +952,18 @@ async function classifyInput(
   if (listed.paths.length === 0) {
     const locusOwned = locusState !== undefined && locusState !== null && locusOwnsBranch(locusState, branch);
     if (locusOwned) {
-      return { input, errand: null, residue: null, workUnits: [], warnings: [], shadowsSameBranchRemote: false };
+      // Locus ownership answers whether this branch is residue; it does not answer
+      // whether this checkout is authoritative for its branch location. A worktree
+      // carrying no active meta still tombstones its stale upstream twin, or an
+      // archived work unit's old remote meta resurrects it as in flight.
+      return {
+        input,
+        errand: null,
+        residue: null,
+        workUnits: [],
+        warnings: [],
+        shadowsSameBranchRemote: input.source === "worktree",
+      };
     }
     return {
       input,

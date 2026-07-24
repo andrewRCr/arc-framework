@@ -1192,10 +1192,14 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           and the husk and sweep surfaces lose only their claim-mismatch check — both still block on marker
           provenance alone, so neither becomes destructive under an unreadable identity.
 
-    - `[ ]` **7.E.b.iv Preserve the local tombstone under locus-owned suppression** — W1-F4
-        - The `locusOwned` early return in `in-flight-derivation.ts` clears the flag by which a local no-meta
-          worktree shadows its same-branch remote twin, letting a remote candidate carrying stale active meta
-          survive deduplication and archived or terminal work reappear as in flight.
+    - `[x]` **7.E.b.iv Preserve the local tombstone under locus-owned suppression** — W1-F4
+        - The `locusOwned` early return conflated two independent facts: whether the branch is residue, which
+          locus ownership does settle, and whether this checkout is authoritative for its branch location, which
+          it does not. Suppressing the residue advisory also cleared `shadowsSameBranchRemote`, so an archived
+          work unit's stale remote meta survived deduplication and reappeared as in flight. The arm now carries
+          the same `input.source === "worktree"` tombstone every other no-meta arm does. The defect sat precisely
+          between two existing tests — one covering the tombstone without a locus, one covering the locus-owned
+          arm without asserting the tombstone — so the new case pairs their fixtures.
 
     - `[ ]` **7.E.b.v Make recovery depend on proven physical identity** — S2-F3, S2S1-001, S2S1-002, S2S1-004
         - `runRecoverStatus` converts a failed worktree-identity probe into a synthetic `primary`, which then feeds
