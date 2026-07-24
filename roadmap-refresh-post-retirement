@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "roadmap-refresh-post-retirement",
-  "origin": "description",
-  "intent": "Re-render ROADMAP after recovery-load-scoping retirement",
-  "branch": "chore/roadmap-refresh-post-retirement",
-  "createdAt": "2026-07-24T14:43:28.302Z",
-  "returnBranch": "main"
-}
