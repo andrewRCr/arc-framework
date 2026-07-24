@@ -65,24 +65,11 @@ shadow runtime that currently contains their reusable pieces.
   full RSB WU is integrated and reconciled into the branch; consume the landed contract without recreating or
   editing it here.
 
-    - `[ ]` **1.3.a Add typed ordered-source and pass-ceiling settings**
+    - `[x]` **1.3.a Add typed ordered-source and pass-ceiling settings**
 
-        - Extend `packages/arc-framework/src/commands/config/types.ts`, `src/lib/config/status-reader.ts`,
-          `arc/system/.internal/scripts/validate-config.sh`, and both `arc-config.yml` copies with the flat string
-          keys `review.frontline_sources`, `review.standard_sources`, `review.frontline_max_passes`, and
-          `review.standard_max_passes`; expose the developer override as `arc.frontlineSources`.
-        - Parse both source settings as ordered comma-separated built-in registry IDs and keep both empty by
-          default. Frontline accepts its compatible source IDs; standard accepts `delegated-agent`,
-          `coderabbit-pr`, and `codex-pr`. Parse both ceilings as positive safe integers with default `2`,
-          generalizing the current frontline schemas beyond their literal `1 | 2` domain.
-        - Apply the clean pre-GA forward rename only: do not dual-read, alias, deprecate, or migrate
-          `frontline_source`, `frontlineSource`, `hosted_providers`, or `hosted_max_passes`.
-        - Build `test-first` (one behavior at a time):
-            - absent keys resolve to the documented default-off/default-ceiling values;
-            - both ordered source configurations retain order through `arc config status`, including the
-              `arc.frontlineSources` override;
-            - source IDs incompatible with a role, malformed lists, and ceiling values fail with actionable
-              diagnostics.
+        - Added ordered frontline and standard source settings plus positive safe-integer ceilings across typed
+          config status, validation, and both config copies; generalized frontline pass contracts beyond the
+          former two-pass domain while preserving exact allowance checks.
 
     - `[ ]` **1.3.b Build the typed review-policy driver**
 

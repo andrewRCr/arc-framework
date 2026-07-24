@@ -23,6 +23,9 @@ export interface ConfigSettings {
   "merge.strategy": string;
   "platform.type": string;
   "review.frontline_sources": string;
+  "review.standard_sources": string;
+  "review.frontline_max_passes": string;
+  "review.standard_max_passes": string;
   "pm.mode": string;
   "team.mode": string;
   "session.remote_sync": string;

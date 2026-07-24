@@ -8,6 +8,7 @@ import {
   ReviewTargetSchema,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
+import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
 import { NormalizedReviewFindingSchema } from "../core/finding-records.js";
 import {
   FrontlineSourceDescriptorSchema,
@@ -15,7 +16,6 @@ import {
 } from "./frontline-source.js";
 
 const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const FrontlinePassSchema = z.union([z.literal(1), z.literal(2)]);
 const EmptyFindingsSchema = z.array(NormalizedReviewFindingSchema).max(0);
 
 export const FrontlineUnavailableRetryReasonSchema = z.strictObject({
@@ -106,8 +106,8 @@ const FrontlineOutcomeBaseShape = {
   semanticsVersion: z.literal("frontline-review/v1"),
   source: FrontlineSourceDescriptorSchema,
   target: ReviewTargetSchema,
-  pass: FrontlinePassSchema,
-  maxPasses: FrontlinePassSchema,
+  pass: ReviewPassSchema,
+  maxPasses: ReviewPassSchema,
 };
 
 export const FrontlineExecutionOutcomeSchema = z.discriminatedUnion("outcome", [
@@ -170,8 +170,8 @@ export function normalizeFrontlineOutcome(input: {
   providerResult: unknown;
   source: FrontlineSourceDescriptor;
   target: ReviewTarget;
-  pass: 1 | 2;
-  maxPasses: 1 | 2;
+  pass: ReviewPass;
+  maxPasses: ReviewPass;
 }): FrontlineExecutionOutcome {
   const providerResult = FrontlineProviderResultSchema.parse(input.providerResult);
   const base = {

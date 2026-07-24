@@ -13,6 +13,7 @@ import {
 } from "../policy/frontline-outcome.js";
 import { FrontlineFollowUpAdviceSchema } from "../policy/frontline-follow-up.js";
 import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
+import { ReviewPassSchema } from "./review-pass.js";
 import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
 import { ReviewReductionProjectionSchema } from "./advisory-records.js";
 import { NormalizedReviewFindingSchema } from "./finding-records.js";
@@ -121,8 +122,8 @@ const FrontlineResolveBasePayload = {
 };
 const FrontlineReadyPayloadSchema = z.strictObject({
   ...FrontlineResolveBasePayload,
-  pass: z.union([z.literal(1), z.literal(2)]),
-  maxPasses: z.union([z.literal(1), z.literal(2)]),
+  pass: ReviewPassSchema,
+  maxPasses: ReviewPassSchema,
 }).superRefine((payload, context) => {
   if (payload.pass > payload.maxPasses) {
     context.addIssue({

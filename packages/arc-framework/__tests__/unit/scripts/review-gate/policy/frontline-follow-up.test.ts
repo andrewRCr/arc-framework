@@ -41,7 +41,8 @@ const source = {
 
 function outcome(
   severity: "blocker" | "major" | "minor" = "major",
-  maxPasses: 1 | 2 = 2,
+  maxPasses = 2,
+  pass = 1,
 ) {
   return {
     schemaVersion: 1 as const,
@@ -49,7 +50,7 @@ function outcome(
     outcome: "findings" as const,
     source,
     target: oldTarget,
-    pass: 1 as const,
+    pass,
     maxPasses,
     findings: [{ ...finding, severity }],
     reason: null,
@@ -108,6 +109,18 @@ describe("frontline follow-up policy", () => {
       ...approved(severity),
       changedTarget,
     })).toEqual({ action: "follow-up", pass: 2, target: changedTarget });
+  });
+
+  it("increments within a configured ceiling beyond two passes", () => {
+    expect(projectFrontlineFollowUpAdvice({
+      outcome: outcome("major", 3, 2),
+      ...approved("major"),
+    })).toEqual({
+      action: "follow-up-after-fix",
+      pass: 3,
+      maxPasses: 3,
+      nextCommand: "frontline-resolve",
+    });
   });
 
   it("does not spend a follow-up on minor-only or deferred findings", () => {

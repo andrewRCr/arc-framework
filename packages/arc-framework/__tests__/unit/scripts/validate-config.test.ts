@@ -95,6 +95,16 @@ describe("validate-config.sh — frontline review source", () => {
     },
   );
 
+  it.each(["coderabbit-pr", "codex-pr", "delegated-agent"])(
+    "rejects standard-only source %s",
+    async (value) => {
+      const result = await runValidateConfig(`review.frontline_sources: [${value}]\n`);
+
+      expect(result.code).toBe(2);
+      expect(result.stdout).toContain(`ERROR review.frontline_sources source '${value}' is not frontline-compatible`);
+    },
+  );
+
   it.each(["[project-reviewer", "project-reviewer]"])(
     "rejects unmatched list brackets in %s",
     async (value) => {
@@ -104,6 +114,53 @@ describe("validate-config.sh — frontline review source", () => {
       expect(result.stdout).toContain("ERROR review.frontline_sources must use matched list brackets");
     },
   );
+});
+
+describe("validate-config.sh — standard review sources", () => {
+  it("accepts each built-in source in declared order", async () => {
+    const result = await runValidateConfig(
+      "review.standard_sources: [coderabbit-pr,codex-pr,delegated-agent]\n",
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("PASS  review.standard_sources entry is a standard source");
+  });
+
+  it.each(["coderabbit-cli", "project-reviewer", "review;agent"])(
+    "rejects incompatible source %s",
+    async (value) => {
+      const result = await runValidateConfig(`review.standard_sources: [${value}]\n`);
+
+      expect(result.code).toBe(2);
+      expect(result.stdout).toContain("ERROR review.standard_sources");
+    },
+  );
+});
+
+describe("validate-config.sh — review pass ceilings", () => {
+  it.each([
+    ["review.frontline_max_passes", "1"],
+    ["review.frontline_max_passes", "9007199254740991"],
+    ["review.standard_max_passes", "2"],
+    ["review.standard_max_passes", "9007199254740991"],
+  ])("accepts positive safe-integer %s value %s", async (key, value) => {
+    const result = await runValidateConfig(`${key}: ${value}\n`);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(`PASS  ${key}: ${value}`);
+  });
+
+  it.each([
+    ["review.frontline_max_passes", "0"],
+    ["review.frontline_max_passes", "+2"],
+    ["review.standard_max_passes", "1.5"],
+    ["review.standard_max_passes", "9007199254740992"],
+  ])("rejects invalid %s value %s", async (key, value) => {
+    const result = await runValidateConfig(`${key}: ${value}\n`);
+
+    expect(result.code).toBe(2);
+    expect(result.stdout).toContain(`ERROR ${key}: '${value}'`);
+  });
 });
 
 describe("validate-config.sh — session.init_load.notes", () => {
