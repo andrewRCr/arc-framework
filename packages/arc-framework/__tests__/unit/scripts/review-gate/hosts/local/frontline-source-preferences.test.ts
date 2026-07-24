@@ -24,4 +24,17 @@ describe("local frontline source preferences", () => {
     await expect(reader.readDeveloperSourceIds()).resolves.toEqual([]);
     await expect(reader.readProjectSourceIds()).resolves.toEqual([]);
   });
+
+  it.each(["[project-reviewer", "project-reviewer]"])(
+    "rejects project preferences with unmatched brackets: %s",
+    async (value) => {
+      const reader = createLocalFrontlineSourcePreferenceReader({
+        cwd: "/repo",
+        exec: vi.fn().mockRejectedValue(new Error("unset")),
+        readFile: vi.fn().mockResolvedValue(`review.frontline_sources: ${value}\n`),
+      });
+
+      await expect(reader.readProjectSourceIds()).resolves.toEqual([]);
+    },
+  );
 });

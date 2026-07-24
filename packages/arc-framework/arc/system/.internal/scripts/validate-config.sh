@@ -154,7 +154,16 @@ validate_enum "user.notes_push" "manual prompt on-sync" "on-sync"
 
 # Review sources: ordered safe registry IDs, never shell text.
 frontline_sources=$(arc_config_get "review.frontline_sources" "[]")
-frontline_sources=$(printf '%s\n' "$frontline_sources" | sed 's/^\[//; s/\]$//')
+case "$frontline_sources" in
+    \[*\])
+        frontline_sources=${frontline_sources#\[}
+        frontline_sources=${frontline_sources%\]}
+        ;;
+    \[*|*\])
+        error "review.frontline_sources must use matched list brackets"
+        frontline_sources=""
+        ;;
+esac
 frontline_source_lines=$(printf '%s\n' "$frontline_sources" | tr ',' '\n')
 while IFS= read -r frontline_source; do
     frontline_source=$(printf '%s\n' "$frontline_source" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')

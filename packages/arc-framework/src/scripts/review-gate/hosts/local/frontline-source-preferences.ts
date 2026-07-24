@@ -14,9 +14,10 @@ export const FRONTLINE_SOURCE_YAML_KEY = "review.frontline_sources";
 function parseSourceIds(value: string | undefined): readonly string[] {
   if (value === undefined || value.trim() === "") return [];
   const trimmed = value.trim();
-  const list = trimmed.startsWith("[") && trimmed.endsWith("]")
-    ? trimmed.slice(1, -1)
-    : trimmed;
+  const startsList = trimmed.startsWith("[");
+  const endsList = trimmed.endsWith("]");
+  if (startsList !== endsList) throw new Error("frontline source list must use matched brackets");
+  const list = startsList ? trimmed.slice(1, -1) : trimmed;
   if (list.trim() === "") return [];
   return list.split(",").map((sourceId) => sourceId.trim()).filter((sourceId) => sourceId !== "");
 }

@@ -94,6 +94,16 @@ describe("validate-config.sh — frontline review source", () => {
       expect(result.stdout).toContain("ERROR review.frontline_sources entries must be lowercase registry IDs");
     },
   );
+
+  it.each(["[project-reviewer", "project-reviewer]"])(
+    "rejects unmatched list brackets in %s",
+    async (value) => {
+      const result = await runValidateConfig(`review.frontline_sources: ${value}\n`);
+
+      expect(result.code).toBe(2);
+      expect(result.stdout).toContain("ERROR review.frontline_sources must use matched list brackets");
+    },
+  );
 });
 
 describe("validate-config.sh — session.init_load.notes", () => {
