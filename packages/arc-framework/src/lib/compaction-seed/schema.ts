@@ -51,6 +51,16 @@ export const CompactionSeedLocusHintSchema = z.strictObject({
   parentRecordId: LocusDigestSchema.nullable(),
 });
 
+/**
+ * Why a seed carries no `locus` hint.
+ *
+ * `none` is a positive attestation that the reader established no current
+ * generation; `unavailable` records that ambiguity or a probe error left it
+ * unestablished. Absent on pre-model seeds, whose producer wrote no
+ * disposition at all.
+ */
+export const CompactionSeedLocusAbsenceSchema = z.enum(["none", "unavailable"]);
+
 const COMPACTION_SEED_FIELDS = {
   schemaVersion: z.literal(COMPACTION_SEED_SCHEMA_VERSION),
   emittedAt: z.string(),
@@ -66,10 +76,20 @@ const COMPACTION_SEED_FIELDS = {
   loadSet: LoadSetManifestSchema,
   uncommittedFiles: z.array(REPOSITORY_RELATIVE_PATH_SCHEMA),
   locus: CompactionSeedLocusHintSchema.optional(),
+  locusAbsence: CompactionSeedLocusAbsenceSchema.optional(),
 };
 
 /** Strict producer authority for schema-v1 compaction seeds. */
-export const CompactionSeedSchema = z.strictObject(COMPACTION_SEED_FIELDS);
+export const CompactionSeedSchema = z.strictObject(COMPACTION_SEED_FIELDS)
+  .superRefine((value, context) => {
+    if (value.locus !== undefined && value.locusAbsence !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["locusAbsence"],
+        message: "locusAbsence records why locus was omitted; the two are mutually exclusive",
+      });
+    }
+  });
 
 /** Recursively unknown-stripping authority for persisted seed reads. */
 export const CompactionSeedReaderSchema = z.object({
@@ -89,6 +109,9 @@ export type CompactionSeed = z.infer<typeof CompactionSeedSchema>;
 
 /** Optional complete locus correlation hint retained by schema-v1 seeds. */
 export type CompactionSeedLocusHint = z.infer<typeof CompactionSeedLocusHintSchema>;
+
+/** Recorded reason a schema-v1 seed carries no locus hint. */
+export type CompactionSeedLocusAbsence = z.infer<typeof CompactionSeedLocusAbsenceSchema>;
 
 type LocusStateProbe =
   | { ok: true; value: LocusStateV1 }
@@ -111,6 +134,24 @@ export function deriveCompactionSeedLocusHint(
     leaseId: row.lease.leaseId,
     parentRecordId: current.parentRecordId,
   };
+}
+
+/**
+ * Derive why no locus hint could be built, from the same shared probe read.
+ *
+ * Call only when {@link deriveCompactionSeedLocusHint} returned `null`, so that
+ * an omitted hint always carries its reason. A reader-established `current:
+ * none` is the one case a later audit can compare against; ambiguity, a probe
+ * error, and a resolved generation whose row or lease did not resolve are all
+ * equally unestablished.
+ *
+ * @param probe - The same locus-state probe the hint derivation consumed
+ * @returns The disposition to persist alongside the omitted hint
+ */
+export function deriveCompactionSeedLocusAbsence(
+  probe: LocusStateProbe,
+): CompactionSeedLocusAbsence {
+  return probe.ok && probe.value.current.kind === "none" ? "none" : "unavailable";
 }
 
 /** Parse/validation failure for a compaction-seed JSON boundary. */

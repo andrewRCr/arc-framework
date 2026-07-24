@@ -21,6 +21,7 @@ import { deriveRecoveryLocusContext } from "../recover/locus-context.js";
 import {
   assertCompactionSeed,
   COMPACTION_SEED_SCHEMA_VERSION,
+  deriveCompactionSeedLocusAbsence,
   deriveCompactionSeedLocusHint,
   type CompactionSeed,
   type CompactionSeedSessionType,
@@ -222,7 +223,9 @@ export async function emitCompactionSeed(
     taskCursor,
     loadSet,
     uncommittedFiles,
-    ...(currentLocusHint === null ? {} : { locus: currentLocusHint }),
+    ...(currentLocusHint === null
+      ? { locusAbsence: deriveCompactionSeedLocusAbsence(options.envelope.locusState) }
+      : { locus: currentLocusHint }),
   };
 
   try {

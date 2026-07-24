@@ -286,6 +286,54 @@ describe("auditRecoveryState", () => {
     expect(RecoveryAuditVerdictSchema.parse(result)).toEqual(result);
   });
 
+  it("stops when the seed recorded that its locus generation was unestablished", async () => {
+    const result = await runAudit({
+      seed: seed({ locusAbsence: "unavailable" }),
+      recover: {
+        active: ok(active()), dirty: ok(dirty()), loadSet: ok(LOAD_SET), taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({
+      kind: "seed-locus-unavailable",
+    }));
+    expect(result.locusHint).toEqual({ expected: null, actual: null, match: false });
+  });
+
+  it("stops when the seed attested no generation but one is live now", async () => {
+    const result = await runAudit({
+      seed: seed({ locusAbsence: "none" }),
+      recover: {
+        active: ok(active()), dirty: ok(dirty()), loadSet: ok(LOAD_SET), taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({
+      kind: "locus-hint-mismatch",
+      detail: { expected: null, actual: LOCUS_HINT },
+    }));
+    expect(result.locusHint?.match).toBe(false);
+  });
+
+  it("keeps the permissive read for a pre-model seed that recorded no disposition", async () => {
+    // Deliberate bounded compatibility, not an oversight: a seed emitted before
+    // the locus model cannot be held to a disposition its producer never wrote.
+    const result = await runAudit({
+      seed: seed(),
+      recover: {
+        active: ok(active()), dirty: ok(dirty()), loadSet: ok(LOAD_SET), taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.locusHint).toEqual({ expected: null, actual: LOCUS_HINT, match: true });
+  });
+
   it("accepts an exact optional locus hint", async () => {
     const result = await runAudit({
       seed: seed({ locus: LOCUS_HINT }),

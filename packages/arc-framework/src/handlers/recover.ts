@@ -226,6 +226,7 @@ function seedSummary(
     branch: seed.branch,
     sessionType: seed.sessionType,
     ...(seed.locus === undefined ? {} : { locus: seed.locus }),
+    ...(seed.locusAbsence === undefined ? {} : { locusAbsence: seed.locusAbsence }),
   };
 }
 

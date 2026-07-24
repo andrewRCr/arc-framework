@@ -1257,11 +1257,22 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           finding against source means reaching the layer that manufactures the value, not just the one that
           consumes it.
 
-    - `[ ]` **7.E.b.vi Stop the absent seed hint acting as a generation wildcard** — S1-F2
-        - A current-version seed may omit its locus hint after an unavailable probe, and the audit then treats
-          expected-null against any freshly resolved live generation as a match, so ready recovery can leave record,
-          lease, active path, session home, and parent generation entirely unbound. Distinguish legacy seeds from
-          current unavailable-locus emission and stop on the latter.
+    - `[x]` **7.E.b.vi Stop the absent seed hint acting as a generation wildcard** — S1-F2
+        - Omission now carries its reason. A current producer that omits `locus` records `locusAbsence` —
+          `none` when the reader established no generation was current, `unavailable` when ambiguity or a probe
+          error left it unestablished — and the audit stops on `unavailable` unconditionally, and on `none`
+          whenever a generation is live now. A seed carrying neither key is pre-model and keeps the permissive
+          read, which is the distinction the finding asked for; that compatibility is bounded, since any later
+          session-init write replaces the seed.
+        - Required amending **D9**, whose "`current: none`, ambiguity, or a probe error omits the whole object"
+          clause was itself the defect — the design said to discard exactly the fact the audit needed. The spec
+          now carries the disposition field, the three audit rules, and the explicit statement that an absent hint
+          is never a wildcard. `seedSummary` reports the disposition too: the report schema is a `strictObject`,
+          and because object spreads bypass excess-property checking, omitting the field there would have passed
+          typecheck and failed at runtime validation instead.
+        - The defect was again codified as expected behavior — the "returns ready" audit test asserted
+          `locusHint: { expected: null, actual: LOCUS_HINT, match: true }`. It is now a named test for the
+          pre-model compatibility arm, so the permissive path is a recorded decision rather than an accident.
 
 ### `[ ]` **7.E.c Prove exact authority before destructive dispatch**
 

@@ -55,6 +55,7 @@ export const RecoveryAuditStopKindSchema = z.enum([
   "load-set-drift",
   "locus-unresolved",
   "locus-hint-mismatch",
+  "seed-locus-unavailable",
   "repo-root-mismatch",
   "seed-invalid",
   "seed-missing",
@@ -269,6 +270,16 @@ function auditLocusHint(
     return { expected, actual: null, match: false };
   }
 
+  // An `unavailable` disposition binds in neither direction: the producer could
+  // not establish its own generation, so no fresh state proves correspondence.
+  if (expected === null && options.seed.locusAbsence === "unavailable") {
+    stopReasons.push({
+      kind: "seed-locus-unavailable",
+      message: "compaction seed recorded that its session locus generation could not be established",
+    });
+    return { expected: null, actual: null, match: false };
+  }
+
   const state = options.recover.locusState.value;
   const frame = options.recover.recoveryFrame.value;
   if (frame.kind === "legacy-errand") {
@@ -337,7 +348,20 @@ function auditLocusHint(
     });
     return { expected, actual: null, match: false };
   }
-  if (expected === null) return { expected: null, actual, match: true };
+  if (expected === null) {
+    // A producer that recorded `none` positively attested there was no generation,
+    // so one that is live now is a state change the seed cannot vouch for. Only a
+    // pre-model seed, which recorded no disposition at all, keeps the permissive read.
+    if (options.seed.locusAbsence === "none") {
+      stopReasons.push({
+        kind: "locus-hint-mismatch",
+        message: "compaction seed recorded no current session locus generation, but one is live now",
+        detail: { expected: null, actual },
+      });
+      return { expected: null, actual, match: false };
+    }
+    return { expected: null, actual, match: true };
+  }
 
   const mismatchedFields = locusHintFields().filter((field) => expected[field] !== actual[field]);
   if (mismatchedFields.length > 0) {

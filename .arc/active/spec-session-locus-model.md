@@ -1099,15 +1099,34 @@ interface CompactionSeedLocusHintV1 {
 interface CompactionSeedV1 {
   // Existing schema-v1 fields remain unchanged.
   locus?: CompactionSeedLocusHintV1;
+  locusAbsence?: "none" | "unavailable";
 }
 ```
 
 The emitter includes `locus` only when the required locus-state slot resolves one active record with a live entering
 lease; `current: none`, ambiguity, or a probe error omits the whole object rather than persisting a partial hint.
+Omission is never silent: a current producer that omits `locus` records **why** in `locusAbsence` — `none` when the
+reader established that no generation was current, `unavailable` when ambiguity or a probe error meant it could not
+be established. The two are not interchangeable. `none` is a positive attestation the audit can compare against;
+`unavailable` is the absence of one.
+
 These references are recovery hints, not new required keys, so the seed keeps `schemaVersion: 1` and a pre-model
-seed lacking `locus` still reads. When the object is present, any record, lease, parent, or normalized-path mismatch
-against the fresh reader is a recovery stop. Its stored workflow/load-set/task-cursor values likewise remain audit
-inputs, not authority.
+seed lacking both keys still reads — and keeps the permissive pre-model comparison, since it cannot be held to a
+disposition its producer never wrote. That compatibility is bounded: it applies only to seeds emitted before this
+model, which any later session-init write replaces.
+
+Audit rules follow from the disposition rather than from absence alone:
+
+- `locus` present — any record, lease, parent, or normalized-path mismatch against the fresh reader is a recovery
+  stop.
+- `locusAbsence: "unavailable"` — always a recovery stop. The frame cannot be bound to the seed in either
+  direction, so no fresh state makes it ready.
+- `locusAbsence: "none"` — ready only while the fresh reader also resolves no live generation. A generation that
+  appeared after the seed is a state change the seed cannot attest to, so it stops.
+
+An absent hint is never a wildcard: it must not read as agreement with an arbitrary freshly resolved generation,
+which would leave record, lease, active path, session home, and parent generation entirely unbound on a `ready`
+verdict. The seed's stored workflow/load-set/task-cursor values likewise remain audit inputs, not authority.
 
 Execute-now continuity derives from the visible inbox markings rather than the compaction seed or routing
 identity tail. The inbox-state probe preserves file order, reports well-formed execute-bound entries separately

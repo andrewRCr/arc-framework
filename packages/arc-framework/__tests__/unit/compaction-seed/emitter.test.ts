@@ -270,7 +270,25 @@ describe("emitCompactionSeed", () => {
         loadSet: RECOVERY_LOAD_SET,
       },
     });
-    if (result.status === "written") expect(result.seed).not.toHaveProperty("locus");
+    if (result.status === "written") {
+      expect(result.seed).not.toHaveProperty("locus");
+      // Omission is never silent: an idle checkout is a reader-established absence.
+      expect(result.seed.locusAbsence).toBe("none");
+    }
+  });
+
+  it("records an unavailable disposition when the locus probe itself failed", async () => {
+    const result = await emit({
+      envelope: {
+        locusState: { ok: false, error: { kind: "runtime", message: "topology unavailable" } },
+      },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed).not.toHaveProperty("locus");
+      expect(result.seed.locusAbsence).toBe("unavailable");
+    }
   });
 
   it("uses the resolved worktree path rather than the raw caller cwd", async () => {
