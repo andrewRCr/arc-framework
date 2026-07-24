@@ -205,14 +205,16 @@ function committedProgress(files: string[], advanced = true): CommittedProgressR
 
 type LegacyAuditProbeState = Omit<RecoveryAuditProbeState, "locusState" | "recoveryFrame">
   & Partial<Pick<RecoveryAuditProbeState, "locusState" | "recoveryFrame">>;
-type TestAuditOptions = Omit<AuditRecoveryStateOptions, "freshBranch" | "freshHead" | "recover">
+type TestAuditOptions =
+  Omit<AuditRecoveryStateOptions, "freshBranch" | "freshHead" | "freshRepoRoot" | "recover">
   & { recover: LegacyAuditProbeState }
-  & Partial<Pick<AuditRecoveryStateOptions, "freshBranch" | "freshHead">>;
+  & Partial<Pick<AuditRecoveryStateOptions, "freshBranch" | "freshHead" | "freshRepoRoot">>;
 
 function runAudit(options: TestAuditOptions): Promise<Awaited<ReturnType<typeof auditRecoveryState>>> {
   return auditRecoveryState({
     freshBranch: options.seed.branch,
     freshHead: options.seed.head,
+    freshRepoRoot: options.seed.repoRoot,
     resolveCommittedProgress: noCommittedProgress,
     ...options,
     recover: {
@@ -224,6 +226,28 @@ function runAudit(options: TestAuditOptions): Promise<Awaited<ReturnType<typeof 
 }
 
 describe("auditRecoveryState", () => {
+  it("stops when the seed was emitted for a different repository root", async () => {
+    // Everything a sibling linked worktree can legitimately share stays equal:
+    // same branch, head, dirty set, and load set. Only the root differs.
+    const result = await runAudit({
+      seed: seed(),
+      freshRepoRoot: "/repo.sibling-worktree",
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({
+      kind: "repo-root-mismatch",
+      detail: { expected: "/repo", actual: "/repo.sibling-worktree" },
+    }));
+  });
+
   it("returns ready when load-set, dirty paths, and execution cursor match the seed", async () => {
     const result = await runAudit({
       seed: seed(),

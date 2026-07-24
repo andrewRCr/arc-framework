@@ -127,6 +127,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
     freshUncommittedFiles: parseUncommittedFiles(statusOutput),
     freshBranch,
     freshHead,
+    freshRepoRoot: cwd,
   });
   writeReport({
     mode: "recover-audit",

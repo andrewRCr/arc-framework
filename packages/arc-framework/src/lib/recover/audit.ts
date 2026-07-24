@@ -55,6 +55,7 @@ export const RecoveryAuditStopKindSchema = z.enum([
   "load-set-drift",
   "locus-unresolved",
   "locus-hint-mismatch",
+  "repo-root-mismatch",
   "seed-invalid",
   "seed-missing",
   "seed-unreadable",
@@ -190,6 +191,13 @@ export interface AuditRecoveryStateOptions {
   /** Current resolved HEAD commit, read at audit time. */
   freshHead: string | null;
   /**
+   * Absolute root of the checkout being recovered, resolved the same way the
+   * emitter resolved the seed's own root. Binds a worktree-local seed to the
+   * worktree that produced it: sibling linked worktrees can legitimately share
+   * a branch, head, dirty set, and load set, so nothing else distinguishes them.
+   */
+  freshRepoRoot: string;
+  /**
    * Resolves committed-progress evidence for explained-drift classification.
    * Injected in tests; defaults to a real git query against the current repo.
    */
@@ -207,6 +215,7 @@ export async function auditRecoveryState(
 
   const stopReasons: RecoveryAuditStopReason[] = [];
   const explainedDrift: RecoveryAuditExplainedDrift[] = [];
+  auditRepoRoot(options, stopReasons);
   const locus = auditLocus(options, stopReasons, explainedDrift, committedProgress);
   const locusHint = auditLocusHint(options, stopReasons);
   const loadSetAudit = auditLoadSet(options, stopReasons);
@@ -224,6 +233,18 @@ export async function auditRecoveryState(
     dirtyFiles,
     taskCursor,
   };
+}
+
+function auditRepoRoot(
+  options: AuditRecoveryStateOptions,
+  stopReasons: RecoveryAuditStopReason[],
+): void {
+  if (options.freshRepoRoot === options.seed.repoRoot) return;
+  stopReasons.push({
+    kind: "repo-root-mismatch",
+    message: "compaction seed was emitted for a different repository root",
+    detail: { expected: options.seed.repoRoot, actual: options.freshRepoRoot },
+  });
 }
 
 function auditLocusHint(

@@ -1236,13 +1236,15 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
               derivation error the legacy frame was replacing, while an unsettled `reconciliation` derives
               successfully as frame `none`, so there the defect overrode a real verdict rather than a failure.
 
-        - `[ ]` **7.E.b.v.3 Bind the recovery audit to the seed's repository root** — S2S1-004
-            - `repoRoot` is required by the seed schema and written by the emitter, then read nowhere:
-              `AuditRecoveryStateOptions` carries no fresh counterpart and `auditRecoveryState` never compares one.
-              A seed copied from a sibling linked worktree passes whenever branch, head, dirty paths, and load set
-              coincide. Supply the live root from the handler — which already holds `cwd` and resolves its git
-              values in one place — and stop on mismatch under a new audit stop kind. Settle like-for-like
-              resolution against the emitter's own root derivation rather than assuming the two agree.
+        - `[x]` **7.E.b.v.3 Bind the recovery audit to the seed's repository root** — S2S1-004
+            - The audit takes a `freshRepoRoot` and stops on `repo-root-mismatch`, so a seed can no longer audit
+              `ready` against the worktree it was not emitted for. The like-for-like question the entry
+              decomposition flagged resolved by reading rather than by choice: the emitter's `cwd` and the recover
+              handler's both come from `requireArcProjectRoot()`, so the comparison is a direct string equality
+              and needs no git resolution of its own. Kept as a stop reason instead of three new fields on the
+              locus schema — repository root answers _which checkout_, where that schema answers _which commit_,
+              and a binary check does not justify moving every recovery-audit golden. It runs ahead of the branch
+              and head comparisons, since those are meaningless if the roots already disagree.
 
         - `[ ]` **7.E.b.v.4 Give cold and between-work-unit recovery its real active-extension set** — S2S1-002
             - `baseLoadSet` hard-codes every projection input — `activeExtensions: []`, `activeWorkUnit: null`, and
