@@ -119,6 +119,26 @@ const FrontlineResolveBasePayload = {
   routing: ReviewRoutingProjectionSchema,
   frontlineReview: FrontlineSemanticRecordSchema,
 };
+const FrontlineReadyPayloadSchema = z.strictObject({
+  ...FrontlineResolveBasePayload,
+  pass: z.union([z.literal(1), z.literal(2)]),
+  maxPasses: z.union([z.literal(1), z.literal(2)]),
+}).superRefine((payload, context) => {
+  if (payload.pass > payload.maxPasses) {
+    context.addIssue({
+      code: "custom",
+      message: "frontline pass exceeds the ready resolution allowance",
+      path: ["pass"],
+    });
+  }
+  if (payload.maxPasses !== payload.frontlineReview.maxPasses) {
+    context.addIssue({
+      code: "custom",
+      message: "frontline ready allowance does not match the semantic record",
+      path: ["maxPasses"],
+    });
+  }
+});
 export const FrontlineResolveEnvelopeSchema = z.union([
   envelopeVariant(
     "review-frontline-resolve",
@@ -142,11 +162,7 @@ export const FrontlineResolveEnvelopeSchema = z.union([
     "review-frontline-resolve",
     "ready",
     "run-frontline",
-    z.strictObject({
-      ...FrontlineResolveBasePayload,
-      pass: z.union([z.literal(1), z.literal(2)]),
-      maxPasses: z.union([z.literal(1), z.literal(2)]),
-    }),
+    FrontlineReadyPayloadSchema,
   ),
 ]);
 

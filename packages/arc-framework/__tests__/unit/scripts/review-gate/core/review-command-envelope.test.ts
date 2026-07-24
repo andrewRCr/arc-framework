@@ -256,6 +256,34 @@ describe("review command envelopes", () => {
     })).toThrow();
   });
 
+  it("rejects a ready frontline pass above its declared allowance", () => {
+    expect(() => FrontlineResolveEnvelopeSchema.parse({
+      ...header("review-frontline-resolve"),
+      state: "ready",
+      nextAction: "run-frontline",
+      payload: {
+        routing,
+        frontlineReview: { ...readyFrontlineReview, maxPasses: 1 },
+        pass: 2,
+        maxPasses: 1,
+      },
+    })).toThrow();
+  });
+
+  it("rejects a ready frontline allowance that disagrees with its semantic record", () => {
+    expect(() => FrontlineResolveEnvelopeSchema.parse({
+      ...header("review-frontline-resolve"),
+      state: "ready",
+      nextAction: "run-frontline",
+      payload: {
+        routing,
+        frontlineReview: readyFrontlineReview,
+        pass: 1,
+        maxPasses: 1,
+      },
+    })).toThrow();
+  });
+
   it("rejects an untyped frontline routing payload", () => {
     expect(() => FrontlineResolveEnvelopeSchema.parse({
       ...header("review-frontline-resolve"),

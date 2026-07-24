@@ -134,6 +134,58 @@ function memoryStores(): {
 }
 
 describe("frontline run command", () => {
+  it.each([
+    {
+      ...resolution,
+      payload: {
+        ...resolution.payload,
+        frontlineReview: { ...resolution.payload.frontlineReview, maxPasses: 1 as const },
+        pass: 2 as const,
+        maxPasses: 1 as const,
+      },
+    },
+    {
+      ...resolution,
+      payload: {
+        ...resolution.payload,
+        pass: 1 as const,
+        maxPasses: 1 as const,
+      },
+    },
+  ])("rejects an impossible pass binding before any effect", async (invalidResolution) => {
+    const confirmSource = vi.fn();
+    const prepareExecutionTarget = vi.fn();
+    const execute = vi.fn();
+    const withOperationLock = vi.fn();
+    const readOperation = vi.fn();
+    const publishOperation = vi.fn();
+    const readOutcome = vi.fn();
+    const appendOutcome = vi.fn();
+
+    await expect(runFrontlineReviewCommand({
+      schemaVersion: 1,
+      target: target("c"),
+      resolution: invalidResolution,
+    }, {
+      confirmSource,
+      prepareExecutionTarget,
+      execute,
+      withOperationLock,
+      operationStore: { readOperation, publishOperation },
+      outcomeStore: { readOutcome, appendOutcome },
+      now: () => "2026-07-23T19:00:00Z",
+    })).rejects.toThrow();
+
+    expect(confirmSource).not.toHaveBeenCalled();
+    expect(prepareExecutionTarget).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(withOperationLock).not.toHaveBeenCalled();
+    expect(readOperation).not.toHaveBeenCalled();
+    expect(publishOperation).not.toHaveBeenCalled();
+    expect(readOutcome).not.toHaveBeenCalled();
+    expect(appendOutcome).not.toHaveBeenCalled();
+  });
+
   it("persists stale-target when the exact-head checkout re-derives a different head", async () => {
     const stores = memoryStores();
     const execute = vi.fn();
