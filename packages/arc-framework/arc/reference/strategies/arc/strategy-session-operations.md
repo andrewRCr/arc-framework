@@ -36,7 +36,7 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 ARC organizes agent context into three tiers based on when the content becomes relevant:
 
 | Tier | Name           | When Loaded                          | Content Type                                              |
-|------|----------------|--------------------------------------|-----------------------------------------------------------|
+| ---- | -------------- | ------------------------------------ | --------------------------------------------------------- |
 | T1   | Constitutional | Session initialization               | Principles, identity, constraints, navigation             |
 | T2   | State          | Session initialization               | Work status, session notes, task overview                 |
 | T3   | Procedural     | On-demand at workflow trigger points | Method defaults/overrides, strategies, detailed workflows |
@@ -73,7 +73,7 @@ Some T3 content becomes near-certain to be needed based on session state availab
 Content meeting these criteria promotes from T3 to the session-init load set:
 
 | Content           | State Signal                                      | Promotes When             |
-|-------------------|---------------------------------------------------|---------------------------|
+| ----------------- | ------------------------------------------------- | ------------------------- |
 | process-task-loop | Meta file resolved; `**Task List:**` not `[none]` | Active task work expected |
 
 Sessions without active task lists (planning, evaluation, exploratory) don't need ~240 lines of
@@ -104,7 +104,7 @@ wraps in the same `Probe<T>` discriminated union as session-init; per-slot failu
 branch rather than rejecting the composite. Mirrors the session-init field table in `session-init.md`.
 
 | Field            | Contents                                                                                                                                                       |
-|------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `identity`       | `{identity, role}` — either may be `null`                                                                                                                      |
 | `dirty`          | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                           |
 | `worktree`       | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                               |
@@ -346,7 +346,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 ### Method Classification by Trigger
 
 | Method                | Trigger Workflow    | Session Applicability                      |
-|-----------------------|---------------------|--------------------------------------------|
+| --------------------- | ------------------- | ------------------------------------------ |
 | issue-triage          | process-task-loop   | Universal — every task execution session   |
 | quality-gate-commands | process-task-loop   | Universal — every task execution session   |
 | test-first            | process-task-loop   | Conditional — tasks with test-first marker |
@@ -354,7 +354,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | commit-footer         | prepare-commits     | User-triggered commit events               |
 | self-review           | integrate-work-unit | Integration phase only                     |
 | frontline-review      | integrate-work-unit | Optional advisory pre-publication review   |
-| independent-analysis  | integrate-work-unit | Satisfying exact-change-set standard       |
+| standard-review       | integrate-work-unit | Satisfying exact-change-set standard       |
 | implementation-audit  | integrate-work-unit | Integration review rubric                  |
 | review-triage         | integrate-work-unit | Integration phase only                     |
 | session-state         | session-handoff     | Session end only                           |
@@ -362,7 +362,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 ### Review enforcement boundary
 
 Agent-side review methods and extensions are best-effort ergonomics. Method activation and workflow declarations
-can require an agent to run an activity, and independent analysis can produce evidence eligible for a review
+can require an agent to run an activity, and standard review can produce evidence eligible for a review
 obligation, but none of those agent-layer controls prevents a direct host-UI merge. Only a configured required
 host-side check structurally enforces merge safety. Projects without that host control must describe review as
 procedural discipline, not a merge guarantee.
@@ -391,7 +391,7 @@ regardless of approval).
 The five interlocks attach to the operational junctions a unit of work passes through:
 
 | Interlock               | Configurability |
-|-------------------------|-----------------|
+| ----------------------- | --------------- |
 | `task-interlock`        | Invariant       |
 | `commit-interlock`      | Configurable    |
 | `sync-interlock`        | Configurable    |
@@ -583,7 +583,7 @@ Configurable interlock release creates cascades that can fail after the user has
 the boundary. Classify failures by the state they leave behind before choosing a recovery path:
 
 | Mode | Category  | Trigger                                                        | Recovery path                                                              |
-|------|-----------|----------------------------------------------------------------|----------------------------------------------------------------------------|
+| ---- | --------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | 1    | Bad state | Pre-commit hook fails during commit-on-task-approval           | Fix obvious issues; otherwise fall back to manual-with-prompt              |
 | 2    | Bad state | Tier 1/Tier 2 quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback                        |
 | 3    | Transit   | Network failure during push-on-sync                            | Preserve local state, surface in summary, retry when reachable             |

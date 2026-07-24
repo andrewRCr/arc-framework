@@ -39,7 +39,7 @@ const routing = {
   schemaVersion: 1 as const,
   authorSelfReview: "required" as const,
   frontlineAction: "attempt" as const,
-  independentAnalysis: "required" as const,
+  standardReview: "required" as const,
   retrigger: "incremental" as const,
   assuranceMode: "none" as const,
   reasons: ["routine-code" as const],

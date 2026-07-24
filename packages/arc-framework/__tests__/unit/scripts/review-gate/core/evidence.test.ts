@@ -4,7 +4,7 @@ import { parseEvidence } from "../../../../../src/scripts/review-gate/core/evide
 
 const evidence = {
   schemaVersion: 1,
-  requirementId: "independent-analysis",
+  requirementId: "standard-review",
   sourceKind: "agent",
   sourceIdentity: "agent-9",
   result: "findings",
@@ -13,7 +13,7 @@ const evidence = {
   reviewerClaim: "fresh independent pass",
   submitterIdentity: "actor-4",
   policyVersion: "a".repeat(64),
-  rubricVersion: "independent-analysis/v1",
+  rubricVersion: "standard-review/v1",
   coverage: "full",
   coverageFromSha: "b".repeat(40),
   coverageThroughSha: "c".repeat(40),

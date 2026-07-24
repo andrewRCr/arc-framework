@@ -1,6 +1,6 @@
 # Review-gate attestation contract
 
-Every satisfying local review mechanism applies `independent-analysis/v1` to the full current change set. The
+Every satisfying local review mechanism applies `standard-review/v1` to the full current change set. The
 attesting maintainer supplies exact base, diff-base, head, change-set, policy, rubric, and run-time bounds; local
 reviewer prose is never authority by itself.
 
@@ -18,9 +18,9 @@ authority.
 ## Inputs
 
 <!-- arc:review-guidance:start -->
-### Independent Analysis Checklist
+### Standard Review Checklist
 
-Rubric: `independent-analysis/v1` / `sha256:c34dfab26c476e8bfa07c60540b7af7f01b06834e6533a5e14d433e88a1d07f8`
+Rubric: `standard-review/v1` / `sha256:cea850203b3e821cc9f81563b30d01c91a2cc85832fd2edff8b4a1da7dae6295`
 
 #### Coverage and evaluator boundary
 

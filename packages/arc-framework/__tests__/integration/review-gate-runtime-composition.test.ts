@@ -100,7 +100,7 @@ function attestationManifest(world: ReviewGateWorld): string {
     reviewerClaim: "codex-cli",
     reviewRunId: "run-e2e-1",
     reviewerRuntime: { kind: "codex", version: "1.0.0" },
-    requirementId: "independent-analysis",
+    requirementId: "standard-review",
     result: "clean",
     baseRef: world.baseRef,
     diffBaseSha: world.diffBaseSha,
@@ -111,7 +111,7 @@ function attestationManifest(world: ReviewGateWorld): string {
       headSha: world.headSha,
     }),
     policyVersion,
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     coverage: "full",
     coverageFromSha: world.diffBaseSha,
     coverageThroughSha: world.headSha,
@@ -331,7 +331,7 @@ describe("review-gate runtime composition", () => {
   it("applies an authorized require command composed from a PR comment, flipping a routine success to pending", async () => {
     const world = createReviewGateWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
     world.collaborators.set("reviewer", { id: 55, role: "write" });
-    commandComment(world, "reviewer", "/review-gate require independent-analysis needs a second look");
+    commandComment(world, "reviewer", "/review-gate require standard-review needs a second look");
 
     const result = await runReconcileMain(env(world), deps(world));
 
@@ -352,7 +352,7 @@ describe("review-gate runtime composition", () => {
     commandComment(
       world,
       "reviewer",
-      "/review-gate refresh independent-analysis coderabbit-pr full request another review",
+      "/review-gate refresh standard-review coderabbit-pr full request another review",
     );
 
     const result = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
@@ -368,7 +368,7 @@ describe("review-gate runtime composition", () => {
   it("ignores a require command from an under-permissioned author, leaving the routine success intact", async () => {
     const world = createReviewGateWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
     world.collaborators.set("reader", { id: 56, role: "read" });
-    commandComment(world, "reader", "/review-gate require independent-analysis needs a second look");
+    commandComment(world, "reader", "/review-gate require standard-review needs a second look");
 
     const result = await runReconcileMain(env(world), deps(world));
 

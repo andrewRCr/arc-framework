@@ -79,13 +79,13 @@ function input(overrides: Partial<SelfHostingGateReductionInput> = {}): SelfHost
 function evidence(overrides: Partial<Evidence> = {}): Evidence {
   return {
     schemaVersion: 1,
-    requirementId: "independent-analysis",
+    requirementId: "standard-review",
     sourceKind: "agent",
     sourceIdentity: "codex-cli",
     result: "clean",
     evidenceUrlOrId: "https://example.test/review/run-1",
     policyVersion: computePolicyVersion({ policy: SELF_HOSTING_POLICY }),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     coverage: "full",
     coverageFromSha: changeRequest.diffBaseSha,
     coverageThroughSha: changeRequest.headSha,
@@ -109,7 +109,7 @@ function lifecycleTail(policy = SELF_HOSTING_POLICY, sourceIdentity = "codex-cli
     baseRef: changeRequest.baseRef,
     diffBaseSha: changeRequest.diffBaseSha,
     policyVersion: computePolicyVersion({ policy }),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     sourceIdentity,
     artifact: { workUnitId: "review-gate", artifactGroupId: "review-gate", cohortPath: null },
     diagnostics: [],
@@ -163,8 +163,8 @@ function admittedReceipt(policy: SelfHostingPolicy): ReviewReceipt {
       changeSetId: changeRequest.changeSetId,
       policyVersion: computePolicyVersion({ policy }),
       semanticsVersion: "review-gate/v1",
-      rubricVersion: "independent-analysis/v1",
-      requirementId: "independent-analysis",
+      rubricVersion: "standard-review/v1",
+      requirementId: "standard-review",
       sourceIdentity: "coderabbit-pr",
       coverage: "full",
       coverageFromSha: changeRequest.diffBaseSha,
@@ -195,8 +195,8 @@ function requiredReceipt(policy: SelfHostingPolicy): ReviewReceipt {
       changeSetId: changeRequest.changeSetId,
       policyVersion: computePolicyVersion({ policy }),
       semanticsVersion: "review-gate/v1",
-      rubricVersion: "independent-analysis/v1",
-      requirementId: "independent-analysis",
+      rubricVersion: "standard-review/v1",
+      requirementId: "standard-review",
       sourceIdentity: COMMAND_RECEIPT_SOURCE,
       coverage: "full",
       coverageFromSha: changeRequest.diffBaseSha,
@@ -208,7 +208,7 @@ function requiredReceipt(policy: SelfHostingPolicy): ReviewReceipt {
       requestCommand: null,
     },
     result: null,
-    reason: "run independent analysis",
+    reason: "run standard review",
     evidenceUrlOrId: "https://github.test/pull/7#issuecomment-1",
     findingIds: [],
     payload: { kind: "decision", decidedAt: null },
@@ -227,8 +227,8 @@ function waivedReceipt(policy: SelfHostingPolicy): ReviewReceipt {
       changeSetId: changeRequest.changeSetId,
       policyVersion: computePolicyVersion({ policy }),
       semanticsVersion: "review-gate/v1",
-      rubricVersion: "independent-analysis/v1",
-      requirementId: "independent-analysis",
+      rubricVersion: "standard-review/v1",
+      requirementId: "standard-review",
       sourceIdentity: COMMAND_RECEIPT_SOURCE,
       coverage: "full",
       coverageFromSha: changeRequest.diffBaseSha,
@@ -356,7 +356,7 @@ describe("self-hosting gate reduction", () => {
     expect(decision.projection).toMatchObject({
       conclusion: "success",
       requirementExecutions: [{
-        requirementId: "independent-analysis",
+        requirementId: "standard-review",
         state: "clean",
         sourceIdentity: "codex-cli",
       }],
@@ -448,7 +448,7 @@ describe("self-hosting gate reduction", () => {
     });
   });
 
-  it("does not treat a lifecycle proof as independent analysis evidence", () => {
+  it("does not treat a lifecycle proof as standard review evidence", () => {
     const decision = reduceSelfHostingGate(input({
       ...routing("sensitive"),
       lifecycleTail: lifecycleTail(),

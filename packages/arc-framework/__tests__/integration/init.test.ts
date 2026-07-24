@@ -296,7 +296,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "commit-format.md",
       "design-audit.md",
       "frontline-review.md",
-      "independent-analysis.md",
+      "standard-review.md",
       "implementation-audit.md",
       "self-review.md",
       "issue-triage.md",
@@ -346,7 +346,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
       const methodNames = [
         "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
-        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "independent-analysis",
+        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
         "implementation-audit", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
         "session-state", "spec-review", "task-audit", "test-first",

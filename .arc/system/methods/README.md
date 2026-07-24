@@ -40,7 +40,7 @@ when populating any `.override` section. Methods not listed here are independent
 | commit-format                 | commit-footer                                           | Both govern the commit message           |
 | commit-footer                 | commit-format                                           | Both govern the commit message           |
 | frontline-review              | adversarial-review, implementation-audit, review-triage | Advisory review mechanism and lens       |
-| independent-analysis          | adversarial-review, implementation-audit, review-triage | Satisfying standard, mechanism, and lens |
+| standard-review               | adversarial-review, implementation-audit, review-triage | Satisfying standard, mechanism, and lens |
 | self-review                   | review-triage                                           | Uses review-triage for findings          |
 | review-response               | review-triage                                           | Consumes approved finding dispositions   |
 | assess-cohort-fit             | classify-work-unit                                      | Upper/lower WU-boundary tests            |

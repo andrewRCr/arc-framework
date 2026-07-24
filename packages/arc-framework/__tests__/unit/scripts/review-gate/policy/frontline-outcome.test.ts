@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import {
+  FrontlineExecutionOutcomeSchema,
+  normalizeFrontlineOutcome,
+} from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 
 const target = {
   schemaVersion: 2,
@@ -68,15 +71,14 @@ describe("frontline outcome normalization", () => {
   });
 
   it.each([
-    ["rate-limited", "unavailable"],
-    ["unavailable", "unavailable"],
-    ["ambiguous", "failed"],
-    ["partial", "failed"],
-    ["malformed", "failed"],
-    ["stale-head", "failed"],
-    ["failed", "failed"],
-    ["pass-cap-exhausted", "pass-cap-exhausted"],
-  ] as const)("maps provider %s to non-clean %s", (kind, outcome) => {
+    ["rate-limited", "unavailable", "rate-limited"],
+    ["unavailable", "unavailable", "transient-unavailable"],
+    ["ambiguous", "failed", "invalid-output"],
+    ["partial", "failed", "invalid-output"],
+    ["malformed", "failed", "invalid-output"],
+    ["failed", "failed", "unexpected-adapter-failure"],
+    ["pass-cap-exhausted", "pass-cap-exhausted", "pass-cap-exhausted"],
+  ] as const)("maps provider %s to non-clean %s", (kind, outcome, reasonClass) => {
     expect(normalizeFrontlineOutcome({
       providerResult: kind === "unavailable"
         ? { kind, reason: "provider-offline" }
@@ -94,8 +96,57 @@ describe("frontline outcome normalization", () => {
       pass: 2,
       maxPasses: 2,
       findings: [],
-      reason: expect.any(String),
+      reason: { class: reasonClass },
     });
+  });
+
+  it("normalizes a provider stale-head result to stale-target with exact coordinates", () => {
+    expect(normalizeFrontlineOutcome({
+      providerResult: {
+        kind: "stale-head",
+        expectedHeadSha: "c".repeat(40),
+        observedHeadSha: "f".repeat(40),
+      },
+      source,
+      target,
+      pass: 1,
+      maxPasses: 2,
+    })).toMatchObject({
+      outcome: "stale-target",
+      reason: {
+        class: "head-mismatch",
+        expectedHeadSha: "c".repeat(40),
+        observedHeadSha: "f".repeat(40),
+      },
+    });
+  });
+
+  it("normalizes execution timeout as its own terminal", () => {
+    expect(normalizeFrontlineOutcome({
+      providerResult: { kind: "timed-out" },
+      source,
+      target,
+      pass: 1,
+      maxPasses: 2,
+    })).toMatchObject({
+      outcome: "timed-out",
+      reason: { class: "execution-timeout" },
+    });
+  });
+
+  it("rejects null or cross-terminal reasons for non-clean outcomes", () => {
+    const unavailable = normalizeFrontlineOutcome({
+      providerResult: { kind: "rate-limited" },
+      source,
+      target,
+      pass: 1,
+      maxPasses: 2,
+    });
+    expect(FrontlineExecutionOutcomeSchema.safeParse({ ...unavailable, reason: null }).success).toBe(false);
+    expect(FrontlineExecutionOutcomeSchema.safeParse({
+      ...unavailable,
+      reason: { class: "invalid-output" },
+    }).success).toBe(false);
   });
 
   it("rejects a pass beyond the resolved allowance", () => {

@@ -40,7 +40,7 @@ function approved(disposition: "fix" | "defer" = "fix") {
     semanticsVersion: "review-gate/v2",
     targetId: oldTarget.targetId,
     policyVersion: canonicalDigest({ policy: "review" }),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
     proposedBy: "author-1",
     findings: [{

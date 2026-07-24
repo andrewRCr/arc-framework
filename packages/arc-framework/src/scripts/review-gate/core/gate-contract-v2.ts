@@ -75,7 +75,7 @@ function policyVersionFor(requirement: {
   return computeReviewPolicyVersion({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
-    kind: "independent-analysis",
+    kind: "standard-review",
     obligation: requirement.obligation,
     rubricVersion: requirement.rubricVersion,
     rubricDigest: requirement.rubricDigest,
@@ -150,7 +150,7 @@ export function createReviewRequirement(
     schemaVersion: 2 as const,
     semanticsVersion: "review-gate/v2" as const,
     targetId: target.targetId,
-    kind: "independent-analysis" as const,
+    kind: "standard-review" as const,
     obligation: policyFields.obligation,
     reasons: normalizedSet(creation.projection.reasons),
     rubricVersion: policyFields.rubricVersion,

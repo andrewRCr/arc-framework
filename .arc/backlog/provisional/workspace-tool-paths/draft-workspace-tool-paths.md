@@ -7,6 +7,32 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Make targeted Markdown lint invocations stay targeted**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-23); captured during
+  `solution-proportionality` task generation.
+- _Concern:_ `npx markdownlint-cli2 <file>` still applies the repository configuration's broad glob and linted
+  633 files; the literal one-file form requires the non-obvious `--no-globs :<file>` shape.
+- _Fold-in:_ include Markdown in the focused-tool path contract. Provide a repository-root command whose explicit
+  paths stay literal while the full-suite command retains broad coverage.
+
+### `[ ]` **Make targeted unit-test paths unambiguous from the repository root**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-23); captured during
+  `review-gate-right-sizing` Task 1.1.
+- _Concern:_ `npm run test:unit -- packages/arc-framework/__tests__/...` forwards the repository-relative operand
+  unchanged into the package workspace, where Vitest reports no matches until the caller retries with
+  `__tests__/...`.
+- _Fold-in:_ normalize repository-relative targets at the root boundary or expose a focused-test verb whose
+  operands are consistently repository-relative; align scripts, tests, and developer guidance.
+
+---
+
 ## Problem / Motivation
 
 Root npm scripts delegate to `packages/arc-framework`, but focused Vitest and ESLint paths written relative to the

@@ -25,9 +25,17 @@ evidence value is unchanged — the corpus is digest-pinned and remains permanen
   sha256sum scan-result.json   # must match the canonical digest above
   ```
 
-- **Regenerate:** check out the same commit and run `npm run audit:coupling`; canonical JSON serialization
-  reproduces the corpus (verify against the digest). A run at any later commit produces a _new_ corpus for the
-  then-current tree, not this one.
+- **Regenerate:** check out the same commit and run:
+
+  ```sh
+  npm run audit:coupling -- \
+    --manifest packages/arc-framework/audits/coupling-blast-radius/manifest.json \
+    --output packages/arc-framework/audits/coupling-blast-radius/scan-result.json
+  sha256sum packages/arc-framework/audits/coupling-blast-radius/scan-result.json
+  ```
+
+  Canonical JSON serialization reproduces the corpus; the printed digest must match the canonical digest above.
+  A run at any later commit produces a _new_ corpus for the then-current tree, not this one.
 
 Evidence anchors of the form `scan-result.json#class-<id>` (used by the routing ledger's packets and by
 routed planning captures) resolve into this corpus: retrieve it as above, then filter `candidates.classified`

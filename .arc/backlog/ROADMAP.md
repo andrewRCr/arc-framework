@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `35cf7d265`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `39dea8f1b`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -16,10 +16,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | State         | Work unit                | Priority | Owner  | Depends on | Cohort                 |
 | ------------- | ------------------------ | -------- | ------ | ---------- | ---------------------- |
 | `Planning`    | decomposition-doctrine   | P1       | andrew | —          | —                      |
-| `Planning`    | decomposition-hardening  | P1       | andrew | —          | —                      |
+| `Active`      | decomposition-hardening  | P1       | andrew | —          | —                      |
+| `Planning`    | recovery-load-scoping    | P1       | andrew | —          | —                      |
 | `Active`      | review-chunking          | P1       | andrew | —          | —                      |
 | `Active`      | review-gate-right-sizing | P1       | andrew | —          | —                      |
-| `Active`      | review-surface-binding   | P1       | andrew | —          | —                      |
 | `Active`      | session-locus-model      | P1       | andrew | —          | —                      |
 | `Integrating` | cli-command-inputs       | P2       | andrew | —          | cli-substrate-adoption |
 | `Active`      | cli-validation-surfaces  | P2       | andrew | —          | cli-substrate-adoption |
@@ -48,6 +48,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | goal-aware-direction                  | P2       | andrew | —          | —                          |
 | graduation-cleanup                    | P2       | andrew | —          | —                          |
 | knowledge-architecture                | P2       | andrew | —          | —                          |
+| operational-advisory-registers        | P2       | andrew | —          | —                          |
 | retirement-record-relocation          | P2       | andrew | —          | —                          |
 | workflow-eval-harness                 | P2       | andrew | —          | —                          |
 | handoff-optimization                  | P3       | andrew | —          | agent-context-optimization |

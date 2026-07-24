@@ -100,8 +100,8 @@ function coderabbitRequest(): ReviewRequest {
     changeSetId: changeRequest.changeSetId,
     policyVersion: SELF_HOSTING_POLICY.semanticsVersion,
     semanticsVersion: SELF_HOSTING_POLICY.semanticsVersion,
-    rubricVersion: "independent-analysis/v1",
-    requirementId: "independent-analysis",
+    rubricVersion: "standard-review/v1",
+    requirementId: "standard-review",
     sourceIdentity: "coderabbit-pr",
     coverage: "full",
     coverageFromSha: changeRequest.diffBaseSha,
@@ -160,7 +160,7 @@ describe("review-gate composition roots", () => {
       repositoryId: "100",
       changeRequestId: "PR_node",
       authenticatedActor: { actorIdentity: "maintainer-1" },
-      requirement: { id: "independent-analysis" },
+      requirement: { id: "standard-review" },
     });
     expect(composition.store).toBeDefined();
     expect(composition).not.toHaveProperty("runtime");
