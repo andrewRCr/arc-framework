@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "analysis-load-set-scoping",
+  "origin": "description",
+  "intent": "Place the retirement analysis doc preserving recovery-load-scoping's durable evidence",
+  "branch": "chore/analysis-load-set-scoping",
+  "createdAt": "2026-07-24T13:19:47.722Z",
+  "returnBranch": "main"
+}
