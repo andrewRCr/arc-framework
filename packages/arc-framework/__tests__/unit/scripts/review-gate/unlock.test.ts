@@ -124,6 +124,29 @@ describe("unlockReviewHead", () => {
     expect(boundary.dispatched).toEqual([]);
   });
 
+  it("blocks a readiness result bound to a different exact target", async () => {
+    const boundary = port({
+      checkReadiness: async () => ({
+        ...readyEnvelope(),
+        payload: {
+          ...readyEnvelope().payload,
+          target: { ...request().target, headSha: "b".repeat(40) },
+        },
+      }),
+    });
+
+    const result = await unlockReviewHead(request(), boundary);
+
+    expect(result).toMatchObject({
+      state: "blocked",
+      payload: { reason: "readiness-failed" },
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: "readiness-target-mismatch" }),
+      ]),
+    });
+    expect(boundary.dispatched).toEqual([]);
+  });
+
   it.each([
     [
       "unreadable workflow",
@@ -226,5 +249,40 @@ describe("unlockReviewHead", () => {
       payload: { reason },
     });
     expect(boundary.dispatched).toEqual([]);
+  });
+
+  it("forwards lifecycle-readiness diagnostics through a blocked unlock", async () => {
+    const boundary = port({
+      checkReadiness: async () => ({
+        schemaVersion: 1,
+        mode: "review-readiness",
+        diagnostics: [{
+          code: "missing-artifact",
+          path: ".arc/active/meta-demo.md",
+          message: "missing",
+        }],
+        state: "invalid",
+        nextAction: "stop",
+        payload: {
+          target: request().target,
+          vehicle: request().vehicle,
+          facts: [{
+            code: "missing-artifact",
+            path: ".arc/active/meta-demo.md",
+            message: "missing",
+          }],
+        },
+      }),
+    });
+
+    const result = await unlockReviewHead(request(), boundary);
+
+    expect(result).toMatchObject({
+      state: "blocked",
+      diagnostics: expect.arrayContaining([{
+        code: "missing-artifact",
+        message: ".arc/active/meta-demo.md: missing",
+      }]),
+    });
   });
 });

@@ -131,10 +131,11 @@ function blocked(
   request: ReviewUnlockRequest,
   reason: Extract<ReviewUnlockEnvelope, { state: "blocked" }>["payload"]["reason"],
   message: string,
+  details: readonly { code: string; message: string }[] = [],
 ): ReviewUnlockEnvelope {
   return ReviewUnlockEnvelopeSchema.parse({
     ...envelopeBase(request),
-    diagnostics: [{ code: reason, message }],
+    diagnostics: [{ code: reason, message }, ...details],
     state: "blocked",
     nextAction: "stop",
     payload: { ...envelopeBase(request).payload, reason },
@@ -226,8 +227,28 @@ export async function unlockReviewHead(
   } catch {
     return blocked(request, "readiness-failed", "The lifecycle-readiness result was unavailable or malformed.");
   }
+  if (
+    readiness.payload.target.repository.toLowerCase() !== request.target.repository.toLowerCase()
+    || readiness.payload.target.pullRequest !== request.target.pullRequest
+    || readiness.payload.target.headSha !== request.target.headSha
+  ) {
+    return blocked(
+      request,
+      "readiness-failed",
+      "The lifecycle-readiness result belongs to a different guarded target.",
+      [{ code: "readiness-target-mismatch", message: "Readiness did not bind the exact unlock target." }],
+    );
+  }
   if (readiness.state !== "ready") {
-    return blocked(request, "readiness-failed", "The exact candidate is not lifecycle-ready.");
+    return blocked(
+      request,
+      "readiness-failed",
+      "The exact candidate is not lifecycle-ready.",
+      readiness.diagnostics.map((diagnostic) => ({
+        code: diagnostic.code,
+        message: `${diagnostic.path}: ${diagnostic.message}`,
+      })),
+    );
   }
 
   const payload = ReviewUnlockDispatchPayloadSchema.parse({
