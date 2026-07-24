@@ -135,6 +135,13 @@ describe("validate-config.sh — standard review sources", () => {
       expect(result.stdout).toContain("ERROR review.standard_sources");
     },
   );
+
+  it("rejects a scalar source instead of silently treating it as a list", async () => {
+    const result = await runValidateConfig("review.standard_sources: coderabbit-pr\n");
+
+    expect(result.code).toBe(2);
+    expect(result.stdout).toContain("ERROR review.standard_sources must use list syntax");
+  });
 });
 
 describe("validate-config.sh — review pass ceilings", () => {

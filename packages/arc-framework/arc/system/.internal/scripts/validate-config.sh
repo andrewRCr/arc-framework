@@ -199,6 +199,10 @@ case "$standard_sources" in
         error "review.standard_sources must use matched list brackets"
         standard_sources=""
         ;;
+    *)
+        error "review.standard_sources must use list syntax"
+        standard_sources=""
+        ;;
 esac
 standard_source_lines=$(printf '%s\n' "$standard_sources" | tr ',' '\n')
 while IFS= read -r standard_source; do
