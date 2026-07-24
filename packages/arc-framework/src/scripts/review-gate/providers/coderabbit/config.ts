@@ -2,7 +2,19 @@
 
 import { arrayAt, exactKeys, objectAt, stringAt } from "../../core/validation.js";
 import { admitSelfHostingGuidanceCarrier } from "../../policy/self-hosting/guidance.js";
-import type { CodeRabbitCapabilities, CodeRabbitRequestMechanism } from "./adapter.js";
+
+interface CodeRabbitCapabilities {
+  resolvedConfiguration: boolean;
+  exclusiveLabelTrigger: boolean;
+  labelOneShot: boolean;
+  fullReviewCommand: boolean;
+  exactCoverage: boolean;
+  durableFindings: boolean;
+  durableCleanResults: boolean;
+  sourceConfirmedClosures: boolean;
+}
+
+type CodeRabbitRequestMechanism = "label" | "full-review-command";
 
 /** Minimal repository-owned CodeRabbit configuration. */
 export interface CodeRabbitRepositoryDelta {

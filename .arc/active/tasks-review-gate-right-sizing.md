@@ -198,320 +198,142 @@ head is born locked while planning-only changes retain their existing lane.
 _Purpose:_ Replace repository-only library choreography with a thin typed-dispatch loop at the two shipped
 integration callers, leaving judgment only at disposition and convergence.
 
-### `[ ]` **3.1 Wire work-unit integration through disposition, convergence, and unlock**
+### `[x]` **3.1 Wire work-unit integration through disposition, convergence, and unlock**
 
 - _Goal:_ One execution of `integrate-work-unit.md` follows CLI-decided review actions across the existing PR and
   candidate boundaries, and only the reviewed final candidate head can receive combined release/integration
   authorization.
 
-- _Note:_ RSB Task 7.5 integrates its standard-review/local/frontline rewrite first. Reconcile this branch with that
-  landed contract, then append this WU's hosted-PR and guard segment to the current package-source workflow without
-  replacing RSB-owned behavior; project the composed result to `.arc/`. Invoke review-chunking's typed preflight
-  before source resolution without duplicating its thresholds, measurement, or advisory policy.
+    - `[x]` **3.1.a Insert the typed review-driver entry, binding normalization, and mechanical action loop**
 
-    - `[ ]` **3.1.a Insert the typed review-driver entry, binding normalization, and mechanical action loop**
+        - Composed frontline, delegated, and hosted review through typed CLI envelopes; runtime normalization now
+          injects immutable bindings, and each changed target refreshes chunking and base-drift inputs.
 
-        - Preserve the existing lifecycle boundaries: invoke the driver for frontline and any pre-PR
-          `delegated-agent` standard pass, open or reuse the PR without a new authorization stop, then re-invoke it
-          with the opened change request when the selected standard source is hosted-PR. The driver does not own PR
-          creation.
-        - At the local result-normalization boundary, inject immutable target/tree, source, rubric, and guidance
-          bindings from runtime-owned state. Limit evaluator-authored output to status, coverage, findings, and run
-          identity; if a compatibility adapter still accepts supplied bindings, reject every non-exact value rather
-          than asking the evaluator to transcribe machine-owned digests on the ordinary path.
-        - At each boundary, dispatch only on the returned `nextAction` and feed each verb's envelope into the next
-          call.
-        - Before requesting a hosted-PR source for a target already behind its base, consume the existing typed
-          base-drift read. Keep clean and regenerable-only drift silent. For substantive overlap, let the operating
-          agent reconcile before spending the review when the interaction is clear, then recompose the target and
-          continue without a permission stop; surface conflicts, material interaction, or uncertain product
-          decisions. Preserve the final candidate boundary's authoritative drift and applicability checks.
-        - Invoke `arc review chunking resolve` once per new canonical target before either review role resolves a
-          source. Reuse its target-level facts while that target is unchanged, select whole-target or chunked
-          separately for each role invocation, and pass the selection into `arc review resolve`.
-        - Re-run chunking preflight after every target movement, including finding-driven fixes, candidate
-          composition, and base reconciliation. Keep the driver's default whole-target behavior for direct callers
-          that omit a selection; automatic lifecycle review does not omit the preflight.
-        - Cover frontline resolution, delegated-agent verbs, hosted request/await, ordered safe fallback, and
-          thread settlement without prose comparisons, source-selection questions, fan-out, or agent-authored
-          polling loops.
+    - `[x]` **3.1.b Author disposition, review applicability, pass continuation, and latency overlap**
 
-    - `[ ]` **3.1.b Author disposition, review applicability, pass continuation, and latency overlap**
+        - Kept bounded applicability and review-strength choices with the operating agent, disclosed confident
+          in-scope choices without a permission turn, and retained human stops for mutations and exceptional bounds.
 
-        - At the judgment leaf, require each finding's reviewer severity, ARC re-grade, source locus, and a discrete
-          labeled recommended disposition line; precompose fixed report/prompts CLI-side where possible.
-        - Permit user-, project-, or agent-directed supplemental review to enter the same disposition and
-          convergence loop. An agent-selected pass proceeds without a permission stop when existing permissions and
-          budgets cover it, and is disclosed as it runs; new authority, material cost, or genuine scope uncertainty
-          surfaces. Do not create a profile registry, config axis, or automatic scheduler, and do not let
-          supplemental output settle `standardReview` unless that invocation ran the standard-review contract.
-        - Make the same turn carry the recommended next-pass action on an opt-out basis; approved fixes remain
-          atomic and produce a fresh exact target. After any target movement, have the operating agent select and
-          disclose proportionate follow-up — targeted verification with prior complete-review applicability, a
-          focused supplemental check, or a new complete pass — without adding a fix-carry ledger, proof schema, or
-          default permission turn.
-        - Require approval before any finding-driven fix, durable deferral, external channel settlement, or other
-          mutation/commitment. When a complete record-only set needs none of those, allow its proposed dispositions
-          to ride into the combined final gate rather than forcing a pre-candidate approval stop.
-        - Represent ceiling exhaustion as its own explicit approval consequence, not a routine pass-selection ask.
-          On approval, pass the exact one-pass override to the next driver call; never reinterpret assent as a
-          persistent ceiling change or reuse it after the bound head/lane/pass advances.
-        - While a hosted await is live and the harness permits useful parallel progress, allow speculative drafting
-          of Completion/Release Notes and the cleanup plan. Refresh it after fixes, but do not commit, push, archive,
-          regenerate readiness, or destructively clean before `review-settled`; require no concurrency mechanism or
-          persisted draft when the opportunity is unavailable.
+    - `[x]` **3.1.c Re-enter review and make convergence the final integration interlock**
 
-    - `[ ]` **3.1.c Re-enter review and make convergence the final integration interlock**
+        - Made the base-clean, lifecycle-ready candidate the only unlockable target and combined disposition,
+          exact-head unlock, mechanical rechecks, and integration authority in the final structured gate.
 
-        - Reduce the implementation head to `review-settled` without prospective clearance, validate/update any
-          speculative draft, and run the existing composition, archive/readiness, and candidate-push tail. A
-          no-action record-only disposition set may remain proposed for the final gate; every mutation- or
-          commitment-bearing set must already be approved.
-        - Treat the pushed candidate and every head-changing base reconcile as new exact targets for clearance and
-          merge authority, then apply the same operating-agent applicability judgment to review coverage. Preserve
-          existing safe reconcile carry, permit targeted verification for confidently non-interacting lifecycle or
-          record-only deltas, and require focused or complete review for material/uncertain interaction. Never carry
-          an earlier unlock or integration authorization.
-        - Only after the candidate is base-clean and lifecycle-ready, render the existing final integration
-          interlock as one marked convergence/release gate. Surface its exact head, complete candidate-tail diff,
-          every review-applicability call and targeted verification, PR state, requirements, merge method, lifecycle
-          readiness, and clean base-drift result; state that approval applies final dispositions/channel settlement,
-          ends review, invokes `arc review unlock` when available, and authorizes merge only if the resulting
-          required status and ordinary exact-head mechanical rechecks succeed unchanged.
-        - Close with `Approve (or redirect)?`. Await the unlock/status result and perform the existing post-approval
-          exact-head, PR-state, and base-drift reads mechanically; do not add a second convergence, unlock, or merge
-          stop. Any failure, drift, or mutation invalidates approval and returns through the applicability judgment
-          or the interlock. Informal assent outside the structured gate grants no clearance or integration
-          authority.
+    - `[x]` **3.1.d Publish the final public PR review record**
 
-    - `[ ]` **3.1.d Publish the final public PR review record**
+        - Added the content-gated `## Review` record to both PR-template copies with local/hosted attribution,
+          triage identity and disposition counts, plus carried-coverage disclosure.
 
-        - Extend the package-source `template-pull-request.md` and its projected copy with one content-gated
-          `## Review` section. Replace the current blanket prohibition on local-review narration with the narrow
-          normalized record while continuing to reject informal self-review meta-narration.
-        - At the combined final gate, preview the exact record that approval will publish. After approval and the
-          unchanged exact-head mechanical checks, update the PR body immediately before merge; if the head changes,
-          treat the prior record as stale and replace it only after the new head converges.
-        - Render `Local` and `Hosted PR` source lines whenever any review ran, using `None` for an empty category.
-          Aggregate completed review activity by human-readable product or exposed model identity and pass/review
-          count, with no ARC role names or pre-/post-PR timing qualifiers. Omit the whole section when the review
-          loop ran no review.
-        - Render `Triage` with the GitHub identity that approved the final disposition set and counts of distinct
-          material findings across completed review passes by their final approved disposition: addressed,
-          declined, deferred, and unresolved. Omit zero-valued categories except `0 unresolved`; render
-          `no material findings` for a clean cycle. Default to the authenticated developer only when that person
-          supplied the approval, never mechanically to the PR author.
-        - When prior complete review coverage carries across a later narrow delta, add a concise `Coverage` line
-          naming the targeted verification and delta character. Omit it when every reported pass ran on the final
-          head; never imply a final-head full pass that did not occur.
-        - Add template/workflow fixtures for local-only, hosted-only, mixed, clean, disposition-bearing, and
-          no-review records, plus full-review-at-final-head and disclosed targeted-verification refresh after head
-          mutation. Keep this as PR disclosure: add no receipt, model registry, fix-carry ledger, state/schema,
-          public ARC verb, or `arc-cleared` validation.
+    - `[x]` **3.1.e Prove the workflow driver across configured and empty source sets**
 
-    - `[ ]` **3.1.e Prove the workflow driver across configured and empty source sets**
+        - Added lifecycle and policy-driver coverage for typed dispatch, hosted fallback, empty source sets,
+          moved-head applicability, exact override handling, and the combined release boundary.
 
-        - Extend integration/workflow tests with envelope fixtures for no standard source, frontline-only,
-          delegated-agent standard review, hosted-PR standard review, safe ordered fallback, non-fall-through
-          failure, user-/project-/agent-directed supplemental review, findings/fix/new-head, combined convergence/
-          unlock/integration, ceiling-exceeded, exact override-resume, idempotent pre-advance resolve, and stale
-          post-advance override paths.
-        - Assert a standard pass invokes exactly one source, an empty standard list no-ops despite non-exempt
-          `standardReview`, a configured-but-unsatisfiable list returns `unavailable`, and frontline execution does
-          not depend on either result.
-        - Prove evaluator-authored local results omit runtime-owned target/source/rubric/guidance bindings, the
-          runtime injects those bindings during normalization, and any compatibility field still accepted rejects a
-          mismatch exactly.
-        - Cover disabled, below-threshold, consider-chunks, per-role whole/chunked selection, unchanged-target fact
-          reuse, and moved-target preflight refresh without duplicating threshold comparisons in workflow prose.
-        - Cover the pre-trigger base-drift advisory: substantive overlap recommends reconcile without mutating or
-          gating the target when judgment is uncertain, permits an early clear reconcile without a permission stop,
-          and keeps clean and regenerable-only drift silent.
-        - Cover narrow record-only fix, lifecycle-tail, composition-correction, safe base-reconcile, behavioral,
-          authority-changing, and uncertain-interaction movements. Assert that the workflow directs the operating
-          agent to disclose and choose targeted, focused, or complete follow-up; it must not encode those signals as
-          a proof checklist or force a human stop for a confident bounded choice.
-        - Prove a pre-composition head cannot unlock, every candidate head refreshes exact-target clearance, and
-          only the ready, base-clean, still-current candidate reaches the combined gate with either final-head
-          complete review or disclosed targeted verification. A no-action record-only set adds no earlier stop;
-          mutation/commitment still requires approval. After approval, unlock failure, changed status, head drift,
-          or base drift prevents merge without converting the approval into prospective authority.
-        - Assert the prose contains typed mechanical dispatch plus explicit operating-agent judgment surfaces,
-          retains existing extension seams, and uses the final integration interlock as the combined release gate.
+- _Outcome:_ Work-unit integration now consumes one typed review loop while preserving bounded agent judgment and
+  concentrating every mutation, clearance, and integration commitment at its intended human authority boundary.
 
-### `[ ]` **3.2 Wire Errand integration through the same typed review driver**
+### `[x]` **3.2 Wire Errand integration through the same typed review driver**
 
 - _Goal:_ Errands consume the same review obligation without letting merge-lane presentation rewrite policy;
   reviewed heads use exact-head clearance and planning heads retain their native trusted CI stamp and auto-merge.
 
-- _Note:_ This is the second shared surface with RSB Task 7.5; after RSB's integration is reconciled, append this
-  WU's hosted-PR and guard behavior to the current package-source `run-errand.md` and project the composed result.
-  Invoke the same review-chunking preflight before source resolution and reuse the selected-scope contract without
-  duplicating review-chunking's threshold, measurement, or advisory policy.
+    - `[x]` **3.2.a Add the shared typed segment at the Errand review boundary**
 
-    - `[ ]` **3.2.a Add the shared typed segment at the Errand review boundary**
+        - Reused the typed driver, applicability posture, public review record, and combined gate while preserving
+          Errand-specific cleanup and unattended planning-lane behavior.
 
-        - Reuse the same CLI envelopes, runtime-owned result normalization, disposition/applicability format,
-          combined convergence/release gate, and pass-ceiling exception; do not fork a second policy or duplicate
-          provider logic in workflow prose.
-        - Invoke `arc review chunking resolve` once per new canonical Errand target, reuse target-level facts while
-          unchanged, select scope separately per review-role invocation, pass it into the driver, and refresh the
-          preflight after every target movement.
-        - Reuse the same final public PR review record, including local/hosted attribution, final finding counts,
-          human GitHub triage identity, content gating, carried-review `Coverage` disclosure, and stale-head
-          replacement; do not create an Errand-specific summary vocabulary.
-        - Reuse the same no-default-ask posture: the operating agent selects and discloses targeted, focused, or
-          complete follow-up after an Errand target movement; only mutation/commitment, new authority, explicit
-          policy bounds, material uncertainty, and final integration create human stops.
-        - Preserve Errand-specific PR, cleanup, unattended planning-lane, and integration-interlock behavior around
-          the inserted segment; on the reviewed lane, the combined gate occupies that integration interlock rather
-          than preceding it as another stop.
+    - `[x]` **3.2.b Keep review obligation and merge lane orthogonal**
 
-    - `[ ]` **3.2.b Keep review obligation and merge lane orthogonal**
+        - Kept change-shaped review resolution independent of merge-lane classification: trusted CI stamps the
+          auto lane, while only the reviewed lane invokes exact-head unlock at its final gate.
 
-        - Keep RSB's `standardReview` projection change-shaped and let the driver own opt-out: an empty standard
-          list no-ops, while a configured-but-unsatisfiable list returns `unavailable`. Do not derive either the
-          obligation or source selection from the downstream auto/reviewed merge lane.
-        - After review settlement, preserve the existing lane classification. The auto-merge lane invokes no
-          unlock because the trusted CI stamp supplies `arc-cleared`; the reviewed lane invokes the unlock verb at
-          its final gate, and an absent default-branch clearance workflow returns a typed no-unlock terminal rather
-          than a dead action. Final required-check settlement remains authoritative for enforcement.
-        - Add workflow fixtures for reviewed Errand convergence/unlock, planning Errand stamp/auto-merge,
-          change-shaped obligation with empty standard sources, delegated-agent and hosted-PR standard sources,
-          configured-but-unsatisfiable review, and narrow-versus-interacting target movement; assert parity with the
-          WU driver's shared contract without coupling source policy to merge-lane classification or turning
-          applicability judgment into a second oracle.
+- _Outcome:_ Errands and work units now share the same review contract without conflating review policy with
+  downstream lane presentation.
 
-### `[ ]` **3.3 Retire the project review coordinator while preserving extension seams**
+### `[x]` **3.3 Retire the project review coordinator while preserving extension seams**
 
 - _Goal:_ No lifecycle path invokes the deleted controller vocabulary, while the generic post-PR-open and
   pre-merge extension points remain valid dormant attachment seams.
 
-    - `[ ]` **3.3.a Remove the project-only coordinator**
+    - `[x]` **3.3.a Remove the project-only coordinator**
 
-        - Delete `.arc/system/workflows/project/coordinate-pr-review.md` after the two inline drivers cover its live
-          findings, closure, and settlement responsibilities.
-        - Remove every surviving invocation or index entry rather than leaving a redirect or historical note.
+        - Deleted the coordinator workflow and every live invocation.
 
-    - `[ ]` **3.3.b Reduce both shipped extensions to reserved seams**
+    - `[x]` **3.3.b Reduce both shipped extensions to reserved seams**
 
-        - The package-source `post-pr-open.md` and `pre-merge.md` already carry empty `active: false` defaults;
-          preserve them as the shipped reserved seams.
-        - In the configurable `.arc/` instances, remove only the coordinator actions and dangling link definitions;
-          retain their fire-point identity and future-actions placeholders. Do not project the empty package file
-          over project-specific configuration.
-        - Preserve the matching `· #post-pr-open` and `· #pre-merge` fire points in both lifecycle workflows.
+        - Preserved inactive package defaults and the configurable project fire points after removing their
+          coordinator actions.
 
-    - `[ ]` **3.3.c Reconcile extension and workflow coverage**
+    - `[x]` **3.3.c Reconcile extension and workflow coverage**
 
-        - Update `pr-open-extensions.test.ts`, `review-gate-packaging.test.ts`, review workflow integration tests,
-          and extension-point validation so they prove the packaged and project seams still resolve and no
-          coordinator/controller action remains reachable.
+        - Updated extension, packaging, and workflow coverage to prove the seams remain valid and inactive.
 
 ## **Phase 4:** Shadow-tier removal and documentation closure
 
 _Purpose:_ Apply the confirmed salvage/residue partition, remove the controller and evidence machinery left with
 no consumer, and make every surviving description match the smaller operating model.
 
-### `[ ]` **4.1 Remove the shadow source and test graph outside the preserved seam**
+### `[x]` **4.1 Remove the shadow source and test graph outside the preserved seam**
 
 - _Goal:_ Every production entry point reaches only the RSB-owned review closure and consume surface plus newly
   re-homed hosted-PR/guard code; all unconsumed shadow machinery and subject-bound tests are absent.
 
-- _Note:_ The spec's D4 partition is authoritative. Preserve RSB-owned state as found except for Task 3.1.a's
-  narrow runtime-owned result-normalization correction: do not otherwise mutate its D14 consume-set, Task 7.1
-  retirement set, `runtime/local-attestation.ts`, Task 7.2 standard-review boundary modules, or the live closure
-  after Tasks 1.1–1.3; never restore modules RSB has already removed.
+    - `[x]` **4.1.a Freeze the post-salvage keep/delete inventory against imports**
 
-    - `[ ]` **4.1.a Freeze the post-salvage keep/delete inventory against imports**
+        - Walked production, schema, launcher, and workflow roots to partition the live CLI closure, hosted/guard
+          salvage, temporary retirement claims, and unconsumed residue.
 
-        - Walk production entries from `src/cli.ts`, npm scripts, and surviving workflows after Phases 1–3; map
-          each `review-gate/` module to live closure, RSB ownership, hosted/guard salvage, or residue.
-        - Confirm `policy/self-hosting/routing.ts` against its recorded cut disposition. Preserve RSB-owned
-          `policy/standard-review.ts` and `policy/standard-review-guidance.ts`; fail closed on any other module with
-          an unresolved consumer.
+    - `[x]` **4.1.b Delete controller, App, GitHub-host, and runtime residue with subjects**
 
-    - `[ ]` **4.1.b Delete controller, App, GitHub-host, and runtime residue with subjects**
+        - Removed the shadow controller, App/GitHub host, runtime machinery, and subject-bound tests, retaining only
+          the public CLI closure, exact-head unlock, and temporary claim-bearing residues.
 
-        - Remove `hosts/github/**`, `policy/self-hosting/**`, the App/check-run/controller implementation, and
-          `runtime/**` except RSB-owned modules still present, code re-homed behind the new verbs, and
-          `runtime/qualification-activation.ts` while its retiring-WU claim remains live.
-        - Remove the corresponding unit and integration tests in the same changes; retain behavior tests only for
-          code that remains reachable under the new architecture.
+    - `[x]` **4.1.c Delete provider residue without damaging surviving closures**
 
-    - `[ ]` **4.1.c Delete provider residue without damaging surviving closures**
+        - Removed the old provider router and hosted adapters while preserving hosted verbs, frontline execution,
+          standard-review modules, and the two residues still claimed by the planned retirement batch.
 
-        - Remove the old `providers/router.ts`, `providers/codex/**`, and non-frontline CodeRabbit files only after
-          their hosted behavior is covered at the re-homed boundary; delete `frontline-plain.ts` while preserving
-          `frontline-execution.ts` and `frontline-agent.ts`.
-        - Preserve `providers/coderabbit/config.ts` and `runtime/qualification-activation.ts` while their retiring
-          WU claims remain live; Task 5.2.d - `tasks-review-gate-right-sizing.md` removes them only after those
-          claims are authoritatively abandoned. RSB Task 7.1 removes `core/contract-version-dispatch.ts` and
-          `core/forward-evidence-eligibility.ts`; preserve their landed absence and never recreate them.
+    - `[x]` **4.1.d Prove the surviving import and schema graph is closed**
 
-    - `[ ]` **4.1.d Prove the surviving import and schema graph is closed**
+        - Reconciled packaging tests to the surviving closure and confirmed the source/test graph has no dangling
+          imports into removed directories.
 
-        - Re-run source/test import walks from every production entry, schema registration, and package entrypoint;
-          remove dangling exports, registered schemas, fixtures, and tests whose subjects were deleted, without
-          treating RSB-owned registered contracts as launcher residue.
-        - Update the integration coverage/packaging tests to assert the explicit surviving closure and absence of
-          imports into deleted directories rather than preserving the old subsystem size.
+- _Outcome:_ The review subsystem now closes over the shipped CLI, hosted-PR adapters, local/frontline contracts,
+  and exact-head guard; only explicitly claim-bound retirement residues remain outside that closure.
 
-### `[ ]` **4.2 Remove controller workflows, launch scripts, and dangling prose references**
+### `[x]` **4.2 Remove controller workflows, launch scripts, and dangling prose references**
 
 - _Goal:_ The repository no longer schedules, packages, documents, or invokes any entrypoint from the discarded
   controller tier, and `arc-clearance.yml` is the only surviving pinned review/clearance workflow.
 
-    - `[ ]` **4.2.a Remove workflow and launcher entrypoints after replacement coverage is green**
+    - `[x]` **4.2.a Remove workflow and launcher entrypoints after replacement coverage is green**
 
-        - Delete the five legacy `.github/workflows/review-gate*.yml` files after using the repair workflow as the
-          pinned unlock template, retaining only the new unlock workflow.
-        - Delete all ten top-level `run-*.ts` launchers and `runtime/operations.ts`, then remove their root-script,
-          workflow, and subject-test references. They have no tsup entry or package export; retain schema
-          registration except where the explicit post-RSB inventory proves a registered subject retired.
+        - Deleted the five legacy workflows, ten launchers, runtime operation registry, obsolete App runbook, and
+          their launcher-only fixtures; `arc-clearance.yml` is the sole review/clearance workflow.
 
-    - `[ ]` **4.2.b Remove the eight root npm launch commands and tests**
+    - `[x]` **4.2.b Remove the eight root npm launch commands and tests**
 
-        - Delete every `review-gate:*` script from the root `package.json` and any helper that exists only to launch
-          them; the package manifest has no corresponding commands.
-        - Delete `review-gate-operation-surfaces.test.ts` with `runtime/operations.ts` and retire launcher-only
-          assertions with their subjects. Use Phase 1's `review-cli-surfaces.test.ts` as the single durable public
-          `arc review` surface test rather than recreating the controller enumeration.
+        - Removed all root `review-gate:*` scripts and retired the controller enumeration tests with their subjects.
 
-    - `[ ]` **4.2.c Sweep living prose and configuration for dead vocabulary**
+    - `[x]` **4.2.c Sweep living prose and configuration for dead vocabulary**
 
-        - Remove surviving references to deleted `review-gate:*` commands, wakeup relay, hosted-suspension
-          reconstruction/choreography, controller reconciliation, App identity, qualification, and check-run
-          projection from project and package-source content.
-        - Preserve references and tests for deliberately retained standard-review/local/frontline or RSB-owned
-          contracts, including the registered `review-suspension` variant; use an exact repository-wide search to
-          distinguish those from dangling residue.
+        - Removed live controller/App setup and invocation references while retaining the registered and reachable
+          standard-review, local, frontline, hosted, and suspension contracts.
 
-### `[ ]` **4.3 Reconcile the self-hosting technical overview with the post-cut architecture**
+### `[x]` **4.3 Reconcile the self-hosting technical overview with the post-cut architecture**
 
 - _Goal:_ The project-owned architecture narrative describes the executable CLI loop and deliberate commit-status
   lock, with no controller/App story or claim of autonomous host-side review authority.
 
-- _Note:_ `.arc/reference/TECHNICAL-OVERVIEW.md` § 2 is a Scaffolded, project-owned surface shared with RSB Task 7.4
-  (D15); preserve whichever accurate CLI-boundary wording has already landed and compose the post-cut model onto it.
-  Do not project it from the generic package template.
+    - `[x]` **4.3.a Rewrite the self-hosting review-gate overview**
 
-    - `[ ]` **4.3.a Rewrite the self-hosting review-gate overview**
+        - Reframed the project instance around the configured typed CLI loop, bounded operating-agent judgment,
+          human authority, and `arc-cleared` as a deliberate exact-head lifecycle lock.
 
-        - Update `.arc/reference/TECHNICAL-OVERVIEW.md` § 2 to cover the configured frontline and standard-review
-          CLI loop, delegated-agent/hosted-PR source choice, typed mechanical dispatch, operating-agent
-          applicability judgment, human disposition/integration authority, and thin `arc-cleared` guard; state
-          plainly that no App or resident controller exists.
-        - Reconcile § 3's infrastructure/merge-gating description so commit status is a deliberate lock, not proof
-          of provider evidence or autonomous merge authority.
+    - `[x]` **4.3.b Verify the project-owned architecture narrative**
 
-    - `[ ]` **4.3.b Verify the project-owned architecture narrative**
-
-        - Leave `packages/arc-framework/arc/reference/TECHNICAL-OVERVIEW.template.md` generic and unchanged; its
-          Scaffolded instance intentionally diverges after one-time rendering.
-        - Update the existing project-overview assertion in `pr-open-extensions.test.ts` and targeted grep checks to
-          prove the instance describes the executable surface and contains no deleted controller vocabulary or
-          internal planning references. Do not add a Framework projection/equality test for Scaffolded content.
+        - Added instance-specific assertions and exact vocabulary sweeps while leaving the generic package template
+          unchanged.
 
 ## **Phase 5:** Program retirement and dogfood rollout
 

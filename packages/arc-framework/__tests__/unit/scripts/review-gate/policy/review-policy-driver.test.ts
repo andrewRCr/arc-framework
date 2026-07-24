@@ -66,6 +66,30 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
+  it("requests PR creation when only hosted standard sources await coordinates", () => {
+    const prePrTarget = { ...target, pullRequest: null };
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target: prePrTarget,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "codex-pr"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+    })).toMatchObject({
+      state: "awaiting-change-request",
+      nextAction: "open-change-request",
+      payload: {
+        lane: "standard",
+        scope: "whole-target",
+        consumedPass: false,
+        attemptedSources: [],
+        waitingSources: ["coderabbit-pr", "codex-pr"],
+      },
+    });
+  });
+
   it("selects exactly one source for each lane independently", () => {
     const frontline = resolveReviewPolicy({
       schemaVersion: 1,

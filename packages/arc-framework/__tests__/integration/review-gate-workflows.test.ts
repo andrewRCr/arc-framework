@@ -3,7 +3,6 @@ import { resolve } from "node:path";
 
 import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
-import { auditRepairWriterGraph } from "../../src/scripts/review-gate/hosts/github/repair-audit.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const read = async (name: string): Promise<string> => readFile(resolve(root, ".github/workflows", name), "utf8");
@@ -14,10 +13,6 @@ function jobValue(workflow: string, name: string): Record<string, unknown> {
   const job = parsed.jobs?.[name];
   if (typeof job !== "object" || job === null) throw new Error(`missing workflow job: ${name}`);
   return job as Record<string, unknown>;
-}
-
-function jobBlock(workflow: string, name: string): string {
-  return JSON.stringify(jobValue(workflow, name));
 }
 
 function stepValue(workflow: string, jobName: string, stepId: string): Record<string, unknown> {
@@ -54,79 +49,6 @@ function hasClearanceSuccess(
 }
 
 describe("trusted review-gate workflows", () => {
-  it("keeps the review relay secretless and checkout-free", async () => {
-    const workflow = await read("review-gate-wakeup.yml");
-    expect(workflow).toContain("permissions: {}");
-    expect(workflow).not.toContain("actions/checkout");
-    expect(workflow).not.toMatch(/secrets\.|private-key|GITHUB_TOKEN/u);
-  });
-
-  it("pins trusted code and actions without persisting credentials", async () => {
-    const workflow = await read("review-gate.yml");
-    expect(workflow).not.toMatch(/uses: [^\n]+@v\d/u);
-    expect(workflow.match(/ref: \$\{\{ github\.workflow_sha \}\}/gu)).toHaveLength(2);
-    expect(workflow.match(/persist-credentials: false/gu)).toHaveLength(2);
-    expect(workflow).toContain("./node_modules/.bin/tsx");
-    expect(workflow).not.toMatch(/npx\s+tsx|github\.event\.pull_request\.head/u);
-  });
-
-  it("separates discovery from the environment-bound App writer", async () => {
-    const workflow = await read("review-gate.yml");
-    const discovery = workflow.slice(workflow.indexOf("  discover:"), workflow.indexOf("  reconcile:"));
-    expect(discovery).not.toMatch(/ARC_APP_TOKEN|private-key|environment:/u);
-    expect(workflow).toContain("environment: review-gate");
-    expect(workflow).toContain("cancel-in-progress: false");
-    expect(workflow).toContain("ARC_REVIEW_GATE_APP_CLIENT_ID");
-    expect(workflow).toContain("ARC_REVIEW_GATE_APP_ID");
-    expect(workflow).toContain("repositories: ${{ github.event.repository.name }}");
-  });
-
-  it("allows attestations only from the default ref through the same write lane", async () => {
-    const workflow = await read("review-gate-attest.yml");
-    expect(workflow).toContain("github.event.repository.default_branch");
-    expect(workflow).toContain("environment: review-gate");
-    expect(workflow).toContain("cancel-in-progress: false");
-    expect(workflow).not.toContain("fromJSON(inputs.payload)");
-    expect(workflow).not.toMatch(/uses: [^\n]+@v\d/u);
-  });
-
-  it("routes deleted issue comments directly with their bounded payload", async () => {
-    const workflow = await read("review-gate.yml");
-    expect(workflow).toContain("types: [created, edited, deleted]");
-    expect(workflow).toContain("ARC_TRIGGER_DELETION: ${{ toJSON(matrix.triggerDeletion) }}");
-    expect(workflow).not.toMatch(/issue_comment:[\s\S]*Review Gate Wakeup/u);
-  });
-
-  it("covers every canonical wake-up transport and retains scheduled repair", async () => {
-    const controller = await read("review-gate.yml");
-    const proxy = await read("review-gate-wakeup.yml");
-    expect(controller).toContain("review_requested, review_request_removed");
-    expect(controller).toContain("check_run:\n    types: [created, completed, rerequested]");
-    expect(controller).toContain("workflows: [CI, Review Gate Wakeup]");
-    expect(controller).toContain("issue_comment:\n    types: [created, edited, deleted]");
-    expect(controller).toContain("status:");
-    expect(controller).toContain("schedule:");
-    expect(controller).toContain("workflow_dispatch:");
-    expect(proxy).toContain("pull_request_review:");
-    expect(proxy).toContain("pull_request_review_comment:");
-  });
-
-  it("collapses hint-class event bursts without cancelling running work or deletion payloads", async () => {
-    const controller = await read("review-gate.yml");
-    const proxy = await read("review-gate-wakeup.yml");
-    const controllerConcurrency = (load(controller) as { concurrency?: Record<string, unknown> }).concurrency;
-    const proxyConcurrency = (load(proxy) as { concurrency?: Record<string, unknown> }).concurrency;
-    // Both transports collapse pending bursts but never cancel a running run.
-    expect(controllerConcurrency?.["cancel-in-progress"]).toBe(false);
-    expect(proxyConcurrency?.["cancel-in-progress"]).toBe(false);
-    expect(proxyConcurrency?.group).toContain("github.event.pull_request.number");
-    // Deletion events carry a bounded payload canonical re-query cannot
-    // recover; they and targeted dispatches must opt out of the shared group.
-    expect(controllerConcurrency?.group).toContain("github.event_name == 'workflow_dispatch'");
-    expect(controllerConcurrency?.group).toContain("github.event.action == 'deleted'");
-    expect(controllerConcurrency?.group).toContain("github.run_id");
-  });
-
   it("publishes independent CI truth and a thin compatibility alias", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("  ci_ok:\n    name: ci-ok");
@@ -159,14 +81,7 @@ describe("trusted review-gate workflows", () => {
     for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe(linuxRunner);
 
     expect(jobValue(workflow, "portability-cross-platform")["runs-on"]).toBe("${{ matrix.os }}");
-    for (const name of [
-      "docs.yml",
-      "review-gate.yml",
-      "review-gate-attest.yml",
-      "review-gate-qualify.yml",
-      "review-gate-repair.yml",
-      "review-gate-wakeup.yml",
-    ]) {
+    for (const name of ["docs.yml", "arc-clearance.yml"]) {
       const hostedWorkflow = await read(name);
       const parsed = load(hostedWorkflow) as { jobs?: Record<string, Record<string, unknown>> };
       for (const [job, value] of Object.entries(parsed.jobs ?? {})) {
@@ -234,7 +149,7 @@ describe("trusted review-gate workflows", () => {
     expect(targetedJob).not.toContain("github.event_name == 'pull_request'");
   });
 
-  it("keeps repository controller scripts outside the published CLI graph", async () => {
+  it("keeps the public review CLI inside the published graph", async () => {
     const tsup = await readFile(resolve(root, "packages/arc-framework/tsup.config.ts"), "utf8");
     const manifest = JSON.parse(await readFile(resolve(root, "packages/arc-framework/package.json"), "utf8")) as {
       files: string[];
@@ -245,7 +160,7 @@ describe("trusted review-gate workflows", () => {
     expect(tsup).not.toMatch(/entry:[^\n]*review-gate/u);
     expect(manifest.files).not.toContain("src");
     const rootManifest = JSON.parse(await readRepositoryFile("package.json")) as { scripts: Record<string, string> };
-    expect(rootManifest.scripts["review-gate:await"]).toContain("run-await.ts");
+    expect(Object.keys(rootManifest.scripts).some((name) => name.startsWith("review-gate:"))).toBe(false);
     expect(manifest.scripts?.["review-gate:await"]).toBeUndefined();
   });
 
@@ -296,111 +211,10 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
-  it("keeps CI and controller trust domains disjoint", async () => {
-    const ci = await read("ci.yml");
-    const controller = await read("review-gate.yml");
-    expect(ci).not.toMatch(/ARC_APP_TOKEN|ARC_REVIEW_GATE_APP_PRIVATE_KEY|run-reconcile|run-attest/u);
-    expect(controller).toContain("REVIEW_GATE_CONTEXT_MODE: ${{ vars.REVIEW_GATE_CONTEXT_MODE }}");
-    expect(controller).toContain("github.workflow_sha");
-    expect(controller).toContain("check_run:");
-  });
-
-  it("supplies the reconcile step its App slug and narrow git read token", async () => {
-    const workflow = await read("review-gate.yml");
-    const reconcile = jobBlock(workflow, "reconcile");
-    expect(reconcile).toContain("ARC_APP_SLUG");
-    expect(reconcile).toContain("steps.app-token.outputs.app-slug");
-    expect(reconcile).toContain("GITHUB_TOKEN");
-    expect(reconcile).toContain("github.token");
-  });
-
-  it("supplies the attest step its App slug and narrow canonical-read token", async () => {
-    const workflow = await read("review-gate-attest.yml");
-    const attest = jobBlock(workflow, "attest");
-    expect(attest).toContain("ARC_APP_SLUG");
-    expect(attest).toContain("steps.app-token.outputs.app-slug");
-    expect(attest).toContain("GITHUB_TOKEN");
-    expect(attest).toContain("github.token");
-    expect(attest).toContain("ARC_DISPATCH_ACTOR_ID");
-    expect(attest).toContain("github.actor_id");
-  });
-
-  it("gives discovery the App id to suppress self-checks and skips reconcile on an empty matrix", async () => {
-    const workflow = await read("review-gate.yml");
-    expect(stepValue(workflow, "discover", "discover").env).toMatchObject({
-      ARC_REVIEW_GATE_APP_ID: "${{ vars.ARC_REVIEW_GATE_APP_ID }}",
-    });
-    expect(jobValue(workflow, "reconcile").if).toContain('needs.discover.outputs.matrix != \'{"include":[]}\'');
-  });
-
-  it("references existing repository scripts", async () => {
-    const workflows = await Promise.all(["ci.yml", "review-gate.yml", "review-gate-attest.yml"]
-      .map((name) => read(name)));
-    const referenced = new Set<string>();
-    for (const workflow of workflows) {
-      for (const match of workflow.matchAll(/(?:bash |tsx )((?:packages|scripts)\/[A-Za-z0-9_./-]+)/gu)) {
-        if (match[1] !== undefined) referenced.add(match[1]);
-      }
-    }
-    for (const path of referenced) await expect(readFile(resolve(root, path)), path).resolves.toBeDefined();
-  });
-
-  it("guards only opened-change push sites with current and outgoing heads in order", async () => {
-    const packageIntegrationPath = "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md";
-    const instanceIntegrationPath = ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md";
-    const packageErrandPath = "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md";
-    const instanceErrandPath = ".arc/system/workflows/arc/supplemental/run-errand.md";
-    const [packageIntegration, instanceIntegration, packageErrand, instanceErrand, coordination] = await Promise.all([
-      readRepositoryFile(packageIntegrationPath),
-      readRepositoryFile(instanceIntegrationPath),
-      readRepositoryFile(packageErrandPath),
-      readRepositoryFile(instanceErrandPath),
-      readRepositoryFile(".arc/system/workflows/project/coordinate-pr-review.md"),
-    ]);
-    const genericGuard = "active project review coordinator's exact-head";
-
-    expect(packageIntegration).toBe(instanceIntegration);
-    expect(packageErrand).toBe(instanceErrand);
-    expect(packageIntegration.match(new RegExp(genericGuard, "gu"))).toHaveLength(2);
-    expect(packageIntegration).not.toContain("review-gate:assert-head-mutable");
-    expect(packageIntegration.slice(
-      packageIntegration.indexOf("### 6) Confirm review coordination"),
-      packageIntegration.indexOf("### 7) Spec-presence + alignment checks"),
-    ).match(new RegExp(genericGuard, "gu")) ?? []).toHaveLength(0);
-    expect(packageIntegration.slice(
-      packageIntegration.indexOf("### 12) Final push"),
-      packageIntegration.indexOf("### 14) Post-merge worktree cleanup"),
-    ).match(new RegExp(genericGuard, "gu"))).toHaveLength(2);
-    expect(packageIntegration.slice(
-      packageIntegration.indexOf("### 3) Open the PR"),
-      packageIntegration.indexOf("### 4) Review iteration"),
-    )).not.toContain(genericGuard);
-    expect(packageIntegration).toContain("the outgoing local head");
-
-    expect(packageErrand.match(new RegExp(genericGuard, "gu"))).toHaveLength(1);
-    expect(packageErrand).not.toContain("review-gate:assert-head-mutable");
-    expect(packageErrand).toContain("The initial pre-PR push has no `openedChangeRequest` and skips this query.");
-    expect(coordination).not.toContain("review-gate:assert-head-mutable");
-    expect(coordination).toMatch(/require the returned `FixAuthorization`[\s\S]*before applying any edit/u);
-    expect(coordination).toMatch(/release the push interlock only after the consumption is canonical/u);
-  });
-
-  it("keeps exact-head review coordination paired across WU and errand callers", async () => {
-    const [packageIntegration, instanceIntegration, packageErrand, instanceErrand, coordination] = await Promise.all([
-      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
-      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
-      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
-      readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
-      readRepositoryFile(".arc/system/workflows/project/coordinate-pr-review.md"),
-    ]);
-    expect(packageIntegration).toBe(instanceIntegration);
-    expect(packageErrand).toBe(instanceErrand);
-    for (const workflow of [packageIntegration, packageErrand]) {
-      expect(workflow).toMatch(/recompose\s+`openedChangeRequest` from the canonical current head/u);
-      expect(workflow).toContain("exact-head contract");
-    }
-    expect(coordination).toMatch(/`next-action` → `perform-action` → `await` → canonical re-entry/u);
-    expect(coordination).not.toMatch(/provider command|without polling/iu);
+  it("retains only the clearance workflow from the retired review-gate family", async () => {
+    const names = (await readdir(resolve(root, ".github/workflows"))).filter((name) => /\.ya?ml$/u.test(name));
+    expect(names.filter((name) => name.startsWith("review-gate"))).toEqual([]);
+    expect(names).toContain("arc-clearance.yml");
   });
 
   it("assembles a provisional candidate only after authoritative review settlement", async () => {
@@ -428,7 +242,7 @@ describe("trusted review-gate workflows", () => {
     expect(candidate).toMatch(/spec intent and\s+non-goals[\s\S]*success-criteria disposition/u);
     expect(candidate).toContain("verification evidence");
     expect(candidate).toMatch(/alignment disagreement|failed quality gate|base conflict|unexpected state/u);
-    expect(candidate).toContain("recompose the candidate after any correction");
+    expect(candidate).toContain("Recompose its exact target");
     expect(candidate).toMatch(/pre-composition\s+direction[\s\S]*not\s+prospective merge authority/u);
     expect(candidate).not.toContain("Stop before composition begins");
     expect(candidate).not.toContain("proceed to commit + sweep + push");
@@ -489,20 +303,14 @@ describe("trusted review-gate workflows", () => {
       ]) {
         expect(packaged).toContain(command);
       }
-      expect(packaged).toMatch(
-        /For `local prepare`, supply only `contentKind`, `reviewRisk`,\s+`changeDeterminacy`, `ownership`, and `surfaceAuthority`/u,
-      );
-      expect(packaged).toContain("`respond-to-findings / respond`");
-      expect(packaged).toContain("`ready-to-fix / apply-fix`");
-      expect(packaged).toContain("`settled / reduce`");
-      expect(packaged).toContain("`retryable / retry`");
-      expect(packaged).toContain("invalid-input");
-      expect(packaged).toMatch(/Re-enter the public `arc review` protocol/iu);
-      expect(packaged).toMatch(/local and frontline transitions only through those commands/iu);
+      expect(packaged).toMatch(/runtime-owned bindings/iu);
+      expect(packaged).toContain("`findings / respond`");
+      expect(packaged).toContain("review applicability");
+      expect(packaged).toContain("targeted verification");
+      expect(packaged).toMatch(/command error\s+envelope/iu);
       expect(packaged).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
-      expect(packaged).not.toMatch(/source-neutral standard-review cycle/u);
       expect(packaged).not.toMatch(/review-suspension|promoted watcher|scheduled wakeup/iu);
-      expect(packaged).not.toMatch(/CodeRabbit|coderabbit|billing|credits?|quota|--agent|--plain/iu);
+      expect(packaged).not.toMatch(/project review coordinator|coordinate-pr-review/iu);
     }
   });
 
@@ -513,11 +321,11 @@ describe("trusted review-gate workflows", () => {
     ]);
     expect(project).toBe(packaged);
     expect(packaged).toMatch(/atomic determinacy[\s\S]*routing fact/iu);
-    expect(packaged).toMatch(/Re-enter the public `arc review` protocol[\s\S]*review-response/iu);
+    expect(packaged).toMatch(/arc review resolve -[\s\S]*review-response/iu);
     expect(packaged).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
     expect(packaged).not.toMatch(/vehicle-neutral response-state store|review-suspension|promoted watcher/u);
     expect(packaged).toMatch(/merge lane[\s\S]*downstream presentation/u);
-    expect(packaged).toMatch(/never invent[\s\S]*WU meta[\s\S]*task-list state/iu);
+    expect(packaged).toMatch(/Never reconstruct review state[\s\S]*invent\s+WU state/iu);
   });
 
   it("settles the Errand exact head without importing WU products", async () => {
@@ -529,8 +337,8 @@ describe("trusted review-gate workflows", () => {
       packaged.indexOf("### Ship — partial protection"),
     );
     expect(full).toContain("arc base drift --json");
-    expect(full).toContain("typed applicability");
-    expect(full).toMatch(/`carry`[\s\S]*prior exact scope[\s\S]*retrigger/u);
+    expect(full).toContain("review applicability");
+    expect(full).toMatch(/targeted verification[\s\S]*focused[\s\S]*complete review/u);
     expect(full).toMatch(/`vehicle: errand`[\s\S]*outside WU composition-product requirements/u);
     expect(full).toMatch(/never infer[\s\S]*absent or\s+malformed WU state/iu);
     expect(full).toContain("retain `openedChangeRequest.headSha` as `{approved-head-sha}`");
@@ -554,28 +362,22 @@ describe("trusted review-gate workflows", () => {
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
     );
     const frontline = packaged.slice(
-      packaged.indexOf("Run `arc review frontline resolve -`"),
+      packaged.indexOf("Compose the immutable policy target"),
       packaged.indexOf("3. **Resolve the Errand PR**"),
     );
     expect(frontline).toContain("`findings / respond`");
     expect(frontline).toContain("`arc review respond -`");
-    expect(frontline).toMatch(
-      /`ready-to-fix \/ apply-fix`[\s\S]*approved fix set[\s\S]*Tier\s+1\s+quality gates/iu,
-    );
-    expect(frontline).toMatch(
-      /`stale-target \/ prepare-current-target`[\s\S]*recompose\s+the\s+exact target[\s\S]*restart the selected review lane/iu,
-    );
-    expect(frontline).toMatch(
-      /`clean \/ none`[\s\S]*`unavailable \/ retry`[\s\S]*`timed-out \/ retry`[\s\S]*`failed \/ retry`/iu,
-    );
+    expect(frontline).toMatch(/Approved fixes[\s\S]*Tier 1 gates[\s\S]*new target/iu);
+    expect(frontline).toMatch(/`stale-target \/ select-scope`[\s\S]*recompose[\s\S]*rerun chunking/iu);
+    expect(frontline).toContain("`blocked | unavailable | invalid-override / stop`");
 
     const openPr = packaged.slice(
       packaged.indexOf("4. **Enter the open PR.**"),
       packaged.indexOf("5. **Settle the final head.**"),
     );
-    expect(openPr).toMatch(/unavailable, partial, or failed[\s\S]*required obligation blocks/iu);
-    expect(openPr).toMatch(/recommended work[\s\S]*visible and non-blocking/iu);
-    expect(openPr).toMatch(/recompose and repeat[\s\S]*approved fix changes the target/iu);
+    expect(openPr).toMatch(/rate-limited \| transient-unavailable \/ try-next-source/iu);
+    expect(openPr).toMatch(/ambiguous delivery[\s\S]*terminal failure stops/iu);
+    expect(openPr).toMatch(/target movement[\s\S]*review applicability/iu);
     expect(openPr).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
     expect(openPr).not.toMatch(/review-suspension|promoted watcher|bounded schedule/u);
   });
@@ -613,16 +415,14 @@ describe("trusted review-gate workflows", () => {
       packageIntegration.indexOf("### 13) Behind-base reconcile gate and merge"),
       packageIntegration.indexOf("### 14) Post-merge worktree cleanup"),
     );
-    expect(packageIntegration.match(/arc base drift --json/gu)).toHaveLength(
-      gate.match(/arc base drift --json/gu)?.length ?? 0,
-    );
+    expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
+      .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
     expect(gate).toContain("candidate's final mutation site");
     expect(gate).toMatch(/`unavailable`[\s\S]*`skipped`[\s\S]*(?:malformed|unrecognized)[\s\S]*stop/u);
     expect(gate).toMatch(/typed[\s\S]*empty[\s\S]*substantivePaths/u);
     expect(gate).toMatch(/base conflict[\s\S]*analyzer\/host disagreement/u);
-    expect(gate).toContain("typed applicability proof");
-    expect(gate).toMatch(/reviewed WU delta is unchanged[\s\S]*carry/u);
-    expect(gate).toMatch(/interacting[\s\S]*returns? to Step 4/u);
+    expect(gate).toContain("review applicability judgment");
+    expect(gate).toMatch(/targeted verification[\s\S]*focused or\s+complete review/u);
     expect(gate).toMatch(/push[\s\S]*CI and routing[\s\S]*`pre-merge`/u);
     expect(gate).toMatch(/base moves again[\s\S]*same Step 13/u);
     expect(gate).toContain("requires a new exact-head checkpoint plus integration approval");
@@ -632,10 +432,10 @@ describe("trusted review-gate workflows", () => {
       + "if <result is authoritative clean>:\n"
       + "    gh pr merge {pr-number} --merge --match-head-commit {approved-head-sha}",
     );
-    expect(gate).toContain("retain `openedChangeRequest.headSha` as `{approved-head-sha}`");
+    expect(gate).toMatch(/retain\s+`openedChangeRequest\.headSha` as `\{approved-head-sha\}`/iu);
     expect(gate).not.toContain("arc base drift --json\ngit merge");
     expect(gate).not.toContain("arc base drift --json\ngh pr merge");
-    const approval = gate.indexOf("await explicit integration approval");
+    const approval = gate.indexOf("Approve (or redirect)?");
     const refreshedPr = gate.indexOf("re-read PR status", approval);
     const finalDrift = gate.lastIndexOf("result = arc base drift --json");
     expect(approval).toBeLessThan(refreshedPr);
@@ -646,7 +446,7 @@ describe("trusted review-gate workflows", () => {
     expect(finalDrift).toBeLessThan(gate.lastIndexOf("gh pr merge {pr-number}"));
   });
 
-  it("defers base reconciliation until after candidate composition", async () => {
+  it("keeps early drift advisory separate from final authoritative reconciliation", async () => {
     const [packageIntegration, instanceIntegration] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
@@ -656,11 +456,12 @@ describe("trusted review-gate workflows", () => {
       packageIntegration.indexOf("### 6) Confirm review coordination"),
       packageIntegration.indexOf("### 7) Spec-presence + alignment checks"),
     );
-    expect(reviewSettlement).not.toContain("arc base drift --json");
     expect(reviewSettlement).not.toContain("git merge");
     expect(reviewSettlement).toContain("`review-settled`");
-    expect(packageIntegration.indexOf("arc base drift --json"))
-      .toBeGreaterThan(packageIntegration.indexOf("### 12) Final push"));
+    const advisory = packageIntegration.indexOf("Before spending a hosted pass");
+    const finalGate = packageIntegration.indexOf("### 13) Behind-base reconcile gate and merge");
+    expect(packageIntegration.indexOf("arc base drift --json", advisory)).toBeLessThan(finalGate);
+    expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBeGreaterThan(finalGate);
   });
 
   it("preserves lifecycle readiness through an exact-head merge window", async () => {
@@ -677,12 +478,12 @@ describe("trusted review-gate workflows", () => {
     expect(gate).toMatch(/Completion Notes[\s\S]*applicable Release Notes/u);
     expect(gate).toMatch(/No `gh pr merge`[\s\S]*auto-merge enablement[\s\S]*queued merge/u);
     expect(gate).toContain("integration-interlock is the sole merge authority");
-    expect(gate).toMatch(/candidate mutation[\s\S]*invalidates[\s\S]*prospective authorization/u);
+    expect(gate).toMatch(/candidate mutation[\s\S]*invalidates[\s\S]*checkpoint/u);
 
     const lifecycleReady = gate.indexOf("arc status {name} --json");
-    const preMerge = gate.indexOf("fire `pre-merge`");
-    const approval = gate.indexOf("await explicit integration approval");
-    const refreshedHead = gate.indexOf("recompose `openedChangeRequest`", approval);
+    const preMerge = gate.indexOf("Fire `pre-merge`");
+    const approval = gate.indexOf("Approve (or redirect)?");
+    const refreshedHead = gate.indexOf("Immediately after approval", approval);
     const refreshedPr = gate.indexOf("re-read PR status", approval);
     const finalDrift = gate.lastIndexOf("result = arc base drift --json");
     const merge = gate.lastIndexOf("gh pr merge {pr-number}");
@@ -755,40 +556,6 @@ describe("trusted review-gate workflows", () => {
     expect(resumeEntry).toContain("under `with-integration`, the resolver reports `shipped` in `completed`");
     expect(resumeEntry).toMatch(/do not\s+invoke `arc user close` or `arc teardown`/u);
     expect(resumeEntry).toContain("lifecycle-only repair change request");
-  });
-
-  it("proves the checked-in repair workflow is the sole closed status writer", async () => {
-    const names = [
-      "ci.yml", "docs.yml", "review-gate-attest.yml", "review-gate-qualify.yml", "review-gate-repair.yml",
-      "review-gate-wakeup.yml", "review-gate.yml",
-    ];
-    const files = Object.fromEntries(await Promise.all(names.map(async (name) => [
-      `.github/workflows/${name}`,
-      await read(name),
-    ])));
-    const sha = "a".repeat(40);
-    expect(auditRepairWriterGraph({
-      files,
-      repositoryDefaultPermission: "read",
-      auditedSha: sha,
-      liveDefaultBranchSha: sha,
-      repairWorkflowPath: ".github/workflows/review-gate-repair.yml",
-      repairEnvironment: "review-gate-repair",
-      changedPaths: [],
-      authorityPaths: [".github/workflows/review-gate-repair.yml"],
-    })).toMatchObject({ ok: true, writer: { jobId: "write-status" } });
-  });
-
-  it("keeps token qualification on immutable protected code with sanitized output only", async () => {
-    const qualify = await read("review-gate-qualify.yml");
-    const workflow = load(qualify) as { on?: unknown };
-    expect(workflow.on).toEqual({ repository_dispatch: { types: ["review-gate-qualify"] } });
-    expect(qualify).toContain("environment: review-gate");
-    expect(qualify).toContain("ref: ${{ github.workflow_sha }}");
-    expect(qualify).toContain("persist-credentials: false");
-    expect(qualify).toContain("ARC_REVIEW_GATE_APP_PRIVATE_KEY: ${{ secrets.ARC_REVIEW_GATE_APP_PRIVATE_KEY }}");
-    expect(qualify).toContain("review-gate-token-qualification-${{ github.run_id }}-${{ github.run_attempt }}");
-    expect(qualify).not.toMatch(/echo.*(?:TOKEN|PRIVATE_KEY)|steps\..*\.outputs\.token/iu);
   });
 
   it("validates clearance with pinned code while treating the detached PR checkout only as data", async () => {

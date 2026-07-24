@@ -242,6 +242,18 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
   }),
   z.strictObject({
     ...ReviewResolveHeaderShape,
+    state: z.literal("awaiting-change-request"),
+    nextAction: z.literal("open-change-request"),
+    payload: z.strictObject({
+      lane: z.literal("standard"),
+      scope: z.literal("whole-target"),
+      consumedPass: z.literal(false),
+      attemptedSources: z.array(ReviewAttemptSchema).readonly(),
+      waitingSources: z.array(ReviewSourceIdSchema).min(1).readonly(),
+    }),
+  }),
+  z.strictObject({
+    ...ReviewResolveHeaderShape,
     state: z.literal("ready"),
     nextAction: z.enum(["run-frontline", "local-prepare", "hosted-request"]),
     payload: z.strictObject({
@@ -440,6 +452,27 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   const ineligibleSources = request.sources.filter((sourceId) =>
     !sourceCanSatisfy(sourceId, request.lane, scope, request.target.pullRequest));
   if (ineligibleSources.length === request.sources.length) {
+    const waitingSources = request.lane === "standard"
+      && scope === "whole-target"
+      && request.target.pullRequest === null
+      ? request.sources.filter((sourceId) => sourceId === "coderabbit-pr" || sourceId === "codex-pr")
+      : [];
+    if (waitingSources.length > 0) {
+      return ReviewResolveEnvelopeSchema.parse({
+        schemaVersion: 1,
+        mode: "review-resolve",
+        diagnostics: [],
+        state: "awaiting-change-request",
+        nextAction: "open-change-request",
+        payload: {
+          lane: "standard",
+          scope: "whole-target",
+          consumedPass: false,
+          attemptedSources: request.attempts,
+          waitingSources,
+        },
+      });
+    }
     return ReviewResolveEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-resolve",

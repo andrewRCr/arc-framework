@@ -5,22 +5,18 @@ import { describe, expect, it } from "vitest";
 
 import {
   admitSelfHostingGuidanceCarrier,
-  SELF_HOSTING_REVIEW_CHECKLIST_BLOCK,
   SELF_HOSTING_REVIEW_GUIDANCE_BLOCK,
 } from "../../src/scripts/review-gate/policy/self-hosting/guidance.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 
 describe("self-hosting guidance carriers", () => {
-  it.each([
-    ["hosted-codex", "AGENTS.md", SELF_HOSTING_REVIEW_GUIDANCE_BLOCK],
-    ["local-attestation", ".github/review-gate-attestation.md", SELF_HOSTING_REVIEW_CHECKLIST_BLOCK],
-  ] as const)("admits the generated %s managed block", async (carrierId, path, block) => {
-    const content = await readFile(resolve(root, path), "utf8");
+  it("admits the generated hosted-codex managed block", async () => {
+    const content = await readFile(resolve(root, "AGENTS.md"), "utf8");
 
-    expect(content).toContain(block);
-    expect(admitSelfHostingGuidanceCarrier(carrierId, content)).toMatchObject({
-      carrierId,
+    expect(content).toContain(SELF_HOSTING_REVIEW_GUIDANCE_BLOCK);
+    expect(admitSelfHostingGuidanceCarrier("hosted-codex", content)).toMatchObject({
+      carrierId: "hosted-codex",
       admitted: true,
       guidanceDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
     });

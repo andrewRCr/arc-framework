@@ -95,14 +95,14 @@ describe("PR-open lifecycle extensions", () => {
 
     const frontlineCycle = workflow.slice(resolveFrontline, preOpen);
     expect(frontlineCycle).toContain("review-response");
-    expect(frontlineCycle).toMatch(/recompose\s+the\s+exact target/u);
+    expect(frontlineCycle).toMatch(/(?:recompose|produce)\s+(?:the\s+exact|a new)\s+target/u);
     expect(frontlineCycle).toContain("arc review frontline run -");
     expect(frontlineCycle).toContain("arc review local prepare -");
     expect(frontlineCycle).toContain("arc review local attest -");
     expect(frontlineCycle).toContain("arc review local resume -");
-    expect(frontlineCycle).toContain("typed `state` / `nextAction`");
+    expect(frontlineCycle).toContain("public typed actions");
     expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
-    expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("Tier 1 quality gates");
+    expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("Tier 1 gates");
   });
 
   it("runs the same frontline cycle only for full-protection Errand publication", async () => {
@@ -112,7 +112,7 @@ describe("PR-open lifecycle extensions", () => {
     );
     const fullProtection = workflow.indexOf("### Ship — full protection");
     const push = workflow.indexOf("**Push** the errand branch upstream", fullProtection);
-    const cycleStart = workflow.indexOf("From the pushed branch", push);
+    const cycleStart = workflow.indexOf("Compose the immutable policy target", push);
     const resolveFrontline = workflow.indexOf("arc review frontline resolve -", push);
     const resolvePr = workflow.indexOf("**Resolve the Errand PR**", resolveFrontline);
     const partialProtection = workflow.indexOf("### Ship — partial protection", resolvePr);
@@ -124,8 +124,8 @@ describe("PR-open lifecycle extensions", () => {
 
     const frontlineCycle = workflow.slice(cycleStart, resolvePr);
     expect(frontlineCycle).toContain("review-response");
-    expect(frontlineCycle).toContain("not a routing input");
-    expect(frontlineCycle).toMatch(/recompose\s+the\s+exact target/u);
+    expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("not a routing input");
+    expect(frontlineCycle).toMatch(/(?:recompose|create)\s+(?:the\s+exact|a new)\s+target/u);
     expect(frontlineCycle).toContain("arc review frontline run -");
     expect(frontlineCycle).toContain("arc review local prepare -");
     expect(frontlineCycle).toContain("arc review local attest -");
@@ -290,8 +290,11 @@ describe("PR-open lifecycle extensions", () => {
     }
 
     const overview = await readFile(resolve(projectArc, "reference/TECHNICAL-OVERVIEW.md"), "utf8");
-    expect(overview).toContain("The review controller is not operational merge authority");
-    expect(overview).toContain("established manual integration path");
+    expect(overview).toContain("one configured review loop through the shipped `arc review` command tree");
+    expect(overview).toContain("The operating agent owns bounded judgment");
+    expect(overview).toContain("The required `arc-cleared` commit status is a thin lifecycle lock");
+    expect(overview).toContain("No GitHub App or resident review controller exists");
+    expect(overview).not.toContain("review-gate-right-sizing");
   });
 
   it("documents the native reviewer-guidance adapter boundary", async () => {
@@ -351,93 +354,15 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
-  it("routes self-hosting actions through one controller workflow", async () => {
-    const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
-    expect(workflow).toContain("one caller-supplied `openedChangeRequest");
-    expect(workflow).toContain("- review-response");
-    expect(workflow).toContain("review-gate:next-action");
-    expect(workflow).toContain("review-gate:perform-action");
-    expect(workflow).toContain("review-gate:await");
-    for (const state of [
-      "awaiting-approval", "ready-to-fix", "ready-to-persist", "ready-to-close", "reroute", "blocked",
-    ]) expect(workflow).toContain(`\`${state}\``);
-    expect(workflow).not.toContain("review-gate:assert-head-mutable");
-    expect(workflow).toContain("`FixAuthorization`");
-    expect(workflow).toContain("consumption is canonical");
-    expect(workflow).toContain("**Controller FIX:**");
-    expect(workflow).toContain("**Controller DEFER or REJECT:**");
-    expect(workflow).toContain("**Provider-owned closure:**");
-    expect(workflow).not.toContain("Triage both paths");
-    expect(workflow).not.toContain("/review-gate dismiss");
-    expect(workflow).not.toMatch(/@coderabbit|resolveReviewThread/iu);
-  });
-
-  it("keeps controller findings distinct from provider-native review conversations", async () => {
-    const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
-
-    expect(workflow).toContain("controller-normalized findings");
-    expect(workflow).toContain("provider-native conversations");
-    expect(workflow).toContain("controller receipt handle");
-    expect(workflow).toContain("provider reply, thread-state, and decisive-review handles");
-    expect(workflow).toContain("explicit FIX, DEFER, or REJECT disposition");
-    expect(workflow).toContain("same qualified source that issued the");
-    expect(workflow).toContain("Thread resolution is a separate observation");
-    expect(workflow).toContain("`CHANGES_REQUESTED` remains blocking");
-    expect(workflow).toContain("Completion-check success only wakes a canonical re-read");
-    expect(workflow).toContain("valid lifecycle-tail projection");
-    expect(workflow).toContain("without requesting or recommending a refresh");
-    expect(workflow).toContain("invalid or ambiguous tail");
-  });
-
-  it("recomposes review coordination after every authority-bearing scope change", async () => {
-    const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
-    for (const invalidator of [
-      "approved fix", "base merge", "lifecycle-tail identity", "provider-event identity", "policy identity",
-    ]) expect(workflow).toContain(invalidator);
-    expect(workflow).toContain("typed applicability proof");
-    expect(workflow).toContain("interacting reconcile");
-    expect(workflow).toContain("discard the composition basis");
-    for (const arm of ["stale", "exempt", "recommended", "required", "attention"]) {
-      expect(workflow).toContain(`\`${arm}\``);
-    }
-  });
-
-  it("coordinates source-neutral standard review for work units and errands", async () => {
-    const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
-    for (const method of ["adversarial-review", "standard-review", "implementation-audit", "review-response"]) {
-      expect(workflow).toContain(`- ${method}`);
-    }
-    expect(workflow).toContain("`local | hosted | both`");
-    expect(workflow).toContain("without author conclusions");
-    expect(workflow).toContain("exact-head attestor");
-    expect(workflow).toContain("Unavailable, partial, or failed");
-    expect(workflow).toContain("required obligation blocks");
-    expect(workflow).toContain("recommended obligation remains visible and non-blocking");
-    expect(workflow).toContain("does not add a resident engine");
-
-    for (const relative of [
-      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
-      "system/workflows/arc/supplemental/run-errand.md",
-    ]) {
-      for (const base of [packageArc, projectArc]) {
-        const caller = await readFile(resolve(base, relative), "utf8");
-        expect(caller).toContain("public `arc review` protocol");
-        expect(caller).toContain("local and frontline transitions only through those commands");
-        expect(caller).toContain("`local | hosted | both`");
-      }
-    }
-  });
-
-  it("keeps project actions populated but inactive until cutover", async () => {
+  it("keeps post-open and pre-merge as dormant extension seams", async () => {
     for (const name of ["post-pr-open", "pre-merge"]) {
       const project = await readFile(resolve(projectArc, `system/extensions/${name}.md`), "utf8");
       const packaged = await readFile(resolve(packageArc, `system/extensions/${name}.md`), "utf8");
       expect(project).toContain("active: false");
-      expect(project).toContain("coordinate-pr-review.md");
+      expect(project).not.toMatch(/coordinate-pr-review|controller/iu);
       expect(project).toMatch(/1\. \*\*/u);
-      expect(project).toMatch(/2\. \*\*/u);
       expect(packaged).toContain("[No extension configured]");
-      expect(packaged).not.toContain("coordinate-pr-review");
+      expect(packaged).not.toMatch(/coordinate-pr-review|controller/iu);
     }
   });
 
