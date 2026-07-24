@@ -119,6 +119,13 @@ asserted undeclared because its declaration sat in a different chunk).
 most accurately, while false positives concentrated in chunks that cross-reference their neighbors. Boundaries are
 drawn on contract cohesion, never a line count.
 
+Closure is necessary but not sufficient for boundedness. Once closure and test cohesion hold, the operator checks
+the candidate's residual attention burden from its available size, hunk density, contract breadth, and evaluator
+capability. A candidate that independently trips an enabled target-level tripwire is reconsidered for a
+contract-respecting split by default; one below the tripwires may still need a split. These are pressure signals,
+not caps. If no honest split preserves closure, the map records an irreducible large closure instead of silently
+claiming that cohesion alone made it reviewable in one pass.
+
 ### Selection preflight — deterministic tripwire, judgmental boundary
 
 Before any frontline or standard review of an exact target, a typed CLI resolver under `arc review chunking`
@@ -183,6 +190,10 @@ The tiers name existing tools and build **no clustering engine**:
   go-to-definition** pass surfaces consumer→declaration dependency edges directly, flagging symbols
   referenced-inside-but-declared-outside to pull in or annotate. Run against current HEAD, so a branch that moves
   during review is handled by re-running the guard — no separate staleness mechanism.
+- **Residual attention (judgment).** Reconsider a closure that remains too broad for one focused pass. Recursively
+  split along real subcontracts, keep behavior with its tests, and assign each new cross-child surface to a local
+  seam. A closure that cannot be split honestly is recorded as irreducibly large with the limiting dependency
+  shape exposed to the carrier.
 - **Coverage (existing tools).** A completeness check, not a proof: `change-set − ⋃chunks = ∅`, computed from
   `git diff` against the base. Nothing merges separately, so an uncovered hunk is only _unreviewed_ — a gap to
   close, reported to the operator, **never gated**.
@@ -217,6 +228,11 @@ chunk_ prevents **missed** cross-chunk findings — both contract breaks and cro
 read on the between-chunk dimensions either: a diluted whole-diff pass only _skims_ the seams, whereas the seam chunk
 names and reviews them at focused attention.
 
+Recursive splitting makes the seam model hierarchical rather than flat: local seams reconcile sibling chunks,
+domain-level summaries preserve those results, and a top-level seam reviews contracts between domain roots. A
+higher seam receives only the cross-boundary contracts and bounded child summaries needed at that altitude; it
+never reconstructs the original monolith by loading every descendant body or raw report wholesale.
+
 ### Reviewer model — local by construction
 
 A chunk is an agent-curated set of files / hunks, not a tool directory-scope, so a closure-respecting boundary may
@@ -230,16 +246,16 @@ review is out of scope by construction (above).
 Chunking is a property of one curated-scope-capable local review-role _invocation_: it **adds no logical review
 pass**, only reshapes how an existing role evaluates its surface. The carrier orchestration retains the canonical
 immutable target, partition map, coverage state, and stable evaluator profile/rubric, but it never loads the whole
-diff into one evaluator context. It runs one fresh bounded context per closure chunk plus a bounded seam context;
-each context receives only its current scope and explicit external/pre-existing annotations, and records structured
-findings before the next context begins.
+diff into one evaluator context. It runs one fresh bounded context per leaf chunk plus bounded local and top-level
+seam contexts; each context receives only its current scope and explicit external/pre-existing annotations, and
+records structured findings before aggregation at the next altitude.
 
-A final non-author aggregate context receives the partition map, coverage result, structured chunk/seam reports,
-and targeted source loci needed to reconcile them — not every chunk body wholesale — and emits one aggregate
-whole-target result. A partial chunk report cannot complete the role invocation. The aggregate is one logical pass
-for accounting even though the carrier uses multiple bounded evaluator calls. Typed scope transport, per-chunk
-scope identities/receipts, and independently authoritative per-chunk results remain deferred to
-`chunk-scope-binding`.
+Domain summaries reconcile their leaf and local-seam reports before a final non-author aggregate context receives
+the partition hierarchy, coverage result, bounded domain summaries, top-level seam report, and targeted source loci
+needed to reconcile them — not every chunk body or raw report wholesale. A partial leaf or seam report cannot
+complete the role invocation. The aggregate is one logical pass for accounting even though the carrier uses
+multiple bounded evaluator calls. Typed scope transport, per-chunk scope identities/receipts, and independently
+authoritative per-chunk results remain deferred to `chunk-scope-binding`.
 
 The integration pipeline has two independent roles whose configured cycles may repeat. One target-level preflight
 can inform both, but whole-target versus chunked is selected separately for each role invocation before that role's
@@ -340,12 +356,13 @@ during the current development stage and will be reconciled as one coherent publ
   it. `independent-analysis`'s complete-coverage requirement is preserved under local chunking by the coverage guard
   (union-completeness) plus the seam chunk; the hosted channel is unchanged. The amendment to `≥ 1 PR` belongs to
   `chunked-delivery`, not here.
-- **Testing / validation.** The design's own validation instrument is the success signal below — a paired
-  comparison measured on first application (n=1 directional evidence, not proof). Boundary-_drawing_ is judgment and
-  is not unit-testable; the deterministic guard/coverage checks are validated by the tools they name (type-check,
-  `git diff`). Unit tests own config parsing, byte-framed numeric-stat parsing, and the disposition matrix;
-  integration tests own real Git/config composition; the E2E boundary proves file/stdin transport, one exact JSON
-  envelope, and no prompt or provider effect.
+- **Testing / validation.** The design's primary validation instrument is the success signal below — a paired
+  comparison measured on first application (n=1 directional evidence, not proof). A separate pathological-target
+  stress test exercises recursive boundedness and hierarchical aggregation without retrying or relabeling the
+  primary result. Boundary-_drawing_ is judgment and is not unit-testable; the deterministic guard/coverage checks
+  are validated by the tools they name (type-check, `git diff`). Unit tests own config parsing, byte-framed
+  numeric-stat parsing, and the disposition matrix; integration tests own real Git/config composition; the E2E
+  boundary proves file/stdin transport, one exact JSON envelope, and no prompt or provider effect.
 - **Migration / rollout.** The doctrine ships **agent-applied** — no tooling gate, usable on the first parked
   oversized WU. Rollout carries one mechanical sweep: the `chunk` terminology cascade (a controlled-vocabulary
   reconcile across both maintained ARC copies, grep-resolved at implementation time; the stale public `docs/` tree
@@ -430,6 +447,15 @@ during the current development stage and will be reconciled as one coherent publ
   operator acceptance and must remain labeled inconclusive; do not select repeated targets merely to obtain a
   supportive result. Any declaration-split false blocker in the treatment independently exposes a closure defect
   even when the aggregate count is lower.
+- **Supplemental scalability stress test.** After the primary result is fixed, pin one settled pathological target
+  and draw a complete recursive closure hierarchy without a baseline arm. Predeclare reviewability before
+  evaluation: every leaf and seam must complete the full rubric without partiality or context-overload caveats;
+  every residual large closure must be split again or recorded as irreducible with its limiting contract shape;
+  every hunk must be covered; and bounded domain summaries plus a top-level seam must yield one coherent aggregate
+  without reconstructing the monolith. Pilot one high-risk leaf and its local seam before fan-out. Preserve raw
+  reports and a SHA-bound advisory packet for later owner revalidation. This test may support or limit the
+  scalability claim, but it never changes the primary comparison's classification or satisfies the target's later
+  exact-head review obligation.
 - **Doc-heavy analog.** For a maintained doc-heavy change set outside `docs/`: zero false "undefined / dangling
   reference" findings caused by a term, section, or artifact defined in another chunk (judgment-checked, no
   type-checker).
@@ -452,6 +478,8 @@ during the current development stage and will be reconciled as one coherent publ
 - **Measured on first application.** The signal is recorded in `analysis-review-chunking.md` from the first parked
   oversized WU's integration review as directional initial evidence — n=1, explicitly not proof. The experiment is
   evaluation-only for review authority: neither arm satisfies a review obligation or authorizes target mutation.
+  The supplemental stress test is recorded separately and cannot be used as a repeated attempt to obtain a
+  supportive primary result.
 
 ## Open Questions
 

@@ -49,6 +49,17 @@ The configured line and file tripwires select attention only. They can recommend
 boundaries, cap chunk size, or make a numeric budget a validity rule. Explicit callers may apply this method even
 when automatic consideration is disabled.
 
+Closure establishes validity; it does not by itself establish that a chunk is bounded enough for one review pass.
+After closure and test cohesion hold, inspect the candidate's residual attention burden using its available size,
+hunk density, contract breadth, and evaluator capability. A candidate that independently trips an enabled
+target-level tripwire should be reconsidered for a contract-respecting split by default; a candidate below the
+tripwires may still need one. These facts are pressure signals, not caps.
+
+When a cohesive candidate remains attention-heavy, recursively split it along real subcontracts, preserve complete
+union coverage, and assign the new cross-child surface to a local seam. If no honest split preserves closure and
+test cohesion, record the candidate as an irreducible large closure and make that limitation explicit to the
+review carrier; do not silently treat size alone as proof that the pass is bounded.
+
 ### Completeness and the seam
 
 Require `change-set − union(chunks) = empty`. Close or surface every uncovered file or hunk; an unmeasured or
@@ -57,6 +68,10 @@ uncovered region is not implicitly small or reviewed.
 Add a dedicated seam scope whenever boundaries create cross-chunk surface. Review changed contracts at their use
 sites and inspect boundary-spanning duplication, abstraction choices, and naming consistency. The seam complements
 the local chunks; it does not re-read every chunk body as one diluted whole-target pass.
+
+Recursive chunking forms a hierarchy: local seams reconcile sibling chunks, and a top-level seam reconciles the
+domain roots. Higher seams consume the cross-boundary contracts and bounded child summaries they need, not every
+descendant body or raw diff wholesale.
 
 `frontline-review` and `standard-review` may consume this method only through a carrier capable of curated scopes
 and complete aggregation. Partial chunk reports have no standalone review authority. The role-specific methods own

@@ -212,13 +212,14 @@ dedicated publication sweep rather than through private-development patching.
 
 ## **Phase 5:** First-application evidence
 
-_Purpose:_ Test the doctrine on comparable bounded review scopes and preserve directional evidence from its first
-application.
+_Purpose:_ Test the doctrine on comparable bounded review scopes, preserve directional evidence from its first
+application, and stress recursive boundedness on a pathological target.
 
 _Design decisions:_ The comparison is directional `n=1` evidence, not a proof or merge gate. Two independent local
 carrier runs use the same evaluator configuration and identical bounded chunk contexts→raw snapshot→bounded
 seam→non-author aggregate protocol; only the boundary map changes. Both arms are evaluation-only and cannot satisfy
-review obligations or authorize target mutation.
+review obligations or authorize target mutation. The later scalability test has no baseline arm and cannot relabel
+the comparison; it tests whether recursive leaf chunks and hierarchical seams remain genuinely reviewable.
 
 ### `[x]` **5.1 Prepare the paired comparison and coverage model**
 
@@ -240,7 +241,7 @@ review obligations or authorize target mutation.
 - _Outcome:_ The two arms vary only their boundary map over one immutable target; both cover all 97 files, 8,971
   changed lines, and 672 hunks with three scopes plus a dedicated seam.
 
-### `[ ]` **5.2 Run and record the controlled-evaluator comparison**
+### `[x]` **5.2 Run and record the controlled-evaluator comparison**
 
 - _Goal:_ The first application yields comparable raw evidence about whether closure-respecting boundaries reduce
   declaration-split false blocker findings.
@@ -255,15 +256,45 @@ review obligations or authorize target mutation.
         - Bound a verified eight-item advisory packet to the held-out SHA without mutating its worktree or treating
           the experiment record as the target's disposition queue.
 
-    - `[ ]` **5.2.c Record the paired result**
-        - Complete the forward-readable section in `analysis-review-chunking.md` with both arm summaries, the raw
-          false-blocker delta, caveats, and one outcome: `supportive`, `contrary`, or `inconclusive`.
-        - Treat a strict reduction as supportive; treatment at or above a nonzero baseline as contrary; and zero/zero
-          or a compromised comparison as inconclusive. Any treatment declaration-split false blocker independently
-          requires doctrine review.
-        - On contrary evidence, stop and route a doctrine correction before work-unit completion. On inconclusive
-          evidence, stop for direction on another target or an explicitly accepted inconclusive close; neither
-          outcome may be presented as supportive, and do not select repeated targets merely to obtain support.
+    - `[x]` **5.2.c Record the paired result**
+        - Recorded the predeclared zero/zero false-blocker outcome as inconclusive without relabeling the one-finding
+          aggregate reduction; accepted the result with a separate scalability test rather than repeating targets
+          to manufacture support.
+
+- _Outcome:_ The exact-target comparison preserved complete evidence and found no declaration-split false blocker
+  in either arm. It remains inconclusive on the primary hypothesis while motivating a separately classified
+  residual-attention stress test.
+
+### `[ ]` **5.R Stress-test recursive boundedness on `session-locus-model`**
+
+- _Goal:_ A pathological monolith can be decomposed into reviewable leaf chunks and hierarchical seams without
+  reconstructing the monolith during aggregation.
+
+    - `[x]` **5.R.a Strengthen boundedness and predeclare the stress protocol**
+        - Added residual-attention pressure after closure, recursive contract-respecting splits, irreducible-large-
+          closure disclosure, and local/domain/top-level seam aggregation without adding a numeric chunk cap.
+        - Kept the original comparison fixed as inconclusive and defined the scalability run as a separate staged
+          test with reusable SHA-bound advisory output.
+
+    - `[ ]` **5.R.b Pin the settled target and draw the recursive closure hierarchy**
+        - Wait for `session-locus-model` to settle its concurrent edits, then bind the exact base/head and patch
+          digest without mutating its worktree.
+        - Prove complete file/hunk union coverage, record leaf metrics and external/pre-existing annotations, and
+          assign every sibling and domain boundary to a named seam.
+
+    - `[ ]` **5.R.c Pilot the highest-risk leaf and its local seam**
+        - Run one difficult leaf and the seam that depends on it before fan-out; preserve raw reports before
+          triage and stop to revise the map if either evaluator reports partiality, overload, or a malformed scope.
+
+    - `[ ]` **5.R.d Run the remaining leaf and hierarchical seam reviews**
+        - Fan out only after the pilot passes, using the same evaluator capability and rubric for every bounded
+          context; preserve raw leaf, local-seam, domain-seam, and top-level-seam reports independently.
+
+    - `[ ]` **5.R.e Aggregate and preserve the reusable advisory packet**
+        - Build bounded domain summaries and one fresh non-author aggregate without supplying every descendant body
+          wholesale; classify whether the hierarchy supports or limits the scalability claim.
+        - Record immutable raw evidence and stable-locus findings in `analysis-review-chunking.md`, bound to the
+          tested SHA and explicitly requiring revalidation after `session-locus-model` reconciles with main.
 
 ### `[ ]` **5.3 Validate the doc-heavy analog and seam review**
 
@@ -302,7 +333,8 @@ review obligations or authorize target mutation.
 - `[ ]` `review-chunking.md` ships as a configurable method, installs and updates correctly, and matches its `.arc/`
   projection.
 - `[ ]` The method defines consumer→declaration dependency closure, test cohesion, judgment-led derivation,
-  coverage, prose generality, holistic design review, and seam-chunk review.
+  residual-attention pressure, recursive splitting, coverage, prose generality, holistic design review, and
+  hierarchical seam review.
 - `[ ]` `chunk` is defined once as the review unit with the reserved delivery seam, and generic ARC work partitives
   no longer collide with it.
 - `[ ]` `review.chunking_threshold_lines` and `review.chunking_threshold_files` ship as validated runtime settings
@@ -323,6 +355,9 @@ review obligations or authorize target mutation.
   comparison records a valid `supportive`, `contrary`, or explicitly accepted `inconclusive` outcome from raw
   pre-seam, pre-triage output; support requires strictly fewer treatment false blockers, contrary evidence has a
   resolved doctrine correction, and inconclusive evidence carries no supportive claim.
+- `[ ]` A separately classified `session-locus-model` stress test proves complete recursive coverage, pilots before
+  fan-out, records every irreducible large closure, aggregates through bounded hierarchical summaries, and preserves
+  a SHA-bound advisory packet without changing the primary comparison's result or review authority.
 - `[ ]` The doc-heavy analog produces no false undefined/dangling finding caused solely by a definition in another
   chunk.
 - `[ ]` The first-application evidence is recorded in `analysis-review-chunking.md` as directional `n=1` evidence

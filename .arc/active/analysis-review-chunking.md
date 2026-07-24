@@ -1036,3 +1036,49 @@ head before deciding or mutating.
    as partly escaped regular expressions. Stable loci:
    `packages/arc-framework/src/lib/command-input/repository-inventory.ts` and
    `packages/arc-framework/src/lib/command-input/inventory.ts`.
+
+## Supplemental scalability stress test
+
+The accepted inconclusive primary result remains fixed. This supplemental run asks a different question: whether a
+pathological monolith can be decomposed into genuinely reviewable leaf chunks and hierarchical seams. It has no
+baseline arm, cannot change the zero/zero classification above, and carries no review or mutation authority for its
+target.
+
+### Target and staged execution
+
+Use `session-locus-model` only after its concurrent edits settle. At that point record its immutable canonical
+target, patch digest, complete file/line/hunk totals, recursive partition hierarchy, and exact union-coverage proof
+before invoking an evaluator. Do not mutate its worktree.
+
+Execution is fail-fast:
+
+1. Draw the complete hierarchy and identify every residual large closure.
+2. Pilot the highest-risk leaf and one dependent local seam.
+3. Revise the map if either pilot reports partiality, context overload, or malformed scope.
+4. Fan out the remaining leaf and seam contexts only after the pilot passes.
+5. Reconcile leaf reports into bounded domain summaries, run the top-level seam, and give one fresh non-author
+   aggregate only those summaries, coverage facts, seam results, and targeted source loci needed for adjudication.
+
+### Predeclared reviewability result
+
+Classify the stress test as **supports scalability** only when all of the following hold:
+
+- Every leaf and seam completes every rubric dimension without a partiality or context-overload caveat.
+- Every attention-heavy closure is split again or recorded as irreducible with the contract/test-cohesion reason
+  further splitting would be dishonest.
+- The recursive leaf union covers every changed hunk, and every cross-child or cross-domain surface has one named
+  seam owner.
+- Domain summaries and the top-level seam yield a coherent whole-target aggregate without loading every descendant
+  body or raw report wholesale.
+
+Otherwise classify the result as **limits scalability** and name the failed boundary, carrier, or aggregation
+condition. Finding count is not a success metric: a clean leaf can still prove reviewability, while a finding-rich
+leaf can still fail the test if its review is partial.
+
+### Preservation and later use
+
+Preserve every raw leaf, seam, domain-summary, and aggregate report before primary triage. The final advisory packet
+must bind each finding to the tested base/head, originating chunk or seam, stable source locus, material impact, and
+correction boundary. After this work unit lands and `session-locus-model` reconciles with main, its owning session
+may consume the packet as review input but must revalidate every item against the moved exact target; the packet
+does not satisfy that later head's review obligation.
