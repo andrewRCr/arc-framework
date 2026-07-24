@@ -1455,3 +1455,151 @@ Primary adjudication upheld three distinct seam findings and one duplicate:
 The seam also passes the **reviewability** pilot: it completed every dimension at bounded context, produced stable
 cross-leaf findings without loading the whole target, and did not require a map revision. Together the leaf and
 seam clear the predeclared fail-fast gate for broader fan-out.
+
+### L1 leaf evidence
+
+The fresh L1 evaluator reproduced the exact 23-file, 3,502-line, 23-hunk leaf and completed every rubric dimension
+with no overload or malformed scope. Its raw findings are preserved before classification:
+
+```yaml
+scope: L1
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 23, insertions: 3502, deletions: 0, changedLines: 3502, zeroContextHunks: 23}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: L1-F1
+    title: Mutation errors escape the promised exhaustive error-code contract
+    severity: major
+    rubricDimension: trust boundaries and compatibility
+    stableLocus: >
+      packages/arc-framework/src/lib/locus/schema/mutation.ts — line 45;
+      packages/arc-framework/src/lib/locus/mutation.ts — line 439;
+      packages/arc-framework/src/lib/locus/errors.ts — lines 5-12
+    evidence: >
+      The public mutation schema accepts any locus.* string, while LocusErrorCode declares a finite seven-code
+      union. popLocusRole emits locus.record-pop.failed, which is absent from that union.
+    impact: >
+      Consumers cannot exhaustively dispatch on the documented error type, and a live record-pop failure crosses
+      the public boundary outside the typed vocabulary.
+    correctionBoundary: >
+      Use one shared runtime schema and inferred finite error-code type; map pop failures into that vocabulary and
+      reject unknown locus.* codes.
+  - id: L1-F2
+    title: The runtime schema blesses incomplete successful open receipts
+    severity: major
+    rubricDimension: correctness and failure behavior
+    stableLocus: packages/arc-framework/src/lib/locus/schema/mutation.ts — lines 47-56
+    evidence: >
+      Successful errand-open, plan-open, and housekeep-open results require only activeLocusPath and
+      sessionHomePath; allocation, recordId, and leaseId may remain null despite the shared open-success contract.
+    impact: >
+      An applied/idempotent receipt can validate without the exact authority coordinates needed for safe
+      continuation.
+    correctionBoundary: >
+      Require allocation, record ID, lease ID, active locus, and session home together; add a negative test for
+      every missing coordinate.
+  - id: L1-F3
+    title: Persisted timestamps accept non-UTC offsets
+    severity: minor
+    rubricDimension: repository contract coherence
+    stableLocus: packages/arc-framework/src/lib/locus/schema/limits.ts — lines 23-24
+    evidence: >
+      The UTC RFC3339 schema uses z.iso.datetime({offset:true}), which accepts non-Z offsets, while the governing
+      persisted-record contract requires canonical UTC.
+    impact: >
+      External or hand-authored records can validate outside the canonical persisted format.
+    correctionBoundary: Require Z-form UTC or normalize before persistence and cover the offset boundary.
+withstood:
+  - Schema roots, registries, record operations, and state derivation remain cohesively separated.
+  - Bounded reads, digest checks, generation mismatches, and frame derivation otherwise fail closed.
+  - All 23 files serve the foundational locus authority without unrelated scope.
+  - Path identity, exclusive minting, lock-backed mutation, and strict variants otherwise withstand review.
+  - Direct tests broadly cover corruption, size, generation, state, recovery, and primary safety.
+verdict: non-clean
+```
+
+Primary adjudication upheld all three findings directly from the pinned source. In particular, the live
+`locus.record-pop.failed` producer proves L1-F1 is not theoretical, and the open-success refinement visibly omits
+three required authority coordinates. L1 passes reviewability independently of its non-clean verdict.
+
+### E1 leaf evidence
+
+The fresh E1 evaluator reproduced 17 files, 3,780 changed lines, and 37 hunks exactly. It completed every dimension
+without overload or malformed scope and returned:
+
+```yaml
+scope: E1
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 17, insertions: 3763, deletions: 17, changedLines: 3780, zeroContextHunks: 37}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: E1-F1
+    title: Legacy backward-compatible decoding rejects records accepted by the shipped v1/v2 codec
+    severity: medium
+    rubricDimension: trust boundaries and compatibility
+    stableLocus: packages/arc-framework/src/lib/errand/identity-record.ts — LegacyBaseShape at line 18
+    evidence: >
+      LegacyBaseShape newly applies SlugSchema, bounded intent/text, and strict timestamps to v1/v2 records. The
+      base codec accepted any non-empty slug, branch, and createdAt plus unbounded string intent.
+    impact: >
+      Existing synchronized legacy identities can become unreadable and lose their promised close-only migration
+      path; one such entry can invalidate the complete snapshot.
+    correctionBoundary: >
+      Preserve the exact base codec's accepted legacy domain or add an explicit compatibility projection, with
+      regression cases drawn from formerly accepted values.
+  - id: E1-F2
+    title: The in-flight index treats unreadable or malformed identity authority as empty or partial state
+    severity: medium
+    rubricDimension: correctness and failure behavior
+    stableLocus: packages/arc-framework/src/lib/errand/record.ts — readTransientInFlightIndexes at line 313
+    evidence: >
+      Snapshot errors return empty maps, while complete snapshots with diagnostics are iterated without propagating
+      those diagnostics. Tip/tree failure is indistinguishable from absent authority and malformed entries vanish
+      from a partial index.
+    impact: >
+      Status and in-flight classification can treat live transient branches as non-transient exactly when identity
+      authority is corrupt or unreadable.
+    correctionBoundary: >
+      Return complete/absent/error with diagnostics and require consumers to surface unknown/manual state; cover
+      tip/tree errors and non-empty diagnostics.
+withstood:
+  - Identity schema, snapshot, transaction, transition, lifecycle, and claim layers are narrowly separated.
+  - CAS retry, three-way reconciliation, ambiguous push recovery, and exact-generation transforms otherwise hold.
+  - Git and host calls use argument arrays and mutation refuses malformed transaction bases.
+  - Tests strongly cover races, lifecycle states, exact transitions, and receipt-generation identity.
+verdict: changes-requested
+```
+
+Primary adjudication upheld both findings. The exact base decoder proves E1-F1's compatibility regression, and the
+new `readTransientInFlightIndexes` implementation explicitly collapses snapshot error to empty and ignores complete
+snapshot diagnostics. E1 therefore passes reviewability and contributes two distinct advisory findings.
+
+### CodeRabbit E1 carrier shadow
+
+The second CodeRabbit `--agent` invocation completed all 17 files in an exact 3,780-line/37-hunk projection with
+exit zero and no partiality signal. Raw findings:
+
+```json
+{"type":"finding","severity":"minor","fileName":"packages/arc-framework/src/lib/errand/record.ts","codegenInstructions":"Verify each finding against current code. Fix only still-valid issues, skip the rest with a brief reason, keep changes minimal, and validate.\n\nIn @packages/arc-framework/src/lib/errand/record.ts around lines 161 - 190, Move the existing JSDoc describing io, slug, operation, return value, and thrown errors so it directly precedes the readErrandRecord function declaration. Keep the ErrandRecordReadFailure documentation immediately above its type declaration, ensuring each comment is attached to the intended symbol.","suggestions":[]}
+{"type":"finding","severity":"major","fileName":"packages/arc-framework/src/lib/errand/identity-claims.ts","codegenInstructions":"Verify each finding against current code. Fix only still-valid issues, skip the rest with a brief reason, keep changes minimal, and validate.\n\nIn @packages/arc-framework/src/lib/errand/identity-claims.ts around lines 116 - 122, Update the cleanup flow around fetchGroomBase and temporaryRef so git update-ref deletion runs only when temporaryRef was actually created. Preserve the original fetch outcome when no temporary ref exists, while retaining claimGitError(\"cleanup\", ...) for cleanup failures after creation.","suggestions":[]}
+{"type":"complete","status":"review_completed","findings":2,"reviewedFileCount":17}
+```
+
+Primary classification:
+
+- **CR-E1-1 — upheld, minor.** The `readErrandRecord` JSDoc is attached to
+  `ErrandRecordReadFailure` because a second doc block and the type declaration intervene before the function.
+- **CR-E1-2 — rejected.** `update-ref -d` is idempotent when the unique ref is absent, and unconditional cleanup is
+  necessary when fetch returns an error after ambiguously creating the ref. Gating deletion on a reported fetch
+  success would weaken cleanup rather than preserve the original outcome safely.
+
+The second shadow confirms the same carrier result as S2: exact scope completes successfully, but latency is
+materially higher and findings require ordinary source adjudication.
