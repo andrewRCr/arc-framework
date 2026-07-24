@@ -439,10 +439,10 @@ remains explicit and open-ended rather than acquiring a configuration axis. No n
 configuration axis is added — these are operational review-behavior settings.
 
 **C2 — Activation flip (dogfood).** Enabling the `frontline-review` method in this repository is owned by the
-**method-file `override-active` flag in the project instance**, not the config axis: `.arc/system/methods/
-frontline-review.md` is `active: false` (package default — opt-in, off for adopters) with `override-active: false`;
-the flip sets `override-active: true` in the `.arc/` copy only (package default stays `false` under two-copy
-discipline). The config axis `review.frontline_sources: coderabbit-cli` binds the preferred source. Verify the
+method file's `active` contract in the project instance, not the config axis: the package source remains
+`active: false` (opt-in, off for adopters), while the `.arc/` copy sets `active: true`. Both retain
+`override-active: false` because the project defines no override body. The config axis
+`review.frontline_sources: coderabbit-cli` binds the preferred source. Verify the
 frontline resolution and standard review through a hosted-PR source live against a real fixture PR carrying this
 branch before merge; the exact `main` guard activation remains the post-merge Errand from Goal 5. This absorbs the
 `USER-INBOX` capture "Enable the `frontline-review` method in the self-hosting repo"; the adopted capture drops
@@ -818,8 +818,8 @@ proof; exact default-branch guard activation is the durably-routed immediate pos
    driver (E3).
 9. TECHNICAL-OVERVIEW § 2 describes the post-cut state with no residual App / controller narrative, reconciled
    with RSB's D15 edit; no added behavior is represented as autonomous host-side enforcement.
-10. `frontline-review` is active in this repository via `override-active: true` in the `.arc/` method instance
-    (package default unchanged), and the adopted `USER-INBOX` capture drops at completion.
+10. `frontline-review` is active in this repository via `active: true` in the `.arc/` method instance
+    (`override-active: false`, package default unchanged), and the adopted `USER-INBOX` capture drops at completion.
 11. **Configurable/opt-in for any install.** A default ARC install (no frontline sources, no standard sources,
     guard not set up) completes a WU integration end-to-end with the standard-review segment cleanly skipped even
     when `standardReview` is non-exempt — proving the driver-owned opt-out and graceful degradation.
