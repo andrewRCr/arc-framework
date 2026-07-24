@@ -55,15 +55,10 @@ shadow runtime that currently contains their reusable pieces.
           preserves pending observation, stops on ambiguous/terminal outcomes, consumes a pass only on completion,
           and returns the full attempted-provider history for selected, exhausted, and invalid source lists.
 
-### `[ ]` **1.3 Bind standard-review policy, ordered sources, pass ceilings, and opt-out**
+### `[x]` **1.3 Bind standard-review policy, ordered sources, pass ceilings, and opt-out**
 
 - _Goal:_ Configuration selects one source per review role and bounds its cycles, while an installation with no
   standard source reaches a clean no-op despite the change-shaped obligation.
-
-- _Note:_ RSB Tasks 1.1–1.3 own the coordinated live-closure rename and plural frontline resolver. They are its
-  first implementation increment, but ARC delivers the WU through one final merge: begin this task only after the
-  full RSB WU is integrated and reconciled into the branch; consume the landed contract without recreating or
-  editing it here.
 
     - `[x]` **1.3.a Add typed ordered-source and pass-ceiling settings**
 
@@ -77,13 +72,14 @@ shadow runtime that currently contains their reusable pieces.
           ordered capability-aware fallback, target-bound whole/chunked scope, logical pass accounting, terminal
           and disposition consequences, and idempotent exact one-pass ceiling overrides without persistent state.
 
-    - `[ ]` **1.3.c Prove the public CLI surface and default-install contract**
+    - `[x]` **1.3.c Prove the public CLI surface and default-install contract**
 
-        - Extend the review handler/CLI contract tests and add a durable `review-cli-surfaces.test.ts` integration
-          test so each new verb is packaged, help-visible, strict on JSON input, and callable with no shadow
-          launcher. Leave `review-gate-operation-surfaces.test.ts` to retire with `runtime/operations.ts`.
-        - Exercise a package-default config with empty frontline and standard lists and no guard to prove the
-          driver exits cleanly without host credentials, delegated-agent work, or network activity.
+        - Added handler-contract and built-artifact integration coverage for help-visible `review resolve` and
+          hosted verbs, strict JSON rejection, config hydration, and a credential-free package-default no-op.
+
+- _Outcome:_ The landed standard-review projection now drives two independently configured review lanes through
+  one strict public transition surface; ordered source fallback and pass ceilings remain dormant by default, so an
+  unconfigured installation reaches a clean terminal without invoking any local or hosted carrier.
 
 ## **Phase 2:** Exact-head merge guard
 

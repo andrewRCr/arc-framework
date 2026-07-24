@@ -50,21 +50,32 @@ const InvalidOverrideReasonSchema = z.enum([
 ]);
 type InvalidOverrideReason = z.infer<typeof InvalidOverrideReasonSchema>;
 
-export const ReviewPolicyRequestSchema = z.strictObject({
+const ReviewPolicyRequestBaseShape = {
   schemaVersion: z.literal(1),
   target: ReviewPolicyTargetSchema,
   lane: z.enum(["frontline", "standard"]),
   frontlineActive: z.boolean().default(false),
   standardReview: StandardReviewObligationProjectionSchema,
-  sources: z.array(ReviewSourceIdSchema).readonly(),
   completedPasses: CompletedPassCountSchema,
-  maxPasses: ReviewPassSchema,
   attempts: z.array(ReviewAttemptSchema).readonly(),
   scopeSelection: z.strictObject({
     mode: ReviewScopeModeSchema,
     target: ReviewPolicyTargetSchema,
   }).readonly().optional(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+};
+
+export const ReviewPolicyCommandRequestSchema = z.strictObject({
+  ...ReviewPolicyRequestBaseShape,
+  sources: z.array(ReviewSourceIdSchema).readonly().optional(),
+  maxPasses: ReviewPassSchema.optional(),
+}).readonly();
+export type ReviewPolicyCommandRequest = z.infer<typeof ReviewPolicyCommandRequestSchema>;
+
+export const ReviewPolicyRequestSchema = z.strictObject({
+  ...ReviewPolicyRequestBaseShape,
+  sources: z.array(ReviewSourceIdSchema).readonly(),
+  maxPasses: ReviewPassSchema,
 }).superRefine((request, context) => {
   let previousSourceIndex = -1;
   for (const [attemptIndex, attempt] of request.attempts.entries()) {

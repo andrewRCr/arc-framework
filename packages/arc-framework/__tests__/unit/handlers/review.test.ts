@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  handleReviewResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
   handleReviewLocalAttest,
@@ -198,6 +199,78 @@ function localReceiptFixture() {
     },
   };
 }
+
+describe("handleReviewResolve", () => {
+  const request = {
+    schemaVersion: 1,
+    target: {
+      repository: "arc-framework/example",
+      pullRequest: 42,
+      headSha: "a".repeat(40),
+    },
+    lane: "standard",
+    standardReview: {
+      obligation: "required",
+      reasons: ["sensitive-change-set"],
+      rubricVersion: "standard-review/v1",
+      rubricDigest: `sha256:${"b".repeat(64)}`,
+      retrigger: "full-final",
+      count: 1,
+    },
+    completedPasses: 0,
+    attempts: [],
+  };
+
+  it("rejects malformed input before resolving policy", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({ schemaVersion: 1 }),
+      resolve: vi.fn(),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      mode: "review-resolve",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("emits one validated transition envelope", async () => {
+    const write = vi.fn();
+
+    await handleReviewResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify(request),
+      resolve: vi.fn(async () => ({
+        schemaVersion: 1,
+        mode: "review-resolve",
+        diagnostics: [],
+        state: "no-op",
+        nextAction: "none",
+        payload: {
+          lane: "standard",
+          scope: "whole-target",
+          consumedPass: false,
+          attemptedSources: [],
+        },
+      })),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-resolve",
+      state: "no-op",
+      nextAction: "none",
+    });
+  });
+});
 
 describe("handleReviewFrontlineResolve", () => {
   it("emits the shared invalid-input error envelope for malformed input", async () => {

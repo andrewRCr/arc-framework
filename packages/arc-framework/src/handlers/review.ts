@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { ZodError, type ZodType } from "zod";
 
 import { gitExec } from "../lib/io-context.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import {
   FrontlineResolveEnvelopeSchema,
@@ -16,7 +17,10 @@ import {
   ReviewCommandErrorEnvelopeSchema,
   type ReviewCommandMode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
-import { createLocalFrontlineSourcePreferenceReader } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
+import {
+  createLocalFrontlineSourcePreferenceReader,
+  parseReviewSourceIds,
+} from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
 import {
   LocalTargetDerivationError,
   type LocalTargetInvalidReason,
@@ -26,9 +30,10 @@ import {
   resolveFrontlineCommand,
 } from "../scripts/review-gate/policy/frontline-command.js";
 import {
-  ReviewPolicyRequestSchema,
+  ReviewPolicyCommandRequestSchema,
   ReviewResolveEnvelopeSchema,
   resolveReviewPolicy,
+  type ReviewPolicyCommandRequest,
 } from "../scripts/review-gate/policy/review-policy-driver.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
@@ -92,7 +97,7 @@ async function readStdin(): Promise<string> {
 export interface ReviewResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
-  resolve(request: unknown): unknown;
+  resolve(request: ReviewPolicyCommandRequest, root: string): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
@@ -101,12 +106,38 @@ function defaultReviewResolveDependencies(): ReviewResolveHandlerDependencies {
   return {
     resolveRoot: resolveArcRoot,
     readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
-    resolve: resolveReviewPolicy,
+    resolve: resolveConfiguredReviewPolicy,
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => {
       process.exitCode = code;
     },
   };
+}
+
+async function resolveConfiguredReviewPolicy(
+  request: ReviewPolicyCommandRequest,
+  root: string,
+): Promise<unknown> {
+  const { settings } = await readConfigSettings(root);
+  let sources = request.sources;
+  if (sources === undefined && request.lane === "frontline") {
+    const preferences = createLocalFrontlineSourcePreferenceReader({
+      cwd: root,
+      exec: gitExec,
+      readFile: (path) => readFile(path, "utf8"),
+    });
+    const developerSources = await preferences.readDeveloperSourceIds();
+    sources = developerSources.length > 0
+      ? developerSources
+      : parseReviewSourceIds(settings["review.frontline_sources"]);
+  }
+  sources ??= parseReviewSourceIds(settings["review.standard_sources"]);
+  const maxPasses = request.maxPasses ?? Number(
+    settings[request.lane === "frontline"
+      ? "review.frontline_max_passes"
+      : "review.standard_max_passes"],
+  );
+  return resolveReviewPolicy({ ...request, sources, maxPasses });
 }
 
 /**
@@ -124,10 +155,13 @@ export async function handleReviewResolve(
   await executeReviewHandler({
     mode: "review-resolve",
     source,
-    requestSchema: ReviewPolicyRequestSchema,
+    requestSchema: ReviewPolicyCommandRequestSchema,
     resultSchema: ReviewResolveEnvelopeSchema,
     dependencies,
-    execute: (request) => Promise.resolve(dependencies.resolve(request)),
+    execute: (request, root) => dependencies.resolve(
+      ReviewPolicyCommandRequestSchema.parse(request),
+      root,
+    ),
   });
 }
 
