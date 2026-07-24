@@ -25,6 +25,9 @@ import { reduceReviewRouting } from "../../../src/scripts/review-gate/policy/rou
 import {
   createLocalReviewReceipt,
 } from "../../../src/scripts/review-gate/runtime/local-attestation.js";
+import {
+  runFrontlineReviewCommand,
+} from "../../../src/scripts/review-gate/runtime/frontline-run-command.js";
 import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
 import {
   LocalPrepareCommandError,
@@ -264,6 +267,79 @@ describe("handleReviewFrontlineRun", () => {
         persistedVersion: 2,
       },
     });
+  });
+
+  it.each([
+    {
+      label: "non-ready",
+      resolution: {
+        ...frontlineRunRequest.resolution,
+        state: "skipped",
+        nextAction: "none",
+        payload: {
+          routing: frontlineRunRequest.resolution.payload.routing,
+          frontlineReview: frontlineRunRequest.resolution.payload.frontlineReview,
+        },
+      },
+    },
+    {
+      label: "non-executable",
+      resolution: {
+        ...frontlineRunRequest.resolution,
+        payload: {
+          ...frontlineRunRequest.resolution.payload,
+          frontlineReview: {
+            ...frontlineRunRequest.resolution.payload.frontlineReview,
+            action: "offer",
+            source: null,
+          },
+        },
+      },
+    },
+  ])("emits invalid-input for a $label resolution before any effect", async ({ resolution }) => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const confirmSource = vi.fn();
+    const prepareExecutionTarget = vi.fn();
+    const execute = vi.fn();
+    const withOperationLock = vi.fn();
+    const readOperation = vi.fn();
+    const publishOperation = vi.fn();
+    const readOutcome = vi.fn();
+    const appendOutcome = vi.fn();
+
+    await handleReviewFrontlineRun("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({
+        ...frontlineRunRequest,
+        resolution,
+      }),
+      run: (request) => runFrontlineReviewCommand(request, {
+        confirmSource,
+        prepareExecutionTarget,
+        execute,
+        withOperationLock,
+        operationStore: { readOperation, publishOperation },
+        outcomeStore: { readOutcome, appendOutcome },
+        now: () => "2026-07-24T02:33:18Z",
+      }),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-frontline-run",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+    expect(confirmSource).not.toHaveBeenCalled();
+    expect(prepareExecutionTarget).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(withOperationLock).not.toHaveBeenCalled();
+    expect(readOperation).not.toHaveBeenCalled();
+    expect(publishOperation).not.toHaveBeenCalled();
+    expect(readOutcome).not.toHaveBeenCalled();
+    expect(appendOutcome).not.toHaveBeenCalled();
   });
 });
 

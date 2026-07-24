@@ -71,6 +71,16 @@ export interface FrontlineRunCommandDependencies {
   now(): string;
 }
 
+/** Stable caller-input failure at the frontline run boundary. */
+export class FrontlineRunCommandError extends Error {
+  readonly code = "invalid-input" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "FrontlineRunCommandError";
+  }
+}
+
 function actionFor(outcome: Awaited<ReturnType<typeof executeFrontlineRun>>["outcome"]) {
   switch (outcome.outcome) {
     case "clean":
@@ -105,14 +115,16 @@ export async function runFrontlineReviewCommand(
   dependencies: FrontlineRunCommandDependencies,
 ): Promise<z.infer<typeof FrontlineRunEnvelopeSchema>> {
   const request = FrontlineRunRequestSchema.parse(requestInput);
-  if (request.resolution.state !== "ready") throw new Error("frontline run requires a ready resolution");
+  if (request.resolution.state !== "ready") {
+    throw new FrontlineRunCommandError("frontline run requires a ready resolution");
+  }
   const readyPayload = request.resolution.payload;
   if (!("pass" in readyPayload) || !("maxPasses" in readyPayload)) {
-    throw new Error("frontline ready resolution lacks its pass binding");
+    throw new FrontlineRunCommandError("frontline ready resolution lacks its pass binding");
   }
   const semantic = FrontlineSemanticRecordSchema.parse(readyPayload.frontlineReview);
   if (semantic.action !== "attempt" || semantic.source === null) {
-    throw new Error("frontline ready resolution lacks an executable source");
+    throw new FrontlineRunCommandError("frontline ready resolution lacks an executable source");
   }
   const target = validateReviewTarget(request.target);
   const source = semantic.source;
