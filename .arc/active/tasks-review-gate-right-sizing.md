@@ -415,23 +415,23 @@ activation ready for its immediate post-merge Errand.
         - Record the exact base/head and keep the fixture unmergeable; do not add `arc-cleared` to branch protection
           or treat the branch copy of the unlock workflow as default-branch authority.
 
-    - `[ ]` **5.3.b Drive the live review loop to convergence**
+    - `[ ]` **5.3.b Exercise the live hosted review and disposition loop**
 
         - Run configured frontline resolution, standard-source selection, hosted request, bounded await, any safe
-          availability fallback, complete finding disposition, thread-only settlement, and the combined
+          availability fallback, complete finding disposition, capability-backed settlement, and the combined
           convergence/release presentation against the fixture, withholding approval because this disposable proof
-          must not integrate. Review-body nitpick and outside-diff findings receive no host reply, resolution, or
+          must not integrate. Findings with `settlement: not-applicable` receive no host reply, resolution, or
           compensating disposition comment.
         - Verify the session never asks whether to review, which source to select next, or whether an in-ceiling
-          pass is authorized. Exercise at least one post-review narrow fixture delta so the operating agent selects,
-          discloses, and proceeds with proportionate follow-up without asking permission; do not fire a production
-          unlock whose default-branch workflow is not installed.
+          pass is authorized. After the broad finding-driven implementation delta, disclose the applicability
+          judgment and use a final independent chunked local review rather than another high-latency fixture pass;
+          do not fire a production unlock whose default-branch workflow is not installed.
 
     - `[ ]` **5.3.c Close the pre-merge proof and hand off activation inputs**
 
         - Record the fixture PR URL, exact base/head, selected standard source, and typed hosted-PR outcomes in this
-          task's completion note, including the narrow-delta applicability judgment and targeted verification; keep
-          born-lock, push-relock, planning-stamp, head-as-data readiness, and exact-head-unlock contract/fixture
+          task's completion note, including the broad-delta applicability judgment and final local review coverage;
+          keep born-lock, push-relock, planning-stamp, head-as-data readiness, and exact-head-unlock contract/fixture
           results explicitly separate from the live hosted facts. The closed PR and task outcome are the durable
           record—do not introduce an evidence ledger or new fixture artifact.
         - Confirm the existing identity-global capture `Activate and dogfood arc-cleared after review-gate right-
