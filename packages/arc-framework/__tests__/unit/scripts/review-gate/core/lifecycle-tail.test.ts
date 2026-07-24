@@ -22,7 +22,7 @@ function proof(overrides: Partial<LifecycleTailProof> = {}): LifecycleTailProof 
     baseRef: "main",
     diffBaseSha: BASE,
     policyVersion: "d".repeat(64),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     sourceIdentity: "agent-1",
     artifact: {
       workUnitId: "review-gate",
@@ -41,7 +41,7 @@ const expected = {
   baseRef: "main",
   diffBaseSha: BASE,
   policyVersion: "d".repeat(64),
-  rubricVersion: "independent-analysis/v1",
+  rubricVersion: "standard-review/v1",
   sourceIdentity: "agent-1",
 };
 
@@ -103,7 +103,7 @@ describe("forward lifecycle-tail applicability", () => {
       reviewedSurface: surface,
       currentSurface: { ...surface },
       policyVersion: `sha256:${"4".repeat(64)}`,
-      rubricVersion: "independent-analysis/v1",
+      rubricVersion: "standard-review/v1",
       rubricDigest: `sha256:${"5".repeat(64)}`,
       sourceIdentity: "agent-1",
       artifact: { workUnitId: "review-gate", artifactGroupId: "review-gate", cohortPath: null },

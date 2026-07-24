@@ -25,7 +25,7 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     changeSetId: "a".repeat(64),
     policyVersion: "b".repeat(64),
     semanticsVersion: "review-gate/v1",
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     requirementId: "analysis",
     sourceIdentity: "coderabbit",
     coverage: "full",

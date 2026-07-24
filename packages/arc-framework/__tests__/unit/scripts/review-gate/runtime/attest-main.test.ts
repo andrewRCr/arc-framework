@@ -15,14 +15,14 @@ const NOW = new Date("2026-07-10T20:15:00.000Z");
 
 const requirement: ReviewRequirement = {
   schemaVersion: 1,
-  id: "independent-analysis",
-  kind: "independent-analysis",
+  id: "standard-review",
+  kind: "standard-review",
   obligation: "required",
-  acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+  acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
   count: 1,
   initialAdmission: "automatic",
   policyVersion: "a".repeat(64),
-  rubricVersion: "independent-analysis/v1",
+  rubricVersion: "standard-review/v1",
   reasons: ["code-surface"],
   changeSetId: CHANGE_SET,
   headSha: HEAD,

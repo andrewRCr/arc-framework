@@ -26,7 +26,7 @@ import {
 export const FRONTLINE_REVIEW_PROMPT =
   "Review the aggregate candidate change set from a context distinct from the author.";
 export const FRONTLINE_BINDING_REMEDY =
-  "Bind a frontline review source with arc.frontlineSource, review.frontline_source, or an invocation sourceId.";
+  "Bind a frontline review source with arc.frontlineSources, review.frontline_sources, or an invocation sourceId.";
 
 const FrontlinePassAllowanceSchema = z.union([z.literal(1), z.literal(2)]);
 const FrontlineSemanticRecordSchemaBase = z.strictObject({

@@ -14,7 +14,7 @@ import {
   schemaOneAt,
   stringAt,
 } from "../../core/validation.js";
-import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../independent-analysis.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../standard-review.js";
 
 interface SourceGuidanceIdentity {
   baselineVersion: string;
@@ -119,18 +119,18 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
   authorMap: { andrewRCr: "andrew" },
   fallbackMaintainer: { login: "andrewRCr", expectedActorId: "44483269" },
   requirementTemplates: [{
-    id: "independent-analysis",
-    kind: "independent-analysis",
+    id: "standard-review",
+    kind: "standard-review",
     obligation: "required",
     acceptableSources: [
-      { sourceKind: "agent", qualifier: "independent-analysis/v1" },
-      { sourceKind: "human", qualifier: "independent-analysis/v1" },
+      { sourceKind: "agent", qualifier: "standard-review/v1" },
+      { sourceKind: "human", qualifier: "standard-review/v1" },
     ],
     count: 1,
     initialAdmission: "automatic",
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
   }],
-  rubricBindings: [{ requirementKind: "independent-analysis", rubricVersion: "independent-analysis/v1" }],
+  rubricBindings: [{ requirementKind: "standard-review", rubricVersion: "standard-review/v1" }],
   timeouts: { reservationMinutes: 10, analysisMinutes: 60 },
   providerIdentities: {
     coderabbitBotUserId: "136622811",
@@ -149,13 +149,13 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
   qualifications: [
     {
       sourceKind: "agent",
-      qualifier: "independent-analysis/v1",
+      qualifier: "standard-review/v1",
       sourceIdentity: "coderabbit-pr",
-      rubricVersion: "independent-analysis/v1",
+      rubricVersion: "standard-review/v1",
       channel: "hosted",
       guidance: {
-        baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-        baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        baselineVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+        baselineDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
         projectAugmentationId: "self-hosting-review/v1",
       },
       admissionMode: "automatic",
@@ -178,13 +178,13 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
     },
     {
       sourceKind: "agent",
-      qualifier: "independent-analysis/v1",
+      qualifier: "standard-review/v1",
       sourceIdentity: "codex-pr",
-      rubricVersion: "independent-analysis/v1",
+      rubricVersion: "standard-review/v1",
       channel: "hosted",
       guidance: {
-        baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-        baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        baselineVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+        baselineDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
         projectAugmentationId: "self-hosting-review/v1",
       },
       admissionMode: "checkpoint",
@@ -207,13 +207,13 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
     },
     ...["codex-cli", "claude-code", "coderabbit-cli"].map((sourceIdentity) => ({
       sourceKind: "agent" as const,
-      qualifier: "independent-analysis/v1",
+      qualifier: "standard-review/v1",
       sourceIdentity,
-      rubricVersion: "independent-analysis/v1",
+      rubricVersion: "standard-review/v1",
       channel: "local" as const,
       guidance: {
-        baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-        baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        baselineVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+        baselineDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
         projectAugmentationId: "self-hosting-review/v1",
       },
       admissionMode: "checkpoint" as const,
@@ -236,13 +236,13 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
     })),
     {
       sourceKind: "human",
-      qualifier: "independent-analysis/v1",
+      qualifier: "standard-review/v1",
       sourceIdentity: "qualified-non-author-human",
-      rubricVersion: "independent-analysis/v1",
+      rubricVersion: "standard-review/v1",
       channel: "local",
       guidance: {
-        baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-        baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        baselineVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+        baselineDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
         projectAugmentationId: "self-hosting-review/v1",
       },
       admissionMode: "checkpoint",
@@ -299,7 +299,7 @@ function parseQualification(input: unknown, path: string): SourceQualificationDe
   exactKeys(guidance, ["baselineVersion", "baselineDigest", "projectAugmentationId"], `${path}.guidance`);
   const declaration: SourceQualificationDeclaration = {
     sourceKind: enumAt(record.sourceKind, ["human", "agent", "deterministic-tool"], `${path}.sourceKind`),
-    qualifier: enumAt(record.qualifier, ["independent-analysis/v1"], `${path}.qualifier`),
+    qualifier: enumAt(record.qualifier, ["standard-review/v1"], `${path}.qualifier`),
     sourceIdentity: stringAt(record.sourceIdentity, `${path}.sourceIdentity`),
     rubricVersion: stringAt(record.rubricVersion, `${path}.rubricVersion`),
     channel: enumAt(record.channel, ["local", "hosted"], `${path}.channel`),
@@ -345,8 +345,8 @@ function parseQualification(input: unknown, path: string): SourceQualificationDe
     ),
   };
   if (declaration.guidance.baselineVersion !== declaration.rubricVersion
-    || declaration.guidance.baselineVersion !== INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version
-    || declaration.guidance.baselineDigest !== INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest
+    || declaration.guidance.baselineVersion !== STANDARD_REVIEW_RUBRIC_IDENTITY.version
+    || declaration.guidance.baselineDigest !== STANDARD_REVIEW_RUBRIC_IDENTITY.digest
     || declaration.guidance.projectAugmentationId !== "self-hosting-review/v1") {
     throw new Error(`${path}: invalid baseline guidance identity`);
   }

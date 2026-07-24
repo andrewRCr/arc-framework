@@ -56,7 +56,7 @@ describe("authorized local review-fix commit", () => {
   const dispositionState = approveDispositionState({
     proposed: proposeDispositionSet(createDispositionSet({
       schemaVersion: 2, semanticsVersion: "review-gate/v2", targetId: oldTarget.targetId,
-      policyVersion: canonicalDigest({ policy: "review" }), rubricVersion: "independent-analysis/v1",
+      policyVersion: canonicalDigest({ policy: "review" }), rubricVersion: "standard-review/v1",
       rubricDigest: canonicalDigest({ rubric: "implementation-audit" }), proposedBy: "author-1",
       findings: [{
         findingId: "finding-1", sourceIdentity: "local-review", locus: "src/index.ts:7",

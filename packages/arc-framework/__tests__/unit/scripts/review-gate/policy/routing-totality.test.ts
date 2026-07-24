@@ -46,8 +46,8 @@ function expectNotLower(base: ReviewRoutingDecision, promoted: ReviewRoutingDeci
     .toBeGreaterThanOrEqual(rank(base.authorSelfReview, REVIEW_OBLIGATION_ORDER));
   expect(rank(promoted.frontlineAction, FRONTLINE_ACTION_ORDER))
     .toBeGreaterThanOrEqual(rank(base.frontlineAction, FRONTLINE_ACTION_ORDER));
-  expect(rank(promoted.independentAnalysis, REVIEW_OBLIGATION_ORDER))
-    .toBeGreaterThanOrEqual(rank(base.independentAnalysis, REVIEW_OBLIGATION_ORDER));
+  expect(rank(promoted.standardReview, REVIEW_OBLIGATION_ORDER))
+    .toBeGreaterThanOrEqual(rank(base.standardReview, REVIEW_OBLIGATION_ORDER));
   expect(rank(promoted.retrigger, REVIEW_RETRIGGER_ORDER))
     .toBeGreaterThanOrEqual(rank(base.retrigger, REVIEW_RETRIGGER_ORDER));
 }
@@ -84,7 +84,7 @@ describe("review routing totality", () => {
                           if (!ReviewRoutingDecisionSchema.safeParse(decision).success) {
                             failures.push(`${JSON.stringify(facts)}: invalid decision`);
                           }
-                          const congruent = decision.independentAnalysis === "exempt"
+                          const congruent = decision.standardReview === "exempt"
                             ? decision.retrigger === "none"
                             : decision.retrigger !== "none";
                           if (!congruent) failures.push(`${JSON.stringify(facts)}: incongruent retrigger`);
@@ -161,7 +161,7 @@ describe("review routing promotion properties", () => {
     expect(resolution.decision).toMatchObject({
       authorSelfReview: "exempt",
       frontlineAction: "skip",
-      independentAnalysis: "recommended",
+      standardReview: "recommended",
       retrigger: "incremental",
     });
   });
@@ -246,7 +246,7 @@ describe("review routing promotion properties", () => {
               policyId: "maximums",
               authorSelfReview: "required",
               frontlineAction: "attempt",
-              independentAnalysis: "required",
+              standardReview: "required",
               retrigger: "full-final",
               reasons: ["project:maximums:full-review"],
             })).decision;
@@ -276,13 +276,13 @@ describe("review routing promotion properties", () => {
 
         expect(noSelfReview).toMatchObject({
           frontlineAction: base.frontlineAction,
-          independentAnalysis: base.independentAnalysis,
+          standardReview: base.standardReview,
           retrigger: base.retrigger,
           assuranceMode: base.assuranceMode,
         });
         expect(noFrontline).toMatchObject({
           authorSelfReview: base.authorSelfReview,
-          independentAnalysis: base.independentAnalysis,
+          standardReview: base.standardReview,
           retrigger: base.retrigger,
           assuranceMode: base.assuranceMode,
         });
@@ -299,14 +299,14 @@ describe("review routing promotion properties", () => {
       schemaVersion,
       authorSelfReview,
       frontlineAction,
-      independentAnalysis,
+      standardReview,
       retrigger,
       reasons,
     }) => ({
       schemaVersion,
       authorSelfReview,
       frontlineAction,
-      independentAnalysis,
+      standardReview,
       retrigger,
       reasons,
     }));

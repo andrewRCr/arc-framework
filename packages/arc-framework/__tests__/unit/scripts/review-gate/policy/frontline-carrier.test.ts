@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  classifyFrontlineCarrierFailure,
   FRONTLINE_AUTHORIZATION_OFFER,
   prepareFrontlineCarrier,
 } from "../../../../../src/scripts/review-gate/policy/frontline-carrier.js";
@@ -66,5 +67,15 @@ describe("frontline carrier preparation", () => {
       prepareAgent: vi.fn(),
       prepareCommand: vi.fn().mockResolvedValue({ status, reason: "adapter-refused" }),
     })).resolves.toEqual({ status, sourceId: "review-cli", reason: "adapter-refused" });
+  });
+
+  it.each([
+    [{ status: "needs-authorization", sourceId: "review-cli", offerText: "authorize" }, "authorization-rejected"],
+    [{ status: "unavailable", sourceId: "review-cli", reason: "unsupported-agent-carrier" }, "capability-unsupported"],
+    [{ status: "invalid", sourceId: "review-cli", reason: "unsupported-command-carrier" }, "capability-unsupported"],
+    [{ status: "invalid", sourceId: "review-cli", reason: "malformed-adapter-result" }, "invalid-output"],
+    [{ status: "unavailable", sourceId: "review-cli", reason: "adapter-unavailable" }, "transient-unavailable"],
+  ] as const)("classifies non-ready carrier result %# as %s", (prepared, expected) => {
+    expect(classifyFrontlineCarrierFailure(prepared)).toBe(expected);
   });
 });

@@ -1,5 +1,7 @@
 /** Bounded material-fix policy for a single frontline follow-up pass. */
 
+import { z } from "zod";
+
 import type { ApprovedDispositionSet } from "../core/disposition-records.js";
 import { validateDispositionState } from "../core/dispositions.js";
 import { ReviewTargetSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
@@ -9,22 +11,33 @@ export type FrontlineFollowUpDecision =
   | { action: "follow-up"; pass: 2; target: ReviewTarget }
   | { action: "stop"; reason: string };
 
-/**
- * Permit only the V1 second pass after an approved material fix changes the exact target.
- *
- * @param input - First-pass outcome, exact approved dispositions, and resulting target.
- * @returns A second-pass instruction or an advisory stop reason.
- */
-export function resolveFrontlineFollowUp(input: {
+export const FrontlineFollowUpAdviceSchema = z.discriminatedUnion("action", [
+  z.strictObject({
+    action: z.literal("follow-up-after-fix"),
+    pass: z.literal(2),
+    maxPasses: z.literal(2),
+    nextCommand: z.literal("frontline-resolve"),
+  }),
+  z.strictObject({
+    action: z.literal("stop"),
+    reason: z.string().trim().min(1),
+  }),
+]);
+export type FrontlineFollowUpAdvice = z.infer<typeof FrontlineFollowUpAdviceSchema>;
+
+/** Project follow-up worthwhileness before a fix exists, without creating a durable chain. */
+export function projectFrontlineFollowUpAdvice(input: {
   outcome: unknown;
-  dispositionState: ApprovedDispositionSet;
-  changedTarget: unknown;
-}): FrontlineFollowUpDecision {
+  dispositionState?: ApprovedDispositionSet | null;
+}): FrontlineFollowUpAdvice {
   const outcome = FrontlineExecutionOutcomeSchema.parse(input.outcome);
   if (outcome.outcome !== "findings") {
     return { action: "stop", reason: `outcome-${outcome.outcome}` };
   }
 
+  if (input.dispositionState === undefined || input.dispositionState === null) {
+    throw new Error("frontline findings follow-up requires approved dispositions");
+  }
   const dispositionState = validateDispositionState(input.dispositionState);
   if (dispositionState.state !== "approved") throw new Error("frontline follow-up requires approved dispositions");
   const { dispositionSet } = dispositionState;
@@ -45,8 +58,30 @@ export function resolveFrontlineFollowUp(input: {
     item.disposition === "fix" && (item.severity === "major" || item.severity === "blocker"));
   if (!materialFix) return { action: "stop", reason: "no-approved-material-fix" };
   if (outcome.pass >= outcome.maxPasses) return { action: "stop", reason: "pass-cap-exhausted" };
+  return {
+    action: "follow-up-after-fix",
+    pass: 2,
+    maxPasses: 2,
+    nextCommand: "frontline-resolve",
+  };
+}
+
+/**
+ * Permit only the V1 second pass after an approved material fix changes the exact target.
+ *
+ * @param input - First-pass outcome, exact approved dispositions, and resulting target.
+ * @returns A second-pass instruction or an advisory stop reason.
+ */
+export function resolveFrontlineFollowUp(input: {
+  outcome: unknown;
+  dispositionState: ApprovedDispositionSet;
+  changedTarget: unknown;
+}): FrontlineFollowUpDecision {
+  const advice = projectFrontlineFollowUpAdvice(input);
+  if (advice.action === "stop") return advice;
 
   const changedTarget = ReviewTargetSchema.parse(input.changedTarget);
+  const outcome = FrontlineExecutionOutcomeSchema.parse(input.outcome);
   if (changedTarget.targetId === outcome.target.targetId) {
     return { action: "stop", reason: "target-unchanged" };
   }

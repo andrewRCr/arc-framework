@@ -82,6 +82,28 @@ export function artifactMatcher(slug: string): RegExp {
   return new RegExp(`^[a-z]+-${escaped}\\.md$`);
 }
 
+/** Source and target slug pair applied to one work-unit artifact basename. */
+export interface ArtifactSlugMap {
+  sourceSlug: string;
+  targetSlug: string;
+}
+
+/**
+ * Map an artifact basename to a new work-unit slug, or preserve it when no map applies.
+ *
+ * @param basename - Artifact basename selected by {@link artifactMatcher}
+ * @param slugMap - Source/target slug pair, or `null` for basename-preserving transitions
+ * @returns The basename under the target slug
+ */
+export function renameArtifactBasename(basename: string, slugMap: ArtifactSlugMap | null): string {
+  if (slugMap === null) return basename;
+  const suffix = `-${slugMap.sourceSlug}.md`;
+  if (!basename.endsWith(suffix)) {
+    throw new Error(`artifact basename does not match source slug \`${slugMap.sourceSlug}\`: ${basename}`);
+  }
+  return `${basename.slice(0, -suffix.length)}-${slugMap.targetSlug}.md`;
+}
+
 /**
  * Relocate a work unit's full artifact set between two lifecycle directories via
  * `git mv`, creating the destination directory if absent.

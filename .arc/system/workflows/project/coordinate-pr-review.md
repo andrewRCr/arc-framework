@@ -4,7 +4,7 @@ audience: agent
 arc:
   methods:
     - adversarial-review
-    - independent-analysis
+    - standard-review
     - implementation-audit
     - review-response
 ---
@@ -29,7 +29,7 @@ provider-event identity. An approved fix, base merge, or change to any bound ide
 the canonical target and routing result before another action.
 
 Consume the effective routing result plus the explicit project channel, `local | hosted | both`. Materialize the
-exact target, independent-analysis requirement, and selected carrier request from those typed inputs. An exempt
+exact target, standard-review requirement, and selected carrier request from those typed inputs. An exempt
 obligation produces no request. For every admitted source:
 
 - **Local:** Launch [`adversarial-review`][adversarial-review] under the effective

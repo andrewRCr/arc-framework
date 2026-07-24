@@ -8,7 +8,7 @@ import {
 } from "../../core/reduction.js";
 import { resolveSelfHostingDecision } from "./decision.js";
 import type { ReviewRoutingDecision, ReviewRoutingFacts } from "../routing-schema.js";
-import { qualifyIndependentAnalysisSource } from "./qualification.js";
+import { qualifyStandardReviewSource } from "./qualification.js";
 import { buildCodexReviewCommand } from "../../providers/codex/adapter.js";
 import type { SelfHostingPolicy, SourceQualificationDeclaration } from "./schema.js";
 
@@ -27,7 +27,7 @@ function qualification(
   declaration: SourceQualificationDeclaration,
   prAuthorIdentity: string,
 ): ReviewSourceQualification {
-  const qualified = qualifyIndependentAnalysisSource(declaration, declaration.rubricVersion).qualified;
+  const qualified = qualifyStandardReviewSource(declaration, declaration.rubricVersion).qualified;
   const userTriggered = declaration.requestMechanism === "pr-author-command";
   const base = {
     sourceKind: declaration.sourceKind,

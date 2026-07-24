@@ -23,7 +23,7 @@ Contracts are advisory. Mechanical enforcement, where available, remains owned b
 Activation is separate from overriding. Only registered activity methods may declare `active`:
 
 | Method             | Package default | Activity                                     |
-|--------------------|-----------------|----------------------------------------------|
+| ------------------ | --------------- | -------------------------------------------- |
 | `self-review`      | `true`          | Author-side aggregate diff preflight         |
 | `frontline-review` | `false`         | Advisory distinct-context review before a PR |
 
@@ -34,7 +34,7 @@ activate an activity; they describe override content and composition.
 ### Notable methods
 
 | Method                  | What it controls                                            |
-|-------------------------|-------------------------------------------------------------|
+| ----------------------- | ----------------------------------------------------------- |
 | `commit-format`         | Commit message structure                                    |
 | `commit-footer`         | Context footer patterns                                     |
 | `issue-triage`          | Fix-now versus defer decisions                              |
@@ -43,7 +43,7 @@ activate an activity; they describe override content and composition.
 | `session-state`         | Session-state behavior at boundaries                        |
 | `self-review`           | Author-side aggregate diff preflight                        |
 | `frontline-review`      | Advisory pre-publication review                             |
-| `independent-analysis`  | Satisfying non-author review standard                       |
+| `standard-review`       | Satisfying non-author review standard                       |
 | `implementation-audit`  | Shared implementation-review rubric                         |
 | `review-triage`         | Source verification and severity/disposition classification |
 | `review-response`       | Bounded author-side finding response                        |
@@ -57,7 +57,7 @@ override.
 
 ### Reviewer guidance delivery
 
-Reviewer integrations project the typed `independent-analysis` baseline into the reviewer's native instruction or
+Reviewer integrations project the typed `standard-review` baseline into the reviewer's native instruction or
 configuration surface. Projects may add typed rubric dimensions, but cannot replace baseline dimensions. An adapter
 validates the effective exact-target content and records its guidance identity; that projection proves delivered
 content, not rubric authority or merge enforcement.
@@ -90,7 +90,7 @@ active: true
 ### Available extension points
 
 | Extension                      | When it fires                                           |
-|--------------------------------|---------------------------------------------------------|
+| ------------------------------ | ------------------------------------------------------- |
 | `post-context-load`            | After standard document loading                         |
 | `pre-spec-finalization-review` | Before spec finalization                                |
 | `post-task-quality`            | After Tier 1 checks, before task completion             |

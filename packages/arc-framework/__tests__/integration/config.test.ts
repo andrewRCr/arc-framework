@@ -83,7 +83,7 @@ describe("runConfigStatus — full mode", () => {
       "commit.context_pattern:",
       "merge.strategy: merge",
       "platform.type: github",
-      "review.frontline_source: project-reviewer",
+      "review.frontline_sources: [project-reviewer]",
       "pm.mode: arc-in-git",
       "team.mode: false",
       "session.remote_sync: enabled",
@@ -98,7 +98,7 @@ describe("runConfigStatus — full mode", () => {
     expect(result.mode).toBe("full");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["branch.protection"]).toBe("full");
-    expect(result.settings["review.frontline_source"]).toBe("project-reviewer");
+    expect(result.settings["review.frontline_sources"]).toBe("[project-reviewer]");
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
     expect(result.settings["archive.cadence"]).toBe("manual");

@@ -57,6 +57,7 @@ import {
   handleSetStage,
   handleFinalizeStage,
   handleRepointDesign,
+  handleRename,
   type StubOptions,
   type ParkOptions,
   type ResumeOptions,
@@ -85,9 +86,15 @@ import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
   handleReviewFrontlineResolve,
+  handleReviewFrontlineRun,
   handleReviewHostedAwait,
   handleReviewHostedRequest,
   handleReviewHostedSettle,
+  handleReviewLocalAttest,
+  handleReviewLocalPrepare,
+  handleReviewLocalResume,
+  handleReviewReduce,
+  handleReviewRespond,
 } from "./handlers/review.js";
 import {
   handleCheckCommitMessage,
@@ -225,6 +232,11 @@ program
   .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
   .option("--finalize <receipt-id>", "Verify the staged allocation and replace its preparation with a finalized receipt")
   .action((origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts));
+
+program
+  .command("rename <slug> <new-slug>")
+  .description("Rename a work unit and its branch, workspace, remote, marker, and worktree identities")
+  .action((slug: string, newSlug: string) => handleRename(slug, newSlug));
 
 program
   .command("promote [slug]")
@@ -826,6 +838,13 @@ frontlineCmd
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewFrontlineResolve(input));
 
+frontlineCmd
+  .command("run")
+  .description("Execute one exact-target frontline review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewFrontlineRun(input));
+
 const hostedCmd = reviewCmd
   .command("hosted")
   .description("Hosted pull-request review operations");
@@ -850,6 +869,45 @@ hostedCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewHostedSettle(input));
+
+const localReviewCmd = reviewCmd
+  .command("local")
+  .description("Local immutable-source review operations");
+
+localReviewCmd
+  .command("prepare")
+  .description("Derive and prepare one immutable local review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewLocalPrepare(input));
+
+localReviewCmd
+  .command("attest")
+  .description("Attest one normalized local review result as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewLocalAttest(input));
+
+localReviewCmd
+  .command("resume")
+  .description("Resume one durable local review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewLocalResume(input));
+
+reviewCmd
+  .command("respond")
+  .description("Prepare or persist one source-bound review disposition set as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewRespond(input));
+
+reviewCmd
+  .command("reduce")
+  .description("Reduce one durable review operation as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewReduce(input));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

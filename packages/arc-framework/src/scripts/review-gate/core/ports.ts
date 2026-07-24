@@ -14,6 +14,12 @@ import type {
 } from "./gate-contract-v2-schema.js";
 import type { ForwardGateProjection } from "./projection.js";
 import type { ReviewOperationState } from "./operation-state-schema.js";
+import type { LocalReviewSource } from "./local-review-source.js";
+import type {
+  ApprovedDispositionRecord,
+  FrontlineOutcomeRecord,
+} from "./advisory-records.js";
+import type { ReviewReduceEnvelope } from "./review-command-envelope.js";
 import type {
   GateProjection,
   ReceiptEnvelope,
@@ -179,7 +185,7 @@ export interface ProviderReviewDisposition {
   evidenceRef: string;
 }
 
-/** Lossless native-review observation; never independent-analysis evidence. */
+/** Lossless native-review observation; never standard-review evidence. */
 export interface NativeReviewObservation {
   nativeReview: {
     requestedChanges: boolean;
@@ -277,33 +283,34 @@ export interface ReviewOperationStateStore {
   ): Promise<{ version: number }>;
 }
 
-/** Exact, deduplicated request accepted only by a promoted review watcher capability. */
-export interface ReviewWakeupRequest {
-  operationId: string;
-  vehicle: { kind: "work-unit" | "errand"; identity: string };
-  repositoryId: string;
-  changeRequestId: string | null;
-  targetId: string;
-  requestId: string;
-  sourceIdentity: string;
-  generation: number;
-  deadlineAt: string;
-  wakeupToken: string;
+/** Path-agnostic immutable source storage for local review materializations. */
+export interface LocalReviewSourceStore {
+  readSource(sourceRef: string): Promise<LocalReviewSource | null>;
+  appendSource(source: LocalReviewSource): Promise<{ sourceRef: string }>;
 }
 
-/** Optional watcher seam; production remains unbound until review-gate promotion. */
-export interface ReviewWakeupCapability {
-  arm(request: ReviewWakeupRequest): Promise<{ status: "armed"; wakeupRef: string }>;
+/** Append-only approved-disposition storage keyed by the exact operation. */
+export interface ApprovedDispositionRecordStore {
+  readDispositionRecord(operationId: string): Promise<ApprovedDispositionRecord | null>;
+  appendDispositionRecord(record: ApprovedDispositionRecord): Promise<{ dispositionRecordRef: string }>;
 }
 
-/** Bounded request accepted only by an injected scheduler. */
-export interface ReviewScheduledWakeupRequest extends ReviewWakeupRequest {
-  scheduledFor: string;
+/** Version-checked durable frontline outcome storage. */
+export interface FrontlineOutcomeStore {
+  readOutcome(operationId: string): Promise<{
+    version: number;
+    record: FrontlineOutcomeRecord | null;
+    outcomeRef: string | null;
+  }>;
+  appendOutcome(
+    record: FrontlineOutcomeRecord,
+    expectedVersion: number,
+  ): Promise<{ version: number; outcomeRef: string }>;
 }
 
-/** Optional scheduling seam used only after the promoted watcher is unavailable. */
-export interface ReviewScheduledWakeupCapability {
-  schedule(request: ReviewScheduledWakeupRequest): Promise<{ status: "scheduled"; wakeupRef: string }>;
+/** Read-only reduction boundary over durable advisory review records. */
+export interface ReviewReductionPort {
+  reduce(operationId: string): Promise<ReviewReduceEnvelope>;
 }
 
 /** Forward provider boundary carrying exact v2 request identity without provider finding normalization. */

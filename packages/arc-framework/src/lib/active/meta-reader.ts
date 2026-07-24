@@ -507,6 +507,23 @@ export function setMetaBranch(content: string, branch: string): string {
 }
 
 /**
+ * Rewrite the managed metadata H1 while leaving the field projection byte-stable.
+ *
+ * @param content - The meta file's raw markdown
+ * @param name - Target work-unit slug
+ * @returns Markdown with only the metadata title changed
+ * @throws When the managed metadata H1 is absent
+ */
+export function setMetaTitle(content: string, name: string): string {
+  const lines = content.split("\n");
+  const index = lines.findIndex((line) => /^# Metadata: .+\r?$/u.test(line));
+  if (index === -1) throw new Error("Cannot set metadata title: managed H1 not found.");
+  const line = lines[index];
+  lines[index] = `# Metadata: ${name}${line?.endsWith("\r") === true ? "\r" : ""}`;
+  return lines.join("\n");
+}
+
+/**
  * Rewrite the core-block `Class` cell in place — the weight-axis sibling of
  * {@link setMetaState} / {@link setMetaBranch}. The planning ceremonies persist
  * the resolved `Class` (`Light` / `Heavy` / `Novel`) at their finalize

@@ -43,7 +43,7 @@ const DEFAULTS: ConfigSettings = {
   "commit.context_pattern": "",
   "merge.strategy": "merge",
   "platform.type": "github",
-  "review.frontline_source": "",
+  "review.frontline_sources": "[]",
   "pm.mode": "none",
   "team.mode": "false",
   "session.remote_sync": "enabled",

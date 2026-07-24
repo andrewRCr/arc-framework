@@ -13,6 +13,18 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Validate generated task-list structure before execution**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during
+  `review-surface-binding` Phase 2 compaction recovery.
+- _Concern:_ task generation committed 24 markers outside the operational cursor grammar: ID-less test-first
+  introducers, an executable subtask without an ID, and subtasks whose bold title contained only the ID. The
+  shared scanner rejected them, but generation finalization used only a prose checklist and session-init did not
+  stop on the malformed cursor.
+- _Fold-in:_ make the canonical marker shapes literal in guidance/templates, run the shared structural scanner as
+  a hard finalization precondition, and settle whether malformed execution cursors must stop session entry. Cover
+  all three observed malformed shapes.
+
 ### `[ ]` **Narrow the draft around the shipped descriptor-spacing rule**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during

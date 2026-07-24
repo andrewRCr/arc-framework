@@ -12,6 +12,24 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Cohort-less split shape is an adjacent rail — coordinate, don't fold**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during
+  `decomposition-hardening` create-spec finalization.
+- _Concern:_ DH area 2 adds a first-class **cohort-less** (flat-sibling) split — a new `parentPosition` value that
+  omits `cohort` and scaffolds flat siblings. Adjacent to this WU's concern (what a cohort absorbs on exit): a
+  different axis, so coordinate rather than fold the two cuts together. Also note the Ready sibling stub
+  `cohortless-decomposition` if that unit still owns delivery of the flat-sibling path.
+- _Fold-in:_ align the cohort-vs-cohortless boundary at grooming; keep the cuts distinct. See
+  `spec-decomposition-hardening.md` area 2.
+
+---
+
 ## Problem / Motivation
 
 When a cohort transforms a foundational / core domain, it should absorb the mechanical cascades that would

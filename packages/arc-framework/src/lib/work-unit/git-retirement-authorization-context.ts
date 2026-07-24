@@ -311,6 +311,8 @@ async function validateReceiptResult(
       );
     case "decompose":
       return await validateDecomposeResult(exec, receipt, projection, readBlob);
+    case "rename":
+      return "unsupported-transition";
   }
 }
 

@@ -7,7 +7,10 @@ import {
   proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { resolveFrontlineFollowUp } from "../../../../../src/scripts/review-gate/policy/frontline-follow-up.js";
+import {
+  projectFrontlineFollowUpAdvice,
+  resolveFrontlineFollowUp,
+} from "../../../../../src/scripts/review-gate/policy/frontline-follow-up.js";
 
 const oid = (value: string): string => value.repeat(40);
 const target = (head: string) => createReviewTarget({
@@ -87,6 +90,18 @@ function approved(severity: "blocker" | "major" | "minor", disposition: "fix" | 
 }
 
 describe("frontline follow-up policy", () => {
+  it("projects a non-durable fresh-head instruction before the approved fix exists", () => {
+    expect(projectFrontlineFollowUpAdvice({
+      outcome: outcome("major"),
+      ...approved("major"),
+    })).toEqual({
+      action: "follow-up-after-fix",
+      pass: 2,
+      maxPasses: 2,
+      nextCommand: "frontline-resolve",
+    });
+  });
+
   it.each(["major", "blocker"] as const)("permits one follow-up after an approved %s fix changes target", (severity) => {
     expect(resolveFrontlineFollowUp({
       outcome: outcome(severity),
@@ -124,12 +139,17 @@ describe("frontline follow-up policy", () => {
   it.each(["unavailable", "failed", "pass-cap-exhausted"] as const)(
     "keeps %s advisory and non-following",
     (terminal) => {
+      const reason = terminal === "unavailable"
+        ? { class: "rate-limited" }
+        : terminal === "failed"
+          ? { class: "unexpected-adapter-failure" }
+          : { class: "pass-cap-exhausted" };
       expect(resolveFrontlineFollowUp({
         outcome: {
           ...outcome(),
           outcome: terminal,
           findings: [],
-          reason: terminal,
+          reason,
         },
         ...approved("major"),
         changedTarget,
