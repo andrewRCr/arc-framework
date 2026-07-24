@@ -18,7 +18,7 @@ The pre-parallelism answer (an editor pinned to the relevant files) breaks under
 checkout, files reopen on every swap. The need is a terminal-native card that answers the grounding question from
 nothing but cwd, plus a live panel for watching progress beside a running session.
 
-## Deliverables (chunked; each standalone)
+## Deliverables (independent; each standalone)
 
 1. **Context card** — `<verb TBD>` with no argument renders: lifecycle stage, `Class`, deps/blockers (from meta),
    current task (from the task cursor), staleness/freshness signals. **v1 derives every field from today's
@@ -52,7 +52,7 @@ non-overlap carried over from `arc-view`), and artifact viewing (`arc-view` prop
 
 ## Coordination seams
 
-- `arc-view` — sibling chunk (artifact viewing); shares oracle resolution, checkbox parse, renderer
+- `arc-view` — sibling work unit (artifact viewing); shares oracle resolution, checkbox parse, renderer
   infrastructure. Sequence: viewer → card → watch.
 - `session-locus-model` / `wu-lifecycle-state-model` / `operational-state-docs` — record suppliers; inbound-buffer
   compose-notes routed 2026-07-17 (locus as queryable record; placement/stage as record; renderer-facing record

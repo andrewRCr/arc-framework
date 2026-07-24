@@ -85,6 +85,7 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
   handleReviewLocalAttest,
@@ -841,6 +842,15 @@ frontlineCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewFrontlineRun(input));
+
+reviewCmd
+  .command("chunking")
+  .description("Exact-target review chunking operations")
+  .command("resolve")
+  .description("Resolve one immutable target's chunking recommendation as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewChunkingResolve(input));
 
 const localReviewCmd = reviewCmd
   .command("local")

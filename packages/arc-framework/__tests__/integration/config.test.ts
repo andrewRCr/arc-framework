@@ -84,6 +84,8 @@ describe("runConfigStatus — full mode", () => {
       "merge.strategy: merge",
       "platform.type: github",
       "review.frontline_sources: [project-reviewer]",
+      "review.chunking_threshold_lines: 5000",
+      "review.chunking_threshold_files: 150",
       "pm.mode: arc-in-git",
       "team.mode: false",
       "session.remote_sync: enabled",
@@ -99,6 +101,8 @@ describe("runConfigStatus — full mode", () => {
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["branch.protection"]).toBe("full");
     expect(result.settings["review.frontline_sources"]).toBe("[project-reviewer]");
+    expect(result.settings["review.chunking_threshold_lines"]).toBe("5000");
+    expect(result.settings["review.chunking_threshold_files"]).toBe("150");
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
     expect(result.settings["archive.cadence"]).toBe("manual");
@@ -114,6 +118,8 @@ describe("runConfigStatus — full mode", () => {
     expect(result.settings["pm.mode"]).toBe("none");
     expect(result.settings["branch.protection"]).toBe("partial");
     expect(result.settings["archive.cadence"]).toBe("with-integration");
+    expect(result.settings["review.chunking_threshold_lines"]).toBe("0");
+    expect(result.settings["review.chunking_threshold_files"]).toBe("0");
     expect(result.defaultsApplied.length).toBeGreaterThan(0);
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0]).toContain("arc-config.yml");

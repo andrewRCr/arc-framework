@@ -318,13 +318,13 @@ found by this table are design work, not footnotes.
 
 ---
 
-## Staging & Decomposition (chunked delivery; the flip is a point, not an era)
+## Staging & Decomposition (staged delivery; the flip is a point, not an era)
 
 - **Stage 0 — record migrations** (`operational-state-docs`, `wu-lifecycle-state-model`, `roadmap-tooling`,
   shared-inbox model): Gate-A work, lands in-repo, standalone value now; _is_ the substrate's data layer.
 - **Stage 1 — the storage seam:** every reader/writer routes through the storage abstraction; first
   implementation is the current in-repo layout (behavior-preserving strangler fig). Work-list = the merged
-  coupling/blast-radius audit (`coupling-blast-radius-audit` capture). Chunked by subsystem; coexists with normal
+  coupling/blast-radius audit (`coupling-blast-radius-audit` capture). Partitioned by subsystem; coexists with normal
   development. `cli-substrate-adoption` is the foundation; `composable-workflows`' verbs-over-mechanics scrub
   shrinks the workflow-side radius — cost prepayment, not queue competition.
 - **Stage 2 — materialization engine + Local (tier 2):** opt-in per install; first consumer can be an external

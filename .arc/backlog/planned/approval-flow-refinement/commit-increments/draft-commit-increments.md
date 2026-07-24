@@ -10,7 +10,7 @@
 - _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: commit-increments`), housekeep drain (2026-06-12); captured
   during `merge-safety-mechanism` Task 1.2 after a batch-review proposal surfaced the wording problem.
 - _Concern:_ `review increment` reads as "an increment of review" and is inaccurate under deferred review, where
-  the unit is reviewable but not yet reviewed. The sharper concept is a bounded chunk of work that constitutes a
+  the unit is reviewable but not yet reviewed. The sharper concept is a bounded unit of work that constitutes a
   reviewable unit. The acute wording symptom is phrasing like "review 4.2 as a single increment?", which can read
   as the agent reviewing rather than implementing one reviewable increment for human review.
 - _Proposed:_ decide the term alongside the paired `commit increment` vocabulary this WU owns. Options include

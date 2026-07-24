@@ -23,6 +23,8 @@ export interface ConfigSettings {
   "merge.strategy": string;
   "platform.type": string;
   "review.frontline_sources": string;
+  "review.chunking_threshold_lines": string;
+  "review.chunking_threshold_files": string;
   "pm.mode": string;
   "team.mode": string;
   "session.remote_sync": string;

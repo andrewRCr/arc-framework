@@ -186,6 +186,12 @@ platform.type: github
 # Empty means unbound. Add developer overrides with `git config --add arc.frontlineSources <source-id>`.
 review.frontline_sources: []
 
+# Exact-target attention tripwires for considering contract-cohesive review chunks.
+# These are not chunk-size caps or review-provider limits. Either dimension can be
+# enabled independently; 0 disables that dimension (both 0 preserves whole-target review).
+review.chunking_threshold_lines: 0
+review.chunking_threshold_files: 0
+
 # --- Project Management ---
 
 # Project Management (PM) mode. Controls where project management lives.

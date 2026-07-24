@@ -11,6 +11,7 @@ import { registerReviewOperationStateSchemas } from "./operation-state-schema.js
 import { registerLocalReviewSourceSchemas } from "./local-review-source.js";
 import { registerAdvisoryRecordSchemas } from "./advisory-records.js";
 import { registerReviewCommandEnvelopeSchemas } from "./review-command-envelope.js";
+import { registerReviewChunkingCommandSchemas } from "./review-chunking-command-schema.js";
 import { registerFrontlineOutcomeSchema } from "../policy/frontline-outcome.js";
 import { registerLocalReviewPolicySchemas } from "../policy/local-review-policy.js";
 import { registerStandardReviewProjectionSchema } from "../policy/standard-review-projection-schema.js";
@@ -39,6 +40,7 @@ export function registerReviewDomainSchemas(registry: KernelRegistry): KernelReg
   registerLocalReviewSourceSchemas(registry);
   registerAdvisoryRecordSchemas(registry);
   registerReviewCommandEnvelopeSchemas(registry);
+  registerReviewChunkingCommandSchemas(registry);
   registerForwardReceiptLedgerSchema(registry);
   registerForwardLifecycleTailSchema(registry);
   registerReviewPrimitiveSchemas(registry);

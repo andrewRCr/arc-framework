@@ -84,7 +84,7 @@ therefore decorrelate — the model must not collapse them into one bucket.
 **The top tier — `novel`.** A second threshold on the derivation axis _alone_ promotes `heavy → novel`: when
 settling the design requires _inventing_ concepts or models that do not yet exist in the problem domain
 (synthesis, research, discovery), versus _composing_ a real design from existing patterns. It is derivation-only
-because the axes are asymmetric — **scale is endurance** (chunkable, parallelizable, self-limiting via
+because the axes are asymmetric — **scale is endurance** (decomposable, parallelizable, self-limiting via
 decomposition, so it caps at `heavy`); **derivation is depth** (serial, context-saturating, unbounded, so only it
 reaches the top). `novel` is a distinct _kind_, not just more weight: its recorded purpose is **primarily** the
 parallelism / sequencing balance signal (one holds ~one genuinely-novel stream — the strongest "don't double up"),

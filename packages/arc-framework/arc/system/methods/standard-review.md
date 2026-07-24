@@ -4,6 +4,7 @@ description: Satisfying standard for non-author review of one complete exact cha
 related:
   - adversarial-review
   - implementation-audit
+  - review-chunking
   - review-triage
 override-active: false
 ---
@@ -34,6 +35,22 @@ and derived digest; editorial guidance in this method is not a second identity a
   the change fails the rubric.
 - **Clean rule:** Return clean only after complete coverage and explicit treatment of every effective dimension.
   Unavailable, partial, ambiguous, or failed review is never clean.
+
+### Chunked local-carrier mode
+
+When `review-chunking` selects bounded scopes, run them only through one curated-scope-capable local carrier
+orchestration. The orchestration retains target identity, partition, and coverage state outside evaluator contexts.
+It launches a fresh bounded evaluator context for every closure chunk and the seam; each receives only its current
+scope, explicit external or pre-existing annotations, and the complete effective rubric.
+
+After complete union and seam coverage, a fresh non-author aggregate context consumes the partition and coverage
+facts plus the structured chunk and seam reports. It may inspect targeted source loci as needed without loading every
+chunk body wholesale, then emits one aggregate whole-target standard-review result.
+
+Hosted and whole-target-only local carriers are ineligible for chunked mode. Evaluator separation, exact-target
+identity, and the ordinary completion authority boundary remain unchanged. The aggregate invocation counts as one
+standard-review pass; evaluator-call count does not affect pass accounting, and no partial report or evaluator call
+can settle the obligation.
 
 ### Carrier delivery boundary
 
