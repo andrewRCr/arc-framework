@@ -77,6 +77,12 @@ export interface RunRenameContext {
     plan: RenamePlan,
     move: Extract<RenameWorktreeMoveResolution, { status: "move" }>,
   ): Promise<ReconcileWorktreeResult>;
+  reconcileWorktreeMoveMarker(
+    plan: RenamePlan,
+    move:
+      | Extract<RenameWorktreeMoveResolution, { status: "deferred-self-move" | "already-moved" }>
+      | Extract<ReconcileWorktreeResult, { mutation: "move" }>,
+  ): Promise<"renamed" | "absent" | "foreign" | "malformed">;
 }
 
 /**
@@ -144,6 +150,13 @@ export async function runRename(
       marker = await ctx.renameMarker(plan);
       const move = await ctx.resolveWorktreeMove(plan);
       worktree = move.status === "move" ? await ctx.moveWorktree(plan, move) : move;
+      if (
+        ("status" in worktree
+          && (worktree.status === "deferred-self-move" || worktree.status === "already-moved"))
+        || ("mutation" in worktree && worktree.mutation === "move")
+      ) {
+        marker = await ctx.reconcileWorktreeMoveMarker(plan, worktree);
+      }
     }
     return {
       status: "renamed",

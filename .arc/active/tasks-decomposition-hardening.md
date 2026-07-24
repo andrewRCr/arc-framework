@@ -326,36 +326,25 @@ rename residue through the existing evidence-backed teardown / sweep substrate.
 - _Outcome:_ Transform recording now yields one typed, non-actionable lifecycle account; destructive cleanup stays
   behind the existing receipt-backed teardown authority and successor actions remain gated on landed evidence.
 
-### `[ ]` **4.2 Defer spawned rename self-moves into an operational marker**
+### `[x]` **4.2 Defer spawned rename self-moves into an operational marker**
 
 - _Goal:_ Rename invoked from its own spawned worktree completes identity changes without moving the live checkout,
   and records enough operational state for an outside-worktree move later.
 
-- _Note:_ See `notes-decomposition-hardening.md` § Landed transform terminal invariants.
+    - `[x]` **4.2.a Resolve self-move as an unconditional defer**
+        - `resolveRenameWorktreeMove()` now compares the current locus with the registered source path and returns a
+          typed defer before the worktree mutator can invoke git or relocate the process.
 
-- _Note:_ Harness skills-directory registration is outside the lifecycle-transform substrate. If the rename
-  reproduction confirms separate stale registration, route it as a harness-integration concern rather than
-  widening this task.
+    - `[x]` **4.2.b Persist the deferred move as an operational marker projection**
+        - Valid renamed ownership markers now carry the closed old/new identity, branch, exact-`HEAD`, and path
+          projection. Physical or already-completed moves clear it, and terminal husking supersedes it.
 
-    - `[ ]` **4.2.a Resolve self-move as an unconditional defer**
-        - Pass the current locus into `resolveRenameWorktreeMove()` and return a typed defer when it is contained by
-          the registered source path, before `reconcileWorktree()` invokes `git worktree move`; never rely on an OS
-          error and never `chdir` the running session.
+    - `[x]` **4.2.c Prove platform-independent rename behavior**
+        - Focused mutator, marker, verb, integration, and real-CLI coverage proves unconditional self-defer,
+          outside-worktree completion, replay clearing, complete identity legs, and no action from foreign markers.
 
-    - `[ ]` **4.2.b Persist the deferred move as an operational marker projection**
-        - Add the closed `renameMovePending` projection only to a valid ARC-owned renamed marker, binding old/new
-          subject identity, renamed branch, exact `HEAD`, registered `from`, and intended `to`.
-        - Make `renameMovePending` and `husk` mutually exclusive. Successful / already-completed moves clear the
-          pending projection; terminal husking supersedes and clears it.
-
-    - `[ ]` **4.2.c Prove platform-independent rename behavior**
-        - Extend focused worktree-mutator tests and `rename.e2e.test.ts`.
-        - Build `test-first` (one behavior at a time):
-            - POSIX-legal self-move still defers without a git move or locus hop
-            - an outside-worktree invocation may perform the move directly
-            - already-moved and replay states clear the pending projection idempotently
-            - unmatched, in-place, malformed, foreign, wrong-branch, and moved-`HEAD` states grant no remedy
-            - the tracked/branch/remote/user identity legs stay complete when the physical move defers
+- _Outcome:_ Spawned rename now completes identity reconciliation without moving its live checkout, and exposes a
+  follow-up only when the exact deferred move was persisted on a valid ARC-owned marker.
 
 ### `[ ]` **4.3 Surface landed transform and rename residue through session entry**
 

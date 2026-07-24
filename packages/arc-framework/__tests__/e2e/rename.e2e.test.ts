@@ -304,7 +304,7 @@ describe("arc rename", () => {
     await expectTrackedSweep(fixture.repo, oldArtifactDir, newArtifactDir, "old-name", "new-name");
   }, 30_000);
 
-  it("self-renames a spawned worktree, marker, notes workspace, and remote branch", async () => {
+  it("self-renames every identity leg while deferring the live worktree directory move", async () => {
     const fixture = await createFixture();
     const oldWorktree = `${fixture.repo}.old-name`;
     const newWorktree = `${fixture.repo}.new-name`;
@@ -322,29 +322,84 @@ describe("arc rename", () => {
 
     expect(renamed.exitCode).toBe(0);
     expect(renamed.stdout).toContain("spawned");
+    expect(renamed.stdout).toContain("move deferred");
+    expect(renamed.stdout).toContain("Follow-up:");
+    expect(renamed.stdout).toContain("`git worktree move");
+    expect(renamed.stdout).toContain(oldWorktree);
     expect(renamed.stdout).toContain(newWorktree);
-    expect(renamed.stdout).toContain("process relocated");
-    expect(await exists(oldWorktree)).toBe(false);
-    expect(await exists(newWorktree)).toBe(true);
-    const marker = JSON.parse(await readFile(
-      join(newWorktree, ".arc", "system", ".internal", "worktree-marker.json"),
+    expect(renamed.stdout).not.toContain("process relocated");
+    expect(await exists(oldWorktree)).toBe(true);
+    expect(await exists(newWorktree)).toBe(false);
+    const pendingMarker = JSON.parse(await readFile(
+      join(oldWorktree, ".arc", "system", ".internal", "worktree-marker.json"),
       "utf8",
-    )) as { wuName: string; createdFor: { name: string } };
-    expect(marker.wuName).toBe("new-name");
-    expect(marker.createdFor.name).toBe("new-name");
-    expect(await git(newWorktree, ["branch", "--show-current"])).toBe("plan/new-name");
-    expect(await git(newWorktree, ["ls-remote", "--heads", "origin", "plan/old-name"])).toBe("");
-    expect(await git(newWorktree, ["ls-remote", "--heads", "origin", "plan/new-name"])).not.toBe("");
+    )) as {
+      wuName: string;
+      createdFor: { name: string };
+      renameMovePending: { oldSlug: string; newSlug: string; branch: string; head: string; from: string; to: string };
+    };
+    expect(pendingMarker.wuName).toBe("new-name");
+    expect(pendingMarker.createdFor.name).toBe("new-name");
+    expect(pendingMarker.renameMovePending).toEqual({
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      branch: "plan/new-name",
+      head: await git(oldWorktree, ["rev-parse", "HEAD"]),
+      from: oldWorktree,
+      to: newWorktree,
+    });
+    expect(await git(oldWorktree, ["branch", "--show-current"])).toBe("plan/new-name");
+    expect(await git(oldWorktree, ["ls-remote", "--heads", "origin", "plan/old-name"])).toBe("");
+    expect(await git(oldWorktree, ["ls-remote", "--heads", "origin", "plan/new-name"])).not.toBe("");
     await expectTrackedSweep(
-      newWorktree,
+      oldWorktree,
       join(".arc", "active"),
       join(".arc", "active"),
       "old-name",
       "new-name",
       { baseStubRemains: true },
     );
-    expect(await hasUserWorkspace(newWorktree, "old-name")).toBe(false);
-    expect(await hasUserWorkspace(newWorktree, "new-name")).toBe(true);
+    expect(await hasUserWorkspace(oldWorktree, "old-name")).toBe(false);
+    expect(await hasUserWorkspace(oldWorktree, "new-name")).toBe(true);
+
+    await execFileAsync("git", ["worktree", "move", oldWorktree, newWorktree], { cwd: fixture.repo });
+    const replay = await runArcNoTty(["rename", "old-name", "new-name"], newWorktree, { timeout: 20_000 });
+    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+    const movedMarker = JSON.parse(await readFile(
+      join(newWorktree, ".arc", "system", ".internal", "worktree-marker.json"),
+      "utf8",
+    )) as { renameMovePending?: unknown };
+    expect(movedMarker.renameMovePending).toBeUndefined();
+  }, 30_000);
+
+  it("does not project a deferred move action from a foreign worktree marker", async () => {
+    const fixture = await createFixture();
+    const oldWorktree = `${fixture.repo}.old-name`;
+    const newWorktree = `${fixture.repo}.new-name`;
+    cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
+    const started = await runArcNoTty([
+      "start", "old-name", "--new", "--class", "Light", "--from", "internal",
+    ], fixture.repo, { timeout: 20_000 });
+    expect(started.exitCode).toBe(0);
+    const markerPath = join(oldWorktree, ".arc", "system", ".internal", "worktree-marker.json");
+    const marker = JSON.parse(await readFile(markerPath, "utf8")) as {
+      wuName: string;
+      createdFor: { kind: string; name: string };
+    };
+    marker.wuName = "foreign-owner";
+    marker.createdFor = { kind: "work-unit", name: "foreign-owner" };
+    await writeFile(markerPath, JSON.stringify(marker), "utf8");
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], oldWorktree, { timeout: 20_000 });
+
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
+    expect(renamed.stdout).toContain("move deferred");
+    expect(renamed.stdout).not.toContain("`git worktree move");
+    expect(renamed.stdout).toContain("no move action projected");
+    expect(await exists(oldWorktree)).toBe(true);
+    expect(await exists(newWorktree)).toBe(false);
+    const foreignMarker = JSON.parse(await readFile(markerPath, "utf8")) as { renameMovePending?: unknown };
+    expect(foreignMarker.renameMovePending).toBeUndefined();
   }, 30_000);
 
   it("resumes after a stale remote lease without repeating completed identity legs", async () => {
@@ -378,8 +433,8 @@ describe("arc rename", () => {
 
     const resumed = await runArcNoTty(["rename", "old-name", "new-name"], oldWorktree, { timeout: 20_000 });
     expect(resumed.exitCode, resumed.stdout + resumed.stderr).toBe(0);
-    expect(await exists(oldWorktree)).toBe(false);
-    expect(await exists(newWorktree)).toBe(true);
-    expect(await git(newWorktree, ["ls-remote", "--heads", "origin", "plan/old-name"])).toBe("");
+    expect(await exists(oldWorktree)).toBe(true);
+    expect(await exists(newWorktree)).toBe(false);
+    expect(await git(oldWorktree, ["ls-remote", "--heads", "origin", "plan/old-name"])).toBe("");
   }, 45_000);
 });

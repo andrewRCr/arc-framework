@@ -512,6 +512,13 @@ export async function handleRename(sourceSlug: string, targetSlug: string): Prom
       lines.push(`Worktree:  unchanged; registered path already carries the new slug: ${result.worktree.worktreePath}`);
     } else if (result.worktree.status === "unmatched") {
       lines.push(`Worktree:  unchanged; registered path does not contain the old slug: ${result.worktree.worktreePath}`);
+    } else if (result.worktree.status === "deferred-self-move") {
+      lines.push(`Worktree:  move deferred; current session remains at ${result.worktree.from}`);
+      if (result.marker === "renamed") {
+        lines.push(`Follow-up:  from outside it, \`git worktree move ${result.worktree.from} ${result.worktree.to}\``);
+      } else {
+        lines.push(`Marker:    ${result.marker ?? "unavailable"}; no move action projected`);
+      }
     } else {
       lines.push("Worktree:  unchanged; no linked worktree is registered for the renamed branch");
     }

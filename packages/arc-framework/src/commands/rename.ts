@@ -275,6 +275,7 @@ export async function runRenameCommand(
         branch: plan.newBranch,
         oldSlug: plan.sourceSlug,
         newSlug: plan.targetSlug,
+        currentLocus: command.cwd,
       });
     },
     moveWorktree: (_plan, move) => reconcileWorktree({
@@ -289,6 +290,30 @@ export async function runRenameCommand(
       to: move.to,
       currentLocus: command.cwd,
     }),
+    reconcileWorktreeMoveMarker: async (plan, move) => {
+      const markerPath = "status" in move
+        ? move.status === "deferred-self-move" ? move.from : move.worktreePath
+        : move.to;
+      let renameMovePending = null;
+      if ("status" in move && move.status === "deferred-self-move") {
+        const renamedBranch = plan.newBranch;
+        if (renamedBranch === null) {
+          throw new Error("deferred spawned rename is missing its renamed branch");
+        }
+        renameMovePending = {
+          oldSlug: plan.sourceSlug,
+          newSlug: plan.targetSlug,
+          branch: renamedBranch,
+          head: (await exec("git", ["rev-parse", "--verify", `${renamedBranch}^{commit}`])).stdout.trim(),
+          from: move.from,
+          to: move.to,
+        };
+      }
+      return (await renameWorktreeOwnershipMarker(markerPath, {
+        oldWuName: plan.sourceSlug,
+        newWuName: plan.targetSlug,
+      }, { renameMovePending })).status;
+    },
   };
   return runRename(ctx, params);
 }

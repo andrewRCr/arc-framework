@@ -462,6 +462,23 @@ describe("reconcileWorktree — spawn in place (--here)", () => {
 });
 
 describe("reconcileWorktree — rename move", () => {
+  it("defers a POSIX-legal self-move before invoking the worktree mutator", async () => {
+    const registered = "/work/project.old-name";
+    const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/new-name");
+    const { ctx } = buildCtx({ worktreeList: listing });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/new-name",
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      currentLocus: "/work/project.old-name/packages/arc-framework",
+    })).resolves.toEqual({
+      status: "deferred-self-move",
+      from: registered,
+      to: "/work/project.new-name",
+    });
+  });
+
   it("derives an off-template destination from the registered path's final segment", async () => {
     const registered = "/custom/workspaces/project.old-name";
     const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/new-name");
@@ -471,6 +488,7 @@ describe("reconcileWorktree — rename move", () => {
       branch: "feat/new-name",
       oldSlug: "old-name",
       newSlug: "new-name",
+      currentLocus: "/work/primary",
     })).resolves.toEqual({
       status: "move",
       from: registered,
@@ -487,6 +505,7 @@ describe("reconcileWorktree — rename move", () => {
       branch: "feat/new-name",
       oldSlug: "old-name",
       newSlug: "new-name",
+      currentLocus: "/work/primary",
     })).resolves.toEqual({
       status: "move",
       from: registered,
@@ -503,6 +522,7 @@ describe("reconcileWorktree — rename move", () => {
       branch: "feat/foo-bar",
       oldSlug: "foo",
       newSlug: "foo-bar",
+      currentLocus: "/work/primary",
     })).resolves.toEqual({ status: "already-moved", worktreePath: registered });
   });
 
@@ -515,6 +535,7 @@ describe("reconcileWorktree — rename move", () => {
       branch: "feat/foo",
       oldSlug: "foo-bar",
       newSlug: "foo",
+      currentLocus: "/work/primary",
     })).resolves.toEqual({
       status: "move",
       from: registered,
@@ -531,6 +552,7 @@ describe("reconcileWorktree — rename move", () => {
       branch: "feat/foo-bar",
       oldSlug: "foo",
       newSlug: "foo-bar",
+      currentLocus: "/work/primary",
     })).resolves.toEqual({
       status: "move",
       from: registered,
@@ -547,6 +569,7 @@ describe("reconcileWorktree — rename move", () => {
       branch: "feat/new-name",
       oldSlug: "old-name",
       newSlug: "new-name",
+      currentLocus: "/work/primary",
     })).resolves.toEqual({ status: "unmatched", worktreePath: registered });
   });
 
@@ -557,6 +580,7 @@ describe("reconcileWorktree — rename move", () => {
       branch: "feat/new-name",
       oldSlug: "old-name",
       newSlug: "new-name",
+      currentLocus: "/work/primary",
     })).resolves.toEqual({ status: "in-place" });
   });
 
