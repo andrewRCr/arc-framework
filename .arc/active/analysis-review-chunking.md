@@ -1603,3 +1603,107 @@ Primary classification:
 
 The second shadow confirms the same carrier result as S2: exact scope completes successfully, but latency is
 materially higher and findings require ordinary source adjudication.
+
+### L2 leaf evidence
+
+The fresh L2 evaluator reproduced the exact 17-file, 3,412-line, 17-hunk leaf and completed every rubric dimension
+without overload or malformed scope. Its raw findings are preserved before classification:
+
+```yaml
+scope: L2
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 17, insertions: 3412, deletions: 0, changedLines: 3412, zeroContextHunks: 17}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: L2-F1
+    title: Abandon resolution loses the selected generation before destructive dispatch
+    severity: high
+    rubricDimension: trust boundaries and compatibility
+    stableLocus: packages/arc-framework/src/lib/locus/resolve-driver.ts — lines 9-34
+    evidence: >
+      resolveLocusGeneration validates one selected row but calls its subject driver with only the subject kind,
+      action, and reusable key. The production abandon dispatch then invokes the ordinary lifecycle drivers by
+      slug or grooming anchor without the selected record ID, lease ID, claim ID, checkout, or proof generation.
+    impact: >
+      Reuse of the same key between selection and dispatch can redirect abandonment to a newer generation instead
+      of refusing the race, allowing mutation of newer work.
+    correctionBoundary: >
+      Carry an exact generation capability into every subject driver and revalidate it before identity, ref,
+      checkout, teardown, or role-pop mutation; cover same-key replacement between selection and dispatch.
+  - id: L2-F2
+    title: A crashed stale-lock breaker permanently wedges the secondary lock
+    severity: medium
+    rubricDimension: correctness and failure behavior
+    stableLocus: packages/arc-framework/src/lib/locus/lock.ts — lines 123-149
+    evidence: >
+      The persistent .break file contains only the breaker token. A process exit after exclusive creation and
+      before finally cleanup leaves every later breaker returning generation-mismatch, with no liveness or stale-
+      secondary recovery path.
+    impact: >
+      One breaker crash can leave the dead main lock unrecoverable until manual filesystem intervention.
+    correctionBoundary: >
+      Make the secondary holder process-anchored and safely reclaimable, or use an automatically released lock
+      primitive; add crash-residue coverage that preserves live-breaker exclusion.
+withstood:
+  - Evidence acquisition, planning, reconciliation, application, and checkout execution remain well separated.
+  - Allocation and reconciliation otherwise revalidate typed state, exact record bytes, and Git safety under lock.
+  - The owned additions remain within allocator, evidence, locking, safety, reconciliation, and entry boundaries.
+  - Tests broadly cover protection modes, evidence failures, lock liveness, reconciliation, and resolve refusals.
+verdict: changes-requested
+```
+
+Primary adjudication upheld both findings. The production abandon callback demonstrably throws away the selected
+generation before reading current subject authority, and ordinary Errand cleanup can then select the latest
+same-slug claim. The secondary lock has no serialized anchor or recovery branch after a breaker crash. L2 therefore
+passes reviewability while contributing two distinct safety findings.
+
+### W2 leaf evidence
+
+The fresh W2 evaluator reproduced 36 files, 1,779 changed lines, and 141 hunks exactly. It completed all dimensions
+without overload or malformed scope and returned:
+
+```yaml
+scope: W2
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 36, insertions: 1632, deletions: 147, changedLines: 1779, zeroContextHunks: 141}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: W2-F1
+    title: In-place resume attaches its locus before the deliberately deferred checkout
+    severity: high
+    rubricDimension: correctness and failure behavior; verification quality
+    stableLocus: >
+      packages/arc-framework/src/lib/work-unit/verbs/park-resume.ts — line 625;
+      packages/arc-framework/src/lib/work-unit/mutators/reconcile-work-unit-worktree.ts — lines 339-359;
+      packages/arc-framework/src/lib/work-unit/work-unit-locus.ts — lines 147-152
+    evidence: >
+      resume --here supplies attachSession and deferCheckout together. Reconciliation skips the checkout but
+      immediately asks the locus driver to bind the preserved branch; the production driver requires the current
+      registered worktree branch to equal that preserved branch and rejects. The real-Git round-trip injects an
+      always-successful WorkUnitLocusDriver instead of exercising the production guard.
+    impact: >
+      The advertised in-place resume path fails before its later manual checkout boundary and cannot complete
+      through the real executor/locus composition.
+    correctionBoundary: >
+      Defer locus establishment until after the preserved branch is actually checked out, then add a real-driver
+      integration case that exercises resume --here across that boundary.
+withstood:
+  - Remaining lifecycle projection, retirement, teardown, and direct-test changes stay within the declared scope.
+  - Teardown otherwise fails closed on liveness uncertainty, malformed authority, drift, and dirty worktrees.
+  - Exact record, lease, marker, subject, roster-head, and transient-claim comparisons remain intact.
+  - Lifecycle mutator naming, retirement predicates, and teardown lock transactions remain cohesive.
+verdict: changes-requested
+```
+
+Primary adjudication upheld W2-F1. The exact call order pairs `deferCheckout: true` with
+`attachSession: true`, the reconciler invokes locus binding without first switching branches, and the production
+driver rejects the still-current base branch. The integration fixture replaces precisely that guard with an
+unconditional success. W2 passes reviewability and contributes one distinct finding.
