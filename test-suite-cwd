@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "test-suite-cwd",
-  "origin": "description",
-  "intent": "Make the test suite cwd-independent, or document that it runs through npm",
-  "branch": "chore/test-suite-cwd",
-  "createdAt": "2026-07-24T21:11:12.242Z",
-  "returnBranch": "main"
-}
