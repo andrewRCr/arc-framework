@@ -245,6 +245,7 @@ jobs:
   planning-clearance:
     name: Planning clearance
     needs: planning-classify
+    if: ${{ needs.planning-classify.outputs.lane == 'planning' }}
     permissions:
       statuses: write
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}

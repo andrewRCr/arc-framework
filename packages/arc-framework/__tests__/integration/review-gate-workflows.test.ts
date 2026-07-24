@@ -654,13 +654,13 @@ describe("trusted review-gate workflows", () => {
     expect(hasClearanceSuccess({ ...fixture, statuses: statusesAfterStaleUnlock }, fixture.replacementHead)).toBe(false);
   });
 
-  it("runs the planning clearance poster on every CI event with base-pinned classification", async () => {
+  it("runs base-pinned classification on every CI event and posts clearance only for planning", async () => {
     const workflow = await read("ci.yml");
     const classifier = jobValue(workflow, "planning-classify");
     const stamp = jobValue(workflow, "planning-clearance");
     expect(classifier).not.toHaveProperty("if");
     expect(classifier.permissions).toEqual({ contents: "read" });
-    expect(stamp).not.toHaveProperty("if");
+    expect(stamp.if).toBe("${{ needs.planning-classify.outputs.lane == 'planning' }}");
     expect(stamp.needs).toBe("planning-classify");
     expect(stamp.permissions).toEqual({ statuses: "write" });
     expect(classifier["runs-on"]).toBe("${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}");
