@@ -55,16 +55,19 @@ import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/revi
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import {
   HostedRequestEnvelopeSchema,
+  HostedRequestResultSchema,
   requestHostedReview,
   type HostedReviewAdapter,
 } from "../scripts/review-gate/hosted/request.js";
 import {
   HostedAwaitEnvelopeSchema,
+  HostedAwaitResultSchema,
   awaitHostedReview,
   type HostedReviewObserver,
 } from "../scripts/review-gate/hosted/await.js";
 import {
   HostedSettleEnvelopeSchema,
+  HostedSettleResultSchema,
   settleHostedFinding,
   type HostedSettlementPort,
 } from "../scripts/review-gate/hosted/settle.js";
@@ -110,6 +113,24 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+interface ReviewHandlerBoundary {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultReviewHandlerBoundary(): ReviewHandlerBoundary {
+  return {
+    resolveRoot: resolveArcRoot,
+    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
 export interface ReviewResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
@@ -120,13 +141,8 @@ export interface ReviewResolveHandlerDependencies {
 
 function defaultReviewResolveDependencies(): ReviewResolveHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    ...defaultReviewHandlerBoundary(),
     resolve: resolveConfiguredReviewPolicy,
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
   };
 }
 
@@ -145,7 +161,7 @@ async function resolveConfiguredReviewPolicy(
     const developerSources = await preferences.readDeveloperSourceIds();
     sources = developerSources.length > 0
       ? developerSources
-      : parseReviewSourceIds(settings["review.frontline_sources"]);
+      : await preferences.readProjectSourceIds();
   }
   sources ??= parseReviewSourceIds(settings["review.standard_sources"]);
   const maxPasses = request.maxPasses ?? Number(
@@ -166,13 +182,8 @@ export interface ReviewReadinessHandlerDependencies {
 
 function defaultReviewReadinessDependencies(): ReviewReadinessHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    ...defaultReviewHandlerBoundary(),
     check: (request) => evaluateReviewReadiness(request),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
   };
 }
 
@@ -211,16 +222,11 @@ export interface ReviewUnlockHandlerDependencies {
 
 function defaultReviewUnlockDependencies(): ReviewUnlockHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    ...defaultReviewHandlerBoundary(),
     unlock: (request) => unlockReviewHead(
       request,
       new GhReviewUnlockPort(hostedGhRunner, evaluateReviewReadiness),
     ),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
   };
 }
 
@@ -284,23 +290,15 @@ export interface ReviewFrontlineResolveHandlerDependencies {
 
 type ReviewHandlerErrorPhase = "request" | "execution" | "output";
 
-interface ReviewHandlerBoundary {
-  resolveRoot(cwd: string): string | null;
-  readText(source: string): Promise<string>;
-  write(text: string): void;
-  setExitCode(code: number): void;
-}
-
 type HostedReviewHandlerMode =
   | "review-hosted-request"
   | "review-hosted-await"
   | "review-hosted-settle";
 
-interface HostedReviewHandlerBoundary {
-  readText(source: string): Promise<string>;
-  write(text: string): void;
-  setExitCode(code: number): void;
-}
+type HostedReviewHandlerBoundary = Pick<
+  ReviewHandlerBoundary,
+  "readText" | "write" | "setExitCode"
+>;
 
 const DURABLE_CORRUPTION_CODES = new Set([
   "invalid-receipt-reference",
@@ -366,6 +364,7 @@ async function executeHostedReviewHandler(input: {
   mode: HostedReviewHandlerMode;
   source: string;
   requestSchema: ZodType;
+  resultSchema: ZodType;
   dependencies: HostedReviewHandlerBoundary;
   execute(request: unknown): Promise<unknown>;
 }): Promise<void> {
@@ -377,30 +376,29 @@ async function executeHostedReviewHandler(input: {
     return;
   }
 
+  let rawResult: unknown;
   try {
-    const result = await input.execute(request);
-    input.dependencies.write(`${JSON.stringify(result)}\n`);
+    rawResult = await input.execute(request);
   } catch (error) {
     emitHostedReviewError(input.mode, error, "execution", input.dependencies);
+    return;
+  }
+
+  try {
+    const result = input.resultSchema.parse(rawResult);
+    input.dependencies.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    emitHostedReviewError(input.mode, error, "output", input.dependencies);
   }
 }
 
 function emitHostedReviewError(
   mode: HostedReviewHandlerMode,
   error: unknown,
-  phase: Exclude<ReviewHandlerErrorPhase, "output">,
+  phase: ReviewHandlerErrorPhase,
   dependencies: Pick<HostedReviewHandlerBoundary, "write" | "setExitCode">,
 ): void {
-  const message = error instanceof Error ? error.message : String(error);
-  const code = phase === "request" && (error instanceof ZodError || error instanceof SyntaxError)
-    ? "invalid-input"
-    : "unexpected-failure";
-  dependencies.write(`${JSON.stringify({
-    schemaVersion: 1,
-    mode,
-    diagnostics: [],
-    error: { code, message },
-  })}\n`);
+  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase))}\n`);
   dependencies.setExitCode(1);
 }
 
@@ -415,11 +413,14 @@ function emitReviewCommandError(
 }
 
 function defaultHostedHandlerBoundary(): HostedReviewHandlerBoundary {
+  const boundary = defaultReviewHandlerBoundary();
   return {
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
-    write: (text) => process.stdout.write(text),
+    readText: (source) => boundary.readText(source),
+    write: (text) => {
+      boundary.write(text);
+    },
     setExitCode: (code) => {
-      process.exitCode = code;
+      boundary.setExitCode(code);
     },
   };
 }
@@ -439,8 +440,7 @@ function createHostedAdapters(): {
 
 function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    ...defaultReviewHandlerBoundary(),
     resolve: (request, root) => resolveFrontlineCommand(request, {
       preferences: createLocalFrontlineSourcePreferenceReader({
         cwd: root,
@@ -449,10 +449,6 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
       }),
       registry: new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]),
     }),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
   };
 }
 
@@ -488,16 +484,11 @@ export interface ReviewChunkingResolveHandlerDependencies {
 
 function defaultReviewChunkingResolveDependencies(): ReviewChunkingResolveHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    ...defaultReviewHandlerBoundary(),
     resolve: (request, root) => resolveReviewChunkingCommand(request, {
       readSettings: () => readConfigSettings(root),
       exec: createRawGitExec(root),
     }),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
   };
 }
 
@@ -533,16 +524,11 @@ export interface ReviewFrontlineRunHandlerDependencies {
 
 function defaultFrontlineRunDependencies(): ReviewFrontlineRunHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    ...defaultReviewHandlerBoundary(),
     run: (request, root) => runFrontlineReviewCommand(
       request,
       createFrontlineRunDependencies({ exec: gitExec, cwd: root }),
     ),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
   };
 }
 
@@ -578,16 +564,11 @@ export interface ReviewLocalPrepareHandlerDependencies {
 
 function defaultLocalPrepareDependencies(): ReviewLocalPrepareHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    ...defaultReviewHandlerBoundary(),
     prepare: (request, root) => prepareLocalReview(
       request,
       createLocalPrepareDependencies({ exec: gitExec, cwd: root }),
     ),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
   };
 }
 
@@ -669,16 +650,11 @@ export interface ReviewLocalAttestHandlerDependencies {
 
 function defaultLocalAttestDependencies(): ReviewLocalAttestHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    ...defaultReviewHandlerBoundary(),
     attest: (request, root) => attestLocalReviewCommand(
       request,
       createLocalAttestDependencies({ exec: gitExec, cwd: root }),
     ),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
   };
 }
 
@@ -714,16 +690,11 @@ export interface ReviewLocalResumeHandlerDependencies {
 
 function defaultLocalResumeDependencies(): ReviewLocalResumeHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    ...defaultReviewHandlerBoundary(),
     resume: (request, root) => resumeLocalReviewCommand(
       request,
       createLocalResumeDependencies({ exec: gitExec, cwd: root }),
     ),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
   };
 }
 
@@ -759,16 +730,11 @@ export interface ReviewRespondHandlerDependencies {
 
 function defaultRespondDependencies(): ReviewRespondHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    ...defaultReviewHandlerBoundary(),
     respond: (request, root) => respondToReviewCommand(
       request,
       createRespondDependencies({ exec: gitExec, cwd: root }),
     ),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
   };
 }
 
@@ -798,16 +764,11 @@ export interface ReviewReduceHandlerDependencies {
 
 function defaultReduceDependencies(): ReviewReduceHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    ...defaultReviewHandlerBoundary(),
     reduce: (request, root) => reduceReviewCommand(
       request,
       createReduceDependencies({ exec: gitExec, cwd: root }),
     ),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
   };
 }
 
@@ -831,19 +792,33 @@ export async function handleReviewReduce(
  * Request one hosted pull-request review and emit exactly one JSON envelope.
  *
  * @param source - JSON request file, or `-` for standard input.
- * @param dependencies - Built-in hosted adapters supplied by the CLI composition root.
+ * @param overrides - Test-only hosted request boundary overrides.
  * @returns Resolves after stdout and exit status are assigned.
  */
+export interface ReviewHostedRequestHandlerDependencies extends HostedReviewHandlerBoundary {
+  request(input: unknown): Promise<unknown>;
+}
+
+function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependencies {
+  const { adapters } = createHostedAdapters();
+  return {
+    ...defaultHostedHandlerBoundary(),
+    request: (input) => requestHostedReview(input, { adapters }),
+  };
+}
+
 export async function handleReviewHostedRequest(
   source: string,
-  dependencies: { adapters: readonly HostedReviewAdapter[] } = createHostedAdapters(),
+  overrides: Partial<ReviewHostedRequestHandlerDependencies> = {},
 ): Promise<void> {
+  const dependencies = { ...defaultHostedRequestDependencies(), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-request",
     source,
     requestSchema: HostedRequestEnvelopeSchema,
-    dependencies: defaultHostedHandlerBoundary(),
-    execute: (request) => requestHostedReview(request, dependencies),
+    resultSchema: HostedRequestResultSchema,
+    dependencies,
+    execute: dependencies.request,
   });
 }
 
@@ -851,25 +826,39 @@ export async function handleReviewHostedRequest(
  * Await one already-requested hosted review and emit exactly one JSON envelope.
  *
  * @param source - JSON request file, or `-` for standard input.
- * @param dependencies - Built-in observers supplied by the CLI composition root.
+ * @param overrides - Test-only hosted await boundary overrides.
  * @returns Resolves after stdout and exit status are assigned.
  */
-export async function handleReviewHostedAwait(
-  source: string,
-  dependencies: { observers: readonly HostedReviewObserver[] } = createHostedAdapters(),
-): Promise<void> {
-  await executeHostedReviewHandler({
-    mode: "review-hosted-await",
-    source,
-    requestSchema: HostedAwaitEnvelopeSchema,
-    dependencies: defaultHostedHandlerBoundary(),
-    execute: (request) => awaitHostedReview(request, {
-      ...dependencies,
+export interface ReviewHostedAwaitHandlerDependencies extends HostedReviewHandlerBoundary {
+  awaitResult(input: unknown): Promise<unknown>;
+}
+
+function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies {
+  const { observers } = createHostedAdapters();
+  return {
+    ...defaultHostedHandlerBoundary(),
+    awaitResult: (input) => awaitHostedReview(input, {
+      observers,
       clock: {
         now: () => Date.now(),
         sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
       },
     }),
+  };
+}
+
+export async function handleReviewHostedAwait(
+  source: string,
+  overrides: Partial<ReviewHostedAwaitHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultHostedAwaitDependencies(), ...overrides };
+  await executeHostedReviewHandler({
+    mode: "review-hosted-await",
+    source,
+    requestSchema: HostedAwaitEnvelopeSchema,
+    resultSchema: HostedAwaitResultSchema,
+    dependencies,
+    execute: dependencies.awaitResult,
   });
 }
 
@@ -877,18 +866,32 @@ export async function handleReviewHostedAwait(
  * Settle one hosted finding and emit exactly one JSON envelope.
  *
  * @param source - JSON request file, or `-` for standard input.
- * @param dependencies - Developer-authenticated GitHub mutation port.
+ * @param overrides - Test-only hosted settlement boundary overrides.
  * @returns Resolves after stdout and exit status are assigned.
  */
+export interface ReviewHostedSettleHandlerDependencies extends HostedReviewHandlerBoundary {
+  settle(input: unknown): Promise<unknown>;
+}
+
+function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencies {
+  const { port } = createHostedAdapters();
+  return {
+    ...defaultHostedHandlerBoundary(),
+    settle: (input) => settleHostedFinding(input, { port }),
+  };
+}
+
 export async function handleReviewHostedSettle(
   source: string,
-  dependencies: { port: HostedSettlementPort } = createHostedAdapters(),
+  overrides: Partial<ReviewHostedSettleHandlerDependencies> = {},
 ): Promise<void> {
+  const dependencies = { ...defaultHostedSettleDependencies(), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-settle",
     source,
     requestSchema: HostedSettleEnvelopeSchema,
-    dependencies: defaultHostedHandlerBoundary(),
-    execute: (request) => settleHostedFinding(request, dependencies),
+    resultSchema: HostedSettleResultSchema,
+    dependencies,
+    execute: dependencies.settle,
   });
 }

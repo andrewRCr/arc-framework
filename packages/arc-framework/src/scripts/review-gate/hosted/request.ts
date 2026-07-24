@@ -51,40 +51,46 @@ export interface HostedReviewAdapter {
   request(target: HostedTarget): Promise<HostedRequestOutcome>;
 }
 
-export type HostedRequestResult =
-  | {
-    schemaVersion: 1;
-    mode: "review-hosted-request";
-    state: "requested";
-    nextAction: "await";
-    handle: HostedRequestHandle;
-    attemptedProviders: HostedProviderId[];
-  }
-  | {
-    schemaVersion: 1;
-    mode: "review-hosted-request";
-    state: "source-unavailable";
-    nextAction: "stop";
-    provider: HostedProviderId;
-    attemptedProviders: HostedProviderId[];
-  }
-  | {
-    schemaVersion: 1;
-    mode: "review-hosted-request";
-    state: "rate-limited" | "transient-unavailable";
-    nextAction: "try-next-source";
-    provider: HostedProviderId;
-    attemptedProviders: HostedProviderId[];
-  }
-  | {
-    schemaVersion: 1;
-    mode: "review-hosted-request";
-    state: "ambiguous-delivery" | "terminal-failure";
-    nextAction: "stop";
-    provider: HostedProviderId;
-    attemptedProviders: HostedProviderId[];
-    reason?: string;
-  };
+const HostedRequestResultBaseShape = {
+  schemaVersion: z.literal(1),
+  mode: z.literal("review-hosted-request"),
+  attemptedProviders: z.array(HostedProviderIdSchema).min(1),
+};
+
+export const HostedRequestResultSchema = z.union([
+  z.strictObject({
+    ...HostedRequestResultBaseShape,
+    state: z.literal("requested"),
+    nextAction: z.literal("await"),
+    handle: HostedRequestHandleSchema,
+  }),
+  z.strictObject({
+    ...HostedRequestResultBaseShape,
+    state: z.literal("source-unavailable"),
+    nextAction: z.literal("stop"),
+    provider: HostedProviderIdSchema,
+  }),
+  z.strictObject({
+    ...HostedRequestResultBaseShape,
+    state: z.enum(["rate-limited", "transient-unavailable"]),
+    nextAction: z.literal("try-next-source"),
+    provider: HostedProviderIdSchema,
+  }),
+  z.strictObject({
+    ...HostedRequestResultBaseShape,
+    state: z.literal("ambiguous-delivery"),
+    nextAction: z.literal("stop"),
+    provider: HostedProviderIdSchema,
+  }),
+  z.strictObject({
+    ...HostedRequestResultBaseShape,
+    state: z.literal("terminal-failure"),
+    nextAction: z.literal("stop"),
+    provider: HostedProviderIdSchema,
+    reason: z.string().min(1),
+  }),
+]);
+export type HostedRequestResult = z.infer<typeof HostedRequestResultSchema>;
 
 /** Request one hosted review without introducing local operation state. */
 export async function requestHostedReview(
@@ -131,13 +137,22 @@ export async function requestHostedReview(
       attemptedProviders,
     };
   }
-  return {
-    schemaVersion: 1,
-    mode: "review-hosted-request",
-    state: outcome.kind,
-    nextAction: "stop",
-    provider: request.provider,
-    attemptedProviders,
-    ...(outcome.kind === "terminal-failure" ? { reason: outcome.reason } : {}),
-  };
+  return outcome.kind === "terminal-failure"
+    ? {
+      schemaVersion: 1,
+      mode: "review-hosted-request",
+      state: "terminal-failure",
+      nextAction: "stop",
+      provider: request.provider,
+      attemptedProviders,
+      reason: outcome.reason,
+    }
+    : {
+      schemaVersion: 1,
+      mode: "review-hosted-request",
+      state: "ambiguous-delivery",
+      nextAction: "stop",
+      provider: request.provider,
+      attemptedProviders,
+    };
 }

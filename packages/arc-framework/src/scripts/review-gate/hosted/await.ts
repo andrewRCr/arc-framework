@@ -73,36 +73,63 @@ export interface HostedReviewObserver {
   observe(handle: HostedRequestHandle, options?: { signal?: AbortSignal }): Promise<unknown>;
 }
 
+const HostedAwaitResultBaseShape = {
+  schemaVersion: z.literal(1),
+  mode: z.literal("review-hosted-await"),
+  handle: HostedRequestHandleSchema,
+};
+
+export const HostedAwaitResultSchema = z.union([
+  z.strictObject({
+    ...HostedAwaitResultBaseShape,
+    state: z.literal("pending"),
+    nextAction: z.literal("await"),
+    elapsedMs: z.number().nonnegative(),
+  }),
+  z.strictObject({
+    ...HostedAwaitResultBaseShape,
+    state: z.literal("clean"),
+    nextAction: z.literal("complete"),
+    reviewUrl: z.url(),
+  }),
+  z.strictObject({
+    ...HostedAwaitResultBaseShape,
+    state: z.literal("findings"),
+    nextAction: z.literal("triage"),
+    reviewUrl: z.url(),
+    findings: z.array(HostedFindingSchema).min(1),
+  }),
+  z.strictObject({
+    ...HostedAwaitResultBaseShape,
+    state: z.enum(["rate-limited", "transient-unavailable"]),
+    nextAction: z.literal("try-next-source"),
+  }),
+  z.strictObject({
+    ...HostedAwaitResultBaseShape,
+    state: z.literal("stale-target"),
+    nextAction: z.literal("stop"),
+    expectedHeadSha: HostedRequestHandleSchema.shape.target.shape.headSha,
+    actualHeadSha: HostedRequestHandleSchema.shape.target.shape.headSha,
+  }),
+  z.strictObject({
+    ...HostedAwaitResultBaseShape,
+    state: z.literal("source-unavailable"),
+    nextAction: z.literal("stop"),
+  }),
+  z.strictObject({
+    ...HostedAwaitResultBaseShape,
+    state: z.enum(["malformed-output", "terminal-failure"]),
+    nextAction: z.literal("stop"),
+    reason: z.string().min(1),
+  }),
+]);
+export type HostedAwaitResult = z.infer<typeof HostedAwaitResultSchema>;
+
 interface HostedAwaitBase {
   schemaVersion: 1;
   mode: "review-hosted-await";
   handle: HostedRequestHandle;
 }
-
-export type HostedAwaitResult =
-  | (HostedAwaitBase & { state: "pending"; nextAction: "await"; elapsedMs: number })
-  | (HostedAwaitBase & { state: "clean"; nextAction: "complete"; reviewUrl: string })
-  | (HostedAwaitBase & {
-    state: "findings";
-    nextAction: "triage";
-    reviewUrl: string;
-    findings: HostedFinding[];
-  })
-  | (HostedAwaitBase & {
-    state: "rate-limited" | "transient-unavailable";
-    nextAction: "try-next-source";
-  })
-  | (HostedAwaitBase & {
-    state: "stale-target";
-    nextAction: "stop";
-    expectedHeadSha: string;
-    actualHeadSha: string;
-  })
-  | (HostedAwaitBase & {
-    state: "source-unavailable" | "malformed-output" | "terminal-failure";
-    nextAction: "stop";
-    reason?: string;
-  });
 
 function base(handle: HostedRequestHandle): HostedAwaitBase {
   return { schemaVersion: 1, mode: "review-hosted-await", handle };

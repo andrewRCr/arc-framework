@@ -28,6 +28,9 @@ import {
 import { LocalReviewerPayloadSchema } from "./local-review-payload.js";
 import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
 import { ReviewUnlockEnvelopeSchema } from "../unlock.js";
+import { HostedRequestResultSchema } from "../hosted/request.js";
+import { HostedAwaitResultSchema } from "../hosted/await.js";
+import { HostedSettleResultSchema } from "../hosted/settle.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -46,6 +49,9 @@ export const ReviewCommandModeSchema = z.enum([
   "review-respond",
   "review-reduce",
   "review-local-resume",
+  "review-hosted-request",
+  "review-hosted-await",
+  "review-hosted-settle",
 ]);
 export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
 
@@ -594,6 +600,9 @@ export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): 
     ["review-respond-envelope", RespondEnvelopeSchema],
     ["review-reduce-envelope", ReduceEnvelopeSchema],
     ["review-local-resume-envelope", LocalResumeEnvelopeSchema],
+    ["review-hosted-request-envelope", HostedRequestResultSchema],
+    ["review-hosted-await-envelope", HostedAwaitResultSchema],
+    ["review-hosted-settle-envelope", HostedSettleResultSchema],
     ["review-command-error-envelope", ReviewCommandErrorEnvelopeSchema],
   ] as const) {
     registry.register(schema, { id, version: 1, migrationPosture: "strict-current" });

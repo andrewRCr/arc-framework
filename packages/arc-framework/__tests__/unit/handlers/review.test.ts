@@ -7,6 +7,9 @@ import {
   handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
+  handleReviewHostedAwait,
+  handleReviewHostedRequest,
+  handleReviewHostedSettle,
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
@@ -129,6 +132,22 @@ const respondProposalRequest = {
       recommendation: "Record the rejection.",
       openQuestions: [],
     }],
+  },
+};
+const hostedTarget = {
+  repository: "arc-framework/example",
+  pullRequest: 42,
+  headSha: "a".repeat(40),
+};
+const hostedHandle = {
+  schemaVersion: 1,
+  provider: "coderabbit-pr",
+  target: hostedTarget,
+  artifact: {
+    kind: "issue-comment",
+    id: "comment-1",
+    url: "https://github.com/arc-framework/example/pull/42#issuecomment-1",
+    createdAt: "2026-07-24T12:00:00Z",
   },
 };
 
@@ -377,6 +396,137 @@ describe("handleReviewResolve", () => {
       state: "no-op",
       nextAction: "none",
     });
+  });
+});
+
+describe("hosted review handlers", () => {
+  it("rejects malformed input before requesting a hosted review", async () => {
+    const request = vi.fn();
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewHostedRequest("-", {
+      readText: async () => "{}",
+      request,
+      write,
+      setExitCode,
+    });
+
+    expect(request).not.toHaveBeenCalled();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      mode: "review-hosted-request",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it.each([
+    {
+      mode: "review-hosted-request",
+      invoke: async (
+        effect: () => Promise<unknown>,
+        write: (text: string) => void,
+        setExitCode: (code: number) => void,
+      ) => handleReviewHostedRequest("-", {
+        readText: async () => JSON.stringify({
+          schemaVersion: 1,
+          target: hostedTarget,
+          provider: "coderabbit-pr",
+        }),
+        request: effect,
+        write,
+        setExitCode,
+      }),
+    },
+    {
+      mode: "review-hosted-await",
+      invoke: async (
+        effect: () => Promise<unknown>,
+        write: (text: string) => void,
+        setExitCode: (code: number) => void,
+      ) => handleReviewHostedAwait("-", {
+        readText: async () => JSON.stringify({
+          schemaVersion: 1,
+          handle: hostedHandle,
+          timeoutMs: 1_000,
+          pollIntervalMs: 100,
+        }),
+        awaitResult: effect,
+        write,
+        setExitCode,
+      }),
+    },
+    {
+      mode: "review-hosted-settle",
+      invoke: async (
+        effect: () => Promise<unknown>,
+        write: (text: string) => void,
+        setExitCode: (code: number) => void,
+      ) => handleReviewHostedSettle("-", {
+        readText: async () => JSON.stringify({
+          schemaVersion: 1,
+          target: hostedTarget,
+          actorIdentity: "developer",
+          finding: {
+            commentId: "comment-1",
+            threadId: "thread-1",
+          },
+          disposition: "reject",
+          reply: "Not applicable because the source contract already covers this case.",
+        }),
+        settle: effect,
+        write,
+        setExitCode,
+      }),
+    },
+  ])("rejects malformed $mode success output at the public boundary", async ({ mode, invoke }) => {
+    const effect = vi.fn(async () => ({ state: "not-a-real-state" }));
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await invoke(effect, write, setExitCode);
+
+    expect(effect).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      mode,
+      error: { code: "unexpected-failure" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("emits one validated hosted request result", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewHostedRequest("-", {
+      readText: async () => JSON.stringify({
+        schemaVersion: 1,
+        target: hostedTarget,
+        provider: "coderabbit-pr",
+      }),
+      request: async () => ({
+        schemaVersion: 1,
+        mode: "review-hosted-request",
+        state: "source-unavailable",
+        nextAction: "stop",
+        provider: "coderabbit-pr",
+        attemptedProviders: ["coderabbit-pr"],
+      }),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toEqual({
+      schemaVersion: 1,
+      mode: "review-hosted-request",
+      state: "source-unavailable",
+      nextAction: "stop",
+      provider: "coderabbit-pr",
+      attemptedProviders: ["coderabbit-pr"],
+    });
+    expect(setExitCode).not.toHaveBeenCalled();
   });
 });
 

@@ -51,27 +51,39 @@ export interface HostedSettlementPort {
   ): Promise<{ kind: "resolved" } | { kind: "ambiguous" }>;
 }
 
+const HostedSettleResultBaseShape = {
+  schemaVersion: z.literal(1),
+  mode: z.literal("review-hosted-settle"),
+  disposition: HostedSettleEnvelopeSchema.shape.disposition,
+  threadId: z.string().min(1),
+};
+
+export const HostedSettleResultSchema = z.union([
+  z.strictObject({
+    ...HostedSettleResultBaseShape,
+    state: z.literal("settled"),
+    nextAction: z.literal("complete"),
+    replyId: z.string().min(1),
+  }),
+  z.strictObject({
+    ...HostedSettleResultBaseShape,
+    state: z.literal("already-settled"),
+    nextAction: z.literal("complete"),
+  }),
+  z.strictObject({
+    ...HostedSettleResultBaseShape,
+    state: z.enum(["missing-thread", "missing-comment", "actor-mismatch", "stale-target", "ambiguous"]),
+    nextAction: z.literal("stop"),
+  }),
+]);
+export type HostedSettleResult = z.infer<typeof HostedSettleResultSchema>;
+
 interface HostedSettleBase {
   schemaVersion: 1;
   mode: "review-hosted-settle";
   disposition: "defer" | "reject";
   threadId: string;
 }
-
-export type HostedSettleResult =
-  | (HostedSettleBase & {
-    state: "settled";
-    nextAction: "complete";
-    replyId: string;
-  })
-  | (HostedSettleBase & {
-    state: "already-settled";
-    nextAction: "complete";
-  })
-  | (HostedSettleBase & {
-    state: "missing-thread" | "missing-comment" | "actor-mismatch" | "stale-target" | "ambiguous";
-    nextAction: "stop";
-  });
 
 function resultBase(request: HostedSettleEnvelope): HostedSettleBase {
   return {
