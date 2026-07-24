@@ -330,11 +330,12 @@ describe("handleReviewResolve", () => {
   it("rejects malformed input before resolving policy", async () => {
     const write = vi.fn();
     const setExitCode = vi.fn();
+    const resolve = vi.fn();
 
     await handleReviewResolve("-", {
       resolveRoot: () => "/repo",
       readText: async () => JSON.stringify({ schemaVersion: 1 }),
-      resolve: vi.fn(),
+      resolve,
       write,
       setExitCode,
     });
@@ -344,6 +345,7 @@ describe("handleReviewResolve", () => {
       mode: "review-resolve",
       error: { code: "invalid-input" },
     });
+    expect(resolve).not.toHaveBeenCalled();
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
 

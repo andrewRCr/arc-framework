@@ -80,6 +80,7 @@ describe("GhReviewUnlockPort", () => {
     expect(boundary.calls[0]).toEqual(expect.arrayContaining([
       "repos/owner/repo/dispatches",
       "event_type=arc-clearance",
+      "client_payload[repository]=owner/repo",
       "client_payload[pull_request]=42",
       `client_payload[head_sha]=${"a".repeat(40)}`,
       "client_payload[vehicle_kind]=work-unit",
