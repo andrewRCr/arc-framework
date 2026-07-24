@@ -142,6 +142,18 @@ describe("framework sync (self-hosting drift check)", () => {
     ).toEqual([]);
   });
 
+  it("keeps review chunking thresholds as intentional Configurable project overrides", async () => {
+    const path = "system/arc-config.yml";
+    const packageConfig = await readFile(join(PKG_ARC_DIR, path), "utf-8");
+    const projectConfig = await readFile(join(ARC_DIR, path), "utf-8");
+
+    expect(manifest.files[path]?.classification).toBe("Configurable");
+    expect(packageConfig).toContain("review.chunking_threshold_lines: 0");
+    expect(packageConfig).toContain("review.chunking_threshold_files: 0");
+    expect(projectConfig).toContain("review.chunking_threshold_lines: 5000");
+    expect(projectConfig).toContain("review.chunking_threshold_files: 150");
+  });
+
   it("keeps neutral review customization contracts aligned across both copies", async () => {
     const paths = [
       "system/methods/README.md",

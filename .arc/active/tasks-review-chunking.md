@@ -98,35 +98,25 @@ facts and precomposes the advisory through the common review-command envelope.
 - _Outcome:_ The shared review protocol now exposes a read-only exact-target attention tripwire that fails closed
   without drawing review boundaries or invoking a reviewer.
 
-### `[ ]` **2.3 Ship neutral defaults and configure self-hosting policy**
+### `[x]` **2.3 Ship neutral defaults and configure self-hosting policy**
 
 - _Goal:_ Fresh projects retain whole-target behavior without friction while this repository explicitly dogfoods
   the thresholds derived from its own review experience.
 
-    - `[ ]` **2.3.a Publish the off-by-default settings**
-        - Add both flat keys with documented `0` defaults to package-source `arc-config.yml`; mirror the schema
-          comments into the project Configurable copy while preserving its values.
-        - Explain that the values are attention tripwires, not chunk-size caps or universal provider limits, and
-          that either can be enabled independently in both copies of
-          `reference/strategies/arc/strategy-configurability-architecture.md`.
-        - Update config-format/status fixtures and reconcile the review-setting surfaces with the live
-          `review.frontline_sources` rename rather than restoring singular-source assumptions.
+    - `[x]` **2.3.a Publish the off-by-default settings**
+        - Added documented `0` / `0` package defaults and strategy guidance defining independent advisory tripwires
+          without provider-limit or chunk-cap semantics.
 
-    - `[ ]` **2.3.b Configure the project-specific thresholds**
-        - Set `.arc/system/arc-config.yml` to `review.chunking_threshold_lines: 5000` and
-          `review.chunking_threshold_files: 150` while retaining `0` / `0` in the package source.
-        - Preserve the distinction between this local policy and CodeRabbit's plan-dependent capability; do not add
-          a universal provider/file-limit constant.
+    - `[x]` **2.3.b Configure the project-specific thresholds**
+        - Set the self-host project to 5,000 changed lines or 150 changed files while retaining neutral package
+          defaults and the existing ordered frontline-source configuration.
 
-    - `[ ]` **2.3.c Verify installation neutrality and intentional project divergence**
-        - Prove package-source defaults and fresh installs resolve `0` / `0`; prove update adds the keys while
-          preserving an existing project's values; and verify config status renders both raw settings.
-        - Verify the self-host project resolves `5000` / `150` through the public config/chunking command surfaces
-          without making package tests depend on the repository's project-owned values.
-        - Verify package/project sync treats the Configurable project values as intentional overrides rather than
-          blind-copy drift.
-        - Confirm disabled defaults invoke no Git measurement and produce no advisory text, approval stop, or change
-          in review-source behavior.
+    - `[x]` **2.3.c Verify installation neutrality and intentional project divergence**
+        - Covered fresh install, status, update migration, project-value preservation, Configurable divergence, and
+          disabled no-measurement behavior; exercised the self-host values through both public commands.
+
+- _Outcome:_ New installations remain whole-target and Git-free by default, while this repository dogfoods an
+  explicit local policy that survives framework updates without conflating reviewer capability with attention.
 
 ## **Phase 3:** Review-pipeline attachment
 
