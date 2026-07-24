@@ -12,13 +12,13 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.E.b.iv — Preserve the local tombstone under locus-owned suppression
-- **Next Task:** Task 7.E.b.v — Make recovery depend on proven physical identity (line ~1204)
-- **Blockers:** `review-chunking` must merge before this WU reconciles and merges — ordering obligation, not a
-  dependency; its review is executed and its findings are triaged into Phase 7.E
+- **Last Completed:** Task 7.E.b.vii — Guard the captured arms against undeclared slot failures (closes 7.E.b)
+- **Next Task:** Task 7.E.c.i — Carry the selected generation into abandon dispatch (line ~1319)
+- **Blockers:** `review-chunking` merged via PR #346; this WU must still reconcile onto the resulting mainline
+  before it merges — ordering obligation, not a dependency, and it does not gate task work
 
-- **Next Action:** Begin Task 7.E.b.v — decompose its four bundled sub-issues at entry rather than treating them
-  as one increment; SESSION-NOTES § Remaining Work carries the read on which ones share a fix
+- **Next Action:** Begin Task 7.E.c.i — thread the resolve path's selected generation into the three abandon
+  drivers; SESSION-NOTES § Additional Context carries the settled carve boundary and its stop tripwire
 
 - **PR URL:** [none]
 - **Completed:** [none]
