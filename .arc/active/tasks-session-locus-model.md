@@ -1338,11 +1338,18 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           `LinkedWorktreeCreationReceipt` has always carried its branch name. Pinned by characterization tests
           that passed on first write — they guard the behavior, they do not evidence a fix.
 
-    - `[ ]` **7.E.c.iii Apply the occupancy veto before offering teardown** — S2-F2
-        - The retained-role path in `stale-worktree-sweep.ts` reduces an exact locus row to a name, then
-          classifies candidates on marker, clean-tree, merge, and user-surface predicates with no live, unknown,
-          or malformed occupancy veto — so session-init can offer teardown for a checkout a live session still
-          occupies, even where a later guarded remover would refuse.
+    - `[x]` **7.E.c.iii Apply the occupancy veto before offering teardown** — S2-F2
+        - `locusOccupancyAtPath` resolves what occupancy permits at one registered checkout — `clear` when no
+          record claims it or the one that does is trusted and absent- or dead-leased, `suppress` for a live
+          lease, `manual` for an unverifiable lease, an untrusted record, more than one claim, or an unresolvable
+          path — and the sweep vetoes on it before every removable emission, branched and husk alike. The veto
+          covers both candidate sources, not only the retained-role path the finding names: the roster-sourced arm
+          consults no locus row at all, and both merge into one decision site. Trust reuses
+          `projectTrustedLocusRow`, so a diagnostic added to either published enum vetoes cleanup with no second
+          predicate to update, and the three-way verdict deliberately mirrors `classifyTeardownOccupancy` so the
+          advisory cannot drift from what the guarded remover permits. `locusState` became a required option —
+          an omitted projection silently skipped the veto. Scope boundary (advisory veto here, lock linearization
+          already in the guarded remover) recorded in `notes-session-locus-model.md`.
 
     - `[ ]` **7.E.c.iv Prove ownership before partial settlement mutates the inbox** — E2-F2
         - `settleInbox` runs before record-lock acquisition and before `popOwnedLocusRole` verifies the exact live

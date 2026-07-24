@@ -224,3 +224,32 @@ byte-identical, so the comparison landed as one pure helper (`locus/selected-gen
 rendering its own refusal and operation. The tripwire fires on a shared capability _contract_ — an obligation on
 every mutator plus revalidation machinery — which this is not: it introduces no obligation outside the three
 abandon drivers and no new concept beyond "the generation the caller selected."
+
+### `7.E.c.iii` scope boundary — settled 2026-07-24
+
+`S2-F2`'s correction boundary reads "apply the complete locus occupancy veto before emitting a removable
+decision," and Success Criterion 9 pairs that veto with holding the target locus lock across the final
+expected-generation recheck, physical removal, and role pop. Only the first half is this leaf's: the sweep is an
+advisory that computes candidates outside any lock, and D10 says so explicitly. The lock linearization is the
+guarded remover's, and it already exists — `retireCheckoutSessionLocus` re-reads the record under lock, refuses on
+role/lease generation change, and refuses any lease that is not dead. The finding's own impact statement assumes
+it ("even if a later guarded remover would refuse"), so the defect is that the advisory offers what the remover
+would then refuse, not that removal is unguarded.
+
+**Where the veto reads occupancy from.** `classifyTeardownOccupancy` is the same veto over raw evidence, keyed to
+one subject; the sweep holds the already-read `LocusStateV1` projection and no subject, so a second evidence
+acquisition per candidate would be both expensive and a different seam. `locusOccupancyAtPath` is the projection
+analogue, deliberately returning the same three-way vocabulary (`clear` / `suppress` / `manual`) so the advisory
+and the guarded remover cannot drift apart in what they permit.
+
+**Applied to every removable emission, not only the retained-role path.** The finding names the retained-role
+composition because that is where an exact row is reduced to a name, but both candidate sources merge into one
+decision site and the roster-sourced arm consults no locus row at all. Vetoing per candidate covers both, and the
+husk emission takes the same veto — `decideHuskCleanup` can also return `removable`. Trust reuses
+`projectTrustedLocusRow` rather than a second predicate, so a diagnostic added to either published enum vetoes
+cleanup without another edit here.
+
+**`locusState` became a required option.** An omitted projection silently skipped the veto — the same
+unknown-collapsed-into-absent shape the packet names as a root cause — and the type is what forecloses it. Only
+the status handler constructs the sweep in production and it already passed the value; the change is a test-side
+edit plus a removed `as LocusStateV1` cast.

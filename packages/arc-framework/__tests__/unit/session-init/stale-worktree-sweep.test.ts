@@ -9,17 +9,26 @@ import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
+import type { LocusRowV1 } from "../../../src/lib/locus/schema/index.js";
 import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
 
 const shipped = new Set(["work-organization-reform"]);
 const emptyBlobReader: RunStaleWorktreeSweepOptions["readBlob"] = async () => null;
 
+/** No record claims any checkout — occupancy leaves each surface's own predicates to decide. */
+const unoccupied = () => locusStateFixture({ rows: [] });
+
 function runStaleWorktreeSweep(
-  options: Omit<RunStaleWorktreeSweepOptions, "readBlob"> & {
+  options: Omit<RunStaleWorktreeSweepOptions, "readBlob" | "locusState"> & {
     readBlob?: RunStaleWorktreeSweepOptions["readBlob"];
+    locusState?: RunStaleWorktreeSweepOptions["locusState"];
   },
 ) {
-  return runStaleWorktreeSweepCore({ ...options, readBlob: options.readBlob ?? emptyBlobReader });
+  return runStaleWorktreeSweepCore({
+    ...options,
+    readBlob: options.readBlob ?? emptyBlobReader,
+    locusState: options.locusState ?? unoccupied(),
+  });
 }
 
 /** Roster with one shipped-WU worktree and one still-active worktree. */
@@ -180,6 +189,7 @@ function runSweep(opts: {
   marker: WorktreeMarkerReadResult;
   roster?: WorktreeRosterResult;
   userSurfaceFs?: UserSurfaceMigrationFs;
+  locusState?: RunStaleWorktreeSweepOptions["locusState"];
 }) {
   return runStaleWorktreeSweep({
     roster: opts.roster ?? shippedRoster(),
@@ -188,7 +198,22 @@ function runSweep(opts: {
     exec: buildExec({ clean: opts.clean, merged: opts.merged }),
     readMarker: async () => opts.marker,
     userSurfaceFs: opts.userSurfaceFs ?? emptyUserSurfaceFs,
+    locusState: opts.locusState,
   });
+}
+
+/** A retained WU role at `checkoutPath`, occupied by a session whose lease is `state`. */
+function leasedWorkUnitRow(name: string, checkoutPath: string, state: "live" | "unknown"): LocusRowV1 {
+  return {
+    ...managedWorkUnitRow(name, checkoutPath),
+    lease: {
+      leaseId: "l".repeat(32),
+      state,
+      sessionHomePath: checkoutPath,
+      attachedAt: "2026-07-24T00:00:00.000Z",
+      heartbeatAt: "2026-07-24T00:00:00.000Z",
+    },
+  };
 }
 
 describe("runStaleWorktreeSweep", () => {
@@ -219,6 +244,103 @@ describe("runStaleWorktreeSweep", () => {
       kind: "branched", worktreePath: "/wt/wor", branch: "feat/work-organization-reform",
       decision: { action: "removable" },
     }]);
+  });
+
+  it("never offers a shipped worktree a live session still occupies", async () => {
+    const result = await runSweep({
+      clean: true,
+      merged: true,
+      marker: presentMarker,
+      locusState: locusStateFixture({
+        rows: [leasedWorkUnitRow("work-organization-reform", "/wt/wor", "live")],
+      }),
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "locus-occupied" });
+  });
+
+  it("holds a shipped worktree manual when its occupancy cannot be verified", async () => {
+    const result = await runSweep({
+      clean: true,
+      merged: true,
+      marker: presentMarker,
+      locusState: locusStateFixture({
+        rows: [leasedWorkUnitRow("work-organization-reform", "/wt/wor", "unknown")],
+      }),
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "locus-unverified" });
+  });
+
+  it("holds a shipped worktree manual when the record claiming it is untrusted", async () => {
+    const untrusted: LocusRowV1 = {
+      ...managedWorkUnitRow("work-organization-reform", "/wt/wor"),
+      diagnostics: [{
+        code: "cross-identity",
+        source: { kind: "record", key: "/wt/wor" },
+        message: "Marker belongs to another identity",
+      }],
+    };
+    const result = await runSweep({
+      clean: true,
+      merged: true,
+      marker: presentMarker,
+      locusState: locusStateFixture({ rows: [untrusted] }),
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "locus-unverified" });
+  });
+
+  it("never offers a retained-role worktree a live session still occupies", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
+      locusState: locusStateFixture({
+        rows: [leasedWorkUnitRow("work-organization-reform", "/wt/wor", "live")],
+      }),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [
+          { path: "/primary", head: "1".repeat(40), branch: "main", detached: false, primary: true },
+          {
+            path: "/wt/wor", head: "2".repeat(40), branch: "feat/work-organization-reform",
+            detached: false, primary: false,
+          },
+        ],
+      }),
+    });
+
+    expect(result.worktrees).toEqual([{
+      kind: "branched", worktreePath: "/wt/wor", branch: "feat/work-organization-reform",
+      decision: { action: "blocked", reason: "locus-occupied" },
+    }]);
+  });
+
+  it("never offers a stamped husk a live session still occupies", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async () => stampedMarker({ kind: "work-unit", name: "work-organization-reform" }),
+      locusState: locusStateFixture({
+        rows: [leasedWorkUnitRow("work-organization-reform", "/wt/husk", "live")],
+      }),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [{ path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false }],
+      }),
+    });
+
+    expect(result.worktrees[0]).toMatchObject({
+      kind: "husk",
+      worktreePath: "/wt/husk",
+      decision: { action: "blocked", reason: "locus-occupied" },
+    });
   });
 
   it("is removable for a shipped worktree that is clean, merged, and ARC-marked", async () => {
