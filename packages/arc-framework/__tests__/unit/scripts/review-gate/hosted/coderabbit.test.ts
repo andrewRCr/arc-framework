@@ -83,7 +83,11 @@ describe("CodeRabbit hosted adapter", () => {
       readThreads: () => Promise.resolve([findingThread("_🟠 Major_ broken boundary")]),
     }));
 
-    await expect(clean.request(target)).resolves.toMatchObject({ kind: "created", artifact: { id: "IC_1" } });
+    await expect(clean.request(target, "complete")).resolves.toMatchObject({
+      kind: "created",
+      effectiveCoverage: "complete",
+      artifact: { id: "IC_1" },
+    });
     await expect(clean.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
     await expect(findings.observeHandle(target)).resolves.toMatchObject({
       kind: "findings",
@@ -96,6 +100,35 @@ describe("CodeRabbit hosted adapter", () => {
     });
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.botUserId).toBe("136622811");
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.appOwnerId).toBe("132028505");
+  });
+
+  it.each([
+    ["complete", "@coderabbitai full review"],
+    ["incremental", "@coderabbitai review"],
+  ] as const)("maps %s coverage to the provider command", async (coverage, command) => {
+    let posted = "";
+    const adapter = new CodeRabbitHostedAdapter(port({
+      createIssueComment: (_target, body) => {
+        posted = body;
+        return Promise.resolve({
+          kind: "created",
+          artifact: {
+            kind: "issue-comment",
+            id: "IC_1",
+            url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+            createdAt: "2026-07-23T12:00:00.000Z",
+          },
+          actorIdentity: "1234",
+          body,
+        });
+      },
+    }));
+
+    await expect(adapter.request(target, coverage)).resolves.toMatchObject({
+      kind: "created",
+      effectiveCoverage: coverage,
+    });
+    expect(posted).toBe(command);
   });
 
   it("binds provider checks to the GitHub App owner rather than the bot account", async () => {
@@ -148,7 +181,6 @@ The contract should distinguish findings that have no review thread.
       findings: [{
         findingId: "PRR_1:abcdef1234567890abcdef12",
         origin: "review-body",
-        category: "nitpick",
         reviewId: "PRR_1",
         fingerprint: "abcdef1234567890abcdef12",
         settlement: "not-applicable",
@@ -192,7 +224,6 @@ This finding has no inline review thread.
       kind: "findings",
       findings: [{
         origin: "review-body",
-        category: "outside-diff",
         settlement: "not-applicable",
         locus: "src/legacy.ts:12",
       }],
@@ -253,7 +284,7 @@ This finding has no inline review thread.
       readThreads: () => Promise.resolve([findingThread("severity omitted")]),
     }));
 
-    await expect(rateLimited.request(target)).resolves.toEqual({ kind: "rate-limited" });
+    await expect(rateLimited.request(target, "complete")).resolves.toEqual({ kind: "rate-limited" });
     await expect(transient.observeHandle(target)).resolves.toEqual({ kind: "transient-unavailable" });
     await expect(malformed.observeHandle(target)).resolves.toMatchObject({ kind: "terminal-failure" });
   });
@@ -283,6 +314,8 @@ This finding has no inline review thread.
     await adapter.readHead({
       schemaVersion: 1,
       provider: "coderabbit-pr",
+      requestedCoverage: "complete",
+      effectiveCoverage: "complete",
       target,
       artifact: {
         kind: "issue-comment",
@@ -294,6 +327,8 @@ This finding has no inline review thread.
     await adapter.observe({
       schemaVersion: 1,
       provider: "coderabbit-pr",
+      requestedCoverage: "complete",
+      effectiveCoverage: "complete",
       target,
       artifact: {
         kind: "issue-comment",

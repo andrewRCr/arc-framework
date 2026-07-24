@@ -216,16 +216,15 @@ never replaces Step 13's authoritative final drift read.
 
 For the opened target, rerun `arc review chunking resolve -` and invoke `arc review resolve -` for any incomplete
 lane. Follow the Step 3 dispatch. On `ready / hosted-request`, invoke `arc review hosted request -` with the selected
-provider and exact opened target:
+provider, exact opened target, and `coverage: complete`:
 
 - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use the bounded
   wait again when it returns `pending / await`; do not build an agent polling loop.
 - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
-- `findings / triage` — run the disposition protocol. For each approved `review-thread` finding, use
-  `arc review hosted settle -` for its reply-and-resolve or defer/reject settlement before feeding `findings` back
-  to the driver. A `review-body` finding, including a nitpick or outside-diff comment, is triage-only: never invoke
-  `hosted settle`, post a reply or compensating summary comment, or resolve anything for it, regardless of
-  disposition.
+- `findings / triage` — run the disposition protocol. For each approved finding with
+  `settlement: reply-and-resolve`, use `arc review hosted settle -` before feeding `findings` back to the driver.
+  A finding with `settlement: not-applicable` is triage-only: never invoke `hosted settle`, post a reply or
+  compensating summary comment, or resolve anything for it, regardless of disposition.
 - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it may
   select the next configured source without consuming the pass.
 - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
@@ -246,7 +245,9 @@ After every target movement, make and disclose a **review applicability** judgme
 These are judgment signals, not an eligibility checklist or proof obligation. A confident bounded choice proceeds
 without asking permission and is retained for the final gate. An agent-selected supplemental review is disclosed
 as it runs and enters the same finding/disposition loop; it does not settle `standardReview` unless it ran that
-contract. Stop only when the pass needs new authority, material cost, or resolution of genuine uncertainty.
+contract. A hosted supplemental request uses `coverage: incremental`; if its adapter reports
+`effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only when the pass needs
+new authority, material cost, or resolution of genuine uncertainty.
 
 Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and merge authorization;
 never rewrite a prior exact-target result as if it ran on the new head.

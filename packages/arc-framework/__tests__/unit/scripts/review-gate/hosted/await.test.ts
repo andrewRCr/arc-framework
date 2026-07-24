@@ -11,6 +11,8 @@ const HEAD = "a".repeat(40);
 const handle: HostedRequestHandle = {
   schemaVersion: 1,
   provider: "coderabbit-pr",
+  requestedCoverage: "complete",
+  effectiveCoverage: "complete",
   target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
   artifact: {
     kind: "issue-comment",

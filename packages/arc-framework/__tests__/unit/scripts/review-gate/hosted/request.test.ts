@@ -13,7 +13,6 @@ function adapter(
 ): HostedReviewAdapter {
   return {
     id: "coderabbit-pr",
-    requestCommand: "@coderabbitai full review",
     identities: { botUserId: "136622811" },
     request,
   };
@@ -29,9 +28,11 @@ describe("hosted review request", () => {
         headSha: HEAD,
       },
       provider: "coderabbit-pr",
+      coverage: "complete",
     };
     const requested = adapter(async () => ({
       kind: "created",
+      effectiveCoverage: "complete",
       artifact: {
         kind: "issue-comment",
         id: "IC_kwDO123",
@@ -52,6 +53,8 @@ describe("hosted review request", () => {
       handle: {
         schemaVersion: 1,
         provider: "coderabbit-pr",
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
         target: input.target,
         artifact: { id: "IC_kwDO123" },
       },
@@ -63,11 +66,19 @@ describe("hosted review request", () => {
       schemaVersion: 2,
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "coderabbit-pr",
+      coverage: "complete",
     })).toThrow();
     expect(() => HostedRequestEnvelopeSchema.parse({
       schemaVersion: 1,
       target: { repository: "owner/repo", pullRequest: 0, headSha: "short" },
       provider: "coderabbit-pr",
+      coverage: "incremental",
+    })).toThrow();
+    expect(() => HostedRequestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "provider-default",
     })).toThrow();
   });
 
@@ -76,6 +87,7 @@ describe("hosted review request", () => {
       schemaVersion: 1,
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "coderabbit-pr",
+      coverage: "incremental",
     }, { adapters: [] });
 
     expect(result).toEqual({
@@ -84,6 +96,7 @@ describe("hosted review request", () => {
       state: "source-unavailable",
       nextAction: "stop",
       provider: "coderabbit-pr",
+      requestedCoverage: "incremental",
       attemptedProviders: ["coderabbit-pr"],
     });
   });
@@ -93,6 +106,7 @@ describe("hosted review request", () => {
       schemaVersion: 1 as const,
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "coderabbit-pr" as const,
+      coverage: "incremental" as const,
     };
     const unavailable = await requestHostedReview(base, {
       adapters: [adapter(async () => ({ kind: "rate-limited" }))],
@@ -103,5 +117,25 @@ describe("hosted review request", () => {
 
     expect(unavailable).toMatchObject({ state: "rate-limited", nextAction: "try-next-source" });
     expect(ambiguous).toMatchObject({ state: "ambiguous-delivery", nextAction: "stop" });
+  });
+
+  it("rejects an adapter that weakens requested complete coverage", async () => {
+    const weakened = adapter(async () => ({
+      kind: "created",
+      effectiveCoverage: "incremental",
+      artifact: {
+        kind: "issue-comment",
+        id: "IC_kwDO123",
+        url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+        createdAt: "2026-07-23T12:00:00.000Z",
+      },
+    }));
+
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+    }, { adapters: [weakened] })).rejects.toThrow();
   });
 });

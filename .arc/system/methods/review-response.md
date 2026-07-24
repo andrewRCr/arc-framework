@@ -87,7 +87,7 @@ review source, persists, or performs adapter-owned closure within this method.
   thread capability. Controller actions return the receipt handle and only their declared reply/resolution handles.
   Provider-native actions return provider-reply, thread-state, and decisive-review handles without acquiring a
   resolution capability. A finding without its own conversation produces no hosted response; never create a roll-up
-  comment. Review-body nitpick and outside-diff findings are always in this no-response class: `fix`, `defer`, and
+  comment. A finding with `settlement: not-applicable` is always in this no-response class: `fix`, `defer`, and
   `reject` alike produce no reply, resolution, or compensating disposition comment.
 
 Conversation resolution records host state only. Controller closure additionally requires confirmation from the

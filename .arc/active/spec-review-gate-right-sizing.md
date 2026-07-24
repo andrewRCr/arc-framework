@@ -152,12 +152,14 @@ rigor purposeless here.
 
 **A1 — Hosted-PR effect verbs.** Extend `arc review` with a pure transition driver, `arc review resolve`, and the
 small typed effect verbs a hosted-PR standard source needs: `arc review hosted request`, `arc review hosted await`,
-and `arc review hosted settle` (thread-backed defer/reject replies and resolution). Await distinguishes
-thread-backed findings, which carry reply-and-resolve settlement coordinates, from review-body nitpick and
-outside-diff findings, whose settlement is explicitly not applicable. Review-body findings enter the same human
-disposition gate but never cause a reply, resolution, or compensating summary comment for any disposition. Every
-verb is JSON-in / JSON-out and follows the shipped `arc review` envelope contract (versioned request, one strict
-command-specific envelope, `state -> nextAction` pairs). The hosted implementation lives under
+and `arc review hosted settle` (thread-backed defer/reject replies and resolution). Request accepts generic
+`complete` or `incremental` coverage and returns both requested and effective coverage in its durable handle; an
+adapter without a narrower mechanism may perform its ordinary complete review and report that broader effective
+coverage. Await distinguishes findings with reply-and-resolve settlement coordinates from findings whose
+settlement is explicitly not applicable. Both enter the same human disposition gate, but only the former can cause
+a reply or resolution; provider-native finding taxonomy remains adapter-local. Every verb is JSON-in / JSON-out
+and follows the shipped `arc review` envelope contract (versioned request, one strict command-specific envelope,
+`state -> nextAction` pairs). The hosted implementation lives under
 `src/scripts/review-gate/hosted/`, separate
 from the evidence-grade interfaces being deleted. A request result carries a self-contained handle bound to the
 repository, pull request, exact head, provider, and durable host artifact; that GitHub artifact is the resumable
@@ -224,7 +226,8 @@ warrants focused attention and existing harness permissions and budgets allow it
 disclosed as it runs and creates no authorization stop by default; new authority, material cost, or genuine scope
 uncertainty is surfaced. Supplemental output enters the same triage and convergence loop, never replaces or settles
 `standardReview` unless that invocation ran the standard-review contract, and introduces no registry, scheduler, or
-configuration axis here.
+configuration axis here. A hosted supplemental request asks for incremental coverage; adapters without a distinct
+incremental mechanism fail open to their ordinary complete review and disclose the effective coverage upgrade.
 
 **Disposition-report format (this loop's review surface only).** The report and the gates below use one consistent,
 scannable, structurally-**marked** format so the operator recognizes them at a glance; the exact rendering (marker

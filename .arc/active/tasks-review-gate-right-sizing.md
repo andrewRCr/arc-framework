@@ -17,8 +17,9 @@ shadow runtime that currently contains their reusable pieces.
     - `[x]` **1.1.a Define and register the hosted-request contract**
 
         - Added the strict hosted request envelope, self-contained GitHub-artifact handle, typed safe-unavailability
-          and ambiguous-delivery outcomes, and the public `arc review hosted request` handler/CLI surface without
-          introducing controller, receipt, or local operation state.
+          and ambiguous-delivery outcomes, generic requested/effective coverage, and the public
+          `arc review hosted request` handler/CLI surface without introducing controller, receipt, or local
+          operation state.
 
     - `[x]` **1.1.b Re-home bounded hosted-review observation behind the await verb**
 
@@ -40,14 +41,16 @@ shadow runtime that currently contains their reusable pieces.
     - `[x]` **1.2.a Re-home the CodeRabbit hosted path behind the new verbs**
 
         - Re-homed CodeRabbit request and exact-head observation behind the lean hosted contracts and a shared
-          developer-authenticated `gh api` port, retaining immutable provider identity, normalized finding loci,
-          and distinct rate-limit/transient/terminal outcomes without receipt qualification or frontline changes.
+          developer-authenticated `gh api` port, mapping generic complete/incremental coverage to provider commands
+          while retaining immutable identity, normalized finding loci, and distinct rate-limit/transient/terminal
+          outcomes without receipt qualification or frontline changes.
 
     - `[x]` **1.2.b Re-home the Codex hosted path behind the same contract**
 
         - Re-homed Codex as an independently selectable hosted source that creates `@codex review`, observes the
           immutable App/bot identities through the common exact-head contract, and normalizes clean/findings and
-          availability outcomes without carrying guidance-evidence qualification into the lean path.
+          availability outcomes without carrying guidance-evidence qualification into the lean path. Its ordinary
+          complete review safely broadens an incremental request when no narrower hosted mechanism exists.
 
     - `[x]` **1.2.c Make provider preference and fallback total**
 

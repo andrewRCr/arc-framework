@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   HostedRequestHandleSchema,
+  HostedTargetSchema,
   type HostedProviderId,
   type HostedRequestHandle,
 } from "./request.js";
@@ -22,7 +23,6 @@ export const HostedThreadFindingSchema = z.strictObject({
 export const HostedReviewBodyFindingSchema = z.strictObject({
   findingId: z.string().min(1),
   origin: z.literal("review-body"),
-  category: z.enum(["nitpick", "outside-diff"]),
   reviewId: z.string().min(1),
   fingerprint: z.string().min(1),
   settlement: z.literal("not-applicable"),
@@ -108,8 +108,8 @@ export const HostedAwaitResultSchema = z.union([
     ...HostedAwaitResultBaseShape,
     state: z.literal("stale-target"),
     nextAction: z.literal("stop"),
-    expectedHeadSha: HostedRequestHandleSchema.shape.target.shape.headSha,
-    actualHeadSha: HostedRequestHandleSchema.shape.target.shape.headSha,
+    expectedHeadSha: HostedTargetSchema.shape.headSha,
+    actualHeadSha: HostedTargetSchema.shape.headSha,
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,

@@ -142,6 +142,8 @@ const hostedTarget = {
 const hostedHandle = {
   schemaVersion: 1,
   provider: "coderabbit-pr",
+  requestedCoverage: "complete",
+  effectiveCoverage: "complete",
   target: hostedTarget,
   artifact: {
     kind: "issue-comment",
@@ -433,6 +435,7 @@ describe("hosted review handlers", () => {
           schemaVersion: 1,
           target: hostedTarget,
           provider: "coderabbit-pr",
+          coverage: "complete",
         }),
         request: effect,
         write,
@@ -505,6 +508,7 @@ describe("hosted review handlers", () => {
         schemaVersion: 1,
         target: hostedTarget,
         provider: "coderabbit-pr",
+        coverage: "incremental",
       }),
       request: async () => ({
         schemaVersion: 1,
@@ -512,6 +516,7 @@ describe("hosted review handlers", () => {
         state: "source-unavailable",
         nextAction: "stop",
         provider: "coderabbit-pr",
+        requestedCoverage: "incremental",
         attemptedProviders: ["coderabbit-pr"],
       }),
       write,
@@ -524,6 +529,7 @@ describe("hosted review handlers", () => {
       state: "source-unavailable",
       nextAction: "stop",
       provider: "coderabbit-pr",
+      requestedCoverage: "incremental",
       attemptedProviders: ["coderabbit-pr"],
     });
     expect(setExitCode).not.toHaveBeenCalled();

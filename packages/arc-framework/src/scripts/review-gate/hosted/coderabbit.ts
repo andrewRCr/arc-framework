@@ -15,16 +15,20 @@ import type {
   HostedRequestHandle,
   HostedRequestOutcome,
   HostedReviewAdapter,
+  HostedReviewCoverage,
   HostedTarget,
 } from "./request.js";
 
-const COMMAND = "@coderabbitai full review";
+const COMMANDS = {
+  complete: "@coderabbitai full review",
+  incremental: "@coderabbitai review",
+} as const satisfies Record<HostedReviewCoverage, string>;
 const BOT_USER_ID = "136622811";
 const APP_OWNER_ID = "132028505";
 
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
-  requestCommand: COMMAND,
+  commands: COMMANDS,
   identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID },
 } as const;
 
@@ -62,7 +66,7 @@ function finding(
 }
 
 type ReviewBodyFinding = Extract<HostedFinding, { origin: "review-body" }>;
-type SupplementalCategory = ReviewBodyFinding["category"];
+type SupplementalCategory = "nitpick" | "outside-diff";
 
 export type CodeRabbitReviewBodyParseResult =
   | {
@@ -160,7 +164,6 @@ function parseSupplementalSection(
       findings.push({
         findingId: `${review.id}:${fingerprint}`,
         origin: "review-body",
-        category: section.category,
         reviewId: review.id,
         fingerprint,
         settlement: "not-applicable",
@@ -227,7 +230,6 @@ function newestTerminalReview(reviews: HostedGitHubReview[]): HostedGitHubReview
 /** CodeRabbit request and exact-head observation through the lean GitHub port. */
 export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedReviewObserver {
   readonly id = CODERABBIT_HOSTED_REGISTRATION.id;
-  readonly requestCommand = COMMAND;
   readonly identities = CODERABBIT_HOSTED_REGISTRATION.identities;
   private readonly github: HostedGitHubPort;
 
@@ -235,17 +237,21 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
     this.github = github;
   }
 
-  async request(target: HostedTarget): Promise<HostedRequestOutcome> {
+  async request(
+    target: HostedTarget,
+    coverage: HostedReviewCoverage,
+  ): Promise<HostedRequestOutcome> {
     if (await this.github.readHead(target) !== target.headSha) {
       return { kind: "terminal-failure", reason: "stale-target" };
     }
+    const command = COMMANDS[coverage];
     const actorIdentity = await this.github.currentActorIdentity();
-    const result = await this.github.createIssueComment(target, COMMAND);
+    const result = await this.github.createIssueComment(target, command);
     if (result.kind !== "created") return result;
-    if (result.actorIdentity !== actorIdentity || result.body !== COMMAND) {
+    if (result.actorIdentity !== actorIdentity || result.body !== command) {
       return { kind: "ambiguous-delivery" };
     }
-    return { kind: "created", artifact: result.artifact };
+    return { kind: "created", artifact: result.artifact, effectiveCoverage: coverage };
   }
 
   readHead(handle: HostedRequestHandle, options?: { signal?: AbortSignal }): Promise<string> {

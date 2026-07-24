@@ -200,16 +200,15 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
 
    Rerun `arc review chunking resolve -` for the opened target and invoke `arc review resolve -` for each incomplete
    lane. Follow the Step 2 dispatch. On `ready / hosted-request`, invoke `arc review hosted request -` with the
-   selected provider and exact opened target:
+   selected provider, exact opened target, and `coverage: complete`:
 
    - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use that bounded
      wait again for `pending / await`; do not build an agent polling loop.
    - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
-   - `findings / triage` — run the disposition protocol. For each approved `review-thread` finding, use
-     `arc review hosted settle -` for its reply-and-resolve or defer/reject settlement before feeding `findings`
-     back to the driver. A `review-body` finding, including a nitpick or outside-diff comment, is triage-only:
-     never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it,
-     regardless of disposition.
+   - `findings / triage` — run the disposition protocol. For each approved finding with
+     `settlement: reply-and-resolve`, use `arc review hosted settle -` before feeding `findings` back to the driver.
+     A finding with `settlement: not-applicable` is triage-only: never invoke `hosted settle`, post a reply or
+     compensating summary comment, or resolve anything for it, regardless of disposition.
    - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
      may select the next configured source without consuming the pass.
    - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
@@ -225,7 +224,9 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    record-only or lifecycle delta; use a focused supplemental check for a bounded interaction; repeat complete
    review for behavioral, authority, contract, materially interacting, or uncertain change. A confident bounded
    choice proceeds without a permission stop. An agent-selected supplemental review is disclosed as it runs and
-   enters the same disposition loop; stop only for new authority, material cost, or genuine uncertainty.
+   enters the same disposition loop. A hosted supplemental request uses `coverage: incremental`; if its adapter
+   reports `effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only for new
+   authority, material cost, or genuine uncertainty.
 
    Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and integration
    authority. After the routed review settles, classify the merge lane by what the Errand touched

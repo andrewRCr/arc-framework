@@ -71,11 +71,11 @@ function findingThread(): HostedGitHubThread {
 }
 
 describe("Codex hosted adapter", () => {
-  it("is directly selectable and creates its command comment", async () => {
-    let posted = "";
+  it("fails open to complete coverage when incremental review is unavailable", async () => {
+    const posted: string[] = [];
     const adapter = new CodexHostedAdapter(port({
       createIssueComment: (_target, body) => {
-        posted = body;
+        posted.push(body);
         return Promise.resolve({
           kind: "created",
           artifact: {
@@ -90,8 +90,15 @@ describe("Codex hosted adapter", () => {
       },
     }));
 
-    await expect(adapter.request(target)).resolves.toMatchObject({ kind: "created" });
-    expect(posted).toBe("@codex review");
+    await expect(adapter.request(target, "complete")).resolves.toMatchObject({
+      kind: "created",
+      effectiveCoverage: "complete",
+    });
+    await expect(adapter.request(target, "incremental")).resolves.toMatchObject({
+      kind: "created",
+      effectiveCoverage: "complete",
+    });
+    expect(posted).toEqual(["@codex review", "@codex review"]);
     expect(CODEX_HOSTED_REGISTRATION).toMatchObject({
       id: "codex-pr",
       identities: { appId: "1144995", botUserId: "199175422" },

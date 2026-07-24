@@ -12,16 +12,21 @@ import type {
   HostedRequestHandle,
   HostedRequestOutcome,
   HostedReviewAdapter,
+  HostedReviewCoverage,
   HostedTarget,
 } from "./request.js";
 
 const COMMAND = "@codex review";
+const EFFECTIVE_COVERAGE = "complete";
 const APP_ID = "1144995";
 const BOT_USER_ID = "199175422";
 
 export const CODEX_HOSTED_REGISTRATION = {
   id: "codex-pr",
-  requestCommand: COMMAND,
+  commands: {
+    complete: COMMAND,
+    incremental: COMMAND,
+  },
   identities: { appId: APP_ID, botUserId: BOT_USER_ID },
 } as const;
 
@@ -78,7 +83,6 @@ function newestReview(reviews: HostedGitHubReview[]): HostedGitHubReview | undef
 /** Codex request and exact-head observation through the common GitHub port. */
 export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObserver {
   readonly id = CODEX_HOSTED_REGISTRATION.id;
-  readonly requestCommand = COMMAND;
   readonly identities = CODEX_HOSTED_REGISTRATION.identities;
   private readonly github: HostedGitHubPort;
 
@@ -86,17 +90,25 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
     this.github = github;
   }
 
-  async request(target: HostedTarget): Promise<HostedRequestOutcome> {
+  async request(
+    target: HostedTarget,
+    coverage: HostedReviewCoverage,
+  ): Promise<HostedRequestOutcome> {
     if (await this.github.readHead(target) !== target.headSha) {
       return { kind: "terminal-failure", reason: "stale-target" };
     }
+    const command = CODEX_HOSTED_REGISTRATION.commands[coverage];
     const actorIdentity = await this.github.currentActorIdentity();
-    const result = await this.github.createIssueComment(target, COMMAND);
+    const result = await this.github.createIssueComment(target, command);
     if (result.kind !== "created") return result;
-    if (result.actorIdentity !== actorIdentity || result.body !== COMMAND) {
+    if (result.actorIdentity !== actorIdentity || result.body !== command) {
       return { kind: "ambiguous-delivery" };
     }
-    return { kind: "created", artifact: result.artifact };
+    return {
+      kind: "created",
+      artifact: result.artifact,
+      effectiveCoverage: EFFECTIVE_COVERAGE,
+    };
   }
 
   readHead(handle: HostedRequestHandle, options?: { signal?: AbortSignal }): Promise<string> {
