@@ -426,3 +426,57 @@ describe("locus operational derivation", () => {
     });
   });
 });
+
+describe("recovery verdict scoping", () => {
+  const offBasePrimary = { kind: "complete" as const, clean: true, onBase: false, branch: "chore/an-errand" };
+
+  function freePrimaryRow(): ProvisionalLocusRow {
+    return {
+      ...row({ id: "1", path: "/repo", kind: "free-primary", lease: null }),
+      primary: true,
+      recordId: null,
+      role: null,
+    };
+  }
+
+  it("reports no recovery when only the primary is unsafe", () => {
+    const frames = deriveLocusFrames({ rows: [freePrimaryRow()], enteringAnchor: ANCHOR });
+
+    const derived = deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: frames.rows,
+      current: frames.current,
+      primarySafety: offBasePrimary,
+      primaryLock: "absent",
+    });
+
+    expect(derived.primaryAvailability).toMatchObject({ kind: "unsafe", reasons: ["primary-off-base"] });
+    expect(derived.recovery).toEqual({ kind: "none" });
+  });
+
+  it("still reports transient residue while the primary is unsafe", () => {
+    const residue = row({ id: "2", path: "/errand", role: "errand", lease: "dead" });
+    const frames = deriveLocusFrames({ rows: [freePrimaryRow(), residue], enteringAnchor: ANCHOR });
+
+    expect(deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: frames.rows,
+      current: frames.current,
+      primarySafety: offBasePrimary,
+      primaryLock: "absent",
+    }).recovery).toEqual({ kind: "residue", recordId: residue.recordId, actions: ["resume", "abandon"] });
+  });
+
+  it("still stops on an unknown lease while the primary is unsafe", () => {
+    const unknown = row({ id: "3", path: "/wu", lease: "unknown" });
+    const frames = deriveLocusFrames({ rows: [freePrimaryRow(), unknown], enteringAnchor: ANCHOR });
+
+    expect(deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: frames.rows,
+      current: frames.current,
+      primarySafety: offBasePrimary,
+      primaryLock: "absent",
+    }).recovery).toEqual({ kind: "stop", reasons: ["lease-unknown"] });
+  });
+});

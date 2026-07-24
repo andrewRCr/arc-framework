@@ -80,11 +80,10 @@ export function deriveLocusOperationalState(options: {
   primarySafety: Extract<PrimarySafetyResult, { kind: "complete" }>;
   primaryLock: "absent" | "live" | "dead" | "unknown";
 }): LocusOperationalDerivation {
-  const primaryAvailability = derivePrimaryAvailability(options);
   return {
-    primaryAvailability,
+    primaryAvailability: derivePrimaryAvailability(options),
     inFlightIdentities: deriveInFlightIdentities(options.rows),
-    recovery: deriveRecovery(options.rows, options.current, primaryAvailability),
+    recovery: deriveRecovery(options.rows, options.current),
   };
 }
 
@@ -108,7 +107,6 @@ function deriveInFlightIdentities(rows: readonly LocusRowV1[]): LocusStateV1["in
 function deriveRecovery(
   rows: readonly LocusRowV1[],
   current: LocusStateV1["current"],
-  primaryAvailability: LocusStateV1["primaryAvailability"],
 ): LocusStateV1["recovery"] {
   const managed = rows.filter((row) => row.kind === "managed-role" && row.role !== null);
   const stopReasons = [
@@ -123,9 +121,9 @@ function deriveRecovery(
       parentRecordId: current.parentRecordId,
     };
   }
-  if (primaryAvailability.kind === "unsafe") {
-    return { kind: "stop", reasons: primaryAvailability.reasons };
-  }
+  // An unsafe primary is an allocation fact, not a recovery verdict: the allocating verbs read
+  // `primaryAvailability` themselves. Folding it in here would stop operations that never allocate
+  // and hide a residual transient behind it.
   const transientResidue = managed.filter((row) =>
     row.role?.kind !== "work-unit" && (row.lease === null || row.lease.state === "dead"));
   if (transientResidue.length > 1) return { kind: "stop", reasons: ["role-conflict"] };

@@ -210,3 +210,47 @@ describe("deriveHandoffLocusPlan", () => {
       .toMatchObject({ kind: "refused", reason: "locus-unresolved" });
   });
 });
+
+describe("deriveHandoffLocusPlan under an unsafe primary", () => {
+  const idleRow = (): LocusRowV1 => ({ ...workUnit("active"), lease: null, frame: "idle" as const });
+
+  function idleStateWith(
+    recovery: LocusStateV1["recovery"],
+    primaryAvailability: LocusStateV1["primaryAvailability"],
+  ): LocusStateV1 {
+    return {
+      roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [idleRow()], diagnostics: [] },
+      current: { kind: "none" },
+      primaryAvailability,
+      inFlightIdentities: [],
+      recovery,
+      reconciliation: { kind: "clean" },
+    };
+  }
+
+  it("releases an idle work unit while an Errand holds the primary off base", () => {
+    const state = idleStateWith(
+      { kind: "none" },
+      { kind: "unsafe", checkoutPath: "/repo", reasons: ["primary-off-base"] },
+    );
+
+    expect(deriveHandoffLocusPlan(state, "/repo.demo")).toEqual({
+      kind: "release-work-unit",
+      recordId: WU,
+      leaseId: null,
+      checkoutPath: "/repo.demo",
+    });
+  });
+
+  it("still refuses when the recovery verdict reports genuine residue", () => {
+    const state = idleStateWith(
+      { kind: "residue", recordId: WU, actions: ["resume", "abandon"] },
+      { kind: "free", checkoutPath: "/repo" },
+    );
+
+    expect(deriveHandoffLocusPlan(state, "/repo.demo")).toMatchObject({
+      kind: "refused",
+      reason: "locus-unresolved",
+    });
+  });
+});

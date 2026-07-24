@@ -1051,6 +1051,28 @@ operation stays mechanical.
   itself: one `managed-role` row at the new path with the renamed subject, `frame: idle`, no diagnostics, and
   neither a `stale-record` row nor any row at the old path.
 
+## **Phase 7.D:** Recovery Verdict Scoping
+
+_Purpose:_ Stop an unsafe primary from reading as a recovery stop. Found by dogfooding this session: with an
+Errand in flight — the primary parked off base, which is the steady state, not an exception — the handoff probe
+refused with "resolve the retained session locus residue" against a roster carrying no residue at all.
+
+_Design decisions:_ Spec D6. `primaryAvailability` and `recovery` answer different questions; allocation reads
+the former, and the verbs that allocate already do so directly. Folding availability into the recovery verdict
+both blocks operations that never allocate and masks genuine transient residue behind the allocation stop.
+
+### `[x]` **7.D.a Scope the recovery verdict to frame recoverability** — D6
+
+- _Goal:_ An unsafe primary stops allocation and nothing else: ordinary session entry, handoff, and compaction
+  recovery proceed on a healthy frame while an Errand holds the primary off base, and a residual transient stays
+  visible instead of being masked by the allocation stop.
+
+- _Outcome:_ `deriveRecovery` no longer folds `primaryAvailability` into its verdict, so an off-base primary
+  reports `unsafe` on the slot the allocating verbs already read and nothing else. Verified against the live
+  probe that surfaced the defect: the same repository state that refused handoff now resolves
+  `release-work-unit`. The fold also masked transient residue behind the allocation stop, since it was tested
+  before the residue scan — both consequences are now covered.
+
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`

@@ -688,6 +688,12 @@ residue. An unexpected role/branch pairing, relevant live/unknown lock, malforme
 path, or duplicate alias is `unsafe`. Unrelated unmanaged linked worktrees remain visible diagnostics and do not by
 themselves make the primary unsafe or stop reconciliation.
 
+Availability and recovery answer different questions and never substitute for each other. `recovery` reports only
+whether a frame resumes or a residual role must be resolved; an `unsafe` primary is an allocation fact, carried by
+`primaryAvailability` and read by the verbs that allocate. A record-free primary parked off base — the steady state
+whenever an Errand is in flight — therefore leaves ordinary session entry, handoff, and recovery unblocked, and
+never masks a residual transient behind an allocation stop.
+
 `inFlightIdentities.actions` lists state-appropriate next operations, not authorization to perform them: `open`
 and `paused` offer resume/abandon, while `awaiting-merge` advertises wait/finalize/abandon/resume as possible. The
 network-free reader does not query host state; each selected mutation revalidates its local, ref, remote, and
