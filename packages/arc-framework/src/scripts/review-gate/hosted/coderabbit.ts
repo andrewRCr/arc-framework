@@ -1,6 +1,10 @@
 /** Lean CodeRabbit hosted-review adapter. */
 
-import type { HostedObservation, HostedReviewObserver } from "./await.js";
+import type {
+  HostedFinding,
+  HostedObservation,
+  HostedReviewObserver,
+} from "./await.js";
 import {
   HostedGitHubReadError,
   type HostedGitHubPort,
@@ -46,12 +50,173 @@ function finding(
   if (parsedSeverity === null || comment.line === null) return null;
   return {
     findingId: threadId,
+    origin: "review-thread",
     commentId: comment.id,
     threadId,
+    settlement: "reply-and-resolve",
     severity: parsedSeverity,
     locus: `${comment.path}:${comment.line}`,
     url: comment.url,
   };
+}
+
+type ReviewBodyFinding = Extract<HostedFinding, { origin: "review-body" }>;
+type SupplementalCategory = ReviewBodyFinding["category"];
+
+export type CodeRabbitReviewBodyParseResult =
+  | {
+    kind: "parsed";
+    actionableCount: number;
+    findings: ReviewBodyFinding[];
+  }
+  | { kind: "malformed"; reason: string };
+type SupplementalParseResult =
+  | { kind: "parsed"; findings: ReviewBodyFinding[] }
+  | Extract<CodeRabbitReviewBodyParseResult, { kind: "malformed" }>;
+
+interface SupplementalSection {
+  category: SupplementalCategory;
+  count: number;
+  headerStart: number;
+  start: number;
+}
+
+interface SummaryMatch {
+  text: string;
+  start: number;
+  end: number;
+}
+
+function nonNegativeInteger(value: string): number | null {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function summaryMatches(body: string): SummaryMatch[] {
+  return [...body.matchAll(/<summary>([^<\r\n]+)<\/summary><blockquote>/giu)].map((match) => ({
+    text: (match[1] as string).trim(),
+    start: match.index,
+    end: match.index + match[0].length,
+  }));
+}
+
+function supplementalSection(match: SummaryMatch): SupplementalSection | null {
+  const countMatch = /\((\d+)\)\s*$/u.exec(match.text);
+  if (countMatch?.[1] === undefined) return null;
+  const count = nonNegativeInteger(countMatch[1]);
+  if (count === null) return null;
+  const label = match.text.slice(0, countMatch.index).toLowerCase();
+  if (label.includes("nitpick") && label.includes("comment")) {
+    return { category: "nitpick", count, headerStart: match.start, start: match.end };
+  }
+  if (label.includes("outside") && label.includes("diff") && label.includes("comment")) {
+    return { category: "outside-diff", count, headerStart: match.start, start: match.end };
+  }
+  return null;
+}
+
+function malformed(reason: string): CodeRabbitReviewBodyParseResult {
+  return { kind: "malformed", reason };
+}
+
+function parseSupplementalSection(
+  review: HostedGitHubReview,
+  body: string,
+  section: SupplementalSection,
+): SupplementalParseResult {
+  const groups = summaryMatches(body).flatMap((match) => {
+    const countMatch = /\((\d+)\)\s*$/u.exec(match.text);
+    if (countMatch?.[1] === undefined) return [];
+    const count = nonNegativeInteger(countMatch[1]);
+    if (count === null) return [];
+    return [{ path: match.text.slice(0, countMatch.index).trim(), count, start: match.end }];
+  });
+  if (groups.reduce((total, group) => total + group.count, 0) !== section.count) {
+    return malformed(`provider-${section.category}-group-count-mismatch`);
+  }
+
+  const findings: ReviewBodyFinding[] = [];
+  for (const [groupIndex, group] of groups.entries()) {
+    const groupEnd = groups[groupIndex + 1]?.start ?? body.length;
+    const groupBody = body.slice(group.start, groupEnd);
+    const markers = [...groupBody.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)];
+    if (markers.length !== group.count) {
+      return malformed(`provider-${section.category}-finding-count-mismatch`);
+    }
+
+    let itemStart = 0;
+    for (const marker of markers) {
+      const fingerprint = marker[1] as string;
+      const item = groupBody.slice(itemStart, marker.index);
+      const loci = [...item.matchAll(/^`([^`\r\n]+)`:\s*_/gmu)];
+      const locusMatch = loci.at(-1);
+      const parsedSeverity = severity(item);
+      if (locusMatch?.[1] === undefined || parsedSeverity === null || group.path.length === 0) {
+        return malformed("malformed-provider-body-finding");
+      }
+      const findingBody = item.slice(locusMatch.index).trim();
+      if (findingBody.length === 0) return malformed("malformed-provider-body-finding");
+      findings.push({
+        findingId: `${review.id}:${fingerprint}`,
+        origin: "review-body",
+        category: section.category,
+        reviewId: review.id,
+        fingerprint,
+        settlement: "not-applicable",
+        severity: parsedSeverity,
+        locus: `${group.path}:${locusMatch[1]}`,
+        url: review.url,
+        body: findingBody,
+      });
+      itemStart = marker.index + marker[0].length;
+    }
+  }
+  return { kind: "parsed", findings };
+}
+
+/** Parse CodeRabbit's review-body completeness claims and non-thread findings. */
+export function parseCodeRabbitReviewBody(
+  review: HostedGitHubReview,
+): CodeRabbitReviewBodyParseResult {
+  const actionableMatches = [...review.body.matchAll(
+    /^\*\*Actionable comments posted:\s*(\d+)\*\*\s*$/gmu,
+  )];
+  const actionableText = actionableMatches[0]?.[1];
+  if (actionableMatches.length !== 1 || actionableText === undefined) {
+    return malformed("malformed-provider-actionable-count");
+  }
+  const actionableCount = nonNegativeInteger(actionableText);
+  if (actionableCount === null) return malformed("malformed-provider-actionable-count");
+
+  const promptStart = review.body.search(/<summary>[^<\r\n]*Prompt for all review comments/iu);
+  const detailBody = review.body.slice(0, promptStart === -1 ? review.body.length : promptStart);
+  const sections = summaryMatches(detailBody)
+    .map(supplementalSection)
+    .filter((section): section is SupplementalSection => section !== null);
+  const findings: ReviewBodyFinding[] = [];
+  for (const [sectionIndex, section] of sections.entries()) {
+    const sectionEnd = sections[sectionIndex + 1]?.headerStart ?? detailBody.length;
+    const parsed = parseSupplementalSection(
+      review,
+      detailBody.slice(section.start, sectionEnd),
+      section,
+    );
+    if (parsed.kind === "malformed") return parsed;
+    if (parsed.findings.length !== section.count) {
+      return malformed(`provider-${section.category}-finding-count-mismatch`);
+    }
+    findings.push(...parsed.findings);
+  }
+
+  const advertisedSupplementalCount = sections.reduce((total, section) => total + section.count, 0);
+  const markerCount = [...detailBody.matchAll(/<!--\s*cr-comment:v1:[a-f0-9]+\s*-->/giu)].length;
+  if (findings.length !== advertisedSupplementalCount || markerCount !== findings.length) {
+    return malformed("provider-supplemental-finding-count-mismatch");
+  }
+  if (new Set(findings.map((item) => item.fingerprint)).size !== findings.length) {
+    return malformed("duplicate-provider-body-finding");
+  }
+  return { kind: "parsed", actionableCount, findings };
 }
 
 function newestTerminalReview(reviews: HostedGitHubReview[]): HostedGitHubReview | undefined {
@@ -125,6 +290,10 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         && review.submittedAt >= requestedAt);
       const review = newestTerminalReview(providerReviews);
       if (review === undefined) return { kind: "pending" };
+      const parsedBody = parseCodeRabbitReviewBody(review);
+      if (parsedBody.kind === "malformed") {
+        return { kind: "terminal-failure", reason: parsedBody.reason };
+      }
       const candidateComments = threads.flatMap((thread) =>
         thread.comments
           .filter((comment) =>
@@ -139,8 +308,14 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
       if (candidateComments.length !== findings.length) {
         return { kind: "terminal-failure", reason: "malformed-provider-finding" };
       }
-      if (findings.length > 0) return { kind: "findings", reviewUrl: review.url, findings };
-      if (review.state === "approved" && /^\*\*Actionable comments posted: 0\*\*$/mu.test(review.body)) {
+      if (findings.length !== parsedBody.actionableCount) {
+        return { kind: "terminal-failure", reason: "provider-actionable-finding-count-mismatch" };
+      }
+      const allFindings = [...findings, ...parsedBody.findings];
+      if (allFindings.length > 0) {
+        return { kind: "findings", reviewUrl: review.url, findings: allFindings };
+      }
+      if (review.state === "approved" && parsedBody.actionableCount === 0) {
         return { kind: "clean", reviewUrl: review.url };
       }
       return review.state === "changes-requested"

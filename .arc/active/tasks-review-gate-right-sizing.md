@@ -415,8 +415,10 @@ activation ready for its immediate post-merge Errand.
     - `[ ]` **5.3.b Drive the live review loop to convergence**
 
         - Run configured frontline resolution, standard-source selection, hosted request, bounded await, any safe
-          availability fallback, finding disposition/thread settlement, and the combined convergence/release
-          presentation against the fixture, withholding approval because this disposable proof must not integrate.
+          availability fallback, complete finding disposition, thread-only settlement, and the combined
+          convergence/release presentation against the fixture, withholding approval because this disposable proof
+          must not integrate. Review-body nitpick and outside-diff findings receive no host reply, resolution, or
+          compensating disposition comment.
         - Verify the session never asks whether to review, which source to select next, or whether an in-ceiling
           pass is authorized. Exercise at least one post-review narrow fixture delta so the operating agent selects,
           discloses, and proceeds with proportionate follow-up without asking permission; do not fire a production

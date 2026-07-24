@@ -205,8 +205,11 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use that bounded
      wait again for `pending / await`; do not build an agent polling loop.
    - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
-   - `findings / triage` — run the disposition protocol, then use `arc review hosted settle -` for each approved
-     reply-and-resolve or defer/reject settlement before feeding `findings` back to the driver.
+   - `findings / triage` — run the disposition protocol. For each approved `review-thread` finding, use
+     `arc review hosted settle -` for its reply-and-resolve or defer/reject settlement before feeding `findings`
+     back to the driver. A `review-body` finding, including a nitpick or outside-diff comment, is triage-only:
+     never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it,
+     regardless of disposition.
    - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
      may select the next configured source without consuming the pass.
    - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay

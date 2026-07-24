@@ -47,8 +47,10 @@ function finding(
   if (parsedSeverity === null || comment.line === null) return null;
   return {
     findingId: threadId,
+    origin: "review-thread",
     commentId: comment.id,
     threadId,
+    settlement: "reply-and-resolve",
     severity: parsedSeverity,
     locus: `${comment.path}:${comment.line}`,
     url: comment.url,

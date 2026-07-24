@@ -76,7 +76,10 @@ describe("CodeRabbit hosted adapter", () => {
   it("requests and normalizes clean and finding results under immutable identity", async () => {
     const clean = new CodeRabbitHostedAdapter(port({ readReviews: () => Promise.resolve([review()]) }));
     const findings = new CodeRabbitHostedAdapter(port({
-      readReviews: () => Promise.resolve([review({ state: "changes-requested", body: "" })]),
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: "**Actionable comments posted: 1**",
+      })]),
       readThreads: () => Promise.resolve([findingThread("_🟠 Major_ broken boundary")]),
     }));
 
@@ -84,9 +87,136 @@ describe("CodeRabbit hosted adapter", () => {
     await expect(clean.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
     await expect(findings.observeHandle(target)).resolves.toMatchObject({
       kind: "findings",
-      findings: [{ threadId: "PRRT_1", severity: "major" }],
+      findings: [{
+        origin: "review-thread",
+        threadId: "PRRT_1",
+        settlement: "reply-and-resolve",
+        severity: "major",
+      }],
     });
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.botUserId).toBe("136622811");
+  });
+
+  it("returns review-body nitpicks as triage-only findings", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7-9\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _⚡ Quick win_
+
+**Keep the boundary explicit.**
+
+The contract should distinguish findings that have no review thread.
+
+<!-- cr-comment:v1:abcdef1234567890abcdef12 -->
+
+</blockquote></details>
+</blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{
+        findingId: "PRR_1:abcdef1234567890abcdef12",
+        origin: "review-body",
+        category: "nitpick",
+        reviewId: "PRR_1",
+        fingerprint: "abcdef1234567890abcdef12",
+        settlement: "not-applicable",
+        severity: "minor",
+        locus: "src/a.ts:7-9",
+      }],
+    });
+    const result = await adapter.observeHandle(target);
+    expect(result.kind).toBe("findings");
+    if (result.kind === "findings") {
+      expect(result.findings[0]).not.toHaveProperty("commentId");
+      expect(result.findings[0]).not.toHaveProperty("threadId");
+    }
+  });
+
+  it("normalizes outside-diff comments under the same no-settlement contract", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+<details>
+<summary>📌 Outside diff comments (1)</summary><blockquote>
+
+<details>
+<summary>src/legacy.ts (1)</summary><blockquote>
+
+\`12\`: _🩺 Stability & Availability_ | _🟡 Minor_ | _⚡ Quick win_
+
+**Preserve the compatibility boundary.**
+
+This finding has no inline review thread.
+
+<!-- cr-comment:v1:1234567890abcdef12345678 -->
+
+</blockquote></details>
+</blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{
+        origin: "review-body",
+        category: "outside-diff",
+        settlement: "not-applicable",
+        locus: "src/legacy.ts:12",
+      }],
+    });
+  });
+
+  it.each([
+    {
+      name: "inline count",
+      review: review({ state: "changes-requested", body: "**Actionable comments posted: 2**" }),
+      threads: [findingThread("_🟠 Major_ broken boundary")],
+      reason: "provider-actionable-finding-count-mismatch",
+    },
+    {
+      name: "review-body count",
+      review: review({
+        body: `**Actionable comments posted: 0**
+
+<details>
+<summary>🧹 Nitpick comments (2)</summary><blockquote>
+
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _⚡ Quick win_
+
+**One advertised finding is missing.**
+
+<!-- cr-comment:v1:abcdef1234567890abcdef12 -->
+
+</blockquote></details>
+</blockquote></details>`,
+      }),
+      threads: [],
+      reason: "provider-nitpick-group-count-mismatch",
+    },
+  ])("fails closed when the advertised $name cannot be reconciled", async (input) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([input.review]),
+      readThreads: () => Promise.resolve(input.threads),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: input.reason,
+    });
   });
 
   it("keeps rate limiting, transient reads, and malformed terminal output distinct", async () => {

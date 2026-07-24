@@ -66,8 +66,10 @@ describe("hosted review await", () => {
       reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
       findings: [{
         findingId: "PRRT_1",
+        origin: "review-thread",
         commentId: "PRRC_1",
         threadId: "PRRT_1",
+        settlement: "reply-and-resolve",
         severity: "major",
         locus: "src/a.ts:7",
         url: "https://github.com/owner/repo/pull/42#discussion_r1",

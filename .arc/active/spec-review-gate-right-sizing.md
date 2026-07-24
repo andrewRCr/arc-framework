@@ -152,9 +152,13 @@ rigor purposeless here.
 
 **A1 — Hosted-PR effect verbs.** Extend `arc review` with a pure transition driver, `arc review resolve`, and the
 small typed effect verbs a hosted-PR standard source needs: `arc review hosted request`, `arc review hosted await`,
-and `arc review hosted settle` (defer/reject replies and resolves). Every verb is JSON-in / JSON-out and follows
-the shipped `arc review` envelope contract (versioned request, one strict command-specific envelope,
-`state -> nextAction` pairs). The hosted implementation lives under `src/scripts/review-gate/hosted/`, separate
+and `arc review hosted settle` (thread-backed defer/reject replies and resolution). Await distinguishes
+thread-backed findings, which carry reply-and-resolve settlement coordinates, from review-body nitpick and
+outside-diff findings, whose settlement is explicitly not applicable. Review-body findings enter the same human
+disposition gate but never cause a reply, resolution, or compensating summary comment for any disposition. Every
+verb is JSON-in / JSON-out and follows the shipped `arc review` envelope contract (versioned request, one strict
+command-specific envelope, `state -> nextAction` pairs). The hosted implementation lives under
+`src/scripts/review-gate/hosted/`, separate
 from the evidence-grade interfaces being deleted. A request result carries a self-contained handle bound to the
 repository, pull request, exact head, provider, and durable host artifact; that GitHub artifact is the resumable
 persistence boundary, with no local ledger or operation store. The CLI owns validation, identity, host mutation,

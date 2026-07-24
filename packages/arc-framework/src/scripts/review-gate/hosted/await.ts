@@ -8,14 +8,34 @@ import {
   type HostedRequestHandle,
 } from "./request.js";
 
-const HostedFindingSchema = z.strictObject({
+export const HostedThreadFindingSchema = z.strictObject({
   findingId: z.string().min(1),
+  origin: z.literal("review-thread"),
   commentId: z.string().min(1),
   threadId: z.string().min(1),
+  settlement: z.literal("reply-and-resolve"),
   severity: z.enum(["blocker", "major", "minor"]),
   locus: z.string().min(1),
   url: z.url(),
 });
+
+export const HostedReviewBodyFindingSchema = z.strictObject({
+  findingId: z.string().min(1),
+  origin: z.literal("review-body"),
+  category: z.enum(["nitpick", "outside-diff"]),
+  reviewId: z.string().min(1),
+  fingerprint: z.string().min(1),
+  settlement: z.literal("not-applicable"),
+  severity: z.enum(["blocker", "major", "minor"]),
+  locus: z.string().min(1),
+  url: z.url(),
+  body: z.string().min(1),
+});
+
+export const HostedFindingSchema = z.discriminatedUnion("origin", [
+  HostedThreadFindingSchema,
+  HostedReviewBodyFindingSchema,
+]);
 export type HostedFinding = z.infer<typeof HostedFindingSchema>;
 
 const HostedObservationSchema = z.discriminatedUnion("kind", [

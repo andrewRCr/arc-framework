@@ -29,6 +29,10 @@ describe("lifecycle review driver", () => {
     expect(packaged).toContain("review applicability");
     expect(packaged).toContain("targeted verification");
     expect(packaged).toContain("agent-selected supplemental review");
+    expect(packaged).toContain("`review-body`");
+    expect(packaged).toMatch(
+      /never invoke\s+`hosted settle`, post a reply or compensating summary comment/u,
+    );
     expect(packaged).not.toContain("project review coordinator");
     expect(packaged).not.toContain("coordinate-pr-review");
   });
