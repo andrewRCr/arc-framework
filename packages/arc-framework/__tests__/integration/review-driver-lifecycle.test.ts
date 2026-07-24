@@ -29,9 +29,12 @@ describe("lifecycle review driver", () => {
     expect(packaged).toContain("review applicability");
     expect(packaged).toContain("targeted verification");
     expect(packaged).toContain("agent-selected supplemental review");
-    expect(packaged).toContain("`review-body`");
+    expect(packaged).toContain("`settlement: reply-and-resolve`");
+    expect(packaged).toContain("`settlement: not-applicable`");
+    expect(packaged).toContain("`coverage: incremental`");
+    expect(packaged).toContain("`effectiveCoverage: complete`");
     expect(packaged).toMatch(
-      /never invoke\s+`hosted settle`, post a reply or compensating summary comment/u,
+      /never invoke `hosted settle`, post a reply or\s+compensating summary comment/u,
     );
     expect(packaged).not.toContain("project review coordinator");
     expect(packaged).not.toContain("coordinate-pr-review");
