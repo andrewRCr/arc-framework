@@ -189,6 +189,32 @@ describe("unlockReviewHead", () => {
       }) },
       "repository-mismatch",
     ],
+    [
+      "unresolvable repository",
+      { resolveRepository: async () => { throw new Error("gh failed"); } },
+      "repository-unavailable",
+    ],
+    [
+      "unresolvable pull request",
+      { resolvePullRequest: async () => { throw new Error("gh failed"); } },
+      "pull-request-unavailable",
+    ],
+    [
+      "pull-request number mismatch",
+      { resolvePullRequest: async () => ({
+        repository: "owner/repo",
+        number: 43,
+        state: "open" as const,
+        headBranch: "feat/demo",
+        headSha: SHA,
+      }) },
+      "pull-request-mismatch",
+    ],
+    [
+      "failed dispatch",
+      { dispatch: async () => { throw new Error("dispatch failed"); } },
+      "dispatch-failed",
+    ],
   ] as const)("blocks %s without dispatch", async (_case, overrides, reason) => {
     const boundary = port(overrides);
 

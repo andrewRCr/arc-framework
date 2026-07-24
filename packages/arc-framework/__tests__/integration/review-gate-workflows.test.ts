@@ -645,14 +645,12 @@ describe("trusted review-gate workflows", () => {
     expect(hasClearanceSuccess(fixture, fixture.previousHead)).toBe(true);
     expect(hasClearanceSuccess(fixture, fixture.replacementHead)).toBe(false);
 
-    const statusesAfterStaleUnlock = fixture.previousHead === fixture.replacementHead
-      ? [...fixture.statuses, {
-        context: fixture.context,
-        sha: fixture.previousHead,
-        state: "success" as const,
-      }]
-      : fixture.statuses;
-    expect(statusesAfterStaleUnlock).toBe(fixture.statuses);
+    expect(fixture.previousHead).not.toBe(fixture.replacementHead);
+    const statusesAfterStaleUnlock = [...fixture.statuses, {
+      context: fixture.context,
+      sha: fixture.previousHead,
+      state: "success" as const,
+    }];
     expect(hasClearanceSuccess({ ...fixture, statuses: statusesAfterStaleUnlock }, fixture.replacementHead)).toBe(false);
   });
 
