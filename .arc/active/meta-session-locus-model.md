@@ -12,10 +12,10 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.E.b.vii — Guard the captured arms against undeclared slot failures (closes 7.E.b)
+- **Last Completed:** Base reconcile onto post-`cli-command-inputs` mainline (off-task-list); last task 7.E.b.vii
+  (closes 7.E.b)
 - **Next Task:** Task 7.E.c.i — Carry the selected generation into abandon dispatch (line ~1319)
-- **Blockers:** `review-chunking` merged via PR #346; this WU must still reconcile onto the resulting mainline
-  before it merges — ordering obligation, not a dependency, and it does not gate task work
+- **Blockers:** [none]
 
 - **Next Action:** Begin Task 7.E.c.i — thread the resolve path's selected generation into the three abandon
   drivers; SESSION-NOTES § Additional Context carries the settled carve boundary and its stop tripwire
