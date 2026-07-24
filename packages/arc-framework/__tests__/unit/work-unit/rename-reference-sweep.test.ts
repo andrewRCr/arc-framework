@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { parseMetaRecord, renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { WorkUnitArtifactKindSchema } from "../../../src/lib/layout/index.js";
+import { artifactMatcher } from "../../../src/lib/work-unit/mutators/relocate-artifacts.js";
 import {
   rewriteCohortMemberHeading,
   sweepRenameReferences,
@@ -37,6 +39,112 @@ describe("rewriteCohortMemberHeading", () => {
 });
 
 describe("sweepRenameReferences", () => {
+  it.each([
+    ["meta", "# Metadata: sample", "# Metadata: renamed-sample"],
+    ["draft", "# Draft: sample", "# Draft: renamed-sample"],
+    ["spec", "# Spec (`brief`): sample", "# Spec (`brief`): renamed-sample"],
+    ["spec", "# Spec (`outline`): sample", "# Spec (`outline`): renamed-sample"],
+    ["spec", "# Spec (`detailed` · `PRD`): sample", "# Spec (`detailed` · `PRD`): renamed-sample"],
+    ["spec", "# Spec (`detailed` · `RFC`): sample", "# Spec (`detailed` · `RFC`): renamed-sample"],
+    ["tasks", "# Task List: sample", "# Task List: renamed-sample"],
+    ["tasks", "# Tasks: sample", "# Tasks: renamed-sample"],
+    ["notes", "# Notes: sample", "# Notes: renamed-sample"],
+    ["research", "# Research: sample", "# Research: renamed-sample"],
+    ["analysis", "# Analysis: sample", "# Analysis: renamed-sample"],
+  ])("rewrites the registered %s basename-bound identity H1", async (prefix, title, expectedTitle) => {
+    const path = `.arc/active/${prefix}-sample.md`;
+    const files = new Map([[path, `${title}\n\nBody.\n`]]);
+
+    await sweepRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+    }, {
+      listFiles: async () => [`active/${prefix}-sample.md`],
+      readFile: async (candidate) => files.get(candidate) ?? "",
+      writeFile: async (candidate, content) => { files.set(candidate, content); },
+    });
+
+    expect(files.get(path)).toBe(`${expectedTitle}\n\nBody.\n`);
+  });
+
+  it("rewrites the exact basename-bound plan resume anchor with the self title", async () => {
+    const path = ".arc/backlog/planned/sample/draft-sample.md";
+    const files = new Map([[
+      path,
+      "# Draft: sample\n\n> Resume with `--plan sample`; plain --plan sample stays prose.\n",
+    ]]);
+
+    await sweepRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+    }, {
+      listFiles: async () => ["backlog/planned/sample/draft-sample.md"],
+      readFile: async (candidate) => files.get(candidate) ?? "",
+      writeFile: async (candidate, content) => { files.set(candidate, content); },
+    });
+
+    expect(files.get(path)).toBe(
+      "# Draft: renamed-sample\n\n> Resume with `--plan renamed-sample`; plain --plan sample stays prose.\n",
+    );
+  });
+
+  it.each([
+    ["later identity H1", "draft-sample.md", "# Other\n\n# Draft: sample\n"],
+    ["mismatched basename", "draft-other.md", "# Draft: sample\n"],
+    ["unknown companion", "decision-sample.md", "# Decision: sample\n"],
+    ["unsupported title", "draft-sample.md", "# Draft: Sample\n"],
+  ])("leaves %s content byte-identical", async (_label, basename, content) => {
+    const path = `.arc/active/${basename}`;
+    const files = new Map([[path, content]]);
+    let wrote = false;
+
+    await sweepRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+    }, {
+      listFiles: async () => [`active/${basename}`],
+      readFile: async (candidate) => files.get(candidate) ?? "",
+      writeFile: async () => { wrote = true; },
+    });
+
+    expect(wrote).toBe(false);
+    expect(files.get(path)).toBe(content);
+  });
+
+  it("keeps the layout enum and broad companion relocation matcher independent from self-title rules", () => {
+    expect(WorkUnitArtifactKindSchema.options).toEqual(["meta", "draft", "spec", "tasks", "notes"]);
+    expect(artifactMatcher("sample").test("research-sample.md")).toBe(true);
+    expect(artifactMatcher("sample").test("decision-sample.md")).toBe(true);
+  });
+
+  it("is idempotent after the self-title and plan anchor have been rewritten", async () => {
+    const path = ".arc/active/draft-sample.md";
+    const files = new Map([[path, "# Draft: sample\n\n`--plan sample`\n"]]);
+    let writes = 0;
+    const ctx = {
+      listFiles: async () => ["active/draft-sample.md"],
+      readFile: async (candidate: string) => files.get(candidate) ?? "",
+      writeFile: async (candidate: string, content: string) => {
+        writes += 1;
+        files.set(candidate, content);
+      },
+    };
+    const params = {
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+    };
+
+    await sweepRenameReferences(params, ctx);
+    await sweepRenameReferences(params, ctx);
+
+    expect(writes).toBe(1);
+    expect(files.get(path)).toBe("# Draft: renamed-sample\n\n`--plan renamed-sample`\n");
+  });
+
   it("rewrites bounded code spans, dependency edges, and the cohort member section", async () => {
     const meta = renderMetaFile("sibling", {
       "Depends On": "sample, sample-extra",

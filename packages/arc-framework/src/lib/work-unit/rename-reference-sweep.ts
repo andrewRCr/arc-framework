@@ -24,6 +24,29 @@ const nodeContext: RenameReferenceSweepContext = {
   writeFile: (path, content) => writeFile(path, content, "utf8"),
 };
 
+interface ArtifactSelfTitleRule {
+  prefix: string;
+  labels: readonly string[];
+}
+
+const ARTIFACT_SELF_TITLE_RULES: readonly ArtifactSelfTitleRule[] = [
+  { prefix: "meta", labels: ["Metadata"] },
+  { prefix: "draft", labels: ["Draft"] },
+  {
+    prefix: "spec",
+    labels: [
+      "Spec (`brief`)",
+      "Spec (`outline`)",
+      "Spec (`detailed` · `PRD`)",
+      "Spec (`detailed` · `RFC`)",
+    ],
+  },
+  { prefix: "tasks", labels: ["Task List", "Tasks"] },
+  { prefix: "notes", labels: ["Notes"] },
+  { prefix: "research", labels: ["Research"] },
+  { prefix: "analysis", labels: ["Analysis"] },
+] as const;
+
 /** Parameters for the tier-wide reference sweep. */
 export interface RenameReferenceSweepParams {
   arcRoot: string;
@@ -101,7 +124,13 @@ export async function planRenameReferences(
     const path = join(params.arcRoot, relativePath);
     if (excludedPaths.has(path.replaceAll("\\", "/"))) continue;
     const original = await ctx.readFile(path);
-    let rewritten = rewriteBacktickedArtifactReferences(original, params.sourceSlug, params.targetSlug);
+    let rewritten = rewriteArtifactSelfReferences(
+      relativePath,
+      original,
+      params.sourceSlug,
+      params.targetSlug,
+    );
+    rewritten = rewriteBacktickedArtifactReferences(rewritten, params.sourceSlug, params.targetSlug);
     if (basename(relativePath).startsWith("meta-") && basename(relativePath).endsWith(".md")) {
       rewritten = rewriteDependsOn(rewritten, params.sourceSlug, params.targetSlug);
     }
@@ -127,6 +156,33 @@ function isLifecycleTierFile(path: string): boolean {
   return path.startsWith("active/")
     || path.startsWith("backlog/planned/")
     || path.startsWith("backlog/provisional/");
+}
+
+function rewriteArtifactSelfReferences(
+  relativePath: string,
+  content: string,
+  sourceSlug: string,
+  targetSlug: string,
+): string {
+  const rule = ARTIFACT_SELF_TITLE_RULES.find(
+    (candidate) => basename(relativePath) === `${candidate.prefix}-${sourceSlug}.md`,
+  );
+  if (rule === undefined) return content;
+
+  const lines = content.split("\n");
+  const firstH1 = lines.findIndex((line) => line.startsWith("# "));
+  if (firstH1 !== -1) {
+    const line = lines[firstH1] ?? "";
+    const carriageReturn = line.endsWith("\r") ? "\r" : "";
+    const title = carriageReturn === "" ? line : line.slice(0, -1);
+    const label = rule.labels.find((candidate) => title === `# ${candidate}: ${sourceSlug}`);
+    if (label !== undefined) lines[firstH1] = `# ${label}: ${targetSlug}${carriageReturn}`;
+  }
+
+  return lines.join("\n").replace(
+    `\`--plan ${sourceSlug}\``,
+    `\`--plan ${targetSlug}\``,
+  );
 }
 
 function rewriteBacktickedArtifactReferences(content: string, sourceSlug: string, targetSlug: string): string {

@@ -25,7 +25,14 @@ interface RenameFixture {
 }
 
 const COHORT = "rename-group";
-const COMPANION_PREFIXES = ["draft", "spec", "tasks", "notes"] as const;
+const COMPANIONS = [
+  { prefix: "draft", title: "Draft" },
+  { prefix: "spec", title: "Spec (`detailed` · `RFC`)" },
+  { prefix: "tasks", title: "Task List" },
+  { prefix: "notes", title: "Notes" },
+  { prefix: "research", title: "Research" },
+  { prefix: "analysis", title: "Analysis" },
+] as const;
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -65,8 +72,13 @@ async function seedTrackedSweep(repo: string, artifactDir: string, slug: string)
   expect(meta).toContain(`- **Design:** spec-${slug}.md`);
   expect(meta).toContain(`- **Task List:** tasks-${slug}.md`);
   await writeFile(metaPath, meta, "utf8");
-  for (const prefix of COMPANION_PREFIXES) {
-    await writeFile(join(repo, artifactDir, `${prefix}-${slug}.md`), `# ${prefix}: ${slug}\n`, "utf8");
+  for (const companion of COMPANIONS) {
+    const resume = companion.prefix === "draft" ? `\n> Resume with \`--plan ${slug}\`.\n` : "";
+    await writeFile(
+      join(repo, artifactDir, `${companion.prefix}-${slug}.md`),
+      `# ${companion.title}: ${slug}\n${resume}`,
+      "utf8",
+    );
   }
   const cohortDir = join(repo, ".arc", "backlog", "planned", COHORT);
   await mkdir(cohortDir, { recursive: true });
@@ -111,7 +123,7 @@ async function expectTrackedSweep(
   newSlug: string,
   options: { baseStubRemains?: boolean } = {},
 ): Promise<void> {
-  for (const prefix of ["meta", ...COMPANION_PREFIXES]) {
+  for (const prefix of ["meta", ...COMPANIONS.map((companion) => companion.prefix)]) {
     expect(await exists(join(repo, oldArtifactDir, `${prefix}-${oldSlug}.md`))).toBe(false);
     expect(await exists(join(repo, newArtifactDir, `${prefix}-${newSlug}.md`))).toBe(true);
   }
@@ -119,6 +131,11 @@ async function expectTrackedSweep(
   expect(meta).toContain(`# Metadata: ${newSlug}`);
   expect(meta).toContain(`spec-${newSlug}.md`);
   expect(meta).toContain(`tasks-${newSlug}.md`);
+  for (const companion of COMPANIONS) {
+    const content = await readFile(join(repo, newArtifactDir, `${companion.prefix}-${newSlug}.md`), "utf8");
+    expect(content).toContain(`# ${companion.title}: ${newSlug}`);
+    if (companion.prefix === "draft") expect(content).toContain(`\`--plan ${newSlug}\``);
+  }
   const observer = await readFile(
     join(repo, ".arc", "backlog", "planned", "rename-observer", "meta-rename-observer.md"),
     "utf8",

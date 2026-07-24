@@ -375,35 +375,25 @@ rename residue through the existing evidence-backed teardown / sweep substrate.
 _Purpose:_ Reconcile every mechanically-owned reference, surface judgment-owned residue, and prove that the shared
 substrate behaves consistently across verbs, worktrees, and user state.
 
-### `[ ]` **5.1 Complete structured and self-title rename rewrites across lifecycle tiers**
+### `[x]` **5.1 Complete structured and self-title rename rewrites across lifecycle tiers**
 
 - _Goal:_ Rename rewrites every mechanically one-to-one tracked reference in the live lifecycle tiers and leaves
   historical or adopter-facing content untouched.
 
-- _Note:_ See `notes-decomposition-hardening.md` § Reference reconciliation authority and mutation invariants.
+    - `[x]` **5.1.a Generalize WU artifact self-title rewriting**
+        - Added a closed basename/H1 registry for metadata, drafts, canonical spec forms, tasks, notes, research,
+          and analysis; only the first exact identity H1 and exact backticked `--plan` anchor rewrite.
 
-    - `[ ]` **5.1.a Generalize WU artifact self-title rewriting**
-        - Define a dedicated closed self-title registry, separate from `WorkUnitArtifactKindSchema` and the broad
-          companion relocation matcher: `meta`→`Metadata`, `draft`→`Draft`, `spec`→canonical
-          brief/outline/detailed `Spec (...)` forms, `tasks`→`Task List|Tasks`, `notes`→`Notes`,
-          `research`→`Research`, and `analysis`→`Analysis`.
-        - Rewrite only the first exact identity H1 when the basename is
-          `<registered-prefix>-<sourceSlug>.md`, plus the exact `--plan <slug>` resume anchor; later headings,
-          examples, unknown companions, and unrelated H1s remain content.
+    - `[x]` **5.1.b Preserve existing structured reference rewrites**
+        - Composed self-reference edits into the existing deterministic plan without changing exact dependency,
+          artifact-code-span, cohort-member, meta, or broad companion relocation behavior.
 
-    - `[ ]` **5.1.b Preserve existing structured reference rewrites**
-        - Keep exact `Depends On`, backticked artifact filename, cohort member heading, meta title, and artifact
-          rename behavior in one deterministic plan whose changed paths are bound into retirement authority.
+    - `[x]` **5.1.c Prove tier and reference-kind boundaries**
+        - Covered every registered title form, later/mismatched/unknown titles, independent layout and relocation
+          scopes, lifecycle-tier containment, structured formatting preservation, and idempotent replay.
 
-    - `[ ]` **5.1.c Prove tier and reference-kind boundaries**
-        - Build `test-first` (one behavior at a time):
-            - every registered basename/H1 pair—including decorated specs, `research-*`, and `analysis-*`—and the
-              exact plan anchor rewrite old-to-new once
-            - later matching H1s, examples, mismatched basenames, and unsupported title kinds remain unchanged
-            - the layout kind enum and broad companion relocation matcher retain their existing independent scopes
-            - structured spans retain surrounding formatting and unrelated slugs
-            - `completed/`, `system/`, `reference/`, plain prose, and cohort filenames remain untouched
-            - plan/apply re-entry produces no second edit
+- _Outcome:_ Rename now conserves identity across the full closed self-title set, including research and analysis
+  companions, without widening automatic heading edits or narrowing the existing artifact-set matcher.
 
 ### `[ ]` **5.2 Surface ambiguous prose and dangling branch-private references**
 
