@@ -12,6 +12,7 @@ import {
   FrontlineUnavailableRetryReasonSchema,
 } from "../policy/frontline-outcome.js";
 import { FrontlineFollowUpAdviceSchema } from "../policy/frontline-follow-up.js";
+import { ReviewResolveEnvelopeSchema } from "../policy/review-policy-driver.js";
 import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
 import { ReviewPassSchema } from "./review-pass.js";
 import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
@@ -32,6 +33,7 @@ const DurableReferenceSchema = z.string().trim().min(1);
 const PersistedVersionSchema = z.number().int().positive();
 
 export const ReviewCommandModeSchema = z.enum([
+  "review-resolve",
   "review-frontline-resolve",
   "review-frontline-run",
   "review-local-prepare",
@@ -490,6 +492,7 @@ function errorVariant<Mode extends ReviewCommandMode, Code extends string>(
 /** Register every command envelope as a strict-current protocol contract. */
 export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): KernelRegistry {
   for (const [id, schema] of [
+    ["review-resolve-envelope", ReviewResolveEnvelopeSchema],
     ["review-frontline-resolve-envelope", FrontlineResolveEnvelopeSchema],
     ["review-frontline-run-envelope", FrontlineRunEnvelopeSchema],
     ["review-local-prepare-envelope", LocalPrepareEnvelopeSchema],

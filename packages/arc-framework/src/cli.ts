@@ -85,6 +85,7 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleReviewResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
   handleReviewHostedAwait,
@@ -826,6 +827,13 @@ logCmd
 const reviewCmd = program
   .command("review")
   .description("Resolve and execute review workflows");
+
+reviewCmd
+  .command("resolve")
+  .description("Resolve the next configured review-policy action as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewResolve(input));
 
 const frontlineCmd = reviewCmd
   .command("frontline")

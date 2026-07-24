@@ -76,6 +76,7 @@ const reviewIdentities = [
   "review-reduction-projection",
   "review-requirement",
   "review-requirement-id-preimage",
+  "review-resolve-envelope",
   "review-response-input",
   "review-response-plan",
   "review-rubric-overlay-resolution",

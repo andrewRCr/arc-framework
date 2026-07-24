@@ -25,6 +25,11 @@ import {
   FrontlineCommandRequestSchema,
   resolveFrontlineCommand,
 } from "../scripts/review-gate/policy/frontline-command.js";
+import {
+  ReviewPolicyRequestSchema,
+  ReviewResolveEnvelopeSchema,
+  resolveReviewPolicy,
+} from "../scripts/review-gate/policy/review-policy-driver.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import {
@@ -82,6 +87,48 @@ async function readStdin(): Promise<string> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks).toString("utf8");
+}
+
+export interface ReviewResolveHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  resolve(request: unknown): unknown;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultReviewResolveDependencies(): ReviewResolveHandlerDependencies {
+  return {
+    resolveRoot: resolveArcRoot,
+    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
+    resolve: resolveReviewPolicy,
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  };
+}
+
+/**
+ * Resolve one review-policy transition and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleReviewResolve(
+  source: string,
+  overrides: Partial<ReviewResolveHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultReviewResolveDependencies(), ...overrides };
+  await executeReviewHandler({
+    mode: "review-resolve",
+    source,
+    requestSchema: ReviewPolicyRequestSchema,
+    resultSchema: ReviewResolveEnvelopeSchema,
+    dependencies,
+    execute: (request) => Promise.resolve(dependencies.resolve(request)),
+  });
 }
 
 export interface ReviewFrontlineResolveHandlerDependencies {

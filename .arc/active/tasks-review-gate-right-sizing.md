@@ -71,49 +71,11 @@ shadow runtime that currently contains their reusable pieces.
           config status, validation, and both config copies; generalized frontline pass contracts beyond the
           former two-pass domain while preserving exact allowance checks.
 
-    - `[ ]` **1.3.b Build the typed review-policy driver**
+    - `[x]` **1.3.b Build the typed review-policy driver**
 
-        - Register `arc review resolve` as the pure transition driver. Consume RSB's renamed `standardReview`
-          obligation projection, then resolve frontline and standard source order, source capability/eligibility,
-          current pass counts, terminal state, precomposed disposition/pass-ceiling surfaces, and the next allowed
-          action in CLI code.
-        - Accept the caller's selected scope mode (`whole-target` or `chunked`) before source resolution, defaulting
-          an omitted selection to `whole-target`. In chunked mode admit only local curated-scope carriers;
-          whole-target retains ordinary configured eligibility and provider-specific capability filtering.
-        - Count one complete chunk series as one logical lane pass and reject a prior scope selection after its exact
-          target moves. Keep review-chunking thresholds advisory and independent of provider capability; this driver
-          neither measures the target nor turns a generic threshold into a hosted-provider limit.
-        - Treat each ordered list as fallback, never fan-out: one source completes a pass. Fall through without
-          consuming a pass only on `rate-limited` or `transient-unavailable`; partial, ambiguous, malformed,
-          timed-out, stale-target, capability-unsupported, source-unbound, and other terminal outcomes stop with
-          their typed consequence.
-        - Keep `standardReview` change-shaped. When `review.standard_sources` is empty, return a clean no-op
-          regardless of the obligation; when it is non-empty but no source can satisfy the target, return
-          `unavailable`. Keep frontline independent of that predicate and do not auto-schedule supplemental review.
-        - Dispatch `delegated-agent` through RSB's local prepare/attest/respond/reduce verbs and hosted-PR source IDs
-          through this WU's adapters. Treat every output and receipt as advisory and human-disposition-anchored;
-          standard review settles through completed review plus approved dispositions/convergence, not
-          evidence-grade proof.
-        - Make ceiling exhaustion the single driver-level `approval-required` state requiring exceptional approval,
-          not a provider outcome.
-        - Accept a one-pass ceiling override only on the next resolve call, bound to repository, pull request, exact
-          head, lane, exhausted pass count, and next pass number. Repeating the identical pure resolve call before
-          that pass advances is idempotent; reject reuse after the bound pass starts or state advances, plus every
-          stale or mismatched override, without raising the configured ceiling or persisting approval state.
-        - Build `test-first` (one behavior at a time):
-            - an empty standard-source list cleanly no-ops for a non-exempt `standardReview`;
-            - a configured list with no source able to satisfy the target returns `unavailable`;
-            - frontline activation is independent of standard opt-out, and each role selects exactly one source
-              per pass within its own ceiling;
-            - omitted and explicit whole-target selections preserve ordinary eligibility, while chunked selection
-              admits only local curated-scope carriers;
-            - a complete chunk series consumes one pass, and target movement invalidates its prior selection;
-            - `delegated-agent` and each hosted-PR source can independently satisfy a standard pass;
-            - only the two safe availability outcomes fall through, consume no pass, and preserve attempt history;
-              non-fall-through outcomes never invoke the next source;
-            - ceiling exhaustion cannot silently request another pass and carries the approval consequence;
-            - an exact one-pass override selects only the bound next pass, an identical pre-advance resolve is
-              idempotent, and stale post-advance, wrong-target, and wrong-lane reuse fails.
+        - Added the strict `arc review resolve` transition contract for independent frontline and standard lanes,
+          ordered capability-aware fallback, target-bound whole/chunked scope, logical pass accounting, terminal
+          and disposition consequences, and idempotent exact one-pass ceiling overrides without persistent state.
 
     - `[ ]` **1.3.c Prove the public CLI surface and default-install contract**
 
