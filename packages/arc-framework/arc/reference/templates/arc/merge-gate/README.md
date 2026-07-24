@@ -41,10 +41,11 @@ jobs:
           changed="$(git diff --name-only "$base...$head")"
           echo "changed paths:"; printf '%s\n' "$changed"
           # Auto-merge lane = per-WU / per-cohort planning artifacts only,
-          # matched by PREFIX: draft- / tasks- / meta- / notes- / cohort-*
-          # under active/ or backlog/. Any other path -> reviewed lane.
+          # matched by PREFIX: draft- / tasks- / meta- / notes- / cohort- /
+          # research- / analysis- / spec- under active/ or backlog/, plus the
+          # exact generated .arc/backlog/ROADMAP.md. Any other path -> reviewed.
           if printf '%s\n' "$changed" \
-            | grep -qvE '^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)-'; then
+            | grep -qvE '^(\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort|research|analysis|spec)-|\.arc/backlog/ROADMAP\.md$)'; then
             echo "lane=reviewed" >> "$GITHUB_OUTPUT"
           else
             echo "lane=auto" >> "$GITHUB_OUTPUT"

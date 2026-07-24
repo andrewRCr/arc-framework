@@ -139,46 +139,33 @@ head is born locked while planning-only changes retain their existing lane.
 - _Outcome:_ The reviewed lane is born locked per SHA and can be cleared only by trusted default-branch code after
   lifecycle readiness succeeds against inert PR data and the requested head remains live at publication time.
 
-### `[ ]` **2.3 Add the base-derived planning-lane `arc-cleared` stamp**
+### `[x]` **2.3 Add the base-derived planning-lane `arc-cleared` stamp**
 
 - _Goal:_ Planning-only PRs receive the same required status without review choreography, while reviewed changes
   remain born locked and cannot redefine the classifier used to stamp themselves.
 
-    - `[ ]` **2.3.a Bind planning stamping to the canonical exact-ref classifier**
+    - `[x]` **2.3.a Bind planning stamping to the canonical exact-ref classifier**
 
-        - Extend `isPlanningArtifactPath`'s existing lane projection in `src/lib/change-facts.ts` and
-          `scripts/classify-change.sh` with an exact-ref form over the canonical raw-diff `ChangeSet`; do not add a
-          second classifier, copy rules from workflow templates, or introduce a new public ARC verb.
-        - Include `research-*`, `analysis-*`, and `spec-*` alongside the existing movable planning families, and
-          classify the exact generated `.arc/backlog/ROADMAP.md` path as planning. Reconcile the setup guidance and
-          shipped merge-gate template with that canonical set rather than maintaining a divergent stated default.
-        - Classify both rename/copy endpoints and mode/type changes. Empty, unreadable, malformed, ambiguous,
-          unknown, or cross-repository inputs fail to the reviewed lane.
-        - Run the classifier from a separate trusted checkout at the PR base SHA against explicit base/head
-          coordinates; never import classifier code from the PR head.
-        - Build `test-first` (one behavior at a time):
-            - planning-only paths classify as planning;
-            - mixed, code, workflow, rename/copy endpoint, mode/type, unreadable, empty, or unknown changes fail
-              safely to reviewed;
-            - a PR that edits the classifier cannot use its edited copy for its own decision;
-            - fork/cross-repository PRs remain reviewed.
+        - Extended the canonical raw-diff projection with an exact-ref planning lane covering all movable planning
+          families plus the exact generated ROADMAP. Dual endpoints are classified, mode/type changes fail
+          reviewed, and the shell boundary evaluates explicit coordinates in a caller-selected data repository.
+        - Reconciled the package recipe, setup workflow, and this repository's CODEOWNERS projection to the same
+          planning family without adding a second public ARC command.
 
-    - `[ ]` **2.3.b Post the planning status from an always-running CI step**
+    - `[x]` **2.3.b Post the planning status from an always-running CI step**
 
-        - Add `statuses: write` only where needed and post `arc-cleared` success to the exact PR head when the
-          trusted classifier returns planning for a same-repository PR; on reviewed or fork/cross-repository lanes,
-          complete successfully without posting the context.
-        - Avoid a conditionally skipped job/check-run and keep `ci-ok`/`merge-ok` semantics unchanged.
-        - Build `test-first` (one behavior at a time):
-            - planning lane posts once to the exact head;
-            - reviewed lane posts nothing and remains expected/locked;
-            - synchronization to a new head requires a new status.
+        - Added an always-running base-pinned classifier job and a separate status-only writer. Same-repository
+          planning changes receive `arc-cleared` on the event's full head SHA; reviewed, fork, non-PR, and
+          indeterminate inputs complete without a status, while a synchronized head requires its own publication.
 
-    - `[ ]` **2.3.c Cover the two-poster invariant in CI fixtures**
+    - `[x]` **2.3.c Cover the two-poster invariant in CI fixtures**
 
-        - Add integration fixtures showing that planning stamp and reviewed unlock are the only successful writers
-          of the identical `arc-cleared` context and that neither can satisfy the other's lane accidentally.
-        - Retain the current CI rollup and CODEOWNERS behavior as independent merge conditions.
+        - Workflow fixtures identify exactly the planning stamp and reviewed unlock as `arc-cleared` writers, bind
+          them to distinct lane conditions, and preserve `ci-ok`, `merge-ok`, and CODEOWNERS as independent merge
+          conditions. The legacy repair audit now scopes exclusivity to its own status context.
+
+- _Outcome:_ Both lanes converge on one per-SHA context without sharing authority: trusted base code classifies and
+  stamps planning changes, while reviewed changes remain locked until the explicit lifecycle-ready unlock path.
 
 ### `[ ]` **2.4 Add the opt-in merge-guard setup path**
 

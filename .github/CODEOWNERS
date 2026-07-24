@@ -13,14 +13,22 @@
 
 # --- Auto-merge lane: per-WU / per-cohort planning artifacts (UNOWNED) ------
 # No owner clears the catch-all above. Scoped by artifact PREFIX, not all of
-# backlog/ — so derived / shared surfaces (ROADMAP, the *-INBOX queues) keep the
-# catch-all owner and stay reviewed. Specs and PRDs are absent by design.
+# backlog/ — shared inboxes stay reviewed, while the exact generated ROADMAP is
+# planning.
 /.arc/active/draft-*
 /.arc/active/tasks-*
 /.arc/active/meta-*
 /.arc/active/notes-*
+/.arc/active/cohort-*
+/.arc/active/research-*
+/.arc/active/analysis-*
+/.arc/active/spec-*
 /.arc/backlog/**/draft-*
 /.arc/backlog/**/tasks-*
 /.arc/backlog/**/meta-*
 /.arc/backlog/**/notes-*
 /.arc/backlog/**/cohort-*
+/.arc/backlog/**/research-*
+/.arc/backlog/**/analysis-*
+/.arc/backlog/**/spec-*
+/.arc/backlog/ROADMAP.md

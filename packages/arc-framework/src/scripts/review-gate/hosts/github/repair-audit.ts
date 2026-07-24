@@ -161,7 +161,14 @@ export function auditRepairWriterGraph(input: RepairWriterAuditInput): RepairWri
       if (!("permissions" in job)) errors.push(`job-permissions-implicit:${path}:${jobId}`);
       const called = localWorkflowCall(job);
       if (called !== null && input.files[called] === undefined) errors.push(`local-workflow-call-missing:${path}:${jobId}`);
-      if (permissionIs(job.permissions, "statuses", "write")) writers.push({ workflowPath: path, jobId, job, workflow });
+      if (permissionIs(job.permissions, "statuses", "write")) {
+        const serialized = JSON.stringify(job);
+        if (serialized.includes(REPAIR_STATUS_CONTEXT)) {
+          writers.push({ workflowPath: path, jobId, job, workflow });
+        } else if (!serialized.includes("arc-cleared")) {
+          errors.push(`unscoped-status-writer:${path}:${jobId}`);
+        }
+      }
       if (environmentName(job.environment) === input.repairEnvironment) environmentConsumers.push({ workflowPath: path, jobId });
     }
   }

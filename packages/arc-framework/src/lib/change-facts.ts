@@ -341,7 +341,34 @@ export function isPortabilitySurfacePath(path: string): boolean {
 
 /** Whether a path belongs to the formative planning-artifact lane. */
 export function isPlanningArtifactPath(path: string): boolean {
-  return /^\.arc\/(?:active|backlog)\/(?:[^/]+\/)*(?:draft|tasks|meta|notes|cohort)-/u.test(path);
+  return path === ".arc/backlog/ROADMAP.md"
+    || /^\.arc\/(?:active|backlog)\/(?:[^/]+\/)*(?:draft|tasks|meta|notes|cohort|research|analysis|spec)-/u.test(path);
+}
+
+function isPlainPlanningContentChange(change: CanonicalChange): boolean {
+  switch (change.status) {
+    case "added":
+      return change.newMode === "100644";
+    case "deleted":
+      return change.oldMode === "100644";
+    case "modified":
+    case "renamed":
+    case "copied":
+      return change.oldMode === "100644" && change.newMode === "100644";
+    case "type-changed":
+      return false;
+  }
+}
+
+/** Reduce canonical exact-ref changes to the planning-clearance lane. */
+export function classifyPlanningLane(changeSet: ChangeSet): "planning" | "reviewed" {
+  if (changeSet.changeSet === "unknown") return "reviewed";
+  for (const change of changeSet.changes) {
+    if (!isPlainPlanningContentChange(change)) return "reviewed";
+    const endpoints = [change.path, ...(change.previousPath === undefined ? [] : [change.previousPath])];
+    if (!endpoints.every(isPlanningArtifactPath)) return "reviewed";
+  }
+  return "planning";
 }
 
 /** Reduce canonical changes to the CI-weight classification. */
@@ -499,6 +526,16 @@ async function runExecutable(args: string[]): Promise<void> {
           : parseRawDiff(await readFile(fixture));
     }
     process.stdout.write(`${classifyChangeSet(changeSet)}\n`);
+    return;
+  }
+
+  if (command === "planning-lane") {
+    const [base, head, ...rest] = operands;
+    const changeSet =
+      base === undefined || head === undefined || rest.length !== 0
+        ? UNKNOWN
+        : await resolveChangeSet(exec, base, head);
+    process.stdout.write(`${classifyPlanningLane(changeSet)}\n`);
     return;
   }
 

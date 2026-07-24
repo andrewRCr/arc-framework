@@ -58,7 +58,7 @@ describe("classify-change.sh harness", () => {
     expect(result.stderr).toContain("Usage: classify-change.sh");
   });
 
-  it.each(["classify", "tree-hash", "duplicate-push", "decide"])(
+  it.each(["classify", "planning-lane", "tree-hash", "duplicate-push", "decide"])(
     "recognizes the %s subcommand (not a usage error)",
     async (command) => {
       const result = await runScript(CLASSIFY_SCRIPT, [command]);
@@ -87,6 +87,58 @@ describe("classify-change.sh harness", () => {
     expect(source).toContain('node "${CHANGE_FACTS_MODULE}" tree-hash');
     expect(source).not.toContain("_classify_raw_diff_file");
     expect(source).not.toContain("CODE_SURFACE_GLOBS");
+  });
+});
+
+describe("classify-change.sh planning-lane", () => {
+  const tempDirs: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => cleanupTempDir(dir)));
+  });
+
+  async function commitPath(repo: string, path: string, content: string): Promise<string> {
+    const full = join(repo, path);
+    await mkdir(dirname(full), { recursive: true });
+    await writeFile(full, content);
+    await execFileAsync("git", ["add", "--", path], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", path], { cwd: repo });
+    return (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
+  }
+
+  it("classifies exact refs in an explicit data repository", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    await makeCommit(repo, "base");
+    const base = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
+    const head = await commitPath(repo, ".arc/active/spec-example.md", "spec\n");
+
+    const result = await runScript(CLASSIFY_SCRIPT, ["planning-lane", base, head], {
+      env: { CLASSIFY_REPOSITORY_DIR: repo },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).toBe("planning");
+  });
+
+  it("fails exact-ref classification safely for unreadable or code changes", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    await makeCommit(repo, "base");
+    const base = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
+    const head = await commitPath(repo, "packages/arc-framework/src/change.ts", "code\n");
+
+    const changed = await runScript(CLASSIFY_SCRIPT, ["planning-lane", base, head], {
+      env: { CLASSIFY_REPOSITORY_DIR: repo },
+    });
+    const unreadable = await runScript(CLASSIFY_SCRIPT, ["planning-lane", base, "missing"], {
+      env: { CLASSIFY_REPOSITORY_DIR: repo },
+    });
+
+    expect(changed.exitCode).toBe(0);
+    expect(changed.stdout.trim()).toBe("reviewed");
+    expect(unreadable.exitCode).toBe(0);
+    expect(unreadable.stdout.trim()).toBe("reviewed");
   });
 });
 

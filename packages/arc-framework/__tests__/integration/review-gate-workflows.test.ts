@@ -888,4 +888,67 @@ describe("trusted review-gate workflows", () => {
     expect(statusesAfterStaleUnlock).toBe(fixture.statuses);
     expect(hasClearanceSuccess({ ...fixture, statuses: statusesAfterStaleUnlock }, fixture.replacementHead)).toBe(false);
   });
+
+  it("runs the planning clearance poster on every CI event with base-pinned classification", async () => {
+    const workflow = await read("ci.yml");
+    const classifier = jobValue(workflow, "planning-classify");
+    const stamp = jobValue(workflow, "planning-clearance");
+    expect(classifier).not.toHaveProperty("if");
+    expect(classifier.permissions).toEqual({ contents: "read" });
+    expect(stamp).not.toHaveProperty("if");
+    expect(stamp.needs).toBe("planning-classify");
+    expect(stamp.permissions).toEqual({ statuses: "write" });
+    expect(classifier["runs-on"]).toBe("${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}");
+    expect(stamp["runs-on"]).toBe("${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}");
+
+    const trustedCheckout = stepValue(workflow, "planning-classify", "planning-classifier");
+    expect(trustedCheckout.with).toMatchObject({
+      ref: "${{ github.event.pull_request.base.sha || github.sha }}",
+      "persist-credentials": false,
+    });
+    const dataCheckout = stepValue(workflow, "planning-classify", "planning-data");
+    expect(dataCheckout.if).toContain("head.repo.full_name == github.repository");
+    expect(dataCheckout.with).toMatchObject({
+      repository: "${{ github.event.pull_request.head.repo.full_name }}",
+      ref: "${{ github.event.pull_request.head.sha }}",
+      path: "_arc_change_data",
+      "fetch-depth": 0,
+      "persist-credentials": false,
+    });
+
+    const classify = stepValue(workflow, "planning-classify", "planning-lane");
+    expect(classify.run).toContain('lane="$(CLASSIFY_REPOSITORY_DIR="$GITHUB_WORKSPACE/_arc_change_data"');
+    expect(classify.run).toContain('bash scripts/classify-change.sh planning-lane "$BASE_SHA" "$HEAD_SHA"');
+    expect(classify.run).toContain('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');
+
+    const publish = stepValue(workflow, "planning-clearance", "planning-status");
+    expect(publish.run).toContain('if [ "$LANE" = planning ]; then');
+    expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"');
+    expect(publish.run).toContain("-f context=arc-cleared");
+    expect(JSON.stringify(stamp)).not.toContain("needs.classify.outputs.lane");
+    expect(JSON.stringify(stamp)).not.toMatch(/actions\/checkout|_arc_change_data/u);
+
+    expect(jobValue(workflow, "ci_ok").needs).not.toContain("planning-clearance");
+    expect(jobValue(workflow, "merge-ok").needs).toBe("ci_ok");
+  });
+
+  it("keeps the planning stamp and reviewed unlock as disjoint writers of one context", async () => {
+    const [ci, clearance, codeowners] = await Promise.all([
+      read("ci.yml"),
+      read("arc-clearance.yml"),
+      readRepositoryFile(".github/CODEOWNERS"),
+    ]);
+    const writers = [ci, clearance].flatMap((workflow, workflowIndex) =>
+      [...workflow.matchAll(/gh api "repos\/\$GITHUB_REPOSITORY\/statuses\/\$([A-Z_]+)"[\s\S]{0,180}?context="?(\$STATUS_CONTEXT|arc-cleared)"?/gu)]
+        .map((match) => ({ workflowIndex, sha: match[1], context: match[2] })));
+    expect(writers).toEqual([
+      { workflowIndex: 0, sha: "HEAD_SHA", context: "arc-cleared" },
+      { workflowIndex: 1, sha: "VALIDATED_HEAD", context: "$STATUS_CONTEXT" },
+    ]);
+    expect(ci).toContain('if [ "$LANE" = planning ]; then');
+    expect(clearance).toContain('test "$(jq -r .state <<<"$READINESS_JSON")" = ready');
+    expect(codeowners).toContain("* @andrewRCr");
+    expect(jobValue(ci, "ci_ok").name).toBe("ci-ok");
+    expect(jobValue(ci, "merge-ok").name).toBe("merge-ok");
+  });
 });

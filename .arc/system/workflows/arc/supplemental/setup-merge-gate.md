@@ -53,9 +53,9 @@ repo's CI layout:
   workflow and a thin parent that `uses:` them and hosts `classify` + `merge-ok`; mark only the parent's
   `merge-ok` required. (Advanced fallback: a `workflow_run` aggregator — see the README.)
 
-Then confirm the lane classifier matches the project's layout (the default matches ARC's
-`draft-/tasks-/meta-/notes-/cohort-*` prefixes under `active/` and `backlog/`), and set the workflow's
-`pull_request` trigger to the base branch.
+Then confirm the lane classifier matches the project's layout. The default covers ARC's
+`draft-/tasks-/meta-/notes-/cohort-/research-/analysis-/spec-*` prefixes under `active/` and `backlog/`, plus the
+exact generated `.arc/backlog/ROADMAP.md`. Set the workflow's `pull_request` trigger to the base branch.
 
 **Detect-if-present:** if a `merge-ok` job already exists, do NOT duplicate — diff against the snippet and
 reconcile with the user.
@@ -120,10 +120,9 @@ PR UI) once these conditions are in place.
 ## Step 5: Verify
 
 Summarize what landed: the `merge-ok` gate in the CI workflow, the CODEOWNERS location + reviewers, the
-required check, and the auto-merge setting. To confirm end-to-end, open a planning-only PR (touch a
-`draft-*` / `meta-*` only) and
-confirm `merge-ok` reports and the PR is auto-merge-eligible with no required review; a PR touching a
-constitutional path (a rule, ADR, or strategy) should require owner review.
+required check, and the auto-merge setting. To confirm end-to-end, open a planning-only PR (touch only a supported
+planning artifact) and confirm `merge-ok` reports and the PR is auto-merge-eligible with no required review; a PR
+touching a constitutional path (a rule, ADR, or strategy) should require owner review.
 
 A second run of this workflow detects each piece already in place and confirms rather than duplicating.
 

@@ -25,17 +25,23 @@
 # No owner on these lines clears the catch-all above, so these paths merge once
 # `merge-ok` is green, with no required review. Keep this block LAST.
 #
-# Scoped by artifact PREFIX, NOT all of backlog/ — so derived / shared surfaces
-# (ROADMAP, the *-INBOX queues) keep the catch-all owner and stay reviewed.
-# Specs and PRDs are absent by design: they carry design authority. cohort-*
-# coordination records ride the auto-merge lane (content grooming); their
-# concurrent multi-owner edits are a separate, project-level concern.
+# Scoped by artifact PREFIX, NOT all of backlog/ — so shared inboxes keep the
+# catch-all owner and stay reviewed. The exact generated ROADMAP is planning;
+# other derived or shared backlog paths are not.
 /.arc/active/draft-*
 /.arc/active/tasks-*
 /.arc/active/meta-*
 /.arc/active/notes-*
+/.arc/active/cohort-*
+/.arc/active/research-*
+/.arc/active/analysis-*
+/.arc/active/spec-*
 /.arc/backlog/**/draft-*
 /.arc/backlog/**/tasks-*
 /.arc/backlog/**/meta-*
 /.arc/backlog/**/notes-*
 /.arc/backlog/**/cohort-*
+/.arc/backlog/**/research-*
+/.arc/backlog/**/analysis-*
+/.arc/backlog/**/spec-*
+/.arc/backlog/ROADMAP.md
