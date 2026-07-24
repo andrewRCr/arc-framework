@@ -134,6 +134,34 @@ function memoryStores(): {
 }
 
 describe("frontline run command", () => {
+  it("publishes pending before materializing the checkout", async () => {
+    const reviewTarget = target("c");
+    const stores = memoryStores();
+    const events: string[] = [];
+    const publishOperation = stores.operationStore.publishOperation;
+    stores.operationStore.publishOperation = async (state, expectedVersion) => {
+      events.push(`publish:${state.kind === "frontline-run" ? state.outcome : state.kind}`);
+      return publishOperation(state, expectedVersion);
+    };
+
+    await expect(runFrontlineReviewCommand({
+      schemaVersion: 1,
+      target: reviewTarget,
+      resolution,
+    }, {
+      confirmSource: async () => source,
+      prepareExecutionTarget: async () => {
+        events.push("materialize");
+        throw new Error("materialization interrupted");
+      },
+      execute: vi.fn(),
+      ...stores,
+      now: () => "2026-07-23T19:00:00Z",
+    })).rejects.toThrow("materialization interrupted");
+
+    expect(events).toEqual(["publish:pending", "materialize"]);
+  });
+
   it.each([
     {
       ...resolution,

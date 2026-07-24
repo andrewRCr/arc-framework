@@ -115,37 +115,36 @@ export async function runFrontlineReviewCommand(
     throw new Error("frontline ready resolution lacks an executable source");
   }
   const target = validateReviewTarget(request.target);
-  const prepared = await dependencies.prepareExecutionTarget(target);
-  const executionTarget = validateReviewTarget(prepared.target);
-  let terminal;
-  try {
-    let source = semantic.source;
-    let execute: FrontlineRunExecutionDependencies["execute"];
-    if (canonicalize(executionTarget) !== canonicalize(target)) {
-      execute = () => Promise.resolve({
-        outcome: normalizeFrontlineOutcome({
-          providerResult: executionTarget.headSha === target.headSha
-            ? {
-                kind: "stale-target",
-                attemptedTargetId: target.targetId,
-                currentTargetId: executionTarget.targetId,
-              }
-            : {
-                kind: "stale-head",
-                expectedHeadSha: target.headSha,
-                observedHeadSha: executionTarget.headSha,
-              },
-          source,
-          target,
-          pass: readyPayload.pass,
-          maxPasses: readyPayload.maxPasses,
-        }),
-        executableIdentity: null,
-      });
-    } else {
-      const confirmed = await dependencies.confirmSource(semantic.source);
-      if (confirmed === null || canonicalize(confirmed) !== canonicalize(semantic.source)) {
-        execute = () => Promise.resolve({
+  const source = semantic.source;
+  const execute: FrontlineRunExecutionDependencies["execute"] = async () => {
+    const prepared = await dependencies.prepareExecutionTarget(target);
+    try {
+      const executionTarget = validateReviewTarget(prepared.target);
+      if (canonicalize(executionTarget) !== canonicalize(target)) {
+        return {
+          outcome: normalizeFrontlineOutcome({
+            providerResult: executionTarget.headSha === target.headSha
+              ? {
+                  kind: "stale-target",
+                  attemptedTargetId: target.targetId,
+                  currentTargetId: executionTarget.targetId,
+                }
+              : {
+                  kind: "stale-head",
+                  expectedHeadSha: target.headSha,
+                  observedHeadSha: executionTarget.headSha,
+                },
+            source,
+            target,
+            pass: readyPayload.pass,
+            maxPasses: readyPayload.maxPasses,
+          }),
+          executableIdentity: null,
+        };
+      }
+      const confirmed = await dependencies.confirmSource(source);
+      if (confirmed === null || canonicalize(confirmed) !== canonicalize(source)) {
+        return {
           outcome: normalizeFrontlineOutcome({
             providerResult: { kind: "source-unbound" },
             source,
@@ -154,51 +153,49 @@ export async function runFrontlineReviewCommand(
             maxPasses: readyPayload.maxPasses,
           }),
           executableIdentity: null,
-        });
-      } else {
-        source = confirmed;
-        execute = () => executeBoundedFrontlineCarrier({
-          timeoutMs: request.timeoutMs,
-          execute: ({ remainingMs, signal }) => dependencies.execute({
-            source,
-            target: executionTarget,
-            pass: readyPayload.pass,
-            maxPasses: readyPayload.maxPasses,
-            remainingMs,
-            signal,
-            reviewRoot: prepared.reviewRoot,
-          }),
-        });
+        };
       }
+      return await executeBoundedFrontlineCarrier({
+        timeoutMs: request.timeoutMs,
+        execute: ({ remainingMs, signal }) => dependencies.execute({
+          source: confirmed,
+          target: executionTarget,
+          pass: readyPayload.pass,
+          maxPasses: readyPayload.maxPasses,
+          remainingMs,
+          signal,
+          reviewRoot: prepared.reviewRoot,
+        }),
+      });
+    } finally {
+      await prepared.release();
     }
-    terminal = await executeFrontlineRun({
-      operationStore: dependencies.operationStore,
-      outcomeStore: dependencies.outcomeStore,
-      withOperationLock: (operationId, maxWaitMs, action) => dependencies.withOperationLock(
-        operationId,
-        maxWaitMs,
-        action,
-      ),
-      execute,
-      now: () => dependencies.now(),
-    }, {
-      target,
-      source,
-      generation: 0,
-      pass: readyPayload.pass,
-      maxPasses: readyPayload.maxPasses,
-      lockWaitMs: Math.min(
-        MAX_TIMER_DELAY_MS,
-        (request.timeoutMs ?? DEFAULT_FRONTLINE_TIMEOUT_MS) + OPERATION_LOCK_COMPLETION_MARGIN_MS,
-      ),
-      policyVersion: canonicalDigest({
-        routing: readyPayload.routing,
-        frontlineReview: semantic,
-      }),
-    });
-  } finally {
-    await prepared.release();
-  }
+  };
+  const terminal = await executeFrontlineRun({
+    operationStore: dependencies.operationStore,
+    outcomeStore: dependencies.outcomeStore,
+    withOperationLock: (operationId, maxWaitMs, action) => dependencies.withOperationLock(
+      operationId,
+      maxWaitMs,
+      action,
+    ),
+    execute,
+    now: () => dependencies.now(),
+  }, {
+    target,
+    source,
+    generation: 0,
+    pass: readyPayload.pass,
+    maxPasses: readyPayload.maxPasses,
+    lockWaitMs: Math.min(
+      MAX_TIMER_DELAY_MS,
+      (request.timeoutMs ?? DEFAULT_FRONTLINE_TIMEOUT_MS) + OPERATION_LOCK_COMPLETION_MARGIN_MS,
+    ),
+    policyVersion: canonicalDigest({
+      routing: readyPayload.routing,
+      frontlineReview: semantic,
+    }),
+  });
   const transition = actionFor(terminal.outcome);
   return FrontlineRunEnvelopeSchema.parse({
     schemaVersion: 1,
