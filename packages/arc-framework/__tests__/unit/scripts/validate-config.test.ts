@@ -117,14 +117,17 @@ describe("validate-config.sh — frontline review source", () => {
 });
 
 describe("validate-config.sh — standard review sources", () => {
-  it("accepts each built-in source in declared order", async () => {
+  it.each(["coderabbit-pr", "codex-pr", "delegated-agent"])(
+    "accepts built-in source %s with surrounding list whitespace",
+    async (source) => {
     const result = await runValidateConfig(
-      "review.standard_sources: [coderabbit-pr,codex-pr,delegated-agent]\n",
+        `review.standard_sources: [  ${source}  ]\n`,
     );
 
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("PASS  review.standard_sources entry is a standard source");
-  });
+    },
+  );
 
   it.each(["coderabbit-cli", "project-reviewer", "review;agent"])(
     "rejects incompatible source %s",

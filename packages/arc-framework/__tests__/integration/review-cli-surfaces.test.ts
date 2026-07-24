@@ -42,7 +42,7 @@ describe("packaged review CLI surfaces", () => {
 
     expect(reviewHelp.exitCode).toBe(0);
     expect(reviewHelp.stdout).toContain("readiness");
-    expect(reviewHelp.stdout).toContain("resolve");
+    expect(reviewHelp.stdout).toMatch(/^\s+resolve(?:\s|\[)/mu);
     expect(reviewHelp.stdout).toContain("hosted");
     expect(reviewHelp.stdout).toContain("unlock");
     expect(hostedHelp.exitCode).toBe(0);

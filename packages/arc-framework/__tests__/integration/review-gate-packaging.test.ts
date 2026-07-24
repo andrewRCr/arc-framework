@@ -73,6 +73,8 @@ describe("review-gate package boundary", () => {
     ]);
     expect(cli).not.toMatch(/review-gate|coderabbit|provider-registry/iu);
     expect(tsup).toContain('entry: ["src/cli.ts"]');
+    expect(Object.keys(manifest.scripts).some((name) => name.startsWith("review-gate:"))).toBe(false);
+    expect(Object.keys(rootManifest.scripts).some((name) => name.startsWith("review-gate:"))).toBe(false);
     expect(Object.values(manifest.scripts).some((script) => script.includes("src/scripts/review-gate"))).toBe(false);
     expect(Object.values(rootManifest.scripts).some((script) => script.includes("src/scripts/review-gate"))).toBe(false);
   });
