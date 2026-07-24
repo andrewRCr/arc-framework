@@ -6,7 +6,7 @@ related:
   - implementation-audit
   - review-chunking
   - review-triage
-active: false
+active: true
 override-active: false
 ---
 

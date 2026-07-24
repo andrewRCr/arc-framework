@@ -190,7 +190,7 @@ review.frontline_sources: [coderabbit-cli]
 
 # Ordered sources for ordinary review. Empty disables the standard-review lane.
 # Built-ins: delegated-agent, coderabbit-pr, codex-pr.
-review.standard_sources: []
+review.standard_sources: [coderabbit-pr,codex-pr,delegated-agent]
 
 # Positive safe-integer pass ceilings. An exceptional extra pass requires explicit approval.
 review.frontline_max_passes: 2

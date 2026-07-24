@@ -341,25 +341,23 @@ _Purpose:_ Turn on only the self-hosting choices, retire the superseded backlog 
 exercise standard review through a hosted-PR source against a live PR carrying this branch, and leave exact guard
 activation ready for its immediate post-merge Errand.
 
-### `[ ]` **5.1 Activate the self-hosting review sources without changing package defaults**
+### `[x]` **5.1 Activate the self-hosting review sources without changing package defaults**
 
 - _Goal:_ This repository selects the frontline order and standard-source fallback order it intends to dogfood,
   while a freshly installed project retains an entirely opt-in review and guard posture.
 
-    - `[ ]` **5.1.a Enable frontline only in the project method override**
+    - `[x]` **5.1.a Enable frontline only in the project method override**
 
-        - Set `override-active: true` in `.arc/system/methods/frontline-review.md`; leave the package-source method's
-          `active: false` and override default unchanged.
-        - Set `review.frontline_sources: coderabbit-cli`; verify the ordered setting resolves through the live
-          frontline registry and package/project sync does not treat the intentional override as drift.
+        - Enabled `frontline-review` through the landed `active` contract in the project instance, retained
+          `override-active: false` because no override body exists, and preserved the inactive package default.
 
-    - `[ ]` **5.1.b Configure the self-hosting standard-source order and ceilings**
+    - `[x]` **5.1.b Configure the self-hosting standard-source order and ceilings**
 
-        - Set the project-instance `arc-config.yml` standard order to
-          `coderabbit-pr,codex-pr,delegated-agent` and configure the self-hosting frontline/standard pass ceilings;
-          leave both package-source lists empty and their defaults unchanged.
-        - Run config-status/validation fixtures for both project and package defaults, proving self-hosting selects
-          the ordered sources while a fresh install performs no frontline, delegated-agent, or hosted-PR call.
+        - Selected `coderabbit-pr,codex-pr,delegated-agent` after the existing `coderabbit-cli` frontline source,
+          retained two-pass ceilings, and verified package defaults remain empty and inactive.
+
+- _Outcome:_ Self-hosting now resolves its intended ordered review sources while new installations remain fully
+  opt-in.
 
 ### `[ ]` **5.2 Abandon the three superseded gate work units and re-cut the backlog**
 
