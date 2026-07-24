@@ -16,7 +16,7 @@ import {
   type ReviewReadinessRequest,
 } from "./readiness.js";
 
-const CLEARANCE_WORKFLOW_PATH = ".github/workflows/arc-clearance.yml";
+export const CLEARANCE_WORKFLOW_PATH = ".github/workflows/arc-clearance.yml";
 const CLEARANCE_EVENT_TYPE = "arc-clearance";
 
 export const ReviewUnlockRequestSchema = z.strictObject({

@@ -1,11 +1,15 @@
 /** Developer-authenticated GitHub port for exact-head clearance dispatch. */
 
-import type { HostedProcessRunner } from "../../hosted/gh-process.js";
+import {
+  HostedProcessError,
+  type HostedProcessRunner,
+} from "../../hosted/gh-process.js";
 import type {
   ReviewUnlockDispatchPayload,
   ReviewUnlockPort,
   WorkflowInspection,
 } from "../../unlock.js";
+import { CLEARANCE_WORKFLOW_PATH } from "../../unlock.js";
 import type {
   ReviewReadinessEnvelope,
   ReviewReadinessRequest,
@@ -79,7 +83,7 @@ export class GhReviewUnlockPort implements ReviewUnlockPort {
   async inspectWorkflow(input: {
     repository: string;
     ref: string;
-    path: ".github/workflows/arc-clearance.yml";
+    path: typeof CLEARANCE_WORKFLOW_PATH;
   }): Promise<WorkflowInspection> {
     try {
       const result = await this.runner.run([
@@ -100,7 +104,7 @@ export class GhReviewUnlockPort implements ReviewUnlockPort {
         ? { state: "present" }
         : { state: "ambiguous" };
     } catch (error) {
-      return /\b(?:HTTP )?404\b/u.test(error instanceof Error ? error.message : String(error))
+      return error instanceof HostedProcessError && error.httpStatus === 404
         ? { state: "absent" }
         : { state: "unreadable" };
     }

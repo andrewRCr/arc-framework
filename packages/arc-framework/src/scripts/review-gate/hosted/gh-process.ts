@@ -18,14 +18,28 @@ export interface HostedProcessRunner {
   run(args: string[], options?: { signal?: AbortSignal }): Promise<{ stdout: string; stderr: string }>;
 }
 
-class HostedProcessError extends Error {
+export class HostedProcessError extends Error {
   readonly stderr: string;
+  readonly exitCode: number | null;
+  readonly httpStatus: number | null;
 
-  constructor(message: string, stderr: string) {
+  constructor(
+    message: string,
+    stderr: string,
+    exitCode: number | null = null,
+    httpStatus: number | null = null,
+  ) {
     super(message);
     this.name = "HostedProcessError";
     this.stderr = stderr;
+    this.exitCode = exitCode;
+    this.httpStatus = httpStatus;
   }
+}
+
+function parseHttpStatus(detail: string): number | null {
+  const match = /\bHTTP ([1-5][0-9]{2})\b/u.exec(detail);
+  return match?.[1] === undefined ? null : Number(match[1]);
 }
 
 /** Production `gh` runner with captured output and abort propagation. */
@@ -40,7 +54,13 @@ export const hostedGhRunner: HostedProcessRunner = {
     } catch (error) {
       const record = typeof error === "object" && error !== null ? error as Record<string, unknown> : {};
       const stderr = typeof record.stderr === "string" ? record.stderr : "";
-      throw new HostedProcessError(error instanceof Error ? error.message : String(error), stderr);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new HostedProcessError(
+        message,
+        stderr,
+        typeof record.exitCode === "number" ? record.exitCode : null,
+        parseHttpStatus(`${message}\n${stderr}`),
+      );
     }
   },
 };

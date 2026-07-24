@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { HostedProcessRunner } from "../../../../../../src/scripts/review-gate/hosted/gh-process.js";
+import {
+  HostedProcessError,
+  type HostedProcessRunner,
+} from "../../../../../../src/scripts/review-gate/hosted/gh-process.js";
 import { GhReviewUnlockPort } from "../../../../../../src/scripts/review-gate/hosts/github/unlock.js";
 
 function runner(responses: string[]): { port: HostedProcessRunner; calls: string[][] } {
@@ -87,6 +90,31 @@ describe("GhReviewUnlockPort", () => {
       "client_payload[slug]=demo",
       "client_payload[archive_cadence]=with-integration",
     ]));
+  });
+
+  it("distinguishes a structured missing workflow from unreadable process failures", async () => {
+    const missing = new GhReviewUnlockPort({
+      run: async () => {
+        throw new HostedProcessError("workflow lookup failed", "HTTP 404", 1, 404);
+      },
+    }, async () => {
+      throw new Error("readiness not used");
+    });
+    const unreadable = new GhReviewUnlockPort({
+      run: async () => {
+        throw new Error("a message mentioning HTTP 404 is not structured status");
+      },
+    }, async () => {
+      throw new Error("readiness not used");
+    });
+    const input = {
+      repository: "owner/repo",
+      ref: "main",
+      path: ".github/workflows/arc-clearance.yml" as const,
+    };
+
+    await expect(missing.inspectWorkflow(input)).resolves.toEqual({ state: "absent" });
+    await expect(unreadable.inspectWorkflow(input)).resolves.toEqual({ state: "unreadable" });
   });
 
   it.each([null, "42", 42.5])("rejects malformed pull-request number %j at the port boundary", async (number) => {
