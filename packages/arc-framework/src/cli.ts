@@ -85,6 +85,7 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import { handleReviewFrontlineResolve } from "./handlers/review.js";
+import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
 import {
   handleCheckCommitMessage,
   type HandleCheckCommitMessageOptions,
@@ -177,6 +178,17 @@ program
   .action(handleJoin);
 
 // --- Work units ---
+
+const wu = program
+  .command("wu")
+  .description("Current work-unit operations");
+
+wu
+  .command("reconcile [slug]")
+  .description("Plan or apply version-checked repairs owned by the current work unit")
+  .option("--apply", "Apply and stage the exact reported path set")
+  .option("--json", "Emit a typed JSON result")
+  .action((slug: string | undefined, opts: WuReconcileOptions) => handleWuReconcile(slug, opts));
 
 program
   .command("start [name]")

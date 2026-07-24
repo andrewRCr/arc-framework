@@ -122,43 +122,25 @@ own branch and fails safely at lifecycle boundaries.
 - _Outcome:_ Dependents can now resolve only retirement evidence committed into their own history through a closed
   path-free contract; provenance remains actionable without weakening global namespace authentication.
 
-### `[ ]` **2.2 Generalize dependency discharge into a version-checked current-WU reconcile**
+### `[x]` **2.2 Generalize dependency discharge into a version-checked current-WU reconcile**
 
 - _Goal:_ A work unit repairs its own `Depends On` list from retirement evidence, preserving ordinary satisfied-edge
   discharge while refusing ambiguous or stale rewrites.
 
-    - `[ ]` **2.2.a Separate reconcile planning from mutation**
-        - Generalize `dischargeDepEdges()` into a pure plan over the current lifecycle index, the dependent's parsed
-          edge list, and subject-query results. Preserve canonical order/deduplication and report replacements,
-          drops, ordinary discharges, live edges, evidence quality, and conflicts as typed data.
-        - Follow each unique acyclic chain of reachable `rename` receipts to a live slug or terminal non-rename
-          receipt. Preserve per-hop evidence quality, apply a terminal decompose/abandon disposition when present,
-          and refuse missing hops, ambiguity, cycles, version conflicts, or unmapped terminal evidence rather than
-          writing an intermediate retired slug.
-        - Evolve the existing `side-effects/discharge-dep-edges.ts` mechanism in place; lifecycle verbs, session
-          detection, and the CLI adapter all consume this one current-WU planner/applier rather than introducing a
-          sibling dependency- or reference-reconcile core. Give its closed result dependency, tracked-reference,
-          and advisory components so Phase 5 can extend the same operation without replacing its public contract.
+    - `[x]` **2.2.a Separate reconcile planning from mutation**
+        - Evolved the discharge core into one typed planner with dependency, tracked-reference, and advisory
+          components; it canonicalizes edges and follows evidence-qualified rename chains to live or terminal ends.
 
-    - `[ ]` **2.2.b Apply an exact dependent-owned plan**
-        - Apply the dependency component by rewriting the current WU's meta through `setMetaBulletFields()`, guarded
-          by the exact version/content read that produced the plan. A stale edge list, missing replacement,
-          ambiguous receipt, or self-dependency refuses before any write or stage.
-        - Expose the shared operation as `arc wu reconcile [slug] --json`: read-only planning by default and an
-          explicit `--apply` mode. Validate every plan-declared current-WU path before the first mutation, then
-          write and stage only that bounded path set; advisory findings never mutate. Return closed
-          `clean` / `pending` / `applied` / `conflict` results with CLI-owned advisory text.
+    - `[x]` **2.2.b Apply an exact dependent-owned plan**
+        - Added content-digest guarded apply with bounded writes/staging plus `arc wu reconcile [slug] --json` and
+          explicit `--apply`; branch ownership and every declared path are validated before mutation.
 
-    - `[ ]` **2.2.c Cover the complete disposition and conflict matrix**
-        - Extend `packages/arc-framework/__tests__/unit/work-unit/side-effects/discharge-dep-edges.test.ts` or split
-          a renamed reconcile-focused test alongside it.
-        - Build `test-first` (one behavior at a time):
-            - decompose replacement expands to one or several delivering members without duplicates
-            - authored decompose drop and abandon remove the edge while retaining a surfaced reason
-            - one or several rename hops retarget once to the final live slug; a rename chain ending in decompose or
-              abandon applies that terminal disposition
-            - park and unresolved live dependencies remain unchanged
-            - stale content, missing targets or hops, ambiguous/cyclic evidence, and self-dependencies write nothing
+    - `[x]` **2.2.c Cover the complete disposition and conflict matrix**
+        - Covered multi-target replacement, authored/abandon drops, rename chains and terminal dispositions, live
+          and parked edges, every evidence conflict, missing targets, cycles, self-edges, stale content, and CLI apply.
+
+- _Outcome:_ Dependency discharge and retirement repair now share one current-WU operation whose read-only plan is
+  the exact version carried into a bounded apply; unsafe evidence or stale ownership cannot partially rewrite a gate.
 
 ### `[ ]` **2.3 Apply pending reconciles at dependent-owned write ceremonies**
 
