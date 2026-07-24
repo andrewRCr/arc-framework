@@ -32,21 +32,22 @@ consumers depend on them.
 - _Outcome:_ ARC now ships one review-only boundary doctrine that is immediately usable by explicit callers while
   preserving the existing review roles and leaving automatic lifecycle consumption to its owning work unit.
 
-### `[ ]` **1.2 Define the `chunk` vocabulary and delivery-neutral seam**
+### `[x]` **1.2 Define the `chunk` vocabulary and delivery-neutral seam**
 
 - _Goal:_ ARC uses `chunk` unambiguously as the review unit while reserving compatible `deliverable` and `stack`
   concepts for the downstream delivery sibling.
 
-    - `[ ]` **1.2.a Add the controlled-vocabulary entry**
-        - Update package-source `reference/briefs/AGENT-BRIEF.ARC.md` with the review-only definition, its distinction
-          from a Work Unit, review increment, and task-plan phase, and the reserved delivery seam.
-        - Define `deliverable ⊂ chunk` and `stack` only as a vocabulary reservation; make the entry complete for
-          projects that never adopt separate merge topology.
+    - `[x]` **1.2.a Add the controlled-vocabulary entry**
+        - Defined `chunk` as the contract-cohesive review unit, distinguished it from Work Units, review increments,
+          phases, and merge units, and reserved `deliverable ⊂ chunk` plus `stack` without requiring delivery
+          topology.
 
-    - `[ ]` **1.2.b Project the vocabulary without package drift**
-        - Apply the same Framework change to `.arc/reference/briefs/AGENT-BRIEF.ARC.md`.
-        - Reconcile the adjacent Work Unit, Cohort, and review-increment glosses so the vocabulary section does not
-          mint `chunk` or reserve `deliverable` while retaining conflicting generic partitives beside it.
+    - `[x]` **1.2.b Project the vocabulary without package drift**
+        - Projected the exact Framework copy and replaced adjacent generic `chunk` and `deliverable` partitives so
+          the Work Unit, Cohort, and review-increment definitions remain semantically distinct.
+
+- _Outcome:_ The always-loaded vocabulary now assigns `chunk`, `deliverable`, and `stack` one compatible meaning
+  each while remaining complete for projects that keep one merge boundary.
 
 ## **Phase 2:** Exact-target chunking selection
 

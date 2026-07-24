@@ -34,9 +34,9 @@ cascade, `arc release commit` accepts the same message/flags as `git commit`; `a
 
 Precise meanings — assume the technical sense.
 
-- **Work unit (WU):** Wrapper noun — a bounded, _spec-worthy_ chunk of work with one branch, a meta file,
-  and one PR. Artifact group: `meta-{name}.md` plus any present `spec-*`, `draft-*`, `tasks-*`, `notes-*`
-  companions. Not "any chunk of work".
+- **Work unit (WU):** Wrapper noun — a bounded, _spec-worthy_ concern with one branch, a meta file, and one PR.
+  Artifact group: `meta-{name}.md` plus any present `spec-*`, `draft-*`, `tasks-*`, `notes-*` companions. Not
+  "any piece of work".
 - **Class:** A work unit's recorded _weight_ — `Light` / `Heavy` / `Novel` (`[TBD]` until resolved). `Heavy`
   when _either_ intrinsic axis runs high: derivation (a real design must be authored before work can start) or
   scale / complexity (a large or intricate existing-code surface a correct plan and execution must navigate);
@@ -46,9 +46,14 @@ Precise meanings — assume the technical sense.
   planning read to balance a worklist. Ceremony scales with `Class`; execution discipline does not. Distinct
   from the quality-gate `Tier 1/2/3`.
 - **Cohort:** A deliberate grouping of sibling work units, recorded by a `cohort-{name}.md` that holds the
-  group's shared coordination. The work unit is the leaf deliverable. Nesting is path-valued via the `Cohort`
-  field, capped at one level — `<cohort>/<subcohort>/<wu>`. When an active WU names a `Cohort`, session-init
+  group's shared coordination. The work unit is the leaf. Nesting is path-valued via the `Cohort` field, capped at
+  one level — `<cohort>/<subcohort>/<wu>`. When an active WU names a `Cohort`, session-init
   resolves and reads that `cohort-{name}.md`, so the group's shared coordination loads as session context.
+- **Chunk:** A bounded, contract-cohesive slice of one exact change set reviewed in one pass. It is a review
+  boundary, not a Work Unit, review increment, task-plan phase, branch, PR, or merge unit; closure, complete union
+  coverage, and a seam review preserve local and cross-chunk review. Delivery vocabulary is reserved compatibly:
+  a **deliverable** is a chunk given an independent merge boundary (`deliverable ⊂ chunk`), and a **stack** is a
+  dependency ordering over a set of deliverables. Projects that never separate merge topology need only `chunk`.
 - **Errand:** Off-WU wrapper for a single _self-evident_ concern — below the spec-worthiness floor (no design
   worth recording, no durable plan a correct execution must navigate). Always **atomic** (below); no meta or
   lifecycle — state derives from its branch + PR.
@@ -59,8 +64,8 @@ Precise meanings — assume the technical sense.
 - **Interlock:** Configurable control point gating an action — fires automatically, on user approval, or
   only on explicit invocation, per type and config. Always-stop: `task-`, `workflow-`, `integration-`.
   Configurable: `commit-`, `push-`.
-- **Review increment:** One bounded chunk of work; closes with a structured approval gate that
-  precedes any commit invocation, wrapped or raw. Default boundary: one leaf task. Applies
+- **Review increment:** One bounded unit of execution; closes with a structured approval gate that precedes any
+  commit invocation, wrapped or raw. Default boundary: one leaf task. Applies
   universally — task list work, off-task / incidental, workflow stages.
   **Deferred review** = a batch suspending per-leaf stops within scope — user-scoped ("proceed to 3.4")
   or agent-proposed at a coupled parent (proposes, user approves; never self-invoked); commit-interlock
