@@ -346,46 +346,29 @@ rename residue through the existing evidence-backed teardown / sweep substrate.
 - _Outcome:_ Spawned rename now completes identity reconciliation without moving its live checkout, and exposes a
   follow-up only when the exact deferred move was persisted on a valid ARC-owned marker.
 
-### `[ ]` **4.3 Surface landed transform and rename residue through session entry**
+### `[x]` **4.3 Surface landed transform and rename residue through session entry**
 
 - _Goal:_ Session entry discovers cleanup that became safe after landing and offers exact shared actions without
   mutating tracked state, deleting automatically, or trusting branch-local evidence.
 
-- _Note:_ See `notes-decomposition-hardening.md` § Landed transform terminal invariants.
+    - `[x]` **4.3.a Discover authoritative receipt-backed branched residue**
+        - Added a cheap candidate-gated sweep that refreshes and reads `origin/<base>` under full protection, reads
+          the local base under partial protection, and grants no action from branch-local or ambiguous evidence.
 
-    - `[ ]` **4.3.a Discover authoritative receipt-backed branched residue**
-        - Extend the session-entry sweep to find still-branched registered retirement subjects whose committed
-          receipt and transformed result are reachable from the protection-aware base. Under full protection,
-          refresh and read `origin/<base>`; under partial, read the local integrating base.
-        - Preserve existing detached-husk discovery and revalidation. Branch-local or unmerged evidence remains
-          non-actionable.
+    - `[x]` **4.3.b Apply the shared cleanup plan after landing**
+        - Projected ordinary receipt-backed `arc teardown <slug>` through the shared planner and added idempotent
+          per-WU workspace closure only after authoritative teardown succeeds.
 
-    - `[ ]` **4.3.b Apply the shared cleanup plan after landing**
-        - Project the ordinary `arc teardown <slug>` action from the factored planner, preserving identity,
-          clean/exact-`HEAD`, receipt, remote, and current-locus safeguards.
-        - Add the idempotent per-WU `runUserClose` leg after authoritative retirement, distinct from the existing
-          identity-global user-surface reconcile. Keep the probe read-only and cleanup offer-driven.
+    - `[x]` **4.3.c Project `renameMovePending` as a distinct remedy**
+        - Validated ownership, branch, exact `HEAD`, source path, unique registration, and target vacancy before
+          emitting typed outside-worktree `git worktree move` argv and text; stale projections grant no remedy.
 
-    - `[ ]` **4.3.c Project `renameMovePending` as a distinct remedy**
-        - Detect the operational marker, validate that the registered worktree still occupies the old path for the
-          renamed branch at the stamped `HEAD`, and emit typed argv plus precomposed `git worktree move` guidance
-          that can run only from outside it. Never execute it automatically.
+    - `[x]` **4.3.d Wire typed envelope and workflow surfaces**
+        - Extended the status schema, fixtures, package template, probe contract, and rendered project workflow to
+          dispatch only on CLI classifications and precomposed teardown, successor, and move actions.
 
-    - `[ ]` **4.3.d Wire typed envelope and workflow surfaces**
-        - Extend session status types/schema/fixtures and package-source
-          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md`, then sync
-          the generated `.arc/system/workflows/arc/session-lifecycle/session-init.md` project instance. Dispatch on
-          CLI classifications and precomposed actions; preserve the existing offer/interlock and do not let
-          workflow prose infer evidence or marker safety.
-        - Build `test-first` (one behavior at a time):
-            - full-protection unmerged evidence grants neither cleanup nor successor launch; merged evidence does
-            - partial-protection direct-base evidence becomes actionable without a remote merge
-            - dirty, moved, foreign, and evidence-mismatched retirement residue remains blocked/manual-only
-            - current-locus cleanup defers through the existing husk path; replay is idempotent
-            - interrupted transforms retain their per-WU workspace until landed cleanup
-            - one ready member gets a remedy, multiple ready members get only a candidate list
-            - valid path lag receives the exact move remedy; stale or ambiguous registration does not
-            - empty scans preserve common resume latency and emit no new section
+- _Outcome:_ Session entry now discovers landed cleanup and rename path lag through one read-only typed sweep,
+  preserving ordinary resume latency while routing destructive work through existing evidence-backed verbs.
 
 ## **Phase 5:** Reference conservation and cross-verb acceptance
 

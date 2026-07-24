@@ -122,10 +122,86 @@ const StaleWorktreeReportViewSchema = z.discriminatedUnion("kind", [
     })
     .loose(),
 ]);
+const RetirementCleanupProjectionViewSchema = z
+  .object({ status: z.enum(["not-applicable", "pending", "completed", "blocked"]) })
+  .loose();
+const SuccessorReadinessViewSchema = z
+  .object({
+    candidates: z.array(z.string()),
+    actionable: z.boolean(),
+    remedy: z
+      .object({
+        argv: z.tuple([z.literal("arc"), z.literal("start"), z.string()]),
+        text: z.string(),
+      })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+const LandedRetirementResidueViewSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      status: z.literal("actionable"),
+      lifecycle: z
+        .object({
+          subject: z.object({ slug: z.string(), branch: z.string().nullable() }).strict(),
+          transition: z.enum(["decompose", "abandon"]),
+          cleanup: z
+            .object({
+              branch: RetirementCleanupProjectionViewSchema,
+              worktree: RetirementCleanupProjectionViewSchema,
+              userWorkspace: RetirementCleanupProjectionViewSchema,
+            })
+            .strict(),
+          successorReadiness: SuccessorReadinessViewSchema,
+        })
+        .loose(),
+      teardown: z
+        .object({
+          argv: z.tuple([z.literal("arc"), z.literal("teardown"), z.string()]),
+          text: z.string(),
+        })
+        .strict(),
+    })
+    .loose(),
+  z
+    .object({
+      status: z.literal("blocked"),
+      subject: z.object({ slug: z.string(), branch: z.string() }).strict(),
+      reason: z.string(),
+    })
+    .loose(),
+]);
+const RenameMoveResidueViewSchema = z
+  .object({
+    oldSlug: z.string(),
+    newSlug: z.string(),
+    branch: z.string(),
+    head: z.string(),
+    from: z.string(),
+    to: z.string(),
+    remedy: z
+      .object({
+        argv: z.tuple([
+          z.literal("git"),
+          z.literal("worktree"),
+          z.literal("move"),
+          z.string(),
+          z.string(),
+        ]),
+        text: z.string(),
+      })
+      .strict(),
+  })
+  .strict();
 
 /** Thin routing view of the stale-worktree cleanup advisory. */
 export const StaleWorktreeSweepValueViewSchema = z
-  .object({ worktrees: z.array(StaleWorktreeReportViewSchema) })
+  .object({
+    worktrees: z.array(StaleWorktreeReportViewSchema),
+    renameMoves: z.array(RenameMoveResidueViewSchema),
+    retirements: z.array(LandedRetirementResidueViewSchema),
+  })
   .loose();
 
 const WorkUnitReportViewSchema = z

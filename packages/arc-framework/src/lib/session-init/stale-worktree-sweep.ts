@@ -50,6 +50,12 @@ import {
   revalidateDecodedHuskRetirementEvidence,
   type TeardownBlobReader,
 } from "../work-unit/teardown-retirement-driver.js";
+import {
+  projectRenameMoveRemedy,
+  runLandedRetirementSweep,
+  type LandedRetirementResidue,
+  type RenameMoveResidue,
+} from "./lifecycle-residue-sweep.js";
 
 export interface StaleWorktreeSweepInput {
   /** Identity-filtered in-flight worktree roster (reused from the session-init roster slot). */
@@ -112,6 +118,10 @@ export type StaleWorktreeReport =
 export interface StaleWorktreeSweepResult {
   /** Lingering shipped-WU worktrees, each with its cleanup disposition. */
   worktrees: StaleWorktreeReport[];
+  /** Validated deferred rename moves that can run only from outside their source worktrees. */
+  renameMoves: RenameMoveResidue[];
+  /** Still-branched receipt-backed retirements projected from authoritative base evidence. */
+  retirements: LandedRetirementResidue[];
   /** Roster warnings, passed through untouched. */
   warnings: string[];
 }
@@ -171,7 +181,7 @@ export async function runStaleWorktreeSweep(
     && options.teamMode === true
     && (options.identity === null || options.identity === undefined)
   ) {
-    return { worktrees: [], warnings: roster.warnings };
+    return { worktrees: [], renameMoves: [], retirements: [], warnings: roster.warnings };
   }
 
   const shipped = await readShippedWorkUnitsFromRef(exec, integrationTarget);
@@ -206,8 +216,44 @@ export async function runStaleWorktreeSweep(
   const scan = await (options.scanWorktrees ?? scanRegisteredWorktrees)(exec);
   if (!scan.ok) {
     warnings.push(`Could not scan detached worktrees: ${scan.message}`);
-    return { worktrees, warnings };
+    return { worktrees, renameMoves: [], retirements: [], warnings };
   }
+
+  const renameMoves: RenameMoveResidue[] = [];
+  const branchedMarkers = new Map<string, WorktreeMarkerReadResult>();
+  for (const entry of scan.worktrees) {
+    if (entry.detached || entry.branch === null) continue;
+    let marker: WorktreeMarkerReadResult;
+    try {
+      marker = await readMarker(entry.path);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      warnings.push(`Could not read branched worktree marker at ${entry.path}: ${detail}`);
+      continue;
+    }
+    if (
+      marker.kind === "present"
+      && options.teamMode === true
+      && options.identity !== null
+      && options.identity !== undefined
+      && marker.marker.spawningIdentity !== options.identity
+    ) {
+      continue;
+    }
+    branchedMarkers.set(entry.path, marker);
+    const projected = projectRenameMoveRemedy(entry, marker, scan.worktrees);
+    if (projected !== null) renameMoves.push(projected);
+  }
+  const retirementSweep = await runLandedRetirementSweep({
+    roster,
+    topology: scan.worktrees,
+    markers: branchedMarkers,
+    baseBranch,
+    protection: options.protection ?? "partial",
+    exec,
+    readBlob: options.readBlob,
+  });
+  warnings.push(...retirementSweep.warnings);
 
   for (const entry of scan.worktrees) {
     if (!entry.detached || entry.path === options.excludeWorktreePath) continue;
@@ -264,5 +310,10 @@ export async function runStaleWorktreeSweep(
     });
   }
 
-  return { worktrees, warnings };
+  return {
+    worktrees,
+    renameMoves,
+    retirements: retirementSweep.retirements,
+    warnings,
+  };
 }

@@ -1,0 +1,388 @@
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  projectRenameMoveRemedy,
+  runLandedRetirementSweep,
+} from "../../../src/lib/session-init/lifecycle-residue-sweep.js";
+import type { GitExec } from "../../../src/lib/git/exec.js";
+import type { RegisteredWorktree } from "../../../src/lib/git/worktree-roster.js";
+import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
+import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
+import type { RetirementRecordEnumerationResult } from "../../../src/lib/work-unit/retirement-record-enumeration.js";
+
+const HEAD = "0123456789abcdef0123456789abcdef01234567";
+
+function registered(overrides: Partial<RegisteredWorktree> = {}): RegisteredWorktree {
+  return {
+    path: "/wt/project.old-name",
+    head: HEAD,
+    branch: "feat/new-name",
+    detached: false,
+    primary: false,
+    ...overrides,
+  };
+}
+
+function pendingMarker(): WorktreeMarkerReadResult {
+  return {
+    kind: "present",
+    marker: {
+      spawnedByArc: true,
+      wuName: "new-name",
+      createdFor: { kind: "work-unit", name: "new-name" },
+      spawningIdentity: "andrew",
+      createdAt: "2026-07-23T00:00:00.000Z",
+      renameMovePending: {
+        oldSlug: "old-name",
+        newSlug: "new-name",
+        branch: "feat/new-name",
+        head: HEAD,
+        from: "/wt/project.old-name",
+        to: "/wt/project.new-name",
+      },
+    },
+  };
+}
+
+function ownedMarker(name = "retired"): WorktreeMarkerReadResult {
+  return {
+    kind: "present",
+    marker: {
+      spawnedByArc: true,
+      wuName: name,
+      createdFor: { kind: "work-unit", name },
+      spawningIdentity: "andrew",
+      createdAt: "2026-07-23T00:00:00.000Z",
+    },
+  };
+}
+
+const DIGEST = `sha256:${"1".repeat(64)}` as const;
+
+function abandonReceipt(): RetirementReceipt {
+  return {
+    schemaVersion: 2,
+    receiptId: DIGEST,
+    subject: { kind: "work-unit", name: "retired" },
+    transition: "abandon",
+    source: {
+      branch: "feat/retired",
+      head: HEAD,
+      artifactDigest: DIGEST,
+    },
+    transitionPatchDigest: DIGEST,
+    retiringProjection: { kind: "direct-transition" },
+    authorization: "discard-confirmed",
+    result: { kind: "discard", artifactDigest: "absent" },
+    inventoryRead: "reachable",
+  };
+}
+
+function decomposeReceipt(): RetirementReceipt {
+  return {
+    ...abandonReceipt(),
+    transition: "decompose",
+    authorization: "discard-confirmed",
+    result: {
+      kind: "decompose",
+      preparationId: DIGEST,
+      allocation: {
+        schemaVersion: 2,
+        origin: { slug: "retired", phase: "Active", location: "active" },
+        shape: "symmetric",
+        parentPosition: "standalone",
+        entries: [
+          { kind: "new-member", destinationId: "first", slug: "first", workClass: "Light" },
+          { kind: "new-member", destinationId: "second", slug: "second", workClass: "Light" },
+        ],
+        internalEdges: [],
+        sourceAllocations: [],
+        incomingEdges: [],
+        outgoingEdges: [],
+      },
+      cutMapDigest: DIGEST,
+      sourceInventoryDigest: DIGEST,
+      incomingEdgeInventoryDigest: DIGEST,
+      outgoingEdgeInventoryDigest: DIGEST,
+      targets: [],
+    },
+  };
+}
+
+function enumerated(receipt: RetirementReceipt): RetirementRecordEnumerationResult {
+  return {
+    status: "valid",
+    records: [{
+      id: receipt.receiptId,
+      content: "{}",
+      record: { kind: "receipt", value: receipt },
+    }],
+  };
+}
+
+function noRecords(): RetirementRecordEnumerationResult {
+  return { status: "valid", records: [] };
+}
+
+const exec: GitExec = async () => ({ stdout: "", stderr: "" });
+
+function authorizedDecision() {
+  return {
+    status: "authorized" as const,
+    authorization: "discard-confirmed" as const,
+    authorityVersion: DIGEST,
+    evidence: {
+      kind: "receipt" as const,
+      receiptId: DIGEST,
+      transition: "abandon" as const,
+      expectedLifecycle: "nonexistent" as const,
+      resultDigest: DIGEST,
+    },
+    refs: { localOid: HEAD, remote: null },
+  };
+}
+
+describe("projectRenameMoveRemedy", () => {
+  it("projects exact argv and display text for valid registered path lag", () => {
+    expect(projectRenameMoveRemedy(
+      registered(),
+      pendingMarker(),
+      [registered()],
+    )).toEqual({
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      branch: "feat/new-name",
+      head: HEAD,
+      from: "/wt/project.old-name",
+      to: "/wt/project.new-name",
+      remedy: {
+        argv: ["git", "worktree", "move", "/wt/project.old-name", "/wt/project.new-name"],
+        text: "git worktree move /wt/project.old-name /wt/project.new-name",
+      },
+    });
+  });
+
+  it.each([
+    ["wrong branch", registered({ branch: "feat/other" }), [registered({ branch: "feat/other" })]],
+    ["moved HEAD", registered({ head: "1".repeat(40) }), [registered({ head: "1".repeat(40) })]],
+    ["moved source", registered({ path: "/wt/elsewhere" }), [registered({ path: "/wt/elsewhere" })]],
+    ["occupied target", registered(), [registered(), registered({ path: "/wt/project.new-name" })]],
+    ["ambiguous branch", registered(), [registered(), registered({ path: "/wt/duplicate" })]],
+  ] as const)("grants no remedy for %s", (_label, worktree, topology) => {
+    expect(projectRenameMoveRemedy(worktree, pendingMarker(), topology)).toBeNull();
+  });
+});
+
+describe("runLandedRetirementSweep", () => {
+  it("does not read retirement authority for an ordinary active worktree", async () => {
+    const enumerateRecords = vi.fn(async () => enumerated(abandonReceipt()));
+
+    const result = await runLandedRetirementSweep({
+      roster: {
+        entries: [{
+          worktreePath: "/wt/retired",
+          branch: "feat/retired",
+          metaFilePath: "/wt/retired/.arc/active/meta-retired.md",
+        }],
+        warnings: [],
+      },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "full",
+      exec,
+      readBlob: async () => null,
+      enumerateRecords,
+    });
+
+    expect(result).toEqual({ retirements: [], warnings: [] });
+    expect(enumerateRecords).not.toHaveBeenCalled();
+  });
+
+  it("offers ordinary teardown only from unique base-reachable receipt authority", async () => {
+    const enumerateRecords = vi.fn(async () => enumerated(abandonReceipt()));
+    const authorize = vi.fn(async () => authorizedDecision());
+
+    const result = await runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "full",
+      exec,
+      readBlob: async () => null,
+      fetchBase: async () => true,
+      enumerateRecords,
+      authorize,
+      isClean: async () => true,
+    });
+
+    expect(enumerateRecords).toHaveBeenCalledWith("origin/main");
+    expect(result.retirements).toEqual([{
+      status: "actionable",
+      worktreePath: "/wt/retired",
+      lifecycle: {
+        subject: { slug: "retired", branch: "feat/retired" },
+        transition: "abandon",
+        authority: { kind: "receipt-backed", receiptId: DIGEST, authorityVersion: DIGEST },
+        cleanup: {
+          branch: { status: "pending" },
+          worktree: { status: "pending" },
+          userWorkspace: { status: "pending" },
+        },
+        successorReadiness: { candidates: [], actionable: true, remedy: null },
+      },
+      teardown: {
+        argv: ["arc", "teardown", "retired"],
+        text: "arc teardown retired",
+      },
+    }]);
+  });
+
+  it("grants no cleanup or successor action for branch-local evidence absent from the full-protection base", async () => {
+    const authorize = vi.fn(async () => authorizedDecision());
+
+    const result = await runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "full",
+      exec,
+      readBlob: async () => null,
+      fetchBase: async () => true,
+      enumerateRecords: async () => noRecords(),
+      authorize,
+      isClean: async () => true,
+    });
+
+    expect(result).toEqual({ retirements: [], warnings: [] });
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  it("reads the local integrating base under partial protection without fetching", async () => {
+    const fetchBase = vi.fn(async () => true);
+    const enumerateRecords = vi.fn(async () => enumerated(abandonReceipt()));
+
+    await runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "partial",
+      exec,
+      readBlob: async () => null,
+      fetchBase,
+      enumerateRecords,
+      authorize: async () => authorizedDecision(),
+      isClean: async () => true,
+    });
+
+    expect(fetchBase).not.toHaveBeenCalled();
+    expect(enumerateRecords).toHaveBeenCalledWith("main");
+  });
+
+  it("keeps dirty receipt-backed residue blocked and grants no teardown", async () => {
+    const authorize = vi.fn(async () => authorizedDecision());
+    const result = await runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "partial",
+      exec,
+      readBlob: async () => null,
+      enumerateRecords: async () => enumerated(abandonReceipt()),
+      authorize,
+      isClean: async () => false,
+    });
+
+    expect(result.retirements).toEqual([{
+      status: "blocked",
+      worktreePath: "/wt/retired",
+      subject: { slug: "retired", branch: "feat/retired" },
+      reason: "uncommitted",
+    }]);
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  it("lists several ready successors without selecting a default action", async () => {
+    const result = await runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "partial",
+      exec,
+      readBlob: async () => null,
+      enumerateRecords: async () => enumerated(decomposeReceipt()),
+      authorize: async () => authorizedDecision(),
+      isClean: async () => true,
+    });
+
+    expect(result.retirements[0]).toMatchObject({
+      status: "actionable",
+      lifecycle: {
+        successorReadiness: {
+          candidates: ["first", "second"],
+          actionable: true,
+          remedy: null,
+        },
+      },
+    });
+  });
+
+  it("selects one default-spawn remedy from complete landed dependencies", async () => {
+    const receipt = decomposeReceipt();
+    if (receipt.result.kind !== "decompose") throw new Error("expected decompose receipt");
+    receipt.result.allocation.internalEdges = [{ from: "second", to: "first" }];
+    const result = await runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "partial",
+      exec,
+      readBlob: async () => null,
+      enumerateRecords: async () => enumerated(receipt),
+      authorize: async () => authorizedDecision(),
+      isClean: async () => true,
+    });
+
+    expect(result.retirements[0]).toMatchObject({
+      status: "actionable",
+      lifecycle: {
+        successorReadiness: {
+          candidates: ["first"],
+          actionable: true,
+          remedy: {
+            argv: ["arc", "start", "first"],
+            text: "arc start first",
+          },
+        },
+      },
+    });
+  });
+
+  it("surfaces evidence mismatch as blocked without a teardown remedy", async () => {
+    const result = await runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "partial",
+      exec,
+      readBlob: async () => null,
+      enumerateRecords: async () => enumerated(abandonReceipt()),
+      authorize: async () => ({ status: "refused", reason: "evidence-mismatch" }),
+      isClean: async () => true,
+    });
+
+    expect(result.retirements).toEqual([{
+      status: "blocked",
+      worktreePath: "/wt/retired",
+      subject: { slug: "retired", branch: "feat/retired" },
+      reason: "evidence-mismatch",
+    }]);
+  });
+});

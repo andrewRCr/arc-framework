@@ -176,6 +176,8 @@ export type TeardownResult =
     }
   | {
       status: "torn-down";
+      /** Authority path selected from landed lifecycle state. */
+      mode: TeardownMode;
       /** The reaped WU branch, or `null` when no local branch remained (already reaped). */
       branch: string | null;
       /** Whether the merged-safe delete removed the branch (false when the push-state gate refused it). */
@@ -897,6 +899,7 @@ async function teardownBranchProjection(
 
   return {
     status: "torn-down",
+    mode,
     branch,
     branchDeleted,
     remoteBranchDeleted,

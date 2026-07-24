@@ -277,7 +277,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     // Branch + worktree are NOT torn down in-verb — the output surfaces the post-action command.
     expect(await branchExists(repo, "plan/mono")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
-    expect(result.stdout + result.stderr).toMatch(/arc teardown mono --force/);
+    expect(result.stdout + result.stderr).toMatch(/`arc teardown mono`/);
 
     const output = result.stdout + result.stderr;
     const extractedReceiptId = /sha256:[0-9a-f]{64}/u.exec(output)?.[0];
@@ -363,7 +363,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await writeFile(join(repo, "base-advanced.txt"), "later base work\n");
     await commitAll(repo, "advance base after decompose");
 
-    const teardown = await runArc(["teardown", "mono", "--force"], worktree!);
+    const teardown = await runArc(["teardown", "mono"], worktree!);
     expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
     expect(await branchExists(repo, "plan/mono")).toBe(false);
     expect(await git(worktree!, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
@@ -380,7 +380,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await rm(join(repo, ".arc", "active", "meta-mono.md"));
     await git(repo, ["branch", "-D", "plan/mono"]);
 
-    const replay = await runArc(["teardown", "mono", "--force"], worktree!);
+    const replay = await runArc(["teardown", "mono", "--force", "--husk", worktree!], worktree!);
     expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
     expect(await pathExists(worktree!)).toBe(true);
   });
@@ -412,7 +412,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(staged).toContain(`.arc/system/.internal/retirement-receipts/${receiptFiles[0]}`);
     expect(await branchExists(repo, "plan/solo")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
-    expect(result.stdout + result.stderr).toMatch(/arc teardown solo --force/);
+    expect(result.stdout + result.stderr).toMatch(/`arc teardown solo`/);
   });
 
   it("arc park --land stages the exact planning result on a partial-protection base", async () => {
@@ -609,12 +609,15 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(staged).toContain(`.arc/system/.internal/retirement-receipts/${receiptFiles[0]}`);
     expect(await branchExists(repo, "plan/mono")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
-    expect(result.stdout + result.stderr).toMatch(/arc teardown mono --force/);
+    expect(result.stdout + result.stderr).toMatch(/`arc teardown mono`/);
   });
 
-  it("arc abandon → commit → teardown --force leaves a stamped linked husk", async () => {
+  it("arc abandon → commit → ordinary teardown closes its workspace and leaves a stamped linked husk", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     if (worktree !== undefined) worktrees.push(worktree);
+    const sessionNotes = join(worktree!, ".arc", "user", "test-user", "mono", "SESSION-NOTES.md");
+    await mkdir(dirname(sessionNotes), { recursive: true });
+    await writeFile(sessionNotes, "# Session Notes\n");
     await writeWorktreeOwnershipMarker(worktree!, {
       createdByArc: true,
       createdFor: { kind: "work-unit", name: "mono" },
@@ -623,18 +626,20 @@ describe("lifecycle exit choreography (CLI seam)", () => {
 
     const abandon = await runArc(["abandon", "mono", "--yes"], worktree!);
     expect(abandon.exitCode, abandon.stdout + abandon.stderr).toBe(0);
+    expect(await pathExists(sessionNotes)).toBe(true);
     // The removal is staged-but-uncommitted (a dirty tree); commit it so the
     // post-action teardown reaps from a clean worktree, per the ceremony.
     await commitAll(worktree!, "abandon mono");
 
-    const teardown = await runArc(["teardown", "mono", "--force"], worktree!);
+    const teardown = await runArc(["teardown", "mono"], worktree!);
 
     expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
     expect(await branchExists(repo, "plan/mono")).toBe(false);
     expect(await pathExists(worktree!)).toBe(true);
     expect(await git(worktree!, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
+    expect(await pathExists(sessionNotes)).toBe(false);
 
-    const replay = await runArc(["teardown", "mono", "--force"], worktree!);
+    const replay = await runArc(["teardown", "mono", "--husk", worktree!], worktree!);
     expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
     expect(await pathExists(worktree!)).toBe(true);
   });

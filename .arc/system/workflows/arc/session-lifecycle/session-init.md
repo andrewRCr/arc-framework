@@ -833,6 +833,27 @@ tracked source documents the work.
   **Uncommitted changes:** {fileCount} file(s) dirty in working tree.
   ```
 
+- `sweep.value.retirements` non-empty: surface every receipt-backed retirement report. `actionable` offers
+  `teardown.text`; never execute it automatically. Dispatch on `lifecycle.successorReadiness.actionable`: `true`
+  offers the non-null `remedy.text`; `false` renders a non-empty `candidates` list without selecting one.
+  `blocked` carries its CLI-classified reason and grants no action.
+
+  ```text
+  **Landed retirement cleanup:** {N} work unit(s) have authoritative cleanup residue:
+  - `{lifecycle.subject.slug}` (`{lifecycle.subject.branch}`) → clean up? `{teardown.text}`
+    - Ready successor: `{lifecycle.successorReadiness.remedy.text}`
+    - Ready successors: {candidate list}; no default selected
+  - `{subject.slug}` (`{subject.branch}`) — {reason}; surfaced without an action
+  ```
+
+- `sweep.value.renameMoves` non-empty: surface each precomposed `remedy.text` as an outside-worktree action.
+  Never execute it automatically and never reconstruct a move from marker fields.
+
+  ```text
+  **Deferred rename moves:** {N} renamed worktree path(s) lag:
+  - `{from}` → `{to}`; from outside the source worktree run `{remedy.text}`
+  ```
+
 - `sweep.value.worktrees` non-empty (primary worktree only): branched shipped-WU worktrees and stamped detached
   husks linger. Branch on `kind`; never infer a label from optional fields.
     - `branched`: label with `branch`. `removable` offers an interlock-gated

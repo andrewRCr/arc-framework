@@ -419,7 +419,12 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     roster: vi.fn(async () => rosterResult()),
     cleanupRoster: vi.fn(async () => rosterResult()),
     recovery: vi.fn(async (): Promise<CascadeResolution> => ({ kind: "main-fallback" })),
-    sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({ worktrees: [], warnings: [] })),
+    sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({
+      worktrees: [],
+      renameMoves: [],
+      retirements: [],
+      warnings: [],
+    })),
     orphanBranchSweep: vi.fn(async (): Promise<OrphanBranchSweepResult> => ({ orphans: [] })),
     retiredSubdirs: vi.fn(async (): Promise<RetiredSubdirDetectionResult> => ({ candidates: [] })),
     errandSweep: vi.fn(async (): Promise<ErrandStalenessSweepResult> => ({ stale: [] })),
@@ -2196,6 +2201,8 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
         branch: "feat/shipped",
         decision: { action: "removable" },
       }],
+      renameMoves: [],
+      retirements: [],
       warnings: [],
     };
     const probes = sessionInitProbes({

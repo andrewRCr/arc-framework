@@ -82,6 +82,7 @@ import {
   type InRepoDirectRetirementDeps,
 } from "../lib/work-unit/direct-retirement-driver.js";
 import { runRenameCommand } from "../commands/rename.js";
+import { runUserClose } from "../commands/user/close.js";
 import {
   createInRepoParkPlanningLandingContext,
   landParkPlanningTransition,
@@ -1472,6 +1473,9 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
       refuse(result.reason);
     }
     return;
+  }
+  if (result.mode === "abandoned") {
+    await runUserClose({ cwd: base.cwd, identity: base.identity, wuName: wuName ?? "" });
   }
 
   const branchLine =

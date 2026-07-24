@@ -442,6 +442,42 @@ describe("session-init envelope schema", () => {
     expectContractFailure(value, expectedPath);
   });
 
+  it("accepts typed retirement and rename remedies while rejecting reconstructed argv", () => {
+    const value = fixture("orient");
+    setPath(value, ["sweep", "value", "retirements"], [{
+      status: "actionable",
+      worktreePath: "/wt/retired",
+      lifecycle: {
+        subject: { slug: "retired", branch: "feat/retired" },
+        transition: "abandon",
+        authority: { kind: "receipt-backed", receiptId: "receipt", authorityVersion: "version" },
+        cleanup: {
+          branch: { status: "pending" },
+          worktree: { status: "pending" },
+          userWorkspace: { status: "pending" },
+        },
+        successorReadiness: { candidates: [], actionable: true, remedy: null },
+      },
+      teardown: { argv: ["arc", "teardown", "retired"], text: "arc teardown retired" },
+    }]);
+    setPath(value, ["sweep", "value", "renameMoves"], [{
+      oldSlug: "old",
+      newSlug: "new",
+      branch: "feat/new",
+      head: "1".repeat(40),
+      from: "/wt/old",
+      to: "/wt/new",
+      remedy: {
+        argv: ["git", "worktree", "move", "/wt/old", "/wt/new"],
+        text: "git worktree move /wt/old /wt/new",
+      },
+    }]);
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+
+    setPath(value, ["sweep", "value", "renameMoves", 0, "remedy", "argv", 0], "arc");
+    expectContractFailure(value, "sweep.value.renameMoves.0.remedy.argv.0");
+  });
+
   it.each([
     [
       "errand classification",
