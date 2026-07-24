@@ -243,6 +243,29 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("composes standard review chunking as one complete local-carrier pass", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const standard = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
+      const adversarial = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalizedStandard = standard.replace(/\s+/gu, " ");
+      const normalizedAdversarial = adversarial.replace(/\s+/gu, " ");
+
+      expect(standard).toContain("review-chunking");
+      expect(normalizedStandard).toContain("one curated-scope-capable local carrier orchestration");
+      expect(normalizedStandard).toContain("fresh bounded evaluator context for every closure chunk and the seam");
+      expect(normalizedStandard).toContain("complete effective rubric");
+      expect(normalizedStandard).toContain("fresh non-author aggregate context");
+      expect(normalizedStandard).toContain("one aggregate whole-target standard-review result");
+      expect(normalizedStandard).toContain("Hosted and whole-target-only local carriers are ineligible");
+      expect(normalizedStandard).toContain("counts as one standard-review pass");
+      expect(normalizedStandard).toContain("no partial report or evaluator call can settle the obligation");
+      expect(normalizedAdversarial).toContain("bounded chunk-series carrier mode");
+      expect(normalizedAdversarial).toContain("sequential attention isolation within one logical pass");
+      expect(normalizedAdversarial).toContain("stable evaluator profile and complete rubric");
+      expect(normalizedAdversarial).toContain("no standalone authority");
+    }
+  });
+
   it("states the agent-ergonomics and host-enforcement boundary", async () => {
     for (const base of [packageArc, projectArc]) {
       const brief = await readFile(resolve(base, "reference/briefs/AGENT-BRIEF.ARC.md"), "utf8");

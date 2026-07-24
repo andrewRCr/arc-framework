@@ -189,6 +189,18 @@ describe("framework sync (self-hosting drift check)", () => {
     expect(method).not.toContain("per-chunk receipt");
   });
 
+  it("keeps standard chunking bounded to one exact-target carrier orchestration", async () => {
+    const standard = await readFile(join(PKG_ARC_DIR, "system/methods/standard-review.md"), "utf8");
+    const adversarial = await readFile(join(PKG_ARC_DIR, "system/methods/adversarial-review.md"), "utf8");
+    const guidance = `${standard}\n${adversarial}`;
+
+    expect(standard.match(/review-chunking/gu)?.length).toBeGreaterThanOrEqual(2);
+    expect(standard).toContain("target identity, partition, and coverage state");
+    expect(standard).toContain("one aggregate whole-target standard-review result");
+    expect(adversarial).toContain("bounded chunk-series carrier mode");
+    expect(guidance).not.toMatch(/per-chunk receipt|durable scope identity|review-gate runtime state/iu);
+  });
+
   it("declares design proportionality at every direct planning consumer", async () => {
     const workflowPaths = [
       "system/workflows/arc/draft-design.md",

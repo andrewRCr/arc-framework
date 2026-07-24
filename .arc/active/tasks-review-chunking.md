@@ -144,37 +144,23 @@ automatic lifecycle wiring stays with `review-gate-right-sizing`.
 - _Outcome:_ Frontline review can isolate attention across cohesive scopes without changing its advisory authority,
   exact-target coverage, or logical pass count.
 
-### `[ ]` **3.2 Attach chunking to local standard review**
+### `[x]` **3.2 Attach chunking to local standard review**
 
 - _Goal:_ A curated-scope-capable local standard-review carrier can review bounded chunks while one complete
   aggregate result remains eligible for ordinary human-disposition-anchored completion.
 
-- _Note:_ Task 1.1's execution precondition ensures the coordinated rename is present; use `standard-review` here
-  with no compatibility alias.
+    - `[x]` **3.2.a Define the local-carrier completeness rule**
+        - Added reference-only standard-review and adversarial-review carrier modes that isolate each cohesive scope
+          in fresh bounded context, retain exact-target coverage outside those contexts, and aggregate one complete
+          non-author result without changing ordinary completion authority.
 
-    - `[ ]` **3.2.a Define the local-carrier completeness rule**
-        - Add a short role-specific subsection to the package-source standard-review method that references
-          `review-chunking` rather than duplicating its boundary mechanics.
-        - Make chunking legal only within one curated-scope-capable local carrier orchestration that retains target
-          identity and coverage state outside the evaluator contexts, runs fresh bounded contexts across every chunk
-          and the seam, applies the complete rubric to each scope, and emits one non-author aggregate whole-target
-          result from structured reports and targeted source inspection.
-        - Extend package-source `adversarial-review.md` with the bounded chunk-series carrier mode referenced by
-          `review-chunking`. Keep it distinct from Novel partitioned fan-out: chunk evaluations are sequential
-          attention isolation inside one logical pass, use a stable evaluator profile/rubric, and have no standalone
-          authority.
-        - Keep hosted and whole-target-only local carriers ineligible for chunked mode; preserve evaluator
-          separation, exact-target identity, and the ordinary completion authority boundary.
-        - Count the aggregate invocation as one standard-review pass; no partial chunk report or evaluator call can
-          settle the obligation.
+    - `[x]` **3.2.b Project and verify the standard-review attachment**
+        - Projected both methods and dependency metadata, then covered carrier eligibility, complete-rubric
+          chunk/seam isolation, targeted aggregation, one-pass accounting, and the absence of partial authority or
+          new durable review state.
 
-    - `[ ]` **3.2.b Project and verify the standard-review attachment**
-        - Sync both method edits to the `.arc/` instance and extend
-          `__tests__/integration/pr-open-extensions.test.ts` and `__tests__/integration/framework-sync.test.ts` for
-          complete union/seam coverage, curated-scope capability, bounded-context isolation, non-author aggregate
-          output, one-pass accounting, and no partial result.
-        - Do not add per-chunk receipts, durable scope identity, independently authoritative per-chunk results, or
-          new review-gate runtime state; those remain deferred.
+- _Outcome:_ One curated local carrier can isolate attention sequentially while preserving the standard review's
+  exact-target evidence boundary; hosted and whole-target-only carriers remain ineligible.
 
 ## **Phase 4:** Controlled-vocabulary reconciliation
 
