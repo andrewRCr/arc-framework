@@ -181,6 +181,14 @@ describe("framework sync (self-hosting drift check)", () => {
     }
   });
 
+  it("keeps the frontline chunking attachment reference-only and whole-target", async () => {
+    const method = await readFile(join(PKG_ARC_DIR, "system/methods/frontline-review.md"), "utf8");
+    expect(method.match(/review-chunking/gu)?.length).toBeGreaterThanOrEqual(2);
+    expect(method).toContain("canonical target, partition, and coverage state");
+    expect(method).toContain("one aggregate whole-target frontline result");
+    expect(method).not.toContain("per-chunk receipt");
+  });
+
   it("declares design proportionality at every direct planning consumer", async () => {
     const workflowPaths = [
       "system/workflows/arc/draft-design.md",

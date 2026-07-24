@@ -227,6 +227,22 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("composes frontline chunking as one bounded advisory pass", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
+      const normalized = method.replace(/\s+/gu, " ");
+      expect(method).toContain("review-chunking");
+      expect(normalized).toContain("one curated-scope-capable local carrier orchestration");
+      expect(normalized).toContain("fresh bounded evaluator context for each closure chunk and the seam");
+      expect(normalized).toContain("complete effective rubric");
+      expect(normalized).toContain("fresh non-author aggregate context");
+      expect(normalized).toContain("does not load every chunk body wholesale");
+      expect(normalized).toContain("counts as one frontline pass");
+      expect(normalized).toContain("no partial chunk or seam report completes the pass");
+      expect(normalized).toContain("make the advisory result satisfying evidence");
+    }
+  });
+
   it("states the agent-ergonomics and host-enforcement boundary", async () => {
     for (const base of [packageArc, projectArc]) {
       const brief = await readFile(resolve(base, "reference/briefs/AGENT-BRIEF.ARC.md"), "utf8");

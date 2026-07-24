@@ -128,31 +128,21 @@ orchestration, fresh bounded evaluator contexts for each chunk and seam, and one
 result. Locality alone is insufficient; hosted and whole-target-only local carriers remain ineligible, and
 automatic lifecycle wiring stays with `review-gate-right-sizing`.
 
-### `[ ]` **3.1 Attach chunking to frontline review**
+### `[x]` **3.1 Attach chunking to frontline review**
 
 - _Goal:_ An oversized frontline target can be reviewed through bounded closure-respecting scopes without gaining
   evidence authority or another review role.
 
-    - `[ ]` **3.1.a Reference `review-chunking` from the frontline contract**
-        - Add a short role-specific subsection to package-source `system/methods/frontline-review.md` that references
-          `review-chunking` rather than re-authoring its closure, coverage, and seam doctrine.
-        - Require one curated-scope-capable local carrier orchestration to retain the canonical target and coverage
-          state while running a fresh bounded evaluator context for each closure chunk and the seam. Each context
-          receives only its current scope, explicit external/pre-existing annotations, and the complete effective
-          rubric.
-        - Require a fresh non-author aggregate context to consume the partition/coverage facts and structured
-          chunk/seam reports, inspect only targeted source loci as needed, and emit one aggregate whole-target
-          result without loading every chunk body wholesale.
-        - State that the aggregate invocation is one frontline pass and that no partial chunk report completes it;
-          evaluator-call count does not affect pass accounting.
-        - Preserve the exclusion of author conclusions and the method's advisory-only authority boundary.
+    - `[x]` **3.1.a Reference `review-chunking` from the frontline contract**
+        - Added a reference-only carrier mode that retains exact-target coverage outside fresh bounded chunk/seam
+          contexts and produces one non-author aggregate whole-target advisory result.
 
-    - `[ ]` **3.1.b Project and verify the frontline attachment**
-        - Sync `.arc/system/methods/frontline-review.md` and update related-method metadata only where the corpus
-          convention uses it.
-        - Extend `__tests__/integration/pr-open-extensions.test.ts` and
-          `__tests__/integration/framework-sync.test.ts` for the reference-only composition, complete-rubric,
-          curated-scope capability, bounded-context isolation, non-author aggregation, and one-logical-pass contract.
+    - `[x]` **3.1.b Project and verify the frontline attachment**
+        - Projected the method and dependency metadata, then covered complete-rubric isolation, targeted aggregation,
+          one-pass accounting, and the prohibition on partial or satisfying chunk results.
+
+- _Outcome:_ Frontline review can isolate attention across cohesive scopes without changing its advisory authority,
+  exact-target coverage, or logical pass count.
 
 ### `[ ]` **3.2 Attach chunking to local standard review**
 
