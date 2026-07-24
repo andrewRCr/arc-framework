@@ -137,7 +137,7 @@ bounded. Some findings sit in two causes — the grouping drives the work, it is
 - **6 carved** to a follow-on unit — the systematic generation-capability contract and its failure-injection test
   substrate: `L4-F2` (≡ `A-F2`), `L4-F4`, `A-F4`, `E4-F2`, `W1-F5`, and the whole-lifecycle portion of `P1-V1`.
 - **1 already resolved** — `R1-F5`, corrected by the handoff commit that follows the reviewed head.
-- **1 did not reproduce** — `S2S1-002`, rejected on verification during Phase 7.E execution (below).
+- **2 did not reproduce** — `S2S1-002` and `L4-F3`, rejected on verification during Phase 7.E execution (below).
 
 **`S2S1-002` does not reproduce.** The finding reads a hard-coded `activeExtensions: []` in the recovery base
 manifest as dropped context that both the seed and the fresh load set then agree on. `resolveLoadSetManifest`
@@ -167,6 +167,16 @@ The leaf partition is reusable as a delivery map, not only a review map. Each Ph
 leaf-scoped subtasks at entry, so its re-review is a bounded delta against that leaf's preserved report rather
 than a fresh pass over the whole target. That keeps the post-fix review obligation proportional to the fix delta
 and closes the loop with the method this branch motivated.
+
+**`L4-F3` does not reproduce.** The finding asserted, with no cited mechanism, that live and unknown record locks
+let spawned rollback remove a competing checkout. Both sides of the path refute it: a lock refusal returns
+`identity-only` evidence, and `canRollbackSpawnedRecordFailure` demands `marker-record-mismatch` before any
+rollback runs, so the lock arm never reaches one. Independently, `rollbackSpawn` only touches a worktree this
+invocation created — a pre-existing checkout leaves `created` null and is skipped. The spawned path was already
+sound in precisely the way its primary sibling was not, because `LinkedWorktreeCreationReceipt` has always carried
+its branch name while `PrimaryCheckoutReceipt` did not. Characterization tests now pin it; both passed on first
+write, so they guard the behavior rather than evidence a fix. Two of the packet's findings have now been rejected
+on verification, both of them ones whose stated mechanism was absent from the report.
 
 ### `7.E.c.i` carve boundary — settled 2026-07-24
 

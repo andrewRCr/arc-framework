@@ -219,7 +219,9 @@ async function checkoutPrimary(
     if (expectedBranchHead !== null && previousHead !== expectedBranchHead) {
       throw new Error("Primary checkout does not match the expected pinned base head");
     }
-    return { kind: "idempotent", branchCreated: false, previousBranch, head: previousHead };
+    return {
+      kind: "idempotent", branchCreated: false, branch: previousBranch, previousBranch, head: previousHead,
+    };
   }
   if (expectedBranchHead !== null) {
     await exec("git", ["checkout", branch], { cwd: checkoutPath });
@@ -228,11 +230,11 @@ async function checkoutPrimary(
       await exec("git", ["checkout", previousBranch], { cwd: checkoutPath });
       throw new Error("Retained Errand branch does not match the expected resume head");
     }
-    return { kind: "applied", branchCreated: false, previousBranch, head };
+    return { kind: "applied", branchCreated: false, branch, previousBranch, head };
   }
   await exec("git", ["checkout", "-b", branch, previousBranch], { cwd: checkoutPath });
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-  return { kind: "applied", branchCreated: true, previousBranch, head };
+  return { kind: "applied", branchCreated: true, branch, previousBranch, head };
 }
 
 async function rollbackPrimary(
@@ -242,18 +244,14 @@ async function rollbackPrimary(
 ): Promise<{ kind: "rolled-back" } | { kind: "generation-mismatch" }> {
   const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath })).stdout.trim();
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-  if (head !== receipt.head) return { kind: "generation-mismatch" };
-  if (!receipt.branchCreated) {
-    if (receipt.kind === "idempotent") {
-      return branch === receipt.previousBranch ? { kind: "rolled-back" } : { kind: "generation-mismatch" };
-    }
-    if (branch === receipt.previousBranch || branch === "") return { kind: "generation-mismatch" };
-    await exec("git", ["checkout", receipt.previousBranch], { cwd: checkoutPath });
-    return { kind: "rolled-back" };
+  // Head alone cannot identify the branch this receipt created: any sibling branch at the same commit
+  // satisfies it, so the branch name is proven too before anything is restored or deleted.
+  if (head !== receipt.head || branch === "" || branch !== receipt.branch) {
+    return { kind: "generation-mismatch" };
   }
-  if (branch === "" || branch === receipt.previousBranch) return { kind: "generation-mismatch" };
+  if (receipt.kind === "idempotent") return { kind: "rolled-back" };
   await exec("git", ["checkout", receipt.previousBranch], { cwd: checkoutPath });
-  await exec("git", ["branch", "-D", branch], { cwd: checkoutPath });
+  if (receipt.branchCreated) await exec("git", ["branch", "-D", receipt.branch], { cwd: checkoutPath });
   return { kind: "rolled-back" };
 }
 

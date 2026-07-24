@@ -1326,12 +1326,17 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           capability threaded through every mutator; the direct verbs (`arc errand|housekeep|plan abandon`) pass
           no selection and are unchanged.
 
-    - `[ ]` **7.E.c.ii Stop rollback destroying state it has not proven it owns** — L4-F1, L4-F3
-        - `PrimaryCheckoutReceipt` omits the created branch name, so rollback proves only HEAD, derives the target
-          from the current branch, and force-deletes it — a concurrent checkout of another branch at the same
-          commit is destroyed. Separately, live and unknown record locks are claimed not to prevent spawned
-          rollback from removing a competing checkout. Two different failures of the same rule; verify the second
-          before assuming it exists.
+    - `[x]` **7.E.c.ii Stop rollback destroying state it has not proven it owns** — L4-F1; L4-F3 rejected
+        - `PrimaryCheckoutReceipt` now records the branch it left on HEAD, and `rollbackPrimary` proves that name
+          alongside the head before restoring or deleting anything — head alone is satisfied by any sibling branch
+          at the same commit, which is exactly what `checkout -b` produces. The three-arm branch on `kind` and
+          `branchCreated` collapsed into one guard plus the two undo steps.
+        - **L4-F3 does not reproduce.** The claim was that live and unknown record locks let spawned rollback
+          remove a competing checkout. A lock refusal carries `identity-only` evidence, and
+          `canRollbackSpawnedRecordFailure` requires `marker-record-mismatch`, so no rollback is reached; the
+          spawned path was already sound in the way the primary path was not, since
+          `LinkedWorktreeCreationReceipt` has always carried its branch name. Pinned by characterization tests
+          that passed on first write — they guard the behavior, they do not evidence a fix.
 
     - `[ ]` **7.E.c.iii Apply the occupancy veto before offering teardown** — S2-F2
         - The retained-role path in `stale-worktree-sweep.ts` reduces an exact locus row to a name, then

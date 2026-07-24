@@ -132,7 +132,7 @@ function testHarness(
     },
     revalidateTarget: async () => ({ kind: "ready" }),
     checkoutPrimary: async () => ({
-      kind: "applied", branchCreated: true, previousBranch: "main", head: "1".repeat(40),
+      kind: "applied", branchCreated: true, branch: BRANCH, previousBranch: "main", head: "1".repeat(40),
     }),
     rollbackPrimary: async () => ({ kind: "rolled-back" }),
     readRecord: async () => record === null
@@ -292,6 +292,21 @@ describe("provisionTransientLocus", () => {
     expect(events).not.toContain("rollback-worktree");
   });
 
+  it.each([
+    ["live", "lock-live"], ["unknown", "lock-unknown"],
+  ] as const)("leaves the spawned checkout in place when the record lock is %s", async (reason, expected) => {
+    const events: string[] = [];
+    const harness = testHarness(events, {
+      acquireRecordLock: async () => ({ kind: "refused", reason }),
+    });
+
+    const result = await provisionTransientLocus(options(harness.dependencies));
+
+    expect(result).toMatchObject({ kind: "refused", reason: expected });
+    expect(events).not.toContain("rollback-worktree");
+    expect(events).not.toContain("remove-marker");
+  });
+
   it("preserves a conflicting role generation instead of adopting the same checkout", async () => {
     const events: string[] = [];
     const conflicting = {
@@ -420,7 +435,7 @@ describe("provisionTransientLocus", () => {
       checkoutPrimary: async () => {
         events.push("checkout-primary");
         return {
-          kind: "applied", branchCreated: true, previousBranch: "main", head: "1".repeat(40),
+          kind: "applied", branchCreated: true, branch: BRANCH, previousBranch: "main", head: "1".repeat(40),
         };
       },
     });
@@ -452,7 +467,7 @@ describe("provisionTransientLocus", () => {
     };
     const harness = testHarness(events, {
       checkoutPrimary: async () => ({
-        kind: "idempotent", branchCreated: false, previousBranch: "main", head: "1".repeat(40),
+        kind: "idempotent", branchCreated: false, branch: "main", previousBranch: "main", head: "1".repeat(40),
       }),
     });
 

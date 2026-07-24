@@ -60,4 +60,64 @@ describe("node provisioning runtime", () => {
     })).resolves.toEqual({ kind: "ready" });
     await expect(runtime.releaseRecordLock(acquired.handle)).resolves.toBeUndefined();
   });
+
+  describe("primary checkout rollback", () => {
+    const HEAD = "a".repeat(40);
+
+    function primaryRuntime(state: { branch: string; head: string }, calls: string[][]) {
+      const exec: GitExec = async (_command, args) => {
+        calls.push([...args]);
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: `${state.branch}\n` };
+        if (args[0] === "rev-parse") return { stdout: `${state.head}\n` };
+        if (args[0] === "checkout" && args[1] === "-b") {
+          state.branch = args[2] ?? "";
+          return { stdout: "" };
+        }
+        if (args[0] === "checkout") {
+          state.branch = args[1] ?? "";
+          return { stdout: "" };
+        }
+        if (args[0] === "branch") return { stdout: "" };
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      };
+      return createNodeProvisioningDependencies({
+        exec,
+        identity: "andrew",
+        anchor: { kind: "process", pid: 42, startToken: "start", inspector: "fixture", selector: "codex" },
+        inspector: { kind: "fixture", inspect: async () => ({ kind: "absent" }) },
+        pathFlavor: "posix",
+        base: "main",
+        branch: "chore/sample",
+        postCreateScript: "",
+        registeredHarnessDirs: "",
+      });
+    }
+
+    it("restores the previous branch and deletes the branch it created", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls);
+
+      const receipt = await runtime.checkoutPrimary("/repo", "chore/sample", null);
+      await expect(runtime.rollbackPrimary("/repo", receipt)).resolves.toEqual({ kind: "rolled-back" });
+
+      expect(calls).toContainEqual(["branch", "-D", "chore/sample"]);
+      expect(state.branch).toBe("main");
+    });
+
+    it("refuses to delete a branch it did not create when another checkout shares the head", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls);
+
+      const receipt = await runtime.checkoutPrimary("/repo", "chore/sample", null);
+      // A concurrent session moves the primary onto an unrelated branch at the same commit.
+      state.branch = "feat/someone-else";
+      const rolledBack = await runtime.rollbackPrimary("/repo", receipt);
+
+      expect(rolledBack).toEqual({ kind: "generation-mismatch" });
+      expect(calls.filter((call) => call[0] === "branch")).toEqual([]);
+      expect(state.branch).toBe("feat/someone-else");
+    });
+  });
 });

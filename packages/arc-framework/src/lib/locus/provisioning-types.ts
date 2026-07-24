@@ -28,6 +28,8 @@ export type ProvisioningMarkerReadResult =
 export interface PrimaryCheckoutReceipt {
   readonly kind: "applied" | "idempotent";
   readonly branchCreated: boolean;
+  /** The branch this checkout left on HEAD — the only branch its rollback may restore or delete. */
+  readonly branch: string;
   readonly previousBranch: string;
   readonly head: string;
 }
