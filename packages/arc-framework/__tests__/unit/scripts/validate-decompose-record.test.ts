@@ -83,6 +83,36 @@ function abandonReceipt(name: string, sourceHead = "c".repeat(40), extraChanges:
   };
 }
 
+function historicalRenameReceipt() {
+  const subject = { kind: "work-unit" as const, name: "historical-origin" };
+  const source = { branch: "plan/historical-origin", head: "f".repeat(40) };
+  const historicalReceiptId = deriveReceiptId({
+    schemaVersion: 1,
+    subject,
+    transition: "rename",
+    sourceBranch: source.branch,
+    sourceHead: source.head,
+  });
+  const canonicalPath = resolveRetirementRecordRelativePath(historicalReceiptId);
+  const legacyPath = canonicalPath.replace(RETIREMENT_RECORD_NAMESPACE, LEGACY_RETIREMENT_RECORD_NAMESPACE);
+  const recordBytes = bytes(canonicalize({
+    schemaVersion: 1,
+    receiptId: historicalReceiptId,
+    subject,
+    transition: "rename",
+    source: { ...source, artifactDigest: canonicalDigest("historical-source") },
+    transitionPatchDigest: canonicalDigest("historical-patch"),
+    retiringProjection: { kind: "direct-transition" },
+    authorization: "identity-renamed",
+    result: {
+      kind: "rename",
+      targetSlug: "historical-target",
+      artifactDigest: canonicalDigest("historical-result"),
+    },
+  }));
+  return { canonicalPath, legacyPath, recordBytes };
+}
+
 function validate(changes: StagedPathChange[], record = canonicalize(receipt), headRecord: Uint8Array | null = null) {
   return validateDecomposeCommitGate({
     changes,
@@ -444,6 +474,47 @@ describe("validateDecomposeCommitGate", () => {
       readIndexBytes: (path) => path === canonicalPath ? recordBytes : null,
       readHeadBytes: (path) => path === legacyPath ? recordBytes : null,
     })).toEqual([]);
+  });
+
+  it("admits a canonical import copied exactly from reachable legacy history", () => {
+    const { canonicalPath, legacyPath, recordBytes } = historicalRenameReceipt();
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "A", path: canonicalPath }],
+      readIndexBytes: (path) => path === canonicalPath ? recordBytes : null,
+      readHeadBytes: () => null,
+      readHistoricalLegacyBytes: (path) => path === legacyPath ? [recordBytes] : [],
+    })).toEqual([]);
+  });
+
+  it("rejects a canonical import when reachable legacy history has different bytes", () => {
+    const { canonicalPath, legacyPath, recordBytes } = historicalRenameReceipt();
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "A", path: canonicalPath }],
+      readIndexBytes: (path) => path === canonicalPath ? recordBytes : null,
+      readHeadBytes: () => null,
+      readHistoricalLegacyBytes: (path) => path === legacyPath ? [bytes("different")] : [],
+    })).toContainEqual(expect.stringMatching(/historical.*identical bytes/iu));
+  });
+
+  it("rejects a malformed canonical import even when legacy history matches it", () => {
+    const { canonicalPath, legacyPath } = historicalRenameReceipt();
+    const malformed = bytes("{}");
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "A", path: canonicalPath }],
+      readIndexBytes: (path) => path === canonicalPath ? malformed : null,
+      readHeadBytes: () => null,
+      readHistoricalLegacyBytes: (path) => path === legacyPath ? [malformed] : [],
+    })).toContainEqual(expect.stringMatching(/historical.*deterministic identity/iu));
+  });
+
+  it("does not treat an unreachable rename receipt as a historical import", () => {
+    const { canonicalPath, recordBytes } = historicalRenameReceipt();
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "A", path: canonicalPath }],
+      readIndexBytes: (path) => path === canonicalPath ? recordBytes : null,
+      readHeadBytes: () => null,
+      readHistoricalLegacyBytes: () => [],
+    })).toContainEqual(expect.stringMatching(/target lifecycle metadata/iu));
   });
 
   it("rejects writes into the legacy namespace and divergent migration bytes", () => {

@@ -476,44 +476,49 @@ substrate behaves consistently across verbs, worktrees, and user state.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Full typecheck, TypeScript/Markdown/shell lint, build, and 8,335 tests passed; one intentionally
+  skipped.
+- _Success criteria:_ 12 criteria met; two-pass adversarial verification converged after two confirmed historical
+  retirement-record migration findings were fixed and revalidated.
 
 ## Success Criteria
 
-- `[ ]` Every transform inventory includes linked-worktree and remote-only records when reachable, records a
+- `[x]` Every transform inventory includes linked-worktree and remote-only records when reachable, records a
   degraded read without refusing solely because the remote is unavailable, and grants filesystem authority only
   to an exactly agreeing current-tree candidate; rename specifically delegates a failed origin refresh to composed
   degradation, while remote-only/divergent subjects refuse. A schema-v2 decompose preparation preserves the exact
   prepare-time read through process restart and finalization.
-- `[ ]` New retirement records write only under `.arc/system/.internal/retirement-receipts/`; migrated and
+- `[x]` New retirement records write only under `.arc/system/.internal/retirement-receipts/`; migrated and
   historical v1 evidence remains valid, an in-flight legacy v1 preparation relocates and finalizes without identity
   or transition-patch drift, the tracked tree contains no root-level `.arc/.internal/`, only legacy removals pass
   commit validation, and any malformed or symlinked reachable record fails subject queries as global
   `namespace-corrupt`.
-- `[ ]` Dependent-owned reconciliation applies replace, retarget, and drop dispositions at write ceremonies;
+- `[x]` Dependent-owned reconciliation applies replace, retarget, and drop dispositions at write ceremonies;
   unique acyclic rename chains resolve to their final live or terminal disposition, mapped
   degraded/v1-unknown evidence remains actionable with provenance, session entry is detect-only for tracked state,
   integration fails closed on conflict, and no foreign branch is mutated.
-- `[ ]` A `cohortless` cut parses and scaffolds flat sibling WU skeletons with dependency-only relationships,
+- `[x]` A `cohortless` cut parses and scaffolds flat sibling WU skeletons with dependency-only relationships,
   canonical `Cohort: [none]` metas, and no cohort directory, document, or draft header.
-- `[ ]` Retirement transforms perform no destructive cleanup before landing; once authoritative, session entry
+- `[x]` Retirement transforms perform no destructive cleanup before landing; once authoritative, session entry
   offers ordinary receipt-backed teardown, closes the per-WU workspace through that cleanup, and surfaces
   CLI-derived successor readiness without auto-starting or choosing among multiple candidates. Extraction carries
   a discriminated `not-applicable` authority/cleanup arm with no synthetic receipt fields.
-- `[ ]` Spawned rename from inside the subject worktree never moves the live checkout and produces an exact,
+- `[x]` Spawned rename from inside the subject worktree never moves the live checkout and produces an exact,
   validated outside-worktree pending-move remedy that is mutually exclusive with terminal husk state.
-- `[ ]` ROADMAP regeneration runs from the complete staged transition through the existing index renderer, excludes
+- `[x]` ROADMAP regeneration runs from the complete staged transition through the existing index renderer, excludes
   a retiring identity even while its old branch or remote ref remains live, and ignores divergent worktree content.
-- `[ ]` Current-WU tracked references discover reachable retirement transitions without requiring a `Depends On`
+- `[x]` Current-WU tracked references discover reachable retirement transitions without requiring a `Depends On`
   edge, compose only a unique acyclic rename chain, expose structured edits and advisory hits through the shared
   `arc wu reconcile` plan, guard and stage the complete current-WU path set, rewrite the closed basename/H1
   registry including `research-*` / `analysis-*`, and keep unknown companions, ambiguous prose,
   decomposed-origin references, slug-token near-misses, historical content, and adopter-facing content out of
   automatic rewrites.
-- `[ ]` Only exact managed `USER-INBOX` Work Unit `WU_Target` fields reconcile automatically from
+- `[x]` Only exact managed `USER-INBOX` Work Unit `WU_Target` fields reconcile automatically from
   protection-aware-base rename evidence; suffixes are preserved, sibling workspaces remain untouched, and the
   disk-only repair advances neither the canonical notes ref nor the materialized baseline.
-- `[ ]` Abandon publishes a dependent drop, park inherits shared read/regen behavior without incoming-edge work, and
+- `[x]` Abandon publishes a dependent drop, park inherits shared read/regen behavior without incoming-edge work, and
   all existing decomposition placements/shapes retain their behavior.
-- `[ ]` All quality gates pass (tests, linting, type checking, and build).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking, and build).
+- `[x]` Ready for integration.

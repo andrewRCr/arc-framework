@@ -52,10 +52,11 @@ export async function enumerateGitRetirementRecords(
 
   const { stdout } = await exec("git", [
     "log",
+    "--full-history",
     "--format=%H",
     ref,
     "--",
-    LEGACY_RETIREMENT_RECORD_NAMESPACE,
+    `:(literal)${LEGACY_RETIREMENT_RECORD_NAMESPACE}`,
   ]);
   const commits = stdout.split("\n").map((value) => value.trim()).filter(Boolean);
   for (const commit of commits) {
