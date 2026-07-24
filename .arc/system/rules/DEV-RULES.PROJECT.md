@@ -28,12 +28,17 @@ For ARC methodology rules (commit discipline, task execution, session management
 **Tiered approach** — T1 per-task, T2 per-unit, T3 pre-PR. See [Quality Gates Strategy][quality-gates].
 
 1. **Markdown Linting**: Zero violations
-    - Command: `npm run -s lint:md`
-    - Exact staged candidate: `npm run -s lint:md:staged` (normally run by pre-commit)
-    - Auto-fix: `npm run -s lint:md:fix`
-    - Table alignment (`MD060`): `lint:md:fix` does **not** realign table columns — use
-      `npm run format:tables -- <file> [<file> ...]`. The command requires explicit tracked Markdown paths and
-      applies source-first Framework projection without rewriting surrounding prose.
+    - **Authoritative gate (pre-commit):** `npm run -s lint:md:staged` — certifies the **git index** (what will
+      commit), not the worktree. Same rule config as the worktree run (`.markdownlint-cli2.jsonc`); the false-
+      green trap is **index vs worktree bytes**, not a second rule set. After every fix, **re-stage** before
+      re-running — otherwise findings target already-corrected worktree lines and look spurious.
+    - Worktree check: `npm run -s lint:md` — mid-edit composition over worktree files. On a clean lint it also
+      **fails closed** when any staged Markdown-gate path still differs in the worktree (so a green worktree
+      run cannot hide a dirty index). Still not a substitute for `lint:md:staged` before commit when you want
+      the full index certification (deps + checker alignment).
+    - Auto-fix: `npm run -s lint:md:fix` clears many rules (including MD049 emphasis-style) but **not**
+      MD060 table alignment — use `npm run format:tables -- <file> [<file> ...]` (explicit tracked paths;
+      source-first Framework projection; does not rewrite surrounding prose).
     - Config: `.markdownlint-cli2.jsonc`
 
 2. **Code Linting**: Zero violations
