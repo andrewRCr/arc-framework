@@ -167,48 +167,31 @@ head is born locked while planning-only changes retain their existing lane.
 - _Outcome:_ Both lanes converge on one per-SHA context without sharing authority: trusted base code classifies and
   stamps planning changes, while reviewed changes remain locked until the explicit lifecycle-ready unlock path.
 
-### `[ ]` **2.4 Add the opt-in merge-guard setup path**
+### `[x]` **2.4 Add the opt-in merge-guard setup path**
 
 - _Goal:_ A team can idempotently install or verify the guard without changing default installation behavior or
   replacing existing protection settings.
 
-    - `[ ]` **2.4.a Ship a drop-in clearance workflow with trusted CLI acquisition**
+    - `[x]` **2.4.a Ship a drop-in clearance workflow with trusted CLI acquisition**
 
-        - Add `arc-clearance.yml` to the packaged `reference/templates/arc/merge-gate/` recipe and install
-          inventory. Keep its workflow, dispatch, environment, and status identities fixed.
-        - Make the installed template execute an exact `@arc-framework/cli` package version rendered from the
-          project's framework manifest, never a dist-tag, PR-head package, or repository-local build.
-        - Keep this repository's `.github/workflows/arc-clearance.yml` source-pinned for pre-release dogfooding;
-          both forms check out the PR head only as data and share the same readiness and status-publication
-          contract.
+        - Added the inventoried clearance template with fixed protocol identities, exact manifest-version package
+          acquisition, detached PR data checkout, and the same readiness/exact-head publication contract as the
+          source-pinned repository workflow.
 
-    - `[ ]` **2.4.b Author, project, and offer the supplemental setup path**
+    - `[x]` **2.4.b Author, project, and offer the supplemental setup path**
 
-        - Add `setup-arc-clearance.md` beside `setup-merge-gate.md` in the package source, following its
-          detect-before-mutate and guided-manual-fallback shape, then project it to `.arc/`.
-        - Require the framework manifest version to match the executing `arc --version`, render or reconcile the
-          packaged workflow at `.github/workflows/arc-clearance.yml`, and stop before protection mutation until the
-          workflow is present on the default branch.
-        - Provision or verify the secretless `arc-clearance` environment with default-branch deployment policy and
-          no required reviewer, then add `arc-cleared` without replacing the CI rollup, CODEOWNERS, or other
-          branch-protection requirements. Keep the protocol names fixed; add no new configuration axes.
-        - Extend both copies of
-          `01_verify-and-configure.md` § Optional with independently selectable frontline sources, standard
-          sources, and merge-guard choices.
-        - State the default-off behavior and prerequisites in executing-session prose; do not embed internal rollout
-          history or movable planning references in shipped content.
+        - Added and projected the detect-first setup workflow, including version agreement, default-branch
+          prerequisite, secretless environment constraints, additive protection update, and guided manual fallback.
+          Initial setup now presents frontline, standard-review, planning-lane, and ARC guard choices independently.
 
-    - `[ ]` **2.4.c Verify idempotency and default-install neutrality**
+    - `[x]` **2.4.c Verify idempotency and default-install neutrality**
 
-        - Extend workflow/configuration integration tests to prove a second setup run detects the workflow,
-          environment policy, and context; missing admin authority yields a guided path; and an untouched
-          installation gains no required context.
-        - Prove a manifest/CLI version mismatch blocks rendering, the installed template names an exact package
-          version, and neither acquisition form executes PR-head code or policy.
-        - Exercise partial setup: workflow present without a required context remains harmless, while a required
-          context without the workflow stays blocked at final required-check settlement.
-        - Verify package projection and packaged-file inventories include the setup workflow and clearance template
-          with no repository-specific branch-protection mutation.
+        - Integration coverage proves exact package acquisition, PR-data isolation, inventory/projection,
+          detect-before-mutate idempotency, default-off selection, harmless workflow-only state, blocked inverse
+          partial state, additive protection, and the missing-admin fallback.
+
+- _Outcome:_ The guard is a reversible opt-in: installation adds only inert recipe material, and activation cannot
+  require `arc-cleared` until the exact-version workflow and constrained secretless environment are live.
 
 ## **Phase 3:** Lifecycle review driver
 

@@ -951,4 +951,63 @@ describe("trusted review-gate workflows", () => {
     expect(jobValue(ci, "ci_ok").name).toBe("ci-ok");
     expect(jobValue(ci, "merge-ok").name).toBe("merge-ok");
   });
+
+  it("ships an installable clearance workflow pinned to the installed framework version", async () => {
+    const templatePath = "packages/arc-framework/arc/reference/templates/arc/merge-gate/arc-clearance.yml";
+    const setupPath = "packages/arc-framework/arc/system/workflows/arc/supplemental/setup-arc-clearance.md";
+    const [template, setup, recipe] = await Promise.all([
+      readRepositoryFile(templatePath),
+      readRepositoryFile(setupPath),
+      readRepositoryFile("packages/arc-framework/init-recipe.json"),
+    ]);
+    const inventory = JSON.parse(recipe) as { include_files: string[] };
+
+    expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/arc-clearance.yml");
+    expect(inventory.include_files).toContain("system/workflows/arc/supplemental/setup-arc-clearance.md");
+    expect(template).toContain("@arc-framework/cli@{{ARC_FRAMEWORK_VERSION}}");
+    expect(template).toContain("npm exec --yes --package=");
+    expect(template).not.toMatch(/@(?:latest|next|beta)|node_modules\/.bin|packages\/arc-framework\/src/u);
+    expect(template).toContain("path: _arc_pr_data");
+    expect(template).not.toMatch(/working-directory: _arc_pr_data|(?:bash|node|npm|npx|tsx)\s+_arc_pr_data\//u);
+    expect(setup).toContain(".arc/system/.internal/manifest.json");
+    expect(setup).toContain("arc --version");
+    expect(setup).toContain("{{ARC_FRAMEWORK_VERSION}}");
+  });
+
+  it("keeps clearance setup additive, idempotent, and fail-closed at protection settlement", async () => {
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/workflows/arc/supplemental/setup-arc-clearance.md",
+      ),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/setup-arc-clearance.md"),
+    ]);
+    expect(project).toBe(packaged);
+    expect(packaged).toMatch(/detect current state[\s\S]*workflow[\s\S]*environment[\s\S]*required context/iu);
+    expect(packaged).toMatch(/workflow is present on the (?:live )?default\s+branch/iu);
+    expect(packaged).toContain("stop before changing required checks");
+    expect(packaged).toContain("arc-clearance");
+    expect(packaged).toContain("protected_branches");
+    expect(packaged).toContain("custom_branch_policies");
+    expect(packaged).toContain("reviewers");
+    expect(packaged).toContain("total_count");
+    expect(packaged).toContain('["arc-cleared"]');
+    expect(packaged).toMatch(/add[\s\S]*without replacing/iu);
+    expect(packaged).toMatch(/missing admin[\s\S]*guided-manual fallback/iu);
+    expect(packaged).not.toMatch(/PATCH[\s\S]*branches\/.*\/protection(?!\/required_status_checks\/contexts)/u);
+  });
+
+  it("offers review-source and merge-guard setup as independent default-off choices", async () => {
+    const paths = [
+      "packages/arc-framework/arc/system/workflows/arc/initial-setup/01_verify-and-configure.md",
+      ".arc/system/workflows/arc/initial-setup/01_verify-and-configure.md",
+    ];
+    const [packaged, project] = await Promise.all(paths.map((path) => readRepositoryFile(path)));
+    expect(project).toBe(packaged);
+    expect(packaged).toContain("Optional: Choose Review Sources and Merge Guards");
+    expect(packaged).toContain("Frontline sources");
+    expect(packaged).toContain("Standard-review sources");
+    expect(packaged).toContain("ARC merge guard");
+    expect(packaged).toMatch(/independently[\s\S]*default off/iu);
+    expect(packaged).toContain("setup-arc-clearance.md");
+  });
 });

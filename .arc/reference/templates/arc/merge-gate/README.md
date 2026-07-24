@@ -16,6 +16,10 @@ their own primitives; only this recipe is GitHub-specific.
 - **The `merge-ok` gate** — a _snippet_, below, NOT a drop-in file. It must be **merged into the workflow that
   runs your required CI jobs**, because GitHub `needs:` only reaches jobs in the same workflow. Dropping it in
   as a second standalone workflow would roll up nothing and leave your real CI ungated — see § Why a snippet.
+- **`arc-clearance.yml`** — an opt-in exact-head merge guard rendered by the
+  [Set Up ARC Clearance workflow][clearance-setup]. It runs the exact ARC package version recorded in the
+  installation manifest, treats pull-request content only as data, and publishes `arc-cleared` through a
+  secretless environment.
 
 ## The `merge-ok` gate (merge into your CI workflow)
 
@@ -109,3 +113,4 @@ owner approval. The [Set Up the Auto-Merge Gate workflow][setup-workflow] walks 
 
 [doctrine]: ../../../strategies/arc/strategy-work-organization.md#auto-merge-lane
 [setup-workflow]: ../../../../system/workflows/arc/supplemental/setup-merge-gate.md
+[clearance-setup]: ../../../../system/workflows/arc/supplemental/setup-arc-clearance.md

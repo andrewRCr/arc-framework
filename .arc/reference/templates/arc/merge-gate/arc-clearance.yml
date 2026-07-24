@@ -1,0 +1,142 @@
+name: ARC Clearance
+
+on:
+  repository_dispatch:
+    types: [arc-clearance]
+
+permissions: {}
+
+jobs:
+  validate:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    outputs:
+      head_sha: ${{ steps.target.outputs.head_sha }}
+      readiness_json: ${{ steps.readiness.outputs.readiness_json }}
+    steps:
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '24'
+      - id: target
+        name: Bind dispatch to the live pull-request head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAYLOAD_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PAYLOAD_PR: ${{ github.event.client_payload.pull_request }}
+          PAYLOAD_HEAD: ${{ github.event.client_payload.head_sha }}
+          PAYLOAD_VEHICLE_KIND: ${{ github.event.client_payload.vehicle_kind }}
+          PAYLOAD_SLUG: ${{ github.event.client_payload.slug }}
+          PAYLOAD_ARCHIVE_CADENCE: ${{ github.event.client_payload.archive_cadence }}
+        run: |
+          test "$PAYLOAD_REPOSITORY" = "$GITHUB_REPOSITORY"
+          [[ "$PAYLOAD_PR" =~ ^[1-9][0-9]*$ ]]
+          [[ "$PAYLOAD_HEAD" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$PAYLOAD_SLUG" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]
+          case "$PAYLOAD_VEHICLE_KIND" in
+            work-unit)
+              case "$PAYLOAD_ARCHIVE_CADENCE" in
+                with-integration|manual) ;;
+                *) exit 1 ;;
+              esac
+              vehicle_json="$(jq -cn \
+                --arg slug "$PAYLOAD_SLUG" \
+                --arg archiveCadence "$PAYLOAD_ARCHIVE_CADENCE" \
+                '{kind:"work-unit",slug:$slug,archiveCadence:$archiveCadence}')"
+              ;;
+            errand)
+              test -z "$PAYLOAD_ARCHIVE_CADENCE"
+              vehicle_json="$(jq -cn --arg slug "$PAYLOAD_SLUG" '{kind:"errand",slug:$slug}')"
+              ;;
+            *) exit 1 ;;
+          esac
+          pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PAYLOAD_PR")"
+          test "$(jq -r .state <<<"$pull_request")" = open
+          test "$(jq -r .base.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r .head.sha <<<"$pull_request")" = "$PAYLOAD_HEAD"
+          head_branch="$(jq -r .head.ref <<<"$pull_request")"
+          test -n "$head_branch"
+          {
+            echo "head_sha=$PAYLOAD_HEAD"
+            echo "head_branch=$head_branch"
+            echo "vehicle_json=$vehicle_json"
+          } >>"$GITHUB_OUTPUT"
+      - id: data-checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          ref: ${{ steps.target.outputs.head_sha }}
+          path: _arc_pr_data
+          persist-credentials: false
+      - id: readiness
+        name: Validate lifecycle readiness with the pinned ARC package
+        env:
+          TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
+          TARGET_PR: ${{ github.event.client_payload.pull_request }}
+          TARGET_HEAD: ${{ steps.target.outputs.head_sha }}
+          TARGET_BRANCH: ${{ steps.target.outputs.head_branch }}
+          VEHICLE_JSON: ${{ steps.target.outputs.vehicle_json }}
+          npm_config_audit: 'false'
+          npm_config_ignore_scripts: 'true'
+        run: |
+          tree_root="$(realpath "$GITHUB_WORKSPACE/_arc_pr_data")"
+          request="$(mktemp)"
+          jq -n \
+            --arg treeRoot "$tree_root" \
+            --arg repository "$TARGET_REPOSITORY" \
+            --argjson pullRequest "$TARGET_PR" \
+            --arg headSha "$TARGET_HEAD" \
+            --arg headBranch "$TARGET_BRANCH" \
+            --argjson vehicle "$VEHICLE_JSON" \
+            '{
+              schemaVersion:1,
+              treeRoot:$treeRoot,
+              target:{repository:$repository,pullRequest:$pullRequest,headSha:$headSha},
+              pullRequest:{
+                repository:$repository,
+                number:$pullRequest,
+                state:"open",
+                headBranch:$headBranch,
+                headSha:$headSha
+              },
+              vehicle:$vehicle
+            }' >"$request"
+          result="$(npm exec --yes --package=@arc-framework/cli@{{ARC_FRAMEWORK_VERSION}} -- \
+            arc review readiness "$request")"
+          test "${#result}" -le 16384
+          test "$(jq -r .state <<<"$result")" = ready
+          test "$(jq -r .payload.target.headSha <<<"$result")" = "$TARGET_HEAD"
+          echo "readiness_json=$result" >>"$GITHUB_OUTPUT"
+
+  write-status:
+    needs: validate
+    if: ${{ needs.validate.result == 'success' }}
+    environment: arc-clearance
+    permissions:
+      pull-requests: read
+      statuses: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish exact-head ARC clearance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pull_request }}
+          STATUS_CONTEXT: arc-cleared
+          VALIDATED_HEAD: ${{ needs.validate.outputs.head_sha }}
+          READINESS_JSON: ${{ needs.validate.outputs.readiness_json }}
+        run: |
+          test "${#READINESS_JSON}" -le 16384
+          test "$(jq -r .state <<<"$READINESS_JSON")" = ready
+          test "$(jq -r .payload.target.repository <<<"$READINESS_JSON")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r .payload.target.pullRequest <<<"$READINESS_JSON")" = "$PR_NUMBER"
+          test "$(jq -r .payload.target.headSha <<<"$READINESS_JSON")" = "$VALIDATED_HEAD"
+          pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          test "$(jq -r .state <<<"$pull_request")" = open
+          test "$(jq -r .base.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"
+          live_head="$(jq -r .head.sha <<<"$pull_request")"
+          test "$live_head" = "$VALIDATED_HEAD"
+          target="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$VALIDATED_HEAD" \
+            -f state=success -f context="$STATUS_CONTEXT" \
+            -f description='ARC cleared this exact head for merge' -f target_url="$target"

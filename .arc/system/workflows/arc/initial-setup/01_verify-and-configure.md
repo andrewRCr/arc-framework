@@ -206,24 +206,23 @@ Install discipline:
 - Rollback by restoring the timestamped backup, or by removing only the ARC recipe entries. For
   Codex, remove `[features].hooks` only if this install created that key.
 
-### Optional: Set Up the Auto-Merge Gate
+### Optional: Choose Review Sources and Merge Guards
 
-**Applies only under `branch.protection: full`** (reviewed in § Configuration Walkthrough). Skip under partial
-protection — there a planning-path Errand is already a direct base-branch commit with no merge-wait, so the
-lane buys nothing.
+These choices are independently selectable and default off. Configure only the lanes the project can support:
 
-Under full protection every change ships through a branch and PR, including the planning/backlog grooming that
-makes up most Errands. The auto-merge gate lets those low-risk planning PRs merge unattended once checks pass,
-while constitutional docs (rules, ADRs, strategies) and code still require review. See
-[strategy-work-organization § Auto-Merge Lane][work-org-auto-merge] for the doctrine.
+- **Frontline sources** — set the ordered `review.frontline_sources` list for optional pre-publication review.
+  Each developer may add local sources with `git config --add arc.frontlineSources <source-id>`.
+- **Standard-review sources** — set the ordered `review.standard_sources` list for ordinary review. Hosted
+  sources require their provider and repository integration to be available.
+- **Planning auto-merge lane** — under `branch.protection: full`, run the
+  [Set Up the Auto-Merge Gate workflow][setup-merge-gate] to add `merge-ok`, planning-path CODEOWNERS, and native
+  auto-merge. Skip under partial protection. See [Auto-Merge Lane][work-org-auto-merge].
+- **ARC merge guard** — on GitHub with full branch protection and repository admin access, run
+  [Set Up ARC Clearance][setup-arc-clearance] to install the exact-version workflow, secretless environment, and
+  additive `arc-cleared` required context. The workflow must land on the default branch before the context is
+  required.
 
-It is GitHub-flavored (driven via `gh`) and a repo-level, one-time setup. Three options:
-
-- **Set up now** — run the [Set Up the Auto-Merge Gate workflow][setup-merge-gate]: it drops in the `merge-ok`
-  status job and a planning-paths CODEOWNERS, requires the `merge-ok` check in branch protection, and enables
-  native auto-merge. Idempotent and safe to re-run.
-- **Defer** — run that workflow whenever ready; it works post-init or later.
-- **Skip entirely** — the lane is optional; the framework doesn't gate it out.
+For each choice: set up now, defer until its prerequisites are available, or leave it disabled.
 
 ### Optional: Verify Installation
 
@@ -318,6 +317,21 @@ Then ask the user to review/trust the hook definitions in the harness UI. Roll b
 the backup, or by removing only the ARC recipe entries. For Codex, remove `[features].hooks` only
 if this install created that key.
 
+### Optional: Choose Review Sources and Merge Guards
+
+These repository choices remain independently selectable and default off:
+
+- **Frontline sources** — review the ordered `review.frontline_sources` list and any developer-local
+  `arc.frontlineSources` additions.
+- **Standard-review sources** — review the ordered `review.standard_sources` list and confirm each provider is
+  available.
+- **Planning auto-merge lane** — under full protection, run [Set Up the Auto-Merge Gate][setup-merge-gate].
+- **ARC merge guard** — on GitHub with full protection and admin access, run
+  [Set Up ARC Clearance][setup-arc-clearance]. Its workflow must already be present on the default branch before
+  `arc-cleared` becomes required.
+
+Set up, defer, or leave disabled for each choice without coupling it to the others.
+
 ### Optional: Verify Installation
 
 Run `/arc-verify` to confirm that the installation is complete and consistent.
@@ -337,3 +351,4 @@ skip [02_define-project.md](02_define-project.md) unless documents need updating
 [setup-workflow]: ../supplemental/setup-release-wrapper.md
 [work-org-auto-merge]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
 [setup-merge-gate]: ../supplemental/setup-merge-gate.md
+[setup-arc-clearance]: ../supplemental/setup-arc-clearance.md
