@@ -550,6 +550,8 @@ describe("review reduction command: frontline", () => {
       payload: {
         frontlineFollowUp: {
           action: "follow-up-after-fix",
+          pass: 2,
+          maxPasses: 2,
           nextCommand: "frontline-resolve",
         },
       },

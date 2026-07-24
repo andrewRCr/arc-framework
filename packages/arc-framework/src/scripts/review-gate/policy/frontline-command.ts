@@ -17,7 +17,16 @@ export const FrontlineCommandRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   changeSet: z.unknown(),
   invocation: FrontlineInvocationOverrideSchema,
+  pass: z.union([z.literal(1), z.literal(2)]).optional(),
   maxPasses: z.union([z.literal(1), z.literal(2)]).optional(),
+}).superRefine((request, context) => {
+  if (request.pass === 2 && request.maxPasses !== 2) {
+    context.addIssue({
+      code: "custom",
+      message: "frontline pass 2 requires a two-pass allowance",
+      path: ["pass"],
+    });
+  }
 });
 export type FrontlineCommandRequest = z.infer<typeof FrontlineCommandRequestSchema>;
 
@@ -28,7 +37,7 @@ export interface FrontlineCommandResult {
   payload: {
     routing: Pick<ReviewRoutingResolution, "facts" | "decision">;
     frontlineReview: FrontlineSemanticRecord;
-    pass?: 1;
+    pass?: 1 | 2;
     maxPasses?: 1 | 2;
   };
   state: "skipped" | "offered" | "ready";
@@ -87,7 +96,7 @@ export async function resolveFrontlineCommand(
       state: "skipped",
       nextAction: "none",
       payload,
-    }) as FrontlineCommandResult;
+    });
   }
   if (semantic.frontlineReview.action === "offer") {
     return FrontlineResolveEnvelopeSchema.parse({
@@ -95,7 +104,7 @@ export async function resolveFrontlineCommand(
       state: "offered",
       nextAction: semantic.frontlineReview.source === null ? "bind-source" : "obtain-authorization",
       payload,
-    }) as FrontlineCommandResult;
+    });
   }
   return FrontlineResolveEnvelopeSchema.parse({
     ...base,
@@ -103,8 +112,8 @@ export async function resolveFrontlineCommand(
     nextAction: "run-frontline",
     payload: {
       ...payload,
-      pass: 1,
+      pass: parsed.pass ?? 1,
       maxPasses: semantic.frontlineReview.maxPasses,
     },
-  }) as FrontlineCommandResult;
+  });
 }

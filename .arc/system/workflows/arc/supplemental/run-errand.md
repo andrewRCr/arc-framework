@@ -174,7 +174,9 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    Dispatch `respond` by its typed pair: on `awaiting-approval / obtain-approval`, follow the approval step above; on
    `ready-to-fix / apply-fix`, apply only the approved fix set, run Tier 1 quality gates, commit through the applicable
    interlock, push through the Errand push contract, then recompose the exact target and restart the selected review
-   lane; on `settled / reduce` or `already-settled / reduce`, invoke `arc review reduce -`; on
+   lane. For a frontline source, restart only when `frontlineFollowUp.action` is `follow-up-after-fix`, carrying its
+   exact `pass` and `maxPasses` into the new `frontline resolve` request; a `stop` advice ends that advisory lane. On
+   `settled / reduce` or `already-settled / reduce`, invoke `arc review reduce -`; on
    `stale-target / prepare-current-target`, recompose the exact target and restart the selected review lane. Dispatch
    `reduce` the same way: route
    `findings / respond` through [`review-response`][review-response] and `respond`; continue on `settled / none` or

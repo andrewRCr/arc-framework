@@ -97,6 +97,7 @@ describe("frontline follow-up policy", () => {
     })).toEqual({
       action: "follow-up-after-fix",
       pass: 2,
+      maxPasses: 2,
       nextCommand: "frontline-resolve",
     });
   });

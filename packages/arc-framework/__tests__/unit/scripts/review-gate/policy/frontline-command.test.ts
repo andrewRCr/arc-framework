@@ -61,6 +61,57 @@ describe("frontline workflow command", () => {
     });
   });
 
+  it("carries an authorized caller-side follow-up pass into the ready resolution", async () => {
+    const registry = new FrontlineSourceRegistry([{
+      sourceId: "review-command",
+      descriptor: { kind: "command", executable: "reviewer", argv: ["--mode", "frontline"] },
+    }]);
+
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" },
+      pass: 2,
+      maxPasses: 2,
+    }, { preferences: preferences(), registry })).resolves.toMatchObject({
+      state: "ready",
+      nextAction: "run-frontline",
+      payload: {
+        pass: 2,
+        maxPasses: 2,
+      },
+    });
+  });
+
+  it("rejects a follow-up pass when the caller allows only one pass", async () => {
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" },
+      pass: 2,
+      maxPasses: 1,
+    }, {
+      preferences: preferences(),
+      registry: new FrontlineSourceRegistry([{
+        sourceId: "review-command",
+        descriptor: { kind: "command", executable: "reviewer", argv: [] },
+      }]),
+    })).rejects.toThrow("frontline pass 2 requires a two-pass allowance");
+
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" },
+      pass: 2,
+    }, {
+      preferences: preferences(),
+      registry: new FrontlineSourceRegistry([{
+        sourceId: "review-command",
+        descriptor: { kind: "command", executable: "reviewer", argv: [] },
+      }]),
+    })).rejects.toThrow("frontline pass 2 requires a two-pass allowance");
+  });
+
   it("projects skipped and both offered actions from the resolved semantic state", async () => {
     const registry = new FrontlineSourceRegistry([{
       sourceId: "review-command",

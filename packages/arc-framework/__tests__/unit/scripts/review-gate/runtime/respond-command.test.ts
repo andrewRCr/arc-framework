@@ -445,6 +445,7 @@ describe("review response command", () => {
         frontlineFollowUp: {
           action: "follow-up-after-fix",
           pass: 2,
+          maxPasses: 2,
           nextCommand: "frontline-resolve",
         },
       },

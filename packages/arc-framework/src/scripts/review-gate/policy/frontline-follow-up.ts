@@ -15,6 +15,7 @@ export const FrontlineFollowUpAdviceSchema = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("follow-up-after-fix"),
     pass: z.literal(2),
+    maxPasses: z.literal(2),
     nextCommand: z.literal("frontline-resolve"),
   }),
   z.strictObject({
@@ -57,7 +58,12 @@ export function projectFrontlineFollowUpAdvice(input: {
     item.disposition === "fix" && (item.severity === "major" || item.severity === "blocker"));
   if (!materialFix) return { action: "stop", reason: "no-approved-material-fix" };
   if (outcome.pass >= outcome.maxPasses) return { action: "stop", reason: "pass-cap-exhausted" };
-  return { action: "follow-up-after-fix", pass: 2, nextCommand: "frontline-resolve" };
+  return {
+    action: "follow-up-after-fix",
+    pass: 2,
+    maxPasses: 2,
+    nextCommand: "frontline-resolve",
+  };
 }
 
 /**
