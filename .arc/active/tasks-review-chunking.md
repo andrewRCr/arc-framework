@@ -306,28 +306,32 @@ the comparison; it tests whether recursive leaf chunks and hierarchical seams re
   summary-only aggregation without recreating the monolith. Exact manifests are mandatory and the process remains
   expensive, but the preserved SHA-bound packet can serve as advisory input to the target's later code review.
 
-### `[ ]` **5.3 Validate the doc-heavy analog and seam review**
+### `[x]` **5.3 Validate the doc-heavy analog and seam review**
 
 - _Goal:_ Chunking preserves reference coherence and cross-chunk maintainability on prose-heavy work as well as
   code-shaped work.
 
-    - `[ ]` **5.3.a Exercise the document-reference analog**
-        - On the maintained doc-heavy portion or a separate fixed maintained prose target outside `docs/`, draw
-          scopes that keep term, method, heading, and artifact definitions with their consumers.
-        - Verify that no raw undefined/dangling finding was manufactured solely by a definition living in another
-          chunk.
+    - `[x]` **5.3.a Exercise the document-reference analog**
+        - Used SLM's exact 52-file M1 maintained-methodology closure outside `docs/`, keeping mirrored workflows,
+          skills, reference material, recipe, CI, and parity tests together under root D's operation seam.
+        - M1 completed all 354 hunks with two substantive contract findings and no false undefined/dangling result
+          caused by a cross-chunk definition, heading, method, or artifact.
 
-    - `[ ]` **5.3.b Validate the seam reviews at focused attention**
-        - Confirm both arms followed the same pre-seam snapshot protocol, then check the treatment's cross-chunk
-          interface use plus duplication, inconsistent abstraction, and naming drift without re-reading every chunk
-          body as one diluted whole diff.
-        - Record substantive seam findings and their source-grounded disposition separately from local chunk
-          findings.
+    - `[x]` **5.3.b Validate the seam reviews at focused attention**
+        - Confirmed both paired arms preserved three bounded snapshots before an isolated arm-specific seam and fresh
+          aggregate over the same exact 97-file/672-hunk target.
+        - Preserved the baseline's two seam findings and treatment's shared-capability finding separately, then
+          source-adjudicated and deduplicated the treatment result into TA-5 without a diluted whole-diff reread.
 
-    - `[ ]` **5.3.c Close the evidence record**
-        - Confirm complete hunk coverage, both arm-specific seam reviews, the doc-heavy result, and the
-          controlled-evaluator paired result are all represented in `analysis-review-chunking.md`.
-        - Keep the evidence explicitly directional and avoid claiming statistical proof or automated enforcement.
+    - `[x]` **5.3.c Close the evidence record**
+        - Closed `analysis-review-chunking.md` over exact coverage, both paired seam series, the accepted
+          inconclusive comparison, the doc-heavy analog, and the separately classified SLM scalability packet.
+        - Kept every result directional and advisory without claiming statistical proof, automated enforcement,
+          review-obligation authority, or target-mutation authority.
+
+- _Outcome:_ Complete coverage and focused seam review held across the paired mixed target and the maintained
+  methodology analog. Cohesive boundaries avoided manufactured dangling-reference findings while still surfacing
+  substantive cross-chunk runtime, verification, and distribution defects.
 
 ## **Phase 6:** Verification
 

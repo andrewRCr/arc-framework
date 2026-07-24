@@ -3040,3 +3040,35 @@ verdict without restoring monolithic attention.
 This is a mechanics result, not a claim that the method is cheap or self-enforcing. M1, the root-D seam, and the top
 seam were slow; semantic labels plus totals failed to bind W1; and the CodeRabbit carrier could not include an
 untracked projection file under `--uncommitted`. The reusable packet remains advisory and immutable-target-bound.
+
+### Doc-heavy analog and evidence closure
+
+The SLM hierarchy supplied the maintained doc-heavy analog without another target or evaluator pass. M1 owned the
+52-file, 2,965-line, 354-hunk maintained-methodology closure outside `docs/`: package and project workflow/skill
+copies, quick reference, installation recipe, CI, and the parity tests that consume those claims. Its exact manifest
+kept mirrored definitions and their direct verification together; root D owned the remaining operation-to-
+methodology and distribution seams.
+
+M1 completed every rubric dimension without partiality, overload, or malformed scope. Its two upheld findings were
+real contract mismatches—the documented fallback contradicted reader-owned authority, and the quick reference
+advertised an unsupported CLI option. It emitted no undefined or dangling-reference candidate. Root D then found
+the distinct fresh-install skill-membership gap and globally deduplicated its partial-settlement observation against
+E2. Primary source adjudication found no false undefined/dangling result caused solely by a definition, heading,
+method, or artifact living in another chunk. The analog therefore meets the maintained-prose criterion while also
+showing that cohesive doc review can find substantive runtime and distribution mismatches.
+
+The paired comparison's two arms followed the same pre-seam protocol:
+
+- Each exact map covered all 97 files, 8,971 changed lines, and 672 hunks without overlap or omission.
+- Each arm preserved three fresh bounded scope reports before launching its fresh arm-specific seam.
+- Each seam report was preserved before primary classification or the fresh non-author aggregate.
+- The baseline seam surfaced direct no-input bypasses and the inventory's missing command-reachability proof.
+- The treatment seam surfaced the shared capability-attribution defect and was deduplicated into TA-5 rather than
+  counted again.
+- Both seam passes considered cross-chunk contracts plus duplication, abstraction/naming coherence, and repository
+  contract alignment without rereading the three scope bodies as one whole diff.
+
+The evidence record is now closed: it contains exact-union proof, both paired-arm scope/seam/aggregate series, the
+accepted zero/zero **inconclusive** primary result, the maintained doc-heavy analog, and the independently classified
+SLM scalability hierarchy and reusable advisory packet. These are directional first-application results, not
+statistical proof, automated enforcement, review-obligation evidence, or mutation authority.
