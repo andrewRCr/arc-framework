@@ -220,33 +220,25 @@ carrier runs use the same evaluator configuration and identical bounded chunk co
 seam→non-author aggregate protocol; only the boundary map changes. Both arms are evaluation-only and cannot satisfy
 review obligations or authorize target mutation.
 
-### `[ ]` **5.1 Prepare the paired comparison and coverage model**
+### `[x]` **5.1 Prepare the paired comparison and coverage model**
 
 - _Goal:_ The baseline and treatment scopes isolate boundary quality as the changed variable and cover the selected
   change set completely.
 
-- **Additional Context:** `analysis-review-chunking.md` § First-run field evidence
+    - `[x]` **5.1.a Select one held-out oversized change set**
+        - Fixed `session-locus-model` at an immutable 325-file / 1,412-hunk `ReviewTarget`, recorded both trees and
+          the canonical patch digest, and confirmed that both configured attention dimensions trip.
 
-    - `[ ]` **5.1.a Select one held-out oversized change set**
-        - Choose a target not used to author the doctrine and validate/record its canonical `ReviewTarget`, including
-          `targetId`, `diffBaseSha`, `headSha`, changed-hunk set, content mix, and why it warrants bounded review.
-        - Keep the target fixed across both arms; a moved head invalidates the setup and requires regeneration.
+    - `[x]` **5.1.b Draw comparable baseline and treatment scopes**
+        - Recorded six naive path scopes and six contract-cohesive scopes with complete per-scope file, line, and
+          hunk metrics, one fixed evaluator configuration, and explicit external/pre-existing treatment.
 
-    - `[ ]` **5.1.b Draw comparable baseline and treatment scopes**
-        - Seed both arms from the same commit/path evidence and keep chunk count and size reasonably comparable.
-        - Draw baseline scopes naively by path; adjust treatment scopes for consumer→declaration dependency closure
-          and test cohesion, explicitly annotating only truly external/pre-existing referents.
-        - Start the paired-comparison section in `analysis-review-chunking.md` with the canonical target, hunk
-          inventory, both partition maps, per-chunk line/file/hunk metrics, and evaluator configuration.
+    - `[x]` **5.1.c Verify union coverage and define the identical arm protocol**
+        - Proved exact non-overlapping union totals for both maps, assigned their seam surfaces, and fixed the
+          bounded context→raw snapshot→seam→non-author aggregate protocol.
 
-    - `[ ]` **5.1.c Verify union coverage and define the identical arm protocol**
-        - Compute `change-set − union(chunks)` for both arms and close or surface every uncovered hunk.
-        - Identify each arm's cross-chunk contracts, shared abstractions, naming, and duplication surface for its
-          seam review.
-        - Fix the protocol for both arms: a separate fresh bounded context reviews each chunk, another bounded
-          context reviews the arm's seam, each captures structured raw findings before triage or aggregation, and a
-          fresh non-author aggregate context consumes the partition/coverage facts plus structured reports to emit
-          one whole-target result.
+- _Outcome:_ The two arms vary only their boundary map over one immutable target; both cover all 325 files, 42,448
+  changed lines, and 1,412 hunks with six scopes plus a dedicated seam.
 
 ### `[ ]` **5.2 Run and record the controlled-evaluator comparison**
 
