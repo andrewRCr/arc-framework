@@ -36,21 +36,23 @@ const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const RepositorySchema = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u);
 const ShaSchema = z.string().regex(/^[a-f0-9]{40}$/u);
 
-const ReviewTargetSchema = z.strictObject({
+export const ReviewTargetSchema = z.strictObject({
   repository: RepositorySchema,
   pullRequest: z.number().int().positive(),
   headSha: ShaSchema,
-}).readonly();
+});
 
-const LivePullRequestSchema = z.strictObject({
+export const LivePullRequestSchema = z.strictObject({
   repository: RepositorySchema,
   number: z.number().int().positive(),
   state: z.enum(["open", "closed"]),
   headBranch: z.string().min(1),
   headSha: ShaSchema,
-}).readonly();
+});
 
-const ReviewVehicleSchema = z.discriminatedUnion("kind", [
+export const ReviewTreeRootSchema = z.string().min(1).refine(isAbsolute, "treeRoot must be absolute");
+
+export const ReviewVehicleSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("work-unit"),
     slug: SlugSchema,
@@ -64,7 +66,7 @@ const ReviewVehicleSchema = z.discriminatedUnion("kind", [
 
 export const ReviewReadinessRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
-  treeRoot: z.string().min(1).refine(isAbsolute, "treeRoot must be absolute"),
+  treeRoot: ReviewTreeRootSchema,
   target: ReviewTargetSchema,
   pullRequest: LivePullRequestSchema,
   vehicle: ReviewVehicleSchema,

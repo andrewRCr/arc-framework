@@ -98,23 +98,11 @@ head is born locked while planning-only changes retain their existing lane.
           cohort closeout, Completion Notes, optional Release Notes, and the rendered project-readiness view;
           Errands remain explicitly exempt from WU products.
 
-    - `[ ]` **2.1.b Add exact-head unlock preflight and dispatch**
+    - `[x]` **2.1.b Add exact-head unlock preflight and dispatch**
 
-        - Add `arc review unlock` as strict JSON-in/JSON-out orchestration: resolve the authenticated repository and
-          PR, compare the requested SHA with the live PR head, and inspect the canonical default branch for the
-          pinned `arc-clearance.yml`. An installed workflow proceeds through shared readiness and dispatch; an
-          absent workflow returns typed no-unlock; an unreadable or ambiguous lookup stops.
-        - Treat workflow presence only as action availability. Final PR required-check settlement remains the
-          enforcement authority, so partial setup cannot turn absence into clearance and the command needs neither
-          a new guard config axis nor privileged branch-protection inspection.
-        - Treat the structured combined convergence/release integration approval as the fire-site authorization;
-          the command performs no inference from approval counts, CI green state, or provider output.
-        - Build `test-first` (one behavior at a time):
-            - exact live head, installed default-branch workflow, and ready artifacts dispatch once;
-            - absent workflow returns no-unlock, while unreadable lookup, stale head, closed PR, failed readiness,
-              or malformed repository identity dispatches nothing;
-            - the dispatched payload binds repository, PR number, full head SHA, vehicle, slug, and WU cadence
-              when applicable.
+        - Added strict unlock orchestration over injected repository, PR, default-branch workflow, readiness, and
+          dispatch ports. Only an exact open head with determinate workflow presence and ready products emits the
+          SHA-bound `arc-clearance` payload; absence no-ops and every unreadable, stale, or failed path stops.
 
     - `[ ]` **2.1.c Lock the command contract into CLI and integration coverage**
 
