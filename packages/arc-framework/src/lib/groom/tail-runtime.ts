@@ -3,6 +3,7 @@
 import { createLocusMutationResult } from "../locus/mutation.js";
 import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "../locus/platform-inspectors.js";
 import { acquireSessionAnchor } from "../locus/process-inspector.js";
+import { selectedGenerationMismatch, type SelectedLocusGeneration } from "../locus/selected-generation.js";
 import type { LocusMutationResultV1, LocusRefusalReason } from "../locus/schema/index.js";
 import {
   createGhChangeRequestLifecyclePort,
@@ -20,6 +21,8 @@ import {
 
 export interface SettleGroomRuntimeOptions extends CloseGroomRuntimeOptions {
   readonly action: "finalize" | "abandon";
+  /** Present when a caller already selected and validated one exact generation to settle. */
+  readonly selected?: SelectedLocusGeneration;
 }
 
 /** Settle an open or awaiting grooming generation without widening branch authority. */
@@ -60,6 +63,10 @@ export async function settleGroomAtRuntime(options: SettleGroomRuntimeOptions): 
   const inspector = createPlatformProcessInspector();
   const state = await readGroomRuntimeState(options, anchor, inspector);
   const row = exactGroomRow(state, record);
+  const mismatch = selectedGenerationMismatch(options.selected, row === null
+    ? null
+    : { recordId: row.recordId, leaseId: row.lease?.leaseId ?? null });
+  if (mismatch !== null) return refusal("lease-generation-mismatch", mismatch);
   if (row !== null) {
     if (row.checkoutPath === null) return refusal("checkout-missing", "Grooming checkout path is absent.");
     const dirty = (await options.exec("git", ["status", "--porcelain"], { cwd: row.checkoutPath })).stdout;

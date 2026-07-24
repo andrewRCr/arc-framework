@@ -17,6 +17,7 @@ import { acquireSessionAnchor, type SelectedSessionAnchor } from "../locus/proce
 import { readPrimarySafety } from "../locus/primary-safety.js";
 import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
 import { readLocusState } from "../locus/reader.js";
+import { selectedGenerationMismatch, type SelectedLocusGeneration } from "../locus/selected-generation.js";
 import type { LocusMutationResultV1, LocusRowV1, LocusStateV1 } from "../locus/schema/index.js";
 import {
   createGhChangeRequestLifecyclePort,
@@ -37,6 +38,8 @@ export interface AbandonOrdinaryErrandRuntimeOptions {
   readonly exec: GitExec;
   readonly execInput: GitExecInput;
   readonly clearExecuteBound: (record: OrdinaryErrandRecord) => Promise<AbandonStepResult>;
+  /** Present when a caller already selected and validated one exact generation to abandon. */
+  readonly selected?: SelectedLocusGeneration;
 }
 
 /** Abandon one exact ordinary-v3 identity and any provably dead local residue. */
@@ -105,6 +108,10 @@ async function cleanupResidue(
   const state = await readRuntimeState(options, anchor, inspector, pathFlavor);
   const target = exactResidue(state, record);
   if (target.kind === "refused") return target.result;
+  const mismatch = selectedGenerationMismatch(options.selected, target.row === null
+    ? null
+    : { recordId: target.row.recordId, leaseId: target.row.lease?.leaseId ?? null });
+  if (mismatch !== null) return { kind: "refused", reason: "lease-generation-mismatch", message: mismatch };
   if (target.row === null) return { kind: "idempotent" };
   if (anchor.kind !== "process") {
     return {

@@ -30,7 +30,7 @@ import { acquireSessionAnchor } from "./process-inspector.js";
 import { createNodeProvisioningDependencies } from "./provisioning-runtime.js";
 import type { LocusAnchor, LocusMutationResultV1, LocusRefusalReason, LocusRowV1 } from "./schema/index.js";
 import { deriveTransientAdoptionCandidate } from "./reconciliation.js";
-import { resolveLocusGeneration, type LocusResolveSubject } from "./resolve-driver.js";
+import { resolveLocusGeneration, type LocusResolveDispatch } from "./resolve-driver.js";
 import {
   projectTrustedLocusRow,
   trustedLocusRows,
@@ -52,7 +52,7 @@ export interface LocusCommandRuntimeOptions {
 export interface ResolveLocusRuntimeOptions extends LocusCommandRuntimeOptions {
   readonly recordId: string;
   readonly action: "resume" | "abandon";
-  abandon(subject: LocusResolveSubject, key: string): Promise<LocusMutationResultV1>;
+  abandon(dispatch: LocusResolveDispatch): Promise<LocusMutationResultV1>;
 }
 
 /** Attach the entering process to one trusted managed role selected by the locus reader. */
@@ -321,8 +321,8 @@ export async function resolveLocusAtRuntime(options: ResolveLocusRuntimeOptions)
   return resolveLocusGeneration({
     row, action: options.action, checkoutClean, generationProven,
     dependencies: {
-      run: async (subject, action, key) => action === "abandon"
-        ? options.abandon(subject, key)
+      run: async (dispatch) => dispatch.action === "abandon"
+        ? options.abandon(dispatch)
         : resumeDeadAtRuntime(options, row, anchor, inspector),
     },
   });

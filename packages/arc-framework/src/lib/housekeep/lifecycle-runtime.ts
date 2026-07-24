@@ -28,6 +28,7 @@ import type {
   LocusRowV1,
   LocusStateV1,
 } from "../locus/schema/index.js";
+import { selectedGenerationMismatch, type SelectedLocusGeneration } from "../locus/selected-generation.js";
 import { untrustedRefusalReason } from "../locus/trusted-row.js";
 import { classifyHousekeepChangedPaths } from "./path-policy.js";
 import { exactHousekeepRow, exactPartialHousekeepRow, readHousekeepState } from "./open-runtime.js";
@@ -41,6 +42,12 @@ export interface HousekeepLifecycleRuntimeOptions {
   readonly registeredHarnessDirs: string;
   readonly cwd: string;
   readonly io: UserIOContext & { execInput: GitExecInput };
+}
+
+export interface HousekeepSettleRuntimeOptions extends HousekeepLifecycleRuntimeOptions {
+  readonly action: "finalize" | "abandon";
+  /** Present when a caller already selected and validated one exact generation to settle. */
+  readonly selected?: SelectedLocusGeneration;
 }
 
 /** Preserve one complete sweep and close its exact local occupancy. */
@@ -140,7 +147,7 @@ export async function closeHousekeepAtRuntime(
 
 /** Finalize a merged tail or explicitly abandon an open/closed-unmerged generation. */
 export async function settleHousekeepAtRuntime(
-  options: HousekeepLifecycleRuntimeOptions & { readonly action: "finalize" | "abandon" },
+  options: HousekeepSettleRuntimeOptions,
 ): Promise<LocusMutationResultV1> {
   const operation = options.action === "finalize" ? "housekeep-close" : "housekeep-abandon";
   const recordResult = await readIdentity(options);
@@ -184,6 +191,10 @@ export async function settleHousekeepAtRuntime(
       operation,
     );
   }
+  const mismatch = selectedGenerationMismatch(options.selected, occupancy.kind === "absent"
+    ? null
+    : { recordId: occupancy.value.row.recordId, leaseId: occupancy.value.row.lease?.leaseId ?? null });
+  if (mismatch !== null) return refusal("lease-generation-mismatch", mismatch, operation);
   if (occupancy.kind === "trusted") {
     const { row, checkoutPath } = occupancy.value;
     const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
@@ -215,7 +226,7 @@ export async function settleHousekeepAtRuntime(
 }
 
 async function abandonPartialHousekeep(
-  options: HousekeepLifecycleRuntimeOptions,
+  options: HousekeepSettleRuntimeOptions,
 ): Promise<LocusMutationResultV1> {
   const runtime = await runtimeState(options);
   if (runtime.kind === "refused") return createLocusMutationResult({ ...runtime.result, operation: "housekeep-abandon" });
@@ -227,6 +238,10 @@ async function abandonPartialHousekeep(
       "housekeep-abandon",
     );
   }
+  const mismatch = selectedGenerationMismatch(options.selected, occupancy.kind === "absent"
+    ? null
+    : { recordId: occupancy.value.row.recordId, leaseId: occupancy.value.row.lease?.leaseId ?? null });
+  if (mismatch !== null) return refusal("lease-generation-mismatch", mismatch, "housekeep-abandon");
   if (occupancy.kind === "absent") {
     return success("housekeep-abandon", "idempotent", null, null, "Partial housekeeping generation is already retired.");
   }

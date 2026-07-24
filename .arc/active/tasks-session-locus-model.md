@@ -1316,11 +1316,15 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   cited mechanism, unlike every other finding in this task — verify against source before implementing; it may
   not reproduce, as `S2S1-002` did not.
 
-    - `[ ]` **7.E.c.i Carry the selected generation into abandon dispatch** — L2-F1
-        - `resolveLocusGeneration` validates one selected row, then calls its subject driver with only the subject
-          kind, action, and reusable key; the ordinary lifecycle drivers are invoked by slug or grooming anchor
-          without the selected record, lease, claim, checkout, or proof generation. Key reuse between selection
-          and dispatch can therefore redirect abandonment onto a newer generation instead of refusing the race.
+    - `[x]` **7.E.c.i Carry the selected generation into abandon dispatch** — L2-F1
+        - `resolveLocusGeneration` now dispatches a `LocusResolveDispatch` carrying the record and lease it just
+          validated, not only the reusable key, and each of the three abandon drivers compares that selection
+          against the occupancy it re-derives from its own roster read — refusing `lease-generation-mismatch`
+          rather than proceeding onto a different checkout or a newer lease. Absence counts as mismatch: a caller
+          that named an exact generation cannot be told "already retired" by a driver that found nothing. The
+          comparison is one pure helper (`locus/selected-generation.ts`) called from three sites rather than a
+          capability threaded through every mutator; the direct verbs (`arc errand|housekeep|plan abandon`) pass
+          no selection and are unchanged.
 
     - `[ ]` **7.E.c.ii Stop rollback destroying state it has not proven it owns** — L4-F1, L4-F3
         - `PrimaryCheckoutReceipt` omits the created branch name, so rollback proves only HEAD, derives the target

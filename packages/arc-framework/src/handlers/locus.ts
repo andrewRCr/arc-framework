@@ -95,22 +95,22 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
   try {
     result = await resolveLocusAtRuntime({
       ...common,
-      abandon: async (subject, key) => {
+      abandon: async ({ subject, key, selected }) => {
         if (subject === "housekeep") {
-          return settleHousekeepAtRuntime({ ...common, slug: key, action: "abandon" });
+          return settleHousekeepAtRuntime({ ...common, slug: key, action: "abandon", selected });
         }
         if (subject === "groom") {
           const anchorStub = key.startsWith("groom-") ? key.slice("groom-".length) : key;
           return settleGroomAtRuntime({
             anchorStub, action: "abandon", base: common.base, identity,
             postCreateScript: common.postCreateScript, registeredHarnessDirs: common.registeredHarnessDirs,
-            exec: io.exec, execInput, cwd,
+            exec: io.exec, execInput, cwd, selected,
           });
         }
         return abandonOrdinaryErrandAtRuntime({
           slug: key, protection: "full", base: common.base, identity, identityGlobalUserDir,
           postCreateScript: common.postCreateScript,
-          registeredHarnessDirs: common.registeredHarnessDirs, exec: io.exec, execInput,
+          registeredHarnessDirs: common.registeredHarnessDirs, exec: io.exec, execInput, selected,
           clearExecuteBound: async (record) => {
             if (record.originEntry === null) return { kind: "idempotent" };
             const cleared = await unmarkCurrentInboxEntry({

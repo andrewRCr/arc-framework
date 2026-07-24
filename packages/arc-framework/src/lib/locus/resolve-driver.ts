@@ -1,13 +1,22 @@
 /** Subject-owned dispatch for resolving one exact dead transient locus generation. */
 
 import { createLocusMutationResult } from "./mutation.js";
+import type { SelectedLocusGeneration } from "./selected-generation.js";
 import type { LocusMutationResultV1, LocusRowV1 } from "./schema/index.js";
 
 export type LocusResolveSubject = "errand" | "housekeep" | "groom";
 export type LocusResolveAction = "resume" | "abandon";
 
+/** One subject dispatch carrying the generation this driver validated, not just its reusable key. */
+export interface LocusResolveDispatch {
+  readonly subject: LocusResolveSubject;
+  readonly action: LocusResolveAction;
+  readonly key: string;
+  readonly selected: SelectedLocusGeneration;
+}
+
 export interface LocusResolveDriverDependencies {
-  run(subject: LocusResolveSubject, action: LocusResolveAction, key: string): Promise<LocusMutationResultV1>;
+  run(dispatch: LocusResolveDispatch): Promise<LocusMutationResultV1>;
 }
 
 /** Revalidate safety facts, derive the subject from trusted state, and invoke its lifecycle driver. */
@@ -30,7 +39,12 @@ export async function resolveLocusGeneration(options: {
   }
   const subject = deriveSubject(row);
   if (subject === null) return refusal("role-conflict", "The selected role is not a resolvable transient subject.");
-  const result = await options.dependencies.run(subject, options.action, row.role.subject.key);
+  const result = await options.dependencies.run({
+    subject,
+    action: options.action,
+    key: row.role.subject.key,
+    selected: { recordId: row.recordId, leaseId: row.lease.leaseId },
+  });
   return createLocusMutationResult({ ...result, operation: "locus-resolve" });
 }
 

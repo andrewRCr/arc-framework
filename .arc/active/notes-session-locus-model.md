@@ -199,7 +199,18 @@ type or abstraction, _or_ touching any mutator outside the three abandon drivers
 the values exist on both sides of the seam, and the race is constructible deterministically by replacing the
 record between selection and dispatch, so no failure-injection substrate is needed.
 
-**Open before implementing:** where each driver derives its expected values from is inferred from the dispatch
-signature passing only `key`, not traced to source. If a driver already accepts an externally supplied
-generation, its fix is smaller still; nothing found suggests any needs the comparison built from scratch, which
-is the case that would favor carving instead.
+**Where each driver derives its expected values** — traced to source, and the answer is uniform: none accepted an
+externally supplied generation. Each reads its identity record by slug (`groom-<stub>` for grooming), takes the
+`claimId` from that record, performs its own `readLocusState`, and selects a row by `{subject.kind, key, claimId}`
+— `exactResidue`, `exactHousekeepRow` / `exactPartialHousekeepRow`, `exactGroomRow`. The under-lock checks then
+compare against _that_ row, so each was internally consistent and unbound to the caller. The partial-housekeep arm
+was the weakest: it matches on slug alone, with no claim at all. `recordId` is a digest of the checkout path, so
+the pair `{recordId, leaseId}` pins checkout and generation respectively; comparing the driver's row to the
+caller's selection binds the driver's later locked read transitively, which is why no second under-lock comparison
+was needed.
+
+**Deviation from the fix shape, recorded:** the settled shape said "have each assert." The three assertions were
+byte-identical, so the comparison landed as one pure helper (`locus/selected-generation.ts`) with each driver still
+rendering its own refusal and operation. The tripwire fires on a shared capability _contract_ — an obligation on
+every mutator plus revalidation machinery — which this is not: it introduces no obligation outside the three
+abandon drivers and no new concept beyond "the generation the caller selected."

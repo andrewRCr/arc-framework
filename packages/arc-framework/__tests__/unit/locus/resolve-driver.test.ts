@@ -36,7 +36,10 @@ describe("locus resolve driver", () => {
       const result = await resolveLocusGeneration({
         row: row(subject), action, checkoutClean: true, generationProven: true, dependencies: { run },
       });
-      expect(run).toHaveBeenCalledWith(subject, action, "subject");
+      expect(run).toHaveBeenCalledWith({
+        subject, action, key: "subject",
+        selected: { recordId: `sha256:${"1".repeat(64)}`, leaseId: "3".repeat(32) },
+      });
       expect(result).toMatchObject({ outcome: "idempotent", operation: "locus-resolve" });
     }
   });
