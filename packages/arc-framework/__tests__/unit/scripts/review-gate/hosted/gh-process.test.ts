@@ -32,6 +32,21 @@ function review(state: string) {
   };
 }
 
+function comment(id: number) {
+  return {
+    id: `PRRC_${id}`,
+    databaseId: id,
+    body: `comment ${id}`,
+    url: `https://github.com/owner/repo/pull/42#discussion_r${id}`,
+    path: "src/a.ts",
+    line: id,
+    originalLine: id,
+    commit: { oid: HEAD },
+    pullRequestReview: { id: "PRR_1" },
+    author: { databaseId: 123 },
+  };
+}
+
 describe("hosted GitHub process boundary", () => {
   it("ignores dismissed and pending reviews without rejecting the complete read", async () => {
     const mock = runner([[[review("DISMISSED"), review("PENDING"), review("COMMENTED")]]]);
@@ -92,6 +107,73 @@ describe("hosted GitHub process boundary", () => {
     await expect(port.readThreads(target)).resolves.toMatchObject([{
       comments: [{ actorIdentity: null, id: "1" }],
     }]);
+  });
+
+  it("paginates both review threads and comments without dropping either connection", async () => {
+    const mock = runner([
+      {
+        data: {
+          repository: {
+            pullRequest: {
+              reviewThreads: {
+                nodes: [{
+                  id: "PRRT_1",
+                  isResolved: false,
+                  comments: {
+                    nodes: [comment(1)],
+                    pageInfo: { hasNextPage: true, endCursor: "COMMENTS_1" },
+                  },
+                }],
+                pageInfo: { hasNextPage: true, endCursor: "THREADS_1" },
+              },
+            },
+          },
+        },
+      },
+      {
+        data: {
+          repository: {
+            pullRequest: {
+              reviewThreads: {
+                nodes: [{
+                  id: "PRRT_2",
+                  isResolved: true,
+                  comments: {
+                    nodes: [comment(3)],
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                  },
+                }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
+      },
+      {
+        data: {
+          node: {
+            id: "PRRT_1",
+            comments: {
+              nodes: [comment(2)],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    ]);
+    const port = new GhHostedReviewPort(mock.boundary);
+
+    await expect(port.readThreads(target)).resolves.toMatchObject([
+      { id: "PRRT_1", comments: [{ id: "1" }, { id: "2" }] },
+      { id: "PRRT_2", comments: [{ id: "3" }] },
+    ]);
+    expect(mock.calls[1]?.args).toEqual(expect.arrayContaining(["-F", "threadCursor=THREADS_1"]));
+    expect(mock.calls[2]?.args).toEqual(expect.arrayContaining([
+      "-F",
+      "id=PRRT_1",
+      "-F",
+      "commentCursor=COMMENTS_1",
+    ]));
   });
 
   it("passes caller cancellation into the gh runner", async () => {

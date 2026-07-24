@@ -103,6 +103,25 @@ function pages(text: string, path: string): unknown[] {
   });
 }
 
+function connectionPage(
+  value: unknown,
+  path: string,
+): { nodes: unknown[]; nextCursor: string | null } {
+  const connection = record(value, path);
+  if (!Array.isArray(connection.nodes)) {
+    throw new HostedGitHubReadError("terminal-failure", `${path}.nodes: expected an array`);
+  }
+  const pageInfo = record(connection.pageInfo, `${path}.pageInfo`);
+  if (typeof pageInfo.hasNextPage !== "boolean") {
+    throw new HostedGitHubReadError("terminal-failure", `${path}.pageInfo.hasNextPage: expected a boolean`);
+  }
+  if (!pageInfo.hasNextPage) return { nodes: connection.nodes, nextCursor: null };
+  return {
+    nodes: connection.nodes,
+    nextCursor: string(pageInfo.endCursor, `${path}.pageInfo.endCursor`),
+  };
+}
+
 function apiPath(target: HostedTarget, suffix: string): string {
   return `repos/${target.repository}/${suffix}`;
 }
@@ -273,34 +292,76 @@ export class GhHostedReviewPort implements HostedGitHubPort {
   }
 
   async readThreads(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubThread[]> {
-    const query = `query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100){nodes{id isResolved comments(first:100){nodes{id databaseId body url path line originalLine commit{oid} pullRequestReview{id} author{... on User{databaseId} ... on Bot{databaseId}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}}}`;
+    const commentFields = "id databaseId body url path line originalLine commit{oid} "
+      + "pullRequestReview{id} author{... on User{databaseId} ... on Bot{databaseId}}";
+    const query = `query($owner:String!,$repo:String!,$number:Int!,$threadCursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$threadCursor){nodes{id isResolved comments(first:100){nodes{${commentFields}} pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}`;
+    const commentQuery = `query($id:ID!,$commentCursor:String){node(id:$id){... on PullRequestReviewThread{id comments(first:100,after:$commentCursor){nodes{${commentFields}} pageInfo{hasNextPage endCursor}}}}}`;
     const [owner, repo] = target.repository.split("/");
-    const output = await this.read([
-      "graphql",
-      "--raw-field", `query=${query}`,
-      "-F", `owner=${owner ?? ""}`,
-      "-F", `repo=${repo ?? ""}`,
-      "-F", `number=${target.pullRequest}`,
-    ], options);
-    const data = record(parse(output, "threads"), "threads");
-    const repository = record(record(data.data, "threads.data").repository, "threads.data.repository");
-    const pull = record(repository.pullRequest, "threads.data.repository.pullRequest");
-    const connection = record(pull.reviewThreads, "threads.reviewThreads");
-    const pageInfo = record(connection.pageInfo, "threads.reviewThreads.pageInfo");
-    if (pageInfo.hasNextPage !== false || !Array.isArray(connection.nodes)) {
-      throw new HostedGitHubReadError("terminal-failure", "threads: incomplete or malformed enumeration");
-    }
-    return connection.nodes.map((node, index) => {
-      const thread = record(node, `threads[${index}]`);
-      const comments = record(thread.comments, `threads[${index}].comments`);
-      const commentPage = record(comments.pageInfo, `threads[${index}].comments.pageInfo`);
-      if (commentPage.hasNextPage !== false || !Array.isArray(comments.nodes)) {
-        throw new HostedGitHubReadError("terminal-failure", `threads[${index}].comments: incomplete enumeration`);
+    const threadNodes: unknown[] = [];
+    const seenThreadCursors = new Set<string>();
+    let threadCursor: string | null = null;
+    do {
+      const output = await this.read([
+        "graphql",
+        "--raw-field", `query=${query}`,
+        "-F", `owner=${owner ?? ""}`,
+        "-F", `repo=${repo ?? ""}`,
+        "-F", `number=${target.pullRequest}`,
+        ...(threadCursor === null ? [] : ["-F", `threadCursor=${threadCursor}`]),
+      ], options);
+      const data = record(parse(output, "threads"), "threads");
+      const repository = record(record(data.data, "threads.data").repository, "threads.data.repository");
+      const pull = record(repository.pullRequest, "threads.data.repository.pullRequest");
+      const page = connectionPage(pull.reviewThreads, "threads.reviewThreads");
+      threadNodes.push(...page.nodes);
+      threadCursor = page.nextCursor;
+      if (threadCursor !== null && seenThreadCursors.has(threadCursor)) {
+        throw new HostedGitHubReadError("terminal-failure", "threads: repeated pagination cursor");
       }
-      return {
-        id: string(thread.id, `threads[${index}].id`),
+      if (threadCursor !== null) seenThreadCursors.add(threadCursor);
+    } while (threadCursor !== null);
+
+    const result: HostedGitHubThread[] = [];
+    for (const [index, node] of threadNodes.entries()) {
+      const thread = record(node, `threads[${index}]`);
+      const threadId = string(thread.id, `threads[${index}].id`);
+      const firstCommentPage = connectionPage(thread.comments, `threads[${index}].comments`);
+      const commentNodes = [...firstCommentPage.nodes];
+      const seenCommentCursors = new Set<string>();
+      let commentCursor = firstCommentPage.nextCursor;
+      while (commentCursor !== null) {
+        if (seenCommentCursors.has(commentCursor)) {
+          throw new HostedGitHubReadError(
+            "terminal-failure",
+            `threads[${index}].comments: repeated pagination cursor`,
+          );
+        }
+        seenCommentCursors.add(commentCursor);
+        const output = await this.read([
+          "graphql",
+          "--raw-field", `query=${commentQuery}`,
+          "-F", `id=${threadId}`,
+          "-F", `commentCursor=${commentCursor}`,
+        ], options);
+        const data = record(parse(output, `threads[${index}].comments`), `threads[${index}].comments`);
+        const pagedThread = record(
+          record(data.data, `threads[${index}].comments.data`).node,
+          `threads[${index}].comments.data.node`,
+        );
+        if (pagedThread.id !== threadId) {
+          throw new HostedGitHubReadError(
+            "terminal-failure",
+            `threads[${index}].comments: paged thread identity mismatch`,
+          );
+        }
+        const page = connectionPage(pagedThread.comments, `threads[${index}].comments`);
+        commentNodes.push(...page.nodes);
+        commentCursor = page.nextCursor;
+      }
+      result.push({
+        id: threadId,
         isResolved: thread.isResolved === true,
-        comments: comments.nodes.map((comment, commentIndex) => {
+        comments: commentNodes.map((comment, commentIndex) => {
           const path = `threads[${index}].comments[${commentIndex}]`;
           const item = record(comment, path);
           const rawLine = item.line ?? item.originalLine;
@@ -320,8 +381,9 @@ export class GhHostedReviewPort implements HostedGitHubPort {
             headSha: string(record(item.commit, `${path}.commit`).oid, `${path}.commit.oid`),
           };
         }),
-      };
-    });
+      });
+    }
+    return result;
   }
 
   async readThread(target: HostedTarget, threadId: string) {
