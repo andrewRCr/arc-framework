@@ -12,9 +12,9 @@ by [ADR-027][adr-027] (2026-06-19 amendment below), which leaves ADR-021's work-
 ## Context
 
 [ADR-019][adr-019] reformed the work-unit (WU) lifecycle to a single-branch-per-WU model and separated
-two long-tangled concepts: **work unit** (the wrapper noun — a bounded chunk of work with a branch, a
+two long-tangled concepts: **work unit** (the wrapper noun — a bounded unit of work with a branch, a
 meta file, and one PR) and **atomic** (a work _character_ — single-bounded, indivisible). It did not,
-however, question the assumption underneath both: that _every_ bounded chunk of work is a WU. Under that
+however, question the assumption underneath both: that _every_ bounded unit of work is a WU. Under that
 assumption a branch + PR implies a meta file and a full lifecycle.
 
 Worktree Foundation makes WU isolation and shifting cheap, which sharpens a tension the single-branch

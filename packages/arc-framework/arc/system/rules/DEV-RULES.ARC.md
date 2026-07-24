@@ -184,7 +184,7 @@ changes by task; commit shared documentation (task list updates) last.
 
 ### Task interlock
 
-Each checkbox in the task list is one _review increment_ — a bounded chunk of autonomous execution
+Each checkbox in the task list is one _review increment_ — a bounded unit of autonomous execution
 between human review points. The [Review-Increment Invariant](#review-increment-invariant) applies at
 this default boundary: the increment closes with a structured approval gate before the agent advances or
 commits, and that gate is the task-interlock — stop after reporting completion, surface verification

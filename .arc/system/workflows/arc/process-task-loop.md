@@ -16,7 +16,7 @@ arc:
 
 ## Task Implementation
 
-- **One task at a time:** Each checkbox in the task list is one review increment — a bounded chunk of
+- **One task at a time:** Each checkbox in the task list is one review increment — a bounded unit of
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
   for user approval.
 

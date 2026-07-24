@@ -80,6 +80,8 @@ describe("kernel schema artifact generation", () => {
       "review-applicability",
       "review-applicability-id-preimage",
       "review-assurance-input",
+      "review-chunking-resolve-envelope",
+      "review-chunking-resolve-request",
       "review-command-error-envelope",
       "review-frontline-resolve-envelope",
       "review-frontline-run-envelope",

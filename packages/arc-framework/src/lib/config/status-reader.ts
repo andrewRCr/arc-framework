@@ -47,6 +47,8 @@ const DEFAULTS: ConfigSettings = {
   "review.standard_sources": "[]",
   "review.frontline_max_passes": "2",
   "review.standard_max_passes": "2",
+  "review.chunking_threshold_lines": "0",
+  "review.chunking_threshold_files": "0",
   "pm.mode": "none",
   "team.mode": "false",
   "session.remote_sync": "enabled",

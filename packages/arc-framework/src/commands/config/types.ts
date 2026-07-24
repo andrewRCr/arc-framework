@@ -26,6 +26,8 @@ export interface ConfigSettings {
   "review.standard_sources": string;
   "review.frontline_max_passes": string;
   "review.standard_max_passes": string;
+  "review.chunking_threshold_lines": string;
+  "review.chunking_threshold_files": string;
   "pm.mode": string;
   "team.mode": string;
   "session.remote_sync": string;

@@ -77,6 +77,7 @@
     "system/methods/frontline-review.md",
     "system/methods/standard-review.md",
     "system/methods/implementation-audit.md",
+    "system/methods/review-chunking.md",
     "system/methods/self-review.md",
     "system/methods/issue-triage.md",
     "system/methods/quality-gate-commands.md",

@@ -88,6 +88,7 @@ import {
   handleReviewReadiness,
   handleReviewResolve,
   handleReviewUnlock,
+  handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
   handleReviewHostedAwait,
@@ -893,6 +894,15 @@ hostedCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewHostedSettle(input));
+
+reviewCmd
+  .command("chunking")
+  .description("Exact-target review chunking operations")
+  .command("resolve")
+  .description("Resolve one immutable target's chunking recommendation as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewChunkingResolve(input));
 
 const localReviewCmd = reviewCmd
   .command("local")

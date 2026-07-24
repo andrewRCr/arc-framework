@@ -169,7 +169,7 @@ Scope governance:
 Resolves a long-standing tangle where "atomic" was doing two jobs (item-shape AND tier-shape) and "work unit"
 was getting stretched ("is an atomic WU really a work unit?"):
 
-- **Work unit** — the wrapper noun. Any bounded chunk of work with a branch, status, and PR. Invariant across
+- **Work unit** — the wrapper noun. Any bounded unit of work with a branch, status, and PR. Invariant across
   tiers (atomic / quick / standard from Agile WU Lifecycle).
 - **Atomic** — describes work character. Single-bounded, indivisible, no internal stages. Applies to items
   (capture-tier), tasks (companion-file scope), and WUs (atomic-tier).

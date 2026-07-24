@@ -75,9 +75,9 @@ validate_enum() {
     fi
 }
 
-# Commit-message numeric limits use the same domain as the TypeScript
-# validator: unsigned base-10 safe integers with a key-specific minimum.
-validate_commit_limit() {
+# Numeric settings share the TypeScript command-boundary domain: unsigned
+# base-10 safe integers with a key-specific minimum.
+validate_unsigned_safe_integer() {
     local key="$1"
     local default="$2"
     local minimum="$3"
@@ -126,9 +126,9 @@ validate_enum "hooks.commit_msg" "enabled disabled" "enabled"
 validate_enum "hooks.pre_push" "enabled disabled" "enabled"
 validate_enum "hooks.task_numbering" "error warning off" "error"
 # hooks.code_extensions and hooks.test_patterns are free-form regex patterns — no enum validation
-validate_commit_limit "hooks.subject_max_length" "72" "10"
-validate_commit_limit "hooks.body_max_lines" "100" "1"
-validate_commit_limit "hooks.body_max_line_length" "100" "1"
+validate_unsigned_safe_integer "hooks.subject_max_length" "72" "10"
+validate_unsigned_safe_integer "hooks.body_max_lines" "100" "1"
+validate_unsigned_safe_integer "hooks.body_max_line_length" "100" "1"
 
 # Merge
 validate_enum "merge.strategy" "merge rebase squash" "merge"
@@ -186,6 +186,8 @@ while IFS= read -r frontline_source; do
 done <<EOF
 $frontline_source_lines
 EOF
+validate_unsigned_safe_integer "review.chunking_threshold_lines" "0" "0"
+validate_unsigned_safe_integer "review.chunking_threshold_files" "0" "0"
 
 standard_sources=$(arc_config_get "review.standard_sources" "[]")
 case "$standard_sources" in
@@ -213,8 +215,8 @@ done <<EOF
 $standard_source_lines
 EOF
 
-validate_commit_limit "review.frontline_max_passes" "2" "1"
-validate_commit_limit "review.standard_max_passes" "2" "1"
+validate_unsigned_safe_integer "review.frontline_max_passes" "2" "1"
+validate_unsigned_safe_integer "review.standard_max_passes" "2" "1"
 
 # Sync
 validate_enum "sync.auto_pull" "false true" "false"
@@ -285,7 +287,7 @@ fi
 # Unknown key detection (typo protection)
 # ============================================================================
 
-known_keys="branch.base branch.protection worktree.location_template worktree.post_create worktree.harness_dirs commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.pre_push hooks.task_numbering hooks.skip_extensions hooks.test_patterns hooks.meta_ref_patterns hooks.strict_meta_ref_patterns hooks.subject_max_length hooks.subject_warn_length hooks.body_max_lines hooks.body_max_line_length hooks.contributor_protected_paths platform.type review.frontline_sources review.standard_sources review.frontline_max_passes review.standard_max_passes pm.mode team.mode session.remote_sync session.init_pull.worktree session.init_pull.notes session.init_pull.base session.init_load.notes sync.auto_pull user.notes_push archive.cadence inbox.remind_after_days integration.stale_after_days"
+known_keys="branch.base branch.protection worktree.location_template worktree.post_create worktree.harness_dirs commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.pre_push hooks.task_numbering hooks.skip_extensions hooks.test_patterns hooks.meta_ref_patterns hooks.strict_meta_ref_patterns hooks.subject_max_length hooks.subject_warn_length hooks.body_max_lines hooks.body_max_line_length hooks.contributor_protected_paths platform.type review.frontline_sources review.standard_sources review.frontline_max_passes review.standard_max_passes review.chunking_threshold_lines review.chunking_threshold_files pm.mode team.mode session.remote_sync session.init_pull.worktree session.init_pull.notes session.init_pull.base session.init_load.notes sync.auto_pull user.notes_push archive.cadence inbox.remind_after_days integration.stale_after_days"
 
 for key in $(arc_config_keys); do
     found=false

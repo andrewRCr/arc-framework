@@ -5,7 +5,7 @@ and what it bounds itself to do. Referenced at lifecycle ceremonies as the align
 proposed work: does this serve the stated problem? Does it fall within scope? Does it align with
 project principles?
 
-Work-unit PRDs (one per chunk of work) reference this for context. PROJECT-PRD is the canonical
+Work-unit PRDs (one per work unit) reference this for context. PROJECT-PRD is the canonical
 statement of what this project is; other ARC surfaces handle methodology, domain guidance, and
 decision records.
 

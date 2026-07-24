@@ -52,10 +52,10 @@ multiplies: the transform must become boring, correct machinery before the doctr
 - `retirement-record-relocation` — owns the retirement-record store location; areas 4–5 read that store —
   coordinate on the path, not just transition semantics.
 - `decomposition-doctrine` — the demand driver (more cuts, earlier); soft precedence pairing, no hard edge.
-- `pr-decomposition` — orthogonal axis (review-surface carving vs. concern splitting); keep the cut-map and
+- `review-chunking` — orthogonal axis (review-surface carving vs. concern splitting); keep the cut-map and
   chunk vocabularies distinct.
 - **`assess-cohort-fit` has four pending editors** — this WU (cohort-less verdict), `decomposition-doctrine`
-  (discriminator rebalance), `cohort-cut-coherence` (consistency-on-exit rail), and `pr-decomposition`
+  (discriminator rebalance), `cohort-cut-coherence` (consistency-on-exit rail), and `chunked-delivery`
   (delivery-framing coherency pass). Sequence the method edits at each WU's grooming close so one surface
   doesn't churn four ways.
 

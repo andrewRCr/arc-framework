@@ -68,6 +68,8 @@ function buildSettings(pushInterlock: PushInterlock): ResolvedSettingsResult {
   const settings: ConfigSettings = {
     "inbox.remind_after_days": "1",
     "integration.stale_after_days": "2",
+    "review.chunking_threshold_lines": "0",
+    "review.chunking_threshold_files": "0",
     "branch.base": "main",
     "branch.protection": "partial",
     "worktree.location_template": "../{repo}.{name}",

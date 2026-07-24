@@ -56,6 +56,8 @@ const reviewIdentities = [
   "review-applicability",
   "review-applicability-id-preimage",
   "review-command-error-envelope",
+  "review-chunking-resolve-envelope",
+  "review-chunking-resolve-request",
   "review-frontline-resolve-envelope",
   "review-frontline-run-envelope",
   "review-local-attest-envelope",
