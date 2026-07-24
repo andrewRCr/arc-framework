@@ -1707,3 +1707,279 @@ Primary adjudication upheld W2-F1. The exact call order pairs `deferCheckout: tr
 `attachSession: true`, the reconciler invokes locus binding without first switching branches, and the production
 driver rejects the still-current base branch. The integration fixture replaces precisely that guard with an
 unconditional success. W2 passes reviewability and contributes one distinct finding.
+
+### W1 scope-binding retry
+
+The first W1 invocation received only the semantic ownership label and expected totals. Those inputs admitted many
+different 27-file subsets with the same metrics, so the evaluator spent 116,456 tokens attempting to reconstruct an
+ownership set that the prompt did not uniquely identify. It was interrupted and classified as
+`malformedScope: true`; it contributes no review-completeness evidence or findings.
+
+The ordered ownership map was then materialized as an explicit rename-aware path manifest. Primary reproduction
+confirmed 27 logical files, 2,547 insertions, 221 deletions, 2,768 changed lines, and 193 hunks before a fresh
+evaluator received it. This is a protocol correction, not a redraw of the tested chunk: semantic ownership remains
+the design input, while an invocation receives its exact derived manifest.
+
+### W1 leaf evidence
+
+The corrected fresh W1 evaluator reproduced the exact manifest and completed every owned hunk and rubric dimension
+without overload or malformed scope:
+
+```yaml
+scope: W1
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 27, insertions: 2547, deletions: 221, changedLines: 2768, zeroContextHunks: 193}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: W1-F1
+    title: An interrupted rename cannot recover the old path-keyed locus record
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/commands/rename.ts — lines 282-299;
+      packages/arc-framework/src/lib/work-unit/rename-locus.ts — lines 148-155
+    evidence: >
+      After a physical move lands, already-moved supplies the destination as both source and target. Re-entry reads
+      the destination-keyed record instead of the still-existing source-keyed record and settles as absent.
+    impact: >
+      A resumable partial rename can leave the live checkout unmanaged and retain a stale old-path role.
+    correctionBoundary: >
+      Preserve or reconstruct both coordinates for already-moved and cover interruption after the worktree move but
+      before target-record minting.
+  - id: W1-F2
+    title: A target-record collision is discovered only after moving the worktree
+    severity: high
+    stableLocus: packages/arc-framework/src/lib/work-unit/rename-locus.ts — lines 183-204
+    evidence: >
+      The physical move runs before target mint. An existing target record makes mint refuse after the checkout has
+      moved while the source record remains unchanged.
+    impact: >
+      A safe record collision becomes split physical and logical state.
+    correctionBoundary: >
+      Validate target absence or idempotence before the move and compensate any post-move persistence failure.
+  - id: W1-F3
+    title: Create-new rollback leaves the newly minted locus role
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/commands/start.ts — lines 805-855 and 875-885;
+      packages/arc-framework/src/lib/work-unit/mutators/reconcile-work-unit-worktree.ts — lines 397-409
+    evidence: >
+      Spawn now reconciles and mints a durable role. A later scaffold failure force-removes the worktree and branch
+      without removing that exact locus generation.
+    impact: >
+      An operation reported rolled back retains a role for a checkout that no longer exists.
+    correctionBoundary: >
+      Retain the role-creation receipt and compensate it by exact generation before worktree removal.
+  - id: W1-F4
+    title: Locus-owned local tombstones can resurrect stale remote metadata
+    severity: medium
+    stableLocus: packages/arc-framework/src/lib/git/in-flight-derivation.ts — lines 320-330 and 952-970
+    evidence: >
+      A local no-meta worktree normally shadows its same-branch remote. The locusOwned early return clears that flag,
+      allowing a remote candidate with stale active meta to survive deduplication.
+    impact: >
+      Archived or terminal work can reappear as in flight.
+    correctionBoundary: >
+      Preserve the local-worktree tombstone for locus-owned suppression and cover a no-meta local plus stale-meta
+      remote twin.
+  - id: W1-F5
+    title: Marker exact-generation replacement and removal are TOCTOU operations
+    severity: medium
+    stableLocus: packages/arc-framework/src/lib/git/worktree-marker.ts — lines 598-643
+    evidence: >
+      Replacement rechecks bytes before a later rename, and removal compares before a later unlink. Another writer
+      can install a new generation between the comparison and pathname mutation.
+    impact: >
+      Concurrent provisioning or promotion can overwrite or delete marker authority it did not observe.
+    correctionBoundary: >
+      Serialize every marker writer under one shared lock or use a genuinely atomic generation primitive; add
+      coordinated concurrent-writer tests.
+withstood:
+  - Linked-worktree creation, setup, WU-specific reconciliation, locus drivers, and receipts remain cohesive.
+  - Path collisions, uncertain leases, dirty teardown, and malformed NUL-delimited topology otherwise fail closed.
+  - Legacy marker/husk compatibility and diagnostic-only transient provenance preserve authority boundaries.
+  - Rename pairs, imports, real-Git moves, path spellings, and normal rekeying are strongly covered.
+verdict: changes-requested
+```
+
+Primary adjudication upheld all five findings from the pinned source. W1 passes reviewability after exact manifest
+binding and supplies useful high-hunk-density evidence; its invalid first attempt additionally demonstrates that
+totals plus semantic prose are not a sufficient evaluator boundary.
+
+### L3 leaf evidence
+
+The fresh L3 evaluator reproduced 12 files, 2,549 changed lines, and 12 hunks exactly, with complete scope and no
+overload or malformed-scope signal:
+
+```yaml
+scope: L3
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 12, insertions: 2549, deletions: 0, changedLines: 2549, zeroContextHunks: 12}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: L3-F1
+    title: A proven ARC shell wrapper can be selected as the durable session anchor
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/lib/locus/process-inspector.ts — lines 68-70;
+      packages/arc-framework/src/lib/locus/platform-inspectors.ts — lines 46-54 and 166-174
+    evidence: >
+      Anchor selection runs before wrapper classification. Linux and BSD label any recognized shell with a
+      controlling TTY as interactive, including a noninteractive bash -lc wrapper that inherits the terminal.
+    impact: >
+      A lease can bind to the short-lived command wrapper and appear dead as soon as the command returns.
+    correctionBoundary: >
+      Classify proven wrappers first or derive genuine shell interactivity; cover a TTY-bearing ARC shell wrapper.
+  - id: L3-F2
+    title: Wrapper recognition crosses ambiguous Node, npm, and npx processes
+    severity: medium
+    stableLocus: packages/arc-framework/src/lib/locus/process-inspector.ts — lines 158-177
+    evidence: >
+      Recognition searches broad command-line text rather than requiring ARC in the executed script or command
+      position, so unrelated processes with later arc tokens can be traversed as trusted wrappers.
+    impact: >
+      Ancestry selection can cross an unrelated boundary and adopt its parent session anchor.
+    correctionBoundary: >
+      Preserve or parse argument boundaries and require ARC at the executable/script or command position.
+  - id: L3-F3
+    title: Evidence errors can throw instead of returning the promised envelope
+    severity: medium
+    stableLocus: packages/arc-framework/src/lib/locus/reader.ts — lines 53-58
+    evidence: >
+      Arbitrary evidence error messages flow directly into a schema requiring nonempty text of at most 4,096
+      characters.
+    impact: >
+      Empty or oversized acquisition errors become ZodError exceptions on the read-only error path.
+    correctionBoundary: >
+      Normalize error text at the reader boundary and cover empty and oversized messages.
+  - id: L3-F4
+    title: Subject projection bypasses the reader I/O concurrency bound
+    severity: medium
+    stableLocus: packages/arc-framework/src/lib/locus/reader.ts — lines 136-155
+    evidence: >
+      projectSubjects launches one asynchronous subject-meta projection per valid record with unbounded Promise.all,
+      despite the evidence reader using a limiter.
+    impact: >
+      A large roster can burst filesystem operations and exhaust descriptors or fail avoidably.
+    correctionBoundary: >
+      Reuse a bounded scheduler for subject projection and test maximum concurrency at high cardinality.
+withstood:
+  - Process execution, inspection, evidence acquisition, projection, and state derivation have clear boundaries.
+  - PID generations, native output, ancestry cycles/depth, and absence-versus-unknown states are handled defensively.
+  - Native commands avoid shell interpolation and pin locale where required.
+  - Tests cover platform adapters, native generations, normal wrapper traversal, malformed evidence, and ordering.
+verdict: changes-requested
+```
+
+Primary adjudication upheld all four findings. The platform adapters visibly equate TTY-bearing shell identity with
+interactivity, wrapper regexes search ambiguous command text, reader error parsing is unguarded, and subject
+projection is unbounded. L3 passes reviewability and contributes four distinct findings.
+
+### L4 leaf evidence
+
+The fresh L4 evaluator reproduced 11 files, 2,463 changed lines, and 11 hunks exactly. It completed every dimension
+without overload or malformed scope and returned six candidates:
+
+```yaml
+scope: L4
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+ownedMetrics: {files: 11, insertions: 2463, deletions: 0, changedLines: 2463, zeroContextHunks: 11}
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: L4-F1
+    title: Rollback can delete an unrelated branch sharing the expected head
+    severity: high
+    stableLocus: packages/arc-framework/src/lib/locus/provisioning-runtime.ts — lines 238-257
+    evidence: >
+      PrimaryCheckoutReceipt omits the created branch name. Rollback proves only HEAD, derives the deletion target
+      from the current branch, and force-deletes it after switching away.
+    impact: >
+      A concurrent checkout of another branch at the same commit can cause destructive deletion of unowned state.
+    correctionBoundary: >
+      Bind the created branch into the receipt and require both branch and head to match before deletion.
+  - id: L4-F2
+    title: Attach can replace a newly live work-unit lease using stale liveness evidence
+    severity: high
+    stableLocus: packages/arc-framework/src/lib/locus/command-runtime.ts — lines 62-84
+    evidence: >
+      Attach reads the current record under lock but validates only record ID, then passes pre-lock row liveness to
+      attachLocusLease without comparing the selected and current lease generations.
+    impact: >
+      Dead-to-live replacement before lock acquisition can authorize overwriting the newer live lease.
+    correctionBoundary: >
+      Compare the selected lease generation under lock or reinspect the current anchor before replacement.
+  - id: L4-F3
+    title: A live or unknown record lock does not prevent checkout destruction
+    severity: high
+    stableLocus: packages/arc-framework/src/lib/locus/provisioning.ts — lines 340-355 and 449-460
+    evidence: >
+      The reviewer claimed lock-live and lock-unknown proceed through spawned rollback.
+    impact: A competing checkout could be removed.
+    correctionBoundary: Preserve the checkout and marker for those refusal reasons.
+  - id: L4-F4
+    title: Spawned provisioning does not revalidate checkout head under the record lock
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/lib/locus/provisioning.ts — lines 92-108 and 223-227;
+      packages/arc-framework/src/lib/locus/provisioning-runtime.ts — lines 116-139
+    evidence: >
+      Initial scan records roster head, but locked revalidation checks only path, branch, detached state, and
+      topology—not the current head.
+    impact: >
+      The receipt can attest to a stale checkout generation and retained-branch pinning can be defeated.
+    correctionBoundary: >
+      Require expected head during locked revalidation or build the receipt from a fresh locked proof.
+  - id: L4-F5
+    title: Post-checkout probe failures leave primary mutations unreconciled
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/lib/locus/provisioning-runtime.ts — lines 224-235;
+      packages/arc-framework/src/lib/locus/provisioning.ts — lines 165-206
+    evidence: >
+      checkout and checkout -b mutate before rev-parse constructs the receipt. If that probe fails, checkout stays
+      null in the caller and rollback is skipped.
+    impact: >
+      An identity-only error can leave the primary checkout switched and a new branch present.
+    correctionBoundary: >
+      Reconcile adapter failures after mutation or expose a partial receipt sufficient for exact rollback.
+  - id: L4-F6
+    title: Marker create-race reread can reject outside the provisioning result contract
+    severity: medium
+    stableLocus: >
+      packages/arc-framework/src/lib/locus/provisioning-marker.ts — lines 53-65;
+      packages/arc-framework/src/lib/locus/provisioning.ts — lines 110-115
+    evidence: >
+      After createMarker returns exists, the second readMarker is outside a catch; provisionSpawned also does not
+      catch establishReadyMarker rejection.
+    impact: >
+      Provisioning can reject instead of returning typed evidence and can leave a created worktree unreconciled.
+    correctionBoundary: >
+      Convert the reread failure into MarkerEstablishmentResult.error and cover the create-exists/read-reject race.
+withstood:
+  - Ports, discriminated results, authority selection, and marker/record helpers remain cohesive.
+  - Expected-byte mutation, retained-head initial checks, role conflict, and incomplete-cleanup evidence mostly hold.
+  - Owned changes stay within provisioning, command runtime, guidance, and machine-local exclusion.
+  - Tests cover normal provisioning, retained branches, rollback, record races, authority mismatch, and replay.
+verdict: changes-requested
+```
+
+Primary classification:
+
+- **L4-F1, F2, F4, F5, and F6 — upheld.** Each claimed race is reachable in the pinned composition and lacks an
+  outer generation guard.
+- **L4-F3 — rejected.** `acquire` returns lock-live and lock-unknown with `identity-only` evidence.
+  `canRollbackSpawnedRecordFailure` requires `marker-record-mismatch`, so those refusals never enter spawned
+  rollback. The reviewer overlooked the earlier evidence-shape guard.
+
+L4 passes reviewability and contributes five distinct findings after source adjudication.
