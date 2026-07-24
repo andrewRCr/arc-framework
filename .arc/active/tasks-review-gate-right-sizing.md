@@ -359,7 +359,7 @@ activation ready for its immediate post-merge Errand.
 - _Outcome:_ Self-hosting now resolves its intended ordered review sources while new installations remain fully
   opt-in.
 
-### `[ ]` **5.2 Abandon the three superseded gate work units and re-cut the backlog**
+### `[x]` **5.2 Abandon the three superseded gate work units and re-cut the backlog**
 
 - _Goal:_ No live planning or architecture authority continues to promise the declined evidence-grade gate; each
   removed lifecycle identity has a finalized receipt, and the backlog and identity-global captures name only work
@@ -375,32 +375,26 @@ activation ready for its immediate post-merge Errand.
         - Verified all three slugs are unoccupied planned stubs with the expected dependency chain and generated
           each safe-default impact plan. No live identity-global capture still targets these slugs.
 
-    - `[ ]` **5.2.c Abandon the three planned stubs and close their capture claims**
+    - `[x]` **5.2.c Abandon the three planned stubs and close their capture claims**
 
-        - Under the bounded authorization from 5.2.b, run `arc abandon <slug> --yes` downstream-first:
-          `review-gate-github-adapter`, `review-gate-enforcement-promotion`, then
-          `review-gate-enforcement-qualification`. Require each invocation to stage a finalized `abandon` receipt;
-          stop on the first refusal or rollback.
-        - Confirm the harvested lifecycle-readiness, add-before-remove, and direct-reply behaviors already live in
-          Phases 1–2, and do not mint a replacement product WU without a real setup-kit consumer.
-        - Remove the three identity-global `USER-INBOX` entries whose `WU_Target` names the abandoned slugs; their
-          grooming concerns dissolve with the program rather than becoming homeless work.
+        - Abandoned the three stubs downstream-first in serialized atomic commits, preserving a finalized discard
+          receipt for each. The clean-index authority guard required each transition to commit before the next;
+          no live identity-global capture targeted the retired slugs.
 
-    - `[ ]` **5.2.d Remove the two residues whose claims just retired**
+    - `[x]` **5.2.d Remove the two residues whose claims just retired**
 
-        - After all three abandon transitions succeed, delete `providers/coderabbit/config.ts` and
-          `runtime/qualification-activation.ts` with their now-subjectless tests, exports, and registrations.
-        - Re-run the production-entry import/schema walk from Task 4.1.d - `tasks-review-gate-right-sizing.md` and
-          confirm the removal neither reaches RSB-owned `core/contract-version-dispatch.ts` /
-          `core/forward-evidence-eligibility.ts` nor reintroduces deleted controller code.
+        - Deleted the two named residues, their four helper-only source modules, and their subject-only tests and
+          registrations. The surviving import/schema graph preserves RSB's landed `core/` removals and reaches no
+          retired controller module.
 
-    - `[ ]` **5.2.e Regenerate and validate the backlog view**
+    - `[x]` **5.2.e Regenerate and validate the backlog view**
 
-        - After staging all three transitions and the now-authorized residue deletion, run
-          `arc status --project --staged > .arc/backlog/ROADMAP.md` and stage the resulting readiness view.
-        - Verify each slug resolves `state: nonexistent`, its finalized receipt remains staged, and no live
-          `Depends On`, owner, cohort, or planning authority claims the removed rung-4 program. Preserve historical
-          mentions in completed artifacts and the superseded ADR.
+        - Regenerated the staged readiness view after the serialized retirement commits and residue deletion. All
+          three slugs resolve nonexistent, their finalized receipts remain committed, and no live dependency,
+          ownership, cohort, capture, or planning authority claims the removed program.
+
+- _Outcome:_ The superseded evidence-gate program now survives only as historical design and finalized retirement
+  authority; its planned identities, claim-bound implementation residue, and live backlog claims are gone.
 
 ### `[ ]` **5.3 Exercise hosted-PR standard review on a live fixture and stage guard activation**
 

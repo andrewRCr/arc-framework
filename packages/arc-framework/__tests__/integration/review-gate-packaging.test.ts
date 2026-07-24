@@ -5,8 +5,6 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { admitSelfHostingGuidanceCarrier } from "../../src/scripts/review-gate/policy/self-hosting/guidance.js";
-
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "../../../..");
 
@@ -18,7 +16,8 @@ describe("review-gate package boundary", () => {
     ]);
 
     expect(claude.trim()).toBe("@AGENTS.md");
-    expect(admitSelfHostingGuidanceCarrier("hosted-codex", agents)).toMatchObject({ admitted: true });
+    expect(agents).toContain("<!-- arc:review-guidance:start -->");
+    expect(agents).toContain("<!-- arc:review-guidance:end -->");
   });
 
   it("ships extension shells without repository controller implementation", async () => {

@@ -21,8 +21,6 @@ const permittedLegacyValidatorFiles = [
   "scripts/review-gate/core/evidence.ts",
   "scripts/review-gate/core/execution.ts",
   "scripts/review-gate/core/receipt-payload.ts",
-  "scripts/review-gate/policy/self-hosting/schema.ts",
-  "scripts/review-gate/providers/coderabbit/config.ts",
 ];
 
 function sourceFiles(root: string): string[] {
