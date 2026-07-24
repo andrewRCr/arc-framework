@@ -543,9 +543,15 @@ export async function runRecoverStatus(
         checkoutPathForIdentity(locusState.value, worktreeIdentitySlot.value),
       )
     : null;
+  // Legacy compatibility is a fallback for state the locus model never recorded,
+  // so it may stand in only from explicitly clean, record-free state. A recovery
+  // or reconciliation verdict is the reader's own authority over this checkout and
+  // outranks it — otherwise a stop becomes a successful legacy frame.
   const legacyLocusEligible = locusState.isOk()
     && worktreeIdentitySlot.isOk()
     && locusState.value.current.kind === "none"
+    && locusState.value.recovery.kind === "none"
+    && locusState.value.reconciliation.kind === "clean"
     && legacyCheckoutSelection?.kind === "none"
     && !locusState.value.roster.rows.some((row) => row.kind === "managed-role" && row.frame === "residue");
   if (legacyLocusEligible && legacyErrand.isOk() && legacyErrand.value !== null) {

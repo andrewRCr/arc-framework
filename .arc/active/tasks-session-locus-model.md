@@ -1227,13 +1227,14 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
               with two idle work-unit roles in the roster, substitution selected a plausible _wrong_ work unit
               rather than failing visibly.
 
-        - `[ ]` **7.E.b.v.2 Require a clean reader verdict before the legacy Errand fallback** — S2S1-001
-            - `legacyLocusEligible` tests `current.kind === "none"`, an absent checkout work-unit role, and the
-              absence of any `frame === "residue"` row — but never `state.recovery.kind` or
-              `state.reconciliation.kind`. `refuseUnresolvedResidue` fails closed on `recovery.kind !== "none"`,
-              so a reader-owned `residue` or `stop` verdict carrying no residue-framed row produces a derivation
-              error that the legacy frame then replaces. Reconciliation is inspected by neither path. Require both
-              verdicts clean before the fallback may stand in.
+        - `[x]` **7.E.b.v.2 Require a clean reader verdict before the legacy Errand fallback** — S2S1-001
+            - `legacyLocusEligible` now also requires `recovery.kind === "none"` and
+              `reconciliation.kind === "clean"`, so legacy compatibility stands in only from the explicitly clean,
+              record-free state it was built for. The pre-existing residue-row test is kept rather than folded
+              into the recovery verdict — it still catches a residue row the verdict does not elevate. The two
+              verdicts fail differently, which the tests preserve: a recovery `stop` or `residue` produces a
+              derivation error the legacy frame was replacing, while an unsettled `reconciliation` derives
+              successfully as frame `none`, so there the defect overrode a real verdict rather than a failure.
 
         - `[ ]` **7.E.b.v.3 Bind the recovery audit to the seed's repository root** — S2S1-004
             - `repoRoot` is required by the seed schema and written by the emitter, then read nowhere:

@@ -163,6 +163,22 @@ function recoveryWorkUnitLocus(): LocusStateV1 {
   };
 }
 
+/** A valid legacy-Errand candidate — the fallback the reader's verdict must outrank. */
+function legacyErrandContext(): RecoveryLocusContext {
+  return {
+    frame: {
+      kind: "legacy-errand",
+      workflow: "run-errand",
+      sessionType: "execution",
+      slug: "legacy",
+      branch: "chore/legacy",
+      returnBranch: "feat/parent",
+    },
+    loadSet: { manifestVersion: 1, entries: [] },
+    taskCursor: null,
+  };
+}
+
 /**
  * Two idle work-unit roles — one at the primary checkout, one at a linked
  * checkout — with no current generation. Which frame recovery derives depends
@@ -1304,6 +1320,54 @@ describe("runRecoverStatus — lean recover envelope", () => {
     expect(result.recoveryFrame).toEqual({
       ok: true,
       value: expect.objectContaining({ kind: "resolved", workflow: "process-task-loop" }),
+    });
+  });
+
+  it("does not let a legacy Errand candidate stand in for a reader-owned recovery stop", async () => {
+    const stopped = locusState();
+    stopped.recovery = { kind: "stop", reasons: ["role-conflict"] };
+    const probes = sessionRecoverProbes({
+      locusState: vi.fn(async () => stopped),
+      legacyErrand: vi.fn(async () => legacyErrandContext()),
+    });
+
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.recoveryFrame.ok).toBe(false);
+  });
+
+  it("does not let a legacy Errand candidate stand in for unresolved recovery residue", async () => {
+    const residue = locusState();
+    residue.recovery = {
+      kind: "residue",
+      recordId: `sha256:${"e".repeat(64)}`,
+      actions: ["resume", "abandon"],
+    };
+    const probes = sessionRecoverProbes({
+      locusState: vi.fn(async () => residue),
+      legacyErrand: vi.fn(async () => legacyErrandContext()),
+    });
+
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.recoveryFrame.ok).toBe(false);
+  });
+
+  it("does not let a legacy Errand candidate fire while reconciliation is unsettled", async () => {
+    const unreconciled = locusState();
+    unreconciled.reconciliation = { kind: "stop", reasons: ["duplicate-locus"] };
+    const probes = sessionRecoverProbes({
+      locusState: vi.fn(async () => unreconciled),
+      legacyErrand: vi.fn(async () => legacyErrandContext()),
+    });
+
+    const result = await runRecoverStatus({ identity: "andrew", role: "maintainer", probes });
+
+    // Derivation succeeds here (frame none) — the defect replaced a real verdict
+    // rather than a failure, so the assertion is on the frame, not on `ok`.
+    expect(result.recoveryFrame).toEqual({
+      ok: true,
+      value: { kind: "none", workflow: null, sessionType: null },
     });
   });
 
