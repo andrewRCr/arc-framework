@@ -118,7 +118,7 @@ export function reduceForwardController(input: ForwardControllerInput): ForwardC
     });
     return {
       projection: withCoverage(
-        successfulProjection(base, `independent analysis: carried to ${target.targetId}`),
+        successfulProjection(base, `standard review: carried to ${target.targetId}`),
         "carry",
         carriedApplicabilityId,
       ),

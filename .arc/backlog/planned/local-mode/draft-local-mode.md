@@ -42,7 +42,7 @@ the substrate, which raises the stakes on getting them right here.
   stored in SHA-keyed git notes. Once this WU retires that substrate, the rule becomes a history-policy choice.
 - _Approach:_ permit safe rewrite as an explicit user/team choice at minimum, reconsider whether pre-integration
   linearization should ever be preferred, and retain supersession detection as the compatibility net. Coordinate
-  with `pr-decomposition`'s settled rebase freedom for stateless review refs.
+  with `chunked-delivery`'s settled rebase freedom for stateless review refs.
 
 ### `[ ]` **Make non-git substitutability an acceptance criterion of the storage abstraction**
 

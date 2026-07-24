@@ -37,7 +37,7 @@ const routing = {
   schemaVersion: 1 as const,
   authorSelfReview: "required" as const,
   frontlineAction: "attempt" as const,
-  independentAnalysis: "required" as const,
+  standardReview: "required" as const,
   retrigger: "full-final" as const,
   assuranceMode: "terminal-aggregate" as const,
   reasons: ["sensitive-change-set" as const],
@@ -50,7 +50,7 @@ function approved(disposition: "fix" | "defer" | "reject" = "fix") {
     semanticsVersion: "review-gate/v2",
     targetId: currentTarget.targetId,
     policyVersion: canonicalDigest({ policy: "review" }),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
     proposedBy: "author-1",
     findings: [{

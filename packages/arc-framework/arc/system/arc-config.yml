@@ -181,10 +181,16 @@ platform.type: github
 
 # --- Review ---
 
-# Default registered source for optional frontline pre-publication review.
-# One safe registry ID only; never a command, executable, or reviewer identity.
-# Empty means unbound. Per-developer override: `git config arc.frontlineSource <source-id>`.
-review.frontline_source:
+# Ordered registered sources for optional frontline pre-publication review.
+# Safe registry IDs only; never commands, executables, or reviewer identities.
+# Empty means unbound. Add developer overrides with `git config --add arc.frontlineSources <source-id>`.
+review.frontline_sources: []
+
+# Exact-target attention tripwires for considering contract-cohesive review chunks.
+# These are not chunk-size caps or review-provider limits. Either dimension can be
+# enabled independently; 0 disables that dimension (both 0 preserves whole-target review).
+review.chunking_threshold_lines: 0
+review.chunking_threshold_files: 0
 
 # --- Project Management ---
 

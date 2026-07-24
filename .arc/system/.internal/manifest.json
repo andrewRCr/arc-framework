@@ -381,7 +381,7 @@
       "layer": "core",
       "pristine_hash": "aad623dd976f79914835d9071bf9a8c13434a864a97ca49c75915a377dc1c8a5"
     },
-    "system/methods/independent-analysis.md": {
+    "system/methods/standard-review.md": {
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "dd9c716bd6b52006e4cde6e48370e3fe523736a064ba42c52f50b37f778a0dbc"
@@ -390,6 +390,11 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "5bb203a33a95a413d71ed18882b0b6d5c44fea96181c5163064ffccbb31ec696"
+    },
+    "system/methods/review-chunking.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "2d260cca2cfa63c9624b594837b8eede39b3fb8f4268977e518e68fd08ea1e44"
     },
     "system/methods/self-review.md": {
       "classification": "Configurable",

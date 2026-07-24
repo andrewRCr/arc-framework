@@ -142,6 +142,18 @@ describe("framework sync (self-hosting drift check)", () => {
     ).toEqual([]);
   });
 
+  it("keeps review chunking thresholds as intentional Configurable project overrides", async () => {
+    const path = "system/arc-config.yml";
+    const packageConfig = await readFile(join(PKG_ARC_DIR, path), "utf-8");
+    const projectConfig = await readFile(join(ARC_DIR, path), "utf-8");
+
+    expect(manifest.files[path]?.classification).toBe("Configurable");
+    expect(packageConfig).toContain("review.chunking_threshold_lines: 0");
+    expect(packageConfig).toContain("review.chunking_threshold_files: 0");
+    expect(projectConfig).toContain("review.chunking_threshold_lines: 5000");
+    expect(projectConfig).toContain("review.chunking_threshold_files: 150");
+  });
+
   it("keeps neutral review customization contracts aligned across both copies", async () => {
     const paths = [
       "system/methods/README.md",
@@ -149,8 +161,9 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/design-audit.md",
       "system/methods/self-review.md",
       "system/methods/frontline-review.md",
-      "system/methods/independent-analysis.md",
+      "system/methods/standard-review.md",
       "system/methods/implementation-audit.md",
+      "system/methods/review-chunking.md",
       "system/methods/review-response.md",
       "system/methods/review-triage.md",
       "system/extensions/README.md",
@@ -166,6 +179,26 @@ describe("framework sync (self-hosting drift check)", () => {
       ]);
       expect(project, `${path} must retain the shipped neutral contract`).toBe(packaged);
     }
+  });
+
+  it("keeps the frontline chunking attachment reference-only and whole-target", async () => {
+    const method = await readFile(join(PKG_ARC_DIR, "system/methods/frontline-review.md"), "utf8");
+    expect(method.match(/review-chunking/gu)?.length).toBeGreaterThanOrEqual(2);
+    expect(method).toContain("canonical target, partition, and coverage state");
+    expect(method).toContain("one aggregate whole-target frontline result");
+    expect(method).not.toContain("per-chunk receipt");
+  });
+
+  it("keeps standard chunking bounded to one exact-target carrier orchestration", async () => {
+    const standard = await readFile(join(PKG_ARC_DIR, "system/methods/standard-review.md"), "utf8");
+    const adversarial = await readFile(join(PKG_ARC_DIR, "system/methods/adversarial-review.md"), "utf8");
+    const guidance = `${standard}\n${adversarial}`;
+
+    expect(standard.match(/review-chunking/gu)?.length).toBeGreaterThanOrEqual(2);
+    expect(standard).toContain("target identity, partition, and coverage state");
+    expect(standard).toContain("one aggregate whole-target standard-review result");
+    expect(adversarial).toContain("bounded chunk-series carrier mode");
+    expect(guidance).not.toMatch(/per-chunk receipt|durable scope identity|review-gate runtime state/iu);
   });
 
   it("declares design proportionality at every direct planning consumer", async () => {

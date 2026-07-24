@@ -296,8 +296,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "commit-format.md",
       "design-audit.md",
       "frontline-review.md",
-      "independent-analysis.md",
+      "standard-review.md",
       "implementation-audit.md",
+      "review-chunking.md",
       "self-review.md",
       "issue-triage.md",
       "quality-gate-commands.md",
@@ -346,8 +347,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
       const methodNames = [
         "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
-        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "independent-analysis",
-        "implementation-audit", "self-review", "design-audit",
+        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
+        "implementation-audit", "review-chunking", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
         "session-state", "spec-review", "task-audit", "test-first",
       ];
@@ -475,6 +476,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "utf-8",
     );
     expect(config).toContain("pm.mode: none");
+    expect(config).toContain("review.chunking_threshold_lines: 0");
+    expect(config).toContain("review.chunking_threshold_files: 0");
   });
 
   it("writes arc-config.yml with solo team mode defaults", async () => {

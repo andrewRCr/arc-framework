@@ -15,9 +15,9 @@ const HEAD = "c".repeat(40);
 function context(): CodeRabbitRunContext {
   return {
     requestIdentity: "request-1",
-    requirementId: "independent-analysis",
+    requirementId: "standard-review",
     policyVersion: "a".repeat(64),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     baseRef: "main",
     diffBaseSha: "b".repeat(40),
     headSha: HEAD,

@@ -18,7 +18,7 @@ const request: ReviewRequest = {
   changeSetId: "a".repeat(64),
   policyVersion: "b".repeat(64),
   semanticsVersion: "review-gate/v1",
-  rubricVersion: "independent-analysis/v1",
+  rubricVersion: "standard-review/v1",
   requirementId: "analysis",
   sourceIdentity: "codex-pr",
   coverage: "full",
@@ -48,8 +48,8 @@ describe("trigger deletion tombstones", () => {
     const receipt = createTriggerDeletionReceipt({ request, deletion, expectedLedgerVersion: 3 });
 
     expect(parseReviewReceipt(receipt)).toEqual(receipt);
-    expect(receipt.idempotencyKey).toBe("e9dea871865af8f6252371e6d3512e9debbdc0668ea343183ba7c1c59851fa38");
-    expect(receipt.receiptHash).toBe("d8f3ef4f88fa0ff5eb362192547d0af1eb7dc58fff29b5a2dbfc64f5185476fb");
+    expect(receipt.idempotencyKey).toBe("0a9e7914ad272457c487f2fec719f697276ffee168e00d21d0b24e6a80ae8307");
+    expect(receipt.receiptHash).toBe("73e30f675e9aba7029513f067a25ec3fbf275bce338eda2c1f608f48b65175d6");
   });
 
   it("accepts a tombstone only after its request reservation", () => {

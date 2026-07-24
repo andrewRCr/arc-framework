@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { computePolicyVersion } from "../../../../../../src/scripts/review-gate/core/identity.js";
-import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../../../../../../src/scripts/review-gate/policy/independent-analysis.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../../../../../src/scripts/review-gate/policy/standard-review.js";
 import {
   deriveAcceptedReviewerClaims,
   parseSelfHostingPolicy,
@@ -24,8 +24,8 @@ describe("self-hosting review policy document", () => {
     expect(byIdentity.get("codex-cli")).toMatchObject({
       channel: "local",
       guidance: {
-        baselineVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
-        baselineDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+        baselineVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+        baselineDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
         projectAugmentationId: "self-hosting-review/v1",
       },
       admissionMode: "checkpoint",

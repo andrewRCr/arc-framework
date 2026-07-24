@@ -243,7 +243,7 @@ describe("trusted-base coverage identity", () => {
       surfaceAuthority: "planning-grooming",
     });
     expect(routing.decision).toMatchObject({
-      independentAnalysis: "required",
+      standardReview: "required",
       retrigger: "full-final",
       assuranceMode: "terminal-aggregate",
       reasons: ["sensitive-change-set"],
@@ -326,7 +326,7 @@ describe("trusted-base coverage identity", () => {
 
     expect(routing.facts.changeSetState).toBe("unknown");
     expect(routing.decision).toMatchObject({
-      independentAnalysis: "required",
+      standardReview: "required",
       retrigger: "full-final",
       reasons: ["unknown-change-set"],
     });

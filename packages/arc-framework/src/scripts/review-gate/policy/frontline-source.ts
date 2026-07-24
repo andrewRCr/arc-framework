@@ -77,8 +77,8 @@ export class FrontlineSourceRegistry {
 
 /** Private developer preference plus tracked project-default reader. */
 export interface FrontlineSourcePreferenceReader {
-  readDeveloperSourceId(): Promise<string | null>;
-  readProjectSourceId(): Promise<string | null>;
+  readDeveloperSourceIds(): Promise<readonly string[]>;
+  readProjectSourceIds(): Promise<readonly string[]>;
 }
 
 export type FrontlineSourceTier = "invocation" | "developer" | "project" | "unbound";
@@ -135,23 +135,24 @@ export async function resolveFrontlineSource(input: {
 
   const diagnostics: FrontlineSourceDiagnostic[] = [];
   const tiers = [
-    ["developer", input.preferences.readDeveloperSourceId.bind(input.preferences)],
-    ["project", input.preferences.readProjectSourceId.bind(input.preferences)],
+    ["developer", input.preferences.readDeveloperSourceIds.bind(input.preferences)],
+    ["project", input.preferences.readProjectSourceIds.bind(input.preferences)],
   ] as const;
   for (const [tier, read] of tiers) {
-    let sourceId: string | null;
+    let sourceIds: readonly string[];
     try {
-      sourceId = await read();
+      sourceIds = await read();
     } catch {
       diagnostics.push({ code: "preference-read-failed", tier });
       continue;
     }
-    if (sourceId === null) continue;
-    const selected = resolveCandidate(sourceId, tier, input.registry);
-    if (selected.source !== null) {
-      return { source: selected.source, sourceTier: tier, diagnostics };
+    for (const sourceId of sourceIds) {
+      const selected = resolveCandidate(sourceId, tier, input.registry);
+      if (selected.source !== null) {
+        return { source: selected.source, sourceTier: tier, diagnostics };
+      }
+      if (selected.diagnostic !== undefined) diagnostics.push(selected.diagnostic);
     }
-    if (selected.diagnostic !== undefined) diagnostics.push(selected.diagnostic);
   }
   return { source: null, sourceTier: "unbound", diagnostics };
 }

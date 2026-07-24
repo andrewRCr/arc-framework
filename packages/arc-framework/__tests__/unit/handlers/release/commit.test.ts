@@ -77,6 +77,8 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
   const settings: ConfigSettings = {
     "inbox.remind_after_days": "1",
     "integration.stale_after_days": "2",
+    "review.chunking_threshold_lines": "0",
+    "review.chunking_threshold_files": "0",
     "branch.base": branchBase,
     "branch.protection": branchProtection,
     "worktree.location_template": "../{repo}.{name}",
@@ -88,7 +90,7 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
     "commit.context_pattern": "",
     "merge.strategy": "merge",
     "platform.type": "github",
-    "review.frontline_source": "",
+    "review.frontline_sources": "[]",
     "pm.mode": "arc-in-git",
     "team.mode": "false",
     "session.remote_sync": "enabled",

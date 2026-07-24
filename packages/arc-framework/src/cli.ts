@@ -86,7 +86,16 @@ import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
-import { handleReviewFrontlineResolve } from "./handlers/review.js";
+import {
+  handleReviewChunkingResolve,
+  handleReviewFrontlineResolve,
+  handleReviewFrontlineRun,
+  handleReviewLocalAttest,
+  handleReviewLocalPrepare,
+  handleReviewLocalResume,
+  handleReviewReduce,
+  handleReviewRespond,
+} from "./handlers/review.js";
 import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
 import {
   handleCheckCommitMessage,
@@ -847,6 +856,61 @@ frontlineCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewFrontlineResolve(input));
+
+frontlineCmd
+  .command("run")
+  .description("Execute one exact-target frontline review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewFrontlineRun(input));
+
+reviewCmd
+  .command("chunking")
+  .description("Exact-target review chunking operations")
+  .command("resolve")
+  .description("Resolve one immutable target's chunking recommendation as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewChunkingResolve(input));
+
+const localReviewCmd = reviewCmd
+  .command("local")
+  .description("Local immutable-source review operations");
+
+localReviewCmd
+  .command("prepare")
+  .description("Derive and prepare one immutable local review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewLocalPrepare(input));
+
+localReviewCmd
+  .command("attest")
+  .description("Attest one normalized local review result as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewLocalAttest(input));
+
+localReviewCmd
+  .command("resume")
+  .description("Resume one durable local review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewLocalResume(input));
+
+reviewCmd
+  .command("respond")
+  .description("Prepare or persist one source-bound review disposition set as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewRespond(input));
+
+reviewCmd
+  .command("reduce")
+  .description("Reduce one durable review operation as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewReduce(input));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

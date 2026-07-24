@@ -4,7 +4,8 @@ description: Fresh-context adversarial review mechanism for planning and verific
 related:
   - frontline-review
   - implementation-audit
-  - independent-analysis
+  - review-chunking
+  - standard-review
 override-active: false
 ---
 
@@ -221,6 +222,21 @@ be able to certify the whole artifact against the rubric.
 why the planning fire-points later wire a post-settle coherence re-read before finalization commit; this method
 states the reason, while the workflow fire-points own the actual re-read step.
 
+### Bounded chunk-series carrier mode
+
+When `review-chunking` invokes the bounded chunk-series carrier mode, the carrier runs fresh bounded contexts
+serially as sequential attention isolation within one logical pass. The carrier keeps a stable evaluator profile and
+complete rubric across every closure chunk and the seam; only the current scope and its explicit external or
+pre-existing annotations vary.
+
+The carrier orchestration owns exact-target identity, partition, and coverage state outside those contexts. Each
+chunk or seam report has no standalone authority. A fresh non-author aggregate context consumes the complete report
+series and coverage facts, inspects targeted source loci as needed, and emits the caller role's one whole-target
+result. Evaluator-call count does not change pass accounting.
+
+This mode is distinct from Novel partitioned fan-out: the series isolates attention across dependent scopes inside
+one review responsibility, rather than assigning orthogonal responsibilities to parallel evaluators.
+
 ### Context provisioning
 
 Context provisioning gives the pass enough design-grounded material to attack the artifact while preserving the
@@ -238,7 +254,7 @@ defines correctness for that stage:
 | generate-tasks finalization | spec + task list                                  |
 | verify-work-unit            | spec + task list + the diff under verification    |
 | frontline review            | exact change target + `implementation-audit` lens |
-| independent analysis        | exact change target + `implementation-audit` lens |
+| standard review             | exact change target + `implementation-audit` lens |
 
 Also include a non-exhaustive key-file pointer list when the stage has known implementation or reference loci.
 Keep the list neutral: "key files, not necessarily complete" is orientation, while "the files I think are

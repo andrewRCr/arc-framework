@@ -95,7 +95,11 @@ describe("CodeRabbit structured frontline parser", () => {
     expect(parse(String(stale?.stdout), {
       expectedHead: String(stale?.expectedHead),
       observedHead: String(stale?.observedHead),
-    })).toEqual({ kind: "stale-head" });
+    })).toEqual({
+      kind: "stale-head",
+      expectedHeadSha: "a".repeat(40),
+      observedHeadSha: "b".repeat(40),
+    });
     expect(parse("", { exitCode: null, signal: "SIGTERM" }))
       .toEqual({ kind: "failed", reason: "process-signal:SIGTERM" });
   });

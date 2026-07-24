@@ -8,8 +8,14 @@ import { registerFixAuthorizationSchemas } from "./fix-authorization-records.js"
 import { registerDispositionRecordSchemas } from "./disposition-records.js";
 import { registerReviewResponseSchemas } from "./response-plan-schema.js";
 import { registerReviewOperationStateSchemas } from "./operation-state-schema.js";
-import { registerIndependentAnalysisProjectionSchema } from "../policy/independent-analysis-projection-schema.js";
-import { registerIndependentAnalysisSchema } from "../policy/independent-analysis-schema.js";
+import { registerLocalReviewSourceSchemas } from "./local-review-source.js";
+import { registerAdvisoryRecordSchemas } from "./advisory-records.js";
+import { registerReviewCommandEnvelopeSchemas } from "./review-command-envelope.js";
+import { registerReviewChunkingCommandSchemas } from "./review-chunking-command-schema.js";
+import { registerFrontlineOutcomeSchema } from "../policy/frontline-outcome.js";
+import { registerLocalReviewPolicySchemas } from "../policy/local-review-policy.js";
+import { registerStandardReviewProjectionSchema } from "../policy/standard-review-projection-schema.js";
+import { registerStandardReviewSchema } from "../policy/standard-review-schema.js";
 import { registerProjectRoutingPromotionSchema } from "../policy/project-promotion-schema.js";
 import { registerReviewAssuranceSchemas } from "../policy/assurance-schema.js";
 import { registerReviewRoutingSchemas } from "../policy/routing-schema.js";
@@ -18,7 +24,7 @@ import { registerForwardLifecycleTailSchema } from "./lifecycle-tail.js";
 import { registerReviewApplicabilitySchemas } from "./applicability.js";
 import { registerForwardReceiptLedgerSchema } from "./forward-receipt-ledger-schema.js";
 import { registerSeverityGatingSchemas } from "./severity-gating.js";
-import { registerReviewReentrySchema } from "./review-reentry-schema.js";
+import { assertReviewDurableRecordInventory } from "./schema-inventory.js";
 
 /** Compose every currently implemented review schema into a fresh kernel registry. */
 export function registerReviewDomainSchemas(registry: KernelRegistry): KernelRegistry {
@@ -31,14 +37,20 @@ export function registerReviewDomainSchemas(registry: KernelRegistry): KernelReg
   registerSeverityGatingSchemas(registry);
   registerReviewResponseSchemas(registry);
   registerReviewOperationStateSchemas(registry);
-  registerReviewReentrySchema(registry);
+  registerLocalReviewSourceSchemas(registry);
+  registerAdvisoryRecordSchemas(registry);
+  registerReviewCommandEnvelopeSchemas(registry);
+  registerReviewChunkingCommandSchemas(registry);
   registerForwardReceiptLedgerSchema(registry);
   registerForwardLifecycleTailSchema(registry);
   registerReviewPrimitiveSchemas(registry);
   registerReviewAssuranceSchemas(registry);
   registerReviewRoutingSchemas(registry);
   registerProjectRoutingPromotionSchema(registry);
-  registerIndependentAnalysisSchema(registry);
-  registerIndependentAnalysisProjectionSchema(registry);
+  registerStandardReviewSchema(registry);
+  registerStandardReviewProjectionSchema(registry);
+  registerLocalReviewPolicySchemas(registry);
+  registerFrontlineOutcomeSchema(registry);
+  assertReviewDurableRecordInventory(registry);
   return registry;
 }

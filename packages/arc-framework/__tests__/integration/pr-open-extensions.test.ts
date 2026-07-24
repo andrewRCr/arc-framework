@@ -95,11 +95,13 @@ describe("PR-open lifecycle extensions", () => {
 
     const frontlineCycle = workflow.slice(resolveFrontline, preOpen);
     expect(frontlineCycle).toContain("review-response");
-    expect(frontlineCycle).toContain("recompose the exact target");
-    expect(frontlineCycle).toContain("bounded follow-up");
-    expect(frontlineCycle).toContain("Reuse only an unchanged exact");
-    expect(frontlineCycle).toContain("Publish pending state before the carrier effect");
-    expect(frontlineCycle).toContain("never enters review receipts or gate reduction");
+    expect(frontlineCycle).toMatch(/recompose\s+the\s+exact target/u);
+    expect(frontlineCycle).toContain("arc review frontline run -");
+    expect(frontlineCycle).toContain("arc review local prepare -");
+    expect(frontlineCycle).toContain("arc review local attest -");
+    expect(frontlineCycle).toContain("arc review local resume -");
+    expect(frontlineCycle).toContain("typed `state` / `nextAction`");
+    expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
     expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("Tier 1 quality gates");
   });
 
@@ -123,9 +125,13 @@ describe("PR-open lifecycle extensions", () => {
     const frontlineCycle = workflow.slice(cycleStart, resolvePr);
     expect(frontlineCycle).toContain("review-response");
     expect(frontlineCycle).toContain("not a routing input");
-    expect(frontlineCycle).toContain("recompose the exact target");
-    expect(frontlineCycle).toContain("Reuse only an unchanged exact");
-    expect(frontlineCycle).toContain("Publish pending state before the carrier effect");
+    expect(frontlineCycle).toMatch(/recompose\s+the\s+exact target/u);
+    expect(frontlineCycle).toContain("arc review frontline run -");
+    expect(frontlineCycle).toContain("arc review local prepare -");
+    expect(frontlineCycle).toContain("arc review local attest -");
+    expect(frontlineCycle).toContain("arc review local resume -");
+    expect(frontlineCycle).toContain("typed `state` / `nextAction`");
+    expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
     expect(workflow.slice(partialProtection)).not.toContain("arc review frontline resolve -");
   });
 
@@ -202,22 +208,61 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
-  it("separates frontline advice from satisfying independent analysis", async () => {
+  it("separates frontline advice from satisfying standard review", async () => {
     for (const base of [packageArc, projectArc]) {
       const frontline = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
-      const independent = await readFile(resolve(base, "system/methods/independent-analysis.md"), "utf8");
+      const independent = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
       expect(frontline).toContain("active: false");
       expect(frontline).toContain("advisory pre-publication");
       expect(frontline).toContain("cannot satisfy");
       expect(frontline).toContain("adversarial-review");
       expect(frontline).toContain("implementation-audit");
-      expect(independent).toContain("independent-analysis/v1");
+      expect(independent).toContain("standard-review/v1");
       expect(independent).toContain("complete exact requested change set");
       expect(independent).toContain("non-author evaluator");
       expect(independent).toContain("all five rubric dimensions");
       expect(independent).toContain("stable locus");
       expect(independent.replace(/\s+/gu, " ")).toContain("typed contract and derived digest");
       expect(`${frontline}\n${independent}`).not.toMatch(/gh pr|GitHub|CodeRabbit|Codex|review\.frontline_source/iu);
+    }
+  });
+
+  it("composes frontline chunking as one bounded advisory pass", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
+      const normalized = method.replace(/\s+/gu, " ");
+      expect(method).toContain("review-chunking");
+      expect(normalized).toContain("one curated-scope-capable local carrier orchestration");
+      expect(normalized).toContain("fresh bounded evaluator context for each closure chunk and the seam");
+      expect(normalized).toContain("complete effective rubric");
+      expect(normalized).toContain("fresh non-author aggregate context");
+      expect(normalized).toContain("does not load every chunk body wholesale");
+      expect(normalized).toContain("counts as one frontline pass");
+      expect(normalized).toContain("no partial chunk or seam report completes the pass");
+      expect(normalized).toContain("make the advisory result satisfying evidence");
+    }
+  });
+
+  it("composes standard review chunking as one complete local-carrier pass", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const standard = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
+      const adversarial = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalizedStandard = standard.replace(/\s+/gu, " ");
+      const normalizedAdversarial = adversarial.replace(/\s+/gu, " ");
+
+      expect(standard).toContain("review-chunking");
+      expect(normalizedStandard).toContain("one curated-scope-capable local carrier orchestration");
+      expect(normalizedStandard).toContain("fresh bounded evaluator context for every closure chunk and the seam");
+      expect(normalizedStandard).toContain("complete effective rubric");
+      expect(normalizedStandard).toContain("fresh non-author aggregate context");
+      expect(normalizedStandard).toContain("one aggregate whole-target standard-review result");
+      expect(normalizedStandard).toContain("Hosted and whole-target-only local carriers are ineligible");
+      expect(normalizedStandard).toContain("counts as one standard-review pass");
+      expect(normalizedStandard).toContain("no partial report or evaluator call can settle the obligation");
+      expect(normalizedAdversarial).toContain("bounded chunk-series carrier mode");
+      expect(normalizedAdversarial).toContain("sequential attention isolation within one logical pass");
+      expect(normalizedAdversarial).toContain("stable evaluator profile and complete rubric");
+      expect(normalizedAdversarial).toContain("no standalone authority");
     }
   });
 
@@ -230,7 +275,7 @@ describe("PR-open lifecycle extensions", () => {
       );
       const selfReview = await readFile(resolve(base, "system/methods/self-review.md"), "utf8");
       const frontline = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
-      const independent = await readFile(resolve(base, "system/methods/independent-analysis.md"), "utf8");
+      const independent = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
       const guidance = `${brief}\n${strategy}\n${selfReview}\n${frontline}\n${independent}`
         .replace(/\s+/gu, " ");
 
@@ -251,7 +296,7 @@ describe("PR-open lifecycle extensions", () => {
 
   it("documents the native reviewer-guidance adapter boundary", async () => {
     for (const base of [packageArc, projectArc]) {
-      const method = await readFile(resolve(base, "system/methods/independent-analysis.md"), "utf8");
+      const method = await readFile(resolve(base, "system/methods/standard-review.md"), "utf8");
       const strategy = await readFile(
         resolve(base, "reference/strategies/arc/strategy-configurability-architecture.md"),
         "utf8",
@@ -277,7 +322,7 @@ describe("PR-open lifecycle extensions", () => {
       expect(normalized).toContain("only an authorized adapter may attest a completed exact target");
       expect(method).toContain("implementation-audit");
       expect(method).toContain("frontline-review");
-      expect(method).toContain("independent-analysis");
+      expect(method).toContain("standard-review");
     }
   });
 
@@ -357,9 +402,9 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
-  it("coordinates source-neutral independent analysis for work units and errands", async () => {
+  it("coordinates source-neutral standard review for work units and errands", async () => {
     const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
-    for (const method of ["adversarial-review", "independent-analysis", "implementation-audit", "review-response"]) {
+    for (const method of ["adversarial-review", "standard-review", "implementation-audit", "review-response"]) {
       expect(workflow).toContain(`- ${method}`);
     }
     expect(workflow).toContain("`local | hosted | both`");
@@ -376,7 +421,8 @@ describe("PR-open lifecycle extensions", () => {
     ]) {
       for (const base of [packageArc, projectArc]) {
         const caller = await readFile(resolve(base, relative), "utf8");
-        expect(caller).toContain("source-neutral independent-analysis cycle");
+        expect(caller).toContain("public `arc review` protocol");
+        expect(caller).toContain("local and frontline transitions only through those commands");
         expect(caller).toContain("`local | hosted | both`");
       }
     }

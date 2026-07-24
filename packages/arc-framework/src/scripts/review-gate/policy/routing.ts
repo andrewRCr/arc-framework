@@ -119,7 +119,7 @@ function reduceReviewRoutingBase(facts: ReviewRoutingFacts): ReviewRoutingDecisi
       schemaVersion: 1,
       authorSelfReview: "required",
       frontlineAction: "attempt",
-      independentAnalysis: "required",
+      standardReview: "required",
       retrigger: "full-final",
       assuranceMode: "none",
       reasons: ["unknown-change-set"],
@@ -131,7 +131,7 @@ function reduceReviewRoutingBase(facts: ReviewRoutingFacts): ReviewRoutingDecisi
       schemaVersion: 1,
       authorSelfReview: "required",
       frontlineAction: "attempt",
-      independentAnalysis: "required",
+      standardReview: "required",
       retrigger: "full-final",
       assuranceMode: "none",
       reasons: ["sensitive-change-set"],
@@ -146,7 +146,7 @@ function reduceReviewRoutingBase(facts: ReviewRoutingFacts): ReviewRoutingDecisi
           schemaVersion: 1,
           authorSelfReview: "recommended",
           frontlineAction: "skip",
-          independentAnalysis: "exempt",
+          standardReview: "exempt",
           retrigger: "none",
           assuranceMode: "none",
           reasons: [
@@ -158,7 +158,7 @@ function reduceReviewRoutingBase(facts: ReviewRoutingFacts): ReviewRoutingDecisi
           schemaVersion: 1,
           authorSelfReview: "recommended",
           frontlineAction: "skip",
-          independentAnalysis: "recommended",
+          standardReview: "recommended",
           retrigger: "incremental",
           assuranceMode: "none",
           reasons: ["reviewed-routine-documentation"],
@@ -170,7 +170,7 @@ function reduceReviewRoutingBase(facts: ReviewRoutingFacts): ReviewRoutingDecisi
         schemaVersion: 1,
         authorSelfReview: "required",
         frontlineAction: "offer",
-        independentAnalysis: "recommended",
+        standardReview: "recommended",
         retrigger: "incremental",
         assuranceMode: "none",
         reasons: ["routine-code", "atomic-determinate", "atomic-softened"],
@@ -179,7 +179,7 @@ function reduceReviewRoutingBase(facts: ReviewRoutingFacts): ReviewRoutingDecisi
         schemaVersion: 1,
         authorSelfReview: "required",
         frontlineAction: "attempt",
-        independentAnalysis: "required",
+        standardReview: "required",
         retrigger: "incremental",
         assuranceMode: "none",
         reasons: ["routine-code"],
@@ -189,7 +189,7 @@ function reduceReviewRoutingBase(facts: ReviewRoutingFacts): ReviewRoutingDecisi
 /** Reduce normalized facts through ordered bases and promote-only ownership/authority effects. */
 export function reduceReviewRouting(facts: ReviewRoutingFacts): ReviewRoutingDecision {
   const base = reduceReviewRoutingBase(facts);
-  let independentAnalysis = base.independentAnalysis;
+  let standardReview = base.standardReview;
   let retrigger = base.retrigger;
   const reasons = [...base.reasons];
   if (facts.changeSetState !== "unknown" && facts.reviewRisk !== "sensitive") {
@@ -201,7 +201,7 @@ export function reduceReviewRouting(facts: ReviewRoutingFacts): ReviewRoutingDec
           ? "unknown-ownership"
           : null;
     if (ownershipReason !== null) {
-      independentAnalysis = promote(independentAnalysis, "required", REVIEW_OBLIGATION_ORDER);
+      standardReview = promote(standardReview, "required", REVIEW_OBLIGATION_ORDER);
       reasons.push(ownershipReason);
     }
 
@@ -213,7 +213,7 @@ export function reduceReviewRouting(facts: ReviewRoutingFacts): ReviewRoutingDec
           ? "unverifiable-derived-surface"
           : null;
     if (authorityReason !== null) {
-      independentAnalysis = promote(independentAnalysis, "required", REVIEW_OBLIGATION_ORDER);
+      standardReview = promote(standardReview, "required", REVIEW_OBLIGATION_ORDER);
       retrigger = promote(retrigger, "full-final", REVIEW_RETRIGGER_ORDER);
       reasons.push(authorityReason);
     }
@@ -221,7 +221,7 @@ export function reduceReviewRouting(facts: ReviewRoutingFacts): ReviewRoutingDec
 
   const promoted = ReviewRoutingDecisionSchema.parse({
     ...base,
-    independentAnalysis,
+    standardReview,
     retrigger,
     reasons,
   });
@@ -238,16 +238,16 @@ function applyProjectPromotion(
   const frontlineAction = promotion.frontlineAction === undefined
     ? decision.frontlineAction
     : promote(decision.frontlineAction, promotion.frontlineAction, FRONTLINE_ACTION_ORDER);
-  let independentAnalysis = promotion.independentAnalysis === undefined
-    ? decision.independentAnalysis
-    : promote(decision.independentAnalysis, promotion.independentAnalysis, REVIEW_OBLIGATION_ORDER);
+  let standardReview = promotion.standardReview === undefined
+    ? decision.standardReview
+    : promote(decision.standardReview, promotion.standardReview, REVIEW_OBLIGATION_ORDER);
   let retrigger = promotion.retrigger === undefined
     ? decision.retrigger
     : promote(decision.retrigger, promotion.retrigger, REVIEW_RETRIGGER_ORDER);
 
-  if (independentAnalysis === "exempt" && retrigger !== "none") {
-    independentAnalysis = "recommended";
-  } else if (independentAnalysis !== "exempt" && retrigger === "none") {
+  if (standardReview === "exempt" && retrigger !== "none") {
+    standardReview = "recommended";
+  } else if (standardReview !== "exempt" && retrigger === "none") {
     retrigger = "incremental";
   }
 
@@ -255,7 +255,7 @@ function applyProjectPromotion(
     ...decision,
     authorSelfReview,
     frontlineAction,
-    independentAnalysis,
+    standardReview,
     retrigger,
     reasons: [...decision.reasons, ...promotion.reasons],
   });

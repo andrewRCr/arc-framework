@@ -11,15 +11,14 @@ const ownerModules = [
   "scripts/review-gate/core/gate-contract-v2-schema.ts",
   "scripts/review-gate/core/review-primitives.ts",
   "scripts/review-gate/policy/assurance-schema.ts",
-  "scripts/review-gate/policy/independent-analysis-projection-schema.ts",
-  "scripts/review-gate/policy/independent-analysis-schema.ts",
+  "scripts/review-gate/policy/standard-review-projection-schema.ts",
+  "scripts/review-gate/policy/standard-review-schema.ts",
   "scripts/review-gate/policy/project-promotion-schema.ts",
   "scripts/review-gate/policy/routing-schema.ts",
 ];
 const permittedLegacyValidatorFiles = [
   "scripts/review-gate/core/attestations.ts",
   "scripts/review-gate/core/commands.ts",
-  "scripts/review-gate/core/contract-version-dispatch.ts",
   "scripts/review-gate/core/contracts.ts",
   "scripts/review-gate/core/evidence.ts",
   "scripts/review-gate/core/execution.ts",

@@ -249,10 +249,10 @@ context — not a work queue for those WUs.
 - `cohort-cut-coherence` — adjacent rail to area 2 (what a cohort absorbs on exit vs. the cohort-less split shape);
   coordinate, don't fold.
 - `decomposition-doctrine` — demand driver (more cuts, earlier); soft precedence pairing, no hard edge.
-- `pr-decomposition` — orthogonal axis (review-surface carving vs. concern splitting); keep cut-map and chunk
+- `review-chunking` — orthogonal axis (review-surface carving vs. concern splitting); keep cut-map and chunk
   vocabularies distinct.
 - **`assess-cohort-fit` has four pending editors** — this WU (cohort-less verdict / `cohortless` value),
-  `decomposition-doctrine`, `cohort-cut-coherence`, `pr-decomposition`. Sequence the method edits at each WU's
+  `decomposition-doctrine`, `cohort-cut-coherence`, `chunked-delivery`. Sequence the method edits at each WU's
   grooming close so one surface doesn't churn four ways.
 - **Integration order** — `review-chunking` ships before this WU integrates; a large candidate here reviews via
   `review-chunking`.

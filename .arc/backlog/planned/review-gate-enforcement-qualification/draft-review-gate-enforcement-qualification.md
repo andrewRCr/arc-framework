@@ -136,7 +136,7 @@
   `retrigger: none | incremental | full-final` — via a **forward-only v2 gate-contract bump** (current v1 receipts
   ineligible rather than silently upgraded; safe while the controller is not merge authority). `exempt` emits no
   requirement; `recommended` a visible non-blocking one; `required` a blocking one. PR count never multiplies
-  requirements — one per normalized change set (the multi-PR assurance-group binding routes to `pr-decomposition`,
+  requirements — one per normalized change set (the multi-PR assurance-group binding routes to `chunked-delivery`,
   not enforced here).
 - _Convergence:_ stress-test against the existing **"Adopt the attestation-first fallback…"** item — a local
   fresh-agent attested pass and a hosted-provider attestation should satisfy one shared satisfying-evidence contract,
