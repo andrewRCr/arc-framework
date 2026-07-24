@@ -2643,3 +2643,98 @@ verdict: changes-requested
 Primary adjudication upheld both findings. The init and handoff workflows visibly pair sole-authority declarations
 with fallback mechanisms incapable of producing that authority, while the CLI declaration directly disproves the
 documented `--type` option. M1 passes reviewability despite its 354-hunk density and completes all 17 leaf reviews.
+
+### Root A locus-authority seam
+
+The fresh root-A evaluator consumed bounded L1-L4 summaries and inspected only their named cross-child contracts.
+It completed every dimension without overload or malformed scope and found four defects not present in the child
+reports:
+
+```yaml
+scope: root-A-locus-authority
+base: ebe446fe2506927ec88b944dd4a7b13feb4c048e
+head: 0c5dd045ac345e5121b49ffbbca3708594e1b82f
+targetId: sha256:d342fd56204dd4e735d1bcf1ada20e091ac5fb7c0498f63ea2c64581eee2148b
+scopeCompletion: complete
+contextOverload: none
+malformedScope: none
+findings:
+  - id: A-F1
+    title: Operational consumers discard reader-owned trust diagnostics
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/lib/locus/roster.ts — lines 99-110;
+      packages/arc-framework/src/lib/locus/command-runtime.ts — lines 367-410;
+      packages/arc-framework/src/lib/housekeep/open-runtime.ts — lines 69-90;
+      packages/arc-framework/src/handlers/plan.ts — lines 306-327
+    evidence: >
+      The roster intentionally emits structurally valid records as managed-role while attaching unresolved-subject
+      and other authority diagnostics. Attach/release preparation and the housekeep/groom idempotent selectors
+      filter structural coordinates and role subject only, without requiring an empty diagnostic set or a trusted
+      row projection.
+    impact: >
+      Cross-identity, marker-missing, subject-unresolved, stale, or otherwise untrusted records can remain eligible
+      for lease mutation or successful occupancy reuse.
+    correctionBoundary: >
+      Define one trusted-row predicate or projection and require it across command preparation and idempotent-open
+      selection; cross-boundary tests should carry each material diagnostic into every state-touching consumer.
+  - id: A-F2
+    title: Attach can replace a newer live lease using stale dead-liveness evidence
+    severity: high
+    stableLocus: >
+      packages/arc-framework/src/lib/locus/command-runtime.ts — lines 52-85;
+      packages/arc-framework/src/lib/locus/mutation.ts — lines 126-145
+    evidence: >
+      After selecting a row, attach locks and accepts any current record with the same recordId, but passes
+      row.lease.state from the earlier snapshot into attachLocusLease. A new live lease installed before lock
+      acquisition can therefore receive the old generation's dead classification.
+    impact: >
+      Attach can replace a live lease it never proved dead.
+    correctionBoundary: >
+      Carry exact selected record bytes or lease identity through preparation and compare under lock, or reinspect
+      the locked lease anchor before replacement; test lease replacement between selection and lock acquisition.
+  - id: A-F3
+    title: Open outcomes ignore authoritative provisioning mutations
+    severity: medium
+    stableLocus: >
+      packages/arc-framework/src/lib/errand/open.ts — lines 152-165 and 243-293;
+      packages/arc-framework/src/lib/housekeep/open-runtime.ts — lines 110-136;
+      packages/arc-framework/src/handlers/plan.ts — lines 345-373
+    evidence: >
+      Reused identity claims set idempotent, but provisioning may still create or mutate a checkout, marker,
+      record, and lease. Final outcomes derive only from the claim/mutation kind, and the provisioning receipt has
+      no aggregate applied-versus-reused state.
+    impact: >
+      A command can report idempotent after making authoritative local changes, defeating replay semantics.
+    correctionBoundary: >
+      Compose the public outcome from every transaction stage and report applied whenever any authoritative
+      provisioning stage changed state; cover existing identity plus missing local locus.
+  - id: A-F4
+    title: Transient provisioning drops the selected parent generation
+    severity: medium
+    stableLocus: >
+      packages/arc-framework/src/lib/errand/open.ts — lines 127 and 241-267;
+      packages/arc-framework/src/lib/locus/provisioning-types.ts — lines 132-149;
+      packages/arc-framework/src/lib/locus/provisioning-runtime.ts — lines 116-139;
+      packages/arc-framework/src/lib/locus/provisioning.ts — lines 270-295
+    evidence: >
+      Warm parent selection returns only checkoutPath. Provisioning revalidates target topology and primary safety,
+      then mints the child with that path; it receives no parent record, role, or lease generation to revalidate.
+    impact: >
+      Concurrent parent removal or re-role can leave a child whose parent and session-home paths no longer name the
+      selected authority.
+    correctionBoundary: >
+      Carry and revalidate the exact parent generation before child publication, using ordered cross-record locking
+      or an equivalent proof; test parent replacement between selection and record mint.
+withstood:
+  - Reconciliation reruns its plan and deep-compares proof-bearing actions before dispatch.
+  - Stale-record reaping compares exact bytes under the target lock.
+  - Provisioning record operations require a locally held lock bound to expected record coordinates.
+  - No finding duplicates a supplied child finding.
+verdict: changes-requested
+```
+
+Primary adjudication upheld all four findings. The exact source demonstrates each cross-boundary information loss:
+reader diagnostics, selected lease generation, provisioning mutation state, and selected parent generation are
+available in one child but discarded before a neighboring child acts. Root A therefore passes reviewability and
+adds four genuinely seam-owned findings without reconstructing the four child diffs.
