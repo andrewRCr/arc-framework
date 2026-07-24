@@ -1,8 +1,8 @@
 # Metadata: review-surface-binding
 
-| **State**     | **Owner** | **Branch**                    | **Class** | **Priority** |
-| ------------- | --------- | ----------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/review-surface-binding` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -17,10 +17,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/338>
+- **Completed:** 2026-07-23
 
 ## Release Notes Entry
 
