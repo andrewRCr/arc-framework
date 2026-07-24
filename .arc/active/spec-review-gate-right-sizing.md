@@ -302,9 +302,12 @@ authorized posters.
   `change-facts.ts` classifier from a separate checkout at the PR base SHA, through the existing
   `scripts/classify-change.sh` boundary. It classifies Git's raw base-to-head change record rather than a path-only
   projection, so both rename/copy endpoints and type/mode changes participate; an empty, unreadable, ambiguous, or
-  cross-repository change fails to the reviewed lane. A PR therefore cannot reclassify its own change as
-  planning-only by editing the classifier. Fork PRs remain reviewed and receive no planning stamp because the
-  `pull_request` token cannot be relied on for status writes. The residual `.github/`-edit surface (a
+  cross-repository change fails to the reviewed lane. The planning projection includes the existing movable
+  artifact families plus `research-*`, `analysis-*`, and `spec-*`, and treats the exact generated
+  `.arc/backlog/ROADMAP.md` path as planning rather than forcing every readiness-regeneration commit onto the
+  reviewed lane. A PR therefore cannot reclassify its own change as planning-only by editing the classifier. Fork
+  PRs remain reviewed and receive no planning stamp because the `pull_request` token cannot be relied on for status
+  writes. The residual `.github/`-edit surface (a
   `pull_request` event runs the PR's copy of `ci.yml`, so a `.github/` edit could rewrite the stamp step to
   self-stamp) is an **ambient GitHub property the shipped CI rollup already shares**, not a hole this guard
   introduces, and is accepted under the accident-not-adversary threat model: a `.github/` edit is a reviewed-lane
@@ -616,6 +619,11 @@ unlock verb at the combined final gate, and an absent default-branch clearance w
 no-unlock terminal. Required-check settlement at the integration boundary, not workflow-file presence, remains
 the enforcement authority. On a reviewed Errand that combined gate occupies the existing integration interlock
 rather than preceding it as another stop.
+
+Before requesting a hosted-PR source for a target already behind its base, the lifecycle reads the existing typed
+base-drift result. Substantive overlap produces a non-gating recommendation to reconcile before spending the hosted
+review; clean or regenerable-only drift stays silent. The advisory never mutates the target or replaces the final
+candidate boundary's authoritative reconcile and exact-head applicability checks.
 
 ## Alternatives & Rationale
 

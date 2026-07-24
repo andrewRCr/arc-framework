@@ -248,6 +248,9 @@ head is born locked while planning-only changes retain their existing lane.
         - Extend `isPlanningArtifactPath`'s existing lane projection in `src/lib/change-facts.ts` and
           `scripts/classify-change.sh` with an exact-ref form over the canonical raw-diff `ChangeSet`; do not add a
           second classifier, copy rules from workflow templates, or introduce a new public ARC verb.
+        - Include `research-*`, `analysis-*`, and `spec-*` alongside the existing movable planning families, and
+          classify the exact generated `.arc/backlog/ROADMAP.md` path as planning. Reconcile the setup guidance and
+          shipped merge-gate template with that canonical set rather than maintaining a divergent stated default.
         - Classify both rename/copy endpoints and mode/type changes. Empty, unreadable, malformed, ambiguous,
           unknown, or cross-repository inputs fail to the reviewed lane.
         - Run the classifier from a separate trusted checkout at the PR base SHA against explicit base/head
@@ -343,6 +346,10 @@ integration callers, leaving judgment only at disposition and convergence.
           creation.
         - At each boundary, dispatch only on the returned `nextAction` and feed each verb's envelope into the next
           call.
+        - Before requesting a hosted-PR source for a target already behind its base, consume the existing typed
+          base-drift read. Surface a non-gating reconcile recommendation only for substantive overlap; keep clean
+          and regenerable-only drift silent, and leave target mutation plus authoritative applicability checks at
+          the final candidate reconcile boundary.
         - Invoke `arc review chunking resolve` once per new canonical target before either review role resolves a
           source. Reuse its target-level facts while that target is unchanged, select whole-target or chunked
           separately for each role invocation, and pass the selection into `arc review resolve`.
@@ -420,6 +427,8 @@ integration callers, leaving judgment only at disposition and convergence.
           not depend on either result.
         - Cover disabled, below-threshold, consider-chunks, per-role whole/chunked selection, unchanged-target fact
           reuse, and moved-target preflight refresh without duplicating threshold comparisons in workflow prose.
+        - Cover the pre-trigger base-drift advisory: substantive overlap recommends reconcile without mutating or
+          gating the target, while clean and regenerable-only drift remain silent.
         - Prove a pre-composition head cannot unlock, the candidate push re-enters review, and only the ready,
           base-clean, still-current candidate head reaches the combined gate; speculative local drafting never
           changes the reviewed target. After approval, unlock failure, changed status, head drift, or base drift
