@@ -240,6 +240,21 @@ describe("classifyPlanningLane", () => {
     })).toBe("planning");
   });
 
+  it.each([
+    ".arc/active/spec-example.md.bak",
+    ".arc/active/nested/spec-example.md",
+    ".arc/backlog/spec-example.md",
+    ".arc/backlog/planned/spec-example.md",
+    ".arc/backlog/planned/one/two/three/spec-example.md",
+    ".arc/backlog/planned/example/spec-example",
+    ".arc/backlog/planned/example/spec-.md",
+  ])("rejects planning-like path outside the complete artifact grammar: %s", (path) => {
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [change(path)],
+    })).toBe("reviewed");
+  });
+
   it("fails reviewed for mixed, code, workflow, and unknown changes", () => {
     const candidates: ChangeSet[] = [
       { changeSet: "unknown", changes: [] },

@@ -341,8 +341,14 @@ export function isPortabilitySurfacePath(path: string): boolean {
 
 /** Whether a path belongs to the formative planning-artifact lane. */
 export function isPlanningArtifactPath(path: string): boolean {
+  const artifactName = "(?:draft|tasks|meta|notes|cohort|research|analysis|spec)-[a-z0-9]+(?:-[a-z0-9]+)*\\.md";
+  const workUnitDirectory = "[a-z0-9]+(?:-[a-z0-9]+)*";
   return path === ".arc/backlog/ROADMAP.md"
-    || /^\.arc\/(?:active|backlog)\/(?:[^/]+\/)*(?:draft|tasks|meta|notes|cohort|research|analysis|spec)-/u.test(path);
+    || new RegExp(`^\\.arc/active/${artifactName}$`, "u").test(path)
+    || new RegExp(
+      `^\\.arc/backlog/(?:planned|provisional)/(?:${workUnitDirectory}/){1,2}${artifactName}$`,
+      "u",
+    ).test(path);
 }
 
 function isPlainPlanningContentChange(change: CanonicalChange): boolean {
