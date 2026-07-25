@@ -12,12 +12,12 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.E.d.iii — Recover an interrupted or colliding rename (both subtasks)
-- **Next Task:** Task 7.E.d.iv — Make grooming and housekeeping tails replayable (line ~1505)
+- **Last Completed:** Task 7.E.d — Make post-mutation failure recoverable (all six subtasks)
+- **Next Task:** Task 7.E.i — Split the grooming and housekeeping tails from their Node wiring (line ~1628)
 - **Blockers:** [none]
 
-- **Next Action:** Enter Task 7.E.d.iv.1 — verify P1-F1 against both settle runtimes, then make a proven
-  post-deletion state settle idempotently rather than refusing `preservation-unproven` on replay
+- **Next Action:** Enter Task 7.E.i.1 — split `groom/close-runtime.ts` and `groom/tail-runtime.ts` into
+  composition over injected seams plus Node wiring, per the task's `_Sequencing:_` note (precedes 7.E.e/g/h)
 
 - **PR URL:** [none]
 - **Completed:** [none]
