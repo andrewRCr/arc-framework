@@ -679,6 +679,7 @@ async function lifecycleCandidateFacts(
     { path: ".arc/active", recursive: false },
     { path: ".arc/backlog/planned", recursive: true },
     { path: ".arc/backlog/provisional", recursive: true },
+    { path: ".arc/completed", recursive: true },
   ];
   const facts: ReviewReadinessFact[] = [];
   for (const source of roots) {

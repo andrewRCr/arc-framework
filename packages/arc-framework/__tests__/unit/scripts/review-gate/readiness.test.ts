@@ -540,6 +540,89 @@ Projects enabling the context must install the pinned workflow.
     });
   });
 
+  it("rejects a malformed completed record that readiness rendering would otherwise omit", async () => {
+    const roadmap = `${composeProjectReadinessView({
+      title: "Roadmap: Project Status",
+      renderedRef: "abc1234",
+      records: [],
+    })}\n`;
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
+      {
+        fs: buildFs({
+          [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: shippedMeta(),
+          [`${ROOT}/.arc/completed/2026-q2/03_unrelated/meta-unrelated.md`]: "# malformed archived meta\n",
+          [`${ROOT}/.arc/backlog/ROADMAP.md`]: roadmap,
+        }),
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      diagnostics: [{
+        code: "malformed-artifact",
+        path: ".arc/completed/2026-q2/03_unrelated/meta-unrelated.md",
+      }],
+    });
+  });
+
+  it.each([
+    [
+      "symlinked",
+      { kinds: { [`${ROOT}/.arc/completed/2026-q2/03_unrelated/meta-unrelated.md`]: "symlink" as const } },
+      "symlinked-artifact",
+    ],
+    [
+      "unreadable",
+      { unreadable: [`${ROOT}/.arc/completed/2026-q2/03_unrelated/meta-unrelated.md`] },
+      "unreadable-artifact",
+    ],
+  ])("rejects a %s completed record candidate", async (_case, options, code) => {
+    const roadmap = `${composeProjectReadinessView({
+      title: "Roadmap: Project Status",
+      renderedRef: "abc1234",
+      records: [],
+    })}\n`;
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
+      {
+        fs: buildFs({
+          [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: shippedMeta(),
+          [`${ROOT}/.arc/completed/2026-q2/03_unrelated/meta-unrelated.md`]: shippedMeta(),
+          [`${ROOT}/.arc/backlog/ROADMAP.md`]: roadmap,
+        }, options),
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      diagnostics: [{
+        code,
+        path: ".arc/completed/2026-q2/03_unrelated/meta-unrelated.md",
+      }],
+    });
+  });
+
+  it("ignores completed cohort closeout documents as non-meta archive sidecars", async () => {
+    const roadmap = `${composeProjectReadinessView({
+      title: "Roadmap: Project Status",
+      renderedRef: "abc1234",
+      records: [],
+    })}\n`;
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
+      {
+        fs: buildFs({
+          [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: shippedMeta(),
+          [`${ROOT}/.arc/completed/2026-q2/03a_cohort-alpha/cohort-alpha.md`]: "# Cohort: alpha\n",
+          [`${ROOT}/.arc/backlog/ROADMAP.md`]: roadmap,
+        }),
+      },
+    );
+
+    expect(result.state).toBe("ready");
+  });
+
   it("rejects a stale project-readiness render", async () => {
     const roadmap = `${composeProjectReadinessView({
       title: "Roadmap: Project Status",
