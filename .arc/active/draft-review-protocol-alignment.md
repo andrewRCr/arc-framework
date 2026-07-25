@@ -30,7 +30,10 @@ Four distinct failures, from one integration:
    _(The configuration half shipped separately as errand `coderabbit-manual-only`. The protocol half was assumed to
    be this WU's, but the typed fallback rule turns out to be already enforced — the driver was simply never
    consulted. See concern 1, where this failure resolves into the missing operator override rather than a missing
-   fallback rule.)_
+   fallback rule.)_ **The misleading surface itself is not fixed and recurs**: a pull request opened during this
+   WU's own grooming carried a green, passing `CodeRabbit` status reading `Review skipped: automatic reviews are
+   disabled`. Disabling automatic review removed the stale-label cause; a skip still reports success, so the
+   artifact that produced the original misdiagnosis is still on every pull request.
 2. **Capability is advertised without being established.** The policy driver advertises `coderabbit-cli` for
    `chunked` frontline scope, but the frontline run request carries only target, resolution, and timeout, and the
    execution adapter always emits a whole-target `--base-commit` command. No partition, closure chunk, seam scope,
@@ -313,6 +316,25 @@ request required reading the request schema plus two supporting schema modules a
 the schemas, where documentation drifts by construction — and the drift is what reproduces the defect rather than
 fixing it. This crosses into code and widens the WU; accepted deliberately.
 
+**The concern splits in two, and the flag closes only one half.** Establishing both against source during an errand
+run of `run-errand`:
+
+- **Discoverability** — the caller can compose the request from facts it legitimately holds, but cannot find the
+  shape. `arc review unlock` is this: it wants a tree root, a `{repository, pullRequest, headSha}` target, and a
+  vehicle, all of which the caller has; locating that shape took five schema modules. The schema-emitting flag
+  fixes this case completely.
+- **Derivability** — the caller cannot legitimately produce a required field at all. `arc review resolve` is this:
+  its request carries a **routed obligation projection** — obligation, reasons, retrigger — and the only producer
+  is internal runtime code reached through a different verb. There is no path for a caller following the workflow
+  to obtain one. The project's own CLI-surface test hand-authors the block with a fabricated digest, which is the
+  tell: if the test cannot route it, no caller can.
+
+A schema flag makes a derivability failure **easier to get wrong**, because it documents the shape of a verdict the
+caller then invents. The second half therefore needs a producing verb — routing exposed as output — not better
+documentation of an input. Left unaddressed, the workflow instructs an agent to invoke a verb whose request can
+only be fabricated, and a fabricated routing verdict is indistinguishable in the record from a routed one: the same
+provenance collapse concern 1 designs against, arriving through the CLI surface instead of the attempt history.
+
 ### 6. The `adversarial-review` `withstood` field — settled shape
 
 **The defect is in consumption, not production.** Demonstrated 2026-07-24: three false claims rode through two
@@ -425,6 +447,12 @@ rest.
   should make judgment auditable rather than bind it to a predictably disproportionate operation because a broad
   category matched. **Hold these in a later phase** so concerns 1–5 are not gated on a `Novel` upstream. No
   `Depends On` edge is recorded.
+    - **Its face (c) reproduced during this WU's own errand.** `run-errand`'s reviewed-lane instructs the agent to
+      "leave the pull request open for owner review," which reads as withholding the authority to perform a merge
+      the developer has just authorized at the integration interlock. That WU already records the developer's
+      intent — approval is theirs, the button-press is not withheld — so the line is a live instance of a
+      procedural statement written to locate authority being read as removing capability. Evidence that the face is
+      real and recurring, not an argument for fixing the wording here.
 - **`chunk-scope-binding` — now load-bearing, still no hard edge.** It owns the partition transport this WU
   declines, and it owns the restoration condition for `coderabbit-cli`'s chunked capability. It is `planned` with
   `Depends On: review-chunking — landed`, so it is unblocked. This WU should leave it a clean handoff on two
