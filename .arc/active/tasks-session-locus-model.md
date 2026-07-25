@@ -1646,6 +1646,13 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   split exposes should be expressible as a unit test that fails against the pre-split sequence, which is also the
   check that the extraction did not quietly change one.
 
+- _Sequencing:_ Runs before `7.E.e`, `7.E.g`, and `7.E.h` despite following them in file order — all three edit
+  these same modules (`7.E.e` recomposes their outcomes, `7.E.g` carries `P1-F3`/`P1-F4` in the housekeeping
+  lifecycle and grooming path authorization), so landing them on the split earns unit coverage instead of writing
+  them against the unreachable shape and rewriting after. `7.E.f` is independent. The regression net the split
+  needs is the real-CLI coverage `7.E.d.iv` added: the partial grooming sweep end to end, the settled-claim
+  replay, and the already-deleted branch generation.
+
     - `[ ]` **7.E.i.1 Split the grooming close and settle tails**
         - `groom/close-runtime.ts` and `groom/tail-runtime.ts` — the partial settle-then-pop-then-retire ordering
           and the awaiting-merge persist-then-pop ordering are the claims to land under unit coverage.
