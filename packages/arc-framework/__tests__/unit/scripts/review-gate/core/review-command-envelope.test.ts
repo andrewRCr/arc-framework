@@ -115,6 +115,7 @@ const reviewerPayload = {
 const localResult = {
   status: "partial" as const,
   result: "clean" as const,
+  repositoryId: target.repositoryId,
   targetId: digest,
   headSha: target.headSha,
   headTree: target.headTree,

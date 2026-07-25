@@ -117,6 +117,7 @@ function fixture() {
     result: {
       status: "complete",
       result: "findings",
+      repositoryId: target.repositoryId,
       targetId: target.targetId,
       headSha: target.headSha,
       headTree: target.headTree,

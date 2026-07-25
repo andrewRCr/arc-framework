@@ -23,6 +23,9 @@ export interface ConfigSettings {
   "merge.strategy": string;
   "platform.type": string;
   "review.frontline_sources": string;
+  "review.standard_sources": string;
+  "review.frontline_max_passes": string;
+  "review.standard_max_passes": string;
   "review.chunking_threshold_lines": string;
   "review.chunking_threshold_files": string;
   "pm.mode": string;

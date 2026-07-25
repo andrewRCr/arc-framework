@@ -5,8 +5,6 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { admitSelfHostingGuidanceCarrier } from "../../src/scripts/review-gate/policy/self-hosting/guidance.js";
-
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "../../../..");
 
@@ -18,7 +16,8 @@ describe("review-gate package boundary", () => {
     ]);
 
     expect(claude.trim()).toBe("@AGENTS.md");
-    expect(admitSelfHostingGuidanceCarrier("hosted-codex", agents)).toMatchObject({ admitted: true });
+    expect(agents).toContain("<!-- arc:review-guidance:start -->");
+    expect(agents).toContain("<!-- arc:review-guidance:end -->");
   });
 
   it("ships extension shells without repository controller implementation", async () => {
@@ -35,7 +34,7 @@ describe("review-gate package boundary", () => {
     expect(paths.some((path) => path.includes("coordinate-pr-review"))).toBe(false);
   });
 
-  it("keeps configured project review actions inactive and outside package content", async () => {
+  it("keeps project and packaged extension seams inactive", async () => {
     const [projectPostOpen, projectPreMerge, packagePostOpen, packagePreMerge] = await Promise.all([
       readFile(resolve(root, ".arc/system/extensions/post-pr-open.md"), "utf8"),
       readFile(resolve(root, ".arc/system/extensions/pre-merge.md"), "utf8"),
@@ -44,8 +43,8 @@ describe("review-gate package boundary", () => {
     ]);
     expect(projectPostOpen).toContain("active: false");
     expect(projectPreMerge).toContain("active: false");
-    expect(projectPostOpen).toContain("coordinate-pr-review.md");
-    expect(projectPreMerge).toContain("coordinate-pr-review.md");
+    expect(projectPostOpen).not.toMatch(/coordinate-pr-review|controller/iu);
+    expect(projectPreMerge).not.toMatch(/coordinate-pr-review|controller/iu);
     expect(packagePostOpen).toContain("[No extension configured]");
     expect(packagePreMerge).toContain("[No extension configured]");
   });
@@ -74,16 +73,15 @@ describe("review-gate package boundary", () => {
     ]);
     expect(cli).not.toMatch(/review-gate|coderabbit|provider-registry/iu);
     expect(tsup).toContain('entry: ["src/cli.ts"]');
+    expect(Object.keys(manifest.scripts).some((name) => name.startsWith("review-gate:"))).toBe(false);
+    expect(Object.keys(rootManifest.scripts).some((name) => name.startsWith("review-gate:"))).toBe(false);
     expect(Object.values(manifest.scripts).some((script) => script.includes("src/scripts/review-gate"))).toBe(false);
-    expect(Object.values(rootManifest.scripts).some((script) => script.includes("src/scripts/review-gate"))).toBe(true);
+    expect(Object.values(rootManifest.scripts).some((script) => script.includes("src/scripts/review-gate"))).toBe(false);
   });
 
-  it("routes every production launcher through the private entrypoint assembly", async () => {
+  it("has no private review-gate launchers", async () => {
     const launcherRoot = resolve(root, "packages/arc-framework/src/scripts/review-gate");
     const launchers = (await readdir(launcherRoot)).filter((name) => /^run-.*\.ts$/u.test(name)).sort();
-    expect(launchers.length).toBeGreaterThan(0);
-    const sources = await Promise.all(launchers.map((name) =>
-      readFile(resolve(launcherRoot, name), "utf8")));
-    expect(sources.every((source) => source.includes('from "./runtime/entrypoints.js"'))).toBe(true);
+    expect(launchers).toEqual([]);
   });
 });

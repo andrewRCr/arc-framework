@@ -367,8 +367,8 @@ describe("frontline run command", () => {
   it("takes pass only from the ready resolution and emits durable terminal coordinates", async () => {
     const reviewTarget = target("c");
     const execute = vi.fn(async (input: {
-      pass: 1 | 2;
-      maxPasses: 1 | 2;
+      pass: number;
+      maxPasses: number;
     }) => ({
       outcome: normalizeFrontlineOutcome({
         providerResult: { kind: "clean" },

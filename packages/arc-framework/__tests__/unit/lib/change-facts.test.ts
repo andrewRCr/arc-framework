@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { affectedPaths, parseRawDiff, resolveChangeSet } from "../../../src/lib/change-facts.js";
+import {
+  affectedPaths,
+  classifyPlanningLane,
+  parseRawDiff,
+  resolveChangeSet,
+  type ChangeSet,
+} from "../../../src/lib/change-facts.js";
 
 const HASH = "a".repeat(40);
 const ZERO_HASH = "0".repeat(40);
@@ -205,5 +211,92 @@ describe("affectedPaths", () => {
       "copy-source",
       "copy-target",
     ]);
+  });
+});
+
+describe("classifyPlanningLane", () => {
+  const change = (
+    path: string,
+    overrides: Record<string, string> = {},
+  ) => ({
+    status: "modified" as const,
+    path,
+    oldMode: "100644",
+    newMode: "100644",
+    ...overrides,
+  });
+
+  it("accepts the complete planning-artifact family and exact readiness view", () => {
+    const paths = [
+      ".arc/active/draft-example.md",
+      ".arc/active/research-example.md",
+      ".arc/backlog/planned/nested/analysis-example.md",
+      ".arc/backlog/planned/nested/spec-example.md",
+      ".arc/backlog/ROADMAP.md",
+    ];
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: paths.map((path) => change(path)),
+    })).toBe("planning");
+  });
+
+  it.each([
+    ".arc/active/spec-example.md.bak",
+    ".arc/active/nested/spec-example.md",
+    ".arc/backlog/spec-example.md",
+    ".arc/backlog/planned/spec-example.md",
+    ".arc/backlog/planned/one/two/three/spec-example.md",
+    ".arc/backlog/planned/example/spec-example",
+    ".arc/backlog/planned/example/spec-.md",
+  ])("rejects planning-like path outside the complete artifact grammar: %s", (path) => {
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [change(path)],
+    })).toBe("reviewed");
+  });
+
+  it("fails reviewed for mixed, code, workflow, and unknown changes", () => {
+    const candidates: ChangeSet[] = [
+      { changeSet: "unknown", changes: [] },
+      { changeSet: "known", changes: [change(".arc/active/meta-example.md"), change("README.md")] },
+      { changeSet: "known", changes: [change("packages/arc-framework/src/cli.ts")] },
+      { changeSet: "known", changes: [change(".github/workflows/ci.yml")] },
+    ];
+    for (const candidate of candidates) {
+      expect(classifyPlanningLane(candidate)).toBe("reviewed");
+    }
+  });
+
+  it("requires both rename and copy endpoints to remain planning artifacts", () => {
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [{
+        ...change(".arc/active/spec-new.md"),
+        status: "renamed",
+        previousPath: ".arc/active/spec-old.md",
+      }],
+    })).toBe("planning");
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [{
+        ...change(".arc/active/spec-copy.md"),
+        status: "copied",
+        previousPath: "docs/source.md",
+      }],
+    })).toBe("reviewed");
+  });
+
+  it("fails reviewed for mode and type changes even on planning paths", () => {
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [change(".arc/active/meta-example.md", { newMode: "100755" })],
+    })).toBe("reviewed");
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [{
+        ...change(".arc/active/meta-example.md", { newMode: "120000" }),
+        status: "type-changed",
+      }],
+    })).toBe("reviewed");
   });
 });

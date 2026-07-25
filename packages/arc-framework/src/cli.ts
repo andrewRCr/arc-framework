@@ -100,14 +100,22 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleReviewReadiness,
+  handleReviewResolve,
+  handleReviewUnlock,
   handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
+  handleReviewHostedAwait,
+  handleReviewHostedRequest,
+  handleReviewHostedSettle,
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
+  handleReviewPlanningLane,
   handleReviewReduce,
   handleReviewRespond,
+  type ReviewPlanningLaneOptions,
 } from "./handlers/review.js";
 import {
   handleCheckCommitMessage,
@@ -1022,6 +1030,34 @@ const reviewCmd = program
   .command("review")
   .description("Resolve and execute review workflows");
 
+reviewCmd
+  .command("readiness")
+  .description("Validate exact-head lifecycle readiness as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewReadiness(input));
+
+reviewCmd
+  .command("planning-lane <base> <head>")
+  .description("Classify an exact Git change for planning clearance")
+  .option("--repository <path>", "Repository containing both exact commits")
+  .action((base: string, head: string, opts: ReviewPlanningLaneOptions) =>
+    handleReviewPlanningLane(base, head, opts));
+
+reviewCmd
+  .command("unlock")
+  .description("Preflight and dispatch exact-head ARC clearance as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewUnlock(input));
+
+reviewCmd
+  .command("resolve")
+  .description("Resolve the next configured review-policy action as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewResolve(input));
+
 const frontlineCmd = reviewCmd
   .command("frontline")
   .description("Frontline pre-publication review operations");
@@ -1042,6 +1078,31 @@ frontlineCmd
     { machineReadable: true },
     (context, input: string) => handleReviewFrontlineRun(input, {}, context),
   ));
+
+const hostedCmd = reviewCmd
+  .command("hosted")
+  .description("Hosted pull-request review operations");
+
+hostedCmd
+  .command("request")
+  .description("Request one hosted pull-request review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewHostedRequest(input));
+
+hostedCmd
+  .command("await")
+  .description("Await one requested hosted pull-request review as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewHostedAwait(input));
+
+hostedCmd
+  .command("settle")
+  .description("Reply to and resolve one hosted review finding as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleReviewHostedSettle(input));
 
 reviewCmd
   .command("chunking")

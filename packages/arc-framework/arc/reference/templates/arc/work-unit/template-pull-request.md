@@ -72,9 +72,23 @@ table-stakes redundancy. If no manual verification was performed, omit the secti
 - [ ] {Manual scenario or edge case verified}
 
 - [ ] {Reproduction step a reviewer can run to validate behavior}
+
+## Review
+
+- **Local:** {product/model identity and pass count, or `None`}
+- **Hosted PR:** {product/model identity and review count, or `None`}
+- **Triage:** {@approver — final material-finding disposition counts, or `no material findings`}
+- **Coverage:** {targeted verification and narrow delta character when complete review coverage carried forward}
 ```
 
 ### Optional Sections
+
+> **Review** — Add after final review settlement when any review ran. Attribute local and hosted-PR activity
+> separately, identify the GitHub user who approved the final dispositions, and summarize distinct material
+> findings by final disposition. Omit `Coverage` when every reported pass ran on the final head. Omit the whole
+> section when no review ran.
+
+<!-- -->
 
 > **Out of Scope** — Add when this PR deliberately doesn't change adjacent surfaces, defers
 > concerns, or makes an explicit boundary call. Helps reviewers calibrate scope expectations and
@@ -123,8 +137,15 @@ multi-file PRs, Changes orients reviewers to where to look.
 **Test Plan — content-gated.** Include only when there's manual verification beyond CI to report
 (see Anti-Patterns below). Omit entirely if everything is automated.
 
-**Out of Scope and Follow-Up Work — optional.** Include only when there's material content. Empty
-optional sections are noise.
+**Review — content-gated.** Include only after the review loop settles and at least one review ran. Keep both
+`Local` and `Hosted PR` lines, using `None` for an empty category. `Triage` names the approving GitHub identity and
+counts distinct material findings by final disposition: addressed, declined, deferred, and unresolved. Omit
+zero-valued categories except `0 unresolved`; use `no material findings` for a clean cycle. Add `Coverage` only
+when prior complete review coverage carries across a later narrow delta, naming the targeted verification and
+delta character without implying that a full pass ran on the final head.
+
+**Out of Scope and Follow-Up Work — optional.** Include only when there's material content. Empty optional sections
+are noise.
 
 ### Anti-Patterns
 
@@ -144,9 +165,9 @@ substance matters for review, restate it inline; if it's workflow continuity, it
 in the PR body at all. Tracked artifacts (meta files, plans, ADRs, completion docs, strategies)
 are fine to reference.
 
-**Success-criteria status and local-review meta-narration.** PRD success-criteria status
-("X of Y met + supersessions") and "I reviewed locally before pushing" are post-hoc retrospective
-signals (archive-reader audience), not review signals. They live in the WU's durable record, not
+**Success-criteria status and informal local-review narration.** PRD success-criteria status
+("X of Y met + supersessions") and unstructured process narration such as "I reviewed locally before pushing" are
+post-hoc retrospective signals, not the normalized review record above. They live in the WU's durable record, not
 the PR body. CI status shows gates passed; the diff is what reviewers verify.
 
 **Restating the commit-context footer.** The footer's `Context:` carries task references and WU

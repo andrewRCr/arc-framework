@@ -160,7 +160,6 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/assess-design-proportionality.md",
       "system/methods/design-audit.md",
       "system/methods/self-review.md",
-      "system/methods/frontline-review.md",
       "system/methods/standard-review.md",
       "system/methods/implementation-audit.md",
       "system/methods/review-chunking.md",
@@ -179,6 +178,18 @@ describe("framework sync (self-hosting drift check)", () => {
       ]);
       expect(project, `${path} must retain the shipped neutral contract`).toBe(packaged);
     }
+  });
+
+  it("keeps frontline activation project-specific without changing its method contract", async () => {
+    const path = "system/methods/frontline-review.md";
+    const [packaged, project] = await Promise.all([
+      readFile(join(PKG_ARC_DIR, path), "utf8"),
+      readFile(join(ARC_DIR, path), "utf8"),
+    ]);
+
+    expect(packaged).toContain("active: false");
+    expect(project).toContain("active: true");
+    expect(project.replace("active: true", "active: false")).toBe(packaged);
   });
 
   it("keeps the frontline chunking attachment reference-only and whole-target", async () => {

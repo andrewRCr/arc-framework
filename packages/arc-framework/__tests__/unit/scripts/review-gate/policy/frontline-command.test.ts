@@ -96,7 +96,7 @@ describe("frontline workflow command", () => {
         sourceId: "review-command",
         descriptor: { kind: "command", executable: "reviewer", argv: [] },
       }]),
-    })).rejects.toThrow("frontline pass 2 requires a two-pass allowance");
+    })).rejects.toThrow("frontline pass cannot exceed maxPasses");
 
     await expect(resolveFrontlineCommand({
       schemaVersion: 1,
@@ -109,7 +109,26 @@ describe("frontline workflow command", () => {
         sourceId: "review-command",
         descriptor: { kind: "command", executable: "reviewer", argv: [] },
       }]),
-    })).rejects.toThrow("frontline pass 2 requires a two-pass allowance");
+    })).rejects.toThrow("frontline pass cannot exceed maxPasses");
+  });
+
+  it("accepts pass ceilings beyond the former two-pass limit", async () => {
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" },
+      pass: 3,
+      maxPasses: 3,
+    }, {
+      preferences: preferences(),
+      registry: new FrontlineSourceRegistry([{
+        sourceId: "review-command",
+        descriptor: { kind: "command", executable: "reviewer", argv: [] },
+      }]),
+    })).resolves.toMatchObject({
+      state: "ready",
+      payload: { pass: 3, maxPasses: 3 },
+    });
   });
 
   it("projects skipped and both offered actions from the resolved semantic state", async () => {

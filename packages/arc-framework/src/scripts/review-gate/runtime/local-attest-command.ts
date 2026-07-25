@@ -10,7 +10,8 @@ import {
 } from "../core/gate-contract-v2-schema.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
-  NormalizedLocalReviewResultSchema,
+  LocalReviewEvaluatorResultSchema,
+  normalizeLocalReviewResult,
 } from "../core/local-review-result.js";
 import type { LocalReviewAuthority } from "../core/local-review-authority.js";
 import type { LocalReviewState } from "../core/operation-state-schema.js";
@@ -30,7 +31,7 @@ import { createLocalReviewReceipt } from "./local-attestation.js";
 export const LocalAttestRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   operationId: ReviewIdentifierSchema,
-  result: NormalizedLocalReviewResultSchema,
+  result: LocalReviewEvaluatorResultSchema,
 });
 
 export interface LocalAttestDependencies {
@@ -108,7 +109,18 @@ async function attestLocalReviewWithinSourceLock(
     || persisted.state.operationId !== request.operationId) {
     throw new LocalAttestCommandError("corrupt-state", "local review operation is unavailable");
   }
-  if (request.result.status !== "complete" || request.result.result === null) {
+  const state = persisted.state;
+  const result = normalizeLocalReviewResult(request.result, {
+    repositoryId: state.repositoryId,
+    targetId: state.targetId,
+    headSha: state.target.headSha,
+    headTree: state.target.headTree,
+    rubricVersion: state.requirement.rubricVersion,
+    rubricDigest: state.requirement.rubricDigest,
+    sourceDigest: state.sourceDigest,
+    guidanceDigest: state.guidanceDigest,
+  });
+  if (result.status !== "complete" || result.result === null) {
     return LocalAttestEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-local-attest",
@@ -118,20 +130,16 @@ async function attestLocalReviewWithinSourceLock(
       payload: {
         operationId: request.operationId,
         persistedVersion: persisted.version,
-        result: request.result,
+        result,
       },
     });
   }
-  const state = persisted.state;
   const source = await dependencies.sourceStore.readSource(state.sourceRef);
   if (source === null
     || source.sourceDigest !== state.sourceDigest
     || source.repositoryId !== state.repositoryId
     || source.targetId !== state.targetId) {
     throw new LocalAttestCommandError("corrupt-state", "local review source snapshot mismatch");
-  }
-  if (request.result.sourceDigest !== state.sourceDigest) {
-    throw new LocalAttestCommandError("invalid-input", "local review result source digest mismatch");
   }
   const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
   const terminalReceipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
@@ -147,7 +155,7 @@ async function attestLocalReviewWithinSourceLock(
       request: state.request,
       attestation: state.attestation,
     },
-    result: request.result,
+    result,
     runtimeIdentity: state.attestation.runtimeIdentity,
     attestationMechanism: state.attestation.mechanism,
     sourceDigest: state.sourceDigest,
@@ -239,9 +247,6 @@ async function attestLocalReviewWithinSourceLock(
   const guidanceDigest = await dependencies.resolveGuidanceDigest(authority, state);
   if (guidanceDigest !== state.guidanceDigest) {
     throw new LocalAttestCommandError("corrupt-state", "local review delivered guidance changed");
-  }
-  if (request.result.guidanceDigest !== guidanceDigest) {
-    throw new LocalAttestCommandError("invalid-input", "local review result guidance digest mismatch");
   }
   const appended = await appendReceiptWithRetry(
     dependencies.receiptStore,

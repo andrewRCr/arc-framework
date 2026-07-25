@@ -156,7 +156,19 @@ describe("frontline semantic resolution", () => {
     ]);
   });
 
-  it.each([0, 3])("rejects a V1 pass allowance of %s", async (maxPasses) => {
+  it("accepts a positive safe-integer pass allowance beyond two", async () => {
+    await expect(resolveFrontlineReview({
+      methodActive: true,
+      routerAction: "attempt",
+      preferences: preferences(),
+      registry,
+      maxPasses: 3,
+    })).resolves.toMatchObject({ frontlineReview: { maxPasses: 3 } });
+  });
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    "rejects an invalid pass allowance of %s",
+    async (maxPasses) => {
     await expect(resolveFrontlineReview({
       methodActive: true,
       routerAction: "attempt",
@@ -164,7 +176,8 @@ describe("frontline semantic resolution", () => {
       registry,
       maxPasses,
     })).rejects.toThrow();
-  });
+    },
+  );
 
   it("rejects records that violate skip or attempt invariants", () => {
     const base = {

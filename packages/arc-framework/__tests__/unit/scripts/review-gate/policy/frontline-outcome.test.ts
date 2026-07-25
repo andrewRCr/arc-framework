@@ -158,4 +158,14 @@ describe("frontline outcome normalization", () => {
       maxPasses: 1,
     })).toThrow(/pass cannot exceed/iu);
   });
+
+  it("accepts pass numbers beyond the former two-pass limit", () => {
+    expect(normalizeFrontlineOutcome({
+      providerResult: { kind: "clean" },
+      source,
+      target,
+      pass: 3,
+      maxPasses: 4,
+    })).toMatchObject({ pass: 3, maxPasses: 4 });
+  });
 });

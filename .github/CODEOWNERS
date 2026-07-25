@@ -12,15 +12,48 @@
 /.arc/reference/strategies/ @andrewRCr
 
 # --- Auto-merge lane: per-WU / per-cohort planning artifacts (UNOWNED) ------
-# No owner clears the catch-all above. Scoped by artifact PREFIX, not all of
-# backlog/ — so derived / shared surfaces (ROADMAP, the *-INBOX queues) keep the
-# catch-all owner and stay reviewed. Specs and PRDs are absent by design.
-/.arc/active/draft-*
-/.arc/active/tasks-*
-/.arc/active/meta-*
-/.arc/active/notes-*
-/.arc/backlog/**/draft-*
-/.arc/backlog/**/tasks-*
-/.arc/backlog/**/meta-*
-/.arc/backlog/**/notes-*
-/.arc/backlog/**/cohort-*
+# No owner clears the catch-all above. These patterns mirror the classifier's
+# supported directories and depths. The required arc-cleared context remains
+# authoritative for exact filenames, rename/copy endpoints, and type/mode
+# changes that CODEOWNERS cannot express.
+/.arc/active/draft-*.md
+/.arc/active/tasks-*.md
+/.arc/active/meta-*.md
+/.arc/active/notes-*.md
+/.arc/active/cohort-*.md
+/.arc/active/research-*.md
+/.arc/active/analysis-*.md
+/.arc/active/spec-*.md
+/.arc/backlog/planned/*/draft-*.md
+/.arc/backlog/planned/*/tasks-*.md
+/.arc/backlog/planned/*/meta-*.md
+/.arc/backlog/planned/*/notes-*.md
+/.arc/backlog/planned/*/cohort-*.md
+/.arc/backlog/planned/*/research-*.md
+/.arc/backlog/planned/*/analysis-*.md
+/.arc/backlog/planned/*/spec-*.md
+/.arc/backlog/planned/*/*/draft-*.md
+/.arc/backlog/planned/*/*/tasks-*.md
+/.arc/backlog/planned/*/*/meta-*.md
+/.arc/backlog/planned/*/*/notes-*.md
+/.arc/backlog/planned/*/*/cohort-*.md
+/.arc/backlog/planned/*/*/research-*.md
+/.arc/backlog/planned/*/*/analysis-*.md
+/.arc/backlog/planned/*/*/spec-*.md
+/.arc/backlog/provisional/*/draft-*.md
+/.arc/backlog/provisional/*/tasks-*.md
+/.arc/backlog/provisional/*/meta-*.md
+/.arc/backlog/provisional/*/notes-*.md
+/.arc/backlog/provisional/*/cohort-*.md
+/.arc/backlog/provisional/*/research-*.md
+/.arc/backlog/provisional/*/analysis-*.md
+/.arc/backlog/provisional/*/spec-*.md
+/.arc/backlog/provisional/*/*/draft-*.md
+/.arc/backlog/provisional/*/*/tasks-*.md
+/.arc/backlog/provisional/*/*/meta-*.md
+/.arc/backlog/provisional/*/*/notes-*.md
+/.arc/backlog/provisional/*/*/cohort-*.md
+/.arc/backlog/provisional/*/*/research-*.md
+/.arc/backlog/provisional/*/*/analysis-*.md
+/.arc/backlog/provisional/*/*/spec-*.md
+/.arc/backlog/ROADMAP.md
