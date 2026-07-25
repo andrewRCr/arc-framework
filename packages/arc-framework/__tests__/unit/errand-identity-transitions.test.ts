@@ -245,6 +245,7 @@ describe("ordinary Errand identity transitions", () => {
       kind: "retire" as const,
       previous: awaiting,
       reason: "close" as const,
+      changeRequest,
       lifecycle: lifecycleEvidence("merged"),
     };
     expect(apply(new Map([[awaiting.slug, awaiting]]), close)).toMatchObject({ kind: "applied" });
@@ -254,13 +255,39 @@ describe("ordinary Errand identity transitions", () => {
     expect(apply(new Map([[awaiting.slug, awaiting]]), abandonTail)).toMatchObject({ kind: "applied" });
     expect(apply(new Map(), abandonTail)).toMatchObject({ kind: "idempotent" });
     expect(apply(new Map([[awaiting.slug, awaiting]]), {
-      kind: "retire", previous: awaiting, reason: "close", lifecycle: lifecycleEvidence("open"),
+      kind: "retire", previous: awaiting, reason: "close", changeRequest, lifecycle: lifecycleEvidence("open"),
     })).toMatchObject({ kind: "refused" });
     expect(apply(new Map([[awaiting.slug, awaiting]]), {
       kind: "retire",
       previous: awaiting,
       reason: "close",
+      changeRequest,
       lifecycle: lifecycleEvidence("merged", { ...changeRequest, headSha: remoteTip }),
+    })).toMatchObject({ kind: "refused" });
+    // An awaiting record's own coordinates are authority: a substituted change request refuses
+    // even when host truth reports that substitute merged.
+    const substitute = { ...changeRequest, headSha: remoteTip };
+    expect(apply(new Map([[awaiting.slug, awaiting]]), {
+      kind: "retire",
+      previous: awaiting,
+      reason: "close",
+      changeRequest: substitute,
+      lifecycle: lifecycleEvidence("merged", substitute),
+    })).toMatchObject({ kind: "refused" });
+
+    // An Errand that merged while still open holds no change request, so the observed one stands in.
+    const occupied = open({ updatedAt });
+    const closeOccupied = {
+      kind: "retire" as const,
+      previous: occupied,
+      reason: "close" as const,
+      changeRequest,
+      lifecycle: lifecycleEvidence("merged"),
+    };
+    expect(apply(new Map([[occupied.slug, occupied]]), closeOccupied)).toMatchObject({ kind: "applied" });
+    expect(apply(new Map([[occupied.slug, occupied]]), {
+      ...closeOccupied,
+      lifecycle: lifecycleEvidence("open"),
     })).toMatchObject({ kind: "refused" });
   });
 

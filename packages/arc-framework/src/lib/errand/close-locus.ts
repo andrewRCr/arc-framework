@@ -5,6 +5,7 @@ import type {
   LocusMutationResultV1,
   LocusRefusalReason,
 } from "../locus/schema/index.js";
+import type { LocusChangeRequestV1 } from "../locus/schema/index.js";
 import type { TransientIdentityRecord } from "./identity-record.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
@@ -12,6 +13,24 @@ import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.
 type IdentityRead =
   | { kind: "ready"; record: TransientIdentityRecord | null }
   | { kind: "refused"; reason: string }
+  | { kind: "error"; message: string };
+
+/**
+ * The exact change request close finalizes against, paired with the record that owns it.
+ *
+ * An Errand that left first carries its change request on the record; one that stayed in its
+ * checkout through its own merge carries none, so the coordinates are observed at finalization
+ * instead. Both arms reach every later step through this one target, so ref cleanup and
+ * retirement authorization read the same coordinates host truth was proven against.
+ */
+export interface CloseTarget {
+  readonly record: OrdinaryErrandRecord;
+  readonly changeRequest: LocusChangeRequestV1;
+}
+
+export type CloseTargetResolution =
+  | { kind: "resolved"; changeRequest: LocusChangeRequestV1 }
+  | { kind: "refused"; reason: LocusRefusalReason; message: string }
   | { kind: "error"; message: string };
 
 export type CloseRefCleanupResult =
@@ -34,10 +53,11 @@ type RetirementResult =
 
 export interface CloseOrdinaryErrandDependencies {
   readIdentity(): Promise<IdentityRead>;
-  readLifecycle(record: OrdinaryErrandRecord): Promise<ChangeRequestLifecycleEvidence>;
-  cleanupRefs(record: OrdinaryErrandRecord): Promise<CloseRefCleanupResult>;
+  resolveTarget(record: OrdinaryErrandRecord): Promise<CloseTargetResolution>;
+  readLifecycle(target: CloseTarget): Promise<ChangeRequestLifecycleEvidence>;
+  cleanupRefs(target: CloseTarget): Promise<CloseRefCleanupResult>;
   removeInbox(record: OrdinaryErrandRecord): Promise<CloseInboxResult>;
-  retire(record: OrdinaryErrandRecord, lifecycle: ChangeRequestLifecycleEvidence): Promise<RetirementResult>;
+  retire(target: CloseTarget, lifecycle: ChangeRequestLifecycleEvidence): Promise<RetirementResult>;
 }
 
 export interface CloseOrdinaryErrandOptions {
@@ -67,18 +87,28 @@ export async function closeOrdinaryErrand(
   if (read.kind === "refused") return refusal("identity-conflict", read.reason);
   if (read.kind === "error") return failure("locus.errand-close.identity-read", read.message);
   if (read.record === null) return alreadyFinalized(slug);
-  if (!isAwaitingOrdinary(read.record) || read.record.slug !== slug) {
-    return refusal("identity-conflict", `Identity '${slug}' is not an awaiting ordinary v3 Errand.`);
+  if (!isCloseableOrdinary(read.record) || read.record.slug !== slug) {
+    return refusal("identity-conflict", `Identity '${slug}' is not a closeable ordinary v3 Errand.`);
   }
   const record = read.record;
 
+  let resolution: CloseTargetResolution;
+  try {
+    resolution = await options.dependencies.resolveTarget(record);
+  } catch (error) {
+    return failure("locus.errand-close.change-request", message(error));
+  }
+  if (resolution.kind === "refused") return refusal(resolution.reason, resolution.message);
+  if (resolution.kind === "error") return failure("locus.errand-close.change-request", resolution.message);
+  const target: CloseTarget = { record, changeRequest: resolution.changeRequest };
+
   let lifecycle: ChangeRequestLifecycleEvidence;
   try {
-    lifecycle = await options.dependencies.readLifecycle(record);
+    lifecycle = await options.dependencies.readLifecycle(target);
   } catch (error) {
     return failure("locus.errand-close.host", message(error));
   }
-  if (lifecycle.kind !== "merged" || !sameChangeRequest(lifecycle, record)) {
+  if (lifecycle.kind !== "merged" || !sameChangeRequest(lifecycle, target.changeRequest)) {
     return refusal(
       lifecycle.kind === "open" || lifecycle.kind === "requested-work"
         ? "change-request-open"
@@ -89,7 +119,7 @@ export async function closeOrdinaryErrand(
 
   let refs: CloseRefCleanupResult;
   try {
-    refs = await options.dependencies.cleanupRefs(record);
+    refs = await options.dependencies.cleanupRefs(target);
   } catch (error) {
     return failure("locus.errand-close.refs", message(error));
   }
@@ -107,7 +137,7 @@ export async function closeOrdinaryErrand(
 
   let retired: RetirementResult;
   try {
-    retired = await options.dependencies.retire(record, lifecycle);
+    retired = await options.dependencies.retire(target, lifecycle);
   } catch (error) {
     return failure("locus.errand-close.identity", message(error));
   }
@@ -133,17 +163,24 @@ export async function closeOrdinaryErrand(
   });
 }
 
-function isAwaitingOrdinary(record: TransientIdentityRecord): record is OrdinaryErrandRecord {
+/**
+ * States a merged tail can be finalized from: `awaiting-merge` for an Errand that left its
+ * checkout first, `open` for one that stayed through its own merge. A paused Errand has no
+ * change request to finalize and resumes instead.
+ */
+function isCloseableOrdinary(record: TransientIdentityRecord): record is OrdinaryErrandRecord {
   return record.version === 3 && record.kind === "errand" && record.purpose === "errand"
-    && record.state === "awaiting-merge";
+    && (record.state === "awaiting-merge" || record.state === "open");
 }
 
-function sameChangeRequest(evidence: ChangeRequestLifecycleEvidence, record: OrdinaryErrandRecord): boolean {
-  if (record.state !== "awaiting-merge") return false;
+function sameChangeRequest(
+  evidence: ChangeRequestLifecycleEvidence,
+  changeRequest: LocusChangeRequestV1,
+): boolean {
   const left = evidence.changeRequest;
-  const right = record.changeRequest;
-  return left.repositoryRef === right.repositoryRef && left.hostRef === right.hostRef
-    && left.baseRef === right.baseRef && left.headRef === right.headRef && left.headSha === right.headSha;
+  return left.repositoryRef === changeRequest.repositoryRef && left.hostRef === changeRequest.hostRef
+    && left.baseRef === changeRequest.baseRef && left.headRef === changeRequest.headRef
+    && left.headSha === changeRequest.headSha;
 }
 
 function alreadyFinalized(slug: string): LocusMutationResultV1 {

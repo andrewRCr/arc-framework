@@ -16,7 +16,7 @@ import type { LocusMutationResultV1, LocusProcessAnchor, LocusRefusalReason, Loc
 import { groomAwaitMergeTransform, pinGroomOpenedBaseHead, rollbackIdentityClaim, type GroomIdentityRecord } from "../errand/identity-claims.js";
 import { projectLocusIdentity } from "../errand/identity-record.js";
 import { transactTransientIdentities } from "../errand/identity-transaction.js";
-import { observeOpenChangeRequest } from "../errand/leave-runtime.js";
+import { observeExactChangeRequest } from "../errand/leave-runtime.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import { SlugSchema } from "../kernel/index.js";
 import { classifyGroomChangedPaths } from "./path-policy.js";
@@ -81,7 +81,7 @@ export async function closeGroomAtRuntime(options: CloseGroomRuntimeOptions): Pr
     return success("applied", null, popped.restoredParent, "Partial grooming completed on the configured base.");
   }
 
-  const observed = await observeOpenChangeRequest(options.exec, record.branch, options.base, head);
+  const observed = await observeExactChangeRequest(options.exec, record.branch, options.base, head);
   if (observed.kind !== "observed") return refusal("change-request-unverifiable", observed.message);
   const persisted = await transactTransientIdentities(identityIO(options), {
     remote: "origin", message: `arc: close groom ${options.anchorStub}`,

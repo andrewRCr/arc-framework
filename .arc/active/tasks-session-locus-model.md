@@ -1421,6 +1421,55 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   promotion regains real-runtime integration coverage, and the current-open, ROADMAP, adoption, and materialize
   cases exercise real v3 Errands rather than seeded legacy records.
 
+## **Phase 7.F:** Errand Close Reachability
+
+_Purpose:_ Make the documented single-session Errand terminal reachable. Found by dogfooding this session: an
+Errand whose PR merged while its checkout was still occupied cannot close. `arc errand close` refuses
+`identity-conflict` because the record is `open` rather than `awaiting-merge`, and `arc errand leave
+--state awaiting-merge` — the only edge into that state — refuses `change-request-unverifiable` because it
+resolves change requests with `--state open` and the merge already landed. The identity, its lease, and its
+originating inbox capture are all stranded with no non-destructive exit.
+
+_Design decisions:_ No new design. `run-errand` § Complete already specifies close as the terminal "on merge
+(full)" with no leave implied, and the auto-merge lane can land a merge while the operator is still in the
+checkout, so the gap is a conformance defect rather than an unspecified case. The evidence doctrine is
+unchanged and load-bearing: close proves an exact merged change request whose head equals the exact local
+branch head, never branch shape. An `open` record simply carries no recorded change request, so close observes
+one at finalization time instead of reading one the record already holds — the same observation `leave`
+performs, against merged rather than open host truth.
+
+### `[ ]` **7.F.a Close an Errand that merged while its checkout was still occupied**
+
+- _Goal:_ An Errand that stays in session through its own merge reaches the same terminal as one that left
+  first: refs reaped against the proven head, the originating capture dropped, the identity and its lease
+  retired. Ambiguous host truth, a moved head, and a still-open change request each refuse as they do today.
+
+    - `[x]` **7.F.a.i Key close on a resolved change request rather than the record's state**
+        - `closeOrdinaryErrand` accepts an `open` record alongside `awaiting-merge` and resolves one
+          `CloseTarget` — the recorded change request when the record holds one, an observed one otherwise —
+          which host truth, ref cleanup, and retirement authorization all read, so the three steps cannot
+          diverge on which change request was proven. `retirementDesired`'s `close` arm authorizes from `open`
+          against the observed coordinates while still requiring an `awaiting-merge` record's own recorded
+          coordinates, so a substituted change request refuses even when host truth reports that substitute
+          merged.
+
+    - `[x]` **7.F.a.ii Observe the merged change request at the runtime boundary**
+        - `observeOpenChangeRequest` became `observeExactChangeRequest`, taking the host state it must prove
+          (the three existing callers keep `open` by default). The close runtime resolves an `open` record's
+          target by requiring exactly one merged change request whose base, head ref, and head OID equal the
+          exact local branch head; an absent local branch, ambiguous or unmerged host truth, and head drift
+          each refuse before any ref or identity mutation.
+
+    - `[ ]` **7.F.a.iii Release the occupancy an in-place close leaves behind**
+        - _Goal:_ Finalizing in place ends with the checkout free, as leaving first does. Close retires the
+          identity but never pops the locus role or lease — `leave` owns that today — so an Errand closed from
+          its own checkout retires its identity and strands a `managed-role` row whose subject no longer
+          resolves, leaving the primary occupied.
+        - Reuse `leave`'s occupancy composition (record lock, marker provenance, `popOwnedLocusRole` against
+          the exact generation, parent restoration) rather than reimplementing it in close; a spawned transient
+          additionally needs its worktree torn down. Until this lands, closing an in-place Errand trades a
+          stranded identity for a stranded role.
+
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`

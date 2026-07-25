@@ -141,7 +141,7 @@ async function authorizeAwaitingMerge(
   if (target.kind !== "found") return target.result;
   const clean = await cleanExactHead(options.exec, target.row.checkoutPath, record.branch);
   if (clean.kind !== "ready") return clean.result;
-  const observed = await observeOpenChangeRequest(options.exec, record.branch, options.base, clean.head);
+  const observed = await observeExactChangeRequest(options.exec, record.branch, options.base, clean.head);
   if (observed.kind !== "observed") {
     return {
       kind: "refused",
@@ -383,11 +383,23 @@ async function cleanExactHead(
   }
 }
 
-export async function observeOpenChangeRequest(
+/**
+ * Observe the branch's single change request in the requested host state.
+ *
+ * @param exec - Argument-array process execution boundary.
+ * @param branch - Exact transient branch the change request must name as its head.
+ * @param base - Configured integration base the change request must target.
+ * @param head - Exact local head the change request's head OID must equal.
+ * @param state - Host state the change request must be in — `open` for a tail that
+ *   continues asynchronously, `merged` for one being finalized after its merge landed.
+ * @returns The observed coordinates, or why exactly one matching request could not be proven.
+ */
+export async function observeExactChangeRequest(
   exec: GitExec,
   branch: string,
   base: string,
   head: string,
+  state: "open" | "merged" = "open",
 ): Promise<
   | { kind: "observed"; configured: Pick<LocusChangeRequestV1, "repositoryRef" | "hostRef" | "baseRef">; changeRequest: LocusChangeRequestV1 }
   | { kind: "unverifiable"; message: string }
@@ -400,12 +412,12 @@ export async function observeOpenChangeRequest(
       ? repository.repositoryRef
       : `${repository.hostRef}/${repository.repositoryRef}`;
     const stdout = (await exec("gh", [
-      "pr", "list", "--repo", cliRepository, "--state", "open", "--head", branch,
+      "pr", "list", "--repo", cliRepository, "--state", state, "--head", branch,
       "--limit", "2", "--json", "baseRefName,headRefName,headRefOid",
     ])).stdout;
     const decoded: unknown = JSON.parse(stdout);
     if (!Array.isArray(decoded) || decoded.length !== 1) {
-      return { kind: "unverifiable", message: "Expected exactly one open change request for the Errand branch." };
+      return { kind: "unverifiable", message: `Expected exactly one ${state} change request for the Errand branch.` };
     }
     const item: unknown = decoded[0];
     if (typeof item !== "object" || item === null) return { kind: "unverifiable", message: "Change-request evidence is malformed." };

@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import { cleanupOrdinaryErrandRefs } from "../../../src/lib/errand/close-runtime.js";
+import type { CloseTarget } from "../../../src/lib/errand/close-locus.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
@@ -32,6 +33,13 @@ function awaiting(): OrdinaryErrandRecord {
       headSha: EXPECTED,
     },
   }) as OrdinaryErrandRecord;
+}
+
+/** The close target an awaiting record produces: its own recorded change request. */
+function target(): CloseTarget {
+  const record = awaiting();
+  if (record.state !== "awaiting-merge") throw new Error("expected awaiting tail");
+  return { record, changeRequest: record.changeRequest };
 }
 
 function fakeGit(options: {
@@ -72,18 +80,18 @@ function fakeGit(options: {
 describe("cleanupOrdinaryErrandRefs", () => {
   it("deletes exact local and remote heads and replays already-deleted refs", async () => {
     const exact = fakeGit({ local: EXPECTED, remote: EXPECTED });
-    await expect(cleanupOrdinaryErrandRefs(exact.exec, awaiting())).resolves.toEqual({ kind: "applied" });
+    await expect(cleanupOrdinaryErrandRefs(exact.exec, target())).resolves.toEqual({ kind: "applied" });
     expect(exact.state).toEqual({ local: null, remote: null });
 
     const absent = fakeGit({ local: null, remote: null });
-    await expect(cleanupOrdinaryErrandRefs(absent.exec, awaiting())).resolves.toEqual({ kind: "idempotent" });
+    await expect(cleanupOrdinaryErrandRefs(absent.exec, target())).resolves.toEqual({ kind: "idempotent" });
   });
 
   it("refuses moved heads before deleting either preservation ref", async () => {
     const moved = "b".repeat(40);
     const git = fakeGit({ local: EXPECTED, remote: moved });
 
-    await expect(cleanupOrdinaryErrandRefs(git.exec, awaiting())).resolves.toMatchObject({
+    await expect(cleanupOrdinaryErrandRefs(git.exec, target())).resolves.toMatchObject({
       kind: "refused",
       reason: "preservation-unproven",
     });
@@ -93,7 +101,7 @@ describe("cleanupOrdinaryErrandRefs", () => {
   it("retains both refs when the remote cannot be read", async () => {
     const git = fakeGit({ local: EXPECTED, remote: EXPECTED, fetchFailure: "fatal: network unreachable" });
 
-    await expect(cleanupOrdinaryErrandRefs(git.exec, awaiting())).resolves.toMatchObject({ kind: "error" });
+    await expect(cleanupOrdinaryErrandRefs(git.exec, target())).resolves.toMatchObject({ kind: "error" });
     expect(git.state).toEqual({ local: EXPECTED, remote: EXPECTED });
   });
 });

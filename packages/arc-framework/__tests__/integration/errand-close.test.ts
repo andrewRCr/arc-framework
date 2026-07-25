@@ -167,10 +167,13 @@ describe("closeErrand", () => {
       },
     }) as OrdinaryErrandRecord;
 
-    await expect(cleanupOrdinaryErrandRefs(io.exec, record)).resolves.toEqual({ kind: "applied" });
+    if (record.state !== "awaiting-merge") throw new Error("expected awaiting tail");
+    const target = { record, changeRequest: record.changeRequest };
+
+    await expect(cleanupOrdinaryErrandRefs(io.exec, target)).resolves.toEqual({ kind: "applied" });
     expect(await branchExists(dir, record.branch)).toBe(false);
     expect(await remoteHeadExists(dir, record.branch)).toBe(false);
-    await expect(cleanupOrdinaryErrandRefs(io.exec, record)).resolves.toEqual({ kind: "idempotent" });
+    await expect(cleanupOrdinaryErrandRefs(io.exec, target)).resolves.toEqual({ kind: "idempotent" });
   });
 
   it("detaches at base when a legacy record has no return branch", async () => {

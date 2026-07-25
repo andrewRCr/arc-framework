@@ -13,9 +13,12 @@ import {
   closeOrdinaryErrand,
   type CloseInboxResult,
   type CloseRefCleanupResult,
+  type CloseTarget,
+  type CloseTargetResolution,
 } from "./close-locus.js";
 import { ordinaryErrandTransform, type OrdinaryErrandRecord } from "./identity-transitions.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
+import { observeExactChangeRequest } from "./leave-runtime.js";
 
 export interface CloseOrdinaryErrandRuntimeOptions {
   readonly slug: string;
@@ -53,19 +56,25 @@ export async function closeOrdinaryErrandAtRuntime(
           ? { kind: "refused", reason: result.reason }
           : { kind: "error", message: result.message };
       },
-      readLifecycle: async (record) => {
-        if (record.state !== "awaiting-merge") throw new Error("Errand is not awaiting merge");
+      resolveTarget: (record) => resolveCloseChangeRequest(options, record),
+      readLifecycle: async (target) => {
         const configured = await resolveChangeRequestLifecycleConfiguration(options.exec, options.base)
           ?? { repositoryRef: "", hostRef: "", baseRef: "" };
-        return lifecyclePort.read(configured, record.changeRequest);
+        return lifecyclePort.read(configured, target.changeRequest);
       },
-      cleanupRefs: (record) => cleanupOrdinaryErrandRefs(options.exec, record),
+      cleanupRefs: (target) => cleanupOrdinaryErrandRefs(options.exec, target),
       removeInbox: options.removeInbox,
-      retire: async (record, lifecycle) => {
+      retire: async (target, lifecycle) => {
         const result = await transactTransientIdentities(io, {
           remote,
           message: `arc: finalize errand ${options.slug}`,
-          transform: ordinaryErrandTransform({ kind: "retire", previous: record, reason: "close", lifecycle }),
+          transform: ordinaryErrandTransform({
+            kind: "retire",
+            previous: target.record,
+            reason: "close",
+            changeRequest: target.changeRequest,
+            lifecycle,
+          }),
         });
         if (result.kind === "applied" || result.kind === "idempotent") return { kind: result.kind };
         return result.kind === "refused"
@@ -76,6 +85,41 @@ export async function closeOrdinaryErrandAtRuntime(
   });
 }
 
+/**
+ * Resolve the change request close finalizes against.
+ *
+ * An `awaiting-merge` record already carries the coordinates `leave` proved. An `open` record
+ * merged in place and carries none, so they are observed here against the exact local branch
+ * head — the same observation `leave` makes, in merged rather than open host state.
+ */
+async function resolveCloseChangeRequest(
+  options: CloseOrdinaryErrandRuntimeOptions,
+  record: OrdinaryErrandRecord,
+): Promise<CloseTargetResolution> {
+  if (record.state === "awaiting-merge") {
+    return { kind: "resolved", changeRequest: record.changeRequest };
+  }
+  const head = await resolveOptionalCommit(options.exec, `refs/heads/${record.branch}`);
+  if (head.kind === "error") return { kind: "error", message: head.message };
+  if (head.kind === "absent") {
+    return {
+      kind: "refused",
+      reason: "preservation-unproven",
+      message: "The Errand branch is absent locally, so its merged head cannot be proven.",
+    };
+  }
+  const observed = await observeExactChangeRequest(
+    options.exec,
+    record.branch,
+    options.base,
+    head.oid,
+    "merged",
+  );
+  return observed.kind === "observed"
+    ? { kind: "resolved", changeRequest: observed.changeRequest }
+    : { kind: "refused", reason: "change-request-unverifiable", message: observed.message };
+}
+
 async function configuredIdentityRemote(exec: GitExec): Promise<"origin" | null> {
   try {
     return (await exec("git", ["remote", "get-url", "origin"])).stdout.trim() === "" ? null : "origin";
@@ -84,15 +128,13 @@ async function configuredIdentityRemote(exec: GitExec): Promise<"origin" | null>
   }
 }
 
-/** Delete only local and remote refs still equal to the recorded merged head. */
+/** Delete only local and remote refs still equal to the proven merged head. */
 export async function cleanupOrdinaryErrandRefs(
   exec: GitExec,
-  record: OrdinaryErrandRecord,
+  target: CloseTarget,
 ): Promise<CloseRefCleanupResult> {
-  if (record.state !== "awaiting-merge") {
-    return { kind: "refused", reason: "identity-conflict", message: "Errand is not awaiting merge." };
-  }
-  const expected = record.changeRequest.headSha;
+  const record = target.record;
+  const expected = target.changeRequest.headSha;
   const localRef = `refs/heads/${record.branch}`;
   const remoteRef = `refs/heads/${record.branch}`;
   const temporaryRef = `refs/arc/tmp/errand-close/${uniqueRefToken()}`;

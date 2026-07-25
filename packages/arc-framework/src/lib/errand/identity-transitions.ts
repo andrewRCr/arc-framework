@@ -82,7 +82,13 @@ export type OrdinaryErrandTransition =
       updatedAt: string;
     }
   | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "promotion"; authorization: "local" }
-  | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "close"; lifecycle: ChangeRequestLifecycleEvidence }
+  | {
+      kind: "retire";
+      previous: OrdinaryErrandRecord;
+      reason: "close";
+      changeRequest: LocusChangeRequestV1;
+      lifecycle: ChangeRequestLifecycleEvidence;
+    }
   | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "abandon"; authorization: "local" }
   | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "abandon"; lifecycle: ChangeRequestLifecycleEvidence };
 
@@ -359,8 +365,14 @@ function retirementDesired(
   if (reason === "promotion" && previous.state === "open" && hasLocalAuthorization(request)) {
     return { kind: "desired", record: null };
   }
-  if (reason === "close" && previous.state === "awaiting-merge"
-    && lifecycleAuthorizes(request.lifecycle, previous.changeRequest, "merged")) {
+  // A recorded change request is the authority when the Errand has one; an open Errand that
+  // merged in place has none, so the caller's observed coordinates stand in — proven merged by
+  // the same host truth either way, never by the branch existing.
+  if (reason === "close"
+    && (previous.state === "awaiting-merge"
+      ? changeRequestsEqual(previous.changeRequest, request.changeRequest)
+      : previous.state === "open")
+    && lifecycleAuthorizes(request.lifecycle, request.changeRequest, "merged")) {
     return { kind: "desired", record: null };
   }
   if (reason === "abandon" && previous.state !== "awaiting-merge"

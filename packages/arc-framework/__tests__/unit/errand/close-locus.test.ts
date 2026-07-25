@@ -32,6 +32,27 @@ function awaiting(): OrdinaryErrandRecord {
   }) as OrdinaryErrandRecord;
 }
 
+/** The same Errand still occupying its checkout — merged in place, so it holds no change request. */
+function open(): OrdinaryErrandRecord {
+  return TransientIdentityRecordV3Schema.parse({
+    ...awaiting(),
+    state: "open",
+    changeRequest: null,
+  }) as OrdinaryErrandRecord;
+}
+
+const observedChangeRequest = {
+  repositoryRef: "owner/repo",
+  hostRef: "github.com",
+  baseRef: "main",
+  headRef: "chore/done",
+  headSha: "a".repeat(40),
+};
+
+function resolved(): { kind: "resolved"; changeRequest: typeof observedChangeRequest } {
+  return { kind: "resolved", changeRequest: observedChangeRequest };
+}
+
 function merged(record: OrdinaryErrandRecord): ChangeRequestLifecycleEvidence {
   if (record.state !== "awaiting-merge") throw new Error("expected awaiting tail");
   return { kind: "merged", changeRequest: record.changeRequest } as ChangeRequestLifecycleEvidence;
@@ -47,6 +68,7 @@ describe("closeOrdinaryErrand", () => {
       force: false,
       dependencies: {
         readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
         cleanupRefs: async () => (events.push("refs"), { kind: "applied" }),
         removeInbox: async () => (events.push("inbox"), {
@@ -67,6 +89,86 @@ describe("closeOrdinaryErrand", () => {
     });
   });
 
+  it("finalizes an Errand that merged while its checkout was still occupied", async () => {
+    const record = open();
+    const targets: unknown[] = [];
+    const result = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
+        readLifecycle: async (target) => (targets.push(target), {
+          kind: "merged",
+          changeRequest: target.changeRequest,
+        } as ChangeRequestLifecycleEvidence),
+        cleanupRefs: async (target) => (targets.push(target), { kind: "applied" }),
+        removeInbox: async () => ({ kind: "removed", nextOffer: null }),
+        retire: async (target) => (targets.push(target), { kind: "applied" }),
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "applied", operation: "errand-close", originEntry: "Done capture" });
+    // Host truth, ref cleanup, and retirement all read the one observed change request.
+    expect(targets).toEqual([
+      { record, changeRequest: observedChangeRequest },
+      { record, changeRequest: observedChangeRequest },
+      { record, changeRequest: observedChangeRequest },
+    ]);
+  });
+
+  it("refuses an open Errand whose merged change request cannot be resolved", async () => {
+    const record = open();
+    const cleanupRefs = vi.fn();
+    const result = await closeOrdinaryErrand({
+      slug: record.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => ({
+          kind: "refused",
+          reason: "change-request-unverifiable",
+          message: "Expected exactly one merged change request for the Errand branch.",
+        }),
+        readLifecycle: vi.fn(),
+        cleanupRefs,
+        removeInbox: vi.fn(),
+        retire: vi.fn(),
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "change-request-unverifiable" });
+    expect(cleanupRefs).not.toHaveBeenCalled();
+  });
+
+  it("refuses a paused Errand, which has no change request to finalize", async () => {
+    const paused = TransientIdentityRecordV3Schema.parse({
+      ...awaiting(),
+      state: "paused",
+      savedHead: "b".repeat(40),
+      changeRequest: null,
+    }) as OrdinaryErrandRecord;
+    const resolveTarget = vi.fn();
+    const result = await closeOrdinaryErrand({
+      slug: paused.slug,
+      protection: "full",
+      force: false,
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record: paused }),
+        resolveTarget,
+        readLifecycle: vi.fn(),
+        cleanupRefs: vi.fn(),
+        removeInbox: vi.fn(),
+        retire: vi.fn(),
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(resolveTarget).not.toHaveBeenCalled();
+  });
+
   it("retains identity when exact ref cleanup or inbox mutation is unsafe", async () => {
     const record = awaiting();
     const retire = vi.fn();
@@ -76,6 +178,7 @@ describe("closeOrdinaryErrand", () => {
       force: false,
       dependencies: {
         readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
         cleanupRefs: async () => ({ kind: "refused", reason: "preservation-unproven", message: "head moved" }),
         removeInbox: vi.fn(),
@@ -91,6 +194,7 @@ describe("closeOrdinaryErrand", () => {
       force: false,
       dependencies: {
         readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
         readLifecycle: async () => merged(record),
         cleanupRefs: async () => ({ kind: "idempotent" }),
         removeInbox: async () => ({ kind: "error", message: "notes lock raced" }),
@@ -110,6 +214,7 @@ describe("closeOrdinaryErrand", () => {
       force: true,
       dependencies: {
         readIdentity: async () => ({ kind: "ready", record }),
+        resolveTarget: async () => resolved(),
         readLifecycle: vi.fn(),
         cleanupRefs,
         removeInbox: vi.fn(),
@@ -126,6 +231,7 @@ describe("closeOrdinaryErrand", () => {
         force: false,
         dependencies: {
           readIdentity: async () => ({ kind: "ready", record }),
+          resolveTarget: async () => resolved(),
           readLifecycle: async () => ({ kind, changeRequest: record.changeRequest } as ChangeRequestLifecycleEvidence),
           cleanupRefs,
           removeInbox: vi.fn(),

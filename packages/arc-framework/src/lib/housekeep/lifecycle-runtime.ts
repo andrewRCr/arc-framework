@@ -16,7 +16,7 @@ import {
 } from "../errand/identity-claims.js";
 import { projectLocusIdentity, serializeTransientIdentityRecord } from "../errand/identity-record.js";
 import { transactTransientIdentities } from "../errand/identity-transaction.js";
-import { observeOpenChangeRequest } from "../errand/leave-runtime.js";
+import { observeExactChangeRequest } from "../errand/leave-runtime.js";
 import { createLocusMutationResult, popOwnedLocusRole } from "../locus/mutation.js";
 import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "../locus/platform-inspectors.js";
 import { acquireSessionAnchor } from "../locus/process-inspector.js";
@@ -123,7 +123,7 @@ export async function closeHousekeepAtRuntime(
   if (policy.kind === "refused") {
     return refusal("identity-conflict", `Housekeeping diff contains non-routing paths: ${policy.paths.join(", ")}`);
   }
-  const observed = await observeOpenChangeRequest(options.io.exec, record.branch, options.base, head);
+  const observed = await observeExactChangeRequest(options.io.exec, record.branch, options.base, head);
   if (observed.kind !== "observed") return refusal("change-request-unverifiable", observed.message);
   const offer = await nextOffer(options, row.role?.parentCheckoutPath ?? null);
   if (offer.kind === "refused") return refusal("identity-conflict", offer.reason);
