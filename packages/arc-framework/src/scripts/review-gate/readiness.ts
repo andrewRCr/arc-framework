@@ -644,23 +644,63 @@ async function collectMetaPaths(
   for (const entry of directory.entries) {
     const child = `${relativePath}/${entry.name}`;
     const absolute = resolve(root, child);
+    const isMetaCandidate = /^meta-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/u.test(entry.name);
     try {
       const stat = await fs.lstat(absolute);
-      if (stat.isSymbolicLink()) continue;
+      if (stat.isSymbolicLink()) {
+        if (isMetaCandidate || recursive) {
+          facts.push(fact("symlinked-artifact", child, "The lifecycle candidate is a symbolic link."));
+        }
+        continue;
+      }
       if (stat.isDirectory()) {
         if (recursive) {
           const nested = await collectMetaPaths(root, child, fs, true);
           paths.push(...nested.paths);
           facts.push(...nested.facts);
         }
-      } else if (stat.isFile() && /^meta-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/u.test(entry.name)) {
+      } else if (isMetaCandidate && stat.isFile()) {
         paths.push(child);
+      } else if (isMetaCandidate) {
+        facts.push(fact("non-regular-artifact", child, "The lifecycle candidate is not a regular file."));
       }
     } catch {
       facts.push(fact("unreadable-artifact", child, "The lifecycle entry could not be inspected."));
     }
   }
   return { paths, facts };
+}
+
+async function lifecycleCandidateFacts(
+  root: string,
+  fs: ReviewReadinessFs,
+): Promise<ReviewReadinessFact[]> {
+  const roots: Array<{ path: string; recursive: boolean }> = [
+    { path: ".arc/active", recursive: false },
+    { path: ".arc/backlog/planned", recursive: true },
+    { path: ".arc/backlog/provisional", recursive: true },
+  ];
+  const facts: ReviewReadinessFact[] = [];
+  for (const source of roots) {
+    const collected = await collectMetaPaths(root, source.path, fs, source.recursive);
+    facts.push(...collected.facts);
+    for (const path of collected.paths) {
+      const result = await readRegularFile(root, path, fs);
+      if (result.fact !== undefined) {
+        facts.push(result.fact);
+        continue;
+      }
+      try {
+        const record = parseMetaRecord(result.content ?? "");
+        if (resolveLifecyclePosition({ path, state: record.State }) === null) {
+          facts.push(fact("malformed-artifact", path, "The lifecycle candidate is malformed."));
+        }
+      } catch {
+        facts.push(fact("malformed-artifact", path, "The lifecycle candidate is malformed."));
+      }
+    }
+  }
+  return facts;
 }
 
 async function hasOpenCohortMember(
@@ -683,12 +723,22 @@ async function hasOpenCohortMember(
         continue;
       }
       try {
-        const memberCohort = parseMetaRecord(result.content).Cohort;
+        const record = parseMetaRecord(result.content);
+        if (resolveLifecyclePosition({ path, state: record.State }) === null) {
+          return {
+            open: false,
+            facts: [fact("malformed-artifact", path, "The lifecycle candidate is malformed.")],
+          };
+        }
+        const memberCohort = record.Cohort;
         if (memberCohort === cohort || memberCohort?.startsWith(`${cohort}/`) === true) {
           return { open: true, facts: [] };
         }
       } catch {
-        continue;
+        return {
+          open: false,
+          facts: [fact("malformed-artifact", path, "The lifecycle candidate is malformed.")],
+        };
       }
     }
   }
@@ -879,7 +929,10 @@ async function evaluateArchivedWorkUnit(
   }
   facts.push(...completionFacts(content, candidate.metaPath));
   facts.push(...releaseNotesFacts(content, candidate.metaPath));
-  facts.push(...await cohortCloseoutFacts(root, fs, candidate, record.Cohort, request.vehicle.slug));
+  facts.push(...await lifecycleCandidateFacts(root, fs));
+  if (facts.length === 0) {
+    facts.push(...await cohortCloseoutFacts(root, fs, candidate, record.Cohort, request.vehicle.slug));
+  }
   if (facts.length === 0) facts.push(...await roadmapFacts(root, fs));
   return facts;
 }

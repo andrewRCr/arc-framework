@@ -484,7 +484,7 @@ Projects enabling the context must install the pinned workflow.
     });
   });
 
-  it("accepts a well-formed final cohort closeout and ignores unrelated malformed inputs", async () => {
+  it("rejects malformed and symlinked lifecycle candidates used by readiness rendering", async () => {
     const roadmap = `${composeProjectReadinessView({
       title: "Roadmap: Project Status",
       renderedRef: "abc1234",
@@ -525,7 +525,19 @@ Projects enabling the context must install the pinned workflow.
       },
     );
 
-    expect(result.state).toBe("ready");
+    expect(result).toMatchObject({
+      state: "invalid",
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          code: "malformed-artifact",
+          path: ".arc/active/meta-unrelated.md",
+        }),
+        expect.objectContaining({
+          code: "symlinked-artifact",
+          path: ".arc/backlog/planned/unrelated/meta-unrelated.md",
+        }),
+      ]),
+    });
   });
 
   it("rejects a stale project-readiness render", async () => {
