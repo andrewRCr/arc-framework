@@ -1367,11 +1367,30 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           the ordering claim is now a unit test that fails against the old sequence.
 
     - `[ ]` **7.E.c.v Validate the locked generation before leave and close mutate** — E3-F1, E3-F2
-        - Leave switches the primary checkout or removes the spawned worktree before `popOwnedLocusRole` performs
-          the first locked exact-generation validation, so a record or lease race mutates the newer generation's
-          checkout before returning refusal. Close then accepts merged host truth without proving occupancy
-          absence, deleting refs, inbox state, and identity — potentially a branch beneath a retained or live
-          checkout, erasing the identity recovery needs.
+
+        - _Both findings verified against source 2026-07-25; they do not share a fix, so the leaf decomposes per
+          this task's `_Shape:_`._ `validateOwnedLocusRole` (`locus/mutation.ts`, from `7.E.c.iv`) is the shared
+          predicate both subtasks consume.
+
+        - `[ ]` **7.E.c.v.1 Prove the locked generation before leave moves a checkout** — E3-F1
+            - Under the record lock, `restorePrimaryCheckout` runs `git checkout <base>` and the spawned arm runs
+              `git worktree remove`, both before `popOwnedLocusRole` performs the first exact-generation
+              validation. `recordId`, `leaseId`, and the row all come from the pre-lock roster read, so a
+              generation that changed in between has its checkout mutated and is only then refused. Validate
+              immediately after acquiring the lock, before either mutation — the `7.E.c.iv` shape applied to
+              `leave-runtime.ts`.
+
+        - `[ ]` **7.E.c.v.2 Refuse close over foreign occupancy** — E3-F2
+            - `closeOrdinaryErrandAtRuntime` supplies `readIdentity`, `resolveTarget`, `readLifecycle`,
+              `cleanupRefs`, `removeInbox`, and `retire` — **none reads the locus roster**, so close deletes the
+              local and remote branch, drops the capture, and retires the identity purely on merged host truth,
+              with no occupancy input at all. Needs a roster read plus a new dependency on the close composition.
+            - _Predicate settled 2026-07-25 — do not widen it to plain occupancy._ Refuse only when the errand's
+              checkout is occupied by a generation that is **not** the caller's own; the caller's own occupancy
+              proceeds untouched. Plain absence would contradict `7.F.a.iii`, which deliberately has close finalize
+              from inside its own still-occupied checkout and leave the role to the recovery replay path. The
+              finding's real risk is refs deleted beneath a _retained or live foreign_ checkout, which the
+              foreign-only reading covers. Rationale in `notes-session-locus-model.md`.
 
     - `[ ]` **7.E.c.vi Bind promotion recovery to its source generation** — E4-F1, E4-F3
         - Identity-absent promotion recovery matches on work-unit name, branch, generated meta, and a live lease,

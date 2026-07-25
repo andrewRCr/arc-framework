@@ -240,6 +240,22 @@ rendering its own refusal and operation. The tripwire fires on a shared capabili
 every mutator plus revalidation machinery — which this is not: it introduces no obligation outside the three
 abandon drivers and no new concept beyond "the generation the caller selected."
 
+### `7.E.c.v` E3-F2 predicate — settled 2026-07-25
+
+E3-F2's correction boundary reads "prove occupancy absence" before close deletes refs, inbox state, and identity.
+Taken literally it contradicts shipped behavior: `7.F.a.iii` deliberately has close finalize from **inside its own
+still-occupied checkout**, retiring the identity and leaving the locus role to the recovery replay path. That is
+the path this branch dogfooded live — an errand whose PR merged while its checkout was still occupied has no other
+terminal. A plain absence check would make the shape `7.F.a` exists to enable refuse itself.
+
+Settled reading: refuse only on occupancy by a generation that is **not the caller's own**. The finding's stated
+risk is a branch deleted "beneath a retained or live checkout" — a foreign one — which the narrower predicate
+covers while leaving in-place close intact. This is the same authority idiom `7.E.c.iv` applied to partial
+settlement: the question is never _is it occupied_ but _is it mine_.
+
+Recorded because it is an interpretation of the finding rather than a restatement of it, and because the naive
+reading is the one a later session would arrive at from the finding text alone.
+
 ### `7.E.c.iii` scope boundary — settled 2026-07-24
 
 `S2-F2`'s correction boundary reads "apply the complete locus occupancy veto before emitting a removable
