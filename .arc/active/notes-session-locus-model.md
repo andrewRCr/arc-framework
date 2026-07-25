@@ -8,6 +8,7 @@
 - [Expected base-merge reconciles](#expected-base-merge-reconciles)
 - [Right-sizing audit (2026-07-22)](#right-sizing-audit-2026-07-22)
 - [Chunked-review finding triage (2026-07-24)](#chunked-review-finding-triage-2026-07-24)
+- [Decomposition into a delivery stack (2026-07-25)](#decomposition-into-a-delivery-stack-2026-07-25)
 
 ## Codebase pointers
 
@@ -284,3 +285,144 @@ cleanup without another edit here.
 unknown-collapsed-into-absent shape the packet names as a root cause — and the type is what forecloses it. Only
 the status handler constructs the sweep in production and it already passed the value; the change is a test-side
 edit plus a removed `as LocusStateV1` cast.
+
+## Decomposition into a delivery stack (2026-07-25)
+
+The branch stands at 195 commits and +48,254 / −3,587 across 366 files — 21,789 source lines, 21,213 test lines,
+83 new source modules. Standing question ahead of the remaining Phase 7.E work: is that volume proportionate to
+the design intent, and is the remediation set evidence of doubling down on a scoping mistake? Answered by a
+capability inventory over the delivered surface, then a detachability trace. Recorded here because the conclusion
+changes what ships, not merely how it is built.
+
+### The size is scope absorption, not overdesign
+
+The right-sizing audit above measured exactness against the spec's intent and found efficacy intact. It did not
+ask the scope question, because it took the spec's scope as given. The module split answers it:
+
+- `lib/locus` (6,893) is the design intent — the record substrate solving four of the six motivating failures.
+- `lib/errand` grew 1,389 → 7,789 (5.6×). The goal text licenses making Errand fire sites _consume_ the allocation
+  model; what landed is a v3 transient-identity state machine plus `leave` / `materialize` / `abandon`.
+- `lib/housekeep` (1,061) and `lib/groom` (828) are new, carrying nine new CLI verbs between them. Neither traces
+  to any of the six motivating failures.
+
+Two further work units were built alongside the specced one and never received their own spec, review boundary, or
+scoping decision. Both are wanted — each originated as a real failure routed here because its domain overlapped —
+but neither can ride this one. Finding density follows from volume rather than rot: 66 findings over 43,754
+reviewed lines is ~1.5 per kLOC, a normal rate over an abnormal surface.
+
+**Routing lesson carried out of this WU.** Domain overlap is not a sufficient condition for adopting a concern into
+an in-flight WU. The absorption path ran capture → "same domain" → adopt → "then we should also cover this case,
+and this one". Routed to the inbox as an inbox-drain safeguard gap rather than resolved here; `decomposition-doctrine`
+holds the adjacent planning-side question.
+
+### Detachability trace
+
+Dependency direction is favourable — errand, housekeep, and groom all depend on locus. Three back-edges exist and
+all three are shallow:
+
+- `locus/` → `errand/identity-snapshot.ts` (156 lines, four locus consumers). Already half-inverted:
+  `evidence.ts` declares `readIdentities()` as a port on the IO interface, and only two sites wire the concrete
+  implementation. This is the D6 identity join, not v3 logic — the module belongs to the locus core.
+- `locus/command-runtime.ts` → `housekeep/open-runtime.ts` for `readHousekeepState`, a ~15-line helper whose entire
+  body calls locus's own `readLocusState`. Misplaced function, not a dependency.
+- `close-runtime.ts` → `leave-runtime.ts` for `observeExactChangeRequest`, a single import. Relocating that
+  function to `change-request-lifecycle.ts` frees the whole close path for the base deliverable.
+
+**The v3 identity core is shared substrate, not errand-private.** `errand/open-runtime.ts`,
+`housekeep/open-runtime.ts`, and `groom/close-runtime.ts` all import `identity-claims` / `identity-transaction`,
+and `errand open` writes through `transactTransientIdentities` at four call sites with no v2 write path to degrade
+to. The core therefore ships with the base deliverable — also correct on the merits, since transient identity is
+this WU's own vocabulary rather than an errand feature.
+
+### The stack
+
+Three deliverables, each its own work unit, in dependency order:
+
+- **D1 — `session-locus-model`** (~9–11k source): all of `lib/locus`, the v3 identity core
+  (`identity-*`, `change-request-lifecycle`, `exact-branch-generation`, `locked-generation`), the base Errand verbs
+  (`open`, `link`, `close`, `promote`, `check`), `lib/recover`, session-init/handoff/compaction wiring, and the
+  `arc locus` reader. Retains the spec's Goals and the six motivating failures.
+- **D2 — errand transient lifecycle** (~4–5k): `leave`, `abandon`, `materialize`, `partial-settle`, and the six
+  carved generation-capability findings, which ship with the machinery they belong to instead of staying carved.
+- **D3 — claimed sweeps** (~1.9k): `lib/housekeep`, `lib/groom`, the `plan` claim protocol, and the housekeep
+  sweep verbs.
+
+### Remediation routing
+
+Remaining open work distributes across the stack rather than landing on one head:
+
+- **D1** — `7.E.e.ii`, `.iii`, `.iv`, `.v`, `.vii`; `7.E.f`; the `R1-F1`–`R1-F4` claims of `7.E.h`; `7.G.a`; and
+  the `7.E.g` members covering in-place resume, legacy record readability, legacy multi-WU recovery, and install.
+- **D2** — the six carved findings; `7.E.h`'s `E4-V1` / `E5-V1` coverage restoration; `7.E.g`'s remote-only legacy
+  close path and quick-reference signature.
+- **D3** — `7.E.e.vi`'s housekeep and plan open paths; `7.E.g`'s partial-housekeep base binding, groom exact-path
+  authorization, and inbox source digest.
+
+`7.E.g` and `7.E.h` are the two undecomposed parents, and they are precisely the ones that span deliverables — the
+split forces the decomposition that was owed either way, now against three targets small enough to hold at once.
+D1 carries most of the remaining remediation; D2 and D3 come out comparatively light. The split buys review
+proportionality, not a fast first merge.
+
+### Lifecycle calls
+
+- **Three work units, not one shipping three PRs.** Nothing in the current model supports stacked delivery
+  (`chunked-delivery` owns that, unstarted), and the 1:1 WU/PR assumption would break. D1 and D2 each carry genuine
+  open design — `7.G.a` for D1, the generation-capability contract already recorded as spec-worthy for D2. D3 is
+  delivery-only and takes a thin spec.
+- **The spec splits with the code.** Expect re-authoring rather than a section cut: D7 and D8 both span
+  deliverables. Each spec records that it decomposed from this WU and inherited its implementation.
+- **Task lists renumber cleanly** for remaining work; `tasks-session-locus-model.md` archives intact with this WU's
+  record. Historical `Context:` footers resolve into an archived artifact, which is where archived artifacts point.
+
+### Carve mechanics
+
+The branch is pushed, so this is forward-only — no history rewriting and no orphaned SHA-keyed notes. Commit-level
+partitioning across 195 interleaved commits is not attempted. Instead each deliverable branches from its
+predecessor (D1 from the reconciled base) and takes the tip state by path, with the three seam fixes applied and
+the D2/D3 CLI registrations and workflow dispatch de-wired from D1.
+
+The 195 commits never reach the integration base under this shape, so their task-ID footers were never going to
+land regardless. The recoverable value is the development narrative, and the mitigation is to port each deliverable
+as a meaningful commit sequence — schema, record store, reader, allocator, verbs, workflow integration — rather
+than one blob, keeping `feat/session-locus-model` alive unmerged as the reference record. What reaches the base is
+a readable history instead of an interleaved one.
+
+### Stop-reason tiers and the judgment boundary
+
+The friction risk this model carries is the one the review architecture already paid for once: determinism added to
+reduce friction can increase it when it converts judgment into refusal. Live evidence is in `7.G` — a checkout
+reached from a second platform reads its own healthy lease as unverifiable, and every exit then refuses, leaving
+hand-deletion of the record as the only way forward. Session-init already surfaces `primary-off-base` as an
+availability warning on sessions that allocate nothing.
+
+`LocusStopReason` is a flat 15-value enum where `projectTrustedLocusRow` sorts members into authority-fatal and
+not — two tiers where the model needs three:
+
+- **hard** — proceeding destroys work; no override exists.
+- **authority** — resolution needs evidence the agent cannot supply; the operator may release it.
+- **advisory** — the code cannot verify, but session context may settle it; the agent may proceed, and says so.
+
+The governing boundary: **judgment is admissible where the agent holds evidence the code lacks, and inadmissible
+where the code holds evidence the agent lacks.** An unverifiable anchor on a session that knows it is alone is the
+first; a live foreign lease is the second, where overriding is guessing rather than knowing. `primary-dirty` and
+`primary-off-base` are allocation preconditions on non-destructive paths and belong in the advisory tier. An
+advisory override always emits one line saying it happened — visible, never a prompt — so a wrong call stays
+catchable without restoring the friction the tier removes.
+
+### `7.G.a` — recommended shape
+
+Of the phase's three candidates, the third: narrow the unknown surface so a cross-inspector anchor re-verifies
+through a portable signal. The first two accept the false-unknown and attach an exit to it; the third removes most
+of its reachability, and every later consumer of `unknown` inherits the narrower surface. Honour the phase's own
+boundaries — do not weaken the process anchor to reach it, and gate any self-attested release on operator
+confirmation. The tier model above is part of the same decision, since the phase already reframes recovery as
+keying on authority over the lease rather than on deadness.
+
+### Open costs
+
+- **Test entanglement is the largest unknown.** Housekeep has one named test file (87 lines) and groom none —
+  their coverage lives inside shared integration and e2e files. Source carves cleanly; tests will not.
+- **D1's `session-init.md` needs rewriting, not reverting** — the signal-leaf spine must route housekeep and
+  grooming the pre-model way while retaining locus dispatch.
+- **`7.G.a` is unsettled design** on D1's critical path, and its resolution may change what the anchor code is.
+  Settle it in the spec before carving D1's locus core.
