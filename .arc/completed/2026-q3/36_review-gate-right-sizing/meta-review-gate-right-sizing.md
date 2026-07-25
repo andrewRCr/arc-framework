@@ -71,6 +71,8 @@ activation remains intentionally post-merge because the pinned workflow cannot o
 Verification passed Markdown, TypeScript, and shell linting; source and test typechecks; build; projected-copy
 checks; and the full repository suite on the reconciled mainline. The final suite passed 564 files and 7,523 tests
 with one environment-gated skip. Subsequent reconciliation and lifecycle-only documentation changes received
-targeted verification without claiming another complete hosted review on their later heads.
+targeted verification without claiming another complete hosted review on their later heads. Final integration
+dogfooding removed global project-readiness reproduction from exact-head clearance because that derived view
+includes local refs unavailable to the host; archive regeneration and commit-time validation remain unchanged.
 
 ---

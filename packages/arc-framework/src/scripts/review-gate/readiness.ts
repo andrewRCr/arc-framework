@@ -19,16 +19,6 @@ import { z } from "zod";
 
 import { parseMetaRecord } from "../../lib/active/meta-reader.js";
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
-import {
-  composeProjectReadinessView,
-  resolveProjectReadinessViewInput,
-  type ProjectReadinessRenderStamp,
-  type ProjectViewFs,
-} from "../../lib/status/project-view.js";
-import {
-  assertRoadmapRegenerated,
-  ROADMAP_PATH,
-} from "../../lib/status/roadmap-regeneration-assert.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
 import { resolveLifecyclePosition } from "../../lib/work-unit/lifecycle-state.js";
 
@@ -570,56 +560,6 @@ function archivedPrUrlMatches(value: string | null, repository: string, pullRequ
   }
 }
 
-function roadmapStamp(content: string): {
-  title: string;
-  stamp: ProjectReadinessRenderStamp;
-} | null {
-  const title = /^# (.+)$/mu.exec(content)?.[1];
-  const ref = /Last rendered against `([^`]+)`\./u.exec(content)?.[1];
-  if (title === undefined || ref === undefined) return null;
-  const scope = /^> Source scope: (.+?)\.(?: Live view:|$)/mu.exec(content)?.[1];
-  const liveView = /Live view: `([^`]+)`\./u.exec(content)?.[1];
-  return {
-    title,
-    stamp: {
-      ref,
-      ...(scope !== undefined ? { scope } : {}),
-      ...(liveView !== undefined ? { liveView } : {}),
-    },
-  };
-}
-
-function projectViewFs(root: string, fs: ReviewReadinessFs): ProjectViewFs {
-  return {
-    readdir: async (path) => {
-      const rel = relative(root, path).split(sep).join("/");
-      const result = await readDirectory(root, rel, fs);
-      if (result.entries === undefined) throw new Error(result.fact?.message ?? "directory unavailable");
-      const entries: ReviewReadinessDirEntry[] = [];
-      for (const entry of result.entries) {
-        const child = resolve(path, entry.name);
-        try {
-          const stat = await fs.lstat(child);
-          if (stat.isSymbolicLink()) continue;
-          entries.push({
-            name: entry.name,
-            isDirectory: () => stat.isDirectory(),
-          });
-        } catch {
-          continue;
-        }
-      }
-      return entries;
-    },
-    readFile: async (path) => {
-      const rel = relative(root, path).split(sep).join("/");
-      const result = await readRegularFile(root, rel, fs);
-      if (result.content === undefined) throw new Error(result.fact?.message ?? "file unavailable");
-      return result.content;
-    },
-  };
-}
-
 async function collectMetaPaths(
   root: string,
   relativePath: string,
@@ -829,45 +769,6 @@ async function cohortCloseoutFacts(
   return facts;
 }
 
-async function roadmapFacts(
-  root: string,
-  fs: ReviewReadinessFs,
-): Promise<ReviewReadinessFact[]> {
-  const roadmap = await readRegularFile(root, ROADMAP_PATH, fs);
-  if (roadmap.fact !== undefined) return [roadmap.fact];
-  const actual = roadmap.content ?? "";
-  const header = roadmapStamp(actual);
-  if (header === null) {
-    return [fact("malformed-artifact", ROADMAP_PATH, "The project-readiness view header is malformed.")];
-  }
-  try {
-    const input = await resolveProjectReadinessViewInput({
-      cwd: root,
-      title: header.title,
-      fs: projectViewFs(root, fs),
-    });
-    const rendered = composeProjectReadinessView({
-      ...input,
-      renderedRef: header.stamp,
-    });
-    const expected = rendered.endsWith("\n") ? rendered : `${rendered}\n`;
-    const verdict = assertRoadmapRegenerated({
-      stagedContent: actual,
-      renderedContent: expected,
-      indeterminate: false,
-    });
-    return verdict.status === "pass"
-      ? []
-      : [fact("project-readiness-mismatch", ROADMAP_PATH, verdict.message)];
-  } catch {
-    return [fact(
-      "malformed-artifact",
-      ROADMAP_PATH,
-      "The project-readiness view could not be rendered from the supplied tree.",
-    )];
-  }
-}
-
 async function evaluateArchivedWorkUnit(
   request: ReviewReadinessRequest & {
     vehicle: { kind: "work-unit"; slug: string; archiveCadence: "with-integration" };
@@ -934,7 +835,6 @@ async function evaluateArchivedWorkUnit(
   if (facts.length === 0) {
     facts.push(...await cohortCloseoutFacts(root, fs, candidate, record.Cohort, request.vehicle.slug));
   }
-  if (facts.length === 0) facts.push(...await roadmapFacts(root, fs));
   return facts;
 }
 

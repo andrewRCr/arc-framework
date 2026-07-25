@@ -98,8 +98,9 @@ head is born locked while planning-only changes retain their existing lane.
 
         - Added one strict readiness evaluator and handler envelope over exact live PR/head identity and the closed
           WU/Errand vehicle union. Cadence-specific WU checks validate secure supplied-tree artifacts, archive and
-          cohort closeout, Completion Notes, optional Release Notes, and the rendered project-readiness view;
-          Errands remain explicitly exempt from WU products.
+          cohort closeout, Completion Notes, and optional Release Notes; Errands remain explicitly exempt from WU
+          products. The project-readiness view stays under archive-time regeneration and commit-time validation
+          because its local-ref inputs do not exist in the host's supplied PR tree.
 
     - `[x]` **2.1.b Add exact-head unlock preflight and dispatch**
 

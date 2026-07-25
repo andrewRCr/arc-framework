@@ -242,18 +242,12 @@ Projects enabling the context must install the pinned workflow.
     expect(result.state).toBe("ready");
   });
 
-  it("accepts a unique completed archive with exact PR identity and a coherent readiness view", async () => {
-    const roadmap = `${composeProjectReadinessView({
-      title: "Roadmap: Project Status",
-      renderedRef: "abc1234",
-      records: [],
-    })}\n`;
+  it("accepts a unique completed archive with exact PR identity", async () => {
     const result = await evaluateReviewReadiness(
       readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
       {
         fs: buildFs({
           [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: shippedMeta(),
-          [`${ROOT}/.arc/backlog/ROADMAP.md`]: roadmap,
         }),
       },
     );
@@ -623,7 +617,7 @@ Projects enabling the context must install the pinned workflow.
     expect(result.state).toBe("ready");
   });
 
-  it("rejects a stale project-readiness render", async () => {
+  it("does not treat the local-ref project view as exact-head readiness authority", async () => {
     const roadmap = `${composeProjectReadinessView({
       title: "Roadmap: Project Status",
       renderedRef: "abc1234",
@@ -639,13 +633,7 @@ Projects enabling the context must install the pinned workflow.
       },
     );
 
-    expect(result).toMatchObject({
-      state: "invalid",
-      diagnostics: [{
-        code: "project-readiness-mismatch",
-        path: ".arc/backlog/ROADMAP.md",
-      }],
-    });
+    expect(result.state).toBe("ready");
   });
 
   it.each([

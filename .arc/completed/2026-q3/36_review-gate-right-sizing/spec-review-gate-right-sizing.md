@@ -376,18 +376,19 @@ re-runs:
 
 - `work-unit { slug, archiveCadence }` first binds that slug to the guarded PR: the live PR head branch must encode
   the same work-unit slug, the requested SHA must remain its exact head, and under `with-integration` the archived
-  meta's `PR URL` must name that repository and PR. It then validates the exact products already required by the
-  integration workflow. Under `with-integration`, the PR tree must carry the WU as `Shipped` in `completed/`, with
-  Completion Notes, any present Release Notes well-formed, the archive/cohort closeout, and a coherent
-  project-readiness view. Under `manual`, it must carry the WU as `Integrating` in `active/`, with its declared
-  branch matching the PR head, Completion Notes, and any present Release Notes well-formed; archive and
-  readiness-view products remain post-merge. Whether reader/operator-visible scope warrants Release Notes remains
-  the integration workflow's human composition judgment, not a fact the deterministic guard re-infers.
+  meta's `PR URL` must name that repository and PR. It then validates the host-authoritative lifecycle products.
+  Under `with-integration`, the PR tree must carry the WU as `Shipped` in `completed/`, with Completion Notes, any
+  present Release Notes well-formed, and the archive/cohort closeout. Under `manual`, it must carry the WU as
+  `Integrating` in `active/`, with its declared branch matching the PR head, Completion Notes, and any present
+  Release Notes well-formed; archive products remain post-merge. The project-readiness view remains an archive-time
+  and commit-time regeneration contract, not host-side clearance authority: its local-ref inputs are intentionally
+  unavailable in the supplied PR tree. Whether reader/operator-visible scope warrants Release Notes remains the
+  integration workflow's human composition judgment, not a fact the deterministic guard re-infers.
 - `errand { slug }` validates the strict Errand slug/branch/PR/head identity and is explicitly exempt from WU
   composition products, matching the shipped Errand integration contract.
 
-The checker is deliberately not a generalized readiness engine. It reuses the existing meta/lifecycle parsers and
-project-readiness render/compare primitives, but reads only the required files and fails closed rather than using
+The checker is deliberately not a generalized readiness engine. It reuses the existing meta/lifecycle parsers,
+but reads only the required files and fails closed rather than using
 the lifecycle/status indexes whose normal user-facing contract skips malformed or unreadable inputs. Each required
 path must resolve inside the supplied root to one regular, non-symlink file; missing, duplicate, malformed,
 wrong-cadence, non-regular, symlinked, or out-of-root inputs block. The workflow **never encodes its own artifact
