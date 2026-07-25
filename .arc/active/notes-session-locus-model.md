@@ -5,6 +5,7 @@
 - [Codebase pointers](#codebase-pointers)
 - [Dogfood evidence trail](#dogfood-evidence-trail)
 - [Adjacent work and shipped substrate](#adjacent-work-and-shipped-substrate)
+- [Expected base-merge reconciles](#expected-base-merge-reconciles)
 - [Right-sizing audit (2026-07-22)](#right-sizing-audit-2026-07-22)
 - [Chunked-review finding triage (2026-07-24)](#chunked-review-finding-triage-2026-07-24)
 
@@ -49,6 +50,20 @@ The model was motivated by FP (finalize-parallelism) wave-2/wave-3 dogfooding; t
   now), `worktree-teardown-decoupling` (the shipped-husk transition plus the driver socket the lease composes with),
   and PR #241 (the v2 `returnBranch` topological close fix — consumed as the degrade-path shape, superseded for the
   default by displacement removal).
+
+## Expected base-merge reconciles
+
+Known textual conflicts to expect when merging the base in, with the disposition already settled — resolve to these
+rather than re-deriving at merge time.
+
+- **`session-recover.md` § 2 and § 3** (from the `recovery-read-contract` errand, PR #339, 2026-07-23). That errand
+  corrected the § 2 `ready`-verdict phrasing on the base and added a § 3 ceiling paragraph bounding the recovery read
+  to its manifest. This branch edits both regions: it adds a paragraph immediately after the § 2 `ready` line and
+  rewrites § 5's resume dispatch. Expect a small conflict in the § 2 hunk.
+    - **Take both.** The § 2 fix and the `verdict.locusHint` paragraph are complementary — `ready` attests the load
+      set, `locusHint` attests the frame — and this branch still carries the misleading bare "continue without
+      prompting" that the fix corrects, so the base wins that sentence. The § 3 ceiling is orthogonal to the locus
+      rewrite and survives intact; this branch's own § 3 edits are two-word rewordings.
 
 ## Right-sizing audit (2026-07-22)
 
