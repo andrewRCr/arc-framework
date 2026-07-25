@@ -190,8 +190,12 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
       branch: null,
       priority: MetaPrioritySchema.parse(priority),
     };
-    if (params.origin !== undefined) overrides.origin = params.origin;
-    if (params.design !== undefined) overrides.design = [params.design];
+    if (params.origin !== undefined) {
+      overrides.origin = params.origin === "[internal]" ? "internal" : params.origin;
+    }
+    if (params.design !== undefined) {
+      overrides.design = params.design === "[none]" ? [] : [params.design];
+    }
     if (cls !== undefined) overrides.workClass = cls;
     if (hasCohort) overrides.cohort = cohort;
 
