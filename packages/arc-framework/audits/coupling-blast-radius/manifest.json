@@ -24,7 +24,6 @@
       ".editorconfig",
       ".gitattributes",
       ".github/CODEOWNERS",
-      ".github/review-gate.md",
       ".github/workflows/arc-clearance.yml",
       ".github/workflows/ci.yml",
       ".github/workflows/docs.yml",
