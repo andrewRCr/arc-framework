@@ -27,8 +27,10 @@ Four distinct failures, from one integration:
 1. **A skip was read as an attempt.** `.coderabbit.yaml` gated automatic review on a label that no longer existed,
    so every PR emitted a successful `review skipped` status. That was misread as a failed CodeRabbit attempt and
    led to a direct `@codex review`, bypassing the configured `coderabbit-pr, codex-pr, delegated-agent` preference.
-   _(The configuration half of this shipped separately as errand `coderabbit-manual-only`; the protocol half — that
-   only a typed `rate-limited` or `transient-unavailable` outcome may advance to the next source — is this WU's.)_
+   _(The configuration half shipped separately as errand `coderabbit-manual-only`. The protocol half was assumed to
+   be this WU's, but the typed fallback rule turns out to be already enforced — the driver was simply never
+   consulted. See concern 1, where this failure resolves into the missing operator override rather than a missing
+   fallback rule.)_
 2. **Capability is advertised without being established.** The policy driver advertises `coderabbit-cli` for
    `chunked` frontline scope, but the frontline run request carries only target, resolution, and timeout, and the
    execution adapter always emits a whole-target `--base-commit` command. No partition, closure chunk, seam scope,
@@ -53,11 +55,59 @@ surfaces that arrived through their own captures and are confirmed in scope.
 
 ### 1. Selection authority (the core)
 
-Hosted providers are selected only by the driver. An automatic-review skip is never an adapter attempt. Fallback
-occurs only on the driver's typed safe outcomes (`rate-limited`, `transient-unavailable`). Add an explicit
-operator selection / skip input whose record **distinguishes a preference override from provider
-unavailability** — so a deliberate choice is legible as a choice, and no caller ever has to fabricate a
-safe-fallback outcome to get the provider it wants.
+**The typed fallback rule is already enforced; the operator override is the buildable gap.** Establishing this
+against source changes what this concern is for, so it is recorded before the design.
+
+The rule that fallback occurs only on the typed safe outcomes — rate-limited and transient-unavailable — is
+current behavior at four sites: the safe-unavailable predicate itself, the request refinement rejecting any
+attempt history that falls through on any other outcome, the resolution arm that blocks and stops on a
+non-fall-through last attempt, and the source selection that admits only safely-attempted sources before reporting
+safe-fallback exhaustion. One precision: the refinement lives on the driver-facing request shape, which carries the
+configured sources it needs; the CLI-facing command shape does not carry it. Enforcement therefore sits at the
+resolution layer rather than at the command boundary — the right layer, but worth stating exactly rather than
+claiming the boundary gates it.
+
+**The corrected diagnosis.** PR #354's bypass did not occur because the driver permitted fallback on a misread
+skip. **The driver was never consulted** — the request went straight to the provider as a pull-request comment.
+That distinction matters because it disqualifies the obvious requirement: "hosted providers are selected only by
+the driver" is **not a code-enforceable property**. The provider interface is a comment anyone can write, and no
+schema prevents one being written. Codifying it would assert a guarantee the system cannot hold, which is this
+WU's own thesis turned on itself. The achievable form is to make the in-band path complete enough that leaving it
+is never necessary — which is exactly the override below. **The missing override is the cause of the bypass, not a
+separate concern.**
+
+**Design — mirror the existing ceiling override.** The driver already carries a typed, target-bound, validated
+override with enumerated rejection reasons and a dedicated invalid-override resolution state. The operator
+selection input follows that shape rather than inventing one: exact-target and lane binding, a selection naming a
+source and whether it is preferred or skipped, and a **basis** discriminating operator preference from
+operator-observed unavailability. Rejection reasons mirror the existing enum — target mismatch, lane mismatch,
+unknown source, ineligible source, and source already attempted.
+
+The basis field is load-bearing rather than descriptive. A **preference** merely reorders, leaving the deselected
+source eligible on later passes. An **operator-observed-unavailable** claim is an assertion about the world, and
+must be recorded as operator-attested rather than merged into adapter-observed outcomes.
+
+**The structural constraint that prevents fabrication.** The attempt history records what was _observed_; an
+override declares what is _intended_. They must never share a field. An override that selects a source directly
+never touches the attempt history and therefore cannot manufacture a safe outcome nobody observed. The failure
+mode to design against is not a malformed override but a **laundered** one — an operator assertion entering the
+attempt history indistinguishably, after which no audit can separate "the provider was rate-limited" from "someone
+asserted the provider was rate-limited." Keeping provenance structurally separate is the whole mechanism.
+
+This is the forgeable-self-report shape `judgment-authority-model` records as its central unknown, appearing here
+in a form that _does_ have a clean answer, because provenance can be separated by construction rather than
+attested. This WU settles the instance; that WU generalizes the shape.
+
+**Settled sub-decisions.**
+
+- **An override never consumes a pass.** Selection does not consume; the resulting attempt's outcome does. This
+  matches every existing selection-time resolution state, which reports no consumed pass.
+- **Lifetime is one pass, bound to exact target and lane, and never sticky.** It binds the way the ceiling
+  override binds to its exhausted pass count, so it cannot silently carry across heads or passes.
+- **Skip is unfloored** — an operator may deselect every configured source. The result is an unavailable state
+  that stops rather than passes, so it cannot manufacture approval; and requiring some provider to run regardless
+  would be exactly the disproportionate rule `judgment-authority-model` exists to correct. A stop is a legible
+  outcome; a forced run is ceremony.
 
 ### 2. The chunk carrier contract — answered by prior measurement, re-cut to a capability removal
 
@@ -327,6 +377,14 @@ rest.
 - **Document the request shapes in prose** (concern 5) where the workflows already reference the verbs. Cheaper and
   lands where the reader already is — **rejected**: prose drifts from the schemas by construction, and the drift is
   what reproduces the defect rather than fixing it. The schema-emitting flag is chosen instead.
+- **Codify "hosted providers are selected only by the driver" as a requirement** (concern 1). Rejected — the
+  provider interface is a pull-request comment that anyone can write, so no schema or check can enforce it.
+  Asserting it would create exactly the unbacked authority claim this WU exists to remove. The achievable form is
+  completeness of the in-band path.
+- **Express an operator preference by recording a safe-unavailable attempt** (concern 1). Rejected — this is the
+  laundering failure the design exists to prevent: an operator assertion entering the observed-attempt history
+  destroys the provenance distinction permanently, and would make the audit trail unable to separate an observed
+  provider outcome from an asserted one.
 - **Delete the guidance blocks outright** (concern 4). Rejected — they are the only channel carrying ARC's
   exact-scope and clean-result contract to a hosted reviewer, which is the half a provider genuinely cannot infer.
 - **Regenerate both static copies from the typed projection** (concern 4). Rejected — that restores the generator
@@ -412,25 +470,29 @@ method prose — wide, but no longer carrying an unrun measurement on its critic
 
 ## Continuity
 
-- **State:** maturing, approaching formalization-ready. The item previously named as the one fundamental still
-  open is answered from prior measurement, and concern 3 — the last core concern with substantial design
-  surface — is now settled to the decision level. Concern 1 is the remaining unspecified core concern.
+- **State:** maturing, at the formalization-readiness boundary. Every core concern is now settled to the decision
+  level, and the two fundamentals that once gated the WU — the carrier question and the selection-authority
+  shape — are both answered. What remains open is detail and policy defaults rather than direction.
 - **Resolved:** the problem framing and its single root (authority claims outrunning evidence); the six-concern
-  scope; concern 2's carrier question, answered as ARC-side curated orchestration and re-cut to a capability
-  removal with a named restoration condition and an accepted evaluator-diversity cost; the standard-lane-only
+  scope; concern 1's corrected diagnosis (the typed fallback rule is already enforced; the driver was never
+  consulted), the non-enforceability of driver-only selection, the operator override modelled on the existing
+  ceiling override, the provenance separation that prevents laundering, and its three sub-decisions — no pass
+  consumption, one-pass target-and-lane binding, unfloored skip; concern 2's carrier question, answered as
+  ARC-side curated orchestration and re-cut to a capability removal with a named restoration condition and an
+  accepted evaluator-diversity cost; the standard-lane-only
   consequence of that removal; concern 3's two-loss decomposition and all five of its design decisions — trigger,
   destination, retention, ownership split, and trust boundary — plus the worktree registration-isolation pattern
   and its two supporting observations; concern 4's trim-to-contract-floor decision, its three drift findings, and
   the inverted sequencing (trim first); concern 5 resolved to a schema-emitting flag; concern 6 resolved to three
   wording edits with its rejected shapes recorded; coordination-not-dependency with `judgment-authority-model`;
   the two-front handoff contract with `chunk-scope-binding`; `Class: Heavy`.
-- **Open:** concern 1's typed shape; the single trimmed-guidance timeout observation; whether the parity check
-  lands as a unit test or a pre-commit contract check; the retention default's concrete value once real
-  diagnostics volume is observed; `ci-defer-heavy` placement.
-- **Next:** specify concern 1 — the last core concern with real design surface. Its operator selection and skip
-  input needs a typed shape settled against the driver's existing outcome vocabulary, and the binding constraint
-  is that the shape must not become a second route to fabricating a safe-fallback outcome, which is the defect it
-  exists to close. Nothing gates it. Once it lands, the draft is a candidate for the formalization-readiness
-  assessment.
+- **Open:** whether existing test coverage already proves the enforced fallback rule, or a test is owed; the single
+  trimmed-guidance timeout observation; whether the parity check lands as a unit test or a pre-commit contract
+  check; the retention default's concrete value once real diagnostics volume is observed; `ci-defer-heavy`
+  placement.
+- **Next:** run the formalization-readiness assessment. Direction is settled across all six concerns, so the
+  remaining question is whether the open items above are detail-design that a spec can absorb — the reading this
+  draft now takes — or whether any of them still masks a decision. Consolidation has run this pass, so the draft
+  should be a coherent single input rather than accreted layers.
 
 ---
