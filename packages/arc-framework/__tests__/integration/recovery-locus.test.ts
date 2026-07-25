@@ -29,7 +29,7 @@ function workUnit(
     },
     identity: null,
     lease: {
-      leaseId: "d".repeat(32),
+      leaseId: "d".repeat(32), selfHeld: false,
       state: "live",
       sessionHomePath: "/repo.demo",
       attachedAt: NOW,
@@ -91,7 +91,7 @@ function errand(subjectKind: "errand" | "partial-errand" = "errand"): LocusRowV1
     },
     identity,
     lease: {
-      leaseId: "e".repeat(32),
+      leaseId: "e".repeat(32), selfHeld: false,
       state: "live",
       sessionHomePath: "/repo.demo",
       attachedAt: NOW,

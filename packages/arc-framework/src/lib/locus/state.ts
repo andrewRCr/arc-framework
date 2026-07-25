@@ -1,6 +1,7 @@
 /** Pure frame and current-locus derivation over provisional roster rows. */
 
 import { sameProcessAnchor } from "./process-inspector.js";
+import { projectTrustedLocusRow } from "./trusted-row.js";
 import type { ProvisionalLocusRow } from "./roster.js";
 import type { PrimarySafetyResult } from "./primary-safety.js";
 import type {
@@ -121,7 +122,14 @@ function deriveRecovery(
     ...(managed.some((row) => row.lease?.state === "unknown") ? ["lease-unknown" as const] : []),
   ];
   if (stopReasons.length > 0) return { kind: "stop", reasons: sortStopReasons(stopReasons) };
-  if (current.kind === "resolved") {
+  // Frame selection claims a self-held live lease as current without consulting trust, so a role
+  // whose subject stopped resolving is still selected — and then every attach refuses it. Offering
+  // `resume` for a row nothing can attach to is the deadlock this phase exists to break, so a
+  // stranded current row falls through to the residue path that can actually resolve it.
+  const active = current.kind === "resolved"
+    ? managed.find((row) => row.recordId === current.activeRecordId)
+    : undefined;
+  if (current.kind === "resolved" && (active === undefined || !isStrandedSelfHeld(active))) {
     return {
       kind: "resume",
       activeRecordId: current.activeRecordId,
@@ -132,13 +140,29 @@ function deriveRecovery(
   // `primaryAvailability` themselves. Folding it in here would stop operations that never allocate
   // and hide a residual transient behind it.
   const transientResidue = managed.filter((row) =>
-    row.role?.kind !== "work-unit" && (row.lease === null || row.lease.state === "dead"));
+    row.role?.kind !== "work-unit"
+    && (row.lease === null || row.lease.state === "dead" || isStrandedSelfHeld(row)));
   if (transientResidue.length > 1) return { kind: "stop", reasons: ["role-conflict"] };
   const residue = transientResidue[0];
   if (residue?.recordId !== null && residue?.recordId !== undefined) {
     return { kind: "residue", recordId: residue.recordId, actions: ["resume", "abandon"] };
   }
   return { kind: "none" };
+}
+
+/**
+ * Test the one shape a self-held lease can strand in.
+ *
+ * A self-held live lease is the ordinary state of a running transient session, which claims it as
+ * the current frame — demoting that to residue would offer every in-flight errand, grooming pass,
+ * and housekeeping sweep for abandonment. The stranded shape is the conjunction: the lease is the
+ * caller's own, but its row cannot be claimed, so nothing can resume it and, keyed on deadness
+ * alone, nothing could release it either.
+ */
+function isStrandedSelfHeld(row: LocusRowV1): boolean {
+  return row.lease?.state === "live"
+    && row.lease.selfHeld
+    && projectTrustedLocusRow(row).kind === "untrusted";
 }
 
 function derivePrimaryAvailability(options: {
@@ -255,9 +279,14 @@ export function deriveLocusFrames(options: {
   const current = resolveCurrent(options.rows, options.enteringAnchor);
   return {
     rows: options.rows.map((row) => {
+      // The anchor itself stays private — it names a PID and a creation token no consumer needs.
+      // What consumers do need is the one question they cannot answer without it, so the comparison
+      // is published rather than its inputs.
       const { leaseAnchor, ...publicRow } = row;
-      void leaseAnchor;
-      return { ...publicRow, frame: frames.get(row) ?? null };
+      const lease = publicRow.lease === null
+        ? null
+        : { ...publicRow.lease, selfHeld: sameProcessAnchor(leaseAnchor, options.enteringAnchor) };
+      return { ...publicRow, lease, frame: frames.get(row) ?? null };
     }),
     current,
   };

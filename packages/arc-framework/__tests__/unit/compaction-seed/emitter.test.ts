@@ -89,6 +89,7 @@ function workUnitRow(recordId: string, leaseId: string): LocusRowV1 {
     identity: null,
     lease: {
       leaseId,
+      selfHeld: false,
       state: "live",
       sessionHomePath: "/repo",
       attachedAt: "2026-06-28T12:00:00.000Z",
@@ -355,7 +356,7 @@ describe("emitCompactionSeed", () => {
                   state: "open", savedHead: null, changeRequest: null,
                 },
                 lease: {
-                  leaseId: "b".repeat(32), state: "live", sessionHomePath: "/repo",
+                  leaseId: "b".repeat(32), selfHeld: false, state: "live", sessionHomePath: "/repo",
                   attachedAt: "2026-06-28T12:00:00.000Z", heartbeatAt: "2026-06-28T12:00:00.000Z",
                 },
                 frame: "active", derived: null, diagnostics: [],

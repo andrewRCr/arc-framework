@@ -24,7 +24,7 @@ function workUnit(frame: "active" | "suspended" = "active"): LocusRowV1 {
     },
     identity: null,
     lease: {
-      leaseId: "d".repeat(32),
+      leaseId: "d".repeat(32), selfHeld: false,
       state: "live",
       sessionHomePath: "/repo.demo",
       attachedAt: NOW,
@@ -86,7 +86,7 @@ function transient(
       changeRequest: null,
     } : null,
     lease: {
-      leaseId: "e".repeat(32),
+      leaseId: "e".repeat(32), selfHeld: false,
       state: "live",
       sessionHomePath: warm ? "/repo.demo" : "/repo",
       attachedAt: NOW,

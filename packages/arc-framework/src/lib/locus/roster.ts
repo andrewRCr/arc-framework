@@ -38,7 +38,19 @@ export interface ProvisionalRoster {
   readonly diagnostics: readonly LocusDiagnosticV1[];
 }
 
-export type ProvisionalLocusRow = LocusRowV1 & { readonly leaseAnchor: LocusAnchor | null };
+/**
+ * A row before publication, carrying the raw anchor and not yet the comparison against it.
+ *
+ * `selfHeld` is deliberately absent: this stage joins records to subjects and has no entering
+ * anchor to compare, so the type withholds the field until frame derivation can answer it honestly
+ * rather than letting a producer default it to `false`.
+ */
+export type ProvisionalLocusRow =
+  Omit<LocusRowV1, "lease">
+  & {
+    readonly lease: Omit<NonNullable<LocusRowV1["lease"]>, "selfHeld"> | null;
+    readonly leaseAnchor: LocusAnchor | null;
+  };
 
 /** Classify complete evidence into deterministic provisional rows and diagnostics. */
 export function projectProvisionalRoster(options: {

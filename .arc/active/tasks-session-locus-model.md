@@ -1920,14 +1920,52 @@ identity on the anchor nor a per-platform record store is therefore in scope.
               conjunction with being unable to become the current frame, which is the stranded shape the phase
               exists for; self-identification alone never demotes a frame.
 
-        - `[ ]` **7.G.a.iii.2 Route the confirmed exit**
-            - `deriveRecovery` offers the operator-confirmed path for a self-held-and-unclaimable or unverifiable
-              lease, and `resolveLocusGeneration` accepts that release scoped to an unresolved subject or an
-              explicit abandon, in place of its present flat `lease-live` and `lease-unknown` refusals.
-            - Cover the recorded stranding case — a self-held lease on a `subject-unresolved` row reaching abandon
-              — that a live transient session still reads `active` and is never offered as residue, that a foreign
-              live lease still refuses with no confirmation path, and that confirmation relaxes no occupancy,
-              cleanliness, provenance, exact-head, or generation guard.
+        - `[x]` **7.G.a.iii.2.a Publish self-ness and admit the stranded row to residue**
+            - `LocusStateV1`'s row lease gains `selfHeld`, populated in `deriveLocusFrames` from the comparison the
+              reader already makes against the entering anchor. The anchor itself stays private — it names a PID
+              and creation token no consumer needs — so the comparison is published rather than its inputs.
+              `ProvisionalLocusRow` omits the field by type, since roster projection has no entering anchor and a
+              producer defaulting it to `false` would be a lie rather than an absence.
+            - `deriveRecovery` admits a transient to residue on the conjunction D6 names — self-held **and**
+              untrusted — via `isStrandedSelfHeld`. A live claimable transient session is untouched and still
+              resumes, which is the regression the conjunction exists to prevent.
+            - Writing the test surfaced the deadlock's actual mechanism: frame selection claims a self-held live
+              lease as `current` without consulting trust, so recovery answered `resume` for a row every attach
+              then refused. A stranded current row now falls through to residue. The fix is confined to the
+              recovery verdict rather than to frame selection, which would have changed what `current` means for
+              every untrusted row including work units.
+            - `probe-envelope.md` documents the new field in both copies; fixtures across eighteen suites carry it.
+
+        - `[ ]` **7.G.a.iii.2.b Accept the confirmed release**
+            - `resolveLocusGeneration` accepts an operator-confirmed release for a self-held or unverifiable lease,
+              scoped to an unresolved subject or an explicit abandon, in place of its present flat `lease-live` and
+              `lease-unknown` refusals. Surfaced as `arc locus resolve --confirm-self-held`, refused unless the
+              selected generation actually classifies `self`, so it cannot become a general force.
+            - Cover the recorded stranding case reaching abandon, a foreign live lease still refusing with no
+              confirmation path, and confirmation relaxing no occupancy, cleanliness, provenance, exact-head, or
+              generation guard.
+
+### `[ ]` **7.G.b Settle what `current` means for a row nothing can attach to**
+
+- _Goal:_ Frame selection and attach authorization agree about which rows are claimable, so no verdict offers a
+  frame that the next operation is guaranteed to refuse.
+
+- _Evidence, traced to source:_ `resolveCurrent` selects on live-lease-plus-matching-anchor and consults trust
+  nowhere, so a row carrying an authority-fatal diagnostic still resolves as `current`. Every attach then refuses
+  it through `projectTrustedLocusRow`. `7.G.a.iii.2.a` broke the one instance the recovery verdict could reach —
+  a self-held lease on an unresolvable subject now falls through to residue — but the shape is general: a foreign
+  live lease on an untrusted row, or a work-unit row with `marker-missing`, still resolves as `current` and still
+  cannot be attached.
+
+- _Note:_ Route the decision to the spec before implementing — this is the same class as `7.G.a`, and the choice
+  changes what `current` means rather than fixing a conformance gap. The narrow reading is that trust is an
+  attach-time predicate and frame selection is deliberately trust-blind, in which case the residue fall-through
+  is the whole correction and the remaining cases are correct as they stand. The broad reading is that a frame no
+  operation can act on is not a frame, which makes trust part of selection and changes `current` for work-unit
+  rows too — including what session-init orients against. Do not widen it silently: the narrow fix already
+  shipped, so this is a deliberate scope decision, not a defect waiting to be closed.
+
+- _Discovered:_ during `7.G.a.iii.2.a`, while writing the test that proved the stranded row reaches residue.
 
     - `[ ]` **7.G.a.iv Move the advisory tier off the stop path and correct the narration**
         - `primary-dirty` and `primary-off-base` stop rendering as stops. Residue guidance reads **"dies when the

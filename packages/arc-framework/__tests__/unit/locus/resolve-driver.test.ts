@@ -37,7 +37,7 @@ function row(kind: "errand" | "housekeep" | "groom", lease: "dead" | "live" | "u
     },
     identity: null,
     lease: {
-      leaseId: "3".repeat(32), state: lease, sessionHomePath: "/repo-child",
+      leaseId: "3".repeat(32), selfHeld: false, state: lease, sessionHomePath: "/repo-child",
       attachedAt: "2026-07-20T00:00:00.000Z", heartbeatAt: "2026-07-20T00:00:00.000Z",
     },
     frame: "residue", derived: null, diagnostics: leaseDiagnostics(lease),

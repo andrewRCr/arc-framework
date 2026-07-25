@@ -19,7 +19,7 @@ function errandRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
     },
     identity: null,
     lease: {
-      leaseId: "3".repeat(32), state: "live", sessionHomePath: CHECKOUT,
+      leaseId: "3".repeat(32), selfHeld: false, state: "live", sessionHomePath: CHECKOUT,
       attachedAt: "2026-07-20T00:00:00.000Z", heartbeatAt: "2026-07-20T00:00:00.000Z",
     },
     frame: "active", derived: null, diagnostics: [],

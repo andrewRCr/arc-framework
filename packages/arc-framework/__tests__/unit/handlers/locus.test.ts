@@ -23,8 +23,7 @@ const SUCCESS: LocusEnvelopeV1 = {
       },
       identity: null,
       lease: {
-        leaseId: "a".repeat(32),
-        state: "live",
+        leaseId: "a".repeat(32), state: "live", selfHeld: false,
         sessionHomePath: "/repo/work",
         attachedAt: "2026-07-20T12:00:00.000Z",
         heartbeatAt: "2026-07-20T12:01:00.000Z",

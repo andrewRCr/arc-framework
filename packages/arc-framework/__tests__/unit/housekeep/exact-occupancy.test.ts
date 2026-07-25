@@ -43,7 +43,7 @@ function housekeepRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
     },
     identity: null,
     lease: {
-      leaseId: "b".repeat(32),
+      leaseId: "b".repeat(32), selfHeld: false,
       state: "live",
       sessionHomePath: "/repo/sweep",
       attachedAt: "2026-07-24T00:00:00.000Z",
@@ -124,7 +124,7 @@ describe("exactHousekeepRow", () => {
   it("still reports a dead lease as trusted so settlement can act on it", () => {
     const rows = [housekeepRow({
       lease: {
-        leaseId: "b".repeat(32),
+        leaseId: "b".repeat(32), selfHeld: false,
         state: "dead",
         sessionHomePath: "/repo/sweep",
         attachedAt: "2026-07-24T00:00:00.000Z",

@@ -208,6 +208,8 @@ async function adoptTrustedRoleAtRuntime(
       lease: attached.record.lease === null ? null : {
         ...attached.record.lease,
         state: anchor.kind === "process" ? "live" : "unknown",
+        // This row is the lease this invocation just attached under its own anchor.
+        selfHeld: anchor.kind === "process",
       },
       frame: anchor.kind === "process" ? "active" : "residue",
       derived: null,

@@ -60,7 +60,7 @@ function groomRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
     },
     identity: null,
     lease: {
-      leaseId: LEASE_ID, state: "live", sessionHomePath: CHECKOUT,
+      leaseId: LEASE_ID, selfHeld: false, state: "live", sessionHomePath: CHECKOUT,
       attachedAt: "2026-07-20T00:00:00.000Z", heartbeatAt: "2026-07-20T00:00:00.000Z",
     },
     frame: "active", derived: null, diagnostics: [],

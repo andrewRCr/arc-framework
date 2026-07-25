@@ -30,6 +30,14 @@ const rowRole = z.strictObject({
 const rowLease = z.strictObject({
   leaseId: LocusTokenSchema,
   state: z.enum(["live", "dead", "unknown"]),
+  /**
+   * Whether the recorded anchor is the reading process's own.
+   *
+   * Orthogonal to `state`, which answers occupancy: a self-held lease is `live` and its checkout is
+   * occupied. This answers authority — whether the reader may act on the lease — and is the one
+   * question no consumer can derive, since the anchor it compares stays private to the reader.
+   */
+  selfHeld: z.boolean(),
   sessionHomePath: LocusAbsolutePathSchema,
   attachedAt: LocusTimestampSchema,
   heartbeatAt: LocusTimestampSchema,

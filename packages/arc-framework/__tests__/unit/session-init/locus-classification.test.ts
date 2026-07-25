@@ -62,6 +62,7 @@ describe("locus cleanup classification", () => {
 function lease(state: "live" | "dead" | "unknown"): NonNullable<LocusRowV1["lease"]> {
   return {
     leaseId: "l".repeat(32),
+    selfHeld: false,
     state,
     sessionHomePath: "/wt/archived",
     attachedAt: "2026-07-24T00:00:00.000Z",

@@ -157,7 +157,7 @@ function freshLocusState(): LocusStateV1 {
         },
         identity: null,
         lease: {
-          leaseId: LEASE_ID,
+          leaseId: LEASE_ID, selfHeld: false,
           state: "live",
           sessionHomePath: "/repo",
           attachedAt: "2026-06-28T12:00:00.000Z",

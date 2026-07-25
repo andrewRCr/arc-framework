@@ -37,7 +37,7 @@ function workUnitRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
     },
     identity: null,
     lease: {
-      leaseId: LEASE_WU,
+      leaseId: LEASE_WU, selfHeld: false,
       state: "live",
       sessionHomePath: "/repo-wu",
       attachedAt: NOW,
@@ -113,7 +113,7 @@ function transientRow(
     },
     identity,
     lease: {
-      leaseId: LEASE_CHILD,
+      leaseId: LEASE_CHILD, selfHeld: false,
       state: "live",
       sessionHomePath: "/repo-wu",
       attachedAt: NOW,

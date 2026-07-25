@@ -22,17 +22,17 @@ describe("deriveLocusSessionGuidance", () => {
   it("renders only lease state that requires manual action", () => {
     const live = managedWorkUnitRow("live", "/wt/live");
     live.lease = {
-      leaseId: "b".repeat(32), state: "live", sessionHomePath: "/wt/live",
+      leaseId: "b".repeat(32), selfHeld: false, state: "live", sessionHomePath: "/wt/live",
       attachedAt: "2026-07-21T00:00:00.000Z", heartbeatAt: "2026-07-21T00:00:00.000Z",
     };
     const dead = managedWorkUnitRow("dead", "/wt/dead");
     dead.lease = {
-      leaseId: "c".repeat(32), state: "dead", sessionHomePath: "/wt/dead",
+      leaseId: "c".repeat(32), selfHeld: false, state: "dead", sessionHomePath: "/wt/dead",
       attachedAt: "2026-07-20T00:00:00.000Z", heartbeatAt: "2026-07-20T00:00:00.000Z",
     };
     const unknown = managedWorkUnitRow("unknown", "/wt/unknown");
     unknown.lease = {
-      leaseId: "d".repeat(32), state: "unknown", sessionHomePath: "/wt/unknown",
+      leaseId: "d".repeat(32), selfHeld: false, state: "unknown", sessionHomePath: "/wt/unknown",
       attachedAt: "2026-07-19T00:00:00.000Z", heartbeatAt: "2026-07-19T00:00:00.000Z",
     };
 

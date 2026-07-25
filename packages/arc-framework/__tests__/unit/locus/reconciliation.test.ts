@@ -56,7 +56,7 @@ function staleRow(value: LocusRecordV1): LocusRowV1 {
     role,
     identity: null,
     lease: value.lease === null ? null : {
-      leaseId: value.lease.leaseId,
+      leaseId: value.lease.leaseId, selfHeld: false,
       state: "dead",
       sessionHomePath: value.lease.sessionHomePath,
       attachedAt: value.lease.attachedAt,

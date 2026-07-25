@@ -83,7 +83,7 @@ describe("projectTrustedLocusRow", () => {
     it("trusts a dead lease so replacement can act on it", () => {
       const subject = row({
         lease: {
-          leaseId: "b".repeat(32),
+          leaseId: "b".repeat(32), selfHeld: false,
           state: "dead",
           sessionHomePath: "/repo/wu",
           attachedAt: "2026-07-24T00:00:00.000Z",
@@ -124,7 +124,7 @@ describe("projectTrustedLocusRow", () => {
       const subject = row({
         kind: "stale-record",
         lease: {
-          leaseId: "b".repeat(32),
+          leaseId: "b".repeat(32), selfHeld: false,
           state: "unknown",
           sessionHomePath: "/repo/wu",
           attachedAt: "2026-07-24T00:00:00.000Z",

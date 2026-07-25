@@ -22,6 +22,7 @@ function row(options: {
   parent?: string | null;
   anchor?: LocusProcessAnchor;
   kind?: ProvisionalLocusRow["kind"];
+  diagnostics?: ProvisionalLocusRow["diagnostics"];
 }): ProvisionalLocusRow {
   const role = options.role ?? "work-unit";
   return {
@@ -46,7 +47,7 @@ function row(options: {
     leaseAnchor: options.lease === null || options.lease === undefined ? null : options.anchor ?? ANCHOR,
     frame: null,
     derived: null,
-    diagnostics: [],
+    diagnostics: options.diagnostics ?? [],
   };
 }
 
@@ -478,5 +479,53 @@ describe("recovery verdict scoping", () => {
       primarySafety: offBasePrimary,
       primaryLock: "absent",
     }).recovery).toEqual({ kind: "stop", reasons: ["lease-unknown"] });
+  });
+});
+
+describe("self-held lease publication and stranded residue", () => {
+  const FOREIGN: LocusProcessAnchor = { ...ANCHOR, pid: 99, startToken: "other" };
+  const UNRESOLVED: ProvisionalLocusRow["diagnostics"] = [{
+    code: "subject-unresolved",
+    source: { kind: "record", key: "sha256:x" },
+    message: "The role subject no longer resolves.",
+  }];
+
+  function recovery(rows: readonly ProvisionalLocusRow[]) {
+    const frames = deriveLocusFrames({ rows, enteringAnchor: ANCHOR });
+    return deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: frames.rows,
+      current: frames.current,
+      primarySafety: { kind: "complete", clean: true, onBase: true, branch: "main" },
+      primaryLock: "absent",
+    }).recovery;
+  }
+
+  it("publishes the comparison against the entering anchor, not the anchor", () => {
+    const frames = deriveLocusFrames({
+      rows: [row({ id: "a", role: "errand", lease: "live" }),
+        row({ id: "b", role: "errand", lease: "live", anchor: FOREIGN })],
+      enteringAnchor: ANCHOR,
+    });
+    expect(frames.rows[0]?.lease?.selfHeld).toBe(true);
+    expect(frames.rows[1]?.lease?.selfHeld).toBe(false);
+    expect(frames.rows[0]).not.toHaveProperty("leaseAnchor");
+  });
+
+  it("never offers a live transient session as residue", () => {
+    // The ordinary running errand: self-held, live, and claimable as the current frame.
+    expect(recovery([row({ id: "a", role: "errand", lease: "live" })])).toMatchObject({ kind: "resume" });
+  });
+
+  it("offers a self-held lease as residue only once its row cannot be claimed", () => {
+    expect(recovery([row({
+      id: "a", role: "errand", lease: "live", diagnostics: UNRESOLVED,
+    })])).toMatchObject({ kind: "residue", actions: ["resume", "abandon"] });
+  });
+
+  it("leaves a foreign live lease out of residue even when its row is untrusted", () => {
+    expect(recovery([row({
+      id: "a", role: "errand", lease: "live", anchor: FOREIGN, diagnostics: UNRESOLVED,
+    })])).toMatchObject({ kind: "none" });
   });
 });

@@ -129,7 +129,7 @@ function recoveryWorkUnitLocus(): LocusStateV1 {
         },
         identity: null,
         lease: {
-          leaseId: "b".repeat(32),
+          leaseId: "b".repeat(32), selfHeld: false,
           state: "live",
           sessionHomePath: "/repo",
           attachedAt: "2026-07-21T00:00:00.000Z",
