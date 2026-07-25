@@ -65,6 +65,7 @@ const projection: DecomposePreparationProjection = {
     incomingEdgeInventory: [{ dependent: "consumer", currentTargets: ["other", "origin"] }],
     outgoingEdgeInventory: [{ prerequisite: "foundation" }],
   },
+  transformedIncomingDependents: ["consumer"],
   allowedPaths: [
     validateManagedPath(".arc/active/draft-origin.md"),
     validateManagedPath(".arc/backlog/planned/origin/member-a/meta-member-a.md"),
@@ -138,6 +139,7 @@ describe("prepareDecomposeRetirement", () => {
       sourceInventory: projection.inventories.sourceInventory,
       incomingEdgeInventory: projection.inventories.incomingEdgeInventory,
       outgoingEdgeInventory: projection.inventories.outgoingEdgeInventory,
+      transformedIncomingDependents: ["consumer"],
       sourceArtifactDigest: projection.sourceArtifactDigest,
     });
     expect(result.preparation.locator.scope).toEqual(scope);
@@ -158,10 +160,14 @@ describe("prepareDecomposeRetirement", () => {
     const locator = raw.locator as Record<string, unknown>;
     const sourceInventory = raw.sourceInventory as Array<Record<string, unknown>>;
     const allowedPaths = raw.allowedPaths as string[];
+    const withoutPartition = { ...raw };
+    delete withoutPartition.transformedIncomingDependents;
     const storedAllocation = raw.allocation as Record<string, unknown>;
     const storedEntries = storedAllocation.entries as unknown[];
     const cases = [
       { ...raw, unexpected: true },
+      withoutPartition,
+      { ...raw, transformedIncomingDependents: ["unknown"] },
       { ...raw, locator: { ...locator, receiptId: canonicalDigest("forged-receipt") } },
       {
         ...raw,

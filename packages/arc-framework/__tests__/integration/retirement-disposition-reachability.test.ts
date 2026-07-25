@@ -5,7 +5,6 @@ import { receiptId } from "../../src/lib/canonical/receipt-id.js";
 import { queryGitRetirementDisposition } from "../../src/lib/work-unit/git-retirement-record-enumeration.js";
 import type { RetirementReceipt } from "../../src/lib/work-unit/retirement-authority.js";
 import {
-  LEGACY_RETIREMENT_RECORD_NAMESPACE,
   RETIREMENT_RECORD_NAMESPACE,
   encodeRetirementRecordKey,
 } from "../../src/lib/work-unit/retirement-record-store.js";
@@ -17,7 +16,6 @@ import {
   makeCommit,
   makeGitExec,
   mkdir,
-  rm,
   writeFile,
 } from "../helpers/integration.js";
 
@@ -54,22 +52,6 @@ function receipt(): RetirementReceipt {
 describe("retirement disposition branch reachability", () => {
   let repo: string;
 
-  async function commitLegacyOnlyMerge(filename: string, content: string): Promise<void> {
-    await execFileAsync("git", ["switch", "-c", "legacy-retirement"], { cwd: repo });
-    const directory = join(repo, LEGACY_RETIREMENT_RECORD_NAMESPACE);
-    await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, filename), content, "utf8");
-    await execFileAsync("git", ["add", "--", LEGACY_RETIREMENT_RECORD_NAMESPACE], { cwd: repo });
-    await makeCommit(repo, "record legacy retirement");
-
-    await execFileAsync("git", ["switch", "main"], { cwd: repo });
-    await makeCommit(repo, "advance canonical line");
-    await execFileAsync("git", ["merge", "--no-commit", "--no-ff", "legacy-retirement"], { cwd: repo });
-    await rm(join(repo, ".arc", ".internal"), { recursive: true });
-    await execFileAsync("git", ["add", "-A"], { cwd: repo });
-    await makeCommit(repo, "merge without legacy tree path");
-  }
-
   beforeEach(async () => {
     repo = await createTempRepo("arc-retirement-disposition-");
     await makeCommit(repo, "initial");
@@ -102,31 +84,5 @@ describe("retirement disposition branch reachability", () => {
       evidenceQuality: "unknown",
       disposition: { kind: "retarget", targetSlug: "successor" },
     });
-  });
-
-  it("finds valid legacy evidence reachable only through a merged side branch", async () => {
-    const candidate = receipt();
-    const filename = `${encodeRetirementRecordKey(candidate.receiptId)}.json`;
-    await commitLegacyOnlyMerge(filename, canonicalize(candidate));
-
-    await expect(queryGitRetirementDisposition(makeGitExec(repo), "HEAD", {
-      retiredSubject: "origin",
-      dependentSlug: "consumer",
-    })).resolves.toEqual({
-      status: "unique",
-      evidenceQuality: "unknown",
-      disposition: { kind: "retarget", targetSlug: "successor" },
-    });
-  });
-
-  it("fails closed for malformed legacy evidence reachable only through a merged side branch", async () => {
-    const candidate = receipt();
-    const filename = `${encodeRetirementRecordKey(candidate.receiptId)}.json`;
-    await commitLegacyOnlyMerge(filename, '{"malformed":true}');
-
-    await expect(queryGitRetirementDisposition(makeGitExec(repo), "HEAD", {
-      retiredSubject: "unrelated",
-      dependentSlug: "consumer",
-    })).resolves.toEqual({ status: "namespace-corrupt" });
   });
 });

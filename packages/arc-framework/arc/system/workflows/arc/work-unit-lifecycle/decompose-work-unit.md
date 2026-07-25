@@ -195,7 +195,7 @@ typed placement summary plus the receipt ID required by Step 7; it does not comm
 
 The [extraction arm](#extraction-arm) has no retirement preparation or receipt: the origin survives, so the verb
 scaffolds and stages the extracted members in one invocation. A started retired origin's branch + worktree are
-**not** torn down in-verb — that teardown is out-of-band, a post-merge `arc teardown <origin> --force`
+**not** torn down in-verb — that teardown is out-of-band, a post-merge `arc teardown <origin>`
 ([Step 7](#7-ship-per-protection-mode)); the verb retires only the origin artifacts.
 
 ### 6) Verify placement consistency
@@ -278,21 +278,16 @@ or a [heterogeneous](#heterogeneous-home-arm) cut over one), reap its now-orphan
 base checkout (so the locus survives the worktree removal):
 
 ```bash
-arc teardown <origin> --force   # un-shipped / force mode: reaps the retired plan branch + worktree
+arc teardown <origin>   # receipt-backed cleanup of the retired plan branch, worktree, and user workspace
 ```
 
-`--force` selects the un-shipped teardown mode: the origin is retired (not in `completed/`) and its `plan/<name>`
-branch is unmerged (the design was redistributed into members, not git-merged). Teardown revalidates the finalized
-decompose receipt and its exact result instead of relying on git containment. The in-place arm switches the primary
-to base; a linked arm removes the worktree and locus-hops. The
+Teardown infers the retired cleanup mode from the finalized decompose receipt and revalidates its exact result
+instead of relying on git containment: the origin is retired (not in `completed/`) and its `plan/<name>` branch is
+unmerged because the design was redistributed into members, not git-merged. The in-place arm switches the primary
+to base; a linked arm removes the worktree and locus-hops. A successful teardown also closes the origin's per-WU
+user workspace. The
 [backlog-stub-source arm](#backlog-stub-source-arm) (no branch) and the [extraction arm](#extraction-arm) (origin
 survives) owe no teardown.
-
-Then retire the origin's per-WU user workspace subdir (filesystem op only, contents gitignored):
-
-```bash
-arc user close <name>
-```
 
 ---
 
@@ -313,7 +308,7 @@ distributed to N new members (all `kind: new-member`); the origin is **retired**
 - **Run-context** (Step 5): from a base checkout — the transform is PM-artifact grooming, staged on the base tree and
   shipped on the auto-merge lane. `arc decompose` retires the origin's artifacts but does **not** touch its
   `plan/<name>` branch or worktree, so the run-locus is never sawn off mid-transform; the branch + worktree are
-  reaped post-merge via `arc teardown <origin> --force` (Step 7), run from the base checkout the ship already used.
+  reaped post-merge via `arc teardown <origin>` (Step 7), run from the base checkout the ship already used.
 
 ### Extraction arm
 
@@ -407,9 +402,9 @@ allocation has no ownerless shared coordination.
 
 The exit choreography is shared with [`park-work-unit`][park]: an in-verb artifact retire / relocate
 ([Step 5](#5-run-arc-decompose)), the ship legs ([Step 7](#7-ship-per-protection-mode)), and — for a started
-origin — the **out-of-band post-merge `arc teardown --force`** that reaps the orphaned `plan/<name>` branch +
-worktree. `arc park` also serves an extraction's origin-park disposition. Neither verb tears down the branch or
-worktree in-verb; both defer it to the shared post-merge teardown.
+origin — the **out-of-band post-merge `arc teardown`** that reaps the orphaned `plan/<name>` branch + worktree and
+closes its user workspace. `arc park` also serves an extraction's origin-park disposition. Neither verb tears down
+the branch or worktree in-verb; both defer it to the shared post-merge teardown.
 
 ---
 

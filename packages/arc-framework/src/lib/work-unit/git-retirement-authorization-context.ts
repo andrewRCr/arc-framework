@@ -53,7 +53,7 @@ import {
   worktreeSubjectsEqual,
 } from "./retirement-authority.js";
 import {
-  resolveHistoricalRetirementRecordPaths,
+  resolveRetirementRecordRelativePath,
 } from "./retirement-record-store.js";
 import { validateRetirementReceiptRelation } from "./retirement-relation.js";
 
@@ -274,7 +274,7 @@ async function resolveReachableReceiptIntroduction(
       "--no-renames",
       tip,
       "--",
-      ...resolveHistoricalRetirementRecordPaths(id),
+      resolveRetirementRecordRelativePath(id),
     ]);
     commits = stdout.split("\n").map((value) => value.trim()).filter(Boolean);
   } catch {
@@ -378,7 +378,7 @@ async function validateDecomposeResult(
   if (sourceArtifacts.length === 0 || artifactGroupDigest(toArtifactEntries(sourceArtifacts)) !== receipt.source.artifactDigest) {
     return "evidence-mismatch";
   }
-  const inventoryResult = deriveDecomposeInventories({
+  const derivedInventories = deriveDecomposeInventories({
     originSlug: name,
     sourceArtifacts: sourceArtifacts.map((artifact): DecomposeSourceArtifact => ({
       path: artifact.path,
@@ -386,14 +386,39 @@ async function validateDecomposeResult(
     })),
     lifecycleIndex: sourceIndex,
   });
-  if (inventoryResult.status === "rejected") return "conservation-unproven";
-  const digests = decomposeInventoryDigests(inventoryResult.inventories);
+  if (derivedInventories.status === "rejected") return "conservation-unproven";
+  let inventories = derivedInventories.inventories;
+  let transformedIncomingDependents: readonly string[] | null = null;
+  if (receipt.schemaVersion === 2) {
+    if (receipt.result.sourceInventory === undefined
+      || receipt.result.incomingEdgeInventory === undefined
+      || receipt.result.outgoingEdgeInventory === undefined
+      || receipt.result.transformedIncomingDependents === undefined
+      || canonicalize(receipt.result.sourceInventory)
+        !== canonicalize(derivedInventories.inventories.sourceInventory)
+      || canonicalize(receipt.result.outgoingEdgeInventory)
+        !== canonicalize(derivedInventories.inventories.outgoingEdgeInventory)) {
+      return "conservation-unproven";
+    }
+    inventories = {
+      sourceInventory: derivedInventories.inventories.sourceInventory,
+      incomingEdgeInventory: receipt.result.incomingEdgeInventory,
+      outgoingEdgeInventory: receipt.result.outgoingEdgeInventory,
+    };
+    transformedIncomingDependents = receipt.result.transformedIncomingDependents;
+    const incomingDependents = new Set(inventories.incomingEdgeInventory.map((edge) => edge.dependent));
+    if (new Set(transformedIncomingDependents).size !== transformedIncomingDependents.length
+      || transformedIncomingDependents.some((dependent) => !incomingDependents.has(dependent))) {
+      return "conservation-unproven";
+    }
+  }
+  const digests = decomposeInventoryDigests(inventories);
   if (
     canonicalDigest(allocation) !== receipt.result.cutMapDigest
     || digests.sourceInventoryDigest !== receipt.result.sourceInventoryDigest
     || digests.incomingEdgeInventoryDigest !== receipt.result.incomingEdgeInventoryDigest
     || digests.outgoingEdgeInventoryDigest !== receipt.result.outgoingEdgeInventoryDigest
-    || verifyDecomposeInventoryCoverage(allocation, inventoryResult.inventories).status !== "covered"
+    || verifyDecomposeInventoryCoverage(allocation, inventories).status !== "covered"
     || preparationId({
       receiptId: receipt.receiptId,
       baseHead: allocationParent,
@@ -412,7 +437,7 @@ async function validateDecomposeResult(
   if (!await sourceAllocationsResolve(projection.resultHead, allocation, targetFacts.paths, readBlob)) {
     return "conservation-unproven";
   }
-  if (!dependencyAllocationMatches(allocation, inventoryResult.inventories, resultIndex)) {
+  if (!dependencyAllocationMatches(allocation, inventories, resultIndex, transformedIncomingDependents)) {
     return "conservation-unproven";
   }
   return null;
@@ -509,16 +534,22 @@ function dependencyAllocationMatches(
   allocation: DecomposeAllocationMap,
   inventories: DecomposeInventories,
   resultIndex: LifecycleIndex,
+  transformedIncomingDependents: readonly string[] | null,
 ): boolean {
   const incoming = new Map<string, DecomposeAllocationMap["incomingEdges"][number]["disposition"]>(
     allocation.incomingEdges.map((edge) => [edge.dependent, edge.disposition]),
   );
+  const transformed = transformedIncomingDependents === null
+    ? null
+    : new Set(transformedIncomingDependents);
   for (const edge of inventories.incomingEdgeInventory) {
+    if (transformed !== null && !transformed.has(edge.dependent)) continue;
     const disposition = incoming.get(edge.dependent);
     if (disposition === undefined) return false;
     const replacements = disposition.kind === "replace" ? disposition.replacementTargets : [];
     const expected = replaceDependencySlot(edge.currentTargets, allocation.origin.slug, replacements);
-    if (canonicalize(resultIndex.get(edge.dependent)?.dependsOn ?? null) !== canonicalize(expected)) return false;
+    const dependent = resultIndex.get(edge.dependent);
+    if (dependent === undefined || canonicalize(dependent.dependsOn) !== canonicalize(expected)) return false;
   }
 
   const recipients = allocation.entries.flatMap((entry) => {
@@ -636,13 +667,13 @@ async function readPatchOperations(
   ]);
   const fields = stdout.split("\0").filter(Boolean);
   if (fields.length % 2 !== 0) throw new Error("malformed Git name-status output");
-  const excluded = new Set(resolveHistoricalRetirementRecordPaths(excludedReceiptId));
+  const excluded = resolveRetirementRecordRelativePath(excludedReceiptId);
   const operations: PatchOperation[] = [];
   for (let index = 0; index < fields.length; index += 2) {
     const status = fields[index];
     const rawPath = fields[index + 1];
     if (status === undefined || rawPath === undefined) throw new Error("malformed Git name-status output");
-    if (excluded.has(rawPath)) continue;
+    if (excluded === rawPath) continue;
     const path = validateManagedPath(rawPath);
     if (status === "D") operations.push(deleteOperation(path));
     else if (status === "A" || status === "M") {
@@ -699,19 +730,9 @@ async function readHistoricalRecord(
   ref: string,
   id: CanonicalDigest,
 ): Promise<{ content: string; path: string } | null> {
-  const records = (await Promise.all(
-    resolveHistoricalRetirementRecordPaths(id).map(async (path) => ({
-      path,
-      content: await readTextAt(exec, ref, path),
-    })),
-  )).filter((record): record is { path: string; content: string } => record.content !== null);
-  if (records.length === 0) return null;
-  const [first] = records;
-  if (first === undefined) return null;
-  if (records.some((record) => record.content !== first.content)) {
-    throw new Error(`conflicting retirement records for ${id}`);
-  }
-  return first;
+  const path = resolveRetirementRecordRelativePath(id);
+  const content = await readTextAt(exec, ref, path);
+  return content === null ? null : { path, content };
 }
 
 async function requireTextAt(exec: GitExec, ref: string, path: ManagedPath): Promise<string> {

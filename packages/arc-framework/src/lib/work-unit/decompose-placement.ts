@@ -39,11 +39,13 @@ function cohortSegments(value: string): Slug[] | null {
  * Resolve a cut-map placement through the canonical work-unit layout.
  *
  * @param cut - Placement fields from a validated decompose allocation map.
- * @param originCohort - Existing origin membership used only by `at-cap`.
+ * @param originSlug - Origin identity used to recognize a standalone planned stub's own directory.
+ * @param originCohort - Existing origin membership used to validate the selected arm.
  * @returns A planned placement or an explicit missing/invalid-authority refusal.
  */
 export function resolveDecomposeMemberPlacement(
   cut: { parentPosition: ParentPosition; cohort?: string },
+  originSlug: string,
   originCohort: string | null | undefined,
 ): DecomposeMemberPlacementResult {
   if (cut.parentPosition === "cohortless") {
@@ -53,6 +55,15 @@ export function resolveDecomposeMemberPlacement(
     };
   }
 
+  const originSegments = originCohort === undefined || originCohort === null || originCohort === ""
+    ? []
+    : cohortSegments(originCohort);
+  if (originSegments === null || originSegments.length > 2) {
+    return {
+      status: "refused",
+      reason: "decompose origin carries an invalid cohort placement.",
+    };
+  }
   const cohort = cut.parentPosition === "at-cap" ? originCohort : cut.cohort;
   if (cohort === undefined || cohort === null || cohort === "") {
     const source = cut.parentPosition === "at-cap" ? "origin cohort" : "declared cohort";
@@ -66,6 +77,28 @@ export function resolveDecomposeMemberPlacement(
     return {
       status: "refused",
       reason: `${cut.parentPosition} decomposition carries an invalid cohort placement.`,
+    };
+  }
+
+  const matchesOriginPosition = cut.parentPosition === "standalone"
+    ? segments.length === 1
+      && segments[0] === originSlug
+      && (
+        originSegments.length === 0
+        || (originSegments.length === 1
+          && originSegments[0] === originSlug
+          && cohort === originCohort)
+      )
+    : cut.parentPosition === "in-cohort"
+      ? originSegments.length === 1
+        && segments.length === 2
+        && segments[0] === originSegments[0]
+        && segments[1] === originSlug
+      : originSegments.length === 2 && cohort === originCohort;
+  if (!matchesOriginPosition) {
+    return {
+      status: "refused",
+      reason: `${cut.parentPosition} decomposition does not match the origin cohort position.`,
     };
   }
   return {

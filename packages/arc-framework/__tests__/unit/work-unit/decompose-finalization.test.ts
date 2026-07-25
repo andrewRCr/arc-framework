@@ -106,6 +106,7 @@ const projection: DecomposeFinalizationProjection = {
   stagedPaths: [recordPath, targetPath],
   transitionPatch: [{ operation: "write", path: targetPath, contentDigest: digest("intro") }],
   targets: [{ path: ".arc/backlog/planned/origin/member-a", entries: [{ path: targetPath, state: "present", contentDigest: digest("intro") }] }],
+  transformedIncomingDependents: ["consumer"],
 };
 
 function v2Fixture(inventoryRead: "tree-only" | "reachable" | "degraded") {
@@ -130,6 +131,7 @@ function v2Fixture(inventoryRead: "tree-only" | "reachable" | "degraded") {
     ...record,
     schemaVersion: 2,
     inventoryRead,
+    transformedIncomingDependents: ["consumer"],
     locator: v2Locator,
   };
   return {
@@ -257,6 +259,58 @@ describe("finalizeDecomposeRetirement", () => {
       "prepared-version",
     );
     expect(result).toMatchObject({ status: "refused", reason: "conservation-unproven" });
+  });
+
+  it("does not require branch-private incoming edges to be mutated in the result checkout", async () => {
+    const branchPrivateProjection = {
+      ...projection,
+      transformedIncomingDependents: [],
+    };
+    const result = await finalizeDecomposeRetirement(
+      context({
+        readProjection: async () => branchPrivateProjection,
+        readDependsOn: async (slug) => slug === "member-a" ? ["foundation"] : [],
+      }).ctx,
+      locator,
+      "prepared-version",
+    );
+
+    expect(result.status).toBe("recorded");
+  });
+
+  it("persists the transformed incoming-edge partition in v2 receipts", async () => {
+    const fixture = v2Fixture("reachable");
+    const result = await finalizeDecomposeRetirement(
+      context({}, fixture).ctx,
+      fixture.locator,
+      "prepared-version",
+    );
+
+    expect(result).toMatchObject({
+      status: "recorded",
+      receipt: {
+        schemaVersion: 2,
+        result: { transformedIncomingDependents: ["consumer"] },
+      },
+    });
+  });
+
+  it("binds finalization to the prepare-time transformed-dependent partition", async () => {
+    const fixture = v2Fixture("reachable");
+    const result = await finalizeDecomposeRetirement(
+      context({
+        readProjection: async () => ({
+          ...fixture.projection,
+          // A fresh post-mutation composition no longer exposes the retired edge.
+          // Finalization must not silently replace the partition prepared earlier.
+          transformedIncomingDependents: [],
+        }),
+      }, fixture).ctx,
+      fixture.locator,
+      "prepared-version",
+    );
+
+    expect(result).toMatchObject({ status: "refused", reason: "authority-conflict" });
   });
 
   it("refuses undeclared or duplicated dependencies on a new member", async () => {

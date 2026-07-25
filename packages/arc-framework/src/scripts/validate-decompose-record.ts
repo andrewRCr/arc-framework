@@ -6,7 +6,7 @@ import { basename } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
-import { isCanonicalDigest, type CanonicalDigest } from "../lib/canonical/canonical-json.js";
+import { isCanonicalDigest } from "../lib/canonical/canonical-json.js";
 import { contentDigest, patchDigest, type PatchOperation } from "../lib/canonical/content-digest.js";
 import { validateManagedPath } from "../lib/canonical/managed-path.js";
 import { receiptId } from "../lib/canonical/receipt-id.js";
@@ -14,10 +14,8 @@ import { readGitBlobBytes } from "../lib/io-context.js";
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import {
   decodeRetirementRecordKey,
-  LEGACY_RETIREMENT_RECORD_NAMESPACE,
   RETIREMENT_RECORD_NAMESPACE,
 } from "../lib/work-unit/retirement-record-store.js";
-import { parseDecomposePreparationRecord } from "../lib/work-unit/decompose-preparation.js";
 import { parseRetirementReceipt } from "../lib/work-unit/retirement-receipt-codec.js";
 import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
 
@@ -25,7 +23,7 @@ import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js
 export const validateDecomposeRecordInputPolicyDeclarations = [{
   commandPath: "hook-validate-decompose-record",
   aliases: [],
-  sites: [1, 2, 3, 4, 5, 6, 7].map((occurrence) => declareInteractionSite(
+  sites: [1, 2, 3, 4].map((occurrence) => declareInteractionSite(
     { file: "scripts/validate-decompose-record.ts", kind: "subprocess", callee: "execFileAsync", occurrence },
     {
       acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
@@ -46,8 +44,6 @@ export interface DecomposeCommitGateInput {
   mergeInProgress?: boolean;
   readIndexBytes(path: string): Uint8Array | null;
   readHeadBytes(path: string): Uint8Array | null;
-  /** Exact legacy-path versions reachable from `HEAD`, newest first. */
-  readHistoricalLegacyBytes?(path: string): readonly Uint8Array[];
   /** Exact blob/absence state for every merge parent, including `HEAD`. */
   readParentBytes?(path: string): readonly (Uint8Array | null)[];
 }
@@ -79,10 +75,7 @@ const RECORD_PATTERN = new RegExp(
   `^${escapeRegExp(RETIREMENT_RECORD_NAMESPACE)}/(sha256-[0-9a-f]{64})\\.json$`,
   "u",
 );
-const LEGACY_RECORD_PATTERN = new RegExp(
-  `^${escapeRegExp(LEGACY_RETIREMENT_RECORD_NAMESPACE)}/(sha256-[0-9a-f]{64})\\.json$`,
-  "u",
-);
+const FORBIDDEN_ROOT_INTERNAL_NAMESPACE = ".arc/.internal";
 const ACTIVE_META_PATTERN = /^\.arc\/active\/meta-([^/]+)\.md$/u;
 const NESTED_LIFECYCLE_META_PATTERN =
   /^\.arc\/(?:backlog\/(?:planned|provisional)|completed)(?:\/[^/]+)*\/meta-([^/]+)\.md$/u;
@@ -234,23 +227,6 @@ function bytesEqual(left: Uint8Array | null, right: Uint8Array | null): boolean 
   return Buffer.from(left).equals(Buffer.from(right));
 }
 
-function migrationRecordError(
-  bytes: Uint8Array,
-  id: CanonicalDigest,
-): "invalid UTF-8" | "invalid deterministic identity" | null {
-  let content: string;
-  try {
-    content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch {
-    return "invalid UTF-8";
-  }
-  const receipt = parseRetirementReceipt(content);
-  const preparation = parseDecomposePreparationRecord(content, id);
-  return (receipt === null || receipt.receiptId !== id) && preparation === null
-    ? "invalid deterministic identity"
-    : null;
-}
-
 function novelMergeChanges(input: DecomposeCommitGateInput): readonly StagedPathChange[] {
   if (input.mergeInProgress !== true) return input.changes;
   return input.changes.filter((change) => {
@@ -262,76 +238,16 @@ function novelMergeChanges(input: DecomposeCommitGateInput): readonly StagedPath
   });
 }
 
-function migrationChanges(
-  changes: readonly StagedPathChange[],
-  input: DecomposeCommitGateInput,
-): { ignored: Set<string>; errors: string[] } {
-  const ignored = new Set<string>();
-  const errors: string[] = [];
-  for (const legacy of changes.filter((change) => change.path.startsWith(`${LEGACY_RETIREMENT_RECORD_NAMESPACE}/`))) {
-    const match = LEGACY_RECORD_PATTERN.exec(legacy.path);
-    if (legacy.status !== "D" || match?.[1] === undefined) {
-      errors.push(`legacy retirement namespace admits removals only: ${legacy.path}`);
-      continue;
-    }
-    ignored.add(legacy.path);
-    const canonicalPath = `${RETIREMENT_RECORD_NAMESPACE}/${match[1]}.json`;
-    const canonical = changes.find((change) => change.path === canonicalPath);
-    if (canonical === undefined) continue;
-    if (canonical.status !== "A") {
-      errors.push(`retirement record migration must add the canonical path: ${canonicalPath}`);
-      continue;
-    }
-    const id = decodeRetirementRecordKey(match[1]);
-    const legacyBytes = input.readHeadBytes(legacy.path);
-    const canonicalBytes = input.readIndexBytes(canonicalPath);
-    if (
-      legacyBytes === null
-      || canonicalBytes === null
-      || input.readHeadBytes(canonicalPath) !== null
-      || !bytesEqual(legacyBytes, canonicalBytes)
-    ) {
-      errors.push(`retirement record migration must preserve identical bytes: ${match[1]}`);
-      continue;
-    }
-    const identityError = migrationRecordError(canonicalBytes, id);
-    if (identityError !== null) {
-      errors.push(`retirement record migration has ${identityError}: ${match[1]}`);
-      continue;
-    }
-    ignored.add(canonicalPath);
-  }
-  for (const canonical of changes.filter((change) => change.status === "A" && RECORD_PATTERN.test(change.path))) {
-    if (ignored.has(canonical.path)) continue;
-    const match = RECORD_PATTERN.exec(canonical.path);
-    if (match?.[1] === undefined) continue;
-    const legacyPath = `${LEGACY_RETIREMENT_RECORD_NAMESPACE}/${match[1]}.json`;
-    const historical = input.readHistoricalLegacyBytes?.(legacyPath) ?? [];
-    if (historical.length === 0) continue;
-    const canonicalBytes = input.readIndexBytes(canonical.path);
-    if (canonicalBytes === null || historical.some((candidate) => !bytesEqual(candidate, canonicalBytes))) {
-      errors.push(`historical retirement record migration must preserve identical bytes: ${match[1]}`);
-      continue;
-    }
-    const id = decodeRetirementRecordKey(match[1]);
-    const identityError = migrationRecordError(canonicalBytes, id);
-    if (identityError !== null) {
-      errors.push(`historical retirement record migration has ${identityError}: ${match[1]}`);
-      continue;
-    }
-    ignored.add(canonical.path);
-  }
-  return { ignored, errors };
-}
-
 /** Validate the staged decompose record and exact non-record patch. */
 export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): string[] {
+  const forbidden = input.changes.find((change) =>
+    change.path === FORBIDDEN_ROOT_INTERNAL_NAMESPACE
+    || change.path.startsWith(`${FORBIDDEN_ROOT_INTERNAL_NAMESPACE}/`));
+  if (forbidden !== undefined) {
+    return [`root-level ARC internal namespace is forbidden: ${forbidden.path}`];
+  }
   const candidateChanges = novelMergeChanges(input);
-  const migration = migrationChanges(candidateChanges, input);
-  if (migration.errors.length > 0) return migration.errors;
-  const changes = candidateChanges.filter((change) =>
-    !migration.ignored.has(change.path)
-    && !change.path.startsWith(`${LEGACY_RETIREMENT_RECORD_NAMESPACE}/`));
+  const changes = candidateChanges;
   const errors: string[] = [];
   const recordChanges = changes.filter((change) => RECORD_PATTERN.test(change.path));
   if (input.mergeInProgress === true && recordChanges.length > 0) {
@@ -440,26 +356,6 @@ async function gitParentBytes(ref: string, path: string): Promise<Uint8Array | n
   return new Uint8Array(stdout);
 }
 
-async function gitRegularFileBytes(ref: string, path: string): Promise<Uint8Array | null> {
-  const { stdout: entryOutput } = await execFileAsync(
-    "git",
-    ["ls-tree", `--format=%(objectmode) %(objecttype) %(objectname)`, ref, "--", `:(literal)${path}`],
-    { encoding: "utf8" },
-  );
-  const entries = entryOutput.split(/\r?\n/u).map((value) => value.trim()).filter(Boolean);
-  if (entries.length === 0) return null;
-  const match = entries.length === 1
-    ? /^100644 blob ([0-9a-f]{40,64})$/u.exec(entries[0] ?? "")
-    : null;
-  if (match?.[1] === undefined) throw new Error(`reachable legacy retirement record is not a regular file: ${path}`);
-  const { stdout } = await execFileAsync(
-    "git",
-    ["cat-file", "blob", match[1]],
-    { encoding: "buffer", maxBuffer: 10 * 1024 * 1024 },
-  );
-  return new Uint8Array(stdout);
-}
-
 async function readMergeHeads(): Promise<string[]> {
   const { stdout } = await execFileAsync(
     "git",
@@ -480,21 +376,6 @@ async function readMergeHeads(): Promise<string[]> {
   return heads;
 }
 
-async function gitReachablePathVersions(ref: string, path: string): Promise<Uint8Array[]> {
-  const { stdout } = await execFileAsync(
-    "git",
-    ["log", "--full-history", "--format=%H", ref, "--", `:(literal)${path}`],
-    { encoding: "utf8" },
-  );
-  const commits = stdout.split(/\r?\n/u).map((value) => value.trim()).filter(Boolean);
-  const versions: Uint8Array[] = [];
-  for (const commit of commits) {
-    const bytes = await gitRegularFileBytes(commit, path);
-    if (bytes !== null) versions.push(bytes);
-  }
-  return versions;
-}
-
 /** Validate the current index and set a failing exit code on refusal. */
 export async function runDecomposeRecordValidation(): Promise<void> {
   const mergeHeads = await readMergeHeads();
@@ -508,7 +389,6 @@ export async function runDecomposeRecordValidation(): Promise<void> {
   const cachedIndex = new Map<string, Uint8Array>();
   const cachedHead = new Map<string, Uint8Array>();
   const cachedParents = new Map<string, Array<Uint8Array | null>>();
-  const cachedHistoricalLegacy = new Map<string, Uint8Array[]>();
   for (const change of changes) {
     if (change.status !== "D") {
       const value = await readGitBlobBytes(process.cwd(), null, change.path);
@@ -516,11 +396,6 @@ export async function runDecomposeRecordValidation(): Promise<void> {
     }
     const head = await readGitBlobBytes(process.cwd(), "HEAD", change.path);
     if (head !== null) cachedHead.set(change.path, head);
-    const canonicalMatch = change.status === "A" ? RECORD_PATTERN.exec(change.path) : null;
-    if (canonicalMatch?.[1] !== undefined) {
-      const legacyPath = `${LEGACY_RETIREMENT_RECORD_NAMESPACE}/${canonicalMatch[1]}.json`;
-      cachedHistoricalLegacy.set(legacyPath, await gitReachablePathVersions("HEAD", legacyPath));
-    }
     if (mergeInProgress) {
       const parents = await Promise.all(
         ["HEAD", ...mergeHeads].map(async (parent) => await gitParentBytes(parent, change.path)),
@@ -535,7 +410,6 @@ export async function runDecomposeRecordValidation(): Promise<void> {
     mergeInProgress,
     readIndexBytes: (path) => cachedIndex.get(path) ?? null,
     readHeadBytes: (path) => cachedHead.get(path) ?? null,
-    readHistoricalLegacyBytes: (path) => cachedHistoricalLegacy.get(path) ?? [],
     readParentBytes: (path) => cachedParents.get(path) ?? [],
   });
   if (errors.length > 0) {

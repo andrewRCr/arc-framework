@@ -37,7 +37,7 @@ already surfaced the same failure classes from opposite directions:
   worktree out from under the running session).
 
 These are the _same_ failure classes, and `decompose` is _more_ exposed on the ROADMAP-oracle one, not less: it
-defers the origin branch reap to a post-merge `teardown --force`, so `origin/plan/<slug>` persists across the whole
+defers the origin branch reap to a post-merge receipt-backed `teardown`, so `origin/plan/<slug>` persists across the whole
 transform and merge. With decomposition set to become more frequent and parallelism now the default, the substrate
 must become boring, correct machinery — fixed once in the shared code, not re-patched per verb as each rediscovers
 the gap.
@@ -155,6 +155,11 @@ only degraded truth at finalization, or a now-reachable read has _enlarged_ the 
 not the completeness mechanism for un-enumerated remote dependents (that is dependent-pull); it is the guard
 against the reachable set changing under the transform mid-run.
 
+The finalized v2 decompose receipt embeds the canonical source, incoming-edge, and outgoing-edge inventories in
+addition to their digests. Post-landing teardown authenticates those exact composed facts instead of attempting to
+reconstruct cross-ref truth from the origin branch alone; v1 canonical receipts retain their historical
+source-branch derivation path.
+
 #### 1b. Write — a receipt-driven `Depends On` reconcile
 
 **Hard constraint:** branch isolation _plus_ review-atomicity. The transform must not commit to a dependent's
@@ -180,11 +185,10 @@ unprompted at activation via `resolveDepStates` + `setMetaBulletFields`. That pr
 was authored for this dependent?" The lifecycle index resolves a retired origin only to
 `nonexistent`, and the content-addressed receipt store (`retirement-record-store.ts`, keyed by
 subject + transition + source head) cannot answer that dependent-specific subject query today. The adapter enumerates
-canonical records in the dependent branch's current committed tree plus legacy-path records in that same reachable
-history and projects them through the storage-agnostic query (storage check-doc Principle 2); consumers never
-receive or infer a receipt path. Evidence on an arbitrary live or remote branch is not actionable: the receipt
-introduction commit must be reachable from the dependent's own branch, which also brings its replacement projection
-into that history.
+canonical records in the dependent branch's current committed tree and projects them through the storage-agnostic
+query (storage check-doc Principle 2); consumers never receive or infer a receipt path. Evidence on an arbitrary
+live or remote branch is not actionable: the receipt introduction commit must be reachable from the dependent's own
+branch, which also brings its replacement projection into that history.
 
 The query's closed resolution states are `absent | unique | ambiguous | unmapped-dependent | version-conflict |
 namespace-corrupt`. `inventoryRead` is evidence metadata, not a competing resolution state: `unique` and
@@ -255,26 +259,16 @@ live-blocker list, so a still-present edge to a `Planning` origin is a real bloc
 in the dependent's own git flow; under the materialized backing store it is the store's version-checked write
 applied at sync. The same receipt and mapping carry over — no lock-in (storage check-doc Principle 3).
 
-#### 1c. Store — canonical namespace with historical-read compatibility
+#### 1c. Store — canonical namespace only
 
 The in-repo adapter writes retirement records only under
 `.arc/system/.internal/retirement-receipts/`. This is the established internal machinery namespace; a root-level
 `.arc/.internal/` has no valid role and is rejected by the retirement-record commit-validation surface.
 
 The repository's existing decompose, rename, and absorbed-stub abandon receipts move byte-for-byte into the
-canonical namespace. Their v1 schema, filenames, canonical JSON, and receipt identities remain unchanged. Readers
-may inspect the legacy `.arc/.internal/retirement-receipts/` path on historical refs so already-published evidence
-stays resolvable, but no read or write materializes that directory. A byte-identical canonical/legacy duplicate
-with the same receipt ID deduplicates; divergent content for one ID is an authority conflict. The commit validator
-recognizes an authenticated byte-identical legacy-delete/canonical-add pair as storage-only relocation and
-excludes both path legs from retirement transition-patch validation.
-
-One current-index compatibility path handles a legacy exact-v1 `prepared-decompose` record that was already staged
-when this change arrived. It authenticates the record at its computed receipt ID, relocates the bytes unchanged,
-and stages the canonical addition plus legacy removal before revalidation/finalization. The storage move is not
-part of the authorized transition patch. Canonical-plus-legacy agreement deduplicates; divergence refuses. The
-commit validator permits only removal from the legacy namespace and rejects every staged result that would add,
-modify, type-change, copy, or rename content into `.arc/.internal/`.
+canonical namespace. Their v1 schema, filenames, canonical JSON, and receipt identities remain unchanged. The
+pre-public repository has no external installations or compatibility obligation, so readers and validators expose
+no legacy-path lane. Any staged path beneath root-level `.arc/.internal/` is invalid.
 
 The digest filename carries no trustworthy subject. Namespace enumeration therefore validates every filename /
 digest / canonical-content triple before answering any subject-keyed query. One malformed, unknown-version,
@@ -380,8 +374,9 @@ marker — and `runRename` (`src/lib/work-unit/verbs/rename.ts`) gates the marke
   gain `renameMovePending`: a closed projection binding the old/new subject identity, renamed branch, exact `HEAD`,
   registered `from` path, and intended `to` path. It is mutually exclusive with `husk`; a terminal husk supersedes
   and clears it. A successful or already-completed move clears it. At `session-init`, the read-only sweep
-  revalidates marker ownership, branch / `HEAD`, and the live worktree registry, then emits typed argv plus
-  CLI-precomposed `git worktree move` text for an outside-worktree invocation. It never executes the move
+revalidates marker ownership, branch / `HEAD`, and the live worktree registry, then emits typed argv plus
+CLI-precomposed descriptive text for an outside-worktree invocation; structured argv remains executable authority.
+It never executes the move
   automatically. This is an operational projection over the shipped marker mechanics, **not** a new lifecycle
   state; `wu-lifecycle-state-model` may later re-vocabulary it without changing the stored facts.
 
@@ -523,9 +518,8 @@ must not appear there); `STATUS.USER` / `ROADMAP` stay out only because they reg
   semantics inside the renderer.
 - **System-internal receipt namespace vs. root-level `.arc/.internal/` (chose system-internal).** Retirement
   receipts are tracked adapter machinery, so `.arc/system/.internal/retirement-receipts/` uses an established
-  internal namespace without minting a new root category. Writers have one canonical location; legacy-path reads
-  exist for historical evidence and for the narrow authenticated current-index migration only, neither of which
-  recreates the old directory.
+  internal namespace without minting a new root category. Readers and writers have one canonical location;
+  root-level `.arc/.internal/` is invalid.
 - **Ignore unrelated corrupt receipts vs. fail the namespace closed (chose fail-closed).** A digest filename does
   not authenticate a subject, so an undecodable entry cannot safely be classified as unrelated. Global
   `namespace-corrupt` preserves authority integrity; availability returns when the corrupt record is repaired.
@@ -572,12 +566,10 @@ must not appear there); `STATUS.USER` / `ROADMAP` stay out only because they reg
   `cohortless` value exposes an implementation-time incompatibility. New retirement receipts use schema v2 because
   the required `inventoryRead` key changes the exact top-level shape and receipt identity; new decompose
   preparations likewise use schema v2 and point at that v2 receipt identity. Exact v1 decoding stays supported for
-  the repository's live receipts and any in-flight preparation, which may finalize through its unchanged v1
-  contract; a staged legacy v1 preparation first passes through the authenticated current-index relocation above.
-  Higher-level discovery projects absent v1 read quality as `unknown`. Every ID derivation, teardown/relation
-  reader, result validator, and introduction-history lookup resolves the applicable v1/v2 identity and
-  canonical/historical namespace. Existing records move byte-for-byte to the canonical system-internal namespace,
-  while historical refs retain read-only legacy-path compatibility.
+  the repository's live canonical receipts and any canonical in-flight preparation, which may finalize through its
+  unchanged v1 contract. Higher-level discovery projects absent v1 read quality as `unknown`. Every ID derivation,
+  teardown/relation reader, result validator, and introduction-history lookup resolves the applicable v1/v2
+  identity in the canonical namespace. Existing records move byte-for-byte to that system-internal namespace.
 - **Package-project sync.** Framework edits go through `packages/arc-framework/arc/` source and sync to `.arc/`;
   any workflow-prose changes (integrate / session-init detect-and-surface wording) are two-copy per the sync
   discipline.
@@ -657,10 +649,9 @@ Validated at work-unit completion:
   (previously zero handling); `park` inherits the read + regen fixes with no incoming-edge work. The confirmation
   pass over the never-run parent-position arms and non-symmetric shapes passes.
 - **SC9 (G8).** Every new receipt writes under `.arc/system/.internal/retirement-receipts/`; the repository's
-  existing v1 receipts remain canonical and usable after their byte-preserving move, historical legacy-path
-  evidence remains readable, an in-flight legacy v1 preparation relocates without changing identity, and only
-  removal-only legacy-path changes pass commit validation. No staged result can recreate `.arc/.internal/`. Any
-  undecodable reachable entry makes the namespace `namespace-corrupt` and fails every subject query closed.
+  existing v1 receipts remain canonical and usable after their byte-preserving move, and no reader, writer, or
+  validator compatibility lane accepts root-level `.arc/.internal/`. Any undecodable reachable canonical entry
+  makes the namespace `namespace-corrupt` and fails every subject query closed.
 
 ## Open Questions
 

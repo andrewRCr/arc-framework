@@ -552,7 +552,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
       origin: { slug: "mono", phase: "Active", location: "active" },
       shape: "extraction",
       parentPosition: "in-cohort",
-      cohort: "parent/sub",
+      cohort: "parent/mono",
       entries: [
         newMember("alpha"),
         { kind: "surviving-origin", destinationId: "mono", slug: "mono", disposition: "keep-active" },
@@ -569,13 +569,13 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     if (result.status !== "decomposed") return;
     expect(result.result.placement).toMatchObject({
       kind: "in-cohort",
-      cohort: "parent/sub",
+      cohort: "parent/mono",
       coordination: "mint",
     });
     expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(true);
     expect(await pathExists(join(
       repo,
-      ".arc/backlog/planned/parent/sub/alpha/meta-alpha.md",
+      ".arc/backlog/planned/parent/mono/alpha/meta-alpha.md",
     ))).toBe(true);
   });
 

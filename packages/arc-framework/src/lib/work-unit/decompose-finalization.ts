@@ -34,6 +34,7 @@ export interface DecomposeFinalizationProjection {
   transitionPatch: readonly PatchOperation[];
   targets: readonly DecomposeFinalTarget[];
   inventoryRead: Exclude<InventoryRead, "not-applicable">;
+  transformedIncomingDependents: readonly string[];
 }
 
 export interface DecomposeFinalizationContext {
@@ -103,11 +104,13 @@ async function sourceTargetsResolve(
 async function dependencyResultsMatch(
   ctx: DecomposeFinalizationContext,
   record: DecomposePreparationRecord,
+  transformedIncomingDependents: ReadonlySet<string>,
 ): Promise<boolean> {
   const incoming = new Map<string, DecomposeAllocationMap["incomingEdges"][number]["disposition"]>(
     record.allocation.incomingEdges.map((edge) => [edge.dependent, edge.disposition]),
   );
   for (const inventory of record.incomingEdgeInventory) {
+    if (!transformedIncomingDependents.has(inventory.dependent)) continue;
     const disposition = incoming.get(inventory.dependent);
     if (disposition === undefined) return false;
     const replacements = disposition.kind === "replace" ? disposition.replacementTargets : [];
@@ -161,14 +164,22 @@ export async function finalizeDecomposeRetirement(
       return { status: "refused", reason: "authority-conflict" };
     }
     const digests = decomposeInventoryDigests(projection.inventories);
+    const transformedIncomingDependents = sorted(projection.transformedIncomingDependents);
+    const incomingDependents = new Set(record.incomingEdgeInventory.map((edge) => edge.dependent));
     if (
       projection.sourceArtifactDigest !== record.sourceArtifactDigest
       || digests.sourceInventoryDigest !== record.sourceInventoryDigest
       || digests.incomingEdgeInventoryDigest !== record.incomingEdgeInventoryDigest
       || digests.outgoingEdgeInventoryDigest !== record.outgoingEdgeInventoryDigest
       || canonicalDigest(record.allocation) !== record.cutMapDigest
+      || !equal(projection.transformedIncomingDependents, transformedIncomingDependents)
+      || new Set(transformedIncomingDependents).size !== transformedIncomingDependents.length
+      || transformedIncomingDependents.some((dependent) => !incomingDependents.has(dependent))
+      || (record.schemaVersion === 2
+        && !equal(transformedIncomingDependents, record.transformedIncomingDependents))
     ) return { status: "refused", reason: "authority-conflict" };
-    if (!await sourceTargetsResolve(ctx, record) || !await dependencyResultsMatch(ctx, record)) {
+    if (!await sourceTargetsResolve(ctx, record)
+      || !await dependencyResultsMatch(ctx, record, new Set(transformedIncomingDependents))) {
       return { status: "refused", reason: "conservation-unproven" };
     }
 
@@ -213,7 +224,18 @@ export async function finalizeDecomposeRetirement(
     } as const;
     const receipt: RetirementReceipt = record.schemaVersion === 1
       ? { ...receiptBase, schemaVersion: 1 }
-      : { ...receiptBase, schemaVersion: 2, inventoryRead: record.inventoryRead };
+      : {
+          ...receiptBase,
+          schemaVersion: 2,
+          inventoryRead: record.inventoryRead,
+          result: {
+            ...receiptBase.result,
+            sourceInventory: record.sourceInventory,
+            incomingEdgeInventory: record.incomingEdgeInventory,
+            outgoingEdgeInventory: record.outgoingEdgeInventory,
+            transformedIncomingDependents,
+          },
+        };
     await ctx.replaceAndStageRecord(locator.receiptId, stored, canonicalize(receipt), projection.stagedPaths);
     const authorityVersion = canonicalDigest({ previousAuthorityVersion: expectedAuthorityVersion, receipt });
     return {

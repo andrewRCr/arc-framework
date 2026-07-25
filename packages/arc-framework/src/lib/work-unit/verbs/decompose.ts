@@ -407,7 +407,7 @@ export async function runDecompose(
   }
   const originRecord = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, originPath)));
 
-  const memberPlacement = resolveDecomposeMemberPlacement(cut, originEntry.cohort);
+  const memberPlacement = resolveDecomposeMemberPlacement(cut, originSlug, originEntry.cohort);
   if (memberPlacement.status === "refused") return { status: "rejected", reason: memberPlacement.reason };
 
   const newMembers = cut.entries.filter((e): e is NewMemberEntry => e.kind === "new-member");

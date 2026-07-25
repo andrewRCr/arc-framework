@@ -98,6 +98,7 @@ export type DecomposePreparationRecord =
   | (DecomposePreparationRecordBase & {
       schemaVersion: 2;
       inventoryRead: Exclude<InventoryRead, "not-applicable">;
+      transformedIncomingDependents: string[];
     });
 
 /** Canonical non-shipped retirement receipt. */
@@ -123,6 +124,10 @@ interface RetirementReceiptBase {
         sourceInventoryDigest: CanonicalDigest;
         incomingEdgeInventoryDigest: CanonicalDigest;
         outgoingEdgeInventoryDigest: CanonicalDigest;
+        sourceInventory?: DecomposeSourceInventoryEntry[];
+        incomingEdgeInventory?: DecomposeIncomingEdgeInventoryEntry[];
+        outgoingEdgeInventory?: DecomposeOutgoingEdgeInventoryEntry[];
+        transformedIncomingDependents?: string[];
         targets: ReadonlyArray<{
           path: string;
           artifactDigest: CanonicalDigest;

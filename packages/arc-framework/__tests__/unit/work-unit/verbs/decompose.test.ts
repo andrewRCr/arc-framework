@@ -888,7 +888,7 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
       origin: { slug: "monolith", phase: "Planning", location: "active" },
       shape: "symmetric",
       parentPosition: "standalone",
-      cohort: "lifecycle-machine",
+      cohort: "monolith",
       entries: [
         newMember("resolver", { workClass: "Heavy" }),
         newMember("transition-core", { workClass: "Heavy" }),
@@ -920,14 +920,14 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
       closeout: { Class: "Light", "Depends On": "transition-core" },
     };
     for (const [slug, expected] of Object.entries(golden)) {
-      const record = parseMetaProjectionRecord(writeFor(h.writes, `/lifecycle-machine/${slug}/meta-${slug}.md`).content);
+      const record = parseMetaProjectionRecord(writeFor(h.writes, `/monolith/${slug}/meta-${slug}.md`).content);
       expect(record).toMatchObject({
         State: "Planning",
         Owner: "andrew",
         Branch: "[none]",
         Class: expected.Class,
         Priority: "P1",
-        Cohort: "lifecycle-machine",
+        Cohort: "monolith",
         Origin: "[internal]",
         Design: `draft-${slug}.md`,
         "Depends On": expected["Depends On"],
@@ -943,9 +943,9 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
       { dependent: "downstream", to: ["resolver", "transition-core", "closeout"] },
     ]);
     expect(result.result.members.map((m) => m.metaPath)).toEqual([
-      ".arc/backlog/planned/lifecycle-machine/resolver/meta-resolver.md",
-      ".arc/backlog/planned/lifecycle-machine/transition-core/meta-transition-core.md",
-      ".arc/backlog/planned/lifecycle-machine/closeout/meta-closeout.md",
+      ".arc/backlog/planned/monolith/resolver/meta-resolver.md",
+      ".arc/backlog/planned/monolith/transition-core/meta-transition-core.md",
+      ".arc/backlog/planned/monolith/closeout/meta-closeout.md",
     ]);
     expect(result.result.origin).toBe("retired");
   });

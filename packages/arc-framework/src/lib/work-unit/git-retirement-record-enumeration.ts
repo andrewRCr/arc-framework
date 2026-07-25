@@ -1,9 +1,8 @@
 /**
  * Git adapter for complete retirement-record namespace enumeration.
  *
- * The current canonical tree and every legacy namespace state reachable from
- * the supplied ref are converted to path-free raw entries, then authenticated
- * together before subject-specific logic can inspect them.
+ * The current canonical tree is converted to path-free raw entries, then
+ * authenticated before subject-specific logic can inspect it.
  *
  * @module
  */
@@ -19,10 +18,7 @@ import {
   type RetirementDispositionQuery,
   type RetirementDispositionQueryResult,
 } from "./retirement-disposition-query.js";
-import {
-  LEGACY_RETIREMENT_RECORD_NAMESPACE,
-  RETIREMENT_RECORD_NAMESPACE,
-} from "./retirement-record-store.js";
+import { RETIREMENT_RECORD_NAMESPACE } from "./retirement-record-store.js";
 
 interface GitTreeEntry {
   mode: string;
@@ -49,21 +45,6 @@ export async function enumerateGitRetirementRecords(
   const canonical = await listNamespace(exec, ref, RETIREMENT_RECORD_NAMESPACE);
   if (canonical === null) return { status: "namespace-corrupt" };
   await appendUniqueEntries(exec, RETIREMENT_RECORD_NAMESPACE, canonical, seen, entries);
-
-  const { stdout } = await exec("git", [
-    "log",
-    "--full-history",
-    "--format=%H",
-    ref,
-    "--",
-    `:(literal)${LEGACY_RETIREMENT_RECORD_NAMESPACE}`,
-  ]);
-  const commits = stdout.split("\n").map((value) => value.trim()).filter(Boolean);
-  for (const commit of commits) {
-    const historical = await listNamespace(exec, commit, LEGACY_RETIREMENT_RECORD_NAMESPACE);
-    if (historical === null) return { status: "namespace-corrupt" };
-    await appendUniqueEntries(exec, LEGACY_RETIREMENT_RECORD_NAMESPACE, historical, seen, entries);
-  }
   return validateRetirementRecordEnumeration(entries);
 }
 

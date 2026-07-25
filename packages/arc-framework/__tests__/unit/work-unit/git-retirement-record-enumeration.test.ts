@@ -9,12 +9,9 @@ import {
 } from "../../../src/lib/work-unit/git-retirement-record-enumeration.js";
 import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
 import {
-  LEGACY_RETIREMENT_RECORD_NAMESPACE,
   RETIREMENT_RECORD_NAMESPACE,
   encodeRetirementRecordKey,
 } from "../../../src/lib/work-unit/retirement-record-store.js";
-
-const historicalCommit = "b".repeat(40);
 
 function receipt(): RetirementReceipt {
   const subject = { kind: "work-unit", name: "sample" } as const;
@@ -46,13 +43,11 @@ function treeLine(mode: string, oid: string, path: string): string {
   return `${mode} blob ${oid}\t${path}\0`;
 }
 
-function enumerationExec(options: { canonicalMode?: string; legacyMode?: string } = {}): GitExec {
+function enumerationExec(options: { canonicalMode?: string } = {}): GitExec {
   const candidate = receipt();
   const filename = `${encodeRetirementRecordKey(candidate.receiptId)}.json`;
   const canonicalOid = "c".repeat(40);
-  const legacyOid = "d".repeat(40);
   return async (_command, args) => {
-    if (args[0] === "log") return { stdout: `${historicalCommit}\n`, stderr: "" };
     if (args[0] === "ls-tree") {
       const ref = args[4];
       const namespace = args[6];
@@ -66,19 +61,9 @@ function enumerationExec(options: { canonicalMode?: string; legacyMode?: string 
           stderr: "",
         };
       }
-      if (ref === historicalCommit && namespace === LEGACY_RETIREMENT_RECORD_NAMESPACE) {
-        return {
-          stdout: treeLine(
-            options.legacyMode ?? "100644",
-            legacyOid,
-            `${LEGACY_RETIREMENT_RECORD_NAMESPACE}/${filename}`,
-          ),
-          stderr: "",
-        };
-      }
       return { stdout: "", stderr: "" };
     }
-    if (args[0] === "show" && (args[1] === canonicalOid || args[1] === legacyOid)) {
+    if (args[0] === "show" && args[1] === canonicalOid) {
       return { stdout: canonicalize(candidate), stderr: "" };
     }
     throw new Error(`unexpected git call: ${args.join(" ")}`);
@@ -97,7 +82,7 @@ describe("Git retirement record enumeration", () => {
     });
   });
 
-  it("deduplicates canonical-current and historical-legacy records without exposing paths", async () => {
+  it("authenticates canonical records without exposing paths", async () => {
     const result = await enumerateGitRetirementRecords(enumerationExec(), "HEAD");
 
     expect(result.status).toBe("valid");
@@ -106,11 +91,8 @@ describe("Git retirement record enumeration", () => {
     expect(result.records[0]).not.toHaveProperty("path");
   });
 
-  it.each([
-    { canonicalMode: "120000" },
-    { legacyMode: "120000" },
-  ])("fails globally for a reachable symlink record: $canonicalMode$legacyMode", async (options) => {
-    await expect(enumerateGitRetirementRecords(enumerationExec(options), "HEAD"))
+  it("fails globally for a reachable symlink record", async () => {
+    await expect(enumerateGitRetirementRecords(enumerationExec({ canonicalMode: "120000" }), "HEAD"))
       .resolves.toEqual({ status: "namespace-corrupt" });
   });
 });

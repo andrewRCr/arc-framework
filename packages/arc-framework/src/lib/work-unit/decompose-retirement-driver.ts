@@ -1,7 +1,5 @@
 /** Production Git/filesystem binding for two-stage decompose retirement. */
 
-import { rm } from "node:fs/promises";
-
 import { atomicWriteFile } from "../fs.js";
 import { canonicalize, isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 import { receiptId } from "../canonical/receipt-id.js";
@@ -21,6 +19,7 @@ import {
 } from "./decompose-finalization.js";
 import { deriveDecomposeInventories } from "./decompose-inventory.js";
 import type { DecomposeAllocationMap } from "./decompose-cut-map.js";
+import { partitionTransformDependents } from "./transform-coordination.js";
 import {
   bindDecomposePreparation,
   destinationArtifactPath,
@@ -32,8 +31,6 @@ import {
   stageDecomposePaths,
 } from "./decompose-retirement-projection.js";
 import {
-  resolveLegacyRetirementRecordPath,
-  resolveLegacyRetirementRecordRelativePath,
   resolveRetirementRecordPath,
   resolveRetirementRecordRelativePath,
 } from "./retirement-record-store.js";
@@ -54,8 +51,6 @@ export interface InRepoDecomposeRetirementDeps {
   readBlob: DecomposeBlobReader;
   createRecord(receiptId: CanonicalDigest, content: string): Promise<void>;
   removeRecord(receiptId: CanonicalDigest): Promise<void>;
-  /** Migration-only legacy removal seam; canonical writers never call it. */
-  removeLegacyRecord?(receiptId: CanonicalDigest): Promise<void>;
   atomicWriteFile?: typeof atomicWriteFile;
   /** Remote-aware lifecycle truth shared by preparation, mutation, and finalization. */
   composed?: ComposedLifecycleIndexResult;
@@ -99,6 +94,12 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           binding.sourceArtifactDigest,
           binding.inventories,
         );
+        const transformedIncomingDependents = prepareTimeTransformedDependents(
+          deps,
+          allocation.origin.slug,
+          binding.inventories.incomingEdgeInventory.map((edge) => edge.dependent),
+          binding.allowedPaths,
+        );
         return await prepareDecomposeRetirement(
           {
             readAuthoritySnapshot: async () => await readDecomposeAuthorityVersion(
@@ -113,6 +114,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
               inventories: binding.inventories,
               allowedPaths: binding.allowedPaths,
               inventoryRead: binding.inventoryRead,
+              transformedIncomingDependents,
             }),
             readStagedPaths: async () => await readDecomposeStagedPaths(deps),
             readRecord: async (recordId) => await readDecomposeRecord(deps, recordId),
@@ -140,6 +142,12 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           return { status: "refused", reason: "evidence-mismatch" };
         }
         const binding = await bindDecomposePreparation(deps, record.allocation);
+        const transformedIncomingDependents = prepareTimeTransformedDependents(
+          deps,
+          record.allocation.origin.slug,
+          binding.inventories.incomingEdgeInventory.map((edge) => edge.dependent),
+          binding.allowedPaths,
+        );
         if (canonicalize(binding.scope) !== canonicalize(record.locator.scope)
           || binding.sourceArtifactDigest !== record.sourceArtifactDigest
           || canonicalize(binding.inventories) !== canonicalize({
@@ -147,7 +155,10 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             incomingEdgeInventory: record.incomingEdgeInventory,
             outgoingEdgeInventory: record.outgoingEdgeInventory,
           })
-          || canonicalize(binding.allowedPaths) !== canonicalize(record.allowedPaths)) {
+          || canonicalize(binding.allowedPaths) !== canonicalize(record.allowedPaths)
+          || (record.schemaVersion === 2
+            && canonicalize(transformedIncomingDependents)
+              !== canonicalize(record.transformedIncomingDependents))) {
           return { status: "refused", reason: "authority-conflict" };
         }
         const snapshot = await readDecomposeAuthorityVersion(
@@ -181,7 +192,6 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
     finalize: async (origin, id) => {
       try {
         if (!isCanonicalDigest(id)) return { status: "refused", reason: "invalid receipt ID" };
-        await migrateLegacyPreparation(deps, id);
         const stored = await readDecomposeRecord(deps, id);
         if (stored === null) return { status: "refused", reason: "evidence-missing" };
         const record = parseDecomposePreparationRecord(stored, id);
@@ -223,6 +233,9 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           currentInventories = freshInventory.inventories;
         }
         const entries = new Map(record.allocation.entries.map((entry) => [entry.destinationId, entry]));
+        const transformedDependents = record.schemaVersion === 2
+          ? record.transformedIncomingDependents
+          : record.incomingEdgeInventory.map((edge) => edge.dependent);
         const projection = async (): Promise<DecomposeFinalizationProjection> => {
           const patch = await readDecomposeStagedPatch(deps, resolveRetirementRecordRelativePath(id));
           const targets = (await Promise.all(
@@ -235,6 +248,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             transitionPatch: patch.operations,
             targets,
             inventoryRead: deps.composed?.readQuality ?? "tree-only",
+            transformedIncomingDependents: [...transformedDependents],
           };
         };
         const finalized = await finalizeDecomposeRetirement(
@@ -304,46 +318,21 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
   };
 }
 
-async function migrateLegacyPreparation(
+function prepareTimeTransformedDependents(
   deps: InRepoDecomposeRetirementDeps,
-  id: CanonicalDigest,
-): Promise<void> {
-  const legacyPath = resolveLegacyRetirementRecordPath(deps.cwd, id);
-  let legacy: string;
-  try {
-    legacy = await deps.readFile(legacyPath);
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      const canonical = await readDecomposeRecord(deps, id);
-      const preparation = canonical === null ? null : parseDecomposePreparationRecord(canonical, id);
-      if (preparation?.schemaVersion === 1) {
-        await stageDecomposePaths(deps, [
-          resolveRetirementRecordRelativePath(id),
-          resolveLegacyRetirementRecordRelativePath(id),
-        ]);
-      }
-      return;
-    }
-    throw error;
-  }
-  const preparation = parseDecomposePreparationRecord(legacy, id);
-  if (preparation?.schemaVersion !== 1) {
-    throw new Error("legacy retirement record is not an exact v1 decompose preparation");
-  }
-  const canonical = await readDecomposeRecord(deps, id);
-  if (canonical !== null && canonical !== legacy) {
-    throw new Error("legacy and canonical retirement records diverge");
-  }
-  if (canonical === null) await deps.createRecord(id, legacy);
-  await (deps.removeLegacyRecord?.(id) ?? rm(legacyPath));
-  await stageDecomposePaths(deps, [
-    resolveRetirementRecordRelativePath(id),
-    resolveLegacyRetirementRecordRelativePath(id),
-  ]);
-}
-
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error;
+  origin: string,
+  incomingDependents: readonly string[],
+  allowedPaths: readonly string[],
+): string[] {
+  const dependents = deps.composed === undefined
+    ? incomingDependents
+    : partitionTransformDependents(deps.composed, origin).flatMap((partition) =>
+        partition.authority === "shared-visible"
+          && partition.writablePath !== undefined
+          && allowedPaths.includes(partition.writablePath)
+          ? [partition.dependent]
+          : []);
+  return [...dependents].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
 }
 
 async function restorePreparedRecord(

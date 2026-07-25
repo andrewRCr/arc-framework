@@ -130,6 +130,56 @@ describe("parseRetirementReceipt", () => {
     expect(parseRetirementReceipt(canonicalize(nonApplicableWorkUnit))).toBeNull();
   });
 
+  it("requires exact embedded composed inventories on v2 decompose receipts", () => {
+    const inventories = {
+      sourceInventory: [],
+      incomingEdgeInventory: [],
+      outgoingEdgeInventory: [],
+      transformedIncomingDependents: [],
+    };
+    const emptyDigest = canonicalDigest([]);
+    const v1 = receiptFor({ kind: "work-unit", name: "sample" }, "decompose", {
+      kind: "decompose",
+      preparationId: digest("preparation"),
+      allocation,
+      cutMapDigest: canonicalDigest(allocation),
+      sourceInventoryDigest: emptyDigest,
+      incomingEdgeInventoryDigest: emptyDigest,
+      outgoingEdgeInventoryDigest: emptyDigest,
+      ...inventories,
+      targets: [],
+    });
+    const v2: RetirementReceipt = {
+      ...v1,
+      schemaVersion: 2,
+      inventoryRead: "reachable",
+      receiptId: receiptId({
+        schemaVersion: 2,
+        subject: v1.subject,
+        transition: v1.transition,
+        sourceBranch: v1.source.branch,
+        sourceHead: v1.source.head,
+      }),
+    };
+    expect(parseRetirementReceipt(contentOf(v2))).toEqual(v2);
+
+    const missing = candidate(v2);
+    delete (missing.result as Record<string, unknown>).incomingEdgeInventory;
+    expect(parseRetirementReceipt(canonicalize(missing))).toBeNull();
+
+    const missingPartition = candidate(v2);
+    delete (missingPartition.result as Record<string, unknown>).transformedIncomingDependents;
+    expect(parseRetirementReceipt(canonicalize(missingPartition))).toBeNull();
+
+    const invalidPartition = candidate(v2);
+    (invalidPartition.result as Record<string, unknown>).transformedIncomingDependents = ["unknown"];
+    expect(parseRetirementReceipt(canonicalize(invalidPartition))).toBeNull();
+
+    const drifted = candidate(v2);
+    (drifted.result as Record<string, unknown>).sourceInventoryDigest = digest("wrong");
+    expect(parseRetirementReceipt(canonicalize(drifted))).toBeNull();
+  });
+
   it.each([
     ["malformed JSON", "{"],
     ["a JSON primitive", "null"],

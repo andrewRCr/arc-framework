@@ -290,7 +290,7 @@ export async function bindDecomposePreparation(
     lifecycleIndex: index,
   });
   if (inventory.status === "rejected") throw new Error(inventory.reason);
-  const memberPlacement = resolveDecomposeMemberPlacement(allocation, origin.cohort);
+  const memberPlacement = resolveDecomposeMemberPlacement(allocation, allocation.origin.slug, origin.cohort);
   if (memberPlacement.status === "refused") throw new Error(memberPlacement.reason);
   return {
     scope: {

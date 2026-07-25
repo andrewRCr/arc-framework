@@ -34,6 +34,7 @@ export interface DecomposePreparationProjection {
   inventories: DecomposeInventories;
   allowedPaths: readonly ManagedPath[];
   inventoryRead: Exclude<InventoryRead, "not-applicable">;
+  transformedIncomingDependents: readonly string[];
 }
 
 export interface DecomposePreparationContext {
@@ -91,7 +92,7 @@ function parseScope(value: unknown): RetirementAuthorityScope | null {
   };
 }
 
-function parseSourceInventory(value: unknown): DecomposeInventories["sourceInventory"] | null {
+export function parseSourceInventory(value: unknown): DecomposeInventories["sourceInventory"] | null {
   if (!Array.isArray(value)) return null;
   const entries: DecomposeInventories["sourceInventory"] = [];
   let previousId: string | undefined;
@@ -120,7 +121,7 @@ function parseSourceInventory(value: unknown): DecomposeInventories["sourceInven
   return entries;
 }
 
-function parseIncomingInventory(value: unknown): DecomposeInventories["incomingEdgeInventory"] | null {
+export function parseIncomingInventory(value: unknown): DecomposeInventories["incomingEdgeInventory"] | null {
   if (!Array.isArray(value)) return null;
   const entries: DecomposeInventories["incomingEdgeInventory"] = [];
   let previous: string | undefined;
@@ -142,7 +143,7 @@ function parseIncomingInventory(value: unknown): DecomposeInventories["incomingE
   return entries;
 }
 
-function parseOutgoingInventory(value: unknown): DecomposeInventories["outgoingEdgeInventory"] | null {
+export function parseOutgoingInventory(value: unknown): DecomposeInventories["outgoingEdgeInventory"] | null {
   if (!Array.isArray(value)) return null;
   const entries: DecomposeInventories["outgoingEdgeInventory"] = [];
   let previous: string | undefined;
@@ -173,6 +174,25 @@ function parseAllowedPaths(value: unknown): string[] | null {
   return paths;
 }
 
+function parseTransformedIncomingDependents(
+  value: unknown,
+  incomingEdgeInventory: DecomposeInventories["incomingEdgeInventory"],
+): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const incoming = new Set(incomingEdgeInventory.map((edge) => edge.dependent));
+  const dependents: string[] = [];
+  let previous: string | undefined;
+  for (const candidate of value) {
+    if (typeof candidate !== "string" || !isSlugSafe(candidate) || !incoming.has(candidate)
+      || (previous !== undefined && compareCanonicalStrings(previous, candidate) >= 0)) {
+      return null;
+    }
+    previous = candidate;
+    dependents.push(candidate);
+  }
+  return dependents;
+}
+
 /** Decode and rederive one canonical prepared-decompose record. */
 export function parseDecomposePreparationRecord(
   content: string,
@@ -196,7 +216,7 @@ export function parseDecomposePreparationRecord(
         "incomingEdgeInventoryDigest",
         "outgoingEdgeInventoryDigest",
         "cutMapDigest",
-        ...(schemaVersion === 2 ? ["inventoryRead"] : []),
+        ...(schemaVersion === 2 ? ["inventoryRead", "transformedIncomingDependents"] : []),
       ];
     if (!hasExactKeys(parsed, expectedKeys)
       || parsed.kind !== "prepared-decompose" || (schemaVersion !== 1 && schemaVersion !== 2)
@@ -220,10 +240,13 @@ export function parseDecomposePreparationRecord(
     const incomingEdgeInventory = parseIncomingInventory(parsed.incomingEdgeInventory);
     const outgoingEdgeInventory = parseOutgoingInventory(parsed.outgoingEdgeInventory);
     const allowedPaths = parseAllowedPaths(parsed.allowedPaths);
+    const transformedIncomingDependents = schemaVersion === 2 && incomingEdgeInventory !== null
+      ? parseTransformedIncomingDependents(parsed.transformedIncomingDependents, incomingEdgeInventory)
+      : null;
     if (scope === null || allocationResult.status !== "parsed"
       || canonicalize(allocationResult.params) !== canonicalize(parsed.allocation)
       || sourceInventory === null || incomingEdgeInventory === null || outgoingEdgeInventory === null
-      || allowedPaths === null) {
+      || allowedPaths === null || (schemaVersion === 2 && transformedIncomingDependents === null)) {
       return null;
     }
     const inventories = { sourceInventory, incomingEdgeInventory, outgoingEdgeInventory };
@@ -270,6 +293,7 @@ export function parseDecomposePreparationRecord(
           ...common,
           schemaVersion: 2,
           inventoryRead: parsed.inventoryRead as Exclude<InventoryRead, "not-applicable">,
+          transformedIncomingDependents: transformedIncomingDependents ?? [],
         };
   } catch {
     return null;
@@ -298,6 +322,15 @@ export async function prepareDecomposeRetirement(
       return { status: "refused", reason: "conservation-unproven" };
     }
     if (retirementAllocationRefusal(allocation) !== null) {
+      return { status: "refused", reason: "conservation-unproven" };
+    }
+    const incomingDependents = new Set(
+      projection.inventories.incomingEdgeInventory.map((edge) => edge.dependent),
+    );
+    const transformedIncomingDependents = [...projection.transformedIncomingDependents]
+      .sort(compareCanonicalStrings);
+    if (new Set(transformedIncomingDependents).size !== transformedIncomingDependents.length
+      || transformedIncomingDependents.some((dependent) => !incomingDependents.has(dependent))) {
       return { status: "refused", reason: "conservation-unproven" };
     }
 
@@ -331,6 +364,7 @@ export async function prepareDecomposeRetirement(
       incomingEdgeInventory: projection.inventories.incomingEdgeInventory,
       outgoingEdgeInventory: projection.inventories.outgoingEdgeInventory,
       allowedPaths: [...projection.allowedPaths].sort(compareCanonicalStrings),
+      transformedIncomingDependents,
       sourceArtifactDigest: projection.sourceArtifactDigest,
       ...inventoryDigests,
       cutMapDigest,

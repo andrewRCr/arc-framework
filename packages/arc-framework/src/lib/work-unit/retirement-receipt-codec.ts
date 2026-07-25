@@ -11,6 +11,12 @@ import { receiptId, type RetirementTransition } from "../canonical/receipt-id.js
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { parseCutMap, type DecomposeAllocationMap } from "./decompose-cut-map.js";
+import {
+  parseIncomingInventory,
+  parseOutgoingInventory,
+  parseSourceInventory,
+} from "./decompose-preparation.js";
+import { decomposeInventoryDigests } from "./decompose-inventory.js";
 import { validateReceiptMatrix, type RetirementReceipt } from "./retirement-authority.js";
 
 type JsonObject = Record<string, unknown>;
@@ -111,7 +117,20 @@ function parseTargets(value: unknown): DecomposeResult["targets"] {
   return targets;
 }
 
-function parseResult(value: unknown): RetirementReceipt["result"] | null {
+function parseCanonicalSlugs(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const slugs: string[] = [];
+  let previous: string | undefined;
+  for (const candidate of value) {
+    const parsed = SlugSchema.safeParse(candidate);
+    if (!parsed.success || (previous !== undefined && compareCanonicalPath(previous, parsed.data) >= 0)) return null;
+    slugs.push(parsed.data);
+    previous = parsed.data;
+  }
+  return slugs;
+}
+
+function parseResult(value: unknown, schemaVersion: 1 | 2): RetirementReceipt["result"] | null {
   if (!isObject(value) || typeof value.kind !== "string") return null;
   if (value.kind === "discard") {
     return hasExactKeys(value, ["kind", "artifactDigest"]) && value.artifactDigest === "absent"
@@ -131,8 +150,7 @@ function parseResult(value: unknown): RetirementReceipt["result"] | null {
       ? { kind: "rename", targetSlug: targetSlug.data, artifactDigest: value.artifactDigest }
       : null;
   }
-  if (value.kind !== "decompose"
-    || !hasExactKeys(value, [
+  const decomposeKeys = [
       "kind",
       "preparationId",
       "allocation",
@@ -141,7 +159,16 @@ function parseResult(value: unknown): RetirementReceipt["result"] | null {
       "incomingEdgeInventoryDigest",
       "outgoingEdgeInventoryDigest",
       "targets",
-    ])) {
+    ];
+  const v2DecomposeKeys = [
+    ...decomposeKeys,
+    "sourceInventory",
+    "incomingEdgeInventory",
+    "outgoingEdgeInventory",
+    "transformedIncomingDependents",
+  ];
+  if (value.kind !== "decompose"
+    || !hasExactKeys(value, schemaVersion === 1 ? decomposeKeys : v2DecomposeKeys)) {
     return null;
   }
   const allocation = parseAllocation(value.allocation);
@@ -155,7 +182,18 @@ function parseResult(value: unknown): RetirementReceipt["result"] | null {
   }
   const targets = parseTargets(value.targets);
   if (!Array.isArray(value.targets) || targets.length !== value.targets.length) return null;
-  return {
+  const sourceInventory = schemaVersion === 2 ? parseSourceInventory(value.sourceInventory) : undefined;
+  const incomingEdgeInventory = schemaVersion === 2 ? parseIncomingInventory(value.incomingEdgeInventory) : undefined;
+  const outgoingEdgeInventory = schemaVersion === 2 ? parseOutgoingInventory(value.outgoingEdgeInventory) : undefined;
+  const transformedIncomingDependents = schemaVersion === 2
+    ? parseCanonicalSlugs(value.transformedIncomingDependents)
+    : undefined;
+  if (schemaVersion === 2
+    && (sourceInventory === null
+      || incomingEdgeInventory === null
+      || outgoingEdgeInventory === null
+      || transformedIncomingDependents === null)) return null;
+  const result = {
     kind: "decompose",
     preparationId: value.preparationId,
     allocation,
@@ -164,7 +202,40 @@ function parseResult(value: unknown): RetirementReceipt["result"] | null {
     incomingEdgeInventoryDigest: value.incomingEdgeInventoryDigest,
     outgoingEdgeInventoryDigest: value.outgoingEdgeInventoryDigest,
     targets,
+  } as const;
+  if (schemaVersion === 1) return result;
+  if (sourceInventory === null || sourceInventory === undefined
+    || incomingEdgeInventory === null || incomingEdgeInventory === undefined
+    || outgoingEdgeInventory === null || outgoingEdgeInventory === undefined
+    || transformedIncomingDependents === null || transformedIncomingDependents === undefined) return null;
+  return {
+    ...result,
+    sourceInventory,
+    incomingEdgeInventory,
+    outgoingEdgeInventory,
+    transformedIncomingDependents,
   };
+}
+
+function validV2DecomposeInventories(result: DecomposeResult): boolean {
+  const source = result.sourceInventory;
+  const incoming = result.incomingEdgeInventory;
+  const outgoing = result.outgoingEdgeInventory;
+  const transformed = result.transformedIncomingDependents;
+  return source !== undefined
+    && incoming !== undefined
+    && outgoing !== undefined
+    && transformed !== undefined
+    && transformed.every((dependent) => incoming.some((edge) => edge.dependent === dependent))
+    && canonicalize(decomposeInventoryDigests({
+      sourceInventory: source,
+      incomingEdgeInventory: incoming,
+      outgoingEdgeInventory: outgoing,
+    })) === canonicalize({
+      sourceInventoryDigest: result.sourceInventoryDigest,
+      incomingEdgeInventoryDigest: result.incomingEdgeInventoryDigest,
+      outgoingEdgeInventoryDigest: result.outgoingEdgeInventoryDigest,
+    });
 }
 
 /**
@@ -189,7 +260,7 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
     const subject = parseSubject(parsed.subject);
     const source = parseSource(parsed.source);
     const projection = parseProjection(parsed.retiringProjection);
-    const result = parseResult(parsed.result);
+    const result = parseResult(parsed.result, schemaVersion);
     if (subject === null || source === null || projection === null || result === null
       || (schemaVersion === 2
         && ((subject.kind === "work-unit") === (parsed.inventoryRead === "not-applicable")))
@@ -237,7 +308,9 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
       || (receipt.result.kind === "decompose"
         && (receipt.subject.kind !== "work-unit"
           || receipt.result.allocation.origin.slug !== receipt.subject.name
-          || canonicalDigest(receipt.result.allocation) !== receipt.result.cutMapDigest))
+          || canonicalDigest(receipt.result.allocation) !== receipt.result.cutMapDigest
+          || (receipt.schemaVersion === 2
+            && !validV2DecomposeInventories(receipt.result))))
       || (receipt.result.kind === "rename"
         && (receipt.subject.kind !== "work-unit"
           || receipt.result.targetSlug === receipt.subject.name))
