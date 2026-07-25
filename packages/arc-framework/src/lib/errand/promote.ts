@@ -121,12 +121,13 @@ export async function promoteErrand(
   }
 
   const branch = promotionBranchFor(params, name, type);
+  const meta = renderMetaFile(name, metaOverridesFor(params, branch));
   // Rename the record's branch into the WU branch — preserve commits, prefix-agnostic.
   await io.exec("git", ["branch", "-m", record.branch, branch]);
 
   // Mint the backing meta at the stage the crossed floor dictates.
   await ensureDir(join(cwd, ACTIVE_DIR), fs.mkdir);
-  await fs.writeFile(join(cwd, metaPath), renderMetaFile(name, metaOverridesFor(params, branch)));
+  await fs.writeFile(join(cwd, metaPath), meta);
 
   // Retire the record last — the renamed branch is untouched, so this never
   // strands commits, and a failure before here leaves the errand recoverable.

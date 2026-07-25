@@ -67,6 +67,18 @@ describe("ARC config field catalog", () => {
     }
   });
 
+  it("accepts exact unsigned safe-integer domains, including all-zero strings", () => {
+    for (const key of ["review.chunking_threshold_lines", "review.chunking_threshold_files"]) {
+      const schema = field(key).schema;
+      for (const value of ["0", "00", "0000", "1", "0001", String(Number.MAX_SAFE_INTEGER)]) {
+        expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(true);
+      }
+      for (const value of ["", "+0", "-0", "1.0", "0x10", "9007199254740992"]) {
+        expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(false);
+      }
+    }
+  });
+
   it("preserves open string and harness-directory domains without compiling pattern contents", () => {
     const openValues: Record<string, readonly string[]> = {
       "branch.base": ["main", "feature/topic", "not a validated git ref"],
@@ -187,7 +199,10 @@ describe("ARC config field catalog", () => {
       ["hooks.task_numbering", "error"],
       ["hooks.skip_extensions", "md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|license|makefile"],
       ["hooks.test_patterns", "__tests__/|\\.test\\.|\\.spec\\.|/test/|/tests/"],
-      ["hooks.strict_meta_ref_patterns", "PRD " + "R[0-9]+|\\b[RB][0-9]+\\b|" + "§" + " "],
+      [
+        "hooks.strict_meta_ref_patterns",
+        "PRD " + "R[0-9]+|\\b[RB][0-9]+\\b|" + String.fromCodePoint(0xa7) + " ",
+      ],
       [
         "hooks.meta_ref_patterns",
         "[Tt]ask [0-9]+\\.[0-9]+|[Pp]hase [0-9]+|\\.arc/|"

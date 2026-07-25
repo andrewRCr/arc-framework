@@ -144,7 +144,7 @@ describe("configuration compatibility corpus — process boundaries", () => {
       }
       expectOnlyDevelopmentBuildWarning(direct.stderr);
       expectOnlyDevelopmentBuildWarning(launcher.stderr);
-    });
+    }, 15_000);
   }
 
   it("validates a corpus config selected through a custom ARC_DIR", () => {

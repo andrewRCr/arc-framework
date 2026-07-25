@@ -1206,11 +1206,12 @@ export function toMetaRecord(record: ParsedMetaRecord): MetaRecord | null {
 }
 
 function nullableProjectionValue(value: string | null): string | null {
-  return value === "—" || value === "[none]" ? null : value;
+  if (value === "—" || value === "[none]") return null;
+  return value === "[TBD]" ? "TBD" : value;
 }
 
 function unresolvedProjectionValue(value: string | null): string | null {
-  return value === "[TBD]" ? "TBD" : nullableProjectionValue(value);
+  return nullableProjectionValue(value);
 }
 
 function normalizeIdentifierListValue(value: string): string {

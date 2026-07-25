@@ -51,7 +51,8 @@ export const HarnessDirectorySchema = z.string()
   .regex(/^(?!(?:\.{1,2}|\.git|\.arc)$)[^/\\]+$/iu);
 
 const HarnessDirectoryListSourceSchema = z.string();
-const STRICT_META_REF_PATTERN_DEFAULT = "PRD " + "R[0-9]+|\\b[RB][0-9]+\\b|" + "§" + " ";
+const STRICT_META_REF_PATTERN_DEFAULT = "PRD " + "R[0-9]+|\\b[RB][0-9]+\\b|"
+  + String.fromCodePoint(0xa7) + " ";
 
 function enumField<const Key extends string, const Values extends readonly [string, ...string[]]>(
   key: Key,
@@ -100,7 +101,7 @@ function stringField<const Key extends string, Schema extends z.ZodType<string>>
 
 const POSITIVE_SAFE_INTEGER_PATTERN = /^0*(?:[1-9]\d{0,14}|[1-8]\d{15}|900719925474099[01])$/u;
 const SAFE_INTEGER_AT_LEAST_TEN_PATTERN = /^0*(?:[1-9]\d{1,14}|[1-8]\d{15}|900719925474099[01])$/u;
-const UNSIGNED_SAFE_INTEGER_PATTERN = /^(?:0|0*[1-9]\d{0,14}|0*[1-8]\d{15}|0*900719925474099[01])$/u;
+const UNSIGNED_SAFE_INTEGER_PATTERN = /^0*(?:0|[1-9]\d{0,14}|[1-8]\d{15}|900719925474099[01])$/u;
 
 function positiveSafeIntegerField<const Key extends string>(
   key: Key,

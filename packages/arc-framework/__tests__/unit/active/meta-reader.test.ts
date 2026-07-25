@@ -121,6 +121,22 @@ describe("parseMetaRecord — semantic adapter", () => {
     });
   });
 
+  it("normalizes unresolved sentinels in tolerant nullable fields", () => {
+    const record = parseMetaRecord(renderMetaProjectionFile("foo", {
+      State: "Active",
+      Owner: "andrew",
+      Origin: "[TBD]",
+      Blockers: "[TBD]",
+      "Next Action": "[TBD]",
+    }));
+
+    expect(record).toMatchObject({
+      origin: "TBD",
+      blockers: "TBD",
+      nextAction: "TBD",
+    });
+  });
+
   it("retains invalid closed tokens and legacy multiline narrative evidence", () => {
     const record = parseMetaRecord([
       "# Metadata: legacy",
