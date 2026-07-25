@@ -2060,6 +2060,19 @@ complete; what remains before the carve is below.
   one cost this proof did not measure, and no gate catches it. Full record in
   `notes-session-locus-model.md` § The carve, proved.
 
+### `[x]` **7.S.c Gate the documented command surface against the live one**
+
+- _Goal:_ Removing a command without trimming the reference material that promises it fails a gate rather than
+  shipping green.
+
+- _Outcome:_ `command-surface-documentation.test.ts` derives both sides — documented `arc …` invocations from
+  the project and package quick references, live paths from the Commander source scan — so it needs no
+  per-deliverable editing and reports the offending line rather than a count. Verified negatively by removing
+  `errand leave` from the CLI and confirming both reference checks fail. That verification caught a defect in
+  the first draft: resolving to the longest registered _prefix_ let any `arc errand <anything>` pass on the
+  surviving `errand` group alone — exactly the carve's failure mode. Bare words are command segments, since
+  operands and options are bracketed, so an invocation resolves only against its full path.
+
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
