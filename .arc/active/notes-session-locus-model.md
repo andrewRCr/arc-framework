@@ -420,10 +420,53 @@ keying on authority over the lease rather than on deadness.
 
 ### Open costs
 
-- **Test entanglement is the largest unknown.** Housekeep has one named test file (87 lines) and groom none —
-  their coverage lives inside shared integration and e2e files. Source carves cleanly; tests will not.
+- **Test entanglement** was the largest unknown; it is now measured — see the subsection below. It is not a cost
+  of the size first feared.
 - **D1's `session-init.md` needs rewriting, not reverting** — the signal-leaf spine must route housekeep and
   grooming the pre-model way while retaining locus dispatch.
+
+### Test entanglement, measured (2026-07-25)
+
+Classified every test file the branch touches — 163 files, +21,621 / −846 lines against the reconciled base —
+by which deliverable owns its added coverage. Tests carve about as cleanly as source does. The earlier reading
+that grooming had no named test file was wrong: `__tests__/unit/groom/` (3 files, 551 lines) and
+`__tests__/unit/housekeep/` (4 files, 711 lines) both exist and carry real driver coverage, not smoke tests.
+
+| Deliverable | Added test lines | Share | Shape                                                         |
+| ----------- | ---------------- | ----- | ------------------------------------------------------------- |
+| D1          | ~18,580          | 86%   | everything not named below; no file imports a D2 or D3 module |
+| D2          | ~1,264           | 6%    | 6 whole files (976) + 3 e2e slices (~288)                     |
+| D3          | ~1,777           | 8%    | 8 whole files + the whole delta of one modified file          |
+
+**What moves whole.** D3: `unit/groom/*` (3), `unit/housekeep/*` (4), `e2e/locus-routing-roundtrip.e2e.test.ts`
+(474 lines, entirely grooming and housekeeping round trips), and every added hunk in `e2e/housekeep.e2e.test.ts`.
+D2: `unit/errand/{leave-locus,leave-cleanup,abandon-locus,abandon-runtime,materialize-branch,partial-settle}`.
+
+**What splits, and how cleanly.** Only four files need per-stop editing, and three of them cut at `it` boundaries
+with no shared-fixture surgery: `e2e/errand.e2e.test.ts` (the `abandon` and `leave` describes, 87 lines),
+`e2e/locus-errand-roundtrip.e2e.test.ts` (two pause/resume tests, ~139 lines), and
+`e2e/locus-mutations.e2e.test.ts` (the paused-Errand materialize test plus its dedicated seed helper, ~61 lines).
+The fourth, `integration/locus-methodology-contracts.test.ts`, is the one genuine within-test entanglement: three
+of its six tests assert a documentation surface spanning all three deliverables in a single array or assertion
+block — the command-surface list, the trimmed-housekeep contract, and the package/project skill parity list.
+Those get edited at each stop rather than moved.
+
+**Why the carve is cheap.** The role kinds and identity states that read as housekeep-, groom-, and
+pause-specific — `"groom"` / `"housekeep"` record and subject kinds, `paused` / `awaiting-merge`, the
+`housekeep-open` / `plan-open` mutation operations, `provePauseHead`, `assertTransientIdentityOperation`'s
+operation union — all live in `lib/locus/schema` and the v3 identity core, which ship with D1. Every test that
+merely names them is exercising D1 substrate and stays put, unchanged. Shared e2e helpers behave the same way:
+`runArcAnchored` / `runArcAnchoredSequence` land in D1 and D2/D3 inherit them down the stack.
+
+**Two things this changes.**
+
+- **Add two seams to the de-wire list.** Beyond the four recorded fixes, D1 must also drop `errand/index.ts`'s
+  re-exports of the D2 runtimes and remove the matching `command-input-registrations.ts` declarations — the
+  command-input inventory reconciles registrations against live source, so a registration outliving its command
+  fails the check.
+- **D2 ships thinner coverage than its source share.** Its ~4–5k source lines carry ~1.3k of dedicated test
+  lines, because the identity-core tests that prove most of its state machine stay in D1. Expect its review to
+  lean on D1's suite; if D2 wants standalone proof, that is new test work, not relocated test work.
 
 ### Execution state and sequencing (2026-07-25)
 

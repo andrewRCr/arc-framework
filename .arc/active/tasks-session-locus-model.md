@@ -2031,14 +2031,19 @@ undecomposed parents that span deliverables, and decomposing them against the or
 splitting — each should be cut against one small target instead. `7.G` was this plan's first action and is
 complete; what remains before the carve is below.
 
-### `[ ]` **7.S.a Size the test entanglement**
+### `[x]` **7.S.a Size the test entanglement**
 
 - _Goal:_ The carve's largest unknown is quantified: which suites move whole, which split, and which cannot be
   separated without restructuring.
 
-- _Evidence:_ source separates cleanly along the dependency direction, but coverage does not. Housekeeping has one
-  named test file (87 lines) and grooming none — their behavior is exercised inside shared integration and e2e
-  files alongside every other subject. Open those files and classify each suite per deliverable.
+- _Outcome:_ Classified all 163 touched test files (+21,621 / −846) by owning deliverable: ~86% D1, ~6% D2, ~8%
+  D3. Coverage carves about as cleanly as source — 14 files move whole, 3 split at `it` boundaries, and exactly
+  one (`locus-methodology-contracts.test.ts`) is entangled within a test and must be edited at each stop. Nothing
+  needs restructuring. The premise that grooming had no named test file was wrong; `unit/groom/` and
+  `unit/housekeep/` both carry real driver coverage. Two consequences recorded in
+  `notes-session-locus-model.md` § Test entanglement, measured: the de-wire list gains the `errand/index.ts`
+  barrel and the `command-input-registrations.ts` declarations, and D2 ships thinner coverage than its source
+  share because the identity-core tests proving its state machine stay in D1.
 
 ### `[ ]` **7.S.b Prove the carve on a throwaway branch**
 
