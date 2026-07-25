@@ -1423,7 +1423,7 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   shipped in-place close and was narrowed to foreign occupancy), which is why the disposition set matters as much
   as the fix set.
 
-### `[ ]` **7.E.d Make post-mutation failure recoverable**
+### `[x]` **7.E.d Make post-mutation failure recoverable**
 
 - _Findings:_ L4-F5, E2-F1, W1-F1, W1-F2, W1-F3, P1-F1, P1-F2, L2-F2
 
@@ -1564,15 +1564,17 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           The exclusion case needs a pid-aware inspector: a fixture reporting one liveness for every process makes
           the main holder live, so the break is never attempted and the case passes without reaching the residue.
 
-    - `[ ]` **7.E.d.vi Guard the raced marker read that escapes spawn composition**
-        - Found while verifying `.ii`'s throw arm, and in this phase's concern without being in its finding set:
-          every dependency call in `establishReadyMarker` returns a typed result except the marker re-read on the
-          create-raced arm, which runs after the worktree exists. A throw there escapes `provisionTransientLocus`
-          altogether, so the spawned checkout is left uncompensated and the caller receives no evidence describing
-          it — `.ii` now retains the identity under exactly this case, which bounds the damage without removing it.
-        - Return the typed error its sibling arms already return (`rollback: null`, since a raced marker is not this
-          session's to remove); that routes the failure into the spawn rollback the composition already performs.
-        - Cover a throwing raced re-read, asserting the spawned worktree is rolled back rather than retained.
+    - `[x]` **7.E.d.vi Guard the raced marker read that escapes spawn composition**
+        - The raced re-read now returns the typed error its four sibling calls already returned, with
+          `rollback: null` — a marker the create race lost belongs to the session that won it, so the rollback
+          removes this session's checkout and leaves the marker alone. No new mechanism: the composition already
+          routed a marker-stage error into `rollbackSpawnFailure`; the one call that could not reach it now can.
+        - The uncovered test asserted the sequence rather than only the result, which is what distinguishes the
+          fix from a swallowed throw: `read-marker` twice, then `rollback-worktree`, with no `remove-marker`.
+          Against the pre-fix call the error escapes `provisionTransientLocus` entirely rather than failing an
+          assertion — the finding's claim reproduced as a test failure mode.
+        - `.ii`'s identity retention was the bound on this case; with the checkout now compensated, that arm
+          covers the residue it was written for rather than this one.
 
 ### `[ ]` **7.E.e Close the typed boundaries and make receipts describe the operation**
 

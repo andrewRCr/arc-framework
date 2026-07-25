@@ -53,7 +53,15 @@ export async function establishReadyMarker(
     if (created.kind === "created") {
       observed = { marker: pending, bytes: created.bytes, owned: true };
     } else {
-      const raced = await options.dependencies.readMarker(checkoutPath);
+      // This arm runs after the checkout exists, so a throw here would escape
+      // the composition with a spawned worktree already on disk. `rollback` is
+      // null because a raced marker belongs to the session that won the create.
+      let raced: ProvisioningMarkerReadResult;
+      try {
+        raced = await options.dependencies.readMarker(checkoutPath);
+      } catch (error) {
+        return { kind: "error", error: toError(error), rollback: null };
+      }
       const matched = matchingTransientMarker(raced, subject, options.spawningIdentity);
       if (matched === null) {
         return {

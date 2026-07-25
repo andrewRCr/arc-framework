@@ -246,6 +246,36 @@ describe("provisionTransientLocus", () => {
     expect(events).toEqual(["create-worktree", "scan-roster", "create-marker", "rollback-worktree"]);
   });
 
+  it("rolls back the spawned checkout when the raced marker re-read fails", async () => {
+    const events: string[] = [];
+    let reads = 0;
+    const harness = testHarness(events, {
+      readMarker: async () => {
+        events.push("read-marker");
+        reads += 1;
+        if (reads === 1) return { kind: "absent" };
+        throw new Error("raced marker re-read failed");
+      },
+      createMarker: async () => {
+        events.push("create-marker");
+        return { kind: "exists" };
+      },
+    });
+
+    const result = await provisionTransientLocus(options(harness.dependencies));
+
+    expect(result).toMatchObject({
+      kind: "error",
+      error: { message: "raced marker re-read failed" },
+      evidence: { kind: "identity-only" },
+    });
+    // The marker belongs to whichever session won the create, so the rollback
+    // removes only this session's checkout.
+    expect(events).toEqual([
+      "create-worktree", "scan-roster", "read-marker", "create-marker", "read-marker", "rollback-worktree",
+    ]);
+  });
+
   it("makes pending provenance visible during setup and removes it on an exact setup failure rollback", async () => {
     const events: string[] = [];
     const harness = testHarness(events);
