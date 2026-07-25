@@ -398,6 +398,39 @@ describe("resolveReviewPolicy", () => {
       state: "ready",
       payload: { pass: 3, ceilingOverrideApplied: true },
     });
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 2,
+      maxPasses: 2,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean" }],
+      ceilingOverride: approval.payload.consequence,
+    })).toMatchObject({
+      state: "pass-complete",
+      nextAction: "none",
+      payload: {
+        pass: 3,
+        completedPasses: 3,
+        consumedPass: true,
+      },
+    });
+  });
+
+  it("rejects terminal progress from a source ineligible for the selected scope", () => {
+    expect(() => resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [{ sourceId: "coderabbit-pr", outcome: "clean" }],
+      scopeSelection: { mode: "chunked", target },
+    })).toThrow(/attempt source is ineligible/u);
   });
 
   it("enforces the ceiling while preserving safe-unavailability attempts", () => {
@@ -539,11 +572,6 @@ describe("resolveReviewPolicy", () => {
   });
 
   it.each([
-    {
-      name: "started pass",
-      patch: { attempts: [{ sourceId: "delegated-agent", outcome: "clean" as const }] },
-      reason: "pass-started",
-    },
     {
       name: "wrong target",
       patch: {

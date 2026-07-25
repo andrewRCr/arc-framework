@@ -151,8 +151,8 @@ async function resolveConfiguredReviewPolicy(
   root: string,
 ): Promise<unknown> {
   const { settings } = await readConfigSettings(root);
-  let sources = request.sources;
-  if (sources === undefined && request.lane === "frontline") {
+  let sources: readonly string[] | undefined;
+  if (request.lane === "frontline") {
     const preferences = createLocalFrontlineSourcePreferenceReader({
       cwd: root,
       exec: gitExec,
@@ -164,7 +164,7 @@ async function resolveConfiguredReviewPolicy(
       : await preferences.readProjectSourceIds();
   }
   sources ??= parseReviewSourceIds(settings["review.standard_sources"]);
-  const maxPasses = request.maxPasses ?? Number(
+  const maxPasses = Number(
     settings[request.lane === "frontline"
       ? "review.frontline_max_passes"
       : "review.standard_max_passes"],

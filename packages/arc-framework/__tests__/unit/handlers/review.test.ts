@@ -370,6 +370,28 @@ describe("handleReviewResolve", () => {
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
 
+  it.each([
+    ["sources", ["delegated-agent"]],
+    ["maxPasses", 99],
+  ])("rejects caller-authored %s policy overrides", async (field, value) => {
+    const write = vi.fn();
+    const resolve = vi.fn();
+
+    await handleReviewResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({ ...request, [field]: value }),
+      resolve,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(resolve).not.toHaveBeenCalled();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-resolve",
+      error: { code: "invalid-input" },
+    });
+  });
+
   it("emits one validated transition envelope", async () => {
     const write = vi.fn();
 

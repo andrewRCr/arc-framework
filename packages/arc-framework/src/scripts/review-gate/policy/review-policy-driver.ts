@@ -41,7 +41,6 @@ const ReviewCeilingOverrideSchema = z.strictObject({
   nextPass: ReviewPassSchema,
 }).readonly();
 const InvalidOverrideReasonSchema = z.enum([
-  "pass-started",
   "target-mismatch",
   "lane-mismatch",
   "pass-count-mismatch",
@@ -67,8 +66,6 @@ const ReviewPolicyRequestBaseShape = {
 
 export const ReviewPolicyCommandRequestSchema = z.strictObject({
   ...ReviewPolicyRequestBaseShape,
-  sources: z.array(ReviewSourceIdSchema).readonly().optional(),
-  maxPasses: ReviewPassSchema.optional(),
 }).readonly();
 export type ReviewPolicyCommandRequest = z.infer<typeof ReviewPolicyCommandRequestSchema>;
 
@@ -78,6 +75,7 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   maxPasses: ReviewPassSchema,
 }).superRefine((request, context) => {
   let previousSourceIndex = -1;
+  const scope = request.scopeSelection?.mode ?? "whole-target";
   for (const [attemptIndex, attempt] of request.attempts.entries()) {
     const sourceIndex = request.sources.indexOf(attempt.sourceId);
     if (sourceIndex <= previousSourceIndex) {
@@ -92,6 +90,13 @@ export const ReviewPolicyRequestSchema = z.strictObject({
         code: "custom",
         message: "no source may be attempted after a non-fall-through outcome",
         path: ["attempts", attemptIndex, "outcome"],
+      });
+    }
+    if (sourceDiagnostic(attempt.sourceId, request.lane, scope, request.target.pullRequest) !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "attempt source is ineligible for the selected lane, scope, or target",
+        path: ["attempts", attemptIndex, "sourceId"],
       });
     }
     previousSourceIndex = sourceIndex;
@@ -593,7 +598,6 @@ function resolveInvalidOverrideReason(
 ): InvalidOverrideReason | null {
   const override = request.ceilingOverride;
   if (override === undefined) return null;
-  if (request.attempts.some((attempt) => !isSafeUnavailable(attempt.outcome))) return "pass-started";
   if (!sameTarget(override.target, request.target)) return "target-mismatch";
   if (override.lane !== request.lane) return "lane-mismatch";
   if (override.exhaustedPassCount !== request.completedPasses) return "pass-count-mismatch";
