@@ -124,6 +124,17 @@ describe("runStub — scaffolds the selected tier", () => {
     expect(writes[0]!.content).toContain("P1");
   });
 
+  it("preserves accepted display sentinels at the semantic renderer boundary", async () => {
+    const { ctx, writes } = buildHarness();
+
+    const result = await runStub(ctx, { ...BASE, origin: "[internal]", design: "[none]" });
+
+    expect(result.status).toBe("scaffolded");
+    expect(writes).toHaveLength(1);
+    expect(writes[0]!.content).toContain("- **Origin:** [internal]");
+    expect(writes[0]!.content).toContain("- **Design:** [none]");
+  });
+
   it("routes a provisional commitment to the provisional tier (edge disambiguation)", async () => {
     const { ctx, writes } = buildHarness();
 

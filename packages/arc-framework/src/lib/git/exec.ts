@@ -6,6 +6,7 @@
  */
 
 import { normalizeGitRejection } from "./process-error.js";
+import type { InteractionContext } from "../command-input/interaction-context.js";
 
 /** Result from executing a git command. */
 export interface ExecResult {
@@ -31,6 +32,8 @@ export interface GitExecOptions {
    * repository-local Git variables.
    */
   indexFile?: string;
+  /** Per-invocation terminal, presenter, and ambient-stdin policy. */
+  interaction?: InteractionContext["subprocess"];
 }
 
 /** Plain-Promise, argument-array Git execution seam. */

@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { ReviewPassSchema } from "../core/review-pass.js";
 import {
   applyFrontlineInvocationOverride,
   type FrontlineInvocationOverride,
@@ -28,14 +29,13 @@ export const FRONTLINE_REVIEW_PROMPT =
 export const FRONTLINE_BINDING_REMEDY =
   "Bind a frontline review source with arc.frontlineSources, review.frontline_sources, or an invocation sourceId.";
 
-const FrontlinePassAllowanceSchema = z.union([z.literal(1), z.literal(2)]);
 const FrontlineSemanticRecordSchemaBase = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("frontline-review/v1"),
   action: FrontlineActionSchema,
   reasons: z.array(ReviewRoutingReasonSchema).min(1),
   source: FrontlineSourceDescriptorSchema.nullable(),
-  maxPasses: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+  maxPasses: z.union([z.literal(0), ReviewPassSchema]),
   promptText: z.string().min(1).nullable(),
 });
 
@@ -96,7 +96,7 @@ export async function resolveFrontlineReview(input: {
   registry: FrontlineSourceRegistry;
   maxPasses?: unknown;
 }): Promise<FrontlineSemanticResolution> {
-  const passAllowance = FrontlinePassAllowanceSchema.parse(input.maxPasses ?? 2);
+  const passAllowance = ReviewPassSchema.parse(input.maxPasses ?? 2);
   const invocation = applyFrontlineInvocationOverride({
     methodActive: input.methodActive,
     routerAction: input.routerAction,

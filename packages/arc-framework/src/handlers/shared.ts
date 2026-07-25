@@ -167,8 +167,8 @@ function capitalize(value: string): string {
  * Resolve identity for user commands. Requires arc.identity to be set.
  * Throws UserFacingError if identity is not configured.
  */
-export async function resolveUserIdentity(): Promise<string> {
-  const identity = await resolveIdentity({ exec: gitExec });
+export async function resolveUserIdentity(exec = gitExec): Promise<string> {
+  const identity = await resolveIdentity({ exec });
   if (!identity) {
     throw new UserFacingError({
       code: "IDENTITY_MISSING",
@@ -196,16 +196,6 @@ export async function resolveIdentityWithPrompt(interactive: boolean): Promise<s
       return result;
     } : undefined,
   });
-}
-
-// --- Environment ---
-
-/**
- * Detect non-interactive environment (CI or non-TTY stdin).
- * Returns true if `--yes` behavior should be implied.
- */
-export function isNonInteractiveEnvironment(): boolean {
-  return process.env.CI === "true" || !process.stdin.isTTY;
 }
 
 /** Canonical error copy when the current directory is outside any ARC project root. */

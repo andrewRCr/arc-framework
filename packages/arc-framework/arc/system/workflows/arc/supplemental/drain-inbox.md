@@ -199,6 +199,12 @@ routing write.
   > `integration-interlock`: Stop before arming auto-merge or merging the grooming PR. Surface PR status
   > (checks, resolved lane) and await explicit integration approval — never infer it from the § 3 routing
   > confirmation, which approved the _routing_, not the merge.
+
+  After approval, re-read the PR's exact base and head SHAs and run
+  `arc review planning-lane <base-sha> <head-sha>`. Only literal `planning` permits arming auto-merge; `reviewed`
+  follows the reviewed-lane settlement in [`run-errand`][run-errand], while command failure or malformed output
+  stops. Foreign ownership or another confidently recognized review condition may still move a planning result to
+  reviewed without another permission stop, but never the reverse.
 - **Partially protected** — every routing write is a **direct base-branch commit** with no PR or merge-wait;
   keep coherent commit boundaries (the § 4 split shape). No lanes, no review-chunking.
 

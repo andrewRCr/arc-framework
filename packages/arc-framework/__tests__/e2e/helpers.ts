@@ -20,6 +20,7 @@ export interface RunResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+  timedOut?: true;
 }
 
 /**
@@ -84,6 +85,7 @@ export async function runArc(
       stdout?: string;
       stderr?: string;
       code?: number | string;
+      killed?: boolean;
     };
     // Non-zero exit: code is the exit code number.
     // System errors (ENOENT, ETIMEDOUT): code is a string — map to 1.
@@ -92,6 +94,7 @@ export async function runArc(
       stdout: e.stdout ?? "",
       stderr: e.stderr ?? "",
       exitCode,
+      ...(e.code === "ETIMEDOUT" || e.killed === true ? { timedOut: true as const } : {}),
     };
   }
 }
@@ -119,9 +122,14 @@ export async function runArcNoTty(
     const { stdout, stderr } = await execFileAsync(process.execPath, [CLI_PATH, ...args], { cwd, timeout, env });
     return { stdout, stderr, exitCode: 0 };
   } catch (err: unknown) {
-    const e = err as { stdout?: string; stderr?: string; code?: number | string };
+    const e = err as { stdout?: string; stderr?: string; code?: number | string; killed?: boolean };
     const exitCode = typeof e.code === "number" ? e.code : 1;
-    return { stdout: e.stdout ?? "", stderr: e.stderr ?? "", exitCode };
+    return {
+      stdout: e.stdout ?? "",
+      stderr: e.stderr ?? "",
+      exitCode,
+      ...(e.code === "ETIMEDOUT" || e.killed === true ? { timedOut: true as const } : {}),
+    };
   }
 }
 
@@ -150,9 +158,14 @@ export async function runArcWithStdoutPipe(
     );
     return { stdout, stderr, exitCode: 0 };
   } catch (err: unknown) {
-    const e = err as { stdout?: string; stderr?: string; code?: number | string };
+    const e = err as { stdout?: string; stderr?: string; code?: number | string; killed?: boolean };
     const exitCode = typeof e.code === "number" ? e.code : 1;
-    return { stdout: e.stdout ?? "", stderr: e.stderr ?? "", exitCode };
+    return {
+      stdout: e.stdout ?? "",
+      stderr: e.stderr ?? "",
+      exitCode,
+      ...(e.code === "ETIMEDOUT" || e.killed === true ? { timedOut: true as const } : {}),
+    };
   }
 }
 

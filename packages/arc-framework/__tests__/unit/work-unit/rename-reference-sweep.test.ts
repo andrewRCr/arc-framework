@@ -170,8 +170,10 @@ describe("sweepRenameReferences", () => {
 
   it("rewrites bounded code spans, dependency edges, and the cohort member section", async () => {
     const meta = renderMetaFile("sibling", {
-      "Depends On": "sample, sample-extra",
-      Cohort: "sample",
+      state: "Planning",
+      owner: "andrew",
+      dependsOn: ["sample", "sample-extra"],
+      cohort: "sample",
     });
     const files = new Map<string, string>([
       ["/repo/.arc/active/meta-sibling.md", meta],
@@ -198,8 +200,8 @@ describe("sweepRenameReferences", () => {
     });
 
     const rewrittenMeta = parseMetaRecord(written.get("/repo/.arc/active/meta-sibling.md") ?? "");
-    expect(rewrittenMeta["Depends On"]).toBe("renamed-sample, sample-extra");
-    expect(rewrittenMeta.Cohort).toBe("sample");
+    expect(rewrittenMeta.dependsOn).toEqual(["renamed-sample", "sample-extra"]);
+    expect(rewrittenMeta.cohort).toBe("sample");
     expect(written.get("/repo/.arc/backlog/planned/group/spec-sibling.md"))
       .toBe("See `notes-renamed-sample.md`; sample prose; `cohort-sample.md`.\n");
     expect(written.get("/repo/.arc/backlog/planned/group/cohort-group.md"))
@@ -213,7 +215,11 @@ describe("sweepRenameReferences", () => {
   });
 
   it("leaves sentinel dependency fields unchanged", async () => {
-    const content = renderMetaFile("sibling", { "Depends On": "[none]" });
+    const content = renderMetaFile("sibling", {
+      state: "Planning",
+      owner: "andrew",
+      dependsOn: [],
+    });
     let wrote = false;
     await sweepRenameReferences({
       arcRoot: ".arc",
@@ -228,7 +234,11 @@ describe("sweepRenameReferences", () => {
   });
 
   it("withholds an integrating dependent's exact meta from the rename sweep", async () => {
-    const content = renderMetaFile("integrating", { "Depends On": "sample" });
+    const content = renderMetaFile("integrating", {
+      state: "Integrating",
+      owner: "andrew",
+      dependsOn: ["sample"],
+    });
     let wrote = false;
 
     const result = await sweepRenameReferences({
@@ -247,7 +257,11 @@ describe("sweepRenameReferences", () => {
   });
 
   it("rewrites a shared-visible dependent while leaving an excluded divergent peer byte-identical", async () => {
-    const content = renderMetaFile("dependent", { "Depends On": "sample" });
+    const content = renderMetaFile("dependent", {
+      state: "Active",
+      owner: "andrew",
+      dependsOn: ["sample"],
+    });
     const files = new Map([
       [".arc/active/meta-shared.md", content],
       [".arc/active/meta-divergent.md", content],

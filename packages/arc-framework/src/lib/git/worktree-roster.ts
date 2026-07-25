@@ -11,9 +11,16 @@
  */
 
 import { validateState, type WorkUnitState } from "../../commands/active/types.js";
-import { parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
+import {
+  parseMetaRecord,
+  type ParsedMetaRecord,
+} from "../active/meta-reader.js";
 
 import type { GitExec } from "./exec.js";
+import {
+  parseGitWorktreePorcelain,
+  type GitWorktreePorcelainRecord,
+} from "./worktree-porcelain.js";
 
 /**
  * Roster-entry state — codified `WorkUnitState` plus an `"unknown"`
@@ -86,7 +93,7 @@ export async function runWorktreeRoster(
   const { exec, fs } = options;
   const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
   const branched = worktrees.filter(
-    (wt): wt is RawWorktree & { branch: string } => wt.branch !== null,
+    (wt): wt is GitWorktreePorcelainRecord & { branch: string } => wt.branch !== null,
   );
 
   const resolutions = await Promise.all(branched.map((wt) => resolveEntry(fs, wt)));
@@ -195,7 +202,7 @@ export interface WorktreePathsByBranchResult {
 export async function resolveWorktreePathsByBranchResult(
   exec: GitExec,
 ): Promise<WorktreePathsByBranchResult> {
-  let worktrees: RawWorktree[];
+  let worktrees: GitWorktreePorcelainRecord[];
   try {
     worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
   } catch {
@@ -215,7 +222,7 @@ export async function resolveWorktreePathsByBranchResult(
  * @returns A bounded topology snapshot or an explicit read/parse failure
  */
 export async function scanRegisteredWorktrees(exec: GitExec): Promise<RegisteredWorktreeScanResult> {
-  let worktrees: RawWorktree[];
+  let worktrees: GitWorktreePorcelainRecord[];
   try {
     worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
   } catch (err) {
@@ -249,7 +256,7 @@ interface MetaCandidate {
   name: string;
   metaFilePath: string;
   /** Parsed record — present iff the meta was read and parsed without error. */
-  record?: MetaRecord;
+  record?: ParsedMetaRecord;
   /** Set when the meta file could not be read. */
   readError?: string;
   /** Set when the meta was read but its core-block table is malformed. */
@@ -293,12 +300,12 @@ async function resolveEntry(
   // branch. Disambiguates active/ states where stale or unrelated meta files
   // coexist with the live one.
   const readable = candidates.filter(
-    (c): c is MetaCandidate & { record: MetaRecord } => c.record !== undefined,
+    (c): c is MetaCandidate & { record: ParsedMetaRecord } => c.record !== undefined,
   );
   const candidateWarnings = candidates
     .filter((c) => c.record === undefined)
     .map(unreadableWarning);
-  const matches = readable.filter((c) => c.record.Branch === wt.branch);
+  const matches = readable.filter((c) => c.record.branch === wt.branch);
   const activeDir = `${wt.path}/.arc/active`;
   const inventory = metaFiles.join(", ");
 
@@ -380,57 +387,26 @@ function unreadableWarning(c: MetaCandidate): string {
 function buildEntry(
   wt: { path: string; branch: string },
   metaFilePath: string,
-  record: MetaRecord,
+  record: ParsedMetaRecord,
 ): WorktreeRosterEntry {
-  const identity = record.Owner;
-  const stateRaw = record.State;
-  const cohortRaw = record.Cohort;
-  const classRaw = record.Class;
-  const priorityRaw = record.Priority;
-  const dependsOn = parseIdentifierList(record["Depends On"]);
+  const { owner: identity, state: stateRaw, cohort: cohortRaw, dependsOn } = record;
+  const classRaw = record.workClass === "TBD" ? "[TBD]" : record.workClass;
+  const priorityRaw = record.priority === "TBD" ? "[TBD]" : record.priority;
   return {
     worktreePath: wt.path,
     branch: wt.branch,
     metaFilePath,
     ...(identity !== null ? { identity } : {}),
     ...(stateRaw !== null ? { state: validateState(stateRaw) } : {}),
-    ...(cohortRaw !== null && cohortRaw !== "[none]" ? { cohort: cohortRaw } : {}),
+    ...(cohortRaw !== null ? { cohort: cohortRaw } : {}),
     ...(classRaw !== null ? { class: classRaw } : {}),
-    ...(priorityRaw !== null && priorityRaw !== "[none]" ? { priority: priorityRaw } : {}),
+    ...(priorityRaw !== null ? { priority: priorityRaw } : {}),
     ...(dependsOn.length > 0 ? { dependsOn } : {}),
   };
 }
 
-interface RawWorktree {
-  path: string;
-  head: string | null;
-  branch: string | null;
-  detached: boolean;
-}
-
-function parseWorktreeList(result: { stdout: string }): RawWorktree[] {
-  const stanzas = result.stdout.split(/\n\n+/u);
-  const worktrees: RawWorktree[] = [];
-  for (const stanza of stanzas) {
-    if (stanza.trim() === "") continue;
-    let path: string | null = null;
-    let head: string | null = null;
-    let branch: string | null = null;
-    let detached = false;
-    for (const line of stanza.split("\n")) {
-      if (line.startsWith("worktree ")) {
-        path = line.slice("worktree ".length);
-      } else if (line.startsWith("HEAD ")) {
-        head = line.slice("HEAD ".length);
-      } else if (line.startsWith("branch refs/heads/")) {
-        branch = line.slice("branch refs/heads/".length);
-      } else if (line === "detached") {
-        detached = true;
-      }
-    }
-    if (path !== null) worktrees.push({ path, head, branch, detached });
-  }
-  return worktrees;
+function parseWorktreeList(result: { stdout: string }): GitWorktreePorcelainRecord[] {
+  return parseGitWorktreePorcelain(result.stdout);
 }
 
 async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promise<string[]> {

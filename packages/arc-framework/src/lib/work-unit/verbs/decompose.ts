@@ -21,7 +21,12 @@
 
 import { join, posix } from "node:path";
 
-import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import {
+  parseMetaRecord,
+  renderMetaFile,
+  type MetaRenderOverrides,
+} from "../../active/meta-reader.js";
+import { MetaPrioritySchema, MetaWorkClassSchema } from "../../active/meta-schema.js";
 import { canonicalize } from "../../canonical/canonical-json.js";
 import { SlugSchema } from "../../kernel/index.js";
 import { resolveArcPath, WorkUnitPlacementSchema } from "../../layout/index.js";
@@ -122,7 +127,7 @@ export interface ScaffoldedMember {
 /**
  * Render a fresh member `draft-<slug>.md` skeleton — the pre-PRD synthesis
  * structure the conservation gate fills, mirroring `template-draft.md` (the
- * instructional comment dropped, as {@link renderMetaFile} drops it for metas).
+ * instructional comment dropped, as the canonical meta renderer drops it for metas).
  * The `Cohort` header line is the dual-placement mirror of the meta field.
  *
  * @param slug - The member work-unit slug → the H1 and filename stem.
@@ -135,12 +140,13 @@ export function renderMemberDraft(
   origin: string,
   placement: DecomposeMemberPlacement,
 ): string {
+  const renderedOrigin = origin === "internal" ? "[internal]" : origin;
   const cohort = placement.cohort.length === 0
     ? ""
     : `- **Cohort:** \`${placement.cohort.join("/")}\`\n`;
   return `# Draft: ${slug}
 
-- **Origin:** ${origin}
+- **Origin:** ${renderedOrigin}
 ${cohort}- **Purpose:** —
 
 ---
@@ -197,7 +203,7 @@ export async function scaffoldCohortMembers(
     throw new Error("decompose members require a planned backlog placement");
   }
   const placement = params.placement;
-  const cohort = placement.cohort.length === 0 ? "[none]" : placement.cohort.join("/");
+  const cohort = placement.cohort.length === 0 ? null : placement.cohort.join("/");
   const validatedMembers = members.map((member) => ({
     member,
     slug: SlugSchema.parse(member.slug),
@@ -208,18 +214,18 @@ export async function scaffoldCohortMembers(
     const metaPath = resolveArcPath({ kind: "work-unit-artifact", placement, slug, artifact: "meta" });
     const draftPath = resolveArcPath({ kind: "work-unit-artifact", placement, slug, artifact: "draft" });
 
-    const overrides: MetaFieldOverrides = {
-      State: "Planning",
-      Owner: originContext.owner,
-      Branch: "[none]",
-      Class: member.workClass,
-      Priority: originContext.priority,
-      Cohort: cohort,
-      Origin: originContext.origin,
-      Design: `draft-${slug}.md`,
+    const overrides: MetaRenderOverrides = {
+      state: "Planning",
+      owner: originContext.owner,
+      branch: null,
+      workClass: MetaWorkClassSchema.parse(member.workClass),
+      priority: MetaPrioritySchema.parse(originContext.priority),
+      cohort,
+      origin: originContext.origin,
+      design: [`draft-${member.slug}.md`],
     };
-    const deps = newMemberDependencies({ internalEdges, outgoingEdges }, slug);
-    if (deps.length > 0) overrides["Depends On"] = deps.join(", ");
+    const deps = newMemberDependencies({ internalEdges, outgoingEdges }, member.slug);
+    if (deps.length > 0) overrides.dependsOn = deps;
 
     await ensureDir(join(ctx.cwd, dir), ctx.fs.mkdir);
     await ctx.fs.writeFile(join(ctx.cwd, metaPath), renderMetaFile(slug, overrides));
@@ -412,9 +418,9 @@ export async function runDecompose(
     {
       placement: memberPlacement.placement,
       originContext: {
-        origin: originRecord.Origin ?? "[internal]",
-        owner: originRecord.Owner ?? "—",
-        priority: originRecord.Priority ?? "P3",
+        origin: originRecord.origin ?? "internal",
+        owner: originRecord.owner ?? "—",
+        priority: originRecord.priority ?? "P3",
       },
       members: newMembers,
       internalEdges: cut.internalEdges,
@@ -440,7 +446,7 @@ export async function runDecompose(
     repointed = await sweepIncomingEdges(ctx, index, originSlug, cut.incomingEdges);
 
     // Leg 2 — origin artifact retirement via the reserved edge; its render side-effect fires Leg 4.
-    const outcome = await tearDownOrigin(ctx, originSlug, originRecord.Branch);
+    const outcome = await tearDownOrigin(ctx, originSlug, originRecord.branch);
     if (outcome.status !== "ok") {
       return { status: "rejected", reason: outcome.message };
     }
@@ -449,7 +455,7 @@ export async function runDecompose(
     // its locators for the workflow's post-landing `arc teardown`. A backlog
     // stub owns no branch / worktree, so none is owed.
     if (originStarted) {
-      teardown = { slug: originSlug, branch: originRecord.Branch ?? "[none]" };
+      teardown = { slug: originSlug, branch: originRecord.branch ?? "[none]" };
     }
   } else {
     // Extraction: the origin survives — no retirement edge, no sweep — but Leg 4 still
@@ -469,7 +475,7 @@ export async function runDecompose(
         ? null
         : projectExtractionLifecycle(
             originSlug,
-            originRecord.Branch,
+            originRecord.branch,
             deriveDecomposeSuccessorCandidates(cut),
           ),
     },

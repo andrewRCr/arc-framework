@@ -68,7 +68,7 @@ async function seedTrackedSweep(repo: string, artifactDir: string, slug: string)
     .replace("- **Cohort:** [none]", `- **Cohort:** ${COHORT}`)
     .replace("- **Design:** [none]", `- **Design:** spec-${slug}.md`)
     .replace("- **Task List:** [none]", `- **Task List:** tasks-${slug}.md`);
-  expect(parseMetaRecord(meta).Cohort).toBe(COHORT);
+  expect(parseMetaRecord(meta).cohort).toBe(COHORT);
   expect(meta).toContain(`- **Design:** spec-${slug}.md`);
   expect(meta).toContain(`- **Task List:** tasks-${slug}.md`);
   await writeFile(metaPath, meta, "utf8");
@@ -182,7 +182,7 @@ async function createFixture(): Promise<RenameFixture> {
 async function startInPlace(fixture: RenameFixture): Promise<void> {
   await git(fixture.repo, ["switch", "-c", "feat/old-name"]);
   const started = await runArcNoTty([
-    "start", "old-name", "--here", "--new", "--class", "Light", "--from", "internal",
+    "start", "old-name", "--here", "--new", "--from", "internal",
   ], fixture.repo);
   expect(started.exitCode).toBe(0);
   await seedTrackedSweep(fixture.repo, join(".arc", "active"), "old-name");
@@ -327,7 +327,7 @@ describe("arc rename", () => {
     const newWorktree = `${fixture.repo}.new-name`;
     cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
     const started = await runArcNoTty([
-      "start", "old-name", "--new", "--class", "Light", "--from", "internal",
+      "start", "old-name", "--new", "--from", "internal",
     ], fixture.repo, { timeout: 20_000 });
     expect(started.exitCode).toBe(0);
     await seedTrackedSweep(oldWorktree, join(".arc", "active"), "old-name");
@@ -395,7 +395,7 @@ describe("arc rename", () => {
     const newWorktree = `${fixture.repo}.new-name`;
     cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
     const started = await runArcNoTty([
-      "start", "old-name", "--new", "--class", "Light", "--from", "internal",
+      "start", "old-name", "--new", "--from", "internal",
     ], fixture.repo, { timeout: 20_000 });
     expect(started.exitCode).toBe(0);
     const markerPath = join(oldWorktree, ".arc", "system", ".internal", "worktree-marker.json");
@@ -425,7 +425,7 @@ describe("arc rename", () => {
     const newWorktree = `${fixture.repo}.new-name`;
     cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
     const started = await runArcNoTty([
-      "start", "old-name", "--new", "--class", "Light", "--from", "internal",
+      "start", "old-name", "--new", "--from", "internal",
     ], fixture.repo, { timeout: 20_000 });
     expect(started.exitCode).toBe(0);
     const hook = join(fixture.remote, "hooks", "post-receive");

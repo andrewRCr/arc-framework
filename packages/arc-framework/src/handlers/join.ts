@@ -9,34 +9,33 @@ import { unlink, rmdir } from "node:fs/promises";
 
 import { runJoin, runJoinReconfigure, buildPostJoinMessage } from "../commands/join.js";
 import type { JoinPromptResult } from "../commands/join.js";
+import { resolveJoinCommandInput, type JoinCommandOptions } from "../commands/join-input.js";
 import { runJoinPrompts } from "../prompts/join-prompts.js";
-import { validateTools } from "../lib/skills/index.js";
-import { formatError, UserFacingError } from "../lib/errors.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "../lib/paths.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
 import { gitExec } from "../lib/io-context.js";
 import {
-  isNonInteractiveEnvironment, requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../lib/command-input/interaction-context.js";
+import type { InputResolution } from "../lib/command-input/resolution.js";
+import {
+  requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
   isHandledError,
 } from "./shared.js";
 
-export interface JoinOptions {
-  contributor?: boolean;
-  yes?: boolean;
-  tools?: string;
-  reconfigure?: boolean;
-}
+export type JoinOptions = JoinCommandOptions;
 
-export async function handleJoin(opts: JoinOptions): Promise<void> {
-  // Auto-detect CI/non-TTY and imply --yes
-  if (!opts.yes && isNonInteractiveEnvironment()) {
-    opts.yes = true;
-    p.log.info("Non-interactive environment detected (CI or non-TTY) — using defaults.");
-  }
+export async function handleJoin(opts: JoinOptions, suppliedContext?: InteractionContext): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: false,
+    yes: opts.yes === true ? "compatibility" : "absent",
+  });
 
   if (opts.reconfigure) {
-    await handleJoinReconfigure(opts);
+    await handleJoinReconfigure(opts, context);
     return;
   }
 
@@ -46,46 +45,22 @@ export async function handleJoin(opts: JoinOptions): Promise<void> {
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const io = createIOContext();
-
-  // Build prompts from flags or interactive prompts
-  let prompts: JoinPromptResult;
-  if (opts.yes) {
-    const tools = opts.tools
-      ? opts.tools.split(",").map((t) => t.trim()).filter(Boolean)
-      : [];
-    if (tools.length > 0) {
-      validateTools(tools);
-    }
-    prompts = {
-      role: opts.contributor ? "contributor" : "maintainer",
-      tools,
-    };
-    if (!opts.tools) {
-      p.log.info("No agent tools selected (use --tools to specify).");
-    }
-  } else {
-    const result = await runJoinPrompts({ contributor: opts.contributor });
-    if (!result) {
-      return;
-    }
-    prompts = result;
-  }
-
-  // Identity resolution — interactive prompt only when not in --yes mode
-  const identityResult = await resolveIdentityWithPrompt(!opts.yes);
-
-  // In --yes mode, identity must be resolvable without prompts
-  if (opts.yes && !identityResult) {
-    p.log.error(formatError(new UserFacingError({
-      code: "IDENTITY_MISSING",
-      whatHappened: "Cannot resolve identity in non-interactive mode",
-      why: "Neither arc.identity nor user.name is set in git config.",
-      whatToDo: "Set git config user.name, or pass an identity via git config arc.identity.",
-    })));
-    process.exitCode = 1;
+  const io = createIOContext(context.subprocess);
+  const input = await resolveJoinCommandInput({
+    options: opts,
+    context,
+    prompt: async (supplied) => runJoinPrompts({
+      suppliedRole: supplied.role,
+      suppliedTools: supplied.tools,
+    }),
+    resolveIdentity: resolveIdentityWithPrompt,
+  });
+  if (input.kind !== "resolved") {
+    reportJoinInputFailure(input);
     return;
   }
+  const prompts: JoinPromptResult = { role: input.value.role, tools: input.value.tools };
+  const identityResult = input.value.identity ?? null;
 
   const templateDir = getArcTemplatePath();
 
@@ -114,16 +89,29 @@ export async function handleJoin(opts: JoinOptions): Promise<void> {
   p.outro("Done.");
 }
 
+function reportJoinInputFailure(input: Exclude<InputResolution<unknown>, { kind: "resolved" }>): void {
+  if (input.kind === "cancelled") return;
+  if (input.kind === "unavailable") {
+    p.log.error(`Missing required input: ${input.missing.map((item) => {
+      const syntax = item.acceptedSyntax.length === 0 ? "" : ` (${item.acceptedSyntax.join(" or ")})`;
+      return `${item.name}${syntax}`;
+    }).join(", ")}`);
+  } else {
+    p.log.error(input.issues.map((issue) => `${issue.path.join(".") || "input"}: ${issue.message}`).join("\n"));
+  }
+  process.exitCode = 1;
+}
+
 // --- Join Reconfigure path ---
 
-async function handleJoinReconfigure(opts: JoinOptions): Promise<void> {
+async function handleJoinReconfigure(opts: JoinOptions, context: InteractionContext): Promise<void> {
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure Workspace`);
 
   if (!(await requireGitRepo())) return;
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const io = createIOContext();
+  const io = createIOContext(context.subprocess);
 
   // Read current role from git config
   let currentRole: "maintainer" | "contributor" = "maintainer";
@@ -147,30 +135,23 @@ async function handleJoinReconfigure(opts: JoinOptions): Promise<void> {
     // Not set — default to empty
   }
 
-  // Build new prompts with current values as defaults
-  let prompts: JoinPromptResult;
-  if (opts.yes) {
-    const tools = opts.tools
-      ? opts.tools.split(",").map((t) => t.trim()).filter(Boolean)
-      : currentTools;
-    if (tools.length > 0) {
-      validateTools(tools);
-    }
-    prompts = {
-      role: opts.contributor ? "contributor" : currentRole,
-      tools,
-    };
-  } else {
-    const result = await runJoinPrompts({
-      contributor: opts.contributor,
+  const input = await resolveJoinCommandInput({
+    options: opts,
+    context,
+    current: { role: currentRole, tools: currentTools },
+    prompt: async (supplied) => runJoinPrompts({
+      suppliedRole: supplied.role,
+      suppliedTools: supplied.tools,
       currentRole,
       currentTools,
-    });
-    if (!result) {
-      return;
-    }
-    prompts = result;
+    }),
+    resolveIdentity: resolveIdentityWithPrompt,
+  });
+  if (input.kind !== "resolved") {
+    reportJoinInputFailure(input);
+    return;
   }
+  const prompts: JoinPromptResult = { role: input.value.role, tools: input.value.tools };
 
   // No-change detection
   if (

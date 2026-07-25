@@ -1,12 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  handleReviewReadiness,
+  handleReviewResolve,
+  handleReviewUnlock,
   handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
+  handleReviewHostedAwait,
+  handleReviewHostedRequest,
+  handleReviewHostedSettle,
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
+  handleReviewPlanningLane,
   handleReviewReduce,
   handleReviewRespond,
 } from "../../../src/handlers/review.js";
@@ -96,6 +103,7 @@ const localAttestRequest = {
   result: {
     status: "complete",
     result: "clean",
+    repositoryId: target.repositoryId,
     targetId: target.targetId,
     headSha: target.headSha,
     headTree: target.headTree,
@@ -127,6 +135,157 @@ const respondProposalRequest = {
     }],
   },
 };
+const hostedTarget = {
+  repository: "arc-framework/example",
+  pullRequest: 42,
+  headSha: "a".repeat(40),
+};
+const hostedHandle = {
+  schemaVersion: 1,
+  provider: "coderabbit-pr",
+  requestedCoverage: "complete",
+  effectiveCoverage: "complete",
+  target: hostedTarget,
+  artifact: {
+    kind: "issue-comment",
+    id: "comment-1",
+    url: "https://github.com/arc-framework/example/pull/42#issuecomment-1",
+    createdAt: "2026-07-24T12:00:00Z",
+  },
+};
+
+describe("handleReviewPlanningLane", () => {
+  it("parses the exact-change operands before invoking the classifier", async () => {
+    const classify = vi.fn().mockResolvedValue("planning");
+    const output: string[] = [];
+
+    await handleReviewPlanningLane(
+      "a".repeat(40),
+      "b".repeat(40),
+      { repository: " /repo " },
+      { classify, write: (text) => output.push(text) },
+    );
+
+    expect(classify).toHaveBeenCalledWith("a".repeat(40), "b".repeat(40), "/repo");
+    expect(output).toEqual(["planning\n"]);
+  });
+
+  it("fails closed without invoking the classifier when syntax-owned input is invalid", async () => {
+    const classify = vi.fn().mockResolvedValue("planning");
+    const output: string[] = [];
+
+    await handleReviewPlanningLane(
+      "not-a-sha",
+      "b".repeat(40),
+      {},
+      { classify, write: (text) => output.push(text) },
+    );
+
+    expect(classify).not.toHaveBeenCalled();
+    expect(output).toEqual(["reviewed\n"]);
+  });
+});
+
+describe("handleReviewReadiness", () => {
+  it("emits exactly one validated readiness envelope through the handler seam", async () => {
+    const output: string[] = [];
+    const request = {
+      schemaVersion: 1,
+      treeRoot: "/tree",
+      target: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: "a".repeat(40),
+      },
+      pullRequest: {
+        repository: "owner/repo",
+        number: 42,
+        state: "open",
+        headBranch: "fix/demo",
+        headSha: "a".repeat(40),
+      },
+      vehicle: {
+        kind: "errand",
+        slug: "demo",
+      },
+    };
+
+    await handleReviewReadiness("request.json", {
+      resolveRoot: () => "/trusted-cli",
+      readText: async () => JSON.stringify(request),
+      check: async (parsed) => ({
+        schemaVersion: 1,
+        mode: "review-readiness",
+        diagnostics: [],
+        state: "ready",
+        nextAction: "none",
+        payload: {
+          target: parsed.target,
+          vehicle: parsed.vehicle,
+        },
+      }),
+      write: (text) => output.push(text),
+      setExitCode: vi.fn(),
+    });
+
+    expect(output).toHaveLength(1);
+    expect(JSON.parse(output[0] ?? "")).toMatchObject({
+      mode: "review-readiness",
+      state: "ready",
+      payload: {
+        vehicle: {
+          kind: "errand",
+          slug: "demo",
+        },
+      },
+    });
+  });
+});
+
+describe("handleReviewUnlock", () => {
+  it("emits one validated unlock envelope through an injected effect port", async () => {
+    const output: string[] = [];
+    const request = {
+      schemaVersion: 1,
+      treeRoot: "/candidate",
+      target: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: "a".repeat(40),
+      },
+      vehicle: {
+        kind: "errand",
+        slug: "demo",
+      },
+    };
+
+    await handleReviewUnlock("request.json", {
+      resolveRoot: () => "/trusted-cli",
+      readText: async () => JSON.stringify(request),
+      unlock: async (parsed) => ({
+        schemaVersion: 1,
+        mode: "review-unlock",
+        diagnostics: [],
+        state: "dispatched",
+        nextAction: "await-clearance",
+        payload: parsed.target,
+      }),
+      write: (text) => output.push(text),
+      setExitCode: vi.fn(),
+    });
+
+    expect(output).toHaveLength(1);
+    expect(JSON.parse(output[0] ?? "")).toMatchObject({
+      mode: "review-unlock",
+      state: "dispatched",
+      payload: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: "a".repeat(40),
+      },
+    });
+  });
+});
 
 function localReceiptFixture() {
   const receiptTarget = createReviewTarget({
@@ -185,6 +344,7 @@ function localReceiptFixture() {
     result: {
       status: "complete" as const,
       result: "clean" as const,
+      repositoryId: receiptTarget.repositoryId,
       targetId: receiptTarget.targetId,
       headSha: receiptTarget.headSha,
       headTree: receiptTarget.headTree,
@@ -199,6 +359,261 @@ function localReceiptFixture() {
     },
   };
 }
+
+describe("handleReviewResolve", () => {
+  const request = {
+    schemaVersion: 1,
+    target: {
+      repository: "arc-framework/example",
+      pullRequest: 42,
+      headSha: "a".repeat(40),
+    },
+    lane: "standard",
+    standardReview: {
+      obligation: "required",
+      reasons: ["sensitive-change-set"],
+      rubricVersion: "standard-review/v1",
+      rubricDigest: `sha256:${"b".repeat(64)}`,
+      retrigger: "full-final",
+      count: 1,
+    },
+    completedPasses: 0,
+    attempts: [],
+  };
+
+  it("rejects malformed input before resolving policy", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const resolve = vi.fn();
+
+    await handleReviewResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({ schemaVersion: 1 }),
+      resolve,
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      mode: "review-resolve",
+      error: { code: "invalid-input" },
+    });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it.each([
+    ["sources", ["delegated-agent"]],
+    ["maxPasses", 99],
+  ])("rejects caller-authored %s policy overrides", async (field, value) => {
+    const write = vi.fn();
+    const resolve = vi.fn();
+
+    await handleReviewResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({ ...request, [field]: value }),
+      resolve,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(resolve).not.toHaveBeenCalled();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-resolve",
+      error: { code: "invalid-input" },
+    });
+  });
+
+  it("emits one validated transition envelope", async () => {
+    const write = vi.fn();
+
+    await handleReviewResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify(request),
+      resolve: vi.fn(async () => ({
+        schemaVersion: 1,
+        mode: "review-resolve",
+        diagnostics: [],
+        state: "no-op",
+        nextAction: "none",
+        payload: {
+          lane: "standard",
+          scope: "whole-target",
+          consumedPass: false,
+          attemptedSources: [],
+        },
+      })),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-resolve",
+      state: "no-op",
+      nextAction: "none",
+    });
+  });
+});
+
+describe("hosted review handlers", () => {
+  it("rejects an invalid request-source operand before reading from disk", async () => {
+    const readText = vi.fn();
+    const request = vi.fn();
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewHostedRequest(" ", {
+      readText,
+      request,
+      write,
+      setExitCode,
+    });
+
+    expect(readText).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      mode: "review-hosted-request",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("rejects malformed input before requesting a hosted review", async () => {
+    const request = vi.fn();
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewHostedRequest("-", {
+      readText: async () => "{}",
+      request,
+      write,
+      setExitCode,
+    });
+
+    expect(request).not.toHaveBeenCalled();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      mode: "review-hosted-request",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it.each([
+    {
+      mode: "review-hosted-request",
+      invoke: async (
+        effect: () => Promise<unknown>,
+        write: (text: string) => void,
+        setExitCode: (code: number) => void,
+      ) => handleReviewHostedRequest("-", {
+        readText: async () => JSON.stringify({
+          schemaVersion: 1,
+          target: hostedTarget,
+          provider: "coderabbit-pr",
+          coverage: "complete",
+        }),
+        request: effect,
+        write,
+        setExitCode,
+      }),
+    },
+    {
+      mode: "review-hosted-await",
+      invoke: async (
+        effect: () => Promise<unknown>,
+        write: (text: string) => void,
+        setExitCode: (code: number) => void,
+      ) => handleReviewHostedAwait("-", {
+        readText: async () => JSON.stringify({
+          schemaVersion: 1,
+          handle: hostedHandle,
+          timeoutMs: 1_000,
+          pollIntervalMs: 100,
+        }),
+        awaitResult: effect,
+        write,
+        setExitCode,
+      }),
+    },
+    {
+      mode: "review-hosted-settle",
+      invoke: async (
+        effect: () => Promise<unknown>,
+        write: (text: string) => void,
+        setExitCode: (code: number) => void,
+      ) => handleReviewHostedSettle("-", {
+        readText: async () => JSON.stringify({
+          schemaVersion: 1,
+          target: hostedTarget,
+          fixTarget: null,
+          actorIdentity: "developer",
+          finding: {
+            commentId: "comment-1",
+            threadId: "thread-1",
+          },
+          disposition: "reject",
+          reply: "Not applicable because the source contract already covers this case.",
+        }),
+        settle: effect,
+        write,
+        setExitCode,
+      }),
+    },
+  ])("rejects malformed $mode success output at the public boundary", async ({ mode, invoke }) => {
+    const effect = vi.fn(async () => ({ state: "not-a-real-state" }));
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await invoke(effect, write, setExitCode);
+
+    expect(effect).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      mode,
+      error: { code: "unexpected-failure" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("emits one validated hosted request result", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewHostedRequest("-", {
+      readText: async () => JSON.stringify({
+        schemaVersion: 1,
+        target: hostedTarget,
+        provider: "coderabbit-pr",
+        coverage: "incremental",
+      }),
+      request: async () => ({
+        schemaVersion: 1,
+        mode: "review-hosted-request",
+        state: "source-unavailable",
+        nextAction: "stop",
+        provider: "coderabbit-pr",
+        requestedCoverage: "incremental",
+        attemptedProviders: ["coderabbit-pr"],
+      }),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toEqual({
+      schemaVersion: 1,
+      mode: "review-hosted-request",
+      state: "source-unavailable",
+      nextAction: "stop",
+      provider: "coderabbit-pr",
+      requestedCoverage: "incremental",
+      attemptedProviders: ["coderabbit-pr"],
+    });
+    expect(setExitCode).not.toHaveBeenCalled();
+  });
+});
 
 describe("handleReviewFrontlineResolve", () => {
   it("emits the shared invalid-input error envelope for malformed input", async () => {

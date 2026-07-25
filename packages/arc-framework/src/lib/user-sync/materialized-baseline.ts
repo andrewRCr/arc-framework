@@ -19,6 +19,7 @@ import { atomicWriteJson } from "../fs.js";
 import { parseCrossWuEntries, shapeForFile } from "./parser.js";
 import { projectManifest } from "./projection.js";
 import { getRepoSharedUserInternalDir } from "./repo-shared-paths.js";
+import type { CrossWuEntry } from "./schema.js";
 
 const MATERIALIZED_BASELINE_FILENAME = "materialized-baseline.json";
 const MATERIALIZED_BASELINE_VERSION = 1;
@@ -136,12 +137,7 @@ function materializedEntries(manifest: SyncManifest): MaterializedBaselineEntry[
     if (shape === null) continue;
     for (const parse of parseCrossWuEntries(content, shape)) {
       if (!parse.ok) continue;
-      entries.push({
-        path,
-        section: parse.entry.section,
-        key: parse.entry.key,
-        contentHash: hashContent(parse.entry.raw),
-      });
+      entries.push(materializedEntry(path, parse.entry));
     }
   }
   return entries.sort((a, b) =>
@@ -149,6 +145,16 @@ function materializedEntries(manifest: SyncManifest): MaterializedBaselineEntry[
     || a.section.localeCompare(b.section)
     || a.key.localeCompare(b.key)
   );
+}
+
+/** Convert one inferred parser entry into the existing handwritten stamp shape. */
+function materializedEntry(path: string, entry: CrossWuEntry): MaterializedBaselineEntry {
+  return {
+    path,
+    section: entry.section,
+    key: entry.key,
+    contentHash: hashContent(entry.raw),
+  };
 }
 
 function isMaterializedBaselineStamp(value: unknown): value is MaterializedBaselineStamp {

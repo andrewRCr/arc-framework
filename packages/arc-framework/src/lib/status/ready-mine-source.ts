@@ -22,7 +22,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
-import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 
 import { buildReadyMineSlice, type PlannedWorkUnit } from "./ready-mine.js";
@@ -83,14 +83,14 @@ async function parsePlanned(metaPath: string): Promise<PlannedWorkUnit | null> {
   } catch {
     record = parseMetaRecord("");
   }
-  const { Owner: owner, Cohort: cohort, Class: workClass, Priority: priority } = record;
+  const { owner, cohort, workClass, priority } = record;
   return {
     name: wuNameOf(metaPath),
     ...(owner !== null ? { owner } : {}),
-    dependsOn: parseIdentifierList(record["Depends On"]),
-    ...(cohort !== null && cohort !== "[none]" ? { cohort } : {}),
+    dependsOn: record.dependsOn,
+    ...(cohort !== null ? { cohort } : {}),
     ...(workClass !== null ? { class: workClass } : {}),
-    ...(priority !== null && priority !== "[none]" ? { priority } : {}),
+    ...(priority !== null ? { priority } : {}),
   };
 }
 

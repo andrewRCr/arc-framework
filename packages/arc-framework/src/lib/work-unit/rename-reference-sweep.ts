@@ -5,7 +5,6 @@ import { basename, join, posix } from "node:path";
 
 import {
   formatValue,
-  parseIdentifierList,
   parseMetaRecord,
   setMetaBulletFields,
 } from "../active/meta-reader.js";
@@ -194,8 +193,7 @@ function rewriteBacktickedArtifactReferences(content: string, sourceSlug: string
 
 function rewriteDependsOn(content: string, sourceSlug: string, targetSlug: string): string {
   const record = parseMetaRecord(content);
-  const value = record["Depends On"];
-  const dependencies = parseIdentifierList(value);
+  const dependencies = record.dependsOn;
   if (dependencies.length === 0 || !dependencies.includes(sourceSlug)) return content;
   const rewritten = dependencies.map((dependency) => dependency === sourceSlug ? targetSlug : dependency);
   return setMetaBulletFields(content, {

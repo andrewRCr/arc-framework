@@ -293,7 +293,7 @@ async function hasCompetingLifecycleProjection(
   if (entry === undefined) return false;
   try {
     const content = await ctx.indexFs.readFile(join(ctx.cwd, entry.path));
-    const declaredBranch = parseMetaRecord(content).Branch;
+    const declaredBranch = parseMetaRecord(content).branch;
     if (
       (proof.evidence.expectedLifecycle === "completed" && entry.location === "completed")
       || (proof.evidence.expectedLifecycle === "planned" && entry.location === "planned")

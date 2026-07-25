@@ -510,7 +510,9 @@ function dependencyAllocationMatches(
   inventories: DecomposeInventories,
   resultIndex: LifecycleIndex,
 ): boolean {
-  const incoming = new Map(allocation.incomingEdges.map((edge) => [edge.dependent, edge.disposition]));
+  const incoming = new Map<string, DecomposeAllocationMap["incomingEdges"][number]["disposition"]>(
+    allocation.incomingEdges.map((edge) => [edge.dependent, edge.disposition]),
+  );
   for (const edge of inventories.incomingEdgeInventory) {
     const disposition = incoming.get(edge.dependent);
     if (disposition === undefined) return false;

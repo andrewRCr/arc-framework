@@ -81,7 +81,7 @@ export async function runIntegrate(
     artifact: "meta",
   });
   try {
-    if (parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath))).State !== "Active") {
+    if (parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath))).state !== "Active") {
       return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to integrate.` };
     }
   } catch {

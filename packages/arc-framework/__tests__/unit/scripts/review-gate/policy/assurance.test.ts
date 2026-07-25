@@ -55,7 +55,7 @@ const methodFiles = (values: Readonly<Record<string, unknown>>): ReviewMethodFil
 describe("work-unit review assurance", () => {
   it("composes activity and class with semantic overlay absence", () => {
     const result = resolveWorkUnitReviewAssurance(
-      { Class: "Heavy", "Review Rubric": "[none]" },
+      { workClass: "Heavy", reviewRubric: null },
       activity({ selfReview: false, frontlineReview: true }),
       { resolveReviewRubricBinding: () => { throw new Error("must not resolve absence"); } },
     );
@@ -69,12 +69,12 @@ describe("work-unit review assurance", () => {
 
   it("distinguishes resolved and unavailable declared overlays", () => {
     const resolved = resolveWorkUnitReviewAssurance(
-      { Class: "Novel", "Review Rubric": "security-audit" },
+      { workClass: "Novel", reviewRubric: "security-audit" },
       activity({ selfReview: true, frontlineReview: true }),
       rubrics(true),
     );
     const unavailable = resolveWorkUnitReviewAssurance(
-      { Class: "Novel", "Review Rubric": "security-audit" },
+      { workClass: "Novel", reviewRubric: "security-audit" },
       activity({ selfReview: true, frontlineReview: true }),
       rubrics(false),
     );
@@ -93,7 +93,7 @@ describe("work-unit review assurance", () => {
 
   it("treats availability failure as an unavailable declared overlay", () => {
     const result = resolveWorkUnitReviewAssurance(
-      { Class: "Light", "Review Rubric": "security-audit" },
+      { workClass: "Light", reviewRubric: "security-audit" },
       activity({ selfReview: true, frontlineReview: true }),
       { resolveReviewRubricBinding: () => { throw new Error("registry unavailable"); } },
     );
@@ -106,12 +106,12 @@ describe("work-unit review assurance", () => {
   });
 
   it.each([
-    { Class: "Medium", "Review Rubric": "[none]" },
-    { Class: "Heavy", "Review Rubric": "methods/security-audit.md" },
-    { Class: "Heavy", "Review Rubric": "security-audit, privacy-audit" },
+    { workClass: "Medium", reviewRubric: null },
+    { workClass: "Heavy", reviewRubric: "methods/security-audit.md" },
+    { workClass: "Heavy", reviewRubric: "security-audit, privacy-audit" },
   ])("refuses malformed WU assurance metadata", (meta) => {
     expect(() => resolveWorkUnitReviewAssurance(
-      meta,
+      meta as unknown as Parameters<typeof resolveWorkUnitReviewAssurance>[0],
       activity({ selfReview: true, frontlineReview: true }),
       rubrics(true),
     )).toThrow();
@@ -119,7 +119,7 @@ describe("work-unit review assurance", () => {
 
   it("composes project method activation into the public assurance result", () => {
     const result = composeWorkUnitReviewAssurance(
-      { Class: "Heavy", "Review Rubric": "[none]" },
+      { workClass: "Heavy", reviewRubric: null },
       methodFiles({
         "self-review": method("self-review", false),
         "frontline-review": method("frontline-review", true),
@@ -142,7 +142,7 @@ describe("work-unit review assurance", () => {
 
   it("preserves package defaults when project method declarations are absent", () => {
     const result = composeWorkUnitReviewAssurance(
-      { Class: "Light", "Review Rubric": "[none]" },
+      { workClass: "Light", reviewRubric: null },
       methodFiles({}),
       rubrics(true),
     );
@@ -155,7 +155,7 @@ describe("work-unit review assurance", () => {
 
   it("surfaces malformed project activation without throwing", () => {
     const result = composeWorkUnitReviewAssurance(
-      { Class: "Novel", "Review Rubric": "[none]" },
+      { workClass: "Novel", reviewRubric: null },
       methodFiles({
         "self-review": "not frontmatter",
         "frontline-review": method("frontline-review", "enabled"),
@@ -176,7 +176,7 @@ describe("work-unit review assurance", () => {
   it("applies a resolved overlay without changing baseline rubric identity", () => {
     const baseline = projectStandardReviewGuidance();
     const result = composeWorkUnitReviewAssurance(
-      { Class: "Novel", "Review Rubric": "security-audit" },
+      { workClass: "Novel", reviewRubric: "security-audit" },
       methodFiles({}),
       rubrics(true),
     );
@@ -225,7 +225,7 @@ describe("work-unit review assurance", () => {
   ] as const)("refuses a declared rubric with %s", (_label, files) => {
     const lookup: ReviewRubricMethodLookupPort = { lookupMethodFiles: () => files };
     const result = composeWorkUnitReviewAssurance(
-      { Class: "Heavy", "Review Rubric": "security-audit" },
+      { workClass: "Heavy", reviewRubric: "security-audit" },
       methodFiles({}),
       {
         resolveReviewRubricBinding: (identity) => resolveReviewRubricBinding(identity, lookup),
@@ -243,7 +243,7 @@ describe("work-unit review assurance", () => {
 
   it("uses the unchanged baseline and skips rubric lookup when meta has no declaration", () => {
     const result = composeWorkUnitReviewAssurance(
-      { Class: "Light", "Review Rubric": "[none]" },
+      { workClass: "Light", reviewRubric: null },
       methodFiles({}),
       { resolveReviewRubricBinding: () => { throw new Error("must not resolve absence"); } },
     );

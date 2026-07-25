@@ -7,6 +7,7 @@ import { resolveGitConfigOverride } from "../../../src/lib/config/resolve-overri
 
 const VALID_VALUES = ["always", "prompt", "manual"] as const;
 type TestPolicy = (typeof VALID_VALUES)[number];
+const YAML_KEY = "session.init_pull.notes";
 
 function isValidTestPolicy(value: string): value is TestPolicy {
   return (VALID_VALUES as readonly string[]).includes(value);
@@ -42,7 +43,7 @@ function resolveTestPolicy(opts: {
     readFile: readFileWithYaml(opts.yamlContent),
     cwd: "/fake/repo",
     gitConfigKey: "arc.testPolicy",
-    yamlKey: "test.policy",
+    yamlKey: YAML_KEY,
     defaultValue: "always",
     isValidValue: isValidTestPolicy,
     validValues: VALID_VALUES,
@@ -55,7 +56,7 @@ describe("resolveGitConfigOverride", () => {
     await expect(
       resolveTestPolicy({
         gitConfigValue: "manual",
-        yamlContent: "test.policy: prompt\n",
+        yamlContent: `${YAML_KEY}: prompt\n`,
       }),
     ).resolves.toEqual({ value: "manual", source: "git-config" });
   });
@@ -63,7 +64,7 @@ describe("resolveGitConfigOverride", () => {
   it("falls through to yaml when git-config is unset", async () => {
     await expect(
       resolveTestPolicy({
-        yamlContent: "test.policy: prompt\n",
+        yamlContent: `${YAML_KEY}: prompt\n`,
       }),
     ).resolves.toEqual({ value: "prompt", source: "yaml" });
   });
@@ -81,7 +82,7 @@ describe("resolveGitConfigOverride", () => {
     await expect(
       resolveTestPolicy({
         gitConfigValue: "invalid",
-        yamlContent: "test.policy: manual\n",
+        yamlContent: `${YAML_KEY}: manual\n`,
         warn,
       }),
     ).resolves.toEqual({ value: "manual", source: "yaml" });
@@ -95,20 +96,20 @@ describe("resolveGitConfigOverride", () => {
 
     await expect(
       resolveTestPolicy({
-        yamlContent: "test.policy: invalid\n",
+        yamlContent: `${YAML_KEY}: invalid\n`,
         warn,
       }),
     ).resolves.toEqual({ value: "always", source: "default" });
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0]?.[0]).toContain("invalid");
-    expect(warn.mock.calls[0]?.[0]).toContain("test.policy");
+    expect(warn.mock.calls[0]?.[0]).toContain(YAML_KEY);
   });
 
   it("treats empty configured values as unset", async () => {
     await expect(
       resolveTestPolicy({
         gitConfigValue: "",
-        yamlContent: "test.policy: ''\n",
+        yamlContent: `${YAML_KEY}: ''\n`,
       }),
     ).resolves.toEqual({ value: "always", source: "default" });
   });

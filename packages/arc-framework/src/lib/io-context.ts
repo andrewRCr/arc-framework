@@ -24,6 +24,7 @@ import {
 } from "../lib/git/process-executor.js";
 import { GitProcessError, normalizeGitRejection } from "../lib/git/process-error.js";
 import { atomicWriteFile, exclusiveCreateFile } from "./fs.js";
+import type { InteractionContext } from "./command-input/interaction-context.js";
 
 export { environmentForGitCwd } from "../lib/git/process-executor.js";
 
@@ -49,6 +50,13 @@ export function createRawGitExec(cwd = process.cwd()): RawGitExec {
 }
 
 const candidateGitExec = createExecaGitExec();
+
+/** Bind captured-output Git execution to one invocation's subprocess policy. */
+export function createGitExec(interaction?: InteractionContext["subprocess"]): GitExec {
+  return interaction === undefined
+    ? candidateGitExec
+    : (command, args, options) => candidateGitExec(command, args, { ...options, interaction });
+}
 
 /** Read one exact Git tree/index blob as bytes; `null` means the object path is absent. */
 export async function readGitBlobBytes(
@@ -231,17 +239,18 @@ export async function prepareGitRefVerification(
 }
 
 /** Production captured-output Git executor. */
-export const gitExec: GitExec = candidateGitExec;
+export const gitExec: GitExec = createGitExec();
 
 /** Real IOContext using node:fs/promises. Used by init, join, update. */
-export function createIOContext(): IOContext {
+export function createIOContext(interaction?: InteractionContext["subprocess"]): IOContext {
+  const exec = createGitExec(interaction);
   return {
     readFile: (path) => readFile(path, "utf-8"),
     writeFile: (path, content) => writeFile(path, content, "utf-8"),
     mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
     access: (path) => access(path),
     chmod: (path, mode) => chmod(path, mode),
-    exec: gitExec,
+    exec,
     exclusiveCreate: exclusiveCreateFile,
     removeFile: (path) => unlink(path),
   };
@@ -329,9 +338,12 @@ async function readUserDir(dirPath: string): Promise<DirEntry[]> {
 export const gitExecInput: GitExecInput = createExecaGitExecInput();
 
 /** Real UserIOContext for user sync operations. */
-export function createUserIOContext(): UserIOContext {
+export function createUserIOContext(interaction?: InteractionContext["subprocess"]): UserIOContext {
+  const exec: GitExec = interaction === undefined
+    ? gitExec
+    : (command, args, options) => candidateGitExec(command, args, { ...options, interaction });
   return {
-    exec: gitExec,
+    exec,
     execInput: gitExecInput,
     readFile: (path) => readFile(path, "utf-8"),
     writeFile: atomicWriteFile,

@@ -133,7 +133,7 @@ function validateArtifactGroup(
   const dir = posix.dirname(meta.path);
   let declaredCohort: string | null;
   try {
-    declaredCohort = parseMetaRecord(new TextDecoder("utf-8", { fatal: true }).decode(meta.bytes)).Cohort;
+    declaredCohort = parseMetaRecord(new TextDecoder("utf-8", { fatal: true }).decode(meta.bytes)).cohort;
   } catch {
     return null;
   }

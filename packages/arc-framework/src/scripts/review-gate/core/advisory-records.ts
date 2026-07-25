@@ -150,10 +150,9 @@ function outcomeExecutableRequirement(
   }
   if (outcome.outcome === "pass-cap-exhausted") return "forbidden";
   if (outcome.outcome === "unavailable") {
-    return outcome.reason.class !== "source-unbound"
-      && outcome.reason.class !== "capability-unsupported"
-      ? "required"
-      : "forbidden";
+    if (outcome.reason.class === "source-unbound") return "forbidden";
+    if (outcome.reason.class === "capability-unsupported") return "optional";
+    return "required";
   }
   return "required";
 }

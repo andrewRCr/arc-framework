@@ -43,7 +43,12 @@
 import { join } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
-import { parseMetaRecord, type MetaFieldName, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import {
+  parseMetaRecord,
+  type MetaRenderOverrides,
+  type ParsedMetaRecord,
+} from "../../active/meta-reader.js";
+import { MetaPrioritySchema, MetaWorkClassSchema } from "../../active/meta-schema.js";
 import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
 import { receiptId } from "../../canonical/receipt-id.js";
@@ -161,7 +166,7 @@ export interface ParkParams {
    * park@Active — its `active/` is unreadable from the base tree the pointer
    * lands in). Drives phase dispatch and the pointer-record's render fields.
    */
-  sourceRecord: Record<MetaFieldName, string | null>;
+  sourceRecord: ParsedMetaRecord;
   /** The worktree root to tear down (caller-resolved from `git worktree list`). */
   worktreePath: string;
   /** The directory the transition runs from — drives self-teardown detection. */
@@ -232,25 +237,17 @@ export type ResumeResult =
       inPlaceCheckoutPending: boolean;
     };
 
-/** The source-meta render fields a pointer-record carries forward (sans State / Branch). */
-const POINTER_RENDER_FIELDS: readonly MetaFieldName[] = [
-  "Owner",
-  "Class",
-  "Priority",
-  "Cohort",
-  "Depends On",
-  "Origin",
-  "Design",
-];
-
-/** Collect a source meta's non-null render fields into a {@link MetaFieldOverrides}. */
-function renderFieldsFrom(record: Record<MetaFieldName, string | null>): MetaFieldOverrides {
-  const fields: MetaFieldOverrides = {};
-  for (const name of POINTER_RENDER_FIELDS) {
-    const value = record[name];
-    if (value !== null) fields[name] = value;
-  }
-  return fields;
+/** Translate the projection fields carried by an Active pointer into semantic values. */
+function renderFieldsFrom(record: ParsedMetaRecord): MetaRenderOverrides {
+  return {
+    owner: record.owner ?? undefined,
+    workClass: MetaWorkClassSchema.parse(record.workClass),
+    priority: MetaPrioritySchema.parse(record.priority),
+    cohort: record.cohort,
+    dependsOn: record.dependsOn,
+    origin: record.origin ?? "internal",
+    design: record.design,
+  };
 }
 
 /** Source position park@Active moves from / to — for the verb-orchestrated side-effect + outcome shape. */
@@ -300,18 +297,18 @@ export async function runPark(ctx: ParkContext, params: ParkParams): Promise<Par
 
   // park-from-Integrating is the table's marked-illegal cell; reject here too,
   // since the Active arm never reaches the executor that would otherwise enforce it.
-  if (sourceRecord.State === "Integrating") {
+  if (sourceRecord.state === "Integrating") {
     return { status: "rejected", reason: "withdraw the PR via `reopen` before parking an Integrating WU." };
   }
 
   let destination: { toDir: string; metaPath: string };
   try {
-    destination = parkedDestination(name, sourceRecord.Cohort);
+    destination = parkedDestination(SlugSchema.parse(name), sourceRecord.cohort);
   } catch (err) {
     return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
   }
 
-  return sourceRecord.State === "Active"
+  return sourceRecord.state === "Active"
     ? parkActive(ctx, name, reason, sourceRecord, worktreePath, currentLocus, destination)
     : parkPlanning(ctx, name, sourceRecord, destination);
 }
@@ -327,7 +324,7 @@ export async function runPark(ctx: ParkContext, params: ParkParams): Promise<Par
 async function parkPlanning(
   ctx: ParkContext,
   name: string,
-  sourceRecord: Record<MetaFieldName, string | null>,
+  sourceRecord: ParsedMetaRecord,
   destination: { toDir: string; metaPath: string },
 ): Promise<ParkResult> {
   const { toDir, metaPath } = destination;
@@ -341,7 +338,7 @@ async function parkPlanning(
       name,
       sourceDir: ACTIVE_DIR,
       resultDir: toDir,
-      expectedBranch: sourceRecord.Branch,
+      expectedBranch: sourceRecord.branch,
     });
   } catch (err) {
     return {
@@ -488,7 +485,7 @@ async function parkActive(
   ctx: ParkContext,
   name: string,
   reason: string,
-  sourceRecord: Record<MetaFieldName, string | null>,
+  sourceRecord: ParsedMetaRecord,
   worktreePath: string,
   currentLocus: string,
   destination: { toDir: string; metaPath: string },
@@ -497,28 +494,34 @@ async function parkActive(
   // An Active WU must carry its preserved branch: `resume` hard-rejects a
   // pointer with `Branch: [none]`, so parking one would be unresumable. Reject
   // before teardown, leaving no partial state behind.
-  const branch = sourceRecord.Branch;
-  if (branch === null || branch.trim() === "" || branch === "[none]") {
+  const branch = sourceRecord.branch;
+  if (branch === null || branch.trim() === "") {
     return {
       status: "rejected",
       reason: `\`${name}\` has no preserved branch in meta — refusing to park (resume would have nothing to re-attach).`,
     };
   }
 
-  // Teardown first: its clean-guard gates the whole park before anything is
-  // written, so a dirty preserved-branch worktree rejects without leaving a pointer.
+  let pointerRecord: string;
+  try {
+    pointerRecord = composePointerRecord({
+      name,
+      branch,
+      reason,
+      renderFields: renderFieldsFrom(sourceRecord),
+    });
+  } catch (err) {
+    return { status: "rejected", reason: `invalid pointer record: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  // The pointer is valid before teardown. The teardown clean guard then gates
+  // every filesystem effect, so dirty work still rejects without a pointer.
   try {
     await ctx.executor.reconcileWorktree({ mutation: "teardown", worktreePath, currentLocus });
   } catch (err) {
     return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
   }
 
-  const pointerRecord = composePointerRecord({
-    name,
-    branch,
-    reason,
-    renderFields: renderFieldsFrom(sourceRecord),
-  });
   // The worktree is already torn down; a pointer-write failure here leaves a
   // half-applied park, so report it as such rather than throwing past the caller.
   try {
@@ -618,7 +621,7 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     };
   }
   const parkedSubdir = sourceMetaPath.slice(0, sourceMetaPath.lastIndexOf("/"));
-  let record: Record<MetaFieldName, string | null>;
+  let record: ParsedMetaRecord;
   try {
     record = parseMetaRecord(await ctx.executor.indexFs.readFile(join(ctx.executor.cwd, sourceMetaPath)));
   } catch {
@@ -628,7 +631,7 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   // A parked record must carry the preserved branch to re-attach. A null / `[none]`
   // Branch yields an opaque `git worktree add <path> [none]` failure downstream, so
   // reject cleanly here (mirroring park's branch validation).
-  const branch = record.Branch ?? "[none]";
+  const branch = record.branch ?? "[none]";
   if (branch === "[none]") {
     return {
       status: "rejected",

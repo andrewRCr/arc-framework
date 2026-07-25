@@ -4,7 +4,7 @@ import {
   setPhase,
   type SetPhaseContext,
 } from "../../../../src/lib/work-unit/mutators/set-phase.js";
-import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../../../../src/lib/active/meta-reader.js";
 
 const META = `# Metadata: demo-wu
 
@@ -62,8 +62,8 @@ describe("setPhase", () => {
     expect(writes[0]!.path).toBe(META_PATH);
 
     const written = writes[0]!.content;
-    const before = parseMetaRecord(META);
-    const after = parseMetaRecord(written);
+    const before = parseMetaProjectionRecord(META);
+    const after = parseMetaProjectionRecord(written);
 
     // Only State moved; every other core + bullet field is byte-stable on parse.
     expect(after.State).toBe("Integrating");

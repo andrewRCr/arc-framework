@@ -16,6 +16,8 @@
  * @module
  */
 
+import { WorktreeTemplateSchema } from "../config/schema.js";
+
 export interface WorktreeLocationParams {
   /** Location template — e.g. the resolved `worktree.location_template` value. */
   template: string;
@@ -40,7 +42,8 @@ function slugBranch(branch: string): string {
  * @returns The resolved path with `{repo}`, `{name}`, and the slugged `{branch}` substituted.
  */
 export function resolveWorktreeLocation(params: WorktreeLocationParams): string {
-  const { template, repo, name, branch } = params;
+  const { repo, name, branch } = params;
+  const template = WorktreeTemplateSchema.parse(params.template);
   return template
     .replaceAll("{repo}", repo)
     .replaceAll("{name}", name)

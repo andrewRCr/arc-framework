@@ -249,7 +249,7 @@ async function readCommittedTransition(
     }
     const plannedDir = posix.dirname(plannedMeta.path);
     const plannedMetaBytes = await requireBlob(deps, commit, plannedMeta.path);
-    const cohort = parseMetaRecord(decodeUtf8(plannedMetaBytes)).Cohort?.trim() ?? "";
+    const cohort = parseMetaRecord(decodeUtf8(plannedMetaBytes)).cohort?.trim() ?? "";
     if (!isSafeCohortPath(cohort) || validateCohortPath(cohort) !== null) {
       return { status: "rejected", reason: "The planned result carries an invalid Cohort path." };
     }

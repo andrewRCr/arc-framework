@@ -22,7 +22,7 @@ import { promisify } from "node:util";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
-import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord, renderMetaProjectionFile, type MetaProjectionOverrides } from "../../src/lib/active/meta-reader.js";
 import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
 import { validateManagedPath } from "../../src/lib/canonical/managed-path.js";
 import { createUserIOContext, readGitBlobBytes } from "../../src/lib/io-context.js";
@@ -61,9 +61,12 @@ async function commitAll(repo: string, message: string): Promise<void> {
 }
 
 /** Write a managed meta (+ a placeholder draft) for a fixture WU at a repo-relative dir. */
-async function writeWu(repo: string, relDir: string, slug: string, over: MetaFieldOverrides): Promise<void> {
+async function writeWu(repo: string, relDir: string, slug: string, over: MetaProjectionOverrides): Promise<void> {
   await mkdir(join(repo, relDir), { recursive: true });
-  await writeFile(join(repo, relDir, `meta-${slug}.md`), renderMetaFile(slug, over));
+  await writeFile(
+    join(repo, relDir, `meta-${slug}.md`),
+    renderMetaProjectionFile(slug, { Owner: IDENTITY, ...over }),
+  );
   await writeFile(join(repo, relDir, `draft-${slug}.md`), `# Draft: ${slug}\n\n- **Purpose:** —\n\n---\n`);
 }
 
@@ -205,7 +208,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(await pathExists(join(repo, ".arc/backlog/planned/mono/alpha/meta-alpha.md"))).toBe(true);
     expect(await pathExists(join(repo, ".arc/backlog/planned/mono/beta/draft-beta.md"))).toBe(true);
     // The internal edge landed on the dependent member.
-    const beta = parseMetaRecord(await readFile(join(repo, ".arc/backlog/planned/mono/beta/meta-beta.md"), "utf8"));
+    const beta = parseMetaProjectionRecord(await readFile(join(repo, ".arc/backlog/planned/mono/beta/meta-beta.md"), "utf8"));
     expect(beta["Depends On"]).toContain("alpha");
 
     // Origin artifacts removed in-verb; the branch + worktree teardown is deferred —
@@ -215,7 +218,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
 
     // The dependent's incoming edge re-pointed to the delivering members, and staged.
     expect(result.result.repointed).toEqual([{ dependent: "dep", to: ["alpha", "beta"] }]);
-    const depStaged = parseMetaRecord(
+    const depStaged = parseMetaProjectionRecord(
       (await execFileAsync("git", ["show", ":.arc/active/meta-dep.md"], { cwd: repo })).stdout,
     );
     expect(depStaged["Depends On"]).toContain("alpha");
@@ -295,8 +298,12 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(await pathExists(join(statusRoot, "draft-roadmap-status.md"))).toBe(true);
     expect(await pathExists(join(repo, ".arc/backlog/planned/cohort-roadmap-tooling.md"))).toBe(false);
 
-    const renderer = parseMetaRecord(await readFile(join(rendererRoot, "meta-roadmap-renderer.md"), "utf8"));
-    const status = parseMetaRecord(await readFile(join(statusRoot, "meta-roadmap-status.md"), "utf8"));
+    const renderer = parseMetaProjectionRecord(
+      await readFile(join(rendererRoot, "meta-roadmap-renderer.md"), "utf8"),
+    );
+    const status = parseMetaProjectionRecord(
+      await readFile(join(statusRoot, "meta-roadmap-status.md"), "utf8"),
+    );
     expect(renderer.Cohort).toBe("[none]");
     expect(renderer["Depends On"]).toContain("lifecycle-index");
     expect(status.Cohort).toBe("[none]");
@@ -528,7 +535,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     // The origin survives in place; only the extracted member is minted, depending on the origin.
     expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(true);
     expect(await pathExists(join(repo, ".arc/backlog/planned/mono/alpha/meta-alpha.md"))).toBe(true);
-    const alpha = parseMetaRecord(await readFile(join(repo, ".arc/backlog/planned/mono/alpha/meta-alpha.md"), "utf8"));
+    const alpha = parseMetaProjectionRecord(await readFile(join(repo, ".arc/backlog/planned/mono/alpha/meta-alpha.md"), "utf8"));
     expect(alpha["Depends On"]).toContain("mono");
   });
 

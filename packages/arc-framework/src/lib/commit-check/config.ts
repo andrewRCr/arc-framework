@@ -1,5 +1,9 @@
 /** Commit-check configuration defaults and active-domain validation. */
 
+import {
+  COMMIT_CHECK_CONFIG_FIELDS,
+  getArcConfigField,
+} from "../config/schema.js";
 import type {
   CommitCheckConfiguration,
   CommitCheckConfigurationKey,
@@ -7,20 +11,16 @@ import type {
   CommitCheckPolicyResolution,
 } from "./types.js";
 
-/** Defaults shared with the installed commit-msg hook. */
-export const COMMIT_CHECK_DEFAULTS: CommitCheckConfiguration = Object.freeze({
-  "hooks.commit_msg": "enabled",
-  "commit.format": "conventional",
-  "commit.context_footer": "required",
-  "commit.custom_pattern": "",
-  "commit.context_pattern": "",
-  "hooks.subject_max_length": "72",
-  "hooks.body_max_lines": "100",
-  "hooks.body_max_line_length": "100",
-});
+export { COMMIT_CHECK_CONFIG_FIELDS } from "../config/schema.js";
 
-const FORMAT_VALUES = ["conventional", "custom", "any"] as const;
-const FOOTER_VALUES = ["required", "recommended", "custom", "disabled"] as const;
+/** Defaults shared with the installed commit-msg hook. */
+export const COMMIT_CHECK_DEFAULTS = Object.freeze(Object.fromEntries(
+  COMMIT_CHECK_CONFIG_FIELDS.map(({ key, defaultValue }) => [key, defaultValue]),
+) as CommitCheckConfiguration);
+
+const COMMIT_MSG_VALUES = getArcConfigField("hooks.commit_msg").policy.values;
+const FORMAT_VALUES = getArcConfigField("commit.format").policy.values;
+const FOOTER_VALUES = getArcConfigField("commit.context_footer").policy.values;
 
 /**
  * Select the eight commit-check values from a parsed ARC configuration.
@@ -31,22 +31,12 @@ const FOOTER_VALUES = ["required", "recommended", "custom", "disabled"] as const
 export function readCommitCheckConfiguration(
   values: Readonly<Record<string, string>>,
 ): CommitCheckConfiguration {
-  return {
-    "hooks.commit_msg": values["hooks.commit_msg"] ?? COMMIT_CHECK_DEFAULTS["hooks.commit_msg"],
-    "commit.format": values["commit.format"] ?? COMMIT_CHECK_DEFAULTS["commit.format"],
-    "commit.context_footer":
-      values["commit.context_footer"] ?? COMMIT_CHECK_DEFAULTS["commit.context_footer"],
-    "commit.custom_pattern":
-      values["commit.custom_pattern"] ?? COMMIT_CHECK_DEFAULTS["commit.custom_pattern"],
-    "commit.context_pattern":
-      values["commit.context_pattern"] ?? COMMIT_CHECK_DEFAULTS["commit.context_pattern"],
-    "hooks.subject_max_length":
-      values["hooks.subject_max_length"] ?? COMMIT_CHECK_DEFAULTS["hooks.subject_max_length"],
-    "hooks.body_max_lines":
-      values["hooks.body_max_lines"] ?? COMMIT_CHECK_DEFAULTS["hooks.body_max_lines"],
-    "hooks.body_max_line_length":
-      values["hooks.body_max_line_length"] ?? COMMIT_CHECK_DEFAULTS["hooks.body_max_line_length"],
-  };
+  return Object.fromEntries(
+    COMMIT_CHECK_CONFIG_FIELDS.map(({ key, defaultValue }) => [
+      key,
+      values[key] ?? defaultValue,
+    ]),
+  ) as CommitCheckConfiguration;
 }
 
 function configurationFinding(
@@ -77,11 +67,15 @@ function enumValue<T extends string>(
 
 function numericValue(
   value: string,
-  minimum: number,
-  key: CommitCheckConfigurationKey,
+  key:
+    | "hooks.subject_max_length"
+    | "hooks.body_max_lines"
+    | "hooks.body_max_line_length",
   findings: CommitCheckFinding[],
 ): number | undefined {
-  if (!/^\d+$/.test(value)) {
+  const field = getArcConfigField(key);
+  const minimum = field.policy.minimum;
+  if (!field.schema.safeParse(value).success) {
     findings.push(
       configurationFinding(
         "config.invalid-number",
@@ -94,17 +88,6 @@ function numericValue(
   }
 
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < minimum) {
-    findings.push(
-      configurationFinding(
-        "config.invalid-number",
-        key,
-        value,
-        `unsigned base-10 safe integer >= ${minimum}`,
-      ),
-    );
-    return undefined;
-  }
   return parsed;
 }
 
@@ -120,7 +103,12 @@ export function resolveCommitCheckPolicy(
   if (configuration["hooks.commit_msg"] === "disabled") return { kind: "disabled" };
 
   const findings: CommitCheckFinding[] = [];
-  enumValue(configuration["hooks.commit_msg"], ["enabled"] as const, "hooks.commit_msg", findings);
+  enumValue(
+    configuration["hooks.commit_msg"],
+    COMMIT_MSG_VALUES.filter((value) => value === "enabled"),
+    "hooks.commit_msg",
+    findings,
+  );
   const format = enumValue(
     configuration["commit.format"],
     FORMAT_VALUES,
@@ -135,19 +123,16 @@ export function resolveCommitCheckPolicy(
   );
   const subjectMaxLength = numericValue(
     configuration["hooks.subject_max_length"],
-    10,
     "hooks.subject_max_length",
     findings,
   );
   const bodyMaxLines = numericValue(
     configuration["hooks.body_max_lines"],
-    1,
     "hooks.body_max_lines",
     findings,
   );
   const bodyMaxLineLength = numericValue(
     configuration["hooks.body_max_line_length"],
-    1,
     "hooks.body_max_line_length",
     findings,
   );

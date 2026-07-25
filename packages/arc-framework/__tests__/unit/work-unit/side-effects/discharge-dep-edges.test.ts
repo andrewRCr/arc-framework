@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord } from "../../../../src/lib/active/meta-reader.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import { receiptId } from "../../../../src/lib/canonical/receipt-id.js";
 import { buildLifecycleIndexFromMetas } from "../../../../src/lib/work-unit/lifecycle-index.js";
@@ -132,7 +132,7 @@ describe("dischargeDepEdges — the readiness verdict (shipped ∨ integrating)"
     expect(result.discharged).toEqual(["shipped-dep"]);
     expect(result.live).toEqual(["active-dep"]);
     // The gate is rewritten to the live set only.
-    expect(parseMetaRecord(writes[0]!)["Depends On"]).toBe("active-dep");
+    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("active-dep");
   });
 
   it("discharges an integrating dependency too (the team-review-latency case)", async () => {
@@ -142,7 +142,7 @@ describe("dischargeDepEdges — the readiness verdict (shipped ∨ integrating)"
 
     expect(result.discharged).toEqual(["integrating-dep"]);
     expect(result.live).toEqual(["active-dep"]);
-    expect(parseMetaRecord(writes[0]!)["Depends On"]).toBe("active-dep");
+    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("active-dep");
   });
 
   it("clears the gate to [none] when every edge is satisfied", async () => {
@@ -152,7 +152,7 @@ describe("dischargeDepEdges — the readiness verdict (shipped ∨ integrating)"
 
     expect(result.discharged).toEqual(["integrating-dep", "shipped-dep"]);
     expect(result.live).toEqual([]);
-    expect(parseMetaRecord(writes[0]!)["Depends On"]).toBe("[none]");
+    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("[none]");
   });
 });
 
@@ -506,7 +506,7 @@ describe("current-WU dependency reconcile apply", () => {
     expect(result).toMatchObject({ status: "applied", stagedPaths: [DEPENDENT_PATH] });
     expect(writes).toHaveLength(1);
     expect(writes[0]?.path).toBe(DEPENDENT_PATH);
-    expect(parseMetaRecord(writes[0]!.content)["Depends On"]).toBe("successor");
+    expect(parseMetaProjectionRecord(writes[0]!.content)["Depends On"]).toBe("successor");
     expect(stages).toEqual([[DEPENDENT_PATH]]);
   });
 
@@ -653,7 +653,7 @@ describe("current-WU dependency reconcile apply", () => {
         status: "applied",
         stagedPaths: [DEPENDENT_PATH, specPath],
       });
-      expect(parseMetaRecord(files.get(DEPENDENT_PATH)!)["Depends On"]).toBe("successor");
+      expect(parseMetaProjectionRecord(files.get(DEPENDENT_PATH)!)["Depends On"]).toBe("successor");
       expect(files.get(specPath)).toBe("See `spec-successor.md`.\n");
       expect(stageCalls.at(-1)).toEqual([DEPENDENT_PATH, specPath]);
     },

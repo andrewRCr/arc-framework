@@ -29,7 +29,7 @@
 
 import { join } from "node:path";
 
-import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
 import { SlugSchema } from "../../kernel/index.js";
 import { resolveArcPath } from "../../layout/index.js";
 import {
@@ -103,18 +103,18 @@ export async function runActivate(
     artifact: "meta",
   });
 
-  let record: Record<MetaFieldName, string | null>;
+  let record: ParsedMetaRecord;
   try {
     record = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not a planning WU in \`active/\` — nothing to activate.` };
   }
-  if (record.State !== "Planning") {
+  if (record.state !== "Planning") {
     return { status: "rejected", reason: `\`${name}\` is not a planning WU in \`active/\` — nothing to activate.` };
   }
 
-  const branch = record.Branch;
-  if (branch === null || branch.trim() === "" || branch === "[none]") {
+  const branch = record.branch;
+  if (branch === null || branch.trim() === "") {
     return { status: "rejected", reason: `\`${name}\` has no tracked branch in meta — refusing to activate.` };
   }
   const reconcile = await ctx.currentWuReconcile.prepare({ slug: name, metaPath });
@@ -173,15 +173,15 @@ export async function runDeactivate(
     artifact: "meta",
   });
 
-  let record: Record<MetaFieldName, string | null>;
+  let record: ParsedMetaRecord;
   try {
     record = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not an active WU in \`active/\` — nothing to deactivate.` };
   }
 
-  const branch = record.Branch;
-  if (branch === null || branch.trim() === "" || branch === "[none]") {
+  const branch = record.branch;
+  if (branch === null || branch.trim() === "") {
     return { status: "rejected", reason: `\`${name}\` has no tracked branch in meta — refusing to deactivate.` };
   }
   const outcome = await executeTransition(ctx, {

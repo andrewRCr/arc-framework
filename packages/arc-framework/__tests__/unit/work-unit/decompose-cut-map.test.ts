@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import {
   parseCutMap,
   parseDecomposeContentLocator,
   retirementAllocationRefusal,
+  type CutEntry,
   type DecomposeAllocationMap,
+  type DecomposeParams,
 } from "../../../src/lib/work-unit/decompose-cut-map.js";
 
 const SOURCE_A = canonicalDigest("source-a");
@@ -70,6 +72,24 @@ function rejection(input: Record<string, unknown>): string {
 }
 
 describe("parseCutMap", () => {
+  it("preserves non-object and unknown-version refusals", () => {
+    expect(parseCutMap(null)).toEqual({ status: "rejected", reason: "cut-map must be an object." });
+    expect(rejection(wellFormed({ schemaVersion: 3 }))).toBe("unrecognized cut-map `schemaVersion` (expected 2).");
+  });
+
+  it("preserves compatibility aliases over schema-derived structures", () => {
+    expectTypeOf<DecomposeParams>().toEqualTypeOf<DecomposeAllocationMap>();
+    expectTypeOf<CutEntry>().toEqualTypeOf<DecomposeAllocationMap["entries"][number]>();
+  });
+
+  it("keeps locator decoding as an accepted-value or null adapter", () => {
+    expect(parseDecomposeContentLocator({ artifact: "draft-example.md", kind: "whole-file" })).toEqual({
+      artifact: "draft-example.md",
+      kind: "whole-file",
+    });
+    expect(parseDecomposeContentLocator({ artifact: "nested/draft.md", kind: "whole-file" })).toBeNull();
+  });
+
   it("parses and canonically orders a schema-version-2 allocation map", () => {
     const map = parsed(wellFormed());
 

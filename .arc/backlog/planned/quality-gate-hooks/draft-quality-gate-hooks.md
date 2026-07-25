@@ -214,8 +214,30 @@ discipline window. This is the kind of preventable failure that hooks exist to p
 2026-04-24) confirmed the universal idiom: pre-commit (fast, staged files only) → pre-push (full local)
 → CI. ARC's tiers correspond naturally — Tier 1 ↔ pre-commit, Tier 2 ↔ pre-push, Tier 3 ↔ CI — but this
 alignment is nowhere expressed in the methodology, so adopters can't take advantage of auto-enforcement
-without inventing their own mapping. Pre-push is particularly underserved: there is no ARC-recognized
-pre-push stage at all.
+without inventing their own mapping. A pre-push stage **does** ship
+(`system/.internal/githooks/pre-push`, from `merge-safety-mechanism`) but is scoped to force-push
+advisory only — so the work is extending a registered stage, not standing one up, and its hook-manager
+integration is already solved.
+
+**3. There is no continuous-feedback layer, and the milestone cadence is standing in for one.**
+_(2026-07-25.)_ The universal idiom has two layers, not one: _continuous_ feedback (editor/LSP — free,
+per-keystroke, informational) and _event-triggered_ enforcement (commit / push / CI — blocking).
+Industry has **no milestone cadence at all**, because it doesn't need one. ARC has no editor, so the
+agent gets no ambient signal — and ARC invented a per-increment cadence to substitute.
+
+That reframes the per-increment gate as a **prosthetic for a missing editor**, with two consequences.
+For cheap static checks it is _coarser_ than the human baseline (a developer gets lint and types per
+keystroke; the agent gets them per task), so the cadence was never the defect. The defect is firing a
+**fixed block of mixed-cost checks** at one cadence: measured at 2026-07-25, the documented Tier 1
+cost ~47s and ran three full-project scans against changes that frequently could not reach them —
+64 of 200 sampled commits were Markdown-only. Targeting the same coverage brought it to ~1s.
+
+**4. Feedback and enforcement are collapsed into one bar.** The zero-tolerance policy applies
+uniformly across all three tiers, but Tier 1's job is _feedback_ ("did I break what I just wrote?")
+while Tier 3's is _enforcement_ ("this may not merge broken"). Treating an informational layer as a
+blocking gate is why a trivial defect reads as a gate failure. It also explains the measured
+convergence below: **Tier 2 had no distinct job, only a distinct size**, so it drifted to the
+enforcement end and became a near-duplicate of Tier 3 (they differ by `build` alone, ~5%).
 
 **Related concerns surfaced during discussion:**
 
@@ -245,11 +267,11 @@ four architectural junctions: task, commit, push, integration (delivered via the
 Flow WU, May 2026). This plan and the shipped interlock model share **junction prefixes** (`commit-`,
 `push-`, `integration-`) but attach different concerns at each junction:
 
-| Junction       | Autonomy concern (interlock model)   | Validation concern (this plan)                    |
-|----------------|--------------------------------------|---------------------------------------------------|
-| commit         | commit-interlock (approval hold)     | commit-gate (deadline for fast checks)            |
-| push           | push-interlock (approval hold)       | push-gate (deadline for medium checks)            |
-| integration    | integration-interlock (approval hold)| integration-gate (deadline for full suite)        |
+| Junction    | Autonomy concern (interlock model)    | Validation concern (this plan)             |
+| ----------- | ------------------------------------- | ------------------------------------------ |
+| commit      | commit-interlock (approval hold)      | commit-gate (deadline for fast checks)     |
+| push        | push-interlock (approval hold)        | push-gate (deadline for medium checks)     |
+| integration | integration-interlock (approval hold) | integration-gate (deadline for full suite) |
 
 This factoring resolved an earlier proposal where both plans converged on identical "gate" naming.
 That convergence collapsed two distinct concepts (validation deadlines vs. approval mechanisms) into
@@ -284,22 +306,31 @@ clarified rather than expanded; tier-vocabulary work becomes more deliberate rat
 
 ### In scope
 
-**Tier model reshape.** Rework tier vocabulary to surface the kind / cadence / gate distinction more
-clearly. Three viable paths captured under § Alternatives:
+**Gate model reshape.** Retire Tier 1/2/3 for the two-axis model settled under § Alternatives — **gate**
+(deadline: `commit-gate` / `push-gate` / `integration-gate`) × **kind** (feedback vs. enforcement) — with
+cost demoted to measured data and selection to a mechanical rule. The rename touches DEV-RULES.ARC,
+`strategy-quality-gates.md`, `process-task-loop.md`, `QUICK-REFERENCE.md`, `verify-work-unit.md`,
+`integrate-work-unit.md`, `run-errand.md`, `self-review.md`, and scattered tier references throughout the
+framework. The path is settled; the PRD sizes the sweep, it does not re-decide it.
 
-- **A — Gate-only.** Replace Tier 1/2/3 with `commit-gate / push-gate / integration-gate` (deadline
-  semantic). Cost-class and opportunistic-cadence guidance becomes advisory convention attached to
-  each gate's documentation.
-- **B — Orthogonal axes (current lean).** Factor kind / cost-class (cheap / medium / heavy or
-  similar) and gate (deadline) as separate concepts. Drop tier numbers; keep cost-class concept;
-  add gate as orthogonal deadline naming. Cadence becomes a third (advisory) axis. Most accurate
-  factoring; higher documentation surface.
-- **C — Status quo with deadline-semantic clarification.** Keep Tier 1/2/3 as-is. Add gate-as-
-  deadline framing as a clarifying overlay. Lightest touch; tier-numeric ambiguity persists.
+**Selection model.** _(New 2026-07-25.)_ Two mechanical conditions governing which checks a given change
+must run, both resolving from `git diff --name-only` — never from a judgment call about blast radius:
 
-Whichever path lands, the rename touches DEV-RULES.ARC, strategy-quality-gates.md,
-3_process-task-loop.md, QUICK-REFERENCE.md, session-init.md, and scattered tier references throughout
-the framework. PRD finalizes the path.
+- **Relevance** — run what the change reaches, deliberately asymmetric: skip the expensive checks a
+  change provably cannot affect, and never spend deliberation on the cheap ones. Unmatched or mixed
+  paths fail closed to running everything.
+- **Unchanged tree** — a completed gate is not re-executed when nothing it covers has changed. Narrows
+  repeat runs; never licenses running a gate partially.
+
+Both already exist at this repo's **project layer** (`DEV-RULES.PROJECT` § Selecting what to run, shipped
+via PR #355) and were deliberately written vocabulary-neutral so they would not churn through this
+rename. This WU lifts them to the framework layer in the settled vocabulary.
+
+**Ordering constraint — selection is a prerequisite for dispatch, not a consequence of it.** The
+consolidation criterion below ("mechanical-and-now-hook-covered → remove from workflow") is wrong without
+it: `verify-work-unit` Step 1 and `integrate-work-unit` Step 10 run gates _before_ their commits, so a
+pre-commit hook does not dedupe those — it adds a fourth run. Shipping hook dispatch without the
+unchanged-tree rule makes the WU tail **worse**, not better. Sequence accordingly.
 
 **Pre-push hook as recognized stage.** New `.arc/system/.internal/githooks/pre-push` that dispatches to the
 adopter's push-gate commands. Config-gated via `hooks.pre_push` in `arc-config.yml`. Integrates through
@@ -405,9 +436,20 @@ shipped ARC defaults.
 - Rewriting or consolidating the existing 14 structural CHECKs. Framework-owned and fine.
 - Tech-stack-specific defaults in the shipped method. Configuration at initial-setup is the entry
   point, not shipped defaults.
-- Tier 3 auto-enforcement at the hook layer. Tier 3 = CI + human review; no local hook equivalent
-  planned. Possible `pre-pr` dispatcher can come later if demand emerges.
+- Integration-gate auto-enforcement at the hook layer. That gate is CI + human review; no local hook
+  equivalent planned. A possible `pre-pr` dispatcher can come later if demand emerges.
 - Lint tool selection opinions. ARC doesn't pick between markdownlint and prettier for adopters.
+- **Continuous-feedback layer (the watcher direction).** _(Recorded 2026-07-25 — out of scope, not
+  rejected.)_ § Problem gap 3 establishes that the milestone cadence is a prosthetic for the editor
+  feedback loop an agent lacks. That loop is arguably _closable_ rather than compensable: `test:watch`
+  already exists, `tsc --watch` exists, and agent harnesses run background processes — a warm watcher
+  gives incremental typecheck in ~100ms against 4.2s cold. Held out because it roughly doubles this WU,
+  nothing else here depends on it, and it carries unsolved problems of its own (process lifecycle across
+  sessions, output consumption, staleness detection, cross-harness portability). **Disposition:** if
+  pursued, it splits out as its own WU rather than joining this one — mint a `backlog/provisional/` stub
+  at that point. Recorded here so the direction is not lost by silence: if row 1 is closable, the
+  milestone cadence is a workaround with a shelf life, which bears on how much machinery this WU should
+  invest in it.
 
 ## Alternatives
 
@@ -431,7 +473,7 @@ naming — closer to a category change than a naming swap. Three viable paths:
   semantic). Cost-class and cadence become advisory convention documented per gate. Self-documenting,
   idiomatic, aligns with git hook stages. Downside: drops the explicit kind framing the tiers
   currently provide.
-- **B — Orthogonal axes (current lean).** Factor kind and gate as separate vocabulary. Drop tier
+- **B — Orthogonal axes.** Factor kind and gate as separate vocabulary. Drop tier
   numbers; keep cost-class concept (rename it — "cheap / medium / heavy" or similar); add gate as
   orthogonal deadline naming. Cadence becomes a third (advisory) axis. Most accurate factoring.
   Highest documentation surface; reader must learn two axes instead of one.
@@ -441,6 +483,40 @@ naming — closer to a category change than a naming swap. Three viable paths:
 
 The earlier-framed Option B (keep numeric, document alignment) collapses into Option C above.
 The earlier-framed Option C (hybrid dual-naming) is dominated by Options A or B and is dropped.
+
+**SETTLED (2026-07-25) — B's two-axis shape, A's gate axis, and a different second axis.**
+Grooming resolved this against measured evidence rather than deferring it to PRD. Tier 1/2/3 drops
+entirely. **Four concepts, but only two are vocabulary:**
+
+| Concept                             | Status                          | Home                                                    |
+| ----------------------------------- | ------------------------------- | ------------------------------------------------------- |
+| **Gate** (deadline)                 | first-class vocabulary          | `commit-gate` / `push-gate` / `integration-gate`        |
+| **Kind** (feedback vs. enforcement) | first-class vocabulary          | workflow fire sites vs. hook/CI gates                   |
+| **Cost**                            | measured data, not vocabulary   | the gate-coverage audit measures and surfaces it        |
+| **Selection / reach**               | mechanical rule, not vocabulary | path→check mapping + unchanged-tree (§ Selection model) |
+
+Why the second axis is **kind**, not cost-class, and not cadence:
+
+1. **Cost-class is the axis that empirically collapsed.** Tier 3 exceeds Tier 2 by `build` alone
+   (~5%). Making cost-class first-class codifies a distinction this project's own instantiation could
+   not sustain — and B pays its documentation-surface cost precisely for that axis.
+2. **Deadline naming self-enforces where an ordinal does not.** Tier 1 was mandated targeted by the
+   strategy and ran full-project scans undetected, because "Tier 1" carries no constraint and the
+   constraint lived in prose one document away. A `commit-gate` costing 47s is self-evidently wrong;
+   the research's own numbers (<500ms ideal, >10s corrodes) attach to the deadline, not to an ordinal.
+3. **Cost is a measurement problem, not a naming one.** `lint:ts 21.4s` strictly dominates "`lint:ts`
+   is medium," and cannot silently go stale the way a declared class can. This converts B's second
+   axis into a _deliverable_ of the gate-coverage audit rather than vocabulary.
+4. **Cadence was the wrong candidate for the second axis.** ARC's fire sites are procedural, not
+   opportunistic (industry cadence means on-save / on-type). But naming them "cadence" describes
+   _when_ they run, when what actually distinguishes them is _what they are for_ — feedback that
+   informs versus enforcement that blocks. Kind subsumes the useful part of cadence and explains the
+   Tier 2 collapse; cadence does not.
+
+The feedback/enforcement cut is the same line `judgment-authority-model` draws between
+ignorance-guarding rules (yield to demonstrated judgment) and bias-guarding ones (never yield),
+reached independently from the other direction — enforcement is bias-guarding, feedback is
+ignorance-guarding. Coordinate the wording so the two do not mint separate vocabularies for one cut.
 
 **Pre-push opt-in model:**
 

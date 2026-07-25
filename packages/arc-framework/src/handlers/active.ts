@@ -26,7 +26,9 @@ import {
   renderInFlightWarning,
   type InFlightEntry,
 } from "../lib/git/in-flight-derivation.js";
-import { gitExec } from "../lib/io-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import { createGitExec } from "../lib/io-context.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
@@ -48,6 +50,19 @@ export interface ActiveInFlightCliOptions {
   fetch?: boolean;
 }
 
+const activeMachineMode = (option: "json" | "session-init") => declareCliOptionSite(option, {
+  acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+  automation: { noInput: "same", flags: [`--${option}`], acceptedSyntax: [] },
+  mutationBoundary: "output selection", subprocess: "none",
+});
+
+/** Machine-output policies owned by the active command adapters. */
+export const activeCommandInputPolicyDeclarations = [
+  { commandPath: "active in-flight", aliases: [], sites: [activeMachineMode("json")] },
+  { commandPath: "active roster", aliases: [], sites: [activeMachineMode("json")] },
+  { commandPath: "active status", aliases: [], sites: [activeMachineMode("json"), activeMachineMode("session-init")] },
+] satisfies readonly CommandInputDeclaration[];
+
 /** Render one oracle entry with its lifecycle and local/remote location. */
 export function formatActiveInFlightLine(entry: InFlightEntry): string {
   const where = entry.worktreePath ?? (entry.remoteOnly ? "remote-only" : "no worktree");
@@ -56,12 +71,16 @@ export function formatActiveInFlightLine(entry: InFlightEntry): string {
     : `${entry.branch}  (errand)  ${where}`;
 }
 
-export async function handleActiveStatus(opts: ActiveStatusCliOptions): Promise<void> {
+export async function handleActiveStatus(
+  opts: ActiveStatusCliOptions,
+  interaction?: InteractionContext,
+): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+  const exec = createGitExec(interaction?.subprocess);
 
   if (opts.sessionInit) {
-    const result = await runActiveSessionInitStatus({ cwd, exec: gitExec });
+    const result = await runActiveSessionInitStatus({ cwd, exec });
     if (opts.json) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;
@@ -83,16 +102,20 @@ export async function handleActiveStatus(opts: ActiveStatusCliOptions): Promise<
   p.outro("Done.");
 }
 
-export async function handleActiveRoster(opts: ActiveRosterCliOptions): Promise<void> {
+export async function handleActiveRoster(
+  opts: ActiveRosterCliOptions,
+  interaction?: InteractionContext,
+): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+  const exec = createGitExec(interaction?.subprocess);
 
   const identity = await resolveIdentityWithPrompt(false);
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
 
   const result = await runActiveRoster({
-    exec: gitExec,
+    exec,
     fs: {
       readdir: (path) => readdir(path),
       readFile: (path) => readFile(path, "utf8"),
@@ -118,9 +141,13 @@ export async function handleActiveRoster(opts: ActiveRosterCliOptions): Promise<
   p.outro("Done.");
 }
 
-export async function handleActiveInFlight(opts: ActiveInFlightCliOptions): Promise<void> {
+export async function handleActiveInFlight(
+  opts: ActiveInFlightCliOptions,
+  interaction?: InteractionContext,
+): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+  const exec = createGitExec(interaction?.subprocess);
 
   const identity = await resolveIdentityWithPrompt(false);
   const { settings } = await readConfigSettings(cwd);
@@ -137,7 +164,7 @@ export async function handleActiveInFlight(opts: ActiveInFlightCliOptions): Prom
   );
 
   const result = await runActiveInFlight({
-    exec: gitExec,
+    exec,
     identity,
     teamMode,
     localOnly,

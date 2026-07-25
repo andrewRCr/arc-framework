@@ -8,9 +8,14 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import * as p from "@clack/prompts";
+import { z } from "zod";
 
+import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { captureGitIndexState, getCurrentBranch } from "../lib/git/exec.js";
+import { SlugSchema } from "../lib/kernel/index.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
 import {
@@ -31,6 +36,39 @@ export interface WuReconcileOptions {
   json?: boolean;
 }
 
+/** Syntax-owned input for current work-unit reconciliation. */
+export const WuReconcileCommandInputSchema = z.object({
+  slug: SlugSchema.optional(),
+  apply: z.boolean().optional(),
+  json: z.boolean().optional(),
+}).strict();
+
+/** Registry contribution owned by current work-unit reconciliation. */
+export const wuReconcileCommandInputRegistration = {
+  commandPath: "wu reconcile",
+  schema: WuReconcileCommandInputSchema,
+  schemaFields: {
+    "operand.slug": "slug",
+    "option.apply": "apply",
+    "option.json": "json",
+  },
+} satisfies CommandInputRegistration;
+
+/** Machine-output policy owned by current work-unit reconciliation. */
+export const wuReconcileCommandInputPolicyDeclarations = [{
+  commandPath: "wu reconcile",
+  aliases: [],
+  sites: [declareCliOptionSite("json", {
+    acquisition: "machine-mode",
+    schemaOwnership: "owned",
+    schemaField: "json",
+    cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+    mutationBoundary: "output selection",
+    subprocess: "none",
+  })],
+}] satisfies readonly CommandInputDeclaration[];
+
 interface ReconcileEnvelope {
   schemaVersion: 1;
   status: CurrentWuReconcileResult["status"];
@@ -47,18 +85,29 @@ interface ReconcileEnvelope {
 export async function handleWuReconcile(
   slugArg: string | undefined,
   opts: WuReconcileOptions,
+  context?: InteractionContext,
 ): Promise<void> {
+  const parsed = WuReconcileCommandInputSchema.safeParse({
+    slug: slugArg?.trim() || undefined,
+    ...opts,
+  });
+  if (!parsed.success) {
+    process.stderr.write(`${z.prettifyError(parsed.error)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const input = parsed.data;
   const cwd = requireArcProjectRoot();
   if (cwd === null) return;
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   const exec = (cmd: string, args: string[]) => io.exec(cmd, args, { cwd });
   const [index, currentBranch] = await Promise.all([
     buildLifecycleIndex({ cwd, fs: nodeLifecycleFs }),
     getCurrentBranch(exec),
   ]);
-  const target = await resolveOwnedTarget(cwd, index, currentBranch, slugArg);
+  const target = await resolveOwnedTarget(cwd, index, currentBranch, input.slug);
   if ("reason" in target) {
-    emitConflict(opts, target.slug, target.reason);
+    emitConflict(input, target.slug, target.reason);
     return;
   }
 
@@ -77,10 +126,10 @@ export async function handleWuReconcile(
   }, {
     slug: target.slug,
     metaPath: target.metaPath,
-    apply: opts.apply === true,
+    apply: input.apply === true,
   });
   const envelope = toEnvelope(result);
-  if (opts.json === true) {
+  if (input.json === true) {
     process.stdout.write(`${JSON.stringify(envelope)}\n`);
   } else {
     emitHuman(envelope);
@@ -101,7 +150,7 @@ async function resolveOwnedTarget(
   for (const entry of index.values()) {
     let branch: string | null;
     try {
-      branch = parseMetaRecord(await readFile(resolve(cwd, entry.path), "utf8")).Branch;
+      branch = parseMetaRecord(await readFile(resolve(cwd, entry.path), "utf8")).branch;
     } catch {
       continue;
     }

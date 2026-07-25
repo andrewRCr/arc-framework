@@ -13,7 +13,6 @@
  */
 
 import {
-  parseIdentifierList,
   parseMetaRecord,
   setMetaBulletFields,
 } from "../../active/meta-reader.js";
@@ -397,8 +396,7 @@ export async function prepareCurrentWuReconcile(
   try {
     content = await ctx.readFile(op.metaPath);
     const record = parseMetaRecord(content);
-    if (!Object.hasOwn(record, "Depends On")) throw new Error("Depends On field missing");
-    edges = parseIdentifierList(record["Depends On"]);
+    edges = record.dependsOn;
   } catch {
     const prepared = invalidPrepared(op, "invalid-meta");
     return { status: "conflict", prepared, reason: "invalid-meta" };

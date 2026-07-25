@@ -9,6 +9,8 @@
 #   classify <file>...   Decide a changed-file set as code (heavy) or docs (light).
 #   classify --stdin0    Same, but read NUL-delimited paths from standard input.
 #   lane --stdin0        Decide the legacy path-only scheduling lane.
+#   planning-lane <base> <head>
+#                       Decide exact-ref ARC planning clearance.
 #   tree-hash <ref>      Compute a rebase/squash-stable code-tree identity at a ref.
 #
 # The pure subcommands (classify, tree-hash) run without network; the Checks-API
@@ -59,6 +61,8 @@ Commands:
   classify <file>...       Classify paths from argv
   classify --stdin0        Classify NUL-delimited paths from stdin
   lane --stdin0            Classify NUL-delimited paths as auto or reviewed
+  planning-lane <base> <head>
+                            Classify canonical exact-ref changes as planning or reviewed
   portability --stdin0     Print true when a path can affect the portability suite
   tree-hash <ref>           Compute the code-tree hash at a git ref
   duplicate-push <event> <ref-name> <head-sha>
@@ -91,6 +95,21 @@ cmd_lane() {
     return "${EX_USAGE}"
   fi
   node "${CHANGE_FACTS_MODULE}" lane-paths
+}
+
+# planning-lane <base> <head> — run the trusted classifier against explicit
+# coordinates in the caller-selected data repository. Any unreadable or
+# malformed record prints reviewed through the canonical fail-safe.
+cmd_planning_lane() {
+  local base="${1:-}" head="${2:-}"
+  if [[ -z "${base}" || -z "${head}" || "$#" -ne 2 ]]; then
+    echo "planning-lane: base and head refs are required" >&2
+    return 1
+  fi
+  (
+    cd -- "${CLASSIFY_REPOSITORY_DIR:-$PWD}"
+    node "${CHANGE_FACTS_MODULE}" planning-lane "${base}" "${head}" 2>/dev/null
+  ) || echo "reviewed"
 }
 
 # portability --stdin0 — print `true` when any changed path belongs to the
@@ -324,6 +343,10 @@ main() {
     lane)
       shift
       cmd_lane "$@"
+      ;;
+    planning-lane)
+      shift
+      cmd_planning_lane "$@"
       ;;
     portability)
       shift

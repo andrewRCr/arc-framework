@@ -159,9 +159,9 @@ export function buildExecutorContext(
       slug: SlugSchema.parse(slug),
       artifact: "meta",
     });
-    const { Branch: branch } = parseMetaRecord(await io.readFile(at(metaPath)));
+    const { branch } = parseMetaRecord(await io.readFile(at(metaPath)));
     const mode = inputs.prWithdrawMode ?? "close";
-    if (branch === null || branch === "[none]") {
+    if (branch === null) {
       return `Could not withdraw the PR for \`${slug}\`: no branch recorded — close or convert it manually.`;
     }
     try {

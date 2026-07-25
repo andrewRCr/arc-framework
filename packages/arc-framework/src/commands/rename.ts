@@ -112,7 +112,7 @@ export async function runRenameCommand(
 
       const metaPath = resolve(command.cwd, writableSubject.entry.path);
       const meta = parseMetaRecord(await readFile(metaPath, "utf8"));
-      const branch = normalizedBranch(meta.Branch);
+      const branch = normalizedBranch(meta.branch);
       const shape = await resolveSubjectShape(
         command,
         writableSubject.entry,
@@ -125,7 +125,7 @@ export async function runRenameCommand(
         subject: { kind: "work-unit", name: subject.resolvedSlug } satisfies WorktreeSubject,
         entry: writableSubject.entry,
         dirty,
-        prUrl: meta["PR URL"] ?? undefined,
+        prUrl: meta.prUrl ?? undefined,
       });
 
       const branches = branchPair(branch, names.oldSlug, names.newSlug, subject.resuming, shape);

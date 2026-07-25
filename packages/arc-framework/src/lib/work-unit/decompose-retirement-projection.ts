@@ -278,9 +278,7 @@ export async function bindDecomposePreparation(
   const originRecord = parseMetaRecord(await deps.readFile(join(deps.cwd, originPath)));
   const resultBranch = await getCurrentBranch(deps.exec);
   if (resultBranch === null) throw new Error("decompose requires an attached result branch");
-  const sourceBranch = originRecord.Branch === null || originRecord.Branch === "[none]"
-    ? resultBranch
-    : originRecord.Branch;
+  const sourceBranch = originRecord.branch ?? resultBranch;
   const [sourceHead, resultHead] = await Promise.all([
     resolveRef(deps, sourceBranch),
     resolveRef(deps, resultBranch),

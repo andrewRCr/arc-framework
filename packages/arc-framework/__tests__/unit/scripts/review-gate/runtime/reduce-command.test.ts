@@ -132,6 +132,7 @@ function localFixture(result: "clean" | "findings" | "failed" | "unavailable" = 
     result: {
       status: "complete",
       result: terminal,
+      repositoryId: target.repositoryId,
       targetId: target.targetId,
       headSha: target.headSha,
       headTree: target.headTree,

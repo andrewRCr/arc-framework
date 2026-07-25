@@ -11,12 +11,13 @@ import type { FrontlineSourcePreferenceReader } from "../../policy/frontline-sou
 export const FRONTLINE_SOURCE_GIT_CONFIG_KEY = "arc.frontlineSources";
 export const FRONTLINE_SOURCE_YAML_KEY = "review.frontline_sources";
 
-function parseSourceIds(value: string | undefined): readonly string[] {
+/** Parse one bracketed or bare comma-separated review-source setting without reordering it. */
+export function parseReviewSourceIds(value: string | undefined): readonly string[] {
   if (value === undefined || value.trim() === "") return [];
   const trimmed = value.trim();
   const startsList = trimmed.startsWith("[");
   const endsList = trimmed.endsWith("]");
-  if (startsList !== endsList) throw new Error("frontline source list must use matched brackets");
+  if (startsList !== endsList) throw new Error("review source list must use matched brackets");
   const list = startsList ? trimmed.slice(1, -1) : trimmed;
   if (list.trim() === "") return [];
   return list.split(",").map((sourceId) => sourceId.trim()).filter((sourceId) => sourceId !== "");
@@ -32,7 +33,7 @@ export function createLocalFrontlineSourcePreferenceReader(input: {
     async readDeveloperSourceIds(): Promise<readonly string[]> {
       try {
         const result = await input.exec("git", ["config", "--get-all", FRONTLINE_SOURCE_GIT_CONFIG_KEY]);
-        return result.stdout.split(/\r?\n/u).flatMap((value) => parseSourceIds(value));
+        return result.stdout.split(/\r?\n/u).flatMap((value) => parseReviewSourceIds(value));
       } catch {
         return [];
       }
@@ -42,7 +43,7 @@ export function createLocalFrontlineSourcePreferenceReader(input: {
         const arcRoot = materializeArcPath(input.cwd, resolveArcPath({ kind: "arc-root" }));
         const path = join(arcRoot, ...ARC_CONFIG_SUFFIX);
         const value = parseArcConfig(await input.readFile(path))[FRONTLINE_SOURCE_YAML_KEY];
-        return parseSourceIds(value);
+        return parseReviewSourceIds(value);
       } catch {
         return [];
       }

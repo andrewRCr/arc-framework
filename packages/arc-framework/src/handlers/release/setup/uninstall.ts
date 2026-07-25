@@ -10,9 +10,10 @@
 
 import * as p from "@clack/prompts";
 import { readFile } from "node:fs/promises";
+import { z } from "zod";
 
 import { resolveAllSettings, type ResolvedSettingsResult } from "../../../lib/config/resolved-settings.js";
-import { gitExec } from "../../../lib/io-context.js";
+import { createGitExec } from "../../../lib/io-context.js";
 import { resolveArcRoot } from "../../../lib/paths.js";
 import {
   readMarker,
@@ -24,9 +25,67 @@ import {
   type MarkerWriteResult,
 } from "../../../lib/release/setup-marker.js";
 import { ARC_PROJECT_ROOT_ERROR, isHandledError, resolveUserIdentity } from "../../shared.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../../../lib/command-input/interaction-context.js";
+import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
 
 import { runReleaseOptOut, type RunReleaseOptResult } from "../record.js";
 import { runReleaseSetupPrintPatterns } from "./print-patterns.js";
+
+/** Complete adapter-owned syntax for release setup removal. */
+export const ReleaseSetupUninstallInputSchema = z.object({
+  harness: z.string().trim().min(1),
+  cleanupVerified: z.boolean(),
+  json: z.boolean(),
+}).strict();
+
+/** Fully validated release setup removal input. */
+export type ReleaseSetupUninstallInput = z.infer<typeof ReleaseSetupUninstallInputSchema>;
+
+/** Registry contribution owned by release setup uninstall. */
+export const releaseSetupUninstallInputRegistration = {
+  commandPath: "release setup uninstall",
+  schema: ReleaseSetupUninstallInputSchema,
+  schemaFields: {
+    "option.harness": "harness",
+    "option.cleanup-verified": "cleanupVerified",
+    "option.json": "json",
+  },
+} satisfies CommandInputRegistration;
+
+/** Input and interaction policies owned by release setup removal. */
+export const releaseSetupUninstallInputPolicyDeclarations = [{
+  commandPath: "release setup uninstall",
+  aliases: [],
+  sites: [
+    {
+      id: "option.json", source: { file: "cli.ts", symbol: "program" }, origin: "syntax",
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable", automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    },
+    declareInteractionSite(
+      { file: "handlers/release/setup/uninstall.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
+      {
+        acquisition: "required-evidence", schemaOwnership: "none", cancellation: "stop",
+        automation: {
+          noInput: "require-explicit", flags: ["--cleanup-verified"], acceptedSyntax: ["--cleanup-verified"],
+        },
+        mutationBoundary: "release cleanup verification", subprocess: "none",
+      },
+    ),
+  ],
+}] satisfies readonly CommandInputDeclaration[];
+
+/** Commander syntax for release setup removal. */
+export interface ReleaseSetupUninstallOptions {
+  harness?: string;
+  cleanupVerified?: boolean;
+  json?: boolean;
+}
 
 export interface CleanupVerificationOptions {
   harness: string;
@@ -39,12 +98,6 @@ export type CleanupVerificationResult =
   | { ok: true }
   | { ok: false; reason: string };
 
-export type CleanupVerification = (
-  opts: CleanupVerificationOptions,
-) => Promise<CleanupVerificationResult | null>;
-
-export type ReadMarker = () => Promise<MarkerReadResult>;
-
 export type RemoveHarnessEntry = (name: string) => Promise<MarkerWriteResult>;
 
 export type RecordOptOut = () => Promise<RunReleaseOptResult>;
@@ -52,16 +105,14 @@ export type RecordOptOut = () => Promise<RunReleaseOptResult>;
 export type ResolveCanonicalPatterns = (harness: string) => string[];
 
 export interface RunReleaseSetupUninstallOptions {
-  /** Required harness name for single-harness uninstall flow. */
-  harness?: string;
-  /** Emit a schemaVersion 1 JSON envelope on stdout. */
-  json?: boolean;
+  /** Complete adapter-resolved command input. */
+  input: ReleaseSetupUninstallInput;
   /** Resolved release-mode settings, including `arc.releaseOptedIn`. */
   settings: ResolvedSettingsResult;
-  /** Marker read operation, delayed until after required option validation. */
-  readMarker: ReadMarker;
-  /** Workflow-mediated cleanup confirmation provider. */
-  cleanup?: CleanupVerification;
+  /** Marker state read after adapter validation. */
+  marker: MarkerReadResult;
+  /** Adapter-resolved cleanup evidence, when the harness is recorded. */
+  cleanupResult?: CleanupVerificationResult | null;
   /** Marker removal operation, injected for tests. */
   removeHarness?: RemoveHarnessEntry;
   /** Opt-out record operation, injected for tests. */
@@ -113,15 +164,15 @@ export async function runReleaseSetupUninstall(
   const writeStderr = opts.writeStderr ?? ((msg) => {
     process.stderr.write(msg);
   });
-  const humanStdout = opts.json === true ? writeStderr : writeStdout;
+  const humanStdout = opts.input.json ? writeStderr : writeStdout;
 
-  const harness = opts.harness?.trim();
-  if (harness === undefined || harness === "") {
+  const harness = opts.input.harness.trim();
+  if (harness === "") {
     writeStderr("error: missing required option --harness\n");
     return { exitCode: 1 };
   }
 
-  const marker = await opts.readMarker();
+  const marker = opts.marker;
   if (!marker.ok) {
     writeStderr(formatMarkerStorageError(marker.error));
     return finish(opts, null, writeStdout, 1);
@@ -155,13 +206,7 @@ export async function runReleaseSetupUninstall(
   const patterns = (opts.resolvePatterns ?? resolveCanonicalPatterns)(harness);
   renderPatterns(patterns, humanStdout);
 
-  const cleanup = opts.cleanup ?? (() => Promise.resolve(null));
-  const cleanupResult = await cleanup({
-    harness,
-    mode: entry.mode,
-    installedAt: entry.installedAt,
-    patterns,
-  });
+  const cleanupResult = opts.cleanupResult ?? null;
 
   if (cleanupResult === null) {
     humanStdout("cleanup_verification: cancelled\n");
@@ -244,13 +289,22 @@ export async function runReleaseSetupUninstall(
  *
  * @param opts - Commander-parsed uninstall options
  */
-export async function handleReleaseSetupUninstall(opts: {
-  harness?: string;
-  json?: boolean;
-}): Promise<void> {
-  const harness = opts.harness?.trim();
-  if (harness === undefined || harness === "") {
-    process.stderr.write("error: missing required option --harness\n");
+export async function handleReleaseSetupUninstall(
+  opts: ReleaseSetupUninstallOptions,
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false, machineReadable: opts.json === true, yes: "absent",
+  });
+  const exec = createGitExec(context.subprocess);
+  const parsedSyntax = ReleaseSetupUninstallInputSchema.safeParse({
+    harness: opts.harness,
+    cleanupVerified: opts.cleanupVerified === true,
+    json: opts.json === true,
+  });
+  if (!parsedSyntax.success) {
+    process.stderr.write(`${parsedSyntax.error.issues.map((issue) =>
+      `${issue.path.join(".")}: ${issue.message}`).join("\n")}\n`);
     process.exitCode = 1;
     return;
   }
@@ -264,7 +318,7 @@ export async function handleReleaseSetupUninstall(opts: {
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(exec);
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -272,21 +326,40 @@ export async function handleReleaseSetupUninstall(opts: {
 
   const settings = await resolveAllSettings({
     cwd,
-    exec: gitExec,
+    exec,
     readFile: (path) => readFile(path, "utf-8"),
     warn: (message) => {
       process.stderr.write(`${message}\n`);
     },
   });
 
+  const marker = await readMarker({ cwd, identity });
+  let cleanupResult: CleanupVerificationResult | null | undefined;
+  if (marker.ok) {
+    const entry = marker.marker.harnesses.find((candidate) => candidate.name === parsedSyntax.data.harness);
+    if (entry !== undefined) {
+      if (parsedSyntax.data.cleanupVerified) {
+        cleanupResult = { ok: true };
+      } else if (context.interaction === "allowed") {
+        cleanupResult = await promptForCleanupVerification({
+          harness: parsedSyntax.data.harness,
+          mode: entry.mode,
+          installedAt: entry.installedAt,
+          patterns: resolveCanonicalPatterns(parsedSyntax.data.harness),
+        });
+      } else {
+        cleanupResult = { ok: false, reason: "missing required evidence --cleanup-verified" };
+      }
+    }
+  }
+
   const result = await runReleaseSetupUninstall({
     settings,
-    harness,
-    json: opts.json,
-    readMarker: () => readMarker({ cwd, identity }),
-    cleanup: opts.json === true ? undefined : promptForCleanupVerification,
+    input: parsedSyntax.data,
+    marker,
+    cleanupResult,
     removeHarness: (name) => removeHarness({ cwd, identity }, name),
-    recordOptOut: () => runReleaseOptOut({ exec: gitExec }),
+    recordOptOut: () => runReleaseOptOut({ exec }),
   });
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
@@ -373,7 +446,7 @@ function finish(
 ): RunReleaseSetupUninstallResult {
   if (report !== null) {
     report.exitCode = exitCode;
-    if (opts.json === true) {
+    if (opts.input.json) {
       writeStdout(`${JSON.stringify(report, null, 2)}\n`);
     }
   }

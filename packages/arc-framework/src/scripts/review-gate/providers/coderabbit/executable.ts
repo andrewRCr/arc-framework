@@ -11,6 +11,8 @@ import { delimiter, extname, join } from "node:path";
 
 import { execa } from "execa";
 
+import type { InteractionContext } from "../../../../lib/command-input/interaction-context.js";
+
 interface CodeRabbitExecutableResolutionDependencies {
   access(path: string, mode: number, context: CodeRabbitExecutableDeadline): Promise<void>;
   realpath(path: string, context: CodeRabbitExecutableDeadline): Promise<string>;
@@ -21,11 +23,13 @@ interface CodeRabbitExecutableResolutionDependencies {
   platform: NodeJS.Platform;
   remainingMs: number;
   signal: AbortSignal;
+  interaction?: InteractionContext["subprocess"];
 }
 
 interface CodeRabbitExecutableDeadline {
   remainingMs: number;
   signal: AbortSignal;
+  interaction?: InteractionContext["subprocess"];
 }
 
 export interface ResolvedCodeRabbitExecutable {
@@ -86,6 +90,7 @@ async function interrogateVersion(
     stripFinalNewline: false,
     cancelSignal: context.signal,
     forceKillAfterDelay: 1_000,
+    ...(context.interaction?.ambientStdin === "closed" ? { stdin: "ignore" as const } : {}),
   });
   return `${result.stdout}\n${result.stderr}`;
 }
@@ -121,6 +126,7 @@ export async function resolveCodeRabbitExecutable(
   const context = (): CodeRabbitExecutableDeadline => ({
     remainingMs: Math.max(1, deadlineAt - Date.now()),
     signal: dependencies.signal,
+    ...(dependencies.interaction === undefined ? {} : { interaction: dependencies.interaction }),
   });
   const path = await findExecutable(command, dependencies, context);
   const [bytes, versionOutput] = await Promise.all([

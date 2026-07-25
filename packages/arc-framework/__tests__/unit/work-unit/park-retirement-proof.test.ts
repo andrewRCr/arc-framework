@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { contentDigest } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
@@ -148,7 +148,7 @@ describe("validateParkRetirementProof", () => {
   it.each(["core", "core/sub"])("accepts a conserved park result in cohort %s", async (cohort) => {
     const cohortMetaPath = validateManagedPath(`.arc/backlog/planned/${cohort}/sample/meta-sample.md`);
     const cohortDraftPath = validateManagedPath(`.arc/backlog/planned/${cohort}/sample/draft-sample.md`);
-    const cohortMetaBytes = new TextEncoder().encode(renderMetaFile("sample", { Cohort: cohort }));
+    const cohortMetaBytes = new TextEncoder().encode(renderMetaProjectionFile("sample", { Cohort: cohort }));
     const candidate = {
       ...receipt,
       result: {
@@ -178,7 +178,7 @@ describe("validateParkRetirementProof", () => {
   it("rejects a cohort directory that disagrees with the unique meta record", async () => {
     const cohortMetaPath = validateManagedPath(".arc/backlog/planned/core/sample/meta-sample.md");
     const cohortDraftPath = validateManagedPath(".arc/backlog/planned/core/sample/draft-sample.md");
-    const mismatchedMeta = new TextEncoder().encode(renderMetaFile("sample", { Cohort: "other" }));
+    const mismatchedMeta = new TextEncoder().encode(renderMetaProjectionFile("sample", { Cohort: "other" }));
     const mismatchedReceipt = {
       ...receipt,
       result: {

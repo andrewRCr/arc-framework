@@ -15,11 +15,18 @@
 import type {
   CommitInterlock,
   PushInterlock,
-  SyncInterlock,
-  NotesPushPolicy,
 } from "../config/resolved-settings.js";
-import type { ResolvedConfigOverride } from "../config/resolve-override.js";
 import type { PushabilityCondition } from "../git/index.js";
+import type { RefusalCode } from "./schema.js";
+
+export type {
+  AuditCommand,
+  AuditEntry,
+  AuditInterlockState,
+  AuditOutcome,
+  AuditWorkUnit,
+  RefusalCode,
+} from "./schema.js";
 
 // --- Refusal taxonomy ---
 
@@ -35,8 +42,6 @@ import type { PushabilityCondition } from "../git/index.js";
  * git's parser; the code's name preserves the broader category for future
  * detections.
  */
-export type RefusalCode = 10 | 11 | 12 | 13 | 14 | 15 | 16;
-
 /** Stable string identifier for each refusal code. Pairs 1-to-1 with `RefusalCode`. */
 export type RefusalIdentifier =
   | "ambiguous-active-wu"
@@ -109,83 +114,6 @@ export type AuthorizationDecision =
       identifier: "commit-message-preflight-failed";
       reason: "validation" | "input";
     };
-
-// --- Audit entry ---
-
-/** Audit-log JSONL command discriminator. */
-export type AuditCommand = "release-commit" | "release-push" | "sync";
-
-/**
- * Per-command interlock-state snapshot. Keyed by the entry's top-level
- * `command` field; schema enforcement at write time refuses entries
- * whose shape doesn't match the discriminator.
- */
-export type AuditInterlockState =
-  | {
-      command: "release-commit";
-      commitInterlock: ResolvedConfigOverride<CommitInterlock>;
-      pushInterlock: ResolvedConfigOverride<PushInterlock>;
-    }
-  | {
-      command: "release-push";
-      pushInterlock: ResolvedConfigOverride<PushInterlock>;
-      syncInterlock: ResolvedConfigOverride<SyncInterlock>;
-    }
-  | {
-      command: "sync";
-      pushInterlock: ResolvedConfigOverride<PushInterlock>;
-      notesPush: ResolvedConfigOverride<NotesPushPolicy>;
-      syncInterlock: ResolvedConfigOverride<SyncInterlock>;
-    };
-
-/**
- * Audit-log outcome shape. Discriminated by `kind`: per-command success
- * outcomes (`commit`, `push`, `sync`), shared `hook-failed` for hook
- * rejection, shared `refused` for authorization refusal.
- */
-export type AuditOutcome =
-  | { kind: "commit"; hash: string }
-  | { kind: "push"; refStatus: string }
-  | {
-      kind: "sync";
-      cell: string;
-      worktree: string;
-      notes: string;
-      exitCode: number;
-    }
-  | { kind: "hook-failed"; hook: string; exitCode: number }
-  | { kind: "preflight-failed"; reason: "validation" | "input" }
-  | { kind: "refused" };
-
-/**
- * Active-WU pointer captured in the audit entry. Null when no WU
- * resolved (refusal before resolution, or a layout that lacks a parseable
- * name — e.g., today's lite-layout `active/status.md`).
- */
-export interface AuditWorkUnit {
-  /** WU name parsed from the meta filename — `meta-{name}.md`. */
-  name: string;
-}
-
-/**
- * One audit-log entry (one JSONL line). Schema v2 — append-only,
- * gitignored, per-identity at
- * `.arc/user/{identity}/.internal/.audit-log.jsonl`.
- */
-export interface AuditEntry {
-  schemaVersion: 2;
-  /** ISO 8601, produced via `new Date().toISOString()`. */
-  timestamp: string;
-  command: AuditCommand;
-  /** Sanitized argv (post-`sanitizeArgs`). */
-  args: string[];
-  wu: AuditWorkUnit | null;
-  interlockState: AuditInterlockState;
-  decision: "proceeded" | "refused";
-  /** Populated on `refused`; null on `proceeded`. */
-  refusalCode: RefusalCode | null;
-  outcome: AuditOutcome;
-}
 
 // --- Refusal-message helper signature ---
 

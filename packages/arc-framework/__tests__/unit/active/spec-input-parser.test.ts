@@ -8,9 +8,39 @@
  * only empty input fails.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, expectTypeOf } from "vitest";
+import { z } from "zod";
 
-import { parseSpecInput } from "../../../src/lib/active/spec-input-parser.js";
+import {
+  ParsedSpecInputSchema,
+  parseSpecInput,
+  type ParsedSpecInput,
+} from "../../../src/lib/active/spec-input-parser.js";
+
+describe("ParsedSpecInputSchema", () => {
+  it.each([
+    { kind: "arc-spec", design: "not lexically validated" },
+    { kind: "issue", origin: "not an issue reference" },
+    { kind: "document", document: "not a path" },
+    { kind: "description", description: "description" },
+  ] as const)("accepts the strict $kind arm", (value) => {
+    expect(ParsedSpecInputSchema.parse(value)).toEqual(value);
+  });
+
+  it.each([
+    { kind: "arc-spec" },
+    { kind: "arc-spec", design: "" },
+    { kind: "arc-spec", origin: "wrong field" },
+    { kind: "arc-spec", design: "value", extra: true },
+    { kind: "unknown", description: "value" },
+  ])("rejects an invalid success payload %#", (value) => {
+    expect(ParsedSpecInputSchema.safeParse(value).success).toBe(false);
+  });
+
+  it("derives the successful classification type", () => {
+    expectTypeOf<ParsedSpecInput>().toEqualTypeOf<z.infer<typeof ParsedSpecInputSchema>>();
+  });
+});
 
 describe("parseSpecInput — ARC spec artifacts → Design (closed)", () => {
   it("classifies a spec- file as arc-spec routed to Design", () => {

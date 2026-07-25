@@ -2,7 +2,6 @@
 
 import {
   formatValue,
-  parseIdentifierList,
   parseMetaRecord,
   setMetaBranch,
   setMetaBulletFields,
@@ -21,27 +20,38 @@ import {
 export function rewriteRenamedMeta(content: string, sourceSlug: string, targetSlug: string): string {
   const record = parseMetaRecord(content);
   let rewritten = setMetaTitle(content, targetSlug);
-  const branch = record.Branch;
-  if (branch !== null && branch !== "[none]" && branch.endsWith(`/${sourceSlug}`)) {
+  const branch = record.branch;
+  if (branch !== null && branch.endsWith(`/${sourceSlug}`)) {
     rewritten = setMetaBranch(rewritten, `${branch.slice(0, -(sourceSlug.length))}${targetSlug}`);
   }
 
-  const design = rewriteIdentifierList(record.Design, sourceSlug, targetSlug);
-  if (design !== null) rewritten = setMetaDesign(rewritten, design);
-  const taskList = rewriteIdentifierList(record["Task List"], sourceSlug, targetSlug);
+  const design = rewriteIdentifiers(record.design, sourceSlug, targetSlug);
+  if (design !== null) rewritten = setMetaDesign(rewritten, design.join(", "));
+  const taskList = rewriteArtifactPointer(record.taskList, sourceSlug, targetSlug);
   if (taskList !== null) {
     rewritten = setMetaBulletFields(rewritten, { "Task List": formatValue(taskList, "identifier-list") });
   }
   return rewritten;
 }
 
-function rewriteIdentifierList(value: string | null, sourceSlug: string, targetSlug: string): string | null {
-  if (value === null || /^\[[^\]]+\]$/u.test(value)) return null;
+function rewriteIdentifiers(
+  items: readonly string[],
+  sourceSlug: string,
+  targetSlug: string,
+): string[] | null {
   const suffix = `-${sourceSlug}.md`;
-  const items = parseIdentifierList(value);
   const rewritten = items.map((item) => {
     if (!item.endsWith(suffix)) return item;
     return `${item.slice(0, -suffix.length)}-${targetSlug}.md`;
   });
-  return rewritten.some((item, index) => item !== items[index]) ? rewritten.join(", ") : null;
+  return rewritten.some((item, index) => item !== items[index]) ? rewritten : null;
+}
+
+function rewriteArtifactPointer(
+  value: string | null,
+  sourceSlug: string,
+  targetSlug: string,
+): string | null {
+  if (value === null) return null;
+  return rewriteIdentifiers([value], sourceSlug, targetSlug)?.[0] ?? null;
 }
