@@ -1,4 +1,4 @@
-/** Exact grooming close composition for full and partial protection. */
+/** Node wiring that supplies real evidence to the grooming close composition. */
 
 import { access, lstat, readFile, realpath } from "node:fs/promises";
 import { relative } from "node:path";
@@ -19,14 +19,22 @@ import {
   pinGroomOpenedBaseHead,
   rollbackIdentityClaim,
   type GroomIdentityRecord,
-  type SettledPartialGroomRecord,
 } from "../errand/identity-claims.js";
-import { projectLocusIdentity } from "../errand/identity-record.js";
-import { transactTransientIdentities } from "../errand/identity-transaction.js";
+import type { TransientIdentityRecord } from "../errand/identity-record.js";
+import {
+  transactTransientIdentities,
+  type IdentityTransactionOutcome,
+} from "../errand/identity-transaction.js";
 import { observeExactChangeRequest } from "../errand/leave-runtime.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import { SlugSchema } from "../kernel/index.js";
-import { classifyGroomChangedPaths } from "./path-policy.js";
+import {
+  closeGroom,
+  type CloseGroomDependencies,
+  type GroomIdentityOutcome,
+  type GroomOccupancyTarget,
+  type GroomStateReading,
+} from "./close-locus.js";
 import { listBacklogStubs } from "../work-unit/backlog-stub.js";
 
 export interface CloseGroomRuntimeOptions {
@@ -40,131 +48,153 @@ export interface CloseGroomRuntimeOptions {
   readonly cwd: string;
 }
 
+/**
+ * One session anchor and its roster read, established at the first seam that needs them.
+ *
+ * Both are deferred rather than acquired up front so an unprovable anchor refuses at the step the
+ * roster is first consulted, leaving the identity-only decisions ahead of it reachable.
+ */
+export interface GroomRuntimeLocus {
+  read(): Promise<GroomStateReading>;
+  cleanupOccupancy(
+    options: CloseGroomRuntimeOptions,
+    target: GroomOccupancyTarget,
+  ): Promise<LocusMutationResultV1>;
+}
+
 /** Validate the exact grooming write set, persist its tail, and close occupancy. */
 export async function closeGroomAtRuntime(options: CloseGroomRuntimeOptions): Promise<LocusMutationResultV1> {
+  const locus = createGroomRuntimeLocus(options);
+  return closeGroom({
+    anchorStub: options.anchorStub,
+    dependencies: {
+      ...groomEvidenceDependencies(options, locus),
+      readClaim: () => readGroomClaim(options),
+      settleClaim: async (record, head) => identityOutcome(await transactTransientIdentities(identityIO(options), {
+        remote: "origin", message: `arc: settle groom ${options.anchorStub}`,
+        transform: groomSettleTransform({
+          previous: record, settledHead: head, updatedAt: nextTimestamp(record.updatedAt),
+        }),
+      })),
+      observeChangeRequest: async (record, head) => {
+        const observed = await observeExactChangeRequest(options.exec, record.branch, options.base, head);
+        return observed.kind === "observed"
+          ? { kind: "observed", changeRequest: observed.changeRequest }
+          : observed;
+      },
+      persistAwaitingMerge: async (record, changeRequest) => identityOutcome(
+        await transactTransientIdentities(identityIO(options), {
+          remote: "origin", message: `arc: close groom ${options.anchorStub}`,
+          transform: groomAwaitMergeTransform({
+            previous: record, changeRequest, updatedAt: nextTimestamp(record.updatedAt),
+          }),
+        }),
+      ),
+      retireClaim: (record) => rollbackIdentityClaim(identityIO(options), {
+        remote: "origin", message: `arc: close groom ${options.anchorStub}`, expected: record,
+      }),
+    },
+  });
+}
+
+/**
+ * The evidence seams every grooming tail reads the same way.
+ *
+ * Close and settle differ in which identity transitions they perform, not in how they observe the
+ * locus, the checkout, or the base — so both compose over this one set.
+ */
+export function groomEvidenceDependencies(
+  options: CloseGroomRuntimeOptions,
+  locus: GroomRuntimeLocus,
+): Pick<
+  CloseGroomDependencies,
+  "readState" | "pinBaseHead" | "readCheckout" | "isAncestor" | "changedPaths" | "claimedCohortPaths" | "cleanupOccupancy"
+> {
+  return {
+    readState: () => locus.read(),
+    pinBaseHead: () => pinGroomOpenedBaseHead(options.exec, { remote: "origin", baseRef: options.base }),
+    readCheckout: (checkoutPath) => readGroomCheckout(options.exec, checkoutPath),
+    isAncestor: (ancestor, descendant) => isAncestor(options.exec, ancestor, descendant),
+    changedPaths: (from, to) => changedPaths(options.exec, from, to),
+    claimedCohortPaths: (members) => claimedCohortPaths(options.cwd, members),
+    cleanupOccupancy: (target) => locus.cleanupOccupancy(options, target),
+  };
+}
+
+/** Read the exact grooming generation without transitioning it. */
+export async function readGroomClaim(
+  options: CloseGroomRuntimeOptions,
+): Promise<GroomIdentityOutcome<TransientIdentityRecord | null>> {
   const slug = `groom-${options.anchorStub}`;
-  const basis = await transactTransientIdentities(identityIO(options), {
+  return identityOutcome(await transactTransientIdentities(identityIO(options), {
     remote: "origin", message: `arc: reconcile groom ${options.anchorStub}`,
     transform: (records) => ({ kind: "idempotent", value: records.get(slug) ?? null }),
-  });
-  if (basis.kind === "error") return failure(`identity-${basis.stage}`, basis.message);
-  if (basis.kind === "refused") return refusal("identity-conflict", basis.reason);
-  const record = basis.value;
-  if (record?.version !== 3 || record.kind !== "groom") {
-    return refusal("identity-conflict", `Identity '${slug}' is not a grooming generation.`);
-  }
-  if (record.state === "awaiting-merge") {
-    return success("idempotent", record, null, "Grooming change request is awaiting merge.");
-  }
-  const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") return refusal("lease-unknown", anchor.reason);
-  const inspector = createPlatformProcessInspector();
-  const state = await readGroomRuntimeState(options, anchor, inspector);
-  const row = exactGroomRow(state, record);
-  if (row === null || row.checkoutPath === null) {
-    // Occupancy is removed before retirement, so a settled claim outliving its
-    // checkout is this close's own unfinished work rather than a missing one.
-    if (record.state !== "settled") return refusal("checkout-missing", "Exact grooming occupancy is absent.");
-    const rebased = await pinGroomOpenedBaseHead(options.exec, { remote: "origin", baseRef: options.base });
-    if (rebased.kind !== "pinned") {
-      return refusal("preservation-unproven", rebased.kind === "refused" ? rebased.reason : rebased.message);
+  }));
+}
+
+/** Map one identity transaction onto the composition's ready / refused / error channel. */
+export function identityOutcome<T>(
+  result: IdentityTransactionOutcome<T>,
+): GroomIdentityOutcome<T> {
+  if (result.kind === "applied" || result.kind === "idempotent") return { kind: "ready", value: result.value };
+  return result.kind === "refused"
+    ? { kind: "refused", reason: result.reason }
+    : { kind: "error", stage: result.stage, message: result.message };
+}
+
+/**
+ * Acquire the session anchor and roster once, on first use.
+ *
+ * The anchor is the same one occupancy cleanup pops under, so both seams share it rather than
+ * proving session identity twice against a state that could move between them.
+ */
+export function createGroomRuntimeLocus(options: CloseGroomRuntimeOptions): GroomRuntimeLocus {
+  let established: Promise<
+    | { kind: "established"; anchor: LocusProcessAnchor; inspector: ReturnType<typeof createPlatformProcessInspector>; state: LocusStateV1 }
+    | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  > | null = null;
+
+  const establish = async () => {
+    const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
+    if (anchor.kind !== "process") {
+      return { kind: "refused" as const, reason: "lease-unknown" as const, message: anchor.reason };
     }
-    return await retireSettledPartialGroom(options, record, rebased.head, null);
-  }
-  const checkoutPath = row.checkoutPath;
-  const dirty = (await options.exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
-  if (dirty !== "") return refusal("preservation-unproven", "Grooming checkout has uncommitted changes.");
-  const head = (await options.exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-  const pinned = await pinGroomOpenedBaseHead(options.exec, { remote: "origin", baseRef: options.base });
-  if (pinned.kind !== "pinned") return refusal("preservation-unproven", pinned.kind === "refused" ? pinned.reason : pinned.message);
-  const ancestor = await isAncestor(options.exec, record.openedBaseHead, head);
-  if (!ancestor) return refusal("preservation-unproven", "Grooming head does not descend from its opened base generation.");
-  const paths = await changedPaths(options.exec, record.openedBaseHead, head);
-  const cohortPaths = await claimedCohortPaths(options.cwd, record.members);
-  const policy = classifyGroomChangedPaths(paths, { members: record.members, cohortPaths });
-  if (policy.kind === "refused") {
-    return refusal("identity-conflict", `Grooming diff contains unclaimed paths: ${policy.paths.join(", ")}`);
-  }
+    const inspector = createPlatformProcessInspector();
+    return {
+      kind: "established" as const,
+      anchor,
+      inspector,
+      state: await readGroomRuntimeState(options, anchor, inspector),
+    };
+  };
 
-  if (record.protection === "partial") {
-    if (head !== pinned.head) return refusal("preservation-unproven", "Partial grooming HEAD is not the freshly pushed base head.");
-    const settled = await settlePartialGroomClaim(options, record, head);
-    if (settled.kind === "stopped") return settled.result;
-    const popped = await cleanupGroomOccupancy(options, state, row, settled.record, anchor, inspector, head);
-    if (popped.outcome === "refused" || popped.outcome === "error") return popped;
-    return await retireSettledPartialGroom(options, settled.record, pinned.head, popped.restoredParent);
-  }
+  const resolve = () => (established ??= establish());
 
-  const observed = await observeExactChangeRequest(options.exec, record.branch, options.base, head);
-  if (observed.kind !== "observed") return refusal("change-request-unverifiable", observed.message);
-  const persisted = await transactTransientIdentities(identityIO(options), {
-    remote: "origin", message: `arc: close groom ${options.anchorStub}`,
-    transform: groomAwaitMergeTransform({ previous: record, changeRequest: observed.changeRequest, updatedAt: nextTimestamp(record.updatedAt) }),
-  });
-  if (persisted.kind === "error") return failure(`identity-${persisted.stage}`, persisted.message);
-  if (persisted.kind === "refused") return refusal("identity-conflict", persisted.reason);
-  const popped = await cleanupGroomOccupancy(options, state, row, persisted.value, anchor, inspector, head);
-  if (popped.outcome === "refused" || popped.outcome === "error") return popped;
-  return success("applied", persisted.value, popped.restoredParent, "Grooming change request preserved; local occupancy closed.");
+  return {
+    read: async () => {
+      const resolved = await resolve();
+      return resolved.kind === "established"
+        ? { kind: "read", state: resolved.state }
+        : resolved;
+    },
+    cleanupOccupancy: async (runtimeOptions, target) => {
+      const resolved = await resolve();
+      if (resolved.kind !== "established") {
+        return createLocusMutationResult({
+          outcome: "refused", operation: "plan-close", reason: resolved.reason,
+          recommendedPromptText: resolved.message,
+        });
+      }
+      return cleanupGroomOccupancy(
+        runtimeOptions, target.state, target.row, target.record,
+        resolved.anchor, resolved.inspector, target.expectedHead,
+      );
+    },
+  };
 }
 
 function identityIO(options: CloseGroomRuntimeOptions) {
   return { exec: options.exec, execInput: options.execInput, identity: options.identity };
-}
-
-type PartialGroomSettlement =
-  | { kind: "settled"; record: SettledPartialGroomRecord }
-  | { kind: "stopped"; result: LocusMutationResultV1 };
-
-/** Record the proven base head in the claim, before occupancy removal can lose it. */
-async function settlePartialGroomClaim(
-  options: CloseGroomRuntimeOptions,
-  record: GroomIdentityRecord,
-  head: string,
-): Promise<PartialGroomSettlement> {
-  if (record.state === "settled") {
-    return record.savedHead === head
-      ? { kind: "settled", record }
-      : {
-        kind: "stopped",
-        result: refusal("preservation-unproven", "Settled partial grooming head does not match its checkout."),
-      };
-  }
-  const persisted = await transactTransientIdentities(identityIO(options), {
-    remote: "origin", message: `arc: settle groom ${options.anchorStub}`,
-    transform: groomSettleTransform({
-      previous: record, settledHead: head, updatedAt: nextTimestamp(record.updatedAt),
-    }),
-  });
-  if (persisted.kind === "error") {
-    return { kind: "stopped", result: failure(`identity-${persisted.stage}`, persisted.message) };
-  }
-  return persisted.kind === "refused"
-    ? { kind: "stopped", result: refusal("identity-conflict", persisted.reason) }
-    : { kind: "settled", record: persisted.value };
-}
-
-/**
- * Retire a settled partial grooming claim once its head is proven on the base.
- *
- * Reachability from the freshly pinned base head is the proof that survives the
- * checkout: the claim names the head its close settled on, so a claim whose work
- * never reached the base cannot be retired here.
- */
-async function retireSettledPartialGroom(
-  options: CloseGroomRuntimeOptions,
-  record: SettledPartialGroomRecord,
-  baseHead: string,
-  restoredParent: { recordId: string; checkoutPath: string } | null,
-): Promise<LocusMutationResultV1> {
-  if (!await isAncestor(options.exec, record.savedHead, baseHead)) {
-    return refusal("preservation-unproven", "Settled partial grooming head is not contained in the pushed base.");
-  }
-  const retired = await rollbackIdentityClaim(identityIO(options), {
-    remote: "origin", message: `arc: close groom ${options.anchorStub}`, expected: record,
-  });
-  if (retired.kind !== "retired") return failure("identity-retire", "Partial grooming claim changed before retirement.");
-  return success("applied", null, restoredParent, "Partial grooming completed on the configured base.");
 }
 
 export async function readGroomRuntimeState(
@@ -185,12 +215,6 @@ export async function readGroomRuntimeState(
     identityGlobalUserDir: root, enteringAnchor: anchor,
     readPrimarySafety: (path) => readPrimarySafety({ primaryPath: path, baseBranch: options.base, exec: options.exec }),
   });
-}
-
-export function exactGroomRow(state: LocusStateV1, record: GroomIdentityRecord): LocusRowV1 | null {
-  const rows = state.roster.rows.filter((row) => row.role?.subject.kind === "groom"
-    && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId);
-  return rows.length === 1 ? rows[0] ?? null : null;
 }
 
 export async function cleanupGroomOccupancy(
@@ -238,6 +262,12 @@ export async function cleanupGroomOccupancy(
   }
 }
 
+async function readGroomCheckout(exec: GitExec, checkoutPath: string): Promise<{ dirty: boolean; head: string }> {
+  const dirty = (await exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
+  const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
+  return { dirty: dirty !== "", head };
+}
+
 async function isAncestor(exec: GitExec, ancestor: string, descendant: string): Promise<boolean> {
   try { await exec("git", ["merge-base", "--is-ancestor", ancestor, descendant]); return true; }
   catch { return false; }
@@ -271,27 +301,6 @@ function nextTimestamp(previous: string): string {
   return new Date(Math.max(now, Date.parse(previous) + 1)).toISOString();
 }
 
-function success(
-  outcome: "applied" | "idempotent",
-  record: GroomIdentityRecord | null,
-  restoredParent: { recordId: string; checkoutPath: string } | null,
-  text: string,
-): LocusMutationResultV1 {
-  return createLocusMutationResult({
-    outcome, operation: "plan-close", allocation: null, recordId: null, leaseId: null,
-    activeLocusPath: null, sessionHomePath: restoredParent?.checkoutPath ?? null,
-    identity: record === null ? null : projectLocusIdentity(record), originEntry: null,
-    restoredParent, nextOffer: null, recommendedPromptText: text,
-  });
-}
-
 function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV1 {
   return createLocusMutationResult({ outcome: "refused", operation: "plan-close", reason, recommendedPromptText: text });
-}
-
-function failure(suffix: string, message: string): LocusMutationResultV1 {
-  return createLocusMutationResult({
-    outcome: "error", operation: "plan-close", error: { code: `locus.plan-close.${suffix}`, message },
-    recommendedPromptText: "Inspect the retained grooming identity and session locus before retrying.",
-  });
 }

@@ -1653,9 +1653,13 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   needs is the real-CLI coverage `7.E.d.iv` added: the partial grooming sweep end to end, the settled-claim
   replay, and the already-deleted branch generation.
 
-    - `[ ]` **7.E.i.1 Split the grooming close and settle tails**
-        - `groom/close-runtime.ts` and `groom/tail-runtime.ts` — the partial settle-then-pop-then-retire ordering
-          and the awaiting-merge persist-then-pop ordering are the claims to land under unit coverage.
+    - `[x]` **7.E.i.1 Split the grooming close and settle tails**
+        - `groom/close-locus.ts` and `groom/tail-locus.ts` hold the compositions; the `*-runtime.ts` modules keep the
+          Node wiring and share one deferred session anchor, so an unprovable anchor still refuses at the roster read
+          rather than ahead of the identity-only decisions the original sequence reached first. Both ordering claims —
+          partial settle-then-pop-then-retire and awaiting-merge persist-then-pop — now fail at the unit tier against
+          the reordered sequence, and the settlement composition takes host truth as its lifecycle vocabulary so the
+          branded evidence stays a runtime concern.
 
     - `[ ]` **7.E.i.2 Split the housekeeping lifecycle tail**
         - `housekeep/lifecycle-runtime.ts` — close, settle, and the partial abandon arm share one occupancy
