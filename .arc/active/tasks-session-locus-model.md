@@ -1475,6 +1475,44 @@ performs, against merged rather than open host truth.
           which is what makes the replay path work at all. The direct `arc errand abandon` verb supplies no
           selection and is unchanged.
 
+## **Phase 7.G:** Unknown-Liveness Recovery Reachability
+
+_Purpose:_ Give unverifiable liveness an exit. Every other residue state resolves: a dead lease reaches
+`arc locus resolve`, a dead lock reaches `break-dead-lock`, an orphaned record reaches `reap-stale-record`. An
+`unknown` reading reaches none of them and stops the session instead. Surfaced by a recovery-model review this
+session, asking what an interrupted session leaves behind.
+
+_Evidence, traced to source:_ `verifyProcessAnchor` returns `unknown` when inspection is unverifiable **or when
+the recorded anchor's inspector kind differs from the running one** — so a checkout reached from two platforms
+(this project targets Windows, WSL, Linux, and Mac) reads its own healthy lease as unverifiable without anything
+having gone wrong. From there every exit refuses: `deriveRecovery` stops on any managed row with an unknown
+lease, `deriveReconciliation` stops with zero actions, `resolveLocusGeneration` refuses `lease-unknown`,
+`projectTrustedLocusRow` makes `lease-unknown` / `lock-unknown` authority-fatal so attach and release preparation
+refuse, D10 makes age and heartbeat staleness informational only, and current v3 Errands never permit
+`close --force`. The remaining exit is deleting the record by hand — the out-of-band move the model exists to
+prevent.
+
+_Design decisions:_ **Open — settle in `spec-session-locus-model.md` before implementing.** Unknown liveness is
+specified state, not a defect: D5 has mutation proceed with an unverifiable anchor precisely at unknown liveness.
+What is unspecified is how residue in that state is ever resolved. Three candidate shapes, none chosen: a bounded
+operator-confirmed override (the awaiting-merge resume arm is the existing precedent for operator-confirmed truth
+where host truth is unreachable); recording manual record deletion as the sanctioned exit and documenting it where
+the stop is surfaced; or narrowing the unknown surface itself, so a cross-inspector anchor re-verifies through a
+portable signal instead of reading unverifiable. The first two accept the state and add an exit; the third
+removes most of its reachability and leaves the rest genuinely unverifiable.
+
+### `[ ]` **7.G.a Settle how unverifiable-liveness residue resolves**
+
+- _Goal:_ A session that cannot verify its predecessor's liveness has a defined, in-model way forward, and the
+  path is reachable from the surface that reports the stop. No recovery state depends on hand-editing the record
+  store.
+
+- _Note:_ Route the decision to the spec first — this is emergent design, not a conformance defect, and the
+  choice changes what the implementation is. Distinct from `7.E.d`, which recovers mutations that failed midway;
+  this is a state that never becomes resolvable at all. Include the cross-platform reachability question in the
+  decision: if the third shape is taken, most of this phase becomes an anchor-portability change rather than a
+  recovery-vocabulary one.
+
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
