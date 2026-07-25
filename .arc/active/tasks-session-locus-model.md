@@ -1451,13 +1451,17 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           compensate through one path: the retained-branch arm's hand-rolled restore folded into the guarded
           region, and the created-branch arm gained the empty-probe guard its pre-mutation sibling already had.
 
-    - `[ ]` **7.E.d.ii Roll back an Errand identity only against identity-only evidence** — E2-F1
-        - `rollbackAfterFailure` and `rollbackAfterRefusal` retire the claim on every non-provisioned result without
-          reading `provisioned.evidence`, so a `marker-record-mismatch` or `pending-marker` outcome — a durable
-          record, a retained marker, or a failed lock release — strands a role naming an identity generation that
-          rollback removed or restored. Branch on the evidence kind: roll back only `identity-only`, and retain the
-          claim on every durable-residue kind, surfacing the residue in the returned error rather than compounding it.
-        - Cover failures after record creation and after lease attachment, asserting the claim survives both.
+    - `[x]` **7.E.d.ii Roll back an Errand identity only against identity-only evidence** — E2-F1
+        - Rollback is now authorized by the provisioning evidence rather than by the mere fact that provisioning did
+          not succeed. `rollbackIdentity` retires the claim only under `identity-only` and returns a three-way
+          result — rolled back, retained with its residue named, or failed — which both call sites surface in the
+          refusal or error text. A retained claim is only recoverable if the operator knows it exists, so naming
+          the residue is part of the fix rather than a nicety.
+        - A thrown provisioning call is treated as unknown residue rather than none: the arm the finding did not
+          name, and the one that matters most, since `establishReadyMarker`'s raced marker re-read is the single
+          unguarded call in that composition and can throw with a spawned worktree already on disk. Allocation
+          refusals still roll back — they are proven pre-effect, and the call site now states that rather than
+          inheriting it from a default.
 
     - `[ ]` **7.E.d.iii Recover an interrupted or colliding rename** — W1-F1, W1-F2, W1-F3
 
@@ -1516,6 +1520,16 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           still excludes competitors.
         - Cover crash residue from a dead breaker (a later breaker reclaims and completes the break), a live
           breaker's residue (still excluded), and an unverifiable breaker anchor (unknown, never reclaimed).
+
+    - `[ ]` **7.E.d.vi Guard the raced marker read that escapes spawn composition**
+        - Found while verifying `.ii`'s throw arm, and in this phase's concern without being in its finding set:
+          every dependency call in `establishReadyMarker` returns a typed result except the marker re-read on the
+          create-raced arm, which runs after the worktree exists. A throw there escapes `provisionTransientLocus`
+          altogether, so the spawned checkout is left uncompensated and the caller receives no evidence describing
+          it — `.ii` now retains the identity under exactly this case, which bounds the damage without removing it.
+        - Return the typed error its sibling arms already return (`rollback: null`, since a raced marker is not this
+          session's to remove); that routes the failure into the spawn rollback the composition already performs.
+        - Cover a throwing raced re-read, asserting the spawned worktree is rolled back rather than retained.
 
 ### `[ ]` **7.E.e Close the typed boundaries and make receipts describe the operation**
 

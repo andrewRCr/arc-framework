@@ -24,6 +24,7 @@ import { planLocusAllocation, type LocusAllocationRefusalReason } from "../locus
 import { createLocusMutationResult } from "../locus/mutation.js";
 import { appendDirectedCommandAdvisory } from "../locus/entry-boundary.js";
 import type {
+  ProvisioningEvidence,
   ProvisionTransientLocusOptions,
   ProvisionTransientLocusResult,
   ProvisioningRefusalReason,
@@ -236,7 +237,10 @@ export async function openOrdinaryErrand(
     subject,
   });
   if (proposal.kind === "refused") {
-    return rollbackAfterRefusal(options, record, previousRecord, claimKind, proposal.reason);
+    // Allocation refuses before any local effect, so the claim is the only thing this invocation owns.
+    return rollbackAfterRefusal(
+      options, record, previousRecord, claimKind, proposal.reason, { kind: "identity-only" },
+    );
   }
   const sessionHomePath = parent.checkoutPath
     ?? (proposal.allocation.kind === "primary" ? proposal.allocation.checkoutPath : proposal.allocation.primaryPath);
@@ -266,13 +270,21 @@ export async function openOrdinaryErrand(
       leaseId: options.leaseId,
     });
   } catch (error) {
-    return rollbackAfterFailure(options, record, previousRecord, claimKind, "locus.errand-open.provision", error);
+    // A throw carries no evidence, so what provisioning owns is unknown rather than nothing.
+    return rollbackAfterFailure(
+      options, record, previousRecord, claimKind, "locus.errand-open.provision", error, null,
+    );
   }
   if (provisioned.kind === "error") {
-    return rollbackAfterFailure(options, record, previousRecord, claimKind, "locus.errand-open.provision", provisioned.error);
+    return rollbackAfterFailure(
+      options, record, previousRecord, claimKind, "locus.errand-open.provision", provisioned.error,
+      provisioned.evidence,
+    );
   }
   if (provisioned.kind === "refused") {
-    return rollbackAfterRefusal(options, record, previousRecord, claimKind, provisioningReason(provisioned.reason));
+    return rollbackAfterRefusal(
+      options, record, previousRecord, claimKind, provisioningReason(provisioned.reason), provisioned.evidence,
+    );
   }
   const resultOriginEntry = record?.origin === "inbox" ? record.originEntry : originEntry;
   return appendDirectedCommandAdvisory(createLocusMutationResult({
@@ -334,11 +346,16 @@ async function rollbackAfterRefusal(
   previousRecord: OrdinaryErrandRecord | null,
   claimKind: "applied" | "idempotent" | null,
   reason: LocusAllocationRefusalReason,
+  evidence: ProvisioningEvidence | null,
 ): Promise<LocusMutationResultV1> {
-  const rollback = await rollbackIdentity(options, record, previousRecord, claimKind);
-  return rollback === null
-    ? openRefusal(reason, `Errand open refused: ${reason}.`)
-    : openError("locus.errand-open.rollback", rollback);
+  const rollback = await rollbackIdentity(options, record, previousRecord, claimKind, evidence);
+  if (rollback.kind === "failed") return openError("locus.errand-open.rollback", rollback.message);
+  return openRefusal(
+    reason,
+    rollback.kind === "retained"
+      ? `Errand open refused: ${reason}. The identity claim is retained because provisioning left ${rollback.residue}.`
+      : `Errand open refused: ${reason}.`,
+  );
 }
 
 async function rollbackAfterFailure(
@@ -348,30 +365,59 @@ async function rollbackAfterFailure(
   claimKind: "applied" | "idempotent" | null,
   code: string,
   error: unknown,
+  evidence: ProvisioningEvidence | null,
 ): Promise<LocusMutationResultV1> {
-  const rollback = await rollbackIdentity(options, record, previousRecord, claimKind);
-  return rollback === null
-    ? openError(code, error instanceof Error ? error.message : String(error))
-    : openError("locus.errand-open.rollback", rollback);
+  const rollback = await rollbackIdentity(options, record, previousRecord, claimKind, evidence);
+  if (rollback.kind === "failed") return openError("locus.errand-open.rollback", rollback.message);
+  const message = error instanceof Error ? error.message : String(error);
+  return openError(
+    code,
+    rollback.kind === "retained"
+      ? `${message} — the identity claim is retained because provisioning left ${rollback.residue}`
+      : message,
+  );
 }
 
+/**
+ * Retire the claim this invocation applied, but only when provisioning owns nothing durable.
+ *
+ * Rollback is authorized by the provisioning evidence, not by the fact that provisioning did not
+ * succeed: a record, a marker, or an unestablished local state outlives the failure, and retiring
+ * the identity under it would leave that residue naming a generation which no longer exists. Only
+ * `identity-only` proves nothing durable was written; absent evidence is unknown, not absent.
+ */
 async function rollbackIdentity(
   options: OpenOrdinaryErrandOptions,
   record: OrdinaryErrandRecord | null,
   previousRecord: OrdinaryErrandRecord | null,
   claimKind: "applied" | "idempotent" | null,
-): Promise<string | null> {
-  if (record === null || claimKind !== "applied") return null;
+  evidence: ProvisioningEvidence | null,
+): Promise<
+  { kind: "rolled-back" } | { kind: "retained"; residue: string } | { kind: "failed"; message: string }
+> {
+  if (record === null || claimKind !== "applied") return { kind: "rolled-back" };
+  const residue = durableResidue(evidence);
+  if (residue !== null) return { kind: "retained", residue };
   try {
     const result = previousRecord === null
       ? await options.dependencies.rollbackClaim(record)
       : options.dependencies.rollbackResume === undefined
         ? { kind: "generation-mismatch" as const }
         : await options.dependencies.rollbackResume(previousRecord, record);
-    return result.kind === "rolled-back" ? null : "The identity claim changed before rollback.";
+    return result.kind === "rolled-back"
+      ? { kind: "rolled-back" }
+      : { kind: "failed", message: "The identity claim changed before rollback." };
   } catch (error) {
-    return error instanceof Error ? error.message : String(error);
+    return { kind: "failed", message: error instanceof Error ? error.message : String(error) };
   }
+}
+
+/** Describe what provisioning owns that rollback cannot undo, or null when it owns nothing. */
+function durableResidue(evidence: ProvisioningEvidence | null): string | null {
+  if (evidence === null) return "an unestablished local provisioning state";
+  if (evidence.kind === "identity-only") return null;
+  if (evidence.kind === "pending-marker") return `a worktree marker at ${evidence.checkoutPath}`;
+  return `session locus state at ${evidence.checkoutPath}`;
 }
 
 function provisioningReason(reason: ProvisioningRefusalReason): LocusAllocationRefusalReason {

@@ -528,6 +528,92 @@ describe("openOrdinaryErrand", () => {
     expect(result).toMatchObject({ outcome: "refused", reason: "primary-dirty" });
   });
 
+  describe("identity rollback against provisioning evidence", () => {
+    function openWith(
+      provision: OpenOrdinaryErrandDependencies["provision"],
+      rollbackClaim: OpenOrdinaryErrandDependencies["rollbackClaim"],
+    ) {
+      return openOrdinaryErrand({
+        slug: "residue",
+        protection: "full",
+        base: "main",
+        createdAt: "2026-07-21T12:00:00.000Z",
+        identityName: "andrew",
+        locationTemplate: "/work/{repo}.{name}",
+        repo: "repo",
+        leaseId: LEASE_ID,
+        dependencies: {
+          mintClaimId: () => CLAIM_ID,
+          acquireAnchor: async () => ANCHOR,
+          readState: async () => state({ kind: "free", checkoutPath: "/repo" }),
+          readIdentity: async () => ({ kind: "ready", record: null }),
+          claim: async (record) => ({ kind: "applied", record }),
+          rollbackClaim,
+          provision,
+        },
+      });
+    }
+
+    it("retains the claim when provisioning failed after a durable record write", async () => {
+      const rollbackClaim = vi.fn(async () => ({ kind: "rolled-back" as const }));
+      const result = await openWith(async () => ({
+        kind: "error",
+        error: new Error("could not release the record lock"),
+        evidence: {
+          kind: "marker-record-mismatch",
+          checkoutPath: "/repo",
+          markerBytes: null,
+          recordBytes: Buffer.from("record"),
+        },
+      }), rollbackClaim);
+
+      expect(rollbackClaim).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ outcome: "error" });
+    });
+
+    it("retains the claim when a refusal leaves a marker the rollback did not own", async () => {
+      const rollbackClaim = vi.fn(async () => ({ kind: "rolled-back" as const }));
+      const result = await openWith(async () => ({
+        kind: "refused",
+        reason: "marker-conflict",
+        evidence: {
+          kind: "pending-marker",
+          checkoutPath: "/work/repo.residue",
+          markerBytes: Buffer.from("marker"),
+        },
+      }), rollbackClaim);
+
+      expect(rollbackClaim).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        outcome: "refused",
+        reason: "topology-unknown",
+        recommendedPromptText: expect.stringContaining("/work/repo.residue"),
+      });
+    });
+
+    it("retains the claim when provisioning throws, since its residue is unknown", async () => {
+      const rollbackClaim = vi.fn(async () => ({ kind: "rolled-back" as const }));
+      const result = await openWith(async () => {
+        throw new Error("marker write failed");
+      }, rollbackClaim);
+
+      expect(rollbackClaim).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ outcome: "error" });
+    });
+
+    it("rolls the claim back when provisioning proves it owns nothing durable", async () => {
+      const rollbackClaim = vi.fn(async () => ({ kind: "rolled-back" as const }));
+      const result = await openWith(async () => ({
+        kind: "refused",
+        reason: "lock-live",
+        evidence: { kind: "identity-only" },
+      }), rollbackClaim);
+
+      expect(rollbackClaim).toHaveBeenCalledOnce();
+      expect(result).toMatchObject({ outcome: "refused", reason: "lease-live" });
+    });
+  });
+
   it("records unavailable ancestry as an unverifiable lease anchor and continues", async () => {
     const claim = vi.fn();
     const readState = vi.fn();
