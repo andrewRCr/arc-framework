@@ -141,8 +141,6 @@ function responsePlan(input: {
     verificationPassed: false,
     verificationRefs: [],
     capabilities: { approve: true, fix: true, persist: false, close: true, reroute: false },
-    channel: "local",
-    conversations: [],
   });
 }
 

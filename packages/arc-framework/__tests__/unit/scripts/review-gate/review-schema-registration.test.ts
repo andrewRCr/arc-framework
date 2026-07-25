@@ -29,8 +29,6 @@ const reviewIdentities = [
   "disposition-set-preimage",
   "disposition-set-state",
   "finding-classification",
-  "finding-conversation-closure",
-  "finding-conversation-requirement",
   "finding-disposition",
   "finding-settlement",
   "fix-authorization",
@@ -40,7 +38,6 @@ const reviewIdentities = [
   "frontline-outcome-digest-preimage",
   "frontline-outcome-record",
   "frontline-run-state",
-  "local-disposition-terminal",
   "local-review-policy-binding",
   "local-review-policy-binding-digest-preimage",
   "local-review-source",
@@ -50,7 +47,6 @@ const reviewIdentities = [
   "standard-review-obligation-projection",
   "standard-review-rubric-digest-preimage",
   "project-routing-promotion",
-  "provider-native-conversation-closure",
   "proposed-disposition-set",
   "normalized-review-finding",
   "review-applicability",
@@ -94,7 +90,6 @@ const reviewIdentities = [
   "review-target-id-preimage",
   "review-unlock-envelope",
   "severity-gating-policy",
-  "severity-settlement-gate-result",
   "work-unit-review-assurance",
 ];
 
