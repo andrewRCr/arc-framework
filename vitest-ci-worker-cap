@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "vitest-ci-worker-cap",
+  "origin": "description",
+  "intent": "Cap Vitest workers on CI runners so concurrently-scheduled jobs stop oversubscribing the shared 4-vCPU self-hosted box; measure the effect before considering paid VPS expansion",
+  "branch": "chore/vitest-ci-worker-cap",
+  "createdAt": "2026-07-25T17:40:52.434Z",
+  "returnBranch": "main"
+}
