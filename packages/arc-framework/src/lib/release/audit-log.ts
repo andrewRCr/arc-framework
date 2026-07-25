@@ -22,6 +22,7 @@ import { SlugSchema } from "../kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../layout/index.js";
 
 import { walkCommitShortOption } from "./commit-message-source.js";
+import { AuditEntrySchema } from "./schema.js";
 
 import type {
   AuditCommand,
@@ -165,133 +166,37 @@ export async function appendAuditEntry(opts: {
   identity: string;
   entry: AuditEntry;
 }): Promise<{ ok: true } | { ok: false; error: Error }> {
-  validateEntry(opts.entry);
+  const entry = parseAuditEntry(opts.entry);
   try {
     await ensureAuditLogParent(opts);
     const path = resolveAuditLogPath(opts);
-    await appendFile(path, `${JSON.stringify(opts.entry)}\n`, "utf8");
+    await appendFile(path, `${JSON.stringify(entry)}\n`, "utf8");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
   }
 }
 
-const VALID_COMMANDS: readonly AuditCommand[] = ["release-commit", "release-push", "sync"];
+function parseAuditEntry(entry: unknown): AuditEntry {
+  const parsed = AuditEntrySchema.safeParse(entry);
+  if (parsed.success) return parsed.data;
 
-/**
- * Runtime narrowing for unverified-shape entries — the typed-input happy path
- * is enforced at every call site, but tests, `JSON.parse`-rehydrated entries
- * (future `arc audit`), and refactor drift bypass that. The validator accepts
- * `unknown` and narrows to `AuditEntry`, so comparisons inside read as honest
- * shape checks rather than casts that fight the type system.
- */
-function validateEntry(entry: unknown): asserts entry is AuditEntry {
-  if (typeof entry !== "object" || entry === null) {
-    throw new Error("audit-log: entry must be an object");
-  }
-  const e = entry as Record<string, unknown>;
-
-  if (e.schemaVersion !== 2) {
-    throw new Error(`audit-log: schemaVersion must be 2, got ${String(e.schemaVersion)}`);
-  }
-  if (typeof e.timestamp !== "string") {
-    throw new Error("audit-log: timestamp must be a string");
-  }
-  if (
-    typeof e.command !== "string"
-    || !(VALID_COMMANDS as readonly string[]).includes(e.command)
-  ) {
-    throw new Error(`audit-log: unknown command "${String(e.command)}"`);
-  }
-  const command = e.command as AuditCommand;
-
-  if (!Array.isArray(e.args) || !e.args.every((a) => typeof a === "string")) {
-    throw new Error("audit-log: args must be a string array");
-  }
-
-  if (typeof e.interlockState !== "object" || e.interlockState === null) {
-    throw new Error("audit-log: interlockState must be an object");
-  }
-  const interlockState = e.interlockState as Record<string, unknown>;
-  if (interlockState.command !== command) {
-    throw new Error(
-      `audit-log: interlockState.command "${String(interlockState.command)}" `
-      + `does not match top-level command "${command}"`,
-    );
-  }
-
-  if (typeof e.outcome !== "object" || e.outcome === null) {
-    throw new Error("audit-log: outcome must be an object");
-  }
-  const outcome = e.outcome as Record<string, unknown>;
-  const outcomeKind = outcome.kind;
-  if (typeof outcomeKind !== "string") {
-    throw new Error("audit-log: outcome.kind must be a string");
-  }
-  validateOutcomeForCommand(command, outcomeKind);
-  if (
-    outcomeKind === "preflight-failed"
-    && outcome.reason !== "validation"
-    && outcome.reason !== "input"
-  ) {
-    throw new Error("audit-log: preflight-failed reason must be validation or input");
-  }
-
-  if (e.wu !== null && typeof e.wu !== "object") {
-    throw new Error("audit-log: wu must be an object or null");
-  }
-
-  if (e.decision !== "proceeded" && e.decision !== "refused") {
-    throw new Error(`audit-log: decision must be "proceeded" or "refused", got ${JSON.stringify(e.decision)}`);
-  }
-  if (e.decision === "proceeded" && e.refusalCode !== null) {
-    throw new Error(
-      `audit-log: decision "proceeded" requires refusalCode null, got ${JSON.stringify(e.refusalCode)}`,
-    );
-  }
-  if (e.decision === "refused" && e.refusalCode === null) {
-    throw new Error("audit-log: decision \"refused\" requires refusalCode to be populated");
-  }
-  if (
-    outcomeKind === "preflight-failed"
-    && (e.decision !== "refused" || e.refusalCode !== 16)
-  ) {
-    throw new Error("audit-log: preflight-failed requires decision refused and refusalCode 16");
-  }
-  if (e.refusalCode === 16 && outcomeKind !== "preflight-failed") {
-    throw new Error("audit-log: refusalCode 16 requires preflight-failed outcome");
-  }
+  const paths = issuePaths(parsed.error.issues);
+  throw new Error(`audit-log: invalid entry at ${paths.join(", ")}`);
 }
 
-function validateOutcomeForCommand(command: AuditCommand, kind: string): void {
-  switch (command) {
-    case "release-commit":
-      if (
-        kind !== "commit"
-        && kind !== "hook-failed"
-        && kind !== "preflight-failed"
-        && kind !== "refused"
-      ) {
-        throw outcomeMismatch(command, kind);
-      }
-      return;
-    case "release-push":
-      if (kind !== "push" && kind !== "hook-failed" && kind !== "refused") {
-        throw outcomeMismatch(command, kind);
-      }
-      return;
-    case "sync":
-      if (kind !== "sync" && kind !== "refused") {
-        throw outcomeMismatch(command, kind);
-      }
-      return;
-    default: {
-      const exhaustive: never = command;
-      throw new Error(`audit-log: unhandled command "${String(exhaustive)}"`);
+function issuePaths(issues: readonly unknown[], prefix: readonly PropertyKey[] = []): string[] {
+  const paths: string[] = [];
+  for (const issue of issues) {
+    if (typeof issue !== "object" || issue === null) continue;
+    const record = issue as { path?: readonly PropertyKey[]; errors?: readonly (readonly unknown[])[] };
+    const issuePath = [...prefix, ...(record.path ?? [])];
+    if (record.errors !== undefined && record.errors.length > 0) {
+      paths.push(...record.errors.flatMap((nested) => issuePaths(nested, issuePath)));
+      continue;
     }
+    const path = issuePath.map(String).join(".");
+    paths.push(path === "" ? "<root>" : path);
   }
-}
-
-function outcomeMismatch(command: AuditCommand, kind: string): Error {
-  return new Error(`audit-log: outcome.kind "${kind}" not allowed for command "${command}"`);
+  return [...new Set(paths)];
 }

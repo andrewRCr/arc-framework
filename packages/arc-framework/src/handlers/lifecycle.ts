@@ -32,10 +32,9 @@ import {
 } from "../lib/command-input/declaration.js";
 
 import {
-  parseIdentifierList,
   parseMetaRecord,
   readActiveMetaCandidates,
-  type MetaFieldName,
+  type ParsedMetaRecord,
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, type GitExec } from "../lib/git/exec.js";
@@ -875,9 +874,9 @@ export async function handlePromote(
     refuse(`\`${target}\` is not a provisional stub — \`promote\` needs one to raise.`);
     return;
   }
-  const recorded = parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).Class ?? "[TBD]";
+  const recorded = parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).workClass ?? "TBD";
   let acquiredClass = opts.class;
-  if (recorded === "[TBD]" && acquiredClass === undefined && context.interaction === "allowed") {
+  if (recorded === "TBD" && acquiredClass === undefined && context.interaction === "allowed") {
     const answer = await p.select<z.infer<typeof WorkClassSchema>>({
       message: "Resolved Class?",
       options: WorkClassSchema.options.map((value) => ({ value, label: value })),
@@ -885,7 +884,7 @@ export async function handlePromote(
     if (p.isCancel(answer)) return;
     acquiredClass = answer;
   }
-  if (recorded === "[TBD]" && acquiredClass === undefined) {
+  if (recorded === "TBD" && acquiredClass === undefined) {
     refuse("Missing required input: --class <Light|Heavy|Novel>");
     return;
   }
@@ -893,7 +892,7 @@ export async function handlePromote(
     refuse("--class must be Light, Heavy, or Novel.");
     return;
   }
-  if (recorded !== "[TBD]" && acquiredClass !== undefined && acquiredClass !== recorded) {
+  if (recorded !== "TBD" && acquiredClass !== undefined && acquiredClass !== recorded) {
     refuse(`--class ${acquiredClass} conflicts with recorded Class ${recorded}.`);
     return;
   }
@@ -1004,8 +1003,8 @@ export interface ParkOptions {
 async function resolveWuWorktreePath(base: VerbBase, slug: string): Promise<string> {
   try {
     const record = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug)));
-    const branch = record.Branch;
-    if (branch !== null && branch !== "[none]") {
+    const branch = record.branch;
+    if (branch !== null) {
       const byBranch = await resolveWorktreePathsByBranch(base.io.exec);
       const path = byBranch.get(branch);
       if (path !== undefined) return path;
@@ -1039,7 +1038,7 @@ function parkResumeFsSeam(base: VerbBase): ParkResumeFs {
 async function resolveParkSource(
   base: VerbBase,
   slug: string,
-): Promise<{ worktreePath: string; record: Record<MetaFieldName, string | null> } | null> {
+): Promise<{ worktreePath: string; record: ParsedMetaRecord } | null> {
   try {
     const record = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug)));
     return { worktreePath: await resolveWuWorktreePath(base, slug), record };
@@ -1147,7 +1146,7 @@ export async function handlePark(
   // park@Active is cross-branch: the pointer-record must land on the tracked
   // branch while the preserved branch keeps its authoritative `active/`. Enforce a
   // base-branch run-context so the verb never renders the pointer on a WU branch.
-  if (source.record.State === "Active") {
+  if (source.record.state === "Active") {
     const wc = await resolveWriteContext({ exec: base.io.exec, baseBranch: settings["branch.base"] });
     if (wc.verdict !== "proceed") {
       refuse(parkRunContextRefusal(wc));
@@ -1484,11 +1483,11 @@ export interface ReopenOptions {
 async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | undefined> {
   let branch: string | null;
   try {
-    branch = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug))).Branch;
+    branch = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug))).branch;
   } catch {
     return undefined;
   }
-  if (branch === null || branch === "[none]") return undefined;
+  if (branch === null) return undefined;
   try {
     const facts = await createGhWorkUnitPrSource(base.io.exec)([branch]);
     return facts.get(branch)?.merged;
@@ -1574,7 +1573,7 @@ export async function handleAbandon(
   const index = await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs });
   const state = resolveSlugState(index, target);
   const entry = index.get(target);
-  const branch = entry === undefined ? null : parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).Branch;
+  const branch = entry === undefined ? null : parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).branch;
 
   const plan = planAbandon(state, branch, target);
   if (!plan.legal) {
@@ -2004,7 +2003,7 @@ export async function handleRepointDesign(
   }
 
   const metaPath = materializeActiveMetaPath(base.cwd, slug);
-  const currentDesign = parseIdentifierList(parseMetaRecord(await readFile(metaPath, "utf8"))["Design"]);
+  const currentDesign = parseMetaRecord(await readFile(metaPath, "utf8")).design;
 
   const { executor } = await buildExecutor(base);
   const result = await runRepointDesign(executor, {

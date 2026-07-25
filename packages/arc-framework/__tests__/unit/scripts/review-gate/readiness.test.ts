@@ -82,9 +82,10 @@ function buildFs(files: Record<string, string>, options: FakeFsOptions = {}): Re
 
 function manualMeta(): string {
   return `${renderMetaFile("demo", {
-    State: "Integrating",
-    Branch: "feat/demo",
-    "Task List": "tasks-demo.md",
+    state: "Integrating",
+    owner: "andrew",
+    branch: "feat/demo",
+    taskList: "tasks-demo.md",
   })}
 ## Completion Notes
 
@@ -94,11 +95,12 @@ The exact candidate is composed and ready for integration.
 
 function shippedMeta(): string {
   return `${renderMetaFile("demo", {
-    State: "Shipped",
-    Branch: "[none]",
-    "Task List": "tasks-demo.md",
-    "PR URL": "https://github.com/owner/repo/pull/42",
-    Completed: "2026-07-23",
+    state: "Shipped",
+    owner: "andrew",
+    branch: null,
+    taskList: "tasks-demo.md",
+    prUrl: "https://github.com/owner/repo/pull/42",
+    completed: "2026-07-23",
   })}
 ## Completion Notes
 
@@ -453,9 +455,10 @@ Projects enabling the context must install the pinned workflow.
     })}\n`;
     const meta = shippedMeta().replace("- **Cohort:** [none]", "- **Cohort:** alpha");
     const openMember = renderMetaFile("other", {
-      State: "Active",
-      Branch: "feat/other",
-      Cohort: "alpha",
+      state: "Active",
+      owner: "andrew",
+      branch: "feat/other",
+      cohort: "alpha",
     });
     expect(meta).not.toBe(shippedMeta());
     const result = await evaluateReviewReadiness(

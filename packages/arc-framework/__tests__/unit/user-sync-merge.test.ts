@@ -94,10 +94,37 @@ Body with no remove-when line.
 `;
     const parsed = parseCrossWuEntries(malformed, "working-memory");
 
-    expect(parsed).toHaveLength(1);
-    const [first] = parsed;
-    expect(first?.ok).toBe(false);
-    if (first && !first.ok) expect(first.reason).toContain("Remove when");
+    expect(parsed).toEqual([
+      {
+        ok: false,
+        reason: "WORKING-MEMORY entry missing '_Remove when:_' trigger: **Header A:**",
+      },
+    ]);
+  });
+
+  it("preserves the full header identity and entry bytes while trimming trailing blanks", () => {
+    const raw = `## Memories
+
+**Header with punctuation — and detail:**
+_Remove when: trigger._
+
+Body  with  spacing.
+  indented line
+
+
+---
+`;
+
+    expect(parseCrossWuEntries(raw, "working-memory")).toEqual([
+      {
+        ok: true,
+        entry: {
+          section: "Memories",
+          key: "**Header with punctuation — and detail:**",
+          raw: "**Header with punctuation — and detail:**\n_Remove when: trigger._\n\nBody  with  spacing.\n  indented line",
+        },
+      },
+    ]);
   });
 
   it("ignores commented-out shape examples", () => {
@@ -182,7 +209,48 @@ describe("parseCrossWuEntries — USER-INBOX", () => {
   it("surfaces an H3 entry with no bold title as a failure", () => {
     const failures = parseCrossWuEntries(content, "user-inbox").filter((p) => !p.ok);
 
-    expect(failures).toHaveLength(1);
+    expect(failures).toEqual([
+      { ok: false, reason: "USER-INBOX Errand entry missing bold title: ### no bold title here" },
+    ]);
+  });
+
+  it("preserves title identity, section scope, and entry bytes while trimming trailing blanks", () => {
+    const raw = `## Errand
+
+### \`[ ]\` **same title** — suffix
+
+- first  line
+    - nested line
+
+
+## Work Unit
+
+### **same title**
+
+- second line
+
+
+---
+`;
+
+    expect(parseCrossWuEntries(raw, "user-inbox")).toEqual([
+      {
+        ok: true,
+        entry: {
+          section: "Errand",
+          key: "same title",
+          raw: "### `[ ]` **same title** — suffix\n\n- first  line\n    - nested line",
+        },
+      },
+      {
+        ok: true,
+        entry: {
+          section: "Work Unit",
+          key: "same title",
+          raw: "### **same title**\n\n- second line",
+        },
+      },
+    ]);
   });
 
   it("ignores the commented-out shape example so a seeded template parses as empty", () => {
@@ -569,4 +637,3 @@ describe("mergeCrossWuFile — byte-identical materialization", () => {
     `);
   });
 });
-

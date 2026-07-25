@@ -50,10 +50,10 @@ ARC_DIR="${ARC_DIR:-.arc}"
 echo "--- Config Validation ---"
 
 config_script="$ARC_DIR/system/.internal/scripts/validate-config.sh"
-if [ -f "$config_script" ] && [ -x "$config_script" ]; then
+if [ -f "$config_script" ]; then
     # Capture output and exit code
     config_exit=0
-    config_output=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" "$config_script" 2>&1) || config_exit=$?
+    config_output=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" bash "$config_script" 2>&1) || config_exit=$?
 
     # Relay output (skip the Summary line — we produce our own)
     echo "$config_output" | grep -v '^Summary:' | grep -v '^$'
@@ -62,11 +62,13 @@ if [ -f "$config_script" ] && [ -x "$config_script" ]; then
         error "Config validation found errors"
     elif [ "$config_exit" -eq 1 ]; then
         warn "Config validation found warnings"
-    else
+    elif [ "$config_exit" -eq 0 ]; then
         pass "Config validation clean"
+    else
+        error "Config validation exited unexpectedly with status $config_exit"
     fi
 else
-    warn "validate-config.sh not found or not executable"
+    warn "validate-config.sh not found"
 fi
 
 echo ""

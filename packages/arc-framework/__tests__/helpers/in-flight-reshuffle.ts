@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { renderMetaProjectionFile } from "../../src/lib/active/meta-reader.js";
 import type { GitExec, GitExecOptions } from "../../src/lib/git/exec.js";
 
 import { makeGitExec } from "./integration.js";
@@ -156,7 +156,7 @@ export async function setupInFlightReshuffleFixture(): Promise<InFlightReshuffle
     await mkdir(activeDir, { recursive: true });
     await writeFile(
       join(activeDir, `meta-${input.name}.md`),
-      renderMetaFile(input.name, {
+      renderMetaProjectionFile(input.name, {
         State: input.state ?? "Active",
         Owner: input.owner ?? "andrew",
         Branch: input.branch,

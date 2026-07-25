@@ -106,7 +106,7 @@ export function inferSessionType(
   if (taskList === null || TASK_LIST_PLANNING_VALUES.has(taskList)) {
     return "planning";
   }
-  // Strip code spans for the token match — `parseMetaRecord` preserves narrative
+  // Strip code spans for the token match — the narrow meta reader preserves narrative
   // backticks verbatim, so a backticked workflow pointer (`` `integrate-work-unit` ``)
   // would otherwise miss the `^`-anchored prefix.
   if (nextAction !== null && INTEGRATION_WORKFLOW_PREFIX.test(stripInlineCode(nextAction))) {

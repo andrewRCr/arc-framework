@@ -23,45 +23,15 @@ import { join } from "node:path";
 import { parseArcConfig } from "./index.js";
 import { ARC_CONFIG_SUFFIX } from "../constants.js";
 import { materializeArcPath, resolveArcPath } from "../layout/index.js";
-import { DEFAULT_WORKTREE_HARNESS_DIRS } from "../git/worktree-harness-dirs.js";
-import type { ConfigSettings } from "../../commands/config/types.js";
+import {
+  AGENT_CONSUMABLE_CONFIG_FIELDS,
+  ConfigSettingsSchema,
+  getArcConfigField,
+  type AgentConsumableConfigKey,
+  type ConfigSettings,
+} from "./schema.js";
 
-/**
- * Documented defaults from arc-config.yml inline comments. When a key is
- * absent (missing file or omitted in the file), the reader substitutes the
- * corresponding value here and records the key in `defaultsApplied`.
- */
-const DEFAULTS: ConfigSettings = {
-  "branch.base": "main",
-  "branch.protection": "partial",
-  "worktree.location_template": "../{repo}.{name}",
-  "worktree.post_create": "",
-  "worktree.harness_dirs": DEFAULT_WORKTREE_HARNESS_DIRS,
-  "commit.format": "conventional",
-  "commit.context_footer": "required",
-  "commit.custom_pattern": "",
-  "commit.context_pattern": "",
-  "merge.strategy": "merge",
-  "platform.type": "github",
-  "review.frontline_sources": "[]",
-  "review.standard_sources": "[]",
-  "review.frontline_max_passes": "2",
-  "review.standard_max_passes": "2",
-  "review.chunking_threshold_lines": "0",
-  "review.chunking_threshold_files": "0",
-  "pm.mode": "none",
-  "team.mode": "false",
-  "session.remote_sync": "enabled",
-  "session.init_pull.worktree": "prompt",
-  "session.init_pull.notes": "prompt",
-  "session.init_pull.base": "prompt",
-  "session.init_load.notes": "prompt",
-  "sync.auto_pull": "false",
-  "archive.cadence": "with-integration",
-  "user.notes_push": "on-sync",
-  "inbox.remind_after_days": "1",
-  "integration.stale_after_days": "2",
-};
+export { AGENT_CONSUMABLE_CONFIG_FIELDS } from "./schema.js";
 
 /**
  * Per-key allowed value sets for keys validated at parse time. Keys absent
@@ -69,17 +39,27 @@ const DEFAULTS: ConfigSettings = {
  * remains the broader enum gate. `user.notes_push` is intentionally absent —
  * see the module-level layering-boundary note.
  */
-const ENUM_VALIDATORS: Partial<Record<keyof ConfigSettings, readonly string[]>> = {
-  "session.init_pull.worktree": ["manual", "prompt"],
-  "session.init_pull.notes": ["manual", "prompt", "always"],
-  "session.init_pull.base": ["manual", "prompt", "always"],
-  "session.init_load.notes": ["manual", "prompt", "always"],
-  "sync.auto_pull": ["true", "false"],
-  "archive.cadence": ["with-integration", "manual"],
-};
+const TOLERANT_POLICY_KEYS = [
+  "session.init_pull.worktree",
+  "session.init_pull.notes",
+  "session.init_pull.base",
+  "session.init_load.notes",
+  "sync.auto_pull",
+  "archive.cadence",
+] as const satisfies readonly AgentConsumableConfigKey[];
+
+function allowedValues(key: (typeof TOLERANT_POLICY_KEYS)[number]): readonly string[] {
+  const policy = getArcConfigField(key).policy;
+  if (policy.kind === "enum") return policy.values;
+  return ["true", "false"];
+}
+
+const ENUM_VALIDATORS = Object.fromEntries(
+  TOLERANT_POLICY_KEYS.map((key) => [key, allowedValues(key)]),
+) as Partial<Record<AgentConsumableConfigKey, readonly string[]>>;
 
 /** The set of agent-consumable keys — all settings except `hooks.*`. */
-export const AGENT_CONSUMABLE_KEYS = Object.keys(DEFAULTS) as Array<keyof ConfigSettings>;
+export const AGENT_CONSUMABLE_KEYS = AGENT_CONSUMABLE_CONFIG_FIELDS.map(({ key }) => key);
 
 export interface ReaderResult {
   settings: ConfigSettings;
@@ -109,11 +89,11 @@ export async function readConfigSettings(cwd: string): Promise<ReaderResult> {
     warnings.push(`Unable to read arc-config.yml: ${message}`);
   }
 
-  const settings = {} as ConfigSettings;
-  for (const key of AGENT_CONSUMABLE_KEYS) {
+  const settings: Record<string, string> = {};
+  for (const { key, defaultValue } of AGENT_CONSUMABLE_CONFIG_FIELDS) {
     const value = raw[key];
     if (value === undefined) {
-      settings[key] = DEFAULTS[key];
+      settings[key] = defaultValue;
       defaultsApplied.push(key);
       continue;
     }
@@ -125,11 +105,15 @@ export async function readConfigSettings(cwd: string): Promise<ReaderResult> {
       warnings.push(
         `${key}: '${value}' is not valid (expected: ${allowed.join(" | ")})`,
       );
-      settings[key] = DEFAULTS[key];
+      settings[key] = defaultValue;
       continue;
     }
     settings[key] = value;
   }
 
-  return { settings, defaultsApplied, warnings };
+  return {
+    settings: ConfigSettingsSchema.parse(settings),
+    defaultsApplied,
+    warnings,
+  };
 }

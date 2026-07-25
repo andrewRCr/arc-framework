@@ -14,7 +14,12 @@
  * @module
  */
 
-import type { CrossWuShape, EntryParse } from "./types.js";
+import {
+  CrossWuEntryParseSchema,
+  type CrossWuEntry,
+  type EntryParse,
+} from "./schema.js";
+import type { CrossWuShape } from "./types.js";
 
 /** Bold-field header line: starts with `**`, ends with `:**`. */
 const WM_HEADER = /^\*\*.+:\*\*\s*$/;
@@ -26,6 +31,11 @@ const H3_BOUNDARY = /^###\s/;
 const H3_KEY = /^###\s+(?:`?\[[ xX]\]`?\s+)?\*\*(.+?)\*\*/;
 /** HTML comment block — guidance and shape examples that are not entries. */
 const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+
+/** Validate one internally assembled parse outcome immediately before exposure. */
+function validatedEntryParse(value: EntryParse): EntryParse {
+  return CrossWuEntryParseSchema.parse(value);
+}
 
 /**
  * Extract the bold title of a `USER-INBOX` H3 managed-entry heading line, or
@@ -97,9 +107,14 @@ function parseWorkingMemory(content: string): EntryParse[] {
     if (header === null) return;
     const raw = trimBlock(block);
     if (block.some((line) => WM_REMOVE_WHEN.test(line.trim()))) {
-      out.push({ ok: true, entry: { section: "Memories", key: header, raw } });
+      out.push(validatedEntryParse({ ok: true, entry: { section: "Memories", key: header, raw } }));
     } else {
-      out.push({ ok: false, reason: `WORKING-MEMORY entry missing '_Remove when:_' trigger: ${header}` });
+      out.push(
+        validatedEntryParse({
+          ok: false,
+          reason: `WORKING-MEMORY entry missing '_Remove when:_' trigger: ${header}`,
+        }),
+      );
     }
   };
 
@@ -118,7 +133,7 @@ function parseWorkingMemory(content: string): EntryParse[] {
 
 function parseUserInbox(content: string): EntryParse[] {
   const out: EntryParse[] = [];
-  for (const section of ["Errand", "Work Unit"]) {
+  for (const section of ["Errand", "Work Unit"] as const) {
     parseH3Section(sectionLines(content, section), section, `USER-INBOX ${section}`, out);
   }
   return out;
@@ -135,7 +150,12 @@ function parseUserInbox(content: string): EntryParse[] {
  *
  * @param label - File + section name for the failure reason (e.g. `USER-INBOX Errand`).
  */
-function parseH3Section(lines: readonly string[], section: string, label: string, out: EntryParse[]): void {
+function parseH3Section(
+  lines: readonly string[],
+  section: CrossWuEntry["section"],
+  label: string,
+  out: EntryParse[],
+): void {
   let block: string[] = [];
   let started = false;
 
@@ -144,9 +164,14 @@ function parseH3Section(lines: readonly string[], section: string, label: string
     const raw = trimBlock(block);
     const key = block[0]?.match(H3_KEY)?.[1];
     if (key !== undefined) {
-      out.push({ ok: true, entry: { section, key: key.trim(), raw } });
+      out.push(validatedEntryParse({ ok: true, entry: { section, key: key.trim(), raw } }));
     } else {
-      out.push({ ok: false, reason: `${label} entry missing bold title: ${(block[0] ?? "").trim()}` });
+      out.push(
+        validatedEntryParse({
+          ok: false,
+          reason: `${label} entry missing bold title: ${(block[0] ?? "").trim()}`,
+        }),
+      );
     }
     block = [];
   };

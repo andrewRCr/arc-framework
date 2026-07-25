@@ -61,7 +61,7 @@ async function seedTrackedSweep(repo: string, artifactDir: string, slug: string)
     .replace("- **Cohort:** [none]", `- **Cohort:** ${COHORT}`)
     .replace("- **Design:** [none]", `- **Design:** spec-${slug}.md`)
     .replace("- **Task List:** [none]", `- **Task List:** tasks-${slug}.md`);
-  expect(parseMetaRecord(meta).Cohort).toBe(COHORT);
+  expect(parseMetaRecord(meta).cohort).toBe(COHORT);
   expect(meta).toContain(`- **Design:** spec-${slug}.md`);
   expect(meta).toContain(`- **Task List:** tasks-${slug}.md`);
   await writeFile(metaPath, meta, "utf8");

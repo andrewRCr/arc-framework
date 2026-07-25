@@ -21,6 +21,7 @@ import { promisify } from "node:util";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import { runCli } from "../helpers/run-cli.js";
 import { runArc } from "./helpers.js";
+import { LocalSyncStateSchema } from "../../src/lib/user-sync/sync-state.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -68,6 +69,12 @@ async function machineId(clone: string): Promise<string> {
   const id = (await readFile(path, "utf-8")).trim();
   if (!id) throw new Error("machine-id not persisted");
   return id;
+}
+
+/** Read the local state produced by the built CLI. */
+async function localSyncState(clone: string) {
+  const path = join(clone, ".arc", "user", IDENTITY, ".internal", ".sync-state.json");
+  return LocalSyncStateSchema.parse(JSON.parse(await readFile(path, "utf8")));
 }
 
 /**
@@ -139,6 +146,12 @@ describe("partial-push sync-state marker — multi-machine producer lifecycle", 
     // The sync-state ref carries exactly A's intent-keyed entry.
     const localNotesTip = await refTip(harness.cloneA, NOTES_REF);
     if (localNotesTip === null) throw new Error("local notes ref absent");
+    expect(await localSyncState(harness.cloneA)).toMatchObject({
+      version: 4,
+      sourceOperation: "save",
+      notesRefTip: localNotesTip,
+      partialPush: { localRefHash: localNotesTip },
+    });
     const idA = await machineId(harness.cloneA);
     expect(await syncStateKeys(harness.origin)).toEqual([localNotesTip]);
 

@@ -2,7 +2,10 @@
 
 import { initCommandInputPolicyDeclarations, initCommandInputRegistration } from "./commands/init-input.js";
 import { joinCommandInputPolicyDeclarations, joinCommandInputRegistration } from "./commands/join-input.js";
-import { configCommandInputPolicyDeclarations } from "./commands/config.js";
+import {
+  configCommandInputPolicyDeclarations,
+  configValidateCommandInputRegistration,
+} from "./commands/config.js";
 import { extensionsCommandInputPolicyDeclarations } from "./commands/extensions.js";
 import { infrastructureCommandInputPolicyDeclarations } from "./command-input-infrastructure-policies.js";
 import { activeCommandInputPolicyDeclarations } from "./handlers/active.js";
@@ -57,6 +60,7 @@ export const commandInputRegistrations = [
   initCommandInputRegistration,
   joinCommandInputRegistration,
   checkCommitMessageInputRegistration,
+  configValidateCommandInputRegistration,
   startCommandInputRegistration,
   ...lifecycleCommandInputRegistrations,
   ...errandCommandInputRegistrations,

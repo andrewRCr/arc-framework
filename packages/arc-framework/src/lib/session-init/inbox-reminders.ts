@@ -21,7 +21,7 @@
  * @module
  */
 
-import { parseCrossWuEntries } from "../user-sync/index.js";
+import { parseCrossWuEntries, type EntryParse } from "../user-sync/index.js";
 import { managedFieldValue, managedFlagIsTrue } from "./managed-field.js";
 
 /** A flagged Errand capture surfaced for the reminder nudge. */
@@ -42,6 +42,14 @@ export interface ReminderEntriesResult {
   entries: ReminderEntry[];
 }
 
+/** Convert one inferred parse outcome to a surfaced reminder when eligible. */
+function reminderEntryOf(parse: EntryParse): ReminderEntry | null {
+  if (!parse.ok || parse.entry.section !== "Errand") return null;
+  const raw = parse.entry.raw;
+  if (!managedFlagIsTrue(raw, "Remind") && !managedFlagIsTrue(raw, "Hold")) return null;
+  return { key: parse.entry.key, created: managedFieldValue(raw, "Created") ?? "" };
+}
+
 /**
  * Extract the reminder-surfaced Errand entries from inbox content — those
  * carrying `_Remind:_ \`true\`` (capture-time) or `_Hold:_ \`true\`` (drain-time
@@ -53,10 +61,8 @@ export interface ReminderEntriesResult {
 export function extractReminderEntries(options: ExtractReminderEntriesOptions): ReminderEntriesResult {
   const entries: ReminderEntry[] = [];
   for (const parse of parseCrossWuEntries(options.content, "user-inbox")) {
-    if (!parse.ok || parse.entry.section !== "Errand") continue;
-    const raw = parse.entry.raw;
-    if (!managedFlagIsTrue(raw, "Remind") && !managedFlagIsTrue(raw, "Hold")) continue;
-    entries.push({ key: parse.entry.key, created: managedFieldValue(raw, "Created") ?? "" });
+    const entry = reminderEntryOf(parse);
+    if (entry !== null) entries.push(entry);
   }
   return { entries };
 }

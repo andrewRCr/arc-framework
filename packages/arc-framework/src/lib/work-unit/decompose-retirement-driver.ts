@@ -226,11 +226,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
               if (entry === undefined) return null;
               const bytes = await deps.readBlob(null, validateManagedPath(entry.path));
               if (bytes === null) return null;
-              const field = parseMetaRecord(new TextDecoder().decode(bytes))["Depends On"];
-              if (field === null || field === "[none]") return [];
-              return field.split(",")
-                .map((value) => value.trim())
-                .filter(Boolean);
+              return parseMetaRecord(new TextDecoder().decode(bytes)).dependsOn;
             },
             replaceAndStageRecord: async (recordId, expected, next, paths) => {
               const path = resolveRetirementRecordPath(deps.cwd, recordId);

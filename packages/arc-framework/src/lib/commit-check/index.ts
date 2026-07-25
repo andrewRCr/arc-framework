@@ -1,6 +1,7 @@
 /** Public commit-message validation contracts. */
 
 export {
+  COMMIT_CHECK_CONFIG_FIELDS,
   COMMIT_CHECK_DEFAULTS,
   readCommitCheckConfiguration,
   resolveCommitCheckPolicy,

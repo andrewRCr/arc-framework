@@ -115,6 +115,8 @@ async function fixture(): Promise<string> {
     "- **Owner:** test-user",
     "- **Branch:** feat/review-protocol",
     "- **Class:** Light",
+    "- **Priority:** P2",
+    "- **Origin:** [internal]",
     "",
   ].join("\n"), "utf8");
   await writeFile(join(root, "reviewed.txt"), "reviewed change\n", "utf8");

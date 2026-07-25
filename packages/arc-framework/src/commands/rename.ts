@@ -107,14 +107,14 @@ export async function runRenameCommand(
 
       const metaPath = resolve(command.cwd, subject.entry.path);
       const meta = parseMetaRecord(await readFile(metaPath, "utf8"));
-      const branch = normalizedBranch(meta.Branch);
+      const branch = normalizedBranch(meta.branch);
       const shape = await resolveSubjectShape(command, subject.entry, branch, subject.resolvedSlug, composed);
       const dirty = (await exec("git", ["status", "--porcelain"], { cwd: command.cwd })).stdout.trim() !== "";
       assertRenameSubjectPreconditions({
         subject: { kind: "work-unit", name: subject.resolvedSlug } satisfies WorktreeSubject,
         entry: subject.entry,
         dirty,
-        prUrl: meta["PR URL"] ?? undefined,
+        prUrl: meta.prUrl ?? undefined,
       });
 
       const branches = branchPair(branch, names.oldSlug, names.newSlug, subject.resuming, shape);

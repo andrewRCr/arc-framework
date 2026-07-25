@@ -29,7 +29,7 @@ describe("local review method files", () => {
     };
 
     const result = composeWorkUnitReviewAssurance(
-      { Class: "Heavy", "Review Rubric": "[none]" },
+      { workClass: "Heavy", reviewRubric: null },
       createLocalReviewMethodFilePort({ cwd: "/repo", readFile }),
       { resolveReviewRubricBinding: () => { throw new Error("must not resolve absence"); } },
     );

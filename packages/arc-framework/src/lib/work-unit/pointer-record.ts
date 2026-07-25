@@ -19,7 +19,7 @@
  * @module
  */
 
-import { renderMetaFile, type MetaFieldOverrides } from "../active/meta-reader.js";
+import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
 
 /** The inputs a {@link composePointerRecord} render needs. */
 export interface PointerRecordInput {
@@ -35,7 +35,7 @@ export interface PointerRecordInput {
    * by the composer and override any supplied here; the progress / directive
    * narrative is deliberately *not* carried — it stays authoritative on the branch.
    */
-  renderFields: MetaFieldOverrides;
+  renderFields: MetaRenderOverrides;
 }
 
 /**
@@ -51,10 +51,10 @@ export interface PointerRecordInput {
  * @returns The pointer-record markdown, terminated by a single newline.
  */
 export function composePointerRecord(input: PointerRecordInput): string {
-  const overrides: MetaFieldOverrides = {
+  const overrides: MetaRenderOverrides = {
     ...input.renderFields,
-    State: "Active",
-    Branch: input.branch,
+    state: "Active",
+    branch: input.branch,
   };
   const callout = [
     `> **Parked** — Active-phase work shelved here; authoritative artifacts on branch \`${input.branch}\`.`,

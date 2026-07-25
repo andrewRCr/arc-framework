@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import {
+  AGENT_CONSUMABLE_CONFIG_FIELDS,
   AGENT_CONSUMABLE_KEYS,
   readConfigSettings,
 } from "../../../src/lib/config/status-reader.js";
@@ -30,6 +31,25 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
+  it("projects its keys and documented defaults from the agent-consumable catalog", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toEqual(
+      AGENT_CONSUMABLE_CONFIG_FIELDS.map(({ key }) => key),
+    );
+
+    expect(
+      Object.fromEntries(
+        AGENT_CONSUMABLE_CONFIG_FIELDS.map(({ key, defaultValue }) => [key, defaultValue]),
+      ),
+    ).toMatchObject({
+      "branch.base": "main",
+      "worktree.harness_dirs": DEFAULT_WORKTREE_HARNESS_DIRS,
+      "review.standard_sources": "[]",
+      "review.frontline_max_passes": "2",
+      "review.standard_max_passes": "2",
+      "user.notes_push": "on-sync",
+    });
+  });
+
   it("enumerates the 29 agent-consumable keys", () => {
     expect(AGENT_CONSUMABLE_KEYS).toHaveLength(29);
   });

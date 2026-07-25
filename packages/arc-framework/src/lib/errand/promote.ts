@@ -5,7 +5,7 @@
  * unit: renames the errand branch into the WU branch (commits preserved), mints
  * the backing `meta-<name>.md`, and retires the errand record. The crossing-*out*
  * seam of the errand lattice — like `open`/`close`/`retire` it composes shipped
- * primitives (`renderMetaFile` + branch rename + record removal/push) directly,
+ * primitives (semantic meta rendering + branch rename + record removal/push) directly,
  * rather than routing through the WU transition executor (whose table is keyed
  * over WU states an errand does not occupy).
  *
@@ -23,7 +23,8 @@
 
 import { join } from "node:path";
 
-import { renderMetaFile, type MetaFieldOverrides } from "../active/meta-reader.js";
+import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
+import { MetaPrioritySchema, MetaWorkClassSchema } from "../active/meta-schema.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import { ensureDir, type MkdirFn, type ReadFileFn, type WriteFileFn } from "../template/files.js";
@@ -120,12 +121,13 @@ export async function promoteErrand(
   }
 
   const branch = promotionBranchFor(params, name, type);
+  const meta = renderMetaFile(name, metaOverridesFor(params, branch));
   // Rename the record's branch into the WU branch — preserve commits, prefix-agnostic.
   await io.exec("git", ["branch", "-m", record.branch, branch]);
 
   // Mint the backing meta at the stage the crossed floor dictates.
   await ensureDir(join(cwd, ACTIVE_DIR), fs.mkdir);
-  await fs.writeFile(join(cwd, metaPath), renderMetaFile(name, metaOverridesFor(params, branch)));
+  await fs.writeFile(join(cwd, metaPath), meta);
 
   // Retire the record last — the renamed branch is untouched, so this never
   // strands commits, and a failure before here leaves the errand recoverable.
@@ -142,25 +144,25 @@ function promotionBranchFor(params: PromoteErrandParams, name: string, type: str
 }
 
 /** Build the meta field overrides for a promotion, routed by the crossed floor. */
-function metaOverridesFor(params: PromoteErrandParams, branch: string): MetaFieldOverrides {
-  const overrides: MetaFieldOverrides = {
-    Owner: params.owner,
-    Branch: branch,
-    "Last Completed": "Errand promoted to work unit",
+function metaOverridesFor(params: PromoteErrandParams, branch: string): MetaRenderOverrides {
+  const overrides: MetaRenderOverrides = {
+    owner: params.owner,
+    branch,
+    lastCompleted: "Errand promoted to work unit",
   };
-  if (params.priority !== undefined) overrides.Priority = params.priority;
-  if (params.class !== undefined) overrides.Class = params.class;
+  if (params.priority !== undefined) overrides.priority = MetaPrioritySchema.parse(params.priority);
+  if (params.class !== undefined) overrides.workClass = MetaWorkClassSchema.parse(params.class);
 
   if (params.floor === "derivation") {
     // Design must now be authored — enter planning at the draft-design stage.
-    overrides.State = "Planning";
-    overrides["Current Workflow"] = "draft-design";
-    overrides["Next Action"] = "Resolve the design before further implementation.";
+    overrides.state = "Planning";
+    overrides.currentWorkflow = "draft-design";
+    overrides.nextAction = "Resolve the design before further implementation.";
   } else {
     // A determinate concern that now needs a durable plan — enter Active for a
     // brief + task-list backfill; commits already exist, so no activation ceremony.
-    overrides.State = "Active";
-    overrides["Next Action"] = "Backfill a brief spec and task list, then continue implementation.";
+    overrides.state = "Active";
+    overrides.nextAction = "Backfill a brief spec and task list, then continue implementation.";
   }
   return overrides;
 }

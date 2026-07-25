@@ -45,6 +45,7 @@ import type {
   AuthorizationDecision,
   RefusalCode,
 } from "../../lib/release/types.js";
+import { AuditEntrySchema } from "../../lib/release/schema.js";
 import { isRefusalCondition } from "../../lib/git/pushability.js";
 import type {
   PushabilityCondition,
@@ -405,7 +406,7 @@ function buildAuditEntry(opts: BuildEntryOptions): AuditEntry {
     pushInterlock: opts.deps.settings.resolved.pushInterlock,
     syncInterlock: opts.deps.settings.resolved.syncInterlock,
   };
-  return {
+  return AuditEntrySchema.parse({
     schemaVersion: 2,
     timestamp: new Date().toISOString(),
     command: "release-push",
@@ -415,5 +416,5 @@ function buildAuditEntry(opts: BuildEntryOptions): AuditEntry {
     decision: opts.decision,
     refusalCode: opts.refusalCode,
     outcome: opts.outcome,
-  };
+  });
 }

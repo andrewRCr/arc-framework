@@ -27,7 +27,7 @@
 
 import { posix } from "node:path";
 
-import type { MetaFieldName, MetaFieldOverrides } from "../active/meta-reader.js";
+import type { MetaFieldName, MetaProjectionOverrides } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   buildLifecycleIndex,
@@ -131,7 +131,7 @@ export type GuardValidator = (ctx: GuardContext) => GuardResult | Promise<GuardR
  */
 export const DEFAULT_GUARD_VALIDATORS: Partial<Record<GuardId, GuardValidator>> = {
   "class-resolved": ({ inputs }) =>
-    inputs.class !== undefined && inputs.class !== "" && inputs.class !== "[TBD]"
+    inputs.class !== undefined && inputs.class !== "" && inputs.class !== "TBD" && inputs.class !== "[TBD]"
       ? { ok: true }
       : { ok: false, message: "`promote` requires a resolved `Class` (not `[TBD]`) supplied in inputs." },
   confirmation: ({ inputs }) =>
@@ -219,7 +219,7 @@ export interface ExecuteTransitionContext {
   /** Apply soft-field updates to the meta at `metaPath` (read → rewrite → write). */
   writeSoftFields: (
     metaPath: string,
-    updates: Partial<Record<MetaFieldName, string>>,
+    updates: MetaProjectionOverrides,
   ) => Promise<void>;
 
   /** Write the meta `Branch` core-table field at `metaPath` (read → rewrite cell → write). */
@@ -278,7 +278,7 @@ export interface ExecuteTransitionContext {
    */
   reconcileMeta?: (
     metaPath: string,
-    overrides: MetaFieldOverrides,
+    overrides: MetaProjectionOverrides,
   ) => Promise<MetaFieldName[]>;
 
   /**
@@ -822,7 +822,7 @@ async function applySoftFields(
   // After a relocate, the meta lives under the destination directory.
   const effectivePath = effectiveMetaPath(record, metaPath, inputs);
 
-  const updates: Partial<Record<MetaFieldName, string>> = {};
+  const updates: MetaProjectionOverrides = {};
   for (const key of Object.keys(DISPOSITION_KEY) as (keyof SoftFieldDispositions)[]) {
     const disposition = record.softFields[key];
     const field = DISPOSITION_KEY[key];

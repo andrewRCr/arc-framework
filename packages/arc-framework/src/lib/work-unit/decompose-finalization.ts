@@ -4,7 +4,7 @@ import { canonicalDigest, canonicalize, type CanonicalDigest } from "../canonica
 import { artifactGroupDigest } from "../canonical/receipt-id.js";
 import { patchDigest, type ArtifactSetEntry, type PatchOperation } from "../canonical/content-digest.js";
 import { scanDecomposeContent, resolveDecomposeContentLocator } from "./decompose-content.js";
-import { newMemberDependencies } from "./decompose-cut-map.js";
+import { newMemberDependencies, type DecomposeAllocationMap } from "./decompose-cut-map.js";
 import { parseDecomposePreparationRecord } from "./decompose-preparation.js";
 import { decomposeInventoryDigests, type DecomposeInventories } from "./decompose-inventory.js";
 import { replaceDependencySlot } from "./decompose-sweep.js";
@@ -82,7 +82,9 @@ async function dependencyResultsMatch(
   ctx: DecomposeFinalizationContext,
   record: DecomposePreparationRecord,
 ): Promise<boolean> {
-  const incoming = new Map(record.allocation.incomingEdges.map((edge) => [edge.dependent, edge.disposition]));
+  const incoming = new Map<string, DecomposeAllocationMap["incomingEdges"][number]["disposition"]>(
+    record.allocation.incomingEdges.map((edge) => [edge.dependent, edge.disposition]),
+  );
   for (const inventory of record.incomingEdgeInventory) {
     const disposition = incoming.get(inventory.dependent);
     if (disposition === undefined) return false;

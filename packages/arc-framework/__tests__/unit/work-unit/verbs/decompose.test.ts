@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord, renderMetaProjectionFile, type MetaProjectionOverrides } from "../../../../src/lib/active/meta-reader.js";
 import {
   runDecompose,
   runPreparedDecompose,
@@ -70,7 +70,7 @@ function member(slug: string, over: Partial<NewMemberEntry> = {}): NewMemberEntr
 }
 
 const ORIGIN_CONTEXT: ScaffoldCohortMembersParams["originContext"] = {
-  origin: "[internal]",
+  origin: "internal",
   owner: "andrew",
   priority: "P1",
 };
@@ -251,9 +251,9 @@ interface MetaSpec {
   origin?: string;
 }
 
-/** Render a fixture meta via the production projection, so `parseMetaRecord` round-trips it. */
+/** Render a fixture meta via the production projection, so `parseMetaProjectionRecord` round-trips it. */
 function metaContent(spec: MetaSpec): string {
-  const o: MetaFieldOverrides = {
+  const o: MetaProjectionOverrides = {
     State: spec.state,
     Owner: "andrew",
     Branch: spec.branch ?? "[none]",
@@ -263,7 +263,7 @@ function metaContent(spec: MetaSpec): string {
   if (spec.cohort !== undefined) o.Cohort = spec.cohort;
   if (spec.dependsOn !== undefined && spec.dependsOn.length > 0) o["Depends On"] = spec.dependsOn.join(", ");
   if (spec.origin !== undefined) o.Origin = spec.origin;
-  return renderMetaFile(spec.slug, o);
+  return renderMetaProjectionFile(spec.slug, o);
 }
 
 /** Build an injectable lifecycle-index fs over a fixed set of metas (mirrors the abandon harness). */
@@ -709,7 +709,7 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
       closeout: { Class: "Light", "Depends On": "transition-core" },
     };
     for (const [slug, expected] of Object.entries(golden)) {
-      const record = parseMetaRecord(writeFor(h.writes, `/lifecycle-machine/${slug}/meta-${slug}.md`).content);
+      const record = parseMetaProjectionRecord(writeFor(h.writes, `/lifecycle-machine/${slug}/meta-${slug}.md`).content);
       expect(record).toMatchObject({
         State: "Planning",
         Owner: "andrew",

@@ -550,7 +550,7 @@ async function graduate(
       }
     }
     const record = parseMetaRecord(baseContent);
-    cls = record.Class ?? "[TBD]";
+    cls = record.workClass ?? "TBD";
   } catch {
     p.log.error(`could not read the backlog meta for \`${wuName}\`.`);
     process.exitCode = 1;

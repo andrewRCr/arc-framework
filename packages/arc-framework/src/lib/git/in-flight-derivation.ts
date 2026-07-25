@@ -22,7 +22,10 @@
  */
 
 import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../../commands/active/types.js";
-import { META_FIELDS, parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
+import {
+  parseMetaRecord,
+  type ParsedMetaRecord,
+} from "../active/meta-reader.js";
 import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
 
 import type { GitExec } from "./exec.js";
@@ -816,7 +819,7 @@ type MetaLocationRelation = InFlightCandidateRelation;
 interface MetaCandidate {
   name: string;
   metaPath: string;
-  record: MetaRecord;
+  record: ParsedMetaRecord;
   relation: MetaLocationRelation;
   marks: InFlightEntryMark[];
   warnings: InFlightWarning[];
@@ -1097,7 +1100,7 @@ async function isAncestor(exec: GitExec, ancestor: string, descendant: string): 
 }
 
 function stateOrder(candidate: WorkUnitCandidate): number {
-  const state = validateState(candidate.meta.record.State);
+  const state = validateState(candidate.meta.record.state);
   return state === "unknown" ? -1 : WORK_UNIT_STATE_ORDER[state];
 }
 
@@ -1153,8 +1156,8 @@ function isLocalRemoteMirror(left: WorkUnitCandidate, right: WorkUnitCandidate):
   return hasLocal && (sources.has("remote-live") || sources.has("remote-tracking"));
 }
 
-function degradedMetaRecord(): MetaRecord {
-  return Object.fromEntries(META_FIELDS.map((field) => [field.name, null])) as MetaRecord;
+function degradedMetaRecord(): ParsedMetaRecord {
+  return parseMetaRecord("");
 }
 
 function degradedMetaCandidate(input: {
@@ -1213,8 +1216,8 @@ async function readMetaCandidate(
     });
   }
 
-  const branchField = record.Branch;
-  if (branchField === null || branchField === "[none]" || branchField.trim() === "") {
+  const branchField = record.branch;
+  if (branchField === null || branchField.trim() === "") {
     return {
       name,
       metaPath,
@@ -1247,7 +1250,7 @@ function staleLocationWarning(
   branch: string,
   code: "stale-location-dropped" | "stale-location-shadow",
 ): InFlightWarning {
-  const pointsTo = candidate.record.Branch ?? "[missing]";
+  const pointsTo = candidate.record.branch ?? "[missing]";
   const rendered = code === "stale-location-dropped"
     ? `Meta \`${candidate.metaPath}\` at \`${branch}\` points to \`${pointsTo}\`; dropped stale location.`
     : `Meta \`${candidate.metaPath}\` at \`${branch}\` points to \`${pointsTo}\`; shadowed by location match.`;
@@ -1403,7 +1406,7 @@ function worktreeListFailedWarning(): InFlightWarning {
  * but treating it as ownerless would leak malformed WUs through identity-scoped
  * views.
  */
-function parseRecord(content: string): MetaRecord | null {
+function parseRecord(content: string): ParsedMetaRecord | null {
   try {
     return parseMetaRecord(content);
   } catch {
@@ -1420,8 +1423,10 @@ function buildWorkUnit(
   ref: string,
 ): { entry: InFlightWorkUnit; warnings: InFlightWarning[] } {
   const { name, record: fields } = candidate;
-  const { Owner: owner, Design: design, Cohort: cohort, Class: workClass, Priority: priority } = fields;
-  const state = validateState(fields.State);
+  const { owner, design, cohort, dependsOn } = fields;
+  const workClass = fields.workClass === "TBD" ? "[TBD]" : fields.workClass;
+  const priority = fields.priority === "TBD" ? "[TBD]" : fields.priority;
+  const state = validateState(fields.state);
   const marks = state === "unknown" ? appendMark(candidate.marks, "degraded") : [...candidate.marks];
   const warnings: InFlightWarning[] = [];
   if (state === "unknown") {
@@ -1431,7 +1436,7 @@ function buildWorkUnit(
         branch,
         workUnit: name,
         rendered: `Meta \`${candidate.metaPath}\` at \`${ref}\` has unrecognized State ` +
-          `\`${fields.State ?? "[missing]"}\`.`,
+          `\`${fields.state ?? "[missing]"}\`.`,
       }),
     );
   }
@@ -1443,13 +1448,13 @@ function buildWorkUnit(
       ...location,
       ...(marks.length > 0 ? { marks } : {}),
       ...(owner !== null ? { owner } : {}),
-      ...(design !== null && design !== "[none]" ? { design } : {}),
-      ...(cohort !== null && cohort !== "[none]" ? { cohort } : {}),
+      ...(design.length > 0 ? { design: design.join(", ") } : {}),
+      ...(cohort !== null ? { cohort } : {}),
       // Keep `[TBD]`: it is a real value the view renders, unlike the `[none]`
       // absences above. Drop only a genuinely field-absent (`null`) Class.
       ...(workClass !== null ? { class: workClass } : {}),
-      ...(priority !== null && priority !== "[none]" ? { priority } : {}),
-      dependsOn: parseIdentifierList(fields["Depends On"]),
+      ...(priority !== null ? { priority } : {}),
+      dependsOn,
       ...(parked ? { scheduling: "parked" as const } : {}),
     },
     warnings,

@@ -12,6 +12,17 @@ import { describe, it, expect } from "vitest";
 import { resolveWorktreeLocation } from "../../../src/lib/git/worktree-location.js";
 
 describe("resolveWorktreeLocation", () => {
+  it("rejects an empty location template", () => {
+    expect(() =>
+      resolveWorktreeLocation({
+        template: "",
+        repo: "arc-framework",
+        name: "worktree-foundation",
+        branch: "plan/worktree-foundation",
+      }),
+    ).toThrow();
+  });
+
   it("resolves the default template from the work-unit name", () => {
     const path = resolveWorktreeLocation({
       template: "../{repo}.{name}",
