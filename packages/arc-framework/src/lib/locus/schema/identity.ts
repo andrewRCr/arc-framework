@@ -78,6 +78,10 @@ const groomSchemas = [
     ...groomBase, protection: z.literal("partial"), branch: z.null(),
     state: z.literal("open"), savedHead: z.null(), changeRequest: z.null(),
   }),
+  z.strictObject({
+    ...groomBase, protection: z.literal("partial"), branch: z.null(),
+    state: z.literal("settled"), savedHead: LocusGitOidSchema, changeRequest: z.null(),
+  }),
 ].map((schema) => schema.superRefine((value, context) => {
   const sorted = [...value.members].sort(compareUtf8);
   if (!value.members.includes(value.anchorStub)

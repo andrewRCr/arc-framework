@@ -98,10 +98,16 @@ function deriveInFlightIdentities(rows: readonly LocusRowV1[]): LocusStateV1["in
     .sort((left, right) => compareUtf8(`${left.kind}\0${left.key}`, `${right.kind}\0${right.key}`))
     .map((identity) => ({
       identity,
-      actions: identity.state === "awaiting-merge"
-        ? ["resume", "wait", "finalize", "abandon"]
-        : ["resume", "abandon"],
+      actions: actionsForIdentityState(identity.state),
     }));
+}
+
+/** A settled claim owes only its retirement, so it offers no resume. */
+function actionsForIdentityState(
+  state: NonNullable<LocusRowV1["identity"]>["state"],
+): LocusStateV1["inFlightIdentities"][number]["actions"] {
+  if (state === "awaiting-merge") return ["resume", "wait", "finalize", "abandon"];
+  return state === "settled" ? ["finalize", "abandon"] : ["resume", "abandon"];
 }
 
 function deriveRecovery(

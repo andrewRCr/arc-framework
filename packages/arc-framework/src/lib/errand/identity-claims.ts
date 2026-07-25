@@ -24,6 +24,9 @@ import {
 /** Valid grooming identity generation. */
 export type GroomIdentityRecord = Extract<TransientIdentityRecordV3, { kind: "groom" }>;
 
+/** Partial grooming generation carrying the base head its close proved. */
+export type SettledPartialGroomRecord = Extract<GroomIdentityRecord, { state: "settled" }>;
+
 /** Semantic result of a grooming claim transform. */
 export type GroomClaimVerdict =
   | { kind: "claimed"; record: GroomIdentityRecord }
@@ -44,6 +47,13 @@ export type HousekeepClaimVerdict =
 export interface GroomAwaitMergeRequest {
   readonly previous: GroomIdentityRecord;
   readonly changeRequest: LocusChangeRequestV1;
+  readonly updatedAt: string;
+}
+
+/** Exact open-generation request to record the base head partial grooming settled on. */
+export interface GroomSettleRequest {
+  readonly previous: GroomIdentityRecord;
+  readonly settledHead: string;
   readonly updatedAt: string;
 }
 
@@ -227,6 +237,51 @@ export function groomAwaitMergeTransform(request: GroomAwaitMergeRequest) {
     }
     if (actual === undefined || !sameRecord(actual, request.previous)) {
       return { kind: "refused", reason: `Identity '${request.previous.slug}' changed before awaiting-merge` };
+    }
+    const records = new Map(basis);
+    records.set(desired.slug, desired);
+    return { kind: "applied", records, value: desired };
+  };
+}
+
+/**
+ * Build an exact-generation open-to-settled partial grooming transition.
+ *
+ * Partial grooming lands on the base branch itself, so the head it settled on
+ * survives nowhere outside this record once occupancy is removed. Writing it
+ * before that removal is what lets a later pass prove the work landed rather
+ * than inferring it from a base that any sibling push would also have advanced.
+ *
+ * @param request - Previous open generation, proven settled head, advancing timestamp.
+ * @returns A complete-basis transaction transform.
+ */
+export function groomSettleTransform(request: GroomSettleRequest) {
+  return (
+    basis: ReadonlyMap<string, TransientIdentityRecord>,
+  ): IdentityTransformDecision<SettledPartialGroomRecord> => {
+    if (request.previous.protection !== "partial") {
+      return { kind: "refused", reason: "Only partial grooming settles onto the base" };
+    }
+    if (request.previous.state !== "open") {
+      return { kind: "refused", reason: "Only an open grooming identity can settle" };
+    }
+    if (Date.parse(request.updatedAt) <= Date.parse(request.previous.updatedAt)) {
+      return { kind: "refused", reason: "updatedAt must advance monotonically" };
+    }
+    const parsed = TransientIdentityRecordV3Schema.safeParse({
+      ...request.previous,
+      state: "settled",
+      savedHead: request.settledHead,
+      updatedAt: request.updatedAt,
+    });
+    if (!parsed.success || !isGroom(parsed.data) || parsed.data.state !== "settled") {
+      return { kind: "refused", reason: "Settle transition does not form a valid grooming identity" };
+    }
+    const desired = parsed.data;
+    const actual = basis.get(request.previous.slug);
+    if (actual !== undefined && sameRecord(actual, desired)) return { kind: "idempotent", value: desired };
+    if (actual === undefined || !sameRecord(actual, request.previous)) {
+      return { kind: "refused", reason: `Identity '${request.previous.slug}' changed before settling` };
     }
     const records = new Map(basis);
     records.set(desired.slug, desired);

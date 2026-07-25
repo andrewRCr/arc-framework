@@ -115,6 +115,18 @@ const groomSchemas = [
     state: z.literal("open"),
     changeRequest: z.null(),
   }),
+  // Partial grooming commits onto the base itself, so nothing outside the claim
+  // records which head it settled on. `settled` carries that head from the pass
+  // that proved it, which is what lets a retirement interrupted after occupancy
+  // removal still prove the work landed.
+  z.strictObject({
+    ...GroomBaseShape,
+    protection: z.literal("partial"),
+    branch: z.null(),
+    state: z.literal("settled"),
+    savedHead: LocusGitOidSchema,
+    changeRequest: z.null(),
+  }),
 ].map((schema) => schema.superRefine((value, context) => {
   validateGroom(value, context);
   validateV3Lifecycle(value, context);
@@ -230,7 +242,7 @@ export function projectLocusIdentity(record: TransientIdentityRecordV3): LocusId
       protection: record.protection,
       branch: record.branch,
       state: record.state,
-      savedHead: null,
+      savedHead: record.state === "settled" ? record.savedHead : null,
       changeRequest: record.changeRequest,
     });
   }

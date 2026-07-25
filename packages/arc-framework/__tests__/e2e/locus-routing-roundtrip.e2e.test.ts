@@ -14,6 +14,8 @@ import {
   housekeepClaimTransform,
   transactTransientIdentities,
   type HousekeepIdentityRecord,
+  type SettledPartialGroomRecord,
+  type TransientIdentityRecord,
 } from "../../src/lib/errand/index.js";
 import { makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import {
@@ -31,6 +33,21 @@ async function setFullProtection(repository: string): Promise<void> {
   const path = join(repository, ".arc", "system", "arc-config.yml");
   const config = await readFile(path, "utf8");
   await writeFile(path, config.replace("branch.protection: partial", "branch.protection: full"));
+}
+
+async function setPartialProtection(repository: string): Promise<void> {
+  const path = join(repository, ".arc", "system", "arc-config.yml");
+  const config = await readFile(path, "utf8");
+  await writeFile(path, config.replace("branch.protection: full", "branch.protection: partial"));
+}
+
+/** Write one identity record directly, standing in for a pass that crashed after it. */
+function seedIdentity(record: TransientIdentityRecord) {
+  return (records: ReadonlyMap<string, TransientIdentityRecord>) => {
+    const next = new Map(records);
+    next.set(record.slug, record);
+    return { kind: "applied" as const, records: next, value: null };
+  };
 }
 
 async function createBareRemote(repository: string): Promise<string> {
@@ -173,6 +190,108 @@ describe("grooming and housekeeping locus round trips", () => {
     expect(abandoned, JSON.stringify(abandoned)).toMatchObject({ outcome: "applied", operation: "plan-abandon" });
     expect(replayed, JSON.stringify(replayed)).toMatchObject({ outcome: "idempotent", operation: "plan-abandon" });
     await expect(git(repository, ["rev-parse", "--verify", `refs/heads/${branch}`])).rejects.toThrow();
+  });
+
+  async function readSeededIdentity(slug: string): Promise<TransientIdentityRecord | null> {
+    const basis = await transactTransientIdentities({
+      identity: "test-user",
+      exec: makeGitExec(repository),
+      execInput: makeGitExecInput(repository),
+    }, {
+      remote: "origin",
+      message: "read grooming claim",
+      transform: (records) => ({ kind: "idempotent" as const, value: records.get(slug) ?? null }),
+    });
+    if (basis.kind !== "idempotent" && basis.kind !== "applied") throw new Error(`unreadable basis: ${basis.kind}`);
+    return basis.value;
+  }
+
+  /** The state a partial close reaches when its retirement fails after occupancy removal. */
+  async function seedSettledPartialGroom(settledHead: string): Promise<void> {
+    const now = "2026-07-22T00:00:00.000Z";
+    const record = TransientIdentityRecordV3Schema.parse({
+      version: 3,
+      kind: "groom",
+      slug: "groom-alpha",
+      claimId: "9".repeat(32),
+      anchorStub: "alpha",
+      members: ["alpha"],
+      openedBaseHead: await git(repository, ["rev-parse", "HEAD"]),
+      protection: "partial",
+      branch: null,
+      state: "settled",
+      savedHead: settledHead,
+      changeRequest: null,
+      createdAt: now,
+      updatedAt: now,
+    }) as SettledPartialGroomRecord;
+    await expect(transactTransientIdentities({
+      identity: "test-user",
+      exec: makeGitExec(repository),
+      execInput: makeGitExecInput(repository),
+    }, {
+      remote: "origin",
+      message: "seed settled partial grooming claim",
+      transform: seedIdentity(record),
+    })).resolves.toMatchObject({ kind: "applied" });
+  }
+
+  it("completes a partial grooming sweep on the configured base", async () => {
+    await setPartialProtection(repository);
+    const stub = await runArc(["stub", "alpha", "--commitment", "provisional", "--priority", "P2"], repository);
+    expect(stub.exitCode, stub.stderr || stub.stdout).toBe(0);
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "--no-verify", "-m", "add grooming stub under partial protection"]);
+    await git(repository, ["push", "origin", "main"]);
+
+    const sequence = await runArcAnchoredSequence([
+      ["plan", "open", "alpha", "--json"],
+      {
+        command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "groom alpha"],
+        cwdFromPreviousJson: "activeLocusPath",
+      },
+      { command: ["git", "push", "origin", "main"], reuseResolvedCwd: true },
+      { args: ["plan", "close", "alpha", "--json"], reuseResolvedCwd: true },
+    ], repository, { timeout: 90_000, anchorShellPath: harness.executable });
+
+    expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
+    const [opened, closed] = sequence.results as Record<string, unknown>[];
+    expect(opened).toMatchObject({
+      outcome: "applied",
+      operation: "plan-open",
+      identity: { kind: "groom", protection: "partial", branch: null, state: "open" },
+    });
+    expect(closed, JSON.stringify(closed)).toMatchObject({ outcome: "applied", operation: "plan-close" });
+  });
+
+  it("retires a settled partial grooming claim whose occupancy is already gone", async () => {
+    const settledHead = await git(repository, ["rev-parse", "HEAD"]);
+    await seedSettledPartialGroom(settledHead);
+
+    const sequence = await runArcAnchoredSequence([
+      ["plan", "close", "alpha", "--json"],
+    ], repository, { timeout: 90_000, anchorShellPath: harness.executable });
+
+    expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
+    const [retired] = sequence.results as Record<string, unknown>[];
+    expect(retired, JSON.stringify(retired)).toMatchObject({ outcome: "applied", operation: "plan-close" });
+    await expect(readSeededIdentity("groom-alpha")).resolves.toBeNull();
+  });
+
+  it("refuses a settled partial grooming claim whose head never reached the base", async () => {
+    const unpushed = await git(repository, ["commit-tree", "-m", "never pushed", `${await git(repository, ["rev-parse", "HEAD^{tree}"])}`]);
+    await seedSettledPartialGroom(unpushed);
+
+    const sequence = await runArcAnchoredSequence([
+      ["plan", "close", "alpha", "--json"],
+    ], repository, { timeout: 90_000, anchorShellPath: harness.executable });
+
+    const [refused] = sequence.results as Record<string, unknown>[];
+    expect(refused, JSON.stringify(refused)).toMatchObject({
+      outcome: "refused",
+      operation: "plan-close",
+      reason: "preservation-unproven",
+    });
   });
 
   it("resumes an awaiting-merge grooming set from an ordinary open change request", async () => {

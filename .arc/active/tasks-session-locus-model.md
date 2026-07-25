@@ -1502,7 +1502,7 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           terminal: a discarded fact is invisible at the site that discards it and only surfaces where recovery is
           impossible.
 
-    - `[ ]` **7.E.d.iv Make grooming and housekeeping tails replayable** — P1-F1, P1-F2
+    - `[x]` **7.E.d.iv Make grooming and housekeeping tails replayable** — P1-F1, P1-F2
 
         - `[x]` **7.E.d.iv.1 Keep tail settlement replayable across branch deletion** — P1-F1
             - Both tails now settle through `exact-branch-generation.ts`, which classifies each side before
@@ -1521,17 +1521,32 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
               a raced lease, an unreachable remote), plus a real-CLI grooming abandon whose remote leg was applied
               out of band — it reaches identity retirement, and replays idempotent.
 
-        - `[ ]` **7.E.d.iv.2 Let a partial grooming close survive a failed identity retirement** — P1-F2
-            - Partial `closeGroomAtRuntime` pops occupancy before `rollbackIdentityClaim`, so a failed retirement
-              leaves a claim whose replay refuses `checkout-missing` at the `exactGroomRow` gate before it can reach
-              the retirement again. Permit exact retirement with absent occupancy on the partial arm, gated on what
-              survives the removal — the claim read this pass being exactly the recorded generation, and the base
-              proof the record already carries — so the claim is retirable precisely when its occupancy is already
-              gone. Retiring a claim whose work was never proven pushed stays refused; if that proof cannot be made
-              exact from the record alone, persist the settled state into the claim ahead of occupancy removal
-              instead, and record the choice.
-            - Cover the identity-stage failure and the replay that follows it, plus an absent-occupancy replay whose
-              base proof does not hold.
+        - `[x]` **7.E.d.iv.2 Let a partial grooming close survive a failed identity retirement** — P1-F2
+            - The record-alone gate the plan proposed does not close, so the recorded fallback was taken: partial
+              grooming lands on the base itself, and `openedBaseHead` reachability is satisfied identically whether
+              the sweep's own commits landed, a sibling pushed, or nothing moved — it cannot tell a settled close
+              from occupancy removed by anything else. A new `settled` partial state carries the head the close
+              proved, written before occupancy removal, so retirement is authorized by reachability of that exact
+              head rather than by an inference the base would support either way.
+            - `closeGroomAtRuntime`'s absent-occupancy gate now distinguishes a settled claim outliving its checkout
+              — this close's own unfinished work — from a genuinely missing one, and retires it once its head is
+              contained in the freshly pinned base. A claim whose work never reached the base still refuses
+              `preservation-unproven`, which is the property the weaker gate would have lost.
+            - The state is a new strict variant on both the persisted record and the public locus projection, so a
+              settled claim projects its `savedHead` and offers `finalize` / `abandon` rather than a resume it
+              cannot honor.
+            - Covered at the transform (settles an exact open partial generation; refuses full protection, a
+              non-open state, a non-advancing timestamp, and a changed basis) and by three real-CLI cases: the
+              partial sweep end to end — previously uncovered — the seeded post-failure replay reaching retirement,
+              and a settled claim whose head never reached the base.
+
+    - _Outcome:_ Both leaves were the same defect — a settle that destroys the evidence its own replay needs — but
+      they correct in opposite directions, and which one applies is decided by whether the record that survives can
+      still say what was settled. Branch refs name their own head, so the deleted state is self-describing and the
+      replay can simply accept it; a partial sweep's base head is indistinguishable from any other push, so nothing
+      survives to accept and the proof has to be written down before the destroying step. Accepting a proven
+      post-state is the cheaper correction wherever it is available, but availability is a property of the evidence,
+      not a preference — reaching for it where the evidence cannot support it is how a gate silently weakens.
 
     - `[ ]` **7.E.d.v Leave a crashed lock breaker reclaimable** — L2-F2
         - `breakDeadLocusLock` writes a `.break` file holding only the breaker's token, so an exit between that
@@ -1601,6 +1616,35 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   foreign-occupancy refusal `7.E.c.v.2` added. Fidelity is the constraint: the stub must emit the exact
   `gh pr list --json baseRefName,headRefName,headRefOid` shape the runtime parses. `leave --state
   awaiting-merge` reads the same host boundary and gains coverage from the same stub.
+
+### `[ ]` **7.E.i Split the grooming and housekeeping tails from their Node wiring**
+
+- _Goal:_ `closeGroomAtRuntime`, `settleGroomAtRuntime`, and `settleHousekeepAtRuntime` compose over injected
+  evidence the way settlement and occupancy closing already do, so their ordering and authorization claims are
+  provable at the unit tier instead of only through a real CLI run.
+
+- _Note:_ Carries no finding — surfaced while executing `7.E.d.iv`, and it is the same remediation `7.E.c.iv` and
+  `7.E.c.v.1` already applied to their siblings, on the modules those tasks did not reach. Each of the three
+  acquires its own session anchor, constructs platform process inspectors, and reads locus state internally, so
+  nothing below a real CLI run can reach them. Both `P1` findings were ordering defects in exactly these modules,
+  invisible for exactly that reason — the same sentence `7.E.c.iv` recorded about `partial-settle`. The cost is
+  already being paid rather than predicted: `7.E.d.iv.1` could only prove its post-failure states by first
+  extracting the teardown into its own module, and `7.E.d.iv.2` by seeding a crashed state through a real CLI
+  sequence.
+
+- _Approach:_ Follow the landed split shape — composition module over injected seams plus a `*-runtime.ts` holding
+  the Node wiring — and reuse the existing seams (`locus/evidence.ts`, `locus/locked-generation.ts`, the
+  provisioning dependencies) rather than minting per-module ones. Behavior-preserving: every ordering claim the
+  split exposes should be expressible as a unit test that fails against the pre-split sequence, which is also the
+  check that the extraction did not quietly change one.
+
+    - `[ ]` **7.E.i.1 Split the grooming close and settle tails**
+        - `groom/close-runtime.ts` and `groom/tail-runtime.ts` — the partial settle-then-pop-then-retire ordering
+          and the awaiting-merge persist-then-pop ordering are the claims to land under unit coverage.
+
+    - `[ ]` **7.E.i.2 Split the housekeeping lifecycle tail**
+        - `housekeep/lifecycle-runtime.ts` — close, settle, and the partial abandon arm share one occupancy
+          cleanup; the file is the largest of the three and carries the close/settle/abandon fan-out.
 
 ## **Phase 7.F:** Errand Close Reachability
 

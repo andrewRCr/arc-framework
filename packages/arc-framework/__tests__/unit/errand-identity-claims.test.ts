@@ -8,6 +8,7 @@ import {
   groomClaimTransform,
   groomAwaitMergeTransform,
   groomResumeTransform,
+  groomSettleTransform,
   rollbackGroomResumeTransform,
   type ChangeRequestLifecycleEvidence,
   type GroomIdentityRecord,
@@ -166,6 +167,40 @@ describe("groom identity claims", () => {
       groom({ claimId: "8".repeat(32) }),
     ]])))
       .toMatchObject({ kind: "refused" });
+  });
+
+  it("records the settled base head on an exact open partial generation", () => {
+    const previous = groom({ protection: "partial", branch: null });
+    const settledHead = "d".repeat(40);
+    const request = { previous, settledHead, updatedAt: "2026-07-20T00:01:00.000Z" };
+
+    const decision = groomSettleTransform(request)(new Map([[previous.slug, previous]]));
+    expect(decision).toMatchObject({
+      kind: "applied",
+      value: { state: "settled", savedHead: settledHead, claimId: previous.claimId, openedBaseHead: baseHead },
+    });
+    if (decision.kind !== "applied") throw new Error("expected settle transition");
+    expect(groomSettleTransform(request)(decision.records)).toMatchObject({ kind: "idempotent" });
+  });
+
+  it("settles only a partial generation that is still exactly open", () => {
+    const partial = groom({ protection: "partial", branch: null });
+    const settledHead = "d".repeat(40);
+    const updatedAt = "2026-07-20T00:01:00.000Z";
+
+    expect(groomSettleTransform({ previous: groom(), settledHead, updatedAt })(new Map()))
+      .toMatchObject({ kind: "refused", reason: expect.stringContaining("partial") });
+    expect(groomSettleTransform({
+      previous: groom({ protection: "partial", branch: null, state: "settled", savedHead: settledHead }),
+      settledHead,
+      updatedAt,
+    })(new Map())).toMatchObject({ kind: "refused", reason: expect.stringContaining("open") });
+    expect(groomSettleTransform({ previous: partial, settledHead, updatedAt: createdAt })(new Map()))
+      .toMatchObject({ kind: "refused", reason: expect.stringContaining("monotonically") });
+    expect(groomSettleTransform({ previous: partial, settledHead, updatedAt })(new Map([[
+      partial.slug,
+      groom({ protection: "partial", branch: null, claimId: "8".repeat(32) }),
+    ]]))).toMatchObject({ kind: "refused", reason: expect.stringContaining("changed before settling") });
   });
 
   it("resumes an awaiting-merge generation from open or advisory host truth", () => {
