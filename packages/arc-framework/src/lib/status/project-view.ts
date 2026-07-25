@@ -14,7 +14,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import { validatePriority, validateState, type Priority, type WorkUnitState } from "../../commands/active/types.js";
-import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   deriveInFlight,
@@ -337,17 +337,17 @@ async function readProjectMeta(
     return null;
   }
 
-  const state = validateState(record.State);
+  const state = validateState(record.state);
   if (state === "unknown") return null;
 
   return {
     slug: slugOf(path),
     location,
     state,
-    ...(record.Owner !== null && record.Owner !== "[none]" ? { owner: record.Owner } : {}),
-    priority: validatePriority(record.Priority),
-    dependsOn: parseIdentifierList(record["Depends On"]),
-    ...(record.Cohort !== null && record.Cohort !== "[none]" ? { cohort: record.Cohort } : {}),
+    ...(record.owner !== null ? { owner: record.owner } : {}),
+    priority: validatePriority(record.priority),
+    dependsOn: record.dependsOn,
+    ...(record.cohort !== null ? { cohort: record.cohort } : {}),
     source: sourceFor(location, path),
   };
 }

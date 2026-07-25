@@ -1,0 +1,586 @@
+# Task List: CLI validation surfaces
+
+- **Design:** `spec-cli-validation-surfaces.md`
+
+---
+
+## **Phase 1:** Audit-entry validation authority
+
+_Purpose:_ Establish the release audit record as a strict schema-owned boundary before expanding the shared
+registry to include it.
+
+### `[x]` **1.1 Establish the audit-entry schema authority**
+
+- _Goal:_ Every valid version-2 audit cell has one runtime and TypeScript authority, and invalid cross-products
+  are unrepresentable at the persistence boundary.
+
+    - `[x]` **1.1.a Define the complete audit-entry schema family**
+        - Added strict, projectable command/decision/outcome schemas, schema-derived compatibility types and refusal
+          codes, and a reusable resolved-override schema factory. Producers now parse assembled entries so forbidden
+          cross-products remain unrepresentable at compile time as well as runtime.
+
+### `[x]` **1.2 Cut audit persistence over to the schema contract**
+
+- _Goal:_ Audit writes reject programming defects before filesystem effects while preserving redaction and the
+  existing non-masking I/O failure policy.
+
+    - `[x]` **1.2.a Replace the handwritten write-boundary validator**
+        - Replaced the handwritten validator and command/outcome tables with an `AuditEntrySchema` parse before I/O.
+          Schema errors now report stable boundary paths without values; valid entries retain their JSONL bytes, and
+          filesystem failures retain the non-masking `{ ok: false, error }` contract.
+
+## **Phase 2:** Semantic meta-record authority
+
+_Purpose:_ Separate semantic work-unit state from its Markdown projection, then move the broad consumer surface
+onto stable code-facing fields without losing tolerant recovery.
+
+### `[x]` **2.1 Establish semantic and projection meta schemas**
+
+- _Goal:_ Meta state has a storage-agnostic strict record while the current Markdown format retains an explicit,
+  independently validated compatibility representation.
+
+    - `[x]` **2.1.a Define the semantic meta-record contract**
+        - Added the strict storage-agnostic `MetaRecordSchema` with kernel vocabulary composition, semantic nullable
+          fields and identifier arrays, deliberate `TBD`/`internal` values, and inferred structural types. Display
+          sentinels and malformed or incomplete records are rejected without adding policy to open values.
+
+    - `[x]` **2.1.b Define the Markdown projection contracts**
+        - Added exact label-to-semantic-key identities to `META_FIELDS`, a strict 17-label tokenizer schema, and a
+          tolerant code-facing parsed-record schema. Raw invalid closed-domain tokens and absent fields remain
+          independently visible while malformed projection shapes and empty present values are rejected.
+
+### `[x]` **2.2 Preserve Markdown parsing and canonical rendering through semantic records**
+
+- _Goal:_ Both Markdown layouts parse to the same semantic fields, while canonical full-layout rendering and
+  localized legacy mutations preserve their respective bytes, sentinel behavior, and field-level recovery.
+
+    - `[x]` **2.2.a Return parsed semantic fields from the Markdown reader**
+        - `parseMetaRecord()` now validates the exact tokenizer projection and returns normalized semantic keys,
+          arrays, nulls, `TBD`, and `internal` while preserving raw invalid closed tokens and multiline narratives.
+          Unmigrated consumers use an explicit temporary projection reader rather than weakening the semantic API.
+
+    - `[x]` **2.2.b Validate and render complete semantic records**
+        - Added nullable strict conversion and a schema-validated semantic renderer that preserves the established
+          full-layout bytes while mapping nulls, empty arrays, `TBD`, and `internal` to their exact display forms.
+          Localized projection mutators and the temporary projection renderer retain legacy byte behavior.
+
+    - `[x]` **2.2.c Preserve narrow reader compatibility**
+        - Kept `parseMetaFile()` and active-candidate reads on their established narrow result and warning contracts;
+          the existing malformed-table, absent-marker, legacy-layout, and field-local degradation corpus remains
+          green across the semantic reader and renderer cutovers.
+
+### `[x]` **2.3 Migrate semantic meta writers and render producers**
+
+- _Goal:_ Every full-record writer supplies semantic keys while localized Markdown mutations retain their explicit
+  projection-level contract.
+
+    - `[x]` **2.3.a Establish the semantic-writer compatibility boundary**
+        - Replaced the dual-purpose override type with distinct semantic-render and projection-update contracts;
+          localized Markdown setters retain their label-keyed projection API.
+
+    - `[x]` **2.3.b Migrate direct creation-path renderers**
+        - Migrated errand promotion, worktree scaffolding, and stub creation to schema-checked semantic overrides while
+          preserving the established planning, active, and promoted metadata bytes.
+
+    - `[x]` **2.3.c Migrate composed and transition render inputs**
+        - Migrated pointer, decomposition, and park render composition to semantic keys and added a source-wide AST
+          inventory guard against label-keyed semantic calls or the retired override contract.
+
+- _Outcome:_ Full-record creation now crosses one strict semantic boundary, including pointer prevalidation before
+  destructive park teardown, while localized projection mutations remain explicit and byte-compatible.
+
+### `[x]` **2.4 Migrate work-unit lifecycle consumers to semantic fields**
+
+- _Goal:_ Work-unit handlers, transitions, and projections consume one parsed semantic representation instead of
+  display labels and repeated list parsing.
+
+    - `[x]` **2.4.a Migrate start and planning handlers**
+        - Moved start graduation and planning-entry resolution onto semantic class, state, and branch fields while
+          retaining unresolved-class defaults, refusal text, and planning-route behavior.
+
+    - `[x]` **2.4.b Migrate lifecycle and view handlers**
+        - Moved lifecycle and explicit-view reads onto semantic fields and parsed design arrays, including the typed
+          park handoff, while preserving transition selection, output text, narrow results, and warning behavior.
+
+    - `[x]` **2.4.c Migrate activation and terminal transitions**
+        - Migrated activation, deactivation, archive, and abandon reads to semantic branch and cohort fields while
+          retaining localized projection writes and established transition refusals.
+
+    - `[x]` **2.4.d Migrate decomposition readers and rewrites**
+        - Moved decomposition origin, incoming-edge rewrite, and retirement reads onto semantic fields and parsed
+          dependency arrays, removing repeated splitting without changing allocation or retirement policy.
+
+    - `[x]` **2.4.e Migrate park and resume evidence consumers**
+        - Moved park/resume, planning-landing, and retirement-proof reads onto semantic fields while preserving byte
+          evidence, cohort routing, staged projections, dirty-worktree refusal, and successful pointer bytes.
+        - Strict pointer composition now precedes teardown and rejects missing required fields without mutation;
+          only pointer-write failure after successful teardown retains the partial-application result.
+
+    - `[x]` **2.4.f Migrate lifecycle execution infrastructure**
+        - Moved lifecycle indexing and executor-bound branch reads onto one semantic parse while retaining explicitly
+          label-keyed projection override types at localized transition write seams.
+
+    - `[x]` **2.4.g Migrate remaining transition and completion projections**
+        - Migrated promote/demote, teardown, completed-index, and decomposition retirement projection reads to
+          semantic class, branch, completion, and PR fields while preserving unresolved-class refusal and receipts.
+
+- _Outcome:_ Lifecycle execution now shares one tolerant semantic representation across handlers, transitions,
+  evidence, indexes, and completion reads; label-keyed access remains only where localized Markdown writes require it.
+
+### `[x]` **2.5 Migrate status, session, validation, and review readers**
+
+- _Goal:_ Read-heavy consumers share semantic field names while preserving each caller's independent degradation
+  and warning authority.
+
+    - `[x]` **2.5.a Migrate project and ready-work status sources**
+        - Moved project-readiness and ready-work sources onto semantic fields and parsed dependency arrays while
+          preserving public row shapes, ordering, malformed-record degradation, and validation fallbacks.
+
+    - `[x]` **2.5.b Migrate active-work consistency readers**
+        - Moved cohort and current-workflow consistency onto semantic cohort values and parsed design arrays while
+          retaining active-status narrative parsing and the established warning text.
+
+    - `[x]` **2.5.c Migrate Git roster and in-flight derivation**
+        - Moved worktree roster and in-flight derivation onto semantic records while preserving display-facing
+          unresolved values and field-level degradation when state is invalid or metadata is unreadable.
+
+    - `[x]` **2.5.d Migrate base and session-resolution adapters**
+        - Moved base-drift completion and session cohort resolution onto semantic completion, PR, and cohort fields
+          while preserving malformed-meta degradation and externally visible record shapes.
+
+    - `[x]` **2.5.e Migrate meta validators and foreign-write checks**
+        - Moved lifecycle-state and staged-origin reads onto semantic fields while leaving design-shape, lifecycle,
+          and active-location policy in their owning validators and advisory boundary.
+
+    - `[x]` **2.5.f Migrate review-gate meta readers and close the read inventory**
+        - Moved lifecycle-tail archive proofs and self-hosting ownership decisions onto semantic fields, with an AST
+          inventory guard confining projection parsing and raw identifier-list normalization to their authorities.
+
+- _Outcome:_ Status, session, validation, Git, and review-gate consumers now share one tolerant semantic record;
+  projection labels and raw list parsing remain confined to Markdown projection and policy boundaries.
+
+## **Phase 3:** Authorable configuration authority
+
+_Purpose:_ Consolidate project configuration domains and defaults into one schema-backed catalog while preserving
+the distinct recovery and precedence policies of existing adapters.
+
+### `[x]` **3.1 Establish the configuration catalog and schema contracts**
+
+- _Goal:_ Every active project-level key has one declared authoring domain, default, and policy classification,
+  with schema-derived record types for raw, authorable, and completed views.
+
+    - `[x]` **3.1.a Build the authoritative field catalog**
+        - Added the 36-field `ARC_CONFIG_FIELDS` catalog with projectable Zod leaves, documented omission defaults,
+          domain policy, and explicit quoted-empty posture. Exact string-integer bounds preserve leading zeros through
+          `Number.MAX_SAFE_INTEGER`; open strings remain uncompiled and adapter normalization stays local.
+        - Retired `hooks.subject_warn_length` from the installed known-key domain and removed the stale
+          `hooks.code_extensions` comment in both framework and self-hosting validator copies.
+
+    - `[x]` **3.1.b Define raw, authorable, and completed config schemas**
+        - Added open raw, registered-authoring, and strict completed-projection schemas with inferred record types.
+          The authoring root intersects the exact installed key grammar with catalog leaves while preserving matching
+          unknown strings; the completed view proves only presence and string shape for its 24-key projection.
+        - Re-exported inferred `ConfigSettings` through both established command import paths while leaving
+          session-init and provenance records under their existing authorities.
+
+- _Outcome:_ Project configuration now has one typed catalog for keys, defaults, authoring domains, and empty-value
+  policy, plus distinct raw, authorable, and completed record contracts for the adapters that consume it.
+
+### `[x]` **3.2 Rebase policy adapters on catalog domains and defaults**
+
+- _Goal:_ Configuration consumers share field definitions without losing their distinct tolerance, precedence,
+  normalization, and hard-error policies.
+
+    - `[x]` **3.2.a Validate tokenizer output without changing syntax behavior**
+        - `parseArcConfig()` now parses its assembled map through `RawArcConfigSchema` and returns the inferred type;
+          the existing tokenizer corpus preserves broad names, line endings, quoting, colon values, and first-claim
+          behavior for bare and quoted empty definitions without adding normalization.
+
+    - `[x]` **3.2.b Migrate agent-consumable and precedence-aware readers**
+        - Derived the agent projection, omission defaults, and existing tolerant policy checks from catalog
+          descriptors, validating the assembled completed view before return while leaving `user.notes_push` raw
+          until its catalog-backed dual-scope resolver applies git-config precedence and preserves provenance.
+          Config rendering and generic YAML override resolution now use catalog-owned keys and defaults without
+          introducing YAML tiers for per-developer-only settings.
+
+    - `[x]` **3.2.c Migrate strict commit-check configuration**
+        - Derived the eight-key projection, defaults, enum types and domains, and exact positive-integer validation
+          from catalog descriptors while retaining commit-check-owned normalization and findings. Disabled hooks
+          still short-circuit unrelated failures, custom patterns pass through unchanged, and invalid domains retain
+          their existing `config.invalid-value` and `config.invalid-number` contracts.
+
+    - `[x]` **3.2.d Migrate worktree configuration adapters**
+        - Reused the catalog's location-template and normalized-directory leaves at the two worktree boundaries and
+          sourced the registered-harness default from its descriptor. Token expansion stays pure; harness parsing
+          retains ordered deduplication, trailing-separator normalization, reserved-name diagnostics, and throws;
+          command execution and fallback policy remain with their existing callers.
+
+- _Outcome:_ Agent, precedence, commit-check, and worktree adapters now share one catalog without collapsing their
+  distinct tolerant, strict, dual-scope, and normalization policies into a global configuration normalizer.
+
+### `[x]` **3.3 Deliver typed configuration validation behind the stable launcher**
+
+- _Goal:_ One non-interactive TypeScript validator owns diagnostics and exit status while the installed shell path
+  and custom-root behavior remain compatible.
+
+    - `[x]` **3.3.a Implement the TypeScript validation service**
+        - Added a side-effect-free selected-file service that inventories exact validator-grammar occurrences,
+          validates first-definition values through `ArcConfigSchema`, and composes stable domain, cross-field, and
+          occurrence-ordered unknown-key diagnostics. Structured results preserve line ordering, counts, summaries,
+          selected path tokens, and severity-derived status without exposing pattern bodies; quoted-empty posture and
+          exact positive-safe-integer boundaries follow the catalog.
+
+    - `[x]` **3.3.b Add `arc config validate` command wiring**
+        - Registered the optional `--file` command, exported the validation service through the stable config barrel,
+          and added non-interactive line/status propagation. Default selection resolves the nearest ARC root while
+          explicit relative and absolute paths resolve from the current directory without requiring a project root;
+          process-level integration coverage pins nested defaults, preserved display tokens, and exit codes 0–2.
+
+    - `[x]` **3.3.c Reduce `validate-config.sh` to the compatibility launcher**
+        - Replaced both byte-identical installed copies with a sourced-library launcher that `exec`s the typed command
+          using `ARC_CONFIG_FILE`. PATH-shim coverage pins default and absolute argv plus transparent stdout, stderr,
+          and status forwarding; custom-`ARC_DIR` integrity verification proves its selected config reaches the CLI.
+
+- _Outcome:_ Configuration validation now has one typed, non-interactive policy authority behind both the direct CLI
+  and stable installed-script path, with explicit path selection and compatibility output preserved end to end.
+
+### `[x]` **3.4 Prove catalog completeness and compatibility behavior**
+
+- _Goal:_ The catalog demonstrably covers the shipped configuration surface exactly once, and every existing
+  adapter retains its intended observable policy.
+
+    - `[x]` **3.4.a Add a closed configuration inventory test**
+        - Added ordered package-declaration parity, uniqueness, catalog-derived consumer projection, unowned literal,
+          parallel-default, and shell-table guards. Full validation proves every registered field known while the
+          retired warning-length key remains an ordinary extra; explicit full-validation and worktree projections now
+          join the existing agent and commit-check subsets.
+
+    - `[x]` **3.4.b Establish the shared compatibility corpus**
+        - Added one data-only configuration corpus covering valid, invalid, missing, bare-empty, quoted-empty, unknown,
+          duplicate, and git-over-yaml precedence inputs. Each stable case records expected tolerant-reader, resolved,
+          commit-check, worktree, and validator observations, with a structural test guarding coverage and uniqueness.
+
+    - `[x]` **3.4.c Prove tolerant and precedence-aware compatibility**
+        - Drove every shared case through real temporary config files, asserting tolerant raw-value pass-through,
+          omission-only default accounting, warning subsets, and resolved notes-push value/provenance. Git-config
+          overrides remain authoritative over YAML while invalid and empty values retain their adapter fallbacks.
+
+    - `[x]` **3.4.d Prove strict and worktree-adapter compatibility**
+        - Ran every shared case through commit-policy resolution and the worktree location/harness adapters. Assertions
+          pin hard finding order, omission fallbacks, first-definition masking, branch-token expansion, ordered harness
+          deduplication, empty-list behavior, and invalid-template or reserved-directory throws.
+
+    - `[x]` **3.4.e Prove validator and launcher compatibility**
+        - Ran every shared case through the validation service, source CLI, and installed launcher, pinning diagnostic
+          fragments, selected path tokens, counts, stream parity, and exit statuses. A copied package root with a corpus
+          config also proves integrity validation forwards its custom `ARC_DIR` selection to the real CLI boundary.
+
+- _Outcome:_ The packaged declaration, typed catalog, five adapter families, direct command, and installed compatibility
+  path are now guarded by one closed inventory and one reusable data corpus without retaining a parallel policy helper.
+
+## **Phase 4:** User-state and cross-work-unit contracts
+
+_Purpose:_ Replace manual persisted-state and note-payload checks with schema-owned adapters while retaining
+backward-compatible hydration, concurrent-write behavior, and lossless Markdown reconstruction.
+
+### `[x]` **4.1 Establish versioned local sync-state schemas and normalization**
+
+- _Goal:_ Persisted versions 2–4 enter through an explicit backward-compatible reader and hydrate to one strict
+  version-4 internal record without rejecting tolerated extensions.
+
+    - `[x]` **4.1.a Define persisted and normalized sync-state schemas**
+        - Added a projectable loose union for persisted versions 2–4 and a strict normalized version-4 producer schema,
+          sharing only the existing non-empty basis and operation requirements. Persisted extensions remain unknown and
+          additive at ingress; strict marker, file-list, and provenance children derive the public record types.
+        - Removed `machineId` from normalized state and preserved established imports through schema/type re-exports.
+          Nineteen focused checks cover version acceptance, malformed required and extension fields, lexical tolerance,
+          strict producer shape, inferred types, and refinement-free JSON Schema projection.
+
+    - `[x]` **4.1.b Normalize tolerated persisted extensions**
+        - Added `normalizeLocalSyncState()` as a fresh-record adapter that upgrades every persisted discriminant to
+          version 4, independently narrows each known extension through its child schema, and validates the assembled
+          producer record. Malformed extensions, unknown fields, and legacy `machineId` are discarded without losing
+          valid base or sibling state; public compatibility barrels expose the normalizer.
+
+- _Outcome:_ Persisted local state now has an acceptance-equivalent loose reader and one strict current record type;
+  normalization preserves compatible extension state while preventing legacy or malformed data from escaping ingress.
+
+### `[x]` **4.2 Preserve sync-state persistence and migration behavior**
+
+- _Goal:_ Reads, atomic writes, and concurrent mutations use the schemas without changing missing/malformed versus
+  I/O-failure behavior or dropping compatible state.
+
+    - `[x]` **4.2.a Cut validated reads over to parse and normalize**
+        - Replaced the manual record and extension checks with persisted-schema parsing followed by normalization,
+          while leaving raw machine-id adoption independent. Preferred and legacy path tests pin valid precedence,
+          `ENOENT` fallback, invalid-JSON termination, structurally unusable fallthrough, total absence, and immediate
+          propagation of non-`ENOENT` failures; the existing save/load corpus continues to cover version hydration and
+          one-time legacy machine-id adoption.
+
+    - `[x]` **4.2.b Validate every version-4 persistence path**
+        - Added strict producer parsing inside the shared compare-and-swap lock immediately before atomic persistence,
+          covering save/load and both marker mutation families without altering retry behavior. Focused boundary tests
+          prove invalid output leaves no state file and valid output persists as a strict record; the existing 75-case
+          save/load and marker corpus remains green across carry, replace, clear, legacy-drop, and concurrent updates.
+
+    - `[x]` **4.2.c Exercise the local record lifecycle in integration**
+        - Added real-filesystem lifecycle coverage that hydrates a legacy version-2 record, rewrites save/load state at
+          the preferred path while carrying file-list and provenance extensions, and races notes/errand marker updates
+          through the actual advisory-lock and compare-and-swap path without losing either marker or sibling state.
+
+    - `[x]` **4.2.d Exercise state-producing command and ref flows**
+        - Extended built-CLI save/load and multi-machine partial-push E2E coverage to parse produced local records with
+          `LocalSyncStateSchema`. Assertions pin version and operation rewrites plus notes-tip/partial-push linkage while
+          the existing ref publication, reconciliation, fulfillment, and two-machine union cases remain unchanged.
+
+- _Outcome:_ Every local sync-state ingress and producer now crosses the versioned schemas, while real-file, built-CLI,
+  concurrent marker, and ref-backed tests preserve the existing migration, carry-forward, and recovery lifecycle.
+
+### `[x]` **4.3 Establish cross-work-unit note adapter schemas**
+
+- _Goal:_ Cross-work-unit note parsing has schema-derived success and failure shapes while retaining title/header
+  identity, no-throw recovery, and byte-lossless reconstruction.
+
+    - `[x]` **4.3.a Define cross-work-unit entry and parse-result schemas**
+        - Added strict `CrossWuEntrySchema` and discriminated `CrossWuEntryParseSchema` contracts, deriving the public
+          entry/result types through compatibility re-exports while retaining handwritten `CrossWuShape`. Focused
+          coverage pins all section and result arms plus rejection of empty, unknown, and additive fields.
+
+    - `[x]` **4.3.b Cut cross-work-unit parsers over to schema-owned payloads**
+        - Routed every internally assembled success and failure through `CrossWuEntryParseSchema` immediately before
+          exposure, keeping authored malformation as no-throw data while schema defects throw. Characterization coverage
+          pins exact reasons, full-header and section-scoped title identity, and raw bytes apart from trailing blanks.
+
+    - `[x]` **4.3.c Migrate merge and downstream parser consumers**
+        - Moved parser, merge, inbox-state/reminder, and baseline extraction seams onto the schema-inferred payloads;
+          public exports remain compatible and the baseline stamp/validator stay handwritten. Existing exact-byte,
+          collision, union, tombstone, malformed-reason, count/reminder, and entry-hash coverage remains unchanged.
+
+- _Outcome:_ Cross-work-unit entry/result structure now has one strict runtime and type authority from parser assembly
+  through merge, session probes, and baseline extraction, without elevating the Markdown adapter or baseline stamp to
+  a registered durable contract.
+
+## **Phase 5:** Unregistered ingress contracts
+
+_Purpose:_ Move the remaining adapter-local and graph-refined boundaries to schema authority without advertising
+incomplete durable contracts through the registry.
+
+### `[x]` **5.1 Establish the decomposition cut-map schema authority**
+
+- _Goal:_ Cut maps derive their structural types from one strict version-2 schema while retaining graph invariants,
+  targeted diagnostics, canonical ordering, and receipt bytes.
+
+    - `[x]` **5.1.a Define the cut-map structural schema family**
+        - Added strict version-2 position, locator, target, entry, allocation, edge-disposition, target-set, and root
+          schemas with inferred structural types. Kernel Class/slug/state vocabularies, branded canonical digests,
+          managed paths, normalized headings, safe cohort paths, optional cohort, and ordering-neutral arrays are pinned
+          by focused acceptance and rejection coverage.
+
+    - `[x]` **5.1.b Preserve cross-record and graph invariants**
+        - Composed path-targeted refinements for destination/cohort identity, home/locator ownership, transform and
+          placement shape, source allocations, internal/dependency edges, recipient eligibility, uniqueness, and
+          self-dependencies. Acceptance remains ordering-neutral and permits extraction independently of the unchanged
+          retirement-policy decision.
+
+    - `[x]` **5.1.c Preserve the public no-throw adapter and type surface**
+        - Rebased map and locator decoding on schema `safeParse`, retained version-specific refusals, translated issue
+          paths to boundary reasons, and normalized ordering only after acceptance. The adapter re-exports inferred
+          structures while `DecomposeParams`, `CutEntry`, and direct consumer construction remain source-compatible;
+          the handwritten structural decoder and declarations are removed.
+
+    - `[x]` **5.1.d Prove preparation, retirement, and receipt compatibility**
+        - Exercised inferred maps through preparation decode, retirement authorization/finalization, receipt decode, and
+          real-repository decomposition shapes. Canonical preparations remain accepted, non-canonical stored allocation
+          order is rejected, and existing inventory, dependency, ownership, digest, record, receipt, and fixture
+          behavior remains unchanged.
+
+- _Outcome:_ The version-2 cut map now has one schema-derived structural and graph authority, while its public no-throw
+  adapter, canonical post-parse ordering, retirement-policy separation, and byte-addressed preparation/receipt chain
+  remain compatible.
+
+### `[x]` **5.2 Extract and validate Git worktree porcelain records**
+
+- _Goal:_ Successful Git output cannot silently discard malformed worktree stanzas, while process failures and
+  caller-specific degradation remain distinct.
+
+    - `[x]` **5.2.a Create the tokenizer and record schema module**
+        - Added the strict schema-derived normalized record and a single-pass tokenizer that preserves stanza order and
+          missing anchors for boundary validation while discarding unknown attributes. Roster parsing now consumes the
+          extracted tokenizer; focused coverage pins branched, detached, bare, blank, forward-compatible, and strict
+          record behavior.
+
+    - `[x]` **5.2.b Introduce the domain validation error boundary**
+        - Added `git.worktree-porcelain.invalid` `ArcError` failures with stable stanza/field paths and no raw-record
+          leakage, replaced `RawWorktree` with the inferred record, and preserved process-error identity plus each
+          roster, primary-path, branch-map, and topology caller's propagate/degrade policy, detached handling, and
+          missing-head refusal.
+
+- _Outcome:_ Successful Git output now crosses one strict normalized record boundary and cannot silently discard a
+  malformed non-empty stanza, while Git-version extensions and caller-specific failure semantics remain compatible.
+
+### `[x]` **5.3 Establish the cold-start input schema contract**
+
+- _Goal:_ Every successful cold-start classification is schema-validated and type-derived while empty input remains
+  the existing no-throw failure arm.
+
+    - `[x]` **5.3.a Define and adopt `ParsedSpecInputSchema`**
+        - Added and adopted the strict schema-derived four-arm success union, validating each assembled classification
+          before return. Issue-before-pointer precedence, nested specs, pass-through documents, trimmed descriptions,
+          lexical tolerance, and the handwritten empty-input no-throw failure remain unchanged.
+
+## **Phase 6:** Validation registry composition
+
+_Purpose:_ Compose the four externally meaningful schema roots only after their owning boundaries exist, keeping
+registry discovery independent from kernel artifact publication.
+
+### `[x]` **6.1 Compose the validation-surfaces registry**
+
+- _Goal:_ Consumers can discover exactly the four declared durable roots through a fresh kernel-derived registry
+  without changing kernel-only build output.
+
+    - `[x]` **6.1.a Add the assembly-only registry factory**
+        - Added the internal registry factory and stable ID map, registering the four owning schema instances with
+          their declared versions and migration postures. Each call extends a fresh kernel registry, retaining
+          deterministic vocabulary composition, mutation isolation, and duplicate rejection.
+
+    - `[x]` **6.1.b Establish the internal-only composition boundary**
+        - Kept composition source-internal and opt-in: default projection bytes remain kernel-only before and after
+          composition, while an explicit registry argument projects the expanded in-memory set and kernel references.
+          The unchanged package build continues to emit only `dist/schemas/kernel.json`.
+
+- _Outcome:_ Durable validation roots are discoverable through an isolated internal registry without expanding the
+  CLI entry surface or changing the kernel artifact publication contract.
+
+### `[x]` **6.2 Prove registry projection fidelity and closed membership**
+
+- _Goal:_ Registry metadata, ordering, and JSON Schema acceptance are deterministic and cannot drift beyond the
+  declared root set.
+
+    - `[x]` **6.2.a Validate runtime and projected acceptance independently**
+        - Added Ajv 8 as a direct test dependency and registered the entire in-memory draft-2020-12 bundle by `$id`.
+          Shared literal corpora now require matching Zod and Ajv results across audit cross-products, semantic meta
+          strictness, config key/value policy, and backward-compatible sync-state versions and extensions.
+
+    - `[x]` **6.2.b Prove closed membership and publication isolation**
+        - Pinned the exact eight-schema closed set, byte-identical fresh projections, canonical `$id` values, and
+          resolvable internal references. A real clean package build still emits only the byte-stable kernel artifact;
+          no unregistered validation surface receives an identity or publication path.
+
+- _Outcome:_ The composed registry is closed, deterministic, acceptance-equivalent across independent evaluators,
+  and isolated from package publication; registration remains discovery metadata rather than an artifact side effect.
+
+## **Phase 7:** Review-gate canonicalization cutover
+
+_Purpose:_ Adopt kernel canonical bytes for safely recomputable identities while preserving every durable
+version-1 review-gate identity behind a repository-private frozen serializer.
+
+### `[x]` **7.1 Freeze the version-1 canonicalization seam**
+
+- _Goal:_ Existing receipts, attestation event ids, checkpoints, and activation candidates remain verifiable with
+  their original bytes after the shared helper adopts kernel canonicalization.
+
+    - `[x]` **7.1.a Extract the exact legacy serializer**
+        - Copied the pre-cutover normalizer unchanged into the repository-private version-1 serializer and pinned its
+          recursive bytes, ambient locale ordering, non-normalized strings, numeric-key reordering, lone-surrogate,
+          sparse-array, `__proto__`, and complete refusal behavior without exporting it through a barrel.
+
+    - `[x]` **7.1.b Route receipt and attestation identities through the frozen seam**
+        - Routed both receipt identities and attestation manifest event digests through the frozen serializer. Literal
+          decomposed-Unicode receipt and attestation constants remain valid, exact replay and changed-run conflict
+          behavior is preserved, and later payloads carry existing receipt hashes as opaque references.
+
+    - `[x]` **7.1.c Route qualification identities through the frozen seam**
+        - Routed qualification scope, checkpoint-chain, matrix, operation, and candidate identities plus exact
+          operation equality through the frozen serializer. Literal decomposed-Unicode checkpoints resume and extend,
+          stored acceptance and activation digests validate, and kernel-equivalent legacy-distinct edits are rejected.
+
+- _Outcome:_ Every durable version-1 receipt, attestation, checkpoint, matrix, and activation identity remains on its
+  original byte contract, with literal divergence fixtures proving replay and resume compatibility without rewrite.
+
+### `[x]` **7.2 Move recomputable identities to kernel canonical bytes**
+
+- _Goal:_ Newly computed policy, permission, and repair-result identities share the kernel's canonicalization
+  authority without adopting its digest wire prefix.
+
+    - `[x]` **7.2.a Delegate `canonicalizePlainJson()` to the kernel**
+        - Replaced the duplicate normalizer with direct kernel `canonicalize()` delegation while retaining the
+          review-gate export and unprefixed hash helpers. ASCII and the literal NUL-delimited change-set identity stay
+          fixed; Unicode ordering/NFC behavior, collision checks, malformed-Unicode refusal, and sparse rejection now
+          match the kernel authority.
+
+    - `[x]` **7.2.b Route the recomputable caller set**
+        - Kept policy, live permission, and repair-result digests on the kernel-backed helper and pinned their Unicode
+          re-keying plus ASCII output. Requirement and request keys retain their NUL-delimited formulas, changing only
+          when the supplied policy-version string changes; stored pre-cutover policy strings remain authoritative.
+
+- _Outcome:_ Recomputable review-gate identities now share kernel ordering, normalization, and refusal semantics while
+  preserving the review-gate digest wire shape and all non-JSON identity formulas.
+
+### `[x]` **7.3 Prove identity compatibility and caller classification**
+
+- _Goal:_ Fixtures and a closed inventory demonstrate that every review-gate identity uses the correct serializer
+  and that no durable version-1 or kernel receipt contract changed accidentally.
+
+    - `[x]` **7.3.a Add divergent Unicode durability fixtures**
+        - Added literal pre-cutover constants for receipt validation, attestation replay, checkpoint resume, acceptance
+          validation, and activation equality. Accepted decomposed-Unicode string values explicitly diverge from
+          kernel bytes while durable identities and cross-record receipt references remain valid without rewrite.
+
+    - `[x]` **7.3.b Add recomputable divergence and kernel-regression fixtures**
+        - Pinned the old and new Unicode policy identities plus kernel-backed policy, permission, and repair-result
+          outputs while retaining ASCII fixtures. Malformed Unicode, sparse arrays, and NFC key collisions fail
+          through the shared helper, and the existing kernel canonical receipt and digest goldens remain unchanged.
+
+    - `[x]` **7.3.c Close the serializer caller inventory**
+        - Added a recursive production-source guard for the exact three kernel-backed and four frozen callers.
+          `core/identity.ts` is the sole direct kernel import, only the two declared serializers and frozen normalizer
+          remain, neither serializer is barrel-exported, and the three NUL-delimited identities stay outside JSON.
+
+- _Outcome:_ The review-gate canonicalization split is closed by literal compatibility fixtures, intentional
+  recomputable re-key fixtures, and an executable caller inventory that prevents future domain drift.
+
+## **Phase 8:** Verification
+
+### `[x]` **8.1 Complete verification**
+
+- _Quality gates:_ Focused reconciliation suites and the full Vitest matrix (7,763 passed, 1 skipped), both
+  TypeScript typecheck surfaces, TypeScript/shell/Markdown lint, staged Markdown certification, ARC contract tests,
+  and the package build all passed.
+- _Success criteria:_ 14 criteria met; the review-gate identity criterion records the reconciled controller
+  retirement as a deviation while preserving the surviving frozen version-1 receipt seam.
+
+---
+
+## Success Criteria
+
+- `[x]` Every selected boundary validates through its owning Zod schema, and migrated structural exports are
+  inferred rather than maintained in parallel.
+- `[x]` The composed registry exposes exactly the four declared roots with stable metadata and runtime/projection
+  parity while the generated kernel-only artifact remains unchanged.
+- `[x]` Audit persistence rejects all invalid command, interlock, decision, refusal, and outcome combinations before
+  I/O without changing redaction or returned filesystem failures.
+- `[x]` Both meta layouts parse to the same semantic fields, the canonical full layout round-trips exact absence
+  tokens, localized legacy mutations preserve unrelated bytes, malformed tokens retain independent evidence, and
+  strict pointer composition rejects before worktree teardown.
+- `[x]` The configuration catalog covers packaged and consumed keys exactly once while each adapter retains its
+  defaults, precedence, warnings, hard errors, fallbacks, and normalization policy.
+- `[x]` `arc config validate` and the installed `validate-config.sh` path agree on diagnostics, summary counts,
+  selected paths, custom `ARC_DIR` behavior, and exit codes; retired validator-only keys warn as unknown.
+- `[x]` Persisted sync-state versions 2–4 hydrate to strict version 4, preserve valid optional state through writes,
+  and retain missing/malformed versus I/O-failure behavior.
+- `[x]` Cut maps retain all structural and graph invariants, targeted version diagnostics, canonical order, and
+  receipt bytes without appearing in the registry.
+- `[x]` Malformed successful worktree porcelain produces a stable domain validation error distinct from Git process
+  failure, while forward-compatible attributes and caller degradation remain supported.
+- `[x]` Cold-start and cross-work-unit adapters retain classification, merge identity, no-throw failures, and
+  lossless raw reconstruction through schema-derived payloads.
+- `[x]` Recomputable review-gate identities adopt kernel bytes, durable version-1 identities remain verifiable through
+  the frozen serializer, and the direct-caller inventory is closed.
+    - **Deviation:** The reconciled base retires the controller-era attestation and qualification identity domains.
+      The surviving version-1 receipt key remains on the frozen serializer, and the closed inventory proves the
+      removed domains were not resurrected.
+- `[x]` No in-scope handwritten structural authority, validator bypass, transitional shim, or parallel reusable test
+  helper remains.
+- `[x]` All quality gates pass (focused and full tests, both typecheck surfaces, TypeScript and shell lint, Markdown
+  lint, and package build).
+- `[x]` Ready for integration.

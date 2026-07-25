@@ -202,7 +202,7 @@ describe("toAuditWorkUnit — resolver-result mapping", () => {
   });
 });
 
-function commitEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
+function commitEntry(overrides: Record<string, unknown> = {}): AuditEntry {
   return {
     schemaVersion: 2,
     timestamp: "2026-05-08T12:00:00.000Z",
@@ -218,10 +218,10 @@ function commitEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
     refusalCode: null,
     outcome: { kind: "commit", hash: "abc1234" },
     ...overrides,
-  };
+  } as unknown as AuditEntry;
 }
 
-function pushEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
+function pushEntry(overrides: Record<string, unknown> = {}): AuditEntry {
   return {
     schemaVersion: 2,
     timestamp: "2026-05-08T12:00:01.000Z",
@@ -237,10 +237,10 @@ function pushEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
     refusalCode: null,
     outcome: { kind: "push", refStatus: "fast-forward" },
     ...overrides,
-  };
+  } as unknown as AuditEntry;
 }
 
-function syncEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
+function syncEntry(overrides: Record<string, unknown> = {}): AuditEntry {
   return {
     schemaVersion: 2,
     timestamp: "2026-05-08T12:00:02.000Z",
@@ -257,7 +257,7 @@ function syncEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
     refusalCode: null,
     outcome: { kind: "sync", cell: "clean", worktree: "ran", notes: "ran", exitCode: 0 },
     ...overrides,
-  };
+  } as unknown as AuditEntry;
 }
 
 describe("appendAuditEntry — append + round-trip", () => {
@@ -306,6 +306,16 @@ describe("appendAuditEntry — append + round-trip", () => {
     );
     expect(JSON.parse(content.trim())).toEqual(entry);
   });
+
+  it("round-trips a refused sync entry without changing its sync outcome", async () => {
+    const entry = syncEntry({ decision: "refused", refusalCode: 14 });
+    await appendAuditEntry({ cwd: fixture.root, identity: "alice", entry });
+    const content = await readFile(
+      resolveAuditLogPath({ cwd: fixture.root, identity: "alice" }),
+      "utf8",
+    );
+    expect(JSON.parse(content.trim())).toEqual(entry);
+  });
 });
 
 describe("appendAuditEntry — schema enforcement (throws on violation)", () => {
@@ -314,6 +324,22 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
   const ctx = (root: string) => ({ cwd: root, identity: "alice" });
+
+  it("reports stable boundary paths without echoing values before filesystem effects", async () => {
+    const secret = "do-not-echo-this-message";
+    const entry = commitEntry({ args: [secret, 42] });
+
+    await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).rejects.toThrow(
+      /audit-log: invalid entry at .*args\.1/,
+    );
+    await expect(stat(join(fixture.root, ".arc"))).rejects.toMatchObject({ code: "ENOENT" });
+
+    try {
+      await appendAuditEntry({ ...ctx(fixture.root), entry });
+    } catch (error) {
+      expect(String(error)).not.toContain(secret);
+    }
+  });
 
   it.each([1, 99])("throws when schemaVersion is %i", async (schemaVersion) => {
     const entry = commitEntry({ schemaVersion: schemaVersion as 2 });
@@ -443,7 +469,9 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
       ...overrides,
       outcome: { kind: "preflight-failed", reason: "input" },
     });
-    await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).rejects.toThrow(/preflight/);
+    await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).rejects.toThrow(
+      /refusalCode|outcome/,
+    );
   });
 });
 

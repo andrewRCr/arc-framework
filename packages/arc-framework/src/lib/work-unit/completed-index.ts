@@ -238,13 +238,12 @@ async function readCompletedRecordFromMeta(
   } catch {
     return null;
   }
-  const completedValue = meta.Completed?.trim();
+  const completedValue = meta.completed?.trim();
   const completedAt = completedValue === undefined
-    || completedValue === "[none]"
     || Number.isNaN(Date.parse(completedValue))
     ? null
     : completedValue;
-  const prValue = meta["PR URL"]?.trim();
+  const prValue = meta.prUrl?.trim();
   const prMatch = prValue === undefined
     ? null
     : /^(https?:\/\/[^\s]+\/pull\/([1-9]\d*))$/u.exec(prValue);

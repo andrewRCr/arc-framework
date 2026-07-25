@@ -18,26 +18,27 @@
  * and `Design` stay closed and narrow by design.
  *
  * Outcomes are discriminated and no-throw (the `lib/user-sync/parser.ts` house
- * pattern); only empty input fails. The variant union is shaped so a later zod
- * discriminated union can wrap it without restructuring.
+ * pattern); only empty input fails. Successful variants cross the strict
+ * runtime schema before return.
  *
  * @module
  */
+
+import { z } from "zod";
 
 /**
  * A classified spec input. The two closed kinds each carry exactly one meta
  * field; the two pass-through kinds carry the raw input for the agent and set
  * no field. The `kind` discriminant makes that narrowness type-level.
  */
-export type ParsedSpecInput =
-  /** ARC spec artifact (`draft-*` / `spec-*`) → meta `Design`. */
-  | { kind: "arc-spec"; design: string }
-  /** Issue reference (`#42` / `owner/repo#42` / `…/issues/…` URL) → meta `Origin`. */
-  | { kind: "issue"; origin: string }
-  /** A file path or URL for the agent to read and assess — no meta field. */
-  | { kind: "document"; document: string }
-  /** A free-text work-unit description — no meta field. */
-  | { kind: "description"; description: string };
+export const ParsedSpecInputSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("arc-spec"), design: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("issue"), origin: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("document"), document: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("description"), description: z.string().min(1) }),
+]);
+
+export type ParsedSpecInput = z.infer<typeof ParsedSpecInputSchema>;
 
 /**
  * No-throw, discriminated parse outcome. A `false` outcome carries a
@@ -56,6 +57,10 @@ const ARC_SPEC = /^(draft|spec)-.+\.md$/;
 /** A single token with no whitespace — a pointer is one of these plus a separator or extension. */
 const SINGLE_TOKEN = /^\S+$/;
 const HAS_EXTENSION = /\.[A-Za-z0-9]{1,8}$/;
+
+function success(value: ParsedSpecInput): SpecInputParse {
+  return { ok: true, value: ParsedSpecInputSchema.parse(value) };
+}
 
 /**
  * Classify a raw spec input into its variant and any meta field it sets.
@@ -79,20 +84,20 @@ export function parseSpecInput(raw: string): SpecInputParse {
   // Issue references — shorthand, or an http URL whose path names an issue.
   // Must precede the pointer checks (an issue URL is pointer-shaped).
   if (ISSUE_SHORTHAND.test(input) || (HTTP_URL.test(input) && input.includes("/issues/"))) {
-    return { ok: true, value: { kind: "issue", origin: input } };
+    return success({ kind: "issue", origin: input });
   }
 
   // Pointer-shaped tokens: a separator or a file extension and no whitespace.
   if (SINGLE_TOKEN.test(input) && (input.includes("/") || HAS_EXTENSION.test(input))) {
     const basename = input.split("/").pop() ?? input;
     if (ARC_SPEC.test(basename)) {
-      return { ok: true, value: { kind: "arc-spec", design: input } };
+      return success({ kind: "arc-spec", design: input });
     }
     // Any other pointer (a non-ARC file, a non-issue URL, a non-spec ARC
     // artifact) is the agent's to read — not a guessed Origin/Design.
-    return { ok: true, value: { kind: "document", document: input } };
+    return success({ kind: "document", document: input });
   }
 
   // Free text — a name + brief description for the agent to work from.
-  return { ok: true, value: { kind: "description", description: input } };
+  return success({ kind: "description", description: input });
 }

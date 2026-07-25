@@ -144,7 +144,7 @@ export function validateLifecycleFields(content: string, path: string): string[]
 
   let state: string | null;
   try {
-    state = parseMetaRecord(content).State;
+    state = parseMetaRecord(content).state;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     diagnostics.push(`${path}: ${message}`);

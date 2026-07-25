@@ -167,7 +167,7 @@ describe("inferSessionType — non-codified State falls through to Next-Action s
   });
 
   it("matches the integration prefix through a backticked workflow pointer", () => {
-    // parseMetaRecord preserves narrative backticks verbatim, so the `^`-anchored
+    // parseMetaProjectionRecord preserves narrative backticks verbatim, so the `^`-anchored
     // prefix must see past a code-spanned pointer.
     expect(
       inferSessionType(

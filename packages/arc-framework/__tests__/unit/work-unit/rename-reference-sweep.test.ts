@@ -39,8 +39,10 @@ describe("rewriteCohortMemberHeading", () => {
 describe("sweepRenameReferences", () => {
   it("rewrites bounded code spans, dependency edges, and the cohort member section", async () => {
     const meta = renderMetaFile("sibling", {
-      "Depends On": "sample, sample-extra",
-      Cohort: "sample",
+      state: "Planning",
+      owner: "andrew",
+      dependsOn: ["sample", "sample-extra"],
+      cohort: "sample",
     });
     const files = new Map<string, string>([
       ["/repo/.arc/active/meta-sibling.md", meta],
@@ -67,8 +69,8 @@ describe("sweepRenameReferences", () => {
     });
 
     const rewrittenMeta = parseMetaRecord(written.get("/repo/.arc/active/meta-sibling.md") ?? "");
-    expect(rewrittenMeta["Depends On"]).toBe("renamed-sample, sample-extra");
-    expect(rewrittenMeta.Cohort).toBe("sample");
+    expect(rewrittenMeta.dependsOn).toEqual(["renamed-sample", "sample-extra"]);
+    expect(rewrittenMeta.cohort).toBe("sample");
     expect(written.get("/repo/.arc/backlog/planned/group/spec-sibling.md"))
       .toBe("See `notes-renamed-sample.md`; sample prose; `cohort-sample.md`.\n");
     expect(written.get("/repo/.arc/backlog/planned/group/cohort-group.md"))
@@ -82,7 +84,11 @@ describe("sweepRenameReferences", () => {
   });
 
   it("leaves sentinel dependency fields unchanged", async () => {
-    const content = renderMetaFile("sibling", { "Depends On": "[none]" });
+    const content = renderMetaFile("sibling", {
+      state: "Planning",
+      owner: "andrew",
+      dependsOn: [],
+    });
     let wrote = false;
     await sweepRenameReferences({
       arcRoot: ".arc",

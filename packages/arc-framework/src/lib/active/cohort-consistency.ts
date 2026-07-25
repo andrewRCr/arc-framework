@@ -147,10 +147,9 @@ export function cohortDocLocation(path: string): CohortDocLocation | null {
 
 /** The normalized `**Cohort:**` field value — `[none]`/absent/empty → `""`. */
 function normalizeCohortField(content: string): string {
-  const raw = parseMetaRecord(content).Cohort;
+  const raw = parseMetaRecord(content).cohort;
   if (raw === null) return "";
-  const trimmed = raw.trim();
-  return trimmed === NONE_SENTINEL ? "" : trimmed;
+  return raw.trim();
 }
 
 /**

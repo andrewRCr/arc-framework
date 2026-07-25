@@ -477,7 +477,7 @@ async function evaluateManualWorkUnit(
   } catch {
     return [fact("malformed-artifact", path, "The active work-unit meta is malformed.")];
   }
-  const position = resolveLifecyclePosition({ path, state: record.State });
+  const position = resolveLifecyclePosition({ path, state: record.state });
   if (position?.phase !== "Integrating" || position.location !== "active") {
     return [fact(
       "wrong-cadence",
@@ -486,7 +486,7 @@ async function evaluateManualWorkUnit(
     )];
   }
   const facts: ReviewReadinessFact[] = [];
-  if (record.Branch !== request.pullRequest.headBranch) {
+  if (record.branch !== request.pullRequest.headBranch) {
     facts.push(fact(
       "branch-mismatch",
       path,
@@ -633,7 +633,7 @@ async function lifecycleCandidateFacts(
       }
       try {
         const record = parseMetaRecord(result.content ?? "");
-        if (resolveLifecyclePosition({ path, state: record.State }) === null) {
+        if (resolveLifecyclePosition({ path, state: record.state }) === null) {
           facts.push(fact("malformed-artifact", path, "The lifecycle candidate is malformed."));
         }
       } catch {
@@ -665,13 +665,13 @@ async function hasOpenCohortMember(
       }
       try {
         const record = parseMetaRecord(result.content);
-        if (resolveLifecyclePosition({ path, state: record.State }) === null) {
+        if (resolveLifecyclePosition({ path, state: record.state }) === null) {
           return {
             open: false,
             facts: [fact("malformed-artifact", path, "The lifecycle candidate is malformed.")],
           };
         }
-        const memberCohort = record.Cohort;
+        const memberCohort = record.cohort;
         if (memberCohort === cohort || memberCohort?.startsWith(`${cohort}/`) === true) {
           return { open: true, facts: [] };
         }
@@ -803,7 +803,7 @@ async function evaluateArchivedWorkUnit(
   } catch {
     return [fact("malformed-artifact", candidate.metaPath, "The archived work-unit meta is malformed.")];
   }
-  const position = resolveLifecyclePosition({ path: candidate.metaPath, state: record.State });
+  const position = resolveLifecyclePosition({ path: candidate.metaPath, state: record.state });
   if (position?.phase !== "Shipped" || position.location !== "completed") {
     return [fact(
       "wrong-cadence",
@@ -812,14 +812,14 @@ async function evaluateArchivedWorkUnit(
     )];
   }
   const facts: ReviewReadinessFact[] = [];
-  if (record.Branch !== null && record.Branch !== "[none]") {
+  if (record.branch !== null) {
     facts.push(fact("branch-mismatch", candidate.metaPath, "The archived work-unit branch must be cleared."));
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/u.test(record.Completed ?? "")) {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(record.completed ?? "")) {
     facts.push(fact("malformed-artifact", candidate.metaPath, "The archived completion date is missing or malformed."));
   }
   if (!archivedPrUrlMatches(
-    record["PR URL"],
+    record.prUrl,
     request.target.repository,
     request.target.pullRequest,
   )) {
@@ -833,7 +833,7 @@ async function evaluateArchivedWorkUnit(
   facts.push(...releaseNotesFacts(content, candidate.metaPath));
   facts.push(...await lifecycleCandidateFacts(root, fs));
   if (facts.length === 0) {
-    facts.push(...await cohortCloseoutFacts(root, fs, candidate, record.Cohort, request.vehicle.slug));
+    facts.push(...await cohortCloseoutFacts(root, fs, candidate, record.cohort, request.vehicle.slug));
   }
   return facts;
 }

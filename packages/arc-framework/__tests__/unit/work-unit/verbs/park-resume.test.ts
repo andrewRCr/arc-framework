@@ -17,7 +17,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaRecord, type MetaFieldName } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, type ParsedMetaRecord } from "../../../../src/lib/active/meta-reader.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import { patchDigest, type PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
@@ -79,7 +79,7 @@ function metaContent(meta: MetaSpec): string {
 }
 
 /** The parsed source meta the handler passes to `runPark` (read from the WU's own worktree). */
-function recordFor(meta: MetaSpec): Record<MetaFieldName, string | null> {
+function recordFor(meta: MetaSpec): ParsedMetaRecord {
   return parseMetaRecord(metaContent(meta));
 }
 
@@ -482,9 +482,9 @@ describe("runPark — park@Active", () => {
     // Blessed render shape: State stays the literal `Active` (parked is derived
     // from location), the authoritative branch is carried, render fields survive.
     const record = parseMetaRecord(pointer);
-    expect(record.State).toBe("Active");
-    expect(record.Branch).toBe("feat/foo");
-    expect(record.Cohort).toBe("demo-cohort");
+    expect(record.state).toBe("Active");
+    expect(record.branch).toBe("feat/foo");
+    expect(record.cohort).toBe("demo-cohort");
   });
 
   it("rejects when the preserved-branch worktree is dirty (teardown gate, nothing written)", async () => {
@@ -513,6 +513,17 @@ describe("runPark — park@Active", () => {
     expect(result.reason).toMatch(/preserved branch/i);
     // Rejected before teardown — no worktree touched, no pointer-record written.
     expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
+    expect(writes).toEqual([]);
+  });
+
+  it("rejects an invalid pointer record before tearing down the worktree", async () => {
+    const { ctx, writes, calls } = buildCtx([ACTIVE]);
+    const sourceRecord = { ...recordFor(ACTIVE), owner: null };
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord });
+
+    expect(result.status).toBe("rejected");
+    expect(calls.some((call) => call.startsWith("worktree:"))).toBe(false);
     expect(writes).toEqual([]);
   });
 
@@ -699,7 +710,7 @@ describe("park / resume reject a non-slug name", () => {
 
     const result = await runPark(ctx, {
       ...BASE_PARK,
-      sourceRecord: { ...recordFor(ACTIVE), Cohort: "Not-A-Slug" },
+      sourceRecord: { ...recordFor(ACTIVE), cohort: "Not-A-Slug" },
     });
 
     expect(result.status).toBe("rejected");

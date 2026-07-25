@@ -9,39 +9,41 @@ import { rewriteRenamedMeta } from "../../../../src/lib/work-unit/mutators/rewri
 describe("rewriteRenamedMeta", () => {
   it("rewrites the title, branch, and slug-bearing pointers only", () => {
     const content = renderMetaFile("sample", {
-      State: "Active",
-      Owner: "andrew",
-      Branch: "feat/sample",
-      Class: "Heavy",
-      Priority: "P2",
-      Design: "draft-sample.md, shared-design.md",
-      "Task List": "tasks-sample.md",
-      Origin: "internal",
+      state: "Active",
+      owner: "andrew",
+      branch: "feat/sample",
+      workClass: "Heavy",
+      priority: "P2",
+      design: ["draft-sample.md", "shared-design.md"],
+      taskList: "tasks-sample.md",
+      origin: "internal",
     });
 
     const rewritten = rewriteRenamedMeta(content, "sample", "renamed-sample");
     const record = parseMetaRecord(rewritten);
 
     expect(rewritten).toMatch(/^# Metadata: renamed-sample$/mu);
-    expect(record.Branch).toBe("feat/renamed-sample");
-    expect(record.Design).toBe("draft-renamed-sample.md, shared-design.md");
-    expect(record["Task List"]).toBe("tasks-renamed-sample.md");
-    expect(record.State).toBe("Active");
-    expect(record.Owner).toBe("andrew");
-    expect(record.Origin).toBe("internal");
+    expect(record.branch).toBe("feat/renamed-sample");
+    expect(record.design).toEqual(["draft-renamed-sample.md", "shared-design.md"]);
+    expect(record.taskList).toBe("tasks-renamed-sample.md");
+    expect(record.state).toBe("Active");
+    expect(record.owner).toBe("andrew");
+    expect(record.origin).toBe("internal");
   });
 
   it("leaves sentinel pointers and a branchless stub unchanged", () => {
     const content = renderMetaFile("sample", {
-      Branch: "[none]",
-      Design: "[none]",
-      "Task List": "[none]",
+      state: "Planning",
+      owner: "andrew",
+      branch: null,
+      design: [],
+      taskList: null,
     });
 
     const record = parseMetaRecord(rewriteRenamedMeta(content, "sample", "renamed-sample"));
 
-    expect(record.Branch).toBe("[none]");
-    expect(record.Design).toBe("[none]");
-    expect(record["Task List"]).toBe("[none]");
+    expect(record.branch).toBeNull();
+    expect(record.design).toEqual([]);
+    expect(record.taskList).toBeNull();
   });
 });

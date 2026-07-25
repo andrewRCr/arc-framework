@@ -84,7 +84,11 @@ import {
   type UserPullOptions,
 } from "./handlers/user.js";
 import { handleExtensionsStatus, type ExtensionsStatusCliOptions } from "./handlers/extensions.js";
-import { handleConfigStatus, type ConfigStatusCliOptions } from "./handlers/config.js";
+import {
+  handleConfigStatus,
+  handleConfigValidate,
+  type ConfigStatusCliOptions,
+} from "./handlers/config.js";
 import {
   handleActiveStatus,
   handleActiveRoster,
@@ -737,6 +741,12 @@ configCmd
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
     (_context, opts: ConfigStatusCliOptions) => handleConfigStatus(opts),
   ));
+
+configCmd
+  .command("validate")
+  .description("Validate arc-config.yml settings")
+  .option("--file <path>", "Validate an explicitly selected configuration file")
+  .action(handleConfigValidate);
 
 // --- Active ---
 

@@ -19,7 +19,7 @@
 
 import { z } from "zod";
 
-import { parseCrossWuEntries } from "../user-sync/index.js";
+import { parseCrossWuEntries, type EntryParse } from "../user-sync/index.js";
 import { managedFlagIsTrue } from "./managed-field.js";
 
 /** Runtime authority for the inbox-state advisory result. */
@@ -42,6 +42,11 @@ export interface RunInboxStateOptions {
   content: string;
 }
 
+/** Whether one inferred parse outcome is a routable, non-held inbox entry. */
+function isRoutableEntry(parse: EntryParse): boolean {
+  return parse.ok && !managedFlagIsTrue(parse.entry.raw, "Hold");
+}
+
 /**
  * Count routable `USER-INBOX` entries and derive the housekeep-needed flag.
  *
@@ -49,8 +54,6 @@ export interface RunInboxStateOptions {
  * @returns The routable-entry count and the housekeep-needed flag.
  */
 export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
-  const routableCount = parseCrossWuEntries(options.content, "user-inbox").filter(
-    (parse) => parse.ok && !managedFlagIsTrue(parse.entry.raw, "Hold"),
-  ).length;
+  const routableCount = parseCrossWuEntries(options.content, "user-inbox").filter(isRoutableEntry).length;
   return { routableCount, housekeepNeeded: routableCount > 0 };
 }
