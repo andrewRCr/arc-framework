@@ -9,6 +9,12 @@ name: CI Defer On Review
 # early failure discovery: a late integration failure creates a new head and can
 # force a re-review, which costs far more than the minutes this saves.
 #
+# The label is mutated with a GitHub App installation token rather than the
+# automatic workflow token. Events created with the automatic token do not start
+# workflow runs — `labeled` and `unlabeled` produce no run at all — so the label
+# change would never reach the CI workflow that consumes it. An App token is the
+# documented way to lift that suppression.
+#
 # Every failure mode is fail-safe. A label wrongly present makes ci-ok fail and
 # blocks the merge; a label wrongly absent runs the full suite. No outcome here
 # can let an unverified head merge.
@@ -21,7 +27,8 @@ on:
   pull_request_review:
     types: [submitted]
 
-# Least-privilege default; the single job requests exactly what it needs.
+# Least-privilege default. The job needs nothing from the automatic token — the
+# label calls authenticate as the App instead.
 permissions: {}
 
 # Serialize toggles per pull request so two reviews landing together cannot
@@ -34,17 +41,29 @@ concurrency:
 jobs:
   toggle:
     name: Toggle ci-defer-heavy
-    # Only pull requests targeting the default branch run CI at all.
-    if: ${{ github.event.pull_request.base.ref == github.event.repository.default_branch }}
-    permissions:
-      pull-requests: write
+    # Only pull requests targeting the default branch run CI at all. Fork-sourced
+    # pull requests are excluded because environment secrets are withheld from
+    # fork-triggered runs, so the App token could not be minted — skipping is
+    # honest, where attempting would fail red for a reason unrelated to the change.
+    if: >-
+      github.event.pull_request.base.ref == github.event.repository.default_branch
+      && github.event.pull_request.head.repo.full_name == github.repository
+    environment: automation
     runs-on: ubuntu-latest
     steps:
+      - id: app-token
+        name: Mint a short-lived App installation token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          app-id: ${{ vars.ARC_FRAMEWORK_BOT_APP_ID }}
+          private-key: ${{ secrets.ARC_FRAMEWORK_BOT_APP_PRIVATE_KEY }}
+
       - name: Apply or remove the defer label for this review outcome
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REVIEW_STATE: ${{ github.event.review.state }}
+          REVIEWER_TYPE: ${{ github.event.review.user.type }}
           LABEL: ci-defer-heavy
         run: |
           set -euo pipefail
@@ -60,6 +79,17 @@ jobs:
               exit 0
               ;;
           esac
+
+          # Asymmetric trust, and deliberately so. A bot reporting a problem is
+          # acted on; a bot reporting approval is not, because an approving review
+          # from a provider is not evidence that review occurred — this repository
+          # recorded an empty approval arriving seconds after an unrelated thread
+          # was resolved, with no review performed. Restoring the full suite is the
+          # step that precedes merge, so it is keyed to a human approval only.
+          if [ "$intent" = absent ] && [ "$REVIEWER_TYPE" != "User" ]; then
+            echo "ignoring '$state' from a $REVIEWER_TYPE reviewer; restoration is human-keyed"
+            exit 0
+          fi
 
           # Read current labels and act only on a real difference, so replayed or
           # repeated reviews are no-ops rather than API errors.
