@@ -4,16 +4,56 @@ import { z } from "zod";
 
 import { HostedTargetSchema, type HostedTarget } from "./request.js";
 
+const HostedSettleDispositionSchema = z.enum(["fix", "defer", "reject"]);
+
 export const HostedSettleEnvelopeSchema = z.strictObject({
   schemaVersion: z.literal(1),
   target: HostedTargetSchema,
+  fixTarget: HostedTargetSchema.nullable(),
   actorIdentity: z.string().min(1),
   finding: z.strictObject({
     commentId: z.string().min(1),
     threadId: z.string().min(1),
   }),
-  disposition: z.enum(["defer", "reject"]),
+  disposition: HostedSettleDispositionSchema,
   reply: z.string().min(1),
+}).superRefine((request, context) => {
+  if (request.disposition !== "fix") {
+    if (request.fixTarget !== null) {
+      context.addIssue({
+        code: "custom",
+        path: ["fixTarget"],
+        message: "fixTarget must be null unless disposition is fix",
+      });
+    }
+    return;
+  }
+
+  if (request.fixTarget === null) {
+    context.addIssue({
+      code: "custom",
+      path: ["fixTarget"],
+      message: "fixTarget is required when disposition is fix",
+    });
+    return;
+  }
+  if (
+    request.fixTarget.repository !== request.target.repository
+    || request.fixTarget.pullRequest !== request.target.pullRequest
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["fixTarget"],
+      message: "fixTarget must identify the originating repository and pull request",
+    });
+  }
+  if (request.fixTarget.headSha === request.target.headSha) {
+    context.addIssue({
+      code: "custom",
+      path: ["fixTarget", "headSha"],
+      message: "fixTarget must identify a changed head",
+    });
+  }
 });
 export type HostedSettleEnvelope = z.infer<typeof HostedSettleEnvelopeSchema>;
 
@@ -54,7 +94,7 @@ export interface HostedSettlementPort {
 const HostedSettleResultBaseShape = {
   schemaVersion: z.literal(1),
   mode: z.literal("review-hosted-settle"),
-  disposition: HostedSettleEnvelopeSchema.shape.disposition,
+  disposition: HostedSettleDispositionSchema,
   threadId: z.string().min(1),
 };
 
@@ -81,7 +121,7 @@ export type HostedSettleResult = z.infer<typeof HostedSettleResultSchema>;
 interface HostedSettleBase {
   schemaVersion: 1;
   mode: "review-hosted-settle";
-  disposition: "defer" | "reject";
+  disposition: "fix" | "defer" | "reject";
   threadId: string;
 }
 
@@ -119,10 +159,13 @@ async function targetIsCurrent(
   request: HostedSettleEnvelope,
   port: HostedSettlementPort,
 ): Promise<boolean> {
-  return await port.readHead(request.target) === request.target.headSha;
+  const expectedTarget = request.disposition === "fix" && request.fixTarget !== null
+    ? request.fixTarget
+    : request.target;
+  return await port.readHead(expectedTarget) === expectedTarget.headSha;
 }
 
-/** Reply at the originating comment and resolve its live thread under exact actor/head checks. */
+/** Reply at the originating comment and resolve its live thread under exact actor/current-head checks. */
 export async function settleHostedFinding(
   input: unknown,
   dependencies: { port: HostedSettlementPort },

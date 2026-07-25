@@ -492,6 +492,7 @@ describe("hosted review handlers", () => {
         readText: async () => JSON.stringify({
           schemaVersion: 1,
           target: hostedTarget,
+          fixTarget: null,
           actorIdentity: "developer",
           finding: {
             commentId: "comment-1",

@@ -9,6 +9,7 @@ const HEAD = "a".repeat(40);
 const request = {
   schemaVersion: 1 as const,
   target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+  fixTarget: null,
   actorIdentity: "1234",
   finding: { commentId: "PRRC_1", threadId: "PRRT_1" },
   disposition: "defer" as const,
@@ -55,6 +56,79 @@ describe("hosted finding settlement", () => {
       replyId: "PRRC_REPLY",
       threadId: "PRRT_1",
     });
+  });
+
+  it("settles a fixed finding against the changed verified head and original thread", async () => {
+    const fixedHead = "b".repeat(40);
+    const threadTargets: unknown[] = [];
+    const headTargets: unknown[] = [];
+    const result = await settleHostedFinding({
+      ...request,
+      disposition: "fix",
+      fixTarget: {
+        ...request.target,
+        headSha: fixedHead,
+      },
+      reply: "Fixed in the current reviewed head.",
+    }, {
+      port: port({
+        readHead: (target) => {
+          headTargets.push(target);
+          return Promise.resolve(fixedHead);
+        },
+        readThread: (target) => {
+          threadTargets.push(target);
+          return Promise.resolve({
+            kind: "present",
+            isResolved: threadTargets.length > 1,
+            commentIds: ["PRRC_1"],
+          });
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({
+      state: "settled",
+      nextAction: "complete",
+      disposition: "fix",
+    });
+    expect(headTargets).toEqual([
+      { ...request.target, headSha: fixedHead },
+      { ...request.target, headSha: fixedHead },
+      { ...request.target, headSha: fixedHead },
+    ]);
+    expect(threadTargets).toEqual([request.target, request.target]);
+  });
+
+  it.each([
+    ["fix without a changed target", {
+      ...request,
+      disposition: "fix",
+      fixTarget: null,
+    }],
+    ["fix on the originating head", {
+      ...request,
+      disposition: "fix",
+      fixTarget: request.target,
+    }],
+    ["fix on another pull request", {
+      ...request,
+      disposition: "fix",
+      fixTarget: {
+        ...request.target,
+        pullRequest: request.target.pullRequest + 1,
+        headSha: "b".repeat(40),
+      },
+    }],
+    ["non-fix with a changed target", {
+      ...request,
+      fixTarget: {
+        ...request.target,
+        headSha: "b".repeat(40),
+      },
+    }],
+  ])("rejects %s", async (_case, invalidRequest) => {
+    await expect(settleHostedFinding(invalidRequest, { port: port() })).rejects.toThrow();
   });
 
   it("reports an already-settled thread idempotently", async () => {

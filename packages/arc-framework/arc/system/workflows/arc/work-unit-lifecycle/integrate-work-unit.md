@@ -222,9 +222,12 @@ provider, exact opened target, and `coverage: complete`:
   wait again when it returns `pending / await`; do not build an agent polling loop.
 - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
 - `findings / triage` — run the disposition protocol. For each approved finding with
-  `settlement: reply-and-resolve`, use `arc review hosted settle -` before feeding `findings` back to the driver.
-  A finding with `settlement: not-applicable` is triage-only: never invoke `hosted settle`, post a reply or
-  compensating summary comment, or resolve anything for it, regardless of disposition.
+  `settlement: reply-and-resolve`, settle before feeding `findings` back to the driver. For `defer` or `reject`,
+  invoke `arc review hosted settle -` with the unchanged originating `target` and `fixTarget: null`. For `fix`,
+  apply and verify the approved change, commit and push it, recompose the current target, then invoke the same verb
+  with the originating `target` plus that changed `fixTarget`. A finding with `settlement: not-applicable` is
+  triage-only: never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for
+  it, regardless of disposition.
 - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it may
   select the next configured source without consuming the pass.
 - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
