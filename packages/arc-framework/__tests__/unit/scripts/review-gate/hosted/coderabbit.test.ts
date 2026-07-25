@@ -73,6 +73,23 @@ function findingThread(body: string): HostedGitHubThread {
 }
 
 describe("CodeRabbit hosted adapter", () => {
+  it.each([
+    ["readHead", "rate-limited"],
+    ["currentActorIdentity", "transient-unavailable"],
+    ["readHead", "terminal-failure"],
+  ] as const)("normalizes pre-effect %s %s failures", async (boundary, kind) => {
+    const failure = new HostedGitHubReadError(kind, `${boundary}-${kind}`);
+    const adapter = new CodeRabbitHostedAdapter(port({
+      [boundary]: () => Promise.reject(failure),
+    }));
+
+    await expect(adapter.request(target, "complete")).resolves.toEqual(
+      kind === "terminal-failure"
+        ? { kind, reason: `${boundary}-${kind}` }
+        : { kind },
+    );
+  });
+
   it("requests and normalizes clean and finding results under immutable identity", async () => {
     const clean = new CodeRabbitHostedAdapter(port({ readReviews: () => Promise.resolve([review()]) }));
     const findings = new CodeRabbitHostedAdapter(port({

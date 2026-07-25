@@ -19,6 +19,18 @@ export class HostedGitHubReadError extends Error {
   }
 }
 
+export type HostedGitHubReadOutcome =
+  | { kind: "rate-limited" | "transient-unavailable" }
+  | { kind: "terminal-failure"; reason: string };
+
+/** Normalize a known GitHub read failure without classifying unknown or possibly effected errors. */
+export function normalizeHostedGitHubReadFailure(error: unknown): HostedGitHubReadOutcome | null {
+  if (!(error instanceof HostedGitHubReadError)) return null;
+  return error.kind === "terminal-failure"
+    ? { kind: "terminal-failure", reason: error.message }
+    : { kind: error.kind };
+}
+
 export interface HostedGitHubReview {
   id: string;
   url: string;

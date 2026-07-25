@@ -9,6 +9,7 @@ import type {
   HostedGitHubReview,
   HostedGitHubThread,
 } from "../../../../../src/scripts/review-gate/hosted/github.js";
+import { HostedGitHubReadError } from "../../../../../src/scripts/review-gate/hosted/github.js";
 import type { HostedTarget } from "../../../../../src/scripts/review-gate/hosted/request.js";
 
 const HEAD = "a".repeat(40);
@@ -71,6 +72,23 @@ function findingThread(): HostedGitHubThread {
 }
 
 describe("Codex hosted adapter", () => {
+  it.each([
+    ["readHead", "rate-limited"],
+    ["currentActorIdentity", "transient-unavailable"],
+    ["readHead", "terminal-failure"],
+  ] as const)("normalizes pre-effect %s %s failures", async (boundary, kind) => {
+    const failure = new HostedGitHubReadError(kind, `${boundary}-${kind}`);
+    const adapter = new CodexHostedAdapter(port({
+      [boundary]: () => Promise.reject(failure),
+    }));
+
+    await expect(adapter.request(target, "incremental")).resolves.toEqual(
+      kind === "terminal-failure"
+        ? { kind, reason: `${boundary}-${kind}` }
+        : { kind },
+    );
+  });
+
   it("fails open to complete coverage when incremental review is unavailable", async () => {
     const posted: string[] = [];
     const adapter = new CodexHostedAdapter(port({

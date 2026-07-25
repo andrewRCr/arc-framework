@@ -3,6 +3,7 @@
 import type { HostedObservation, HostedReviewObserver } from "./await.js";
 import {
   HostedGitHubReadError,
+  normalizeHostedGitHubReadFailure,
   type HostedGitHubIssueComment,
   type HostedGitHubPort,
   type HostedGitHubReview,
@@ -94,11 +95,18 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
     target: HostedTarget,
     coverage: HostedReviewCoverage,
   ): Promise<HostedRequestOutcome> {
-    if (await this.github.readHead(target) !== target.headSha) {
-      return { kind: "terminal-failure", reason: "stale-target" };
+    let actorIdentity: string;
+    try {
+      if (await this.github.readHead(target) !== target.headSha) {
+        return { kind: "terminal-failure", reason: "stale-target" };
+      }
+      actorIdentity = await this.github.currentActorIdentity();
+    } catch (error) {
+      const outcome = normalizeHostedGitHubReadFailure(error);
+      if (outcome !== null) return outcome;
+      throw error;
     }
     const command = CODEX_HOSTED_REGISTRATION.commands[coverage];
-    const actorIdentity = await this.github.currentActorIdentity();
     const result = await this.github.createIssueComment(target, command);
     if (result.kind !== "created") return result;
     if (result.actorIdentity !== actorIdentity || result.body !== command) {

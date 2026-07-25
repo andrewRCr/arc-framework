@@ -52,6 +52,10 @@ export const hostedGhRunner: HostedProcessRunner = {
       });
       return { stdout: result.stdout, stderr: result.stderr };
     } catch (error) {
+      if (options?.signal?.aborted === true) {
+        const reason = options.signal.reason as unknown;
+        throw reason instanceof Error ? reason : new DOMException("The operation was aborted.", "AbortError");
+      }
       const record = typeof error === "object" && error !== null ? error as Record<string, unknown> : {};
       const stderr = typeof record.stderr === "string" ? record.stderr : "";
       const message = error instanceof Error ? error.message : String(error);
@@ -127,6 +131,7 @@ function apiPath(target: HostedTarget, suffix: string): string {
 }
 
 function readFailure(error: unknown): never {
+  if (error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name)) throw error;
   if (error instanceof HostedGitHubReadError) throw error;
   const detail = error instanceof HostedProcessError ? `${error.message}\n${error.stderr}` : String(error);
   if (/\b(?:rate[ -]?limit|HTTP 429)\b/iu.test(detail)) {

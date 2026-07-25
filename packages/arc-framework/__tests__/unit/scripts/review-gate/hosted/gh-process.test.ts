@@ -4,6 +4,11 @@ import {
   GhHostedReviewPort,
   type HostedProcessRunner,
 } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
+import { CodeRabbitHostedAdapter } from "../../../../../src/scripts/review-gate/hosted/coderabbit.js";
+import {
+  awaitHostedReview,
+  type HostedAwaitClock,
+} from "../../../../../src/scripts/review-gate/hosted/await.js";
 import type { HostedTarget } from "../../../../../src/scripts/review-gate/hosted/request.js";
 
 const HEAD = "a".repeat(40);
@@ -48,6 +53,42 @@ function comment(id: number) {
 }
 
 describe("hosted GitHub process boundary", () => {
+  it("preserves a deadline abort through the production port and await composition", async () => {
+    const boundary: HostedProcessRunner = {
+      run: () => Promise.reject(new DOMException("timed out", "TimeoutError")),
+    };
+    const adapter = new CodeRabbitHostedAdapter(new GhHostedReviewPort(boundary));
+    const clock: HostedAwaitClock = {
+      now: () => 0,
+      sleep: () => Promise.resolve(),
+    };
+
+    await expect(awaitHostedReview({
+      schemaVersion: 1,
+      handle: {
+        schemaVersion: 1,
+        provider: "coderabbit-pr",
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
+        target,
+        artifact: {
+          kind: "issue-comment",
+          id: "IC_1",
+          url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+          createdAt: "2026-07-24T12:00:00Z",
+        },
+      },
+      timeoutMs: 1_000,
+      pollIntervalMs: 100,
+    }, {
+      observers: [adapter],
+      clock,
+    })).resolves.toMatchObject({
+      state: "pending",
+      nextAction: "await",
+    });
+  });
+
   it("ignores dismissed and pending reviews without rejecting the complete read", async () => {
     const mock = runner([[[review("DISMISSED"), review("PENDING"), review("COMMENTED")]]]);
     const port = new GhHostedReviewPort(mock.boundary);
