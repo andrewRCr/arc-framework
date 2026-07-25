@@ -229,7 +229,7 @@ export type ReconcileWorkUnitWorktreeResult =
 /** Result of deriving a worktree move from live branch registration. */
 export type RenameWorktreeMoveResolution =
   | { status: "move"; from: string; to: string }
-  | { status: "already-moved"; worktreePath: string }
+  | { status: "already-moved"; worktreePath: string; sourceWorktreePath: string }
   | { status: "unmatched"; worktreePath: string }
   | { status: "in-place" };
 
@@ -265,7 +265,11 @@ export async function resolveRenameWorktreeMove(
       )
     )
   ) {
-    return { status: "already-moved", worktreePath: from };
+    // The destination is registered, so the physical move already landed. Reconstruct the path it
+    // came from — the inverse of the rewrite below — because a move interrupted before the locus
+    // rekey leaves the record keyed under that source path, and nothing else can still name it.
+    const sourceLeaf = `${leaf.slice(0, targetOffset)}${params.oldSlug}${leaf.slice(targetOffset + params.newSlug.length)}`;
+    return { status: "already-moved", worktreePath: from, sourceWorktreePath: join(dirname(from), sourceLeaf) };
   }
   if (slugOffset === -1) return { status: "unmatched", worktreePath: from };
   const renamedLeaf = `${leaf.slice(0, slugOffset)}${params.newSlug}${leaf.slice(slugOffset + params.oldSlug.length)}`;

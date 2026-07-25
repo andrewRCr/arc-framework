@@ -279,7 +279,7 @@ export async function runRenameCommand(
  * under the renamed branch rather than a slug-derived path. Returns `null` when no registered
  * checkout backs the subject, leaving nothing to rekey.
  */
-async function resolveRekeyCheckout(
+export async function resolveRekeyCheckout(
   exec: GitExec,
   move: RenameWorktreeMoveResolution,
 ): Promise<{ from: string; to: string; expectedHead: string } | null> {
@@ -287,9 +287,16 @@ async function resolveRekeyCheckout(
     ? move.from
     : move.status === "in-place"
       ? await resolvePrimaryWorktreePath(exec)
-      : move.worktreePath;
+      : move.status === "already-moved"
+        // A landed move still keys its record under the path it came from, so re-entry must rekey
+        // from there; supplying the destination as both coordinates reads the wrong key and settles
+        // absent, leaving the live checkout unmanaged and the old role behind.
+        ? move.sourceWorktreePath
+        : move.worktreePath;
   if (from === null) return null;
-  const to = move.status === "move" ? move.to : from;
+  const to = move.status === "move"
+    ? move.to
+    : move.status === "already-moved" ? move.worktreePath : from;
   const roster = await scanRegisteredWorktrees(exec);
   if (!roster.ok) throw new Error(`could not read the registered worktrees: ${roster.message}`);
   // A landed move already reports the destination; a pending one still reports its source.

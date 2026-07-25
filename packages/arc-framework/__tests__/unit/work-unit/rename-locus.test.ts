@@ -330,6 +330,75 @@ describe("renamed work-unit locus rekey", () => {
     await expect(readFile(h.sourceRecordPath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("refuses a colliding target record before moving the worktree", async () => {
+    const h = await harness();
+    const collision = await mintLocusRecord({
+      path: h.targetRecordPath,
+      record: {
+        schemaVersion: 1,
+        recordId: h.targetIdentity.recordId,
+        checkoutPath: h.targetPath,
+        role: {
+          kind: "work-unit",
+          subject: { kind: "work-unit", key: "unrelated", claimId: null },
+          establishedAt: "2026-07-24T00:00:00.000Z",
+          parentCheckoutPath: null,
+          originEntry: null,
+        },
+        lease: null,
+      },
+    });
+    if (collision.kind !== "created") throw new Error("fixture target record already exists");
+    let moved = false;
+
+    const outcome = await h.driver.rekey({
+      sourceCheckoutPath: h.source,
+      targetCheckoutPath: h.targetPath,
+      sourceSlug: "old-name",
+      targetSlug: "new-name",
+      expectedHead: HEAD,
+      moveWorktree: async () => { moved = true; h.registerMoved(); },
+    });
+
+    expect(outcome).toEqual({ kind: "refused", reason: "role-conflict" });
+    expect(moved).toBe(false);
+    const source = await readRecordAt(h.sourceRecordPath, h.sourceIdentity.digest);
+    expect(source).toMatchObject({ kind: "valid", record: { checkoutPath: h.source } });
+  });
+
+  it("finishes a landed move whose target record was already minted", async () => {
+    const h = await harness();
+    h.registerMoved();
+    const minted = await mintLocusRecord({
+      path: h.targetRecordPath,
+      record: {
+        schemaVersion: 1,
+        recordId: h.targetIdentity.recordId,
+        checkoutPath: h.targetPath,
+        role: {
+          kind: "work-unit",
+          subject: { kind: "work-unit", key: "new-name", claimId: null },
+          establishedAt: "2026-07-24T00:00:00.000Z",
+          parentCheckoutPath: null,
+          originEntry: null,
+        },
+        lease: null,
+      },
+    });
+    if (minted.kind !== "created") throw new Error("fixture target record already exists");
+
+    const outcome = await h.driver.rekey({
+      sourceCheckoutPath: h.source,
+      targetCheckoutPath: h.targetPath,
+      sourceSlug: "old-name",
+      targetSlug: "new-name",
+      expectedHead: HEAD,
+    });
+
+    expect(outcome).toEqual({ kind: "rekeyed", recordId: h.targetIdentity.recordId });
+    await expect(readFile(h.sourceRecordPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("reports an unrecorded checkout as absent rather than minting a role", async () => {
     const h = await harness();
     await rm(h.sourceRecordPath);

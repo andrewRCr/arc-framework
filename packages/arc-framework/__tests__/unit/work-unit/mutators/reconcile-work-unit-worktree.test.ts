@@ -516,7 +516,27 @@ describe("reconcileWorkUnitWorktree — rename move", () => {
       branch: "feat/foo-bar",
       oldSlug: "foo",
       newSlug: "foo-bar",
-    })).resolves.toEqual({ status: "already-moved", worktreePath: registered });
+    })).resolves.toEqual({
+      status: "already-moved",
+      worktreePath: registered,
+      sourceWorktreePath: "/custom/workspaces/project.foo",
+    });
+  });
+
+  it("reports the source coordinate an interrupted move left a record under", async () => {
+    const registered = "/custom/workspaces/project.new-name";
+    const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/new-name");
+    const { ctx } = buildCtx({ worktreeList: listing });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/new-name",
+      oldSlug: "old-name",
+      newSlug: "new-name",
+    })).resolves.toEqual({
+      status: "already-moved",
+      worktreePath: registered,
+      sourceWorktreePath: "/custom/workspaces/project.old-name",
+    });
   });
 
   it("moves an old path when the old slug contains the new slug", async () => {

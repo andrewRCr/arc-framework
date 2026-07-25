@@ -180,6 +180,30 @@ async function applyRekeyUnderLock(context: {
     lease: lease.lease,
   };
 
+  if (context.source.digest !== context.target.digest) {
+    // Prove the target key before the physical move: minting after it would refuse a collision with
+    // the checkout already relocated, splitting physical from logical state.
+    const occupied = await readLocusRecord({
+      path: context.targetRecordPath,
+      expectedDigest: context.target.digest,
+      pathFlavor: context.pathFlavor,
+    });
+    if (occupied.kind !== "absent") {
+      // A landed move whose mint already succeeded is this rename's own unfinished transaction —
+      // finish it. With a move still pending the target cannot be ours yet, so any record collides.
+      const resumable = context.request.moveWorktree === undefined
+        && occupied.kind === "valid"
+        && carriesRenamedSubject(occupied.record, context.request.targetSlug, context.targetCheckoutPath);
+      if (!resumable) return { kind: "refused", reason: "role-conflict" };
+      const settled = await removeLocusRecord({
+        path: context.sourceRecordPath,
+        expectedBytes: current.bytes,
+      });
+      if (settled.kind !== "removed") return { kind: "refused", reason: "generation-changed" };
+      return { kind: "rekeyed", recordId: context.target.recordId };
+    }
+  }
+
   if (context.request.moveWorktree !== undefined) await context.request.moveWorktree();
 
   if (context.source.digest === context.target.digest) {
@@ -224,12 +248,22 @@ async function settledOutcome(context: {
     pathFlavor: context.pathFlavor,
   });
   if (settled.kind !== "valid") return { kind: "absent" };
-  const role = settled.record.role;
-  const renamed = role.kind === "work-unit"
+  return carriesRenamedSubject(settled.record, context.request.targetSlug, context.targetCheckoutPath)
+    ? { kind: "idempotent", recordId: settled.record.recordId }
+    : { kind: "absent" };
+}
+
+/** Whether a target-keyed record is this rename's own output rather than a foreign role. */
+function carriesRenamedSubject(
+  record: LocusRecordV1,
+  targetSlug: string,
+  targetCheckoutPath: string,
+): boolean {
+  const role = record.role;
+  return role.kind === "work-unit"
     && role.subject.kind === "work-unit"
-    && role.subject.key === context.request.targetSlug
-    && settled.record.checkoutPath === context.targetCheckoutPath;
-  return renamed ? { kind: "idempotent", recordId: settled.record.recordId } : { kind: "absent" };
+    && role.subject.key === targetSlug
+    && record.checkoutPath === targetCheckoutPath;
 }
 
 /**

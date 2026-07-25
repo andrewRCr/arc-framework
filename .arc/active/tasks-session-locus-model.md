@@ -1465,17 +1465,23 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
 
     - `[ ]` **7.E.d.iii Recover an interrupted or colliding rename** — W1-F1, W1-F2, W1-F3
 
-        - `[ ]` **7.E.d.iii.1 Preserve both rename coordinates and prove the target before the move** — W1-F1, W1-F2
-            - `already-moved` supplies the destination as both source and target, so re-entry after an interruption
-              between the worktree move and the target mint reads the destination key, finds nothing, and settles
-              `absent` — leaving the live checkout unmanaged and the source-keyed record holding the old path and
-              slug. Reconstruct the source coordinate for that arm (the inverse of `resolveRenameWorktreeMove`'s
-              leaf rewrite) so re-entry rekeys the record that actually exists.
-            - In the same transaction, read the target record before `moveWorktree()` runs: a collision or an
-              incompatible target generation must refuse with the checkout still in place, and idempotent re-entry
-              must stay distinguishable from collision. A persistence failure after the move compensates rather
-              than leaving split physical and logical state.
-            - Cover interruption after the move and before mint, and a pre-existing target record on both arms.
+        - `[x]` **7.E.d.iii.1 Preserve both rename coordinates and prove the target before the move** — W1-F1, W1-F2
+            - `resolveRenameWorktreeMove` now carries a `sourceWorktreePath` on its `already-moved` arm — the exact
+              inverse of the leaf rewrite it performs on the forward arm — and `resolveRekeyCheckout` rekeys from
+              it. The driver already handled a landed move when given both coordinates; the defect was entirely in
+              the resolution that collapsed them, which is why re-entry read an unwritten key and settled `absent`.
+            - The rekey proves the target key before `moveWorktree()` rather than discovering a collision from a
+              refused mint afterwards. Absent proceeds; a foreign role refuses `role-conflict` with the checkout
+              still in place; and a landed move whose mint already succeeded is recognized as this transaction's
+              own unfinished work and completed by removing the source record. That last arm makes the
+              mint-succeeded/remove-failed state recoverable — before, replay refused there too.
+            - No inverse-move compensation was added. With the source coordinate preserved, a persistence failure
+              after the move leaves a state replay settles: re-entry resolves `already-moved`, finds the source
+              record, and completes the rekey. The phase Goal admits either, and the replay path is the one the
+              transaction already had.
+            - `resolveRekeyCheckout` is exported so the reported locus is covered directly; its idempotence rule
+              (`carriesRenamedSubject`) is now one predicate shared with the settled-outcome read rather than two
+              restatements of the same rule.
 
         - `[ ]` **7.E.d.iii.2 Compensate the minted role when create-new rolls back** — W1-F3
             - The spawn leg mints a durable role through `ctx.locus.reconcile`, whose `WorkUnitLocusReceipt`
