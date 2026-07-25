@@ -1586,6 +1586,76 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   and a terminating newline in human output, timestamps in canonical UTC, and outcomes composed from every stage so
   no command reports idempotent after making authoritative local change.
 
+- _Approach:_ Eleven of the twelve findings reproduce against the post-`7.E.i` head; `L4-F6` no longer does —
+  `7.E.d.vi` converted exactly that create-race reread into a typed `MarkerEstablishmentResult` error, and
+  `provisionSpawned` routes marker errors through `rollbackSpawnFailure`, so both halves of its correction boundary
+  are already met. The packet's line ranges predate later edits on this branch, so each subtask re-locates its
+  target before changing it. `.i` precedes `.iv` because the typed error results `.iv` constructs are spelled in the
+  vocabulary `.i` settles; the remaining leaves are independent.
+
+- _Note:_ `L1-F1` leaves one choice open with its constraint stated. Two vocabularies exist today: `LocusErrorCode`,
+  a seven-member union over thrown operational failures, and the mutation result's `error.code`, a free-form
+  `locus.<segment>...` regex that ~40 call sites populate with per-operation strings (`locus.errand-open.provision`,
+  `locus.plan-close.identity-retire`). The finding's boundary — one shared runtime schema and inferred finite type —
+  can be met by enumerating the codes actually produced, by making the code finite by construction (operation plus a
+  closed stage enum), or by declaring the result-arm code descriptive and closing only the thrown vocabulary. The
+  constraint that decides it: a consumer must be able to dispatch exhaustively without reading the producer, and
+  every future operation must be unable to add a code silently.
+
+    - `[ ]` **7.E.e.i Close the mutation error vocabulary** — L1-F1
+        - `schema/mutation.ts` accepts any `locus.*` string in the error arm while `locus/errors.ts` declares a
+          finite seven-code union, and `mutation.ts` emits `locus.record-pop.failed`, which is outside it. Settle the
+          model above, then make the schema and the type agree so an unknown code cannot cross the boundary.
+        - Cover a rejected unknown code and the record-pop failure reaching a caller inside the declared vocabulary.
+
+    - `[ ]` **7.E.e.ii Require the authority coordinates on open success and canonical UTC** — L1-F2, L1-F3
+        - The open-success refinement requires only `activeLocusPath` and `sessionHomePath`, so an applied or
+          idempotent open receipt validates with `allocation`, `recordId`, and `leaseId` still null — the exact
+          coordinates a caller needs to continue safely. Require all five together on the three open operations.
+        - `LocusTimestampSchema` is `z.iso.datetime({ offset: true })`, which accepts non-`Z` offsets against a
+          persisted-record contract that specifies canonical UTC. Require `Z` form, or normalize before persistence.
+        - Cover one negative case per missing coordinate and the offset boundary on both arms.
+
+    - `[ ]` **7.E.e.iii Normalize evidence error text at the reader boundary** — L3-F3
+        - `readLocusEnvelope` passes an acquisition error's message straight into a schema requiring non-empty text
+          of at most 4,096 characters, so an empty or oversized message turns the read-only error path into a
+          `ZodError` throw. Normalize at the boundary rather than widening the schema.
+        - Cover the empty and oversized messages, asserting an envelope rather than a throw.
+
+    - `[ ]` **7.E.e.iv Deliver one typed result on every JSON path** — X1-F2, E5-F3
+        - `handleLocusResolve` and `handleLocusMutation` prepare identity, configuration, and user surfaces before
+          their catch, and their null-returning prerequisites emit nothing at all, so a setup failure reaches
+          automation as ordinary stderr from the CLI catch instead of the promised single typed result. The Errand
+          handlers carry the same exposure at their `resolveUserSurfaceResolver` calls.
+        - Bring every fallible preflight inside the result boundary for the named handlers, so JSON mode always
+          writes one envelope to stdout and exits non-zero. Re-locate each site first: the Errand open path already
+          routes configuration, identity, the Git stdin boundary, and inbox adoption through typed emitters.
+        - Cover a configuration or user-surface failure in JSON mode on both surfaces, asserting one stdout line.
+
+    - `[ ]` **7.E.e.v Render row diagnostics and terminate human locus output** — X1-F1, X1-F3
+        - `formatRow` drops each row's own `diagnostics`, so a human operator never sees the dead or unknown leases,
+          malformed records, cross-identity evidence, missing markers, and unresolved subjects that JSON consumers
+          receive. Render them within their row's block.
+        - `formatErrandOpenResult`'s human branches return text with no trailing newline; the Errand path hides this
+          behind an interactive logger, but `handlers/locus.ts` writes the raw text, leaving the next prompt on the
+          same line. Terminate the raw stream boundary with exactly one newline.
+        - Cover a row diagnostic in human output, and a human success and refusal on the raw locus stream.
+
+    - `[ ]` **7.E.e.vi Compose outcomes from every provisioning stage** — A-F3, E2-F3
+        - `errand/open.ts` derives its public outcome from `claimKind` alone, so a reused or recovered identity
+          reports idempotent even when provisioning went on to create a checkout, marker, record, and lease. The
+          same shape holds for the housekeep and plan open paths. Report applied whenever any authoritative stage
+          changed state, which needs an aggregate disposition on the provisioning receipt rather than a per-stage
+          guess at the call site.
+        - Cover an existing identity with a missing local locus, and the successful interrupted-open recovery.
+
+    - `[ ]` **7.E.e.vii Require the locus-hint audit on ready recovery reports** — S1-F3
+        - `RecoverAuditReportSchema` requires a seed and a recovery envelope for `ready` but permits a null
+          `locusHint` even when the seed summary carries one, so a producer can report ready without proving seed
+          generation was compared against fresh locus authority. Require the comparison on `ready` and cross-check
+          its value against the seed's own hint.
+        - Cover a ready report with a hint-bearing seed and a null comparison, asserting the schema rejects it.
+
 ### `[ ]` **7.E.f Bind the session anchor to a durable process**
 
 - _Findings:_ L3-F1, L3-F2, L3-F4
