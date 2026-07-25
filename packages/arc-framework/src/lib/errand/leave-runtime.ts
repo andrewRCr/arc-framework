@@ -8,7 +8,7 @@ import {
   readWorktreeMarkerGeneration,
 } from "../git/worktree-marker.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
-import { popOwnedLocusRole } from "../locus/mutation.js";
+import { popOwnedLocusRole, validateOwnedLocusRole } from "../locus/mutation.js";
 import {
   createPlatformProcessAncestryInspector,
   createPlatformProcessInspector,
@@ -30,6 +30,8 @@ import {
   type LeaveAuthorization,
   type LeaveCleanupResult,
 } from "./leave.js";
+import { closeLeaveOccupancy } from "./leave-cleanup.js";
+import type { LockedLocusGenerationAcquisition } from "./locked-generation.js";
 import { provePauseHead, ordinaryErrandTransform, type OrdinaryErrandRecord } from "./identity-transitions.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
 
@@ -185,7 +187,6 @@ async function cleanupOccupancy(
   if (checkoutPath === null || recordId === null || leaseId === undefined) {
     return { kind: "refused", reason: "record-malformed", message: "Errand occupancy is incomplete." };
   }
-  const parent = restoredParent(state, row);
   const runtime = createNodeProvisioningDependencies({
     exec: options.exec,
     identity: options.identity,
@@ -197,64 +198,80 @@ async function cleanupOccupancy(
     postCreateScript: options.postCreateScript,
     registeredHarnessDirs: options.registeredHarnessDirs,
   });
-  const acquired = await runtime.acquireRecordLock(checkoutPath);
-  if (acquired.kind !== "acquired") {
-    return {
-      kind: "refused",
-      reason: acquired.reason === "live" ? "lease-live" : "lease-unknown",
-      message: "The Errand session locus lock is not available.",
-    };
-  }
-  try {
-    const checkoutExists = await access(checkoutPath).then(() => true, () => false);
-    if (!checkoutExists) {
-      const branchReady = await exactBranchRef(options.exec, record.branch, terminalHead(record));
-      if (branchReady !== null) return branchReady;
-    } else if (row.primary === true) {
-      const primaryReady = await restorePrimaryCheckout(options.exec, checkoutPath, options.base, record);
-      if (primaryReady !== null) return primaryReady;
-    } else {
-      const ready = await cleanExactHead(options.exec, checkoutPath, record.branch, terminalHead(record));
-      if (ready.kind !== "ready") return ready.result;
-      const marker = await readWorktreeMarkerGeneration(checkoutPath);
-      const provenance = classifyTransientWorktreeProvenance(marker, {
-        kind: "errand",
-        slug: record.slug,
-        claimId: record.claimId,
-      });
-      if (provenance?.kind !== "ready") {
-        return { kind: "refused", reason: "role-conflict", message: "Spawned Errand ownership is not exact." };
-      }
-      await options.exec("git", ["worktree", "remove", checkoutPath], { cwd: state.roster.primaryPath });
-    }
-    const popped = await popOwnedLocusRole({
-      operation: "errand-leave",
-      recommendedPromptText: "Errand occupancy removed.",
-      recordId,
+  const expectations = {
+    recordId,
+    checkoutPath,
+    expectedSubject: { kind: "errand" as const, key: record.slug, claimId: record.claimId },
+    expectedLeaseId: leaseId,
+    enteringAnchor: anchor,
+  };
+
+  return closeLeaveOccupancy({
+    target: {
       checkoutPath,
-      expectedSubject: { kind: "errand", key: record.slug, claimId: record.claimId },
-      expectedLeaseId: leaseId,
-      enteringAnchor: anchor,
-      io: {
-        read: () => runtime.readRecord(acquired.handle.recordPath, acquired.handle),
-        remove: (expectedBytes) => runtime.removeRecord(acquired.handle.recordPath, expectedBytes, acquired.handle),
-      },
-    });
-    if (popped.outcome === "refused") {
-      return { kind: "refused", reason: popped.reason, message: popped.recommendedPromptText };
-    }
-    if (popped.outcome === "error") {
-      return { kind: "error", code: popped.error.code, message: popped.error.message };
-    }
-    return {
-      kind: popped.outcome,
-      allocation: { kind: row.primary === true ? "primary" : "spawned", checkoutPath },
       recordId,
-      restoredParent: parent,
-    };
-  } finally {
-    await runtime.releaseRecordLock(acquired.handle);
+      leaseId,
+      allocation: row.primary === true ? "primary" : "spawned",
+    },
+    restoredParent: restoredParent(state, row),
+    dependencies: {
+      acquireLock: async (): Promise<LockedLocusGenerationAcquisition> => {
+        const acquired = await runtime.acquireRecordLock(checkoutPath);
+        if (acquired.kind !== "acquired") return acquired;
+        const read = () => runtime.readRecord(acquired.handle.recordPath, acquired.handle);
+        return {
+          kind: "acquired",
+          generation: {
+            validate: async () => validateOwnedLocusRole(await read(), expectations),
+            pop: () => popOwnedLocusRole({
+              ...expectations,
+              operation: "errand-leave",
+              recommendedPromptText: "Errand occupancy removed.",
+              io: {
+                read,
+                remove: (bytes) => runtime.removeRecord(acquired.handle.recordPath, bytes, acquired.handle),
+              },
+            }),
+          },
+          release: () => runtime.releaseRecordLock(acquired.handle),
+        };
+      },
+      preserveCheckout: () => preserveExactCheckout(options, record, row, state.roster.primaryPath),
+    },
+  });
+}
+
+/** Take the checkout off the Errand — restore the primary, remove the worktree, or prove the branch ref. */
+async function preserveExactCheckout(
+  options: LeaveOrdinaryErrandRuntimeOptions,
+  record: OrdinaryErrandRecord,
+  row: LocusRowV1,
+  primaryPath: string,
+): Promise<Extract<LeaveCleanupResult, { kind: "refused" }> | null> {
+  const checkoutPath = row.checkoutPath;
+  if (checkoutPath === null) {
+    return { kind: "refused", reason: "checkout-missing", message: "Errand checkout is absent." };
   }
+  const checkoutExists = await access(checkoutPath).then(() => true, () => false);
+  if (!checkoutExists) {
+    return exactBranchRef(options.exec, record.branch, terminalHead(record));
+  }
+  if (row.primary === true) {
+    return restorePrimaryCheckout(options.exec, checkoutPath, options.base, record);
+  }
+  const ready = await cleanExactHead(options.exec, checkoutPath, record.branch, terminalHead(record));
+  if (ready.kind !== "ready") return ready.result;
+  const marker = await readWorktreeMarkerGeneration(checkoutPath);
+  const provenance = classifyTransientWorktreeProvenance(marker, {
+    kind: "errand",
+    slug: record.slug,
+    claimId: record.claimId,
+  });
+  if (provenance?.kind !== "ready") {
+    return { kind: "refused", reason: "role-conflict", message: "Spawned Errand ownership is not exact." };
+  }
+  await options.exec("git", ["worktree", "remove", checkoutPath], { cwd: primaryPath });
+  return null;
 }
 
 async function restorePrimaryCheckout(

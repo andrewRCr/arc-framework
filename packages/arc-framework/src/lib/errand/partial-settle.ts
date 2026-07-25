@@ -7,6 +7,7 @@ import type {
   LocusRowV1,
   LocusStateV1,
 } from "../locus/schema/index.js";
+import type { LockedLocusGenerationAcquisition } from "./locked-generation.js";
 
 type NextOffer = Extract<
   LocusMutationResultV1,
@@ -23,21 +24,6 @@ export type PartialErrandBasePin =
   | { kind: "refused"; reason: string }
   | { kind: "error"; message: string };
 
-/**
- * One record-lock generation, opened over the exact checkout the settlement targets.
- *
- * `validate` proves the locked record is the caller's own exact generation without mutating it, so
- * ownership is established before anything outside the record is touched. `pop` performs the
- * authoritative read-validate-remove; it revalidates on its own terms rather than trusting `validate`.
- */
-export interface PartialErrandLockedGeneration {
-  validate(): Promise<{ kind: "owned" | "absent" } | { kind: "refused"; reason: LocusRefusalReason }>;
-  pop(): Promise<LocusMutationResultV1>;
-}
-
-export type PartialErrandLockAcquisition =
-  | { kind: "acquired"; generation: PartialErrandLockedGeneration; release(): Promise<void> }
-  | { kind: "refused"; reason: "live" | "unknown" | "timeout" };
 
 /** The exact generation the composition selected, carried into the lock rather than re-derived. */
 export interface PartialErrandTarget {
@@ -51,7 +37,7 @@ export interface SettlePartialErrandDependencies {
   pinBaseHead(): Promise<PartialErrandBasePin>;
   /** Null when the checkout sits clean on the configured base at the pinned head; else the reason. */
   verifyBase(checkoutPath: string, expectedHead: string): Promise<string | null>;
-  acquireLock(target: PartialErrandTarget): Promise<PartialErrandLockAcquisition>;
+  acquireLock(target: PartialErrandTarget): Promise<LockedLocusGenerationAcquisition>;
   settleInbox(binding: {
     readonly originEntry: string | null;
     readonly parentCheckoutPath: string | null;

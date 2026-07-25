@@ -1372,13 +1372,18 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           this task's `_Shape:_`._ `validateOwnedLocusRole` (`locus/mutation.ts`, from `7.E.c.iv`) is the shared
           predicate both subtasks consume.
 
-        - `[ ]` **7.E.c.v.1 Prove the locked generation before leave moves a checkout** — E3-F1
-            - Under the record lock, `restorePrimaryCheckout` runs `git checkout <base>` and the spawned arm runs
-              `git worktree remove`, both before `popOwnedLocusRole` performs the first exact-generation
-              validation. `recordId`, `leaseId`, and the row all come from the pre-lock roster read, so a
-              generation that changed in between has its checkout mutated and is only then refused. Validate
-              immediately after acquiring the lock, before either mutation — the `7.E.c.iv` shape applied to
-              `leave-runtime.ts`.
+        - `[x]` **7.E.c.v.1 Prove the locked generation before leave moves a checkout** — E3-F1
+            - Confirmed against source: `recordId`, `leaseId`, and the row all came from the pre-lock roster read, and
+              `popOwnedLocusRole` performed the first exact-generation validation only after `restorePrimaryCheckout`
+              had run `git checkout <base>` or the spawned arm had run `git worktree remove` — so a generation that
+              changed under the lock had its checkout mutated and was refused afterwards. Leave now validates
+              immediately after acquiring the lock; a record that vanished under it returns idempotent without
+              touching the checkout, since the role a later generation already popped is not this session's to close.
+            - Occupancy closing split into `errand/leave-cleanup.ts` (composition over an injected locked generation
+              and one `preserveCheckout` step) and the Node wiring left in `leave-runtime.ts`, so the ordering claim is
+              a unit test that fails against the old sequence — the module previously had no coverage below the mocked
+              `cleanup` seam. The lock-generation contract `7.E.c.iv` introduced became shared
+              (`errand/locked-generation.ts`) rather than copied into a second module.
 
         - `[ ]` **7.E.c.v.2 Refuse close over foreign occupancy** — E3-F2
             - `closeOrdinaryErrandAtRuntime` supplies `readIdentity`, `resolveTarget`, `readLifecycle`,

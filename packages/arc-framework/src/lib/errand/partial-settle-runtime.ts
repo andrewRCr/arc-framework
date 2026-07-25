@@ -12,10 +12,10 @@ import { createNodeProvisioningDependencies } from "../locus/provisioning-runtim
 import { readLocusState } from "../locus/reader.js";
 import type { LocusMutationResultV1, LocusStateV1 } from "../locus/schema/index.js";
 import { pinGroomOpenedBaseHead } from "./identity-claims.js";
+import type { LockedLocusGenerationAcquisition } from "./locked-generation.js";
 import {
   settlePartialErrand,
   type PartialErrandInboxSettlement,
-  type PartialErrandLockAcquisition,
 } from "./partial-settle.js";
 
 export type { PartialErrandInboxSettlement } from "./partial-settle.js";
@@ -58,7 +58,7 @@ export async function settlePartialErrandAtRuntime(
       pinBaseHead: () => pinGroomOpenedBaseHead(options.exec, { remote: "origin", baseRef: options.base }),
       verifyBase: (checkoutPath, expectedHead) =>
         verifyExactBase(options.exec, checkoutPath, options.base, expectedHead),
-      acquireLock: async (target): Promise<PartialErrandLockAcquisition> => {
+      acquireLock: async (target): Promise<LockedLocusGenerationAcquisition> => {
         const runtime = createNodeProvisioningDependencies({
           exec: options.exec,
           identity: options.identity,
