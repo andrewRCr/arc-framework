@@ -7,6 +7,11 @@ import {
   RecoveryLocusContextError,
 } from "../../../src/lib/recover/locus-context.js";
 import type { LoadSetManifest } from "../../../src/lib/load-set/types.js";
+import {
+  deriveLocusFrames,
+  deriveLocusOperationalState,
+} from "../../../src/lib/locus/state.js";
+import type { ProvisionalLocusRow } from "../../../src/lib/locus/roster.js";
 import type { LocusRowV1, LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
 
 const RECORD_WU = `sha256:${"a".repeat(64)}`;
@@ -368,5 +373,73 @@ describe("deriveRecoveryLocusContext", () => {
       identity: "andrew",
       workingMemoryPath: "/users/andrew/WORKING-MEMORY.md",
     })).toThrow(RecoveryLocusContextError);
+  });
+});
+
+describe("recovery context over really-derived locus state", () => {
+  const ANCHOR = {
+    kind: "process" as const, pid: 42, startToken: "start", inspector: "test", selector: "codex",
+  };
+
+  /**
+   * Derive the state the reader would actually publish, rather than assembling it by hand.
+   *
+   * The fixture above computes `recovery` from `current`, so it cannot express the two disagreeing —
+   * which is precisely how a disagreement reached this consumer unnoticed and threw. Driving the
+   * real derivations keeps the invariant under test instead of built into the test.
+   */
+  function derived(rows: ProvisionalLocusRow[]): LocusStateV1 {
+    const frames = deriveLocusFrames({ rows, enteringAnchor: ANCHOR });
+    const ops = deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: frames.rows,
+      current: frames.current,
+      primarySafety: { kind: "complete", clean: true, onBase: true, branch: "main" },
+      primaryLock: "absent",
+    });
+    return {
+      roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [...frames.rows], diagnostics: [] },
+      current: frames.current,
+      primaryAvailability: ops.primaryAvailability,
+      inFlightIdentities: ops.inFlightIdentities,
+      recovery: ops.recovery,
+      reconciliation: { kind: "clean" },
+    };
+  }
+
+  function strandedErrand(): ProvisionalLocusRow {
+    return {
+      kind: "managed-role", checkoutPath: "/repo-child", primary: false, recordId: RECORD_CHILD,
+      role: {
+        kind: "errand", subject: { kind: "errand", key: "demo", claimId: CLAIM },
+        parentCheckoutPath: null, originEntry: null,
+      },
+      identity: null,
+      lease: {
+        leaseId: LEASE_CHILD, state: "live", sessionHomePath: "/repo-child",
+        attachedAt: NOW, heartbeatAt: NOW,
+      },
+      leaseAnchor: ANCHOR,
+      frame: null, derived: null,
+      diagnostics: [{
+        code: "subject-unresolved", source: { kind: "record", key: RECORD_CHILD },
+        message: "The role subject no longer resolves.",
+      }],
+    };
+  }
+
+  it("reports a stranded self-held role instead of throwing on a verdict mismatch", () => {
+    const state = derived([strandedErrand()]);
+    expect(state.current).toEqual({ kind: "none" });
+    expect(state.recovery).toMatchObject({ kind: "residue" });
+    // The distinction is the whole point: a deliberate refusal naming the residue, not the internal
+    // "tokens do not match" inconsistency the disagreement produced. Asserting the class alone would
+    // pass for both.
+    expect(() => deriveRecoveryLocusContext({
+      state, checkoutPath: "/repo-child", identity: "andrew", workingMemoryPath: null,
+    })).toThrow(/residue/u);
+    expect(() => deriveRecoveryLocusContext({
+      state, checkoutPath: "/repo-child", identity: "andrew", workingMemoryPath: null,
+    })).not.toThrow(/tokens do not match/u);
   });
 });

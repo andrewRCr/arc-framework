@@ -529,3 +529,39 @@ describe("self-held lease publication and stranded residue", () => {
     })])).toMatchObject({ kind: "none" });
   });
 });
+
+describe("selection, recovery, and frame agree on an unclaimable row", () => {
+  const UNRESOLVED: ProvisionalLocusRow["diagnostics"] = [{
+    code: "subject-unresolved",
+    source: { kind: "record", key: "sha256:x" },
+    message: "The role subject no longer resolves.",
+  }];
+
+  it("declines to claim a row whose authority is unestablished", () => {
+    // Selection read only liveness and the anchor, so it claimed a row every attach then refused —
+    // and once the recovery verdict learned to route that row to residue, the two disagreed and the
+    // recovery-context consumer threw on the mismatch.
+    const rows = [row({ id: "a", role: "errand", lease: "live", diagnostics: UNRESOLVED })];
+    const frames = deriveLocusFrames({ rows, enteringAnchor: ANCHOR });
+    const recovery = deriveLocusOperationalState({
+      primaryPath: "/repo",
+      rows: frames.rows,
+      current: frames.current,
+      primarySafety: { kind: "complete", clean: true, onBase: true, branch: "main" },
+      primaryLock: "absent",
+    }).recovery;
+
+    expect(frames.current).toEqual({ kind: "none" });
+    expect(recovery).toMatchObject({ kind: "residue", actions: ["resume", "abandon"] });
+    expect(frames.rows[0]?.frame).toBe("residue");
+  });
+
+  it("still claims a trusted self-held session", () => {
+    const frames = deriveLocusFrames({
+      rows: [row({ id: "a", role: "errand", lease: "live" })],
+      enteringAnchor: ANCHOR,
+    });
+    expect(frames.current).toMatchObject({ kind: "resolved" });
+    expect(frames.rows[0]?.frame).toBe("active");
+  });
+});

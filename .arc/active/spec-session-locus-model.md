@@ -714,8 +714,16 @@ only one, and treating it as the only one leaves two safe states with no exit at
 Confirmation authorizes acting on the **lease**; it never relaxes an occupancy, cleanliness, provenance, exact-head,
 or generation guard, and no recovery state is ever resolved by hand-editing the record store.
 Malformed, unmanaged, duplicate, and unresolved rows have `frame: null`. Current-state selection follows D9: among
-live leases matching the entering anchor, prefer the transient role, resolve its optional parent, otherwise take the
-matching WU; multiple plausible children or parents are ambiguous.
+live leases matching the entering anchor **whose authority is established**, prefer the transient role, resolve its
+optional parent, otherwise take the matching WU; multiple plausible children or parents are ambiguous.
+
+**A frame no operation can enter is not a frame.** Selection reads the same trust predicate attach does, rather
+than liveness and anchor alone. A row carrying authority-fatal evidence — an unresolved subject, a missing
+ownership marker — would otherwise be claimed as `current` and then refused by every operation that tried to act
+on it, which is the deadlock in its general form; the self-held instance is only where it was first observed. The
+rule also keeps the three verdicts consistent by construction: selection, the recovery verdict, and the frame all
+read trust, so no consumer can be handed a `current` that the recovery verdict has already routed to residue.
+Trust is not a lease property, so an untrusted row is excluded whatever its liveness says.
 
 Primary availability is likewise exact. A record-free, clean primary on the configured base is `free`. A valid
 transient role or exact in-place WU role is `occupied`, including `leaseState: "absent"` for crash/walk-away

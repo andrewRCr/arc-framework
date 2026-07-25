@@ -123,14 +123,7 @@ function deriveRecovery(
     ...(managed.some((row) => row.lease?.state === "unknown") ? ["lease-unknown" as const] : []),
   ];
   if (stopReasons.length > 0) return { kind: "stop", reasons: sortStopReasons(stopReasons) };
-  // Frame selection claims a self-held live lease as current without consulting trust, so a role
-  // whose subject stopped resolving is still selected — and then every attach refuses it. Offering
-  // `resume` for a row nothing can attach to is the deadlock this phase exists to break, so a
-  // stranded current row falls through to the residue path that can actually resolve it.
-  const active = current.kind === "resolved"
-    ? managed.find((row) => row.recordId === current.activeRecordId)
-    : undefined;
-  if (current.kind === "resolved" && (active === undefined || !isStrandedSelfHeld(active))) {
+  if (current.kind === "resolved") {
     return {
       kind: "resume",
       activeRecordId: current.activeRecordId,
@@ -316,8 +309,15 @@ function resolveCurrent(
   rows: readonly ProvisionalLocusRow[],
   enteringAnchor: LocusAnchor,
 ): LocusStateV1["current"] {
+  // A frame no operation can enter is not a frame. Selection reads trust for the same reason attach
+  // does: claiming a row whose authority is unestablished offers a resume that every attach then
+  // refuses, and leaves the recovery verdict either agreeing with a lie or disagreeing with the
+  // frame. Reading it here makes all three verdicts agree by construction rather than by each
+  // consumer remembering to check.
   const matching = rows.filter((row) =>
-    row.lease?.state === "live" && sameProcessAnchor(row.leaseAnchor, enteringAnchor));
+    row.lease?.state === "live"
+    && sameProcessAnchor(row.leaseAnchor, enteringAnchor)
+    && isTrusted(row));
   const transients = matching.filter((row) => row.role?.kind !== "work-unit");
   if (transients.length > 1) return ambiguous(transients);
   const transient = transients[0];

@@ -1981,7 +1981,7 @@ identity on the anchor nor a per-platform record store is therefore in scope.
   foreign live lease placed in the operator-releasable tier, and a frame rule that would have demoted every live
   transient session to residue.
 
-### `[ ]` **7.G.b Settle what `current` means for a row nothing can attach to**
+### `[x]` **7.G.b Settle what `current` means for a row nothing can attach to**
 
 - _Goal:_ Frame selection and attach authorization agree about which rows are claimable, so no verdict offers a
   frame that the next operation is guaranteed to refuse.
@@ -1993,13 +1993,21 @@ identity on the anchor nor a per-platform record store is therefore in scope.
   live lease on an untrusted row, or a work-unit row with `marker-missing`, still resolves as `current` and still
   cannot be attached.
 
-- _Note:_ Route the decision to the spec before implementing — this is the same class as `7.G.a`, and the choice
-  changes what `current` means rather than fixing a conformance gap. The narrow reading is that trust is an
-  attach-time predicate and frame selection is deliberately trust-blind, in which case the residue fall-through
-  is the whole correction and the remaining cases are correct as they stand. The broad reading is that a frame no
-  operation can act on is not a frame, which makes trust part of selection and changes `current` for work-unit
-  rows too — including what session-init orients against. Do not widen it silently: the narrow fix already
-  shipped, so this is a deliberate scope decision, not a defect waiting to be closed.
+- _Settled:_ the broad reading. Selection reads the same trust predicate attach does, recorded in D6. What decided
+  it was not the design argument but a defect the investigation reproduced: `7.G.a.iii.2.a` had made the recovery
+  verdict trust-aware while leaving selection trust-blind, so a stranded row published `current: resolved` beside
+  `recovery: residue`, and `deriveRecoveryLocusContext` cross-checks the two and threw
+  `RecoveryLocusContextError` — a crash where the deadlock had at least been a refusal. Confining that fix to the
+  recovery verdict looked conservative and was not; it manufactured the disagreement.
+
+- _Outcome:_ Trust moved into selection and the recovery fall-through it had required was reverted, so a stranded
+  row reaches residue because nothing claims it rather than because one verdict special-cases it. All three
+  verdicts now agree by construction instead of by each consumer remembering to check. The regression is pinned
+  across the seam that broke, driving the real derivations rather than the hand-assembled fixture — that fixture
+  computes `recovery` from `current`, so it could not express the disagreement, which is exactly why the defect
+  reached a throwing consumer unnoticed. Both new cases were confirmed to fail against the restored bug.
+  Blast radius accepted deliberately: a work-unit row with authority-fatal evidence no longer resolves as
+  `current`, so session-init orients as no-active-WU rather than offering a frame that attach would refuse.
 
 - _Discovered:_ during `7.G.a.iii.2.a`, while writing the test that proved the stranded row reaches residue.
 
