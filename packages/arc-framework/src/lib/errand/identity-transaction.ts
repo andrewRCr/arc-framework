@@ -77,12 +77,15 @@ export interface IdentityTransactionParams<T> {
   readonly transform: IdentityTransform<T>;
 }
 
+/** The step of an identity transaction a failure reached. */
+export type IdentityTransactionStage = "fetch" | "basis" | "transform" | "write" | "push" | "cleanup";
+
 /** Single-channel transaction outcome. */
 export type IdentityTransactionOutcome<T> =
   | { kind: "applied"; value: T; tip: string }
   | { kind: "idempotent"; value: T; tip: string | null }
   | { kind: "refused"; reason: string }
-  | { kind: "error"; stage: "fetch" | "basis" | "transform" | "write" | "push" | "cleanup"; message: string };
+  | { kind: "error"; stage: IdentityTransactionStage; message: string };
 
 interface CompleteBasis {
   readonly kind: "complete";

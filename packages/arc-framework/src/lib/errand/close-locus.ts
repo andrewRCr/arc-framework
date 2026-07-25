@@ -4,6 +4,7 @@ import { createLocusMutationResult } from "../locus/mutation.js";
 import type {
   LocusMutationResultV1,
   LocusRefusalReason,
+  LocusMutationErrorCode,
 } from "../locus/schema/index.js";
 import type { LocusChangeRequestV1 } from "../locus/schema/index.js";
 import type { TransientIdentityRecord } from "./identity-record.js";
@@ -232,7 +233,7 @@ function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV
   });
 }
 
-function failure(code: string, text: string): LocusMutationResultV1 {
+function failure(code: LocusMutationErrorCode, text: string): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome: "error",
     operation: "errand-close",

@@ -1,7 +1,8 @@
 /** Safety-gated ordinary-v3 Errand abandonment after local occupancy is gone. */
 
 import { createLocusMutationResult } from "../locus/mutation.js";
-import type { LocusMutationResultV1, LocusRefusalReason } from "../locus/schema/index.js";
+import type { LocusMutationResultV1, LocusRefusalReason,
+  LocusMutationErrorCode } from "../locus/schema/index.js";
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
 import type { TransientIdentityRecord } from "./identity-record.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
@@ -130,7 +131,7 @@ export async function abandonOrdinaryErrand(
 }
 
 async function runStep(
-  code: string,
+  code: LocusMutationErrorCode,
   operation: () => Promise<AbandonStepResult>,
 ): Promise<{ step: Extract<AbandonStepResult, { kind: "applied" | "idempotent" }> } | { result: LocusMutationResultV1 }> {
   let step: AbandonStepResult;
@@ -174,7 +175,7 @@ function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV
   return createLocusMutationResult({ outcome: "refused", operation: "errand-abandon", reason, recommendedPromptText: text });
 }
 
-function failure(code: string, text: string): LocusMutationResultV1 {
+function failure(code: LocusMutationErrorCode, text: string): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome: "error",
     operation: "errand-abandon",

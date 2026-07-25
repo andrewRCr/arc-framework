@@ -28,7 +28,13 @@ import { appendDirectedCommandAdvisory } from "./entry-boundary.js";
 import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "./platform-inspectors.js";
 import { acquireSessionAnchor } from "./process-inspector.js";
 import { createNodeProvisioningDependencies } from "./provisioning-runtime.js";
-import type { LocusAnchor, LocusMutationResultV1, LocusRefusalReason, LocusRowV1 } from "./schema/index.js";
+import {
+  type LocusAnchor,
+  type LocusMutationResultV1,
+  type LocusRefusalReason,
+  type LocusRowV1,
+  locusErrorCode,
+} from "./schema/index.js";
 import { deriveTransientAdoptionCandidate } from "./reconciliation.js";
 import { resolveLocusGeneration, type LocusResolveDispatch } from "./resolve-driver.js";
 import {
@@ -476,7 +482,7 @@ function refusal(
 function failure(operation: "locus-attach" | "locus-release" | "locus-resolve", error: unknown): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome: "error", operation,
-    error: { code: `locus.${operation}.failed`, message: error instanceof Error ? error.message : String(error) },
+    error: { code: locusErrorCode(operation, "failed"), message: error instanceof Error ? error.message : String(error) },
     recommendedPromptText: "Inspect the exact session locus record and retry.",
   });
 }

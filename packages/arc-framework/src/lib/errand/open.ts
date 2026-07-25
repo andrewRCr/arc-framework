@@ -34,6 +34,7 @@ import type {
   LocusMutationResultV1,
   LocusRefusalReason,
   LocusStateV1,
+  LocusMutationErrorCode,
 } from "../locus/schema/index.js";
 import {
   mintClaimId as mintIdentityClaimId,
@@ -363,7 +364,7 @@ async function rollbackAfterFailure(
   record: OrdinaryErrandRecord | null,
   previousRecord: OrdinaryErrandRecord | null,
   claimKind: "applied" | "idempotent" | null,
-  code: string,
+  code: LocusMutationErrorCode,
   error: unknown,
   evidence: ProvisioningEvidence | null,
 ): Promise<LocusMutationResultV1> {
@@ -434,7 +435,7 @@ function openRefusal(
   return createLocusMutationResult({ outcome: "refused", operation: "errand-open", reason, recommendedPromptText });
 }
 
-function openError(code: string, message: string): LocusMutationResultV1 {
+function openError(code: LocusMutationErrorCode, message: string): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome: "error",
     operation: "errand-open",

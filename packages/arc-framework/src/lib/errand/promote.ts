@@ -2,7 +2,8 @@
 
 import { SlugSchema } from "../kernel/index.js";
 import { createLocusMutationResult } from "../locus/mutation.js";
-import type { LocusMutationResultV1, LocusRefusalReason } from "../locus/schema/index.js";
+import type { LocusMutationResultV1, LocusRefusalReason,
+  LocusMutationErrorCode } from "../locus/schema/index.js";
 import type { TransientIdentityRecord } from "./identity-record.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 
@@ -106,7 +107,7 @@ export async function promoteOrdinaryErrand(
 }
 
 async function runFrame(
-  code: string,
+  code: LocusMutationErrorCode,
   operation: () => Promise<PromotionFrameResult | null>,
 ): Promise<{ frame: PromotionFrameReceipt } | { result: LocusMutationResultV1 } | null> {
   let frame: PromotionFrameResult | null;
@@ -150,7 +151,7 @@ function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV
   return createLocusMutationResult({ outcome: "refused", operation: "errand-promote", reason, recommendedPromptText: text });
 }
 
-function failure(code: string, text: string): LocusMutationResultV1 {
+function failure(code: LocusMutationErrorCode, text: string): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome: "error",
     operation: "errand-promote",

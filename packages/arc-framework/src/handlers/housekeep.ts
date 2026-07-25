@@ -31,6 +31,7 @@ import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 import { openHousekeepAtRuntime } from "../lib/housekeep/open-runtime.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
+import { locusErrorCode, type LocusErrorStage } from "../lib/locus/schema/index.js";
 import { formatErrandOpenResult } from "./errand.js";
 import { closeHousekeepAtRuntime, settleHousekeepAtRuntime } from "../lib/housekeep/lifecycle-runtime.js";
 import { markCurrentInboxEntriesExecuteBound } from "../commands/user.js";
@@ -142,17 +143,28 @@ async function handleHousekeepLifecycle(slug: string, action: "close" | "abandon
   } catch (error) {
     result = createLocusMutationResult({
       outcome: "error", operation: action === "close" ? "housekeep-close" : "housekeep-abandon",
-      error: { code: `locus.housekeep-${action}.handler`, message: error instanceof Error ? error.message : String(error) },
+      error: {
+        code: locusErrorCode(action === "close" ? "housekeep-close" : "housekeep-abandon", "handler"),
+        message: error instanceof Error ? error.message : String(error),
+      },
       recommendedPromptText: "Inspect the retained housekeeping identity and session locus before retrying.",
     });
   }
   emitHousekeepResult(result, json);
 }
 
-function emitHousekeepLifecycleError(action: "close" | "abandon", suffix: string, message: string, json: boolean): void {
+function emitHousekeepLifecycleError(
+  action: "close" | "abandon",
+  suffix: LocusErrorStage,
+  message: string,
+  json: boolean,
+): void {
   emitHousekeepResult(createLocusMutationResult({
     outcome: "error", operation: action === "close" ? "housekeep-close" : "housekeep-abandon",
-    error: { code: `locus.housekeep-${action}.${suffix}`, message },
+    error: {
+      code: locusErrorCode(action === "close" ? "housekeep-close" : "housekeep-abandon", suffix),
+      message,
+    },
     recommendedPromptText: "Resolve the housekeeping configuration error before retrying.",
   }), json);
 }
@@ -197,9 +209,9 @@ function emitHousekeepResult(result: Parameters<typeof formatErrandOpenResult>[0
   process.exitCode = formatted.exitCode;
 }
 
-function emitHousekeepError(suffix: string, message: string, json: boolean): void {
+function emitHousekeepError(suffix: LocusErrorStage, message: string, json: boolean): void {
   emitHousekeepResult(createLocusMutationResult({
-    outcome: "error", operation: "housekeep-open", error: { code: `locus.housekeep-open.${suffix}`, message },
+    outcome: "error", operation: "housekeep-open", error: { code: locusErrorCode("housekeep-open", suffix), message },
     recommendedPromptText: "Resolve the configuration error before retrying.",
   }), json);
 }

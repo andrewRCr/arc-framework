@@ -1602,11 +1602,20 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   constraint that decides it: a consumer must be able to dispatch exhaustively without reading the producer, and
   every future operation must be unable to add a code silently.
 
-    - `[ ]` **7.E.e.i Close the mutation error vocabulary** — L1-F1
-        - `schema/mutation.ts` accepts any `locus.*` string in the error arm while `locus/errors.ts` declares a
-          finite seven-code union, and `mutation.ts` emits `locus.record-pop.failed`, which is outside it. Settle the
-          model above, then make the schema and the type agree so an unknown code cannot cross the boundary.
-        - Cover a rejected unknown code and the record-pop failure reaching a caller inside the declared vocabulary.
+    - `[x]` **7.E.e.i Close the mutation error vocabulary** — L1-F1
+        - Finite by construction, the option a future operation cannot silently widen: `schema/mutation.ts` now owns
+          one runtime authority — the operational codes, a closed stage enum, and the composed
+          `locus.<operation>.<stage>` type over both — with `locusErrorCode` as the only composer and the free-form
+          regex retired. `errors.ts` infers `LocusErrorCode` from that same schema rather than restating it.
+        - `createLocusMutationResult` takes the schema's input type, so a code outside the vocabulary is a compile
+          error at its producer instead of a `ZodError` thrown from an error path; the runtime parse stays as the
+          backstop for values the compiler cannot see. That typing is what surfaced every producer to convert.
+        - Three codes moved into the vocabulary they had escaped: the pop failure now reports its own operation
+          (`locus.<operation>.record-pop`), the `locus` verbs spell their operation (`locus.locus-resolve.input`),
+          and the housekeeping close names the step that failed rather than the verb (`identity`, not `close`).
+        - Covered by a rejected unknown stage, a rejected unknown operation, and the record-pop failure reaching a
+          caller inside the declared vocabulary. The pre-existing incomplete-success case keeps proving the runtime
+          backstop through an explicit cast past the typed input.
 
     - `[ ]` **7.E.e.ii Require the authority coordinates on open success and canonical UTC** — L1-F2, L1-F3
         - The open-success refinement requires only `activeLocusPath` and `sessionHomePath`, so an applied or

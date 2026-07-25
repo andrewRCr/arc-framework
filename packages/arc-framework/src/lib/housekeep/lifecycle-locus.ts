@@ -10,13 +10,16 @@ import type {
   PinGroomOpenedBaseHeadOutcome,
 } from "../errand/identity-claims.js";
 import { projectLocusIdentity } from "../errand/identity-record.js";
+import type { IdentityTransactionStage } from "../errand/identity-transaction.js";
 import { createLocusMutationResult } from "../locus/mutation.js";
-import type {
-  LocusChangeRequestV1,
-  LocusMutationResultV1,
-  LocusRefusalReason,
-  LocusRowV1,
-  LocusStateV1,
+import {
+  type LocusChangeRequestV1,
+  type LocusMutationResultV1,
+  type LocusRefusalReason,
+  type LocusRowV1,
+  type LocusStateV1,
+  locusErrorCode,
+  type LocusErrorStage,
 } from "../locus/schema/index.js";
 import { selectedGenerationMismatch, type SelectedLocusGeneration } from "../locus/selected-generation.js";
 import { untrustedRefusalReason } from "../locus/trusted-row.js";
@@ -62,7 +65,7 @@ export type HousekeepTailReading =
 export type HousekeepIdentityOutcome<T> =
   | { kind: "ready"; value: T }
   | { kind: "refused"; reason: string }
-  | { kind: "error"; stage: string; message: string };
+  | { kind: "error"; stage: IdentityTransactionStage; message: string };
 
 /**
  * Which authority retirement runs under.
@@ -136,7 +139,7 @@ export interface SettleHousekeepOptions {
 export async function closeHousekeep(options: CloseHousekeepOptions): Promise<LocusMutationResultV1> {
   const dependencies = options.dependencies;
   const recordResult = await dependencies.readIdentity();
-  if (recordResult.kind === "error") return failure("close", recordResult.message);
+  if (recordResult.kind === "error") return failure("identity", recordResult.message);
   const record = recordResult.record;
   const reading = await dependencies.readState();
   if (reading.kind === "refused") return refusal(reading.reason, reading.message);
@@ -374,12 +377,12 @@ function refusal(
 }
 
 function failure(
-  suffix: string,
+  suffix: LocusErrorStage,
   message: string,
   operation: HousekeepOperation = "housekeep-close",
 ): LocusMutationResultV1 {
   return createLocusMutationResult({
-    outcome: "error", operation, error: { code: `locus.${operation}.${suffix}`, message },
+    outcome: "error", operation, error: { code: locusErrorCode(operation, suffix), message },
     recommendedPromptText: "Inspect the retained housekeeping identity and session locus before retrying.",
   });
 }

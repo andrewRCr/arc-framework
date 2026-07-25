@@ -11,6 +11,7 @@ import { createLocusMutationResult } from "../locus/mutation.js";
 import type {
   LocusMutationResultV1,
   LocusRefusalReason,
+  LocusMutationErrorCode,
 } from "../locus/schema/index.js";
 
 type LeaveTransition = Extract<OrdinaryErrandTransition, { kind: "pause" | "await-merge" }>;
@@ -18,7 +19,7 @@ type LeaveTransition = Extract<OrdinaryErrandTransition, { kind: "pause" | "awai
 export type LeaveAuthorization =
   | { kind: "authorized"; transition: LeaveTransition }
   | { kind: "refused"; reason: LocusRefusalReason; message: string }
-  | { kind: "error"; code: string; message: string };
+  | { kind: "error"; code: LocusMutationErrorCode; message: string };
 
 export type LeaveCleanupResult =
   | {
@@ -28,7 +29,7 @@ export type LeaveCleanupResult =
       restoredParent: { recordId: string; checkoutPath: string } | null;
     }
   | { kind: "refused"; reason: LocusRefusalReason; message: string }
-  | { kind: "error"; code: string; message: string };
+  | { kind: "error"; code: LocusMutationErrorCode; message: string };
 
 export interface LeaveOrdinaryErrandDependencies {
   readIdentity(): Promise<IdentityTransactionOutcome<TransientIdentityRecord | null>>;
@@ -150,7 +151,7 @@ function leaveRefusal(reason: LocusRefusalReason, message: string): LocusMutatio
   });
 }
 
-function leaveError(code: string, message: string): LocusMutationResultV1 {
+function leaveError(code: LocusMutationErrorCode, message: string): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome: "error",
     operation: "errand-leave",

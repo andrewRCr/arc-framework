@@ -1,11 +1,13 @@
 /** Exact completion and abandonment composition for identity-free partial Errands. */
 
 import { createLocusMutationResult } from "../locus/mutation.js";
-import type {
-  LocusMutationResultV1,
-  LocusRefusalReason,
-  LocusRowV1,
-  LocusStateV1,
+import {
+  type LocusMutationResultV1,
+  type LocusRefusalReason,
+  type LocusRowV1,
+  type LocusStateV1,
+  locusErrorCode,
+  type LocusErrorStage,
 } from "../locus/schema/index.js";
 import type { LockedLocusGenerationAcquisition } from "./locked-generation.js";
 
@@ -205,14 +207,14 @@ function refusal(
 
 function failure(
   operation: "errand-close" | "errand-abandon",
-  suffix: string,
+  suffix: LocusErrorStage,
   error: unknown,
 ): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome: "error",
     operation,
     error: {
-      code: `locus.${operation}.${suffix}`,
+      code: locusErrorCode(operation, suffix),
       message: error instanceof Error ? error.message : String(error),
     },
     recommendedPromptText: "Inspect the retained partial Errand role and exact base evidence before retrying.",

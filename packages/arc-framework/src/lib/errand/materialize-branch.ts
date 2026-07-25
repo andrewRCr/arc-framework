@@ -24,7 +24,10 @@ export type PrepareMaterializedBranchResult =
       readonly advisory?: string;
     }
   | { readonly kind: "refused"; readonly reason: string }
-  | { readonly kind: "error"; readonly stage: string; readonly message: string };
+  | { readonly kind: "error"; readonly stage: MaterializedBranchStage; readonly message: string };
+
+/** The Git probe a preparation failure reached, named in the reported error code. */
+type MaterializedBranchStage = "ancestry" | "cleanup" | "fetch" | "local-branch" | "local-head" | "remote-head";
 
 /**
  * Fetch a retained branch and create its local ref at the exact recorded head.
@@ -131,6 +134,6 @@ async function prepareFromSnapshot(
   };
 }
 
-function failure(stage: string, error: Error): Extract<PrepareMaterializedBranchResult, { kind: "error" }> {
+function failure(stage: MaterializedBranchStage, error: Error): Extract<PrepareMaterializedBranchResult, { kind: "error" }> {
   return { kind: "error", stage, message: error.message };
 }

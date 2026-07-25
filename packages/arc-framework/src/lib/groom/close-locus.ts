@@ -8,13 +8,16 @@ import type {
 } from "../errand/identity-claims.js";
 import { projectLocusIdentity } from "../errand/identity-record.js";
 import type { TransientIdentityRecord } from "../errand/identity-record.js";
+import type { IdentityTransactionStage } from "../errand/identity-transaction.js";
 import { createLocusMutationResult } from "../locus/mutation.js";
-import type {
-  LocusChangeRequestV1,
-  LocusMutationResultV1,
-  LocusRefusalReason,
-  LocusRowV1,
-  LocusStateV1,
+import {
+  type LocusChangeRequestV1,
+  type LocusMutationResultV1,
+  type LocusRefusalReason,
+  type LocusRowV1,
+  type LocusStateV1,
+  locusErrorCode,
+  type LocusErrorStage,
 } from "../locus/schema/index.js";
 import { classifyGroomChangedPaths } from "./path-policy.js";
 
@@ -28,7 +31,7 @@ export type AwaitingMergeGroomRecord = Extract<FullGroomRecord, { state: "awaiti
 export type GroomIdentityOutcome<T> =
   | { kind: "ready"; value: T }
   | { kind: "refused"; reason: string }
-  | { kind: "error"; stage: string; message: string };
+  | { kind: "error"; stage: IdentityTransactionStage; message: string };
 
 /**
  * The locus projection a grooming tail decides against, or why it cannot be established.
@@ -229,9 +232,9 @@ function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV
   return createLocusMutationResult({ outcome: "refused", operation: "plan-close", reason, recommendedPromptText: text });
 }
 
-function failure(suffix: string, message: string): LocusMutationResultV1 {
+function failure(suffix: LocusErrorStage, message: string): LocusMutationResultV1 {
   return createLocusMutationResult({
-    outcome: "error", operation: "plan-close", error: { code: `locus.plan-close.${suffix}`, message },
+    outcome: "error", operation: "plan-close", error: { code: locusErrorCode("plan-close", suffix), message },
     recommendedPromptText: "Inspect the retained grooming identity and session locus before retrying.",
   });
 }

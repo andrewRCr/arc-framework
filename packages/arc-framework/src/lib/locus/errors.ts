@@ -1,15 +1,12 @@
 /** Locus-domain failures at untrusted operational boundaries. */
 
-import { ArcError, toArcError } from "../kernel/index.js";
+import { z } from "zod";
 
-export type LocusErrorCode =
-  | "locus.parse.invalid"
-  | "locus.topology.unavailable"
-  | "locus.persistence.read"
-  | "locus.persistence.write"
-  | "locus.lock.acquire"
-  | "locus.lock.release"
-  | "locus.mutation.failed";
+import { ArcError, toArcError } from "../kernel/index.js";
+import { LocusOperationalErrorCodeSchema } from "./schema/mutation.js";
+
+/** The operational arm of the public error vocabulary, inferred from its one runtime schema. */
+export type LocusErrorCode = z.infer<typeof LocusOperationalErrorCodeSchema>;
 
 /** Operational locus error with a locally exhaustive code contract. */
 export class LocusError extends ArcError {
@@ -40,11 +37,5 @@ export function toLocusErrorPayload(
 }
 
 function isLocusErrorCode(value: string): value is LocusErrorCode {
-  return value === "locus.parse.invalid"
-    || value === "locus.topology.unavailable"
-    || value === "locus.persistence.read"
-    || value === "locus.persistence.write"
-    || value === "locus.lock.acquire"
-    || value === "locus.lock.release"
-    || value === "locus.mutation.failed";
+  return LocusOperationalErrorCodeSchema.safeParse(value).success;
 }

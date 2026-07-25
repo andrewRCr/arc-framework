@@ -17,6 +17,65 @@ export const LocusRefusalReasonSchema = z.enum([
   "change-request-open", "change-request-unverifiable", "partial-handoff-forbidden", "preservation-unproven",
   "inbox-link-conflict", "work-unit-name-taken", "promotion-source-invalid", "stub-ambiguous",
 ]);
+/**
+ * Operational failures raised at untrusted locus boundaries.
+ *
+ * Distinct from the per-operation stage codes below: these name the boundary that failed rather than
+ * the step of an operation that reached it, and they cross the same public error arm.
+ */
+export const LocusOperationalErrorCodeSchema = z.enum([
+  "locus.parse.invalid", "locus.topology.unavailable", "locus.persistence.read",
+  "locus.persistence.write", "locus.lock.acquire", "locus.lock.release", "locus.mutation.failed",
+]);
+
+/**
+ * The step of an operation a failure reached.
+ *
+ * Closed by construction: an operation's error code is its operation paired with one of these, so a
+ * new failure path cannot introduce a code consumers have no case for without extending this list.
+ */
+export const LocusErrorStageSchema = z.enum([
+  "anchor", "base", "base-ref", "basis", "change-request", "claim", "cleanup", "config", "failed",
+  "frame", "handler",
+  "host", "inbox", "input", "occupancy", "preservation", "protection", "provision", "recover",
+  "recovery", "record-pop", "refs", "residue", "resume", "resume-proof", "rollback", "state",
+  "push", "topology", "transform", "write",
+  "ancestry", "fetch", "local-branch", "local-head", "remote-head",
+  "identity", "identity-basis", "identity-cleanup", "identity-fetch", "identity-push",
+  "identity-read", "identity-retire", "identity-transform", "identity-write",
+  "pause-ancestry", "pause-cleanup", "pause-fetch", "pause-local-head", "pause-remote-head",
+]);
+
+export type LocusOperationalErrorCode = z.infer<typeof LocusOperationalErrorCodeSchema>;
+export type LocusErrorStage = z.infer<typeof LocusErrorStageSchema>;
+
+/** Every code the public error arm can carry. */
+export type LocusMutationErrorCode =
+  | LocusOperationalErrorCode
+  | `locus.${z.infer<typeof LocusOperationSchema>}.${LocusErrorStage}`;
+
+/** Compose the one code an operation may report for the step that failed. */
+export function locusErrorCode(
+  operation: z.infer<typeof LocusOperationSchema>,
+  stage: LocusErrorStage,
+): LocusMutationErrorCode {
+  return `locus.${operation}.${stage}`;
+}
+
+/** Decide whether an arbitrary string belongs to the declared vocabulary. */
+export function isLocusMutationErrorCode(value: string): value is LocusMutationErrorCode {
+  if (LocusOperationalErrorCodeSchema.safeParse(value).success) return true;
+  const segments = value.split(".");
+  return segments.length === 3 && segments[0] === "locus"
+    && LocusOperationSchema.safeParse(segments[1]).success
+    && LocusErrorStageSchema.safeParse(segments[2]).success;
+}
+
+export const LocusMutationErrorCodeSchema = z.custom<LocusMutationErrorCode>(
+  (value) => typeof value === "string" && isLocusMutationErrorCode(value),
+  { error: "Error code must be a declared operational code or `locus.<operation>.<stage>`" },
+);
+
 const common = { operation: LocusOperationSchema, recommendedPromptText: LocusOpaqueTextSchema };
 const success = {
   ...common,
@@ -42,7 +101,7 @@ export const LocusMutationResultV1Schema = z.discriminatedUnion("outcome", [
   z.strictObject({ outcome: z.literal("refused"), ...common, reason: LocusRefusalReasonSchema }),
   z.strictObject({
     outcome: z.literal("error"), ...common,
-    error: z.strictObject({ code: z.string().regex(/^locus\.[a-z0-9-]+(?:\.[a-z0-9-]+)*$/u), message: LocusOpaqueTextSchema }),
+    error: z.strictObject({ code: LocusMutationErrorCodeSchema, message: LocusOpaqueTextSchema }),
   }),
 ]).superRefine((value, context) => {
   if ((value.outcome === "applied" || value.outcome === "idempotent")

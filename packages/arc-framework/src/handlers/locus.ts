@@ -24,7 +24,7 @@ import {
 } from "../lib/locus/command-runtime.js";
 import { formatErrandOpenResult } from "./errand.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
-import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
+import { locusErrorCode, type LocusMutationResultV1 } from "../lib/locus/schema/index.js";
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
 import { settleHousekeepAtRuntime } from "../lib/housekeep/lifecycle-runtime.js";
 import { settleGroomAtRuntime } from "../lib/groom/tail-runtime.js";
@@ -70,7 +70,10 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
   if (options.action !== "resume" && options.action !== "abandon") {
     emitMutation(createLocusMutationResult({
       outcome: "error", operation: "locus-resolve",
-      error: { code: "locus.resolve.input", message: "--action must be 'resume' or 'abandon'." },
+      error: {
+        code: locusErrorCode("locus-resolve", "input"),
+        message: "--action must be 'resume' or 'abandon'.",
+      },
       recommendedPromptText: "Choose one supported residue action.",
     }), options.json === true);
     return;
@@ -125,7 +128,7 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
     result = createLocusMutationResult({
       outcome: "error", operation: "locus-resolve",
       error: {
-        code: "locus.resolve.failed",
+        code: locusErrorCode("locus-resolve", "failed"),
         message: error instanceof Error ? error.message : String(error),
       },
       recommendedPromptText: "Inspect the retained transient generation before retrying.",
@@ -146,7 +149,10 @@ async function handleLocusMutation(
   if (!io.execInput) {
     emitMutation(createLocusMutationResult({
       outcome: "error", operation: action === "attach" ? "locus-attach" : "locus-release",
-      error: { code: `locus.${action}.identity`, message: "The stdin Git boundary is unavailable." },
+      error: {
+        code: locusErrorCode(action === "attach" ? "locus-attach" : "locus-release", "identity"),
+        message: "The stdin Git boundary is unavailable.",
+      },
       recommendedPromptText: "Resolve the identity boundary before retrying.",
     }), options.json === true);
     return;
@@ -171,7 +177,7 @@ async function handleLocusMutation(
       outcome: "error",
       operation,
       error: {
-        code: `locus.${action}.failed`,
+        code: locusErrorCode(operation, "failed"),
         message: error instanceof Error ? error.message : String(error),
       },
       recommendedPromptText: "Inspect the exact session locus record before retrying.",

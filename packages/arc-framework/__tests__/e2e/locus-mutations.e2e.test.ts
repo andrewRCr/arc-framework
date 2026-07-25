@@ -314,7 +314,7 @@ describe("arc locus mutation commands", () => {
     expect(JSON.parse(invalid.stdout)).toMatchObject({
       outcome: "error",
       operation: "locus-resolve",
-      error: { code: "locus.resolve.input" },
+      error: { code: "locus.locus-resolve.input" },
     });
   });
 });

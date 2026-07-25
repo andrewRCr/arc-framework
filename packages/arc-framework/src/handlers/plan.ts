@@ -65,7 +65,11 @@ import { provisionTransientLocus } from "../lib/locus/provisioning.js";
 import { createNodeProvisioningDependencies } from "../lib/locus/provisioning-runtime.js";
 import { createLocusMutationResult } from "../lib/locus/mutation.js";
 import { projectTrustedLocusRow, untrustedRefusalReason } from "../lib/locus/trusted-row.js";
-import type { LocusRefusalReason } from "../lib/locus/schema/index.js";
+import {
+  locusErrorCode,
+  type LocusErrorStage,
+  type LocusRefusalReason,
+} from "../lib/locus/schema/index.js";
 import { formatErrandOpenResult } from "./errand.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
@@ -424,21 +428,21 @@ function emitPlanFailure(reason: LocusRefusalReason, message: string, json: bool
   emitPlanResult(createLocusMutationResult({ outcome: "refused", operation: "plan-open", reason, recommendedPromptText: message }), json);
 }
 
-function emitPlanError(suffix: string, message: string, json: boolean): void {
+function emitPlanError(suffix: LocusErrorStage, message: string, json: boolean): void {
   emitPlanResult(createLocusMutationResult({
-    outcome: "error", operation: "plan-open", error: { code: `locus.plan-open.${suffix}`, message },
+    outcome: "error", operation: "plan-open", error: { code: locusErrorCode("plan-open", suffix), message },
     recommendedPromptText: "Inspect the retained grooming identity before retrying.",
   }), json);
 }
 
 function emitPlanErrorFor(
   operation: "plan-close" | "plan-abandon",
-  suffix: string,
+  suffix: LocusErrorStage,
   message: string,
   json: boolean,
 ): void {
   emitPlanResult(createLocusMutationResult({
-    outcome: "error", operation, error: { code: `locus.${operation}.${suffix}`, message },
+    outcome: "error", operation, error: { code: locusErrorCode(operation, suffix), message },
     recommendedPromptText: "Inspect the retained grooming state before retrying.",
   }), json);
 }

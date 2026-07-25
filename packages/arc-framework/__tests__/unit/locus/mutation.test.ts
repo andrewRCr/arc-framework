@@ -18,7 +18,11 @@ import {
   type LocusRoleMintIO,
 } from "../../../src/lib/locus/mutation.js";
 import type { LocusRecordReadResult } from "../../../src/lib/locus/record-store.js";
-import type { LocusIdentityV1, LocusRecordV1 } from "../../../src/lib/locus/schema/index.js";
+import {
+  isLocusMutationErrorCode,
+  type LocusIdentityV1,
+  type LocusRecordV1,
+} from "../../../src/lib/locus/schema/index.js";
 
 function memoryIO(initial: LocusRecordReadResult = { kind: "absent" }): {
   io: LocusRoleMintIO & LocusLeaseMutationIO & LocusRolePopIO;
@@ -698,10 +702,26 @@ describe("durable locus role minting", () => {
   });
 
   it("schema-validates every public mutation result arm", async () => {
-    expect(() => createLocusMutationResult({
+    // Cast past the constructor's typed input: the runtime schema is the backstop for producers
+    // whose values the compiler could not check.
+    const unchecked = (value: unknown) =>
+      createLocusMutationResult(value as Parameters<typeof createLocusMutationResult>[0]);
+    expect(() => unchecked({
       outcome: "applied",
       operation: "locus-resolve",
       recommendedPromptText: "Incomplete success.",
+    })).toThrow();
+    expect(() => unchecked({
+      outcome: "error",
+      operation: "locus-resolve",
+      error: { code: "locus.locus-resolve.undeclared", message: "Outside the vocabulary." },
+      recommendedPromptText: "Undeclared stage.",
+    })).toThrow();
+    expect(() => unchecked({
+      outcome: "error",
+      operation: "locus-resolve",
+      error: { code: "locus.record-pop.failed", message: "Outside the vocabulary." },
+      recommendedPromptText: "Undeclared operation.",
     })).toThrow();
     const error = await popLocusRole({
       operation: "locus-resolve",
@@ -723,9 +743,11 @@ describe("durable locus role minting", () => {
         remove: async () => ({ kind: "removed" }),
       },
     });
+    // The pop failure reaches the caller inside the declared vocabulary rather than beside it.
     expect(error).toMatchObject({
       outcome: "error",
-      error: { code: "locus.record-pop.failed", message: "store unavailable" },
+      error: { code: "locus.locus-resolve.record-pop", message: "store unavailable" },
     });
+    expect(isLocusMutationErrorCode("locus.locus-resolve.record-pop")).toBe(true);
   });
 });

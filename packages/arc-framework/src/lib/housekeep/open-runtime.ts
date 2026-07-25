@@ -21,12 +21,14 @@ import { readPrimarySafety } from "../locus/primary-safety.js";
 import { provisionTransientLocus } from "../locus/provisioning.js";
 import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
 import { readLocusState } from "../locus/reader.js";
-import type {
-  LocusAnchor,
-  LocusMutationResultV1,
-  LocusRowV1,
-  LocusStateV1,
-  LocusStopReason,
+import {
+  type LocusAnchor,
+  type LocusMutationResultV1,
+  type LocusRowV1,
+  type LocusStateV1,
+  type LocusStopReason,
+  locusErrorCode,
+  type LocusErrorStage,
 } from "../locus/schema/index.js";
 import { projectTrustedLocusRow, untrustedRefusalReason, type TrustedLocusRow } from "../locus/trusted-row.js";
 import { SlugSchema } from "../kernel/index.js";
@@ -249,9 +251,9 @@ function refusal(reason: import("../locus/schema/index.js").LocusRefusalReason, 
   return createLocusMutationResult({ outcome: "refused", operation: "housekeep-open", reason, recommendedPromptText: text });
 }
 
-function failure(suffix: string, message: string): LocusMutationResultV1 {
+function failure(suffix: LocusErrorStage, message: string): LocusMutationResultV1 {
   return createLocusMutationResult({
-    outcome: "error", operation: "housekeep-open", error: { code: `locus.housekeep-open.${suffix}`, message },
+    outcome: "error", operation: "housekeep-open", error: { code: locusErrorCode("housekeep-open", suffix), message },
     recommendedPromptText: "Inspect the routing identity and local role before retrying.",
   });
 }

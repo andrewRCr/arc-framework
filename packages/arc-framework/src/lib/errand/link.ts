@@ -17,7 +17,8 @@ import { projectLocusIdentity, type TransientIdentityRecord } from "./identity-r
 import type { IdentityTransactionOutcome } from "./identity-transaction.js";
 import type { OrdinaryErrandRecord, OrdinaryErrandTransition } from "./identity-transitions.js";
 import { createLocusMutationResult } from "../locus/mutation.js";
-import type { LocusMutationResultV1 } from "../locus/schema/index.js";
+import type { LocusMutationResultV1,
+  LocusMutationErrorCode } from "../locus/schema/index.js";
 import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
 
 type LinkTransition = Extract<OrdinaryErrandTransition, { kind: "link" }>;
@@ -105,7 +106,7 @@ function linkRefusal(
   });
 }
 
-function linkError(code: string, message: string): LocusMutationResultV1 {
+function linkError(code: LocusMutationErrorCode, message: string): LocusMutationResultV1 {
   return createLocusMutationResult({
     outcome: "error",
     operation: "errand-link",

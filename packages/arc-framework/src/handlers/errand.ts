@@ -64,7 +64,12 @@ import { settlePartialErrandAtRuntime } from "../lib/errand/partial-settle-runti
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
 import { promoteOrdinaryErrandAtRuntime } from "../lib/errand/promote-runtime.js";
 import { prepareMaterializedBranch } from "../lib/errand/materialize-branch.js";
-import type { LocusMutationResultV1 } from "../lib/locus/schema/index.js";
+import {
+  locusErrorCode,
+  type LocusErrorStage,
+  type LocusMutationErrorCode,
+  type LocusMutationResultV1,
+} from "../lib/locus/schema/index.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
@@ -400,10 +405,10 @@ function emitMaterializeRefusal(
   }), json);
 }
 
-function emitMaterializeError(suffix: string, message: string, json: boolean): void {
+function emitMaterializeError(suffix: LocusErrorStage, message: string, json: boolean): void {
   emitErrandOpenResult(createLocusMutationResult({
     outcome: "error", operation: "errand-materialize",
-    error: { code: `locus.errand-materialize.${suffix}`, message },
+    error: { code: locusErrorCode("errand-materialize", suffix), message },
     recommendedPromptText: "Inspect the retained identity and local branch evidence before retrying.",
   }), json);
 }
@@ -606,7 +611,7 @@ function emitErrandOpenResult(result: LocusMutationResultV1, json: boolean): voi
   process.exitCode = formatted.exitCode;
 }
 
-function emitErrandOpenFailure(code: string, message: string, json: boolean): void {
+function emitErrandOpenFailure(code: LocusMutationErrorCode, message: string, json: boolean): void {
   emitErrandOpenResult(createLocusMutationResult({
     outcome: "error",
     operation: "errand-open",
@@ -754,7 +759,7 @@ function emitErrandLinkResult(result: LocusMutationResultV1, json: boolean): voi
 }
 
 function emitErrandLinkFailure(
-  code: string,
+  code: LocusMutationErrorCode,
   message: string,
   json: boolean,
   reason?: "full-protection-required",
@@ -878,7 +883,7 @@ function emitErrandLeaveResult(result: LocusMutationResultV1, json: boolean): vo
   process.exitCode = formatted.exitCode;
 }
 
-function emitErrandLeaveFailure(code: string, message: string, json: boolean): void {
+function emitErrandLeaveFailure(code: LocusMutationErrorCode, message: string, json: boolean): void {
   emitErrandLeaveResult(createLocusMutationResult({
     outcome: "error",
     operation: "errand-leave",
@@ -1083,7 +1088,7 @@ function emitErrandCloseResult(result: LocusMutationResultV1, json: boolean): vo
   process.exitCode = formatted.exitCode;
 }
 
-function emitErrandCloseFailure(code: string, message: string, json: boolean): void {
+function emitErrandCloseFailure(code: LocusMutationErrorCode, message: string, json: boolean): void {
   emitErrandCloseResult(createLocusMutationResult({
     outcome: "error",
     operation: "errand-close",
@@ -1212,7 +1217,7 @@ function emitErrandAbandonResult(result: LocusMutationResultV1, json: boolean): 
   process.exitCode = formatted.exitCode;
 }
 
-function emitErrandAbandonFailure(code: string, message: string, json: boolean): void {
+function emitErrandAbandonFailure(code: LocusMutationErrorCode, message: string, json: boolean): void {
   emitErrandAbandonResult(createLocusMutationResult({
     outcome: "error",
     operation: "errand-abandon",
@@ -1483,7 +1488,7 @@ function emitErrandPromoteResult(result: LocusMutationResultV1, json: boolean): 
   process.exitCode = formatted.exitCode;
 }
 
-function emitErrandPromoteFailure(code: string, message: string, json: boolean): void {
+function emitErrandPromoteFailure(code: LocusMutationErrorCode, message: string, json: boolean): void {
   emitErrandPromoteResult(createLocusMutationResult({
     outcome: "error", operation: "errand-promote", error: { code, message },
     recommendedPromptText: "Resolve the reported input or configuration error before retrying.",

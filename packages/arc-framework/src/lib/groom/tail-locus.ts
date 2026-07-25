@@ -8,7 +8,12 @@ import type {
 import type { TransientIdentityRecord } from "../errand/identity-record.js";
 import { createLocusMutationResult } from "../locus/mutation.js";
 import { selectedGenerationMismatch, type SelectedLocusGeneration } from "../locus/selected-generation.js";
-import type { LocusMutationResultV1, LocusRefusalReason } from "../locus/schema/index.js";
+import {
+  type LocusMutationResultV1,
+  type LocusRefusalReason,
+  locusErrorCode,
+  type LocusErrorStage,
+} from "../locus/schema/index.js";
 import {
   exactGroomRow,
   type AwaitingMergeGroomRecord,
@@ -129,9 +134,9 @@ function refusal(reason: LocusRefusalReason, text: string): LocusMutationResultV
   return createLocusMutationResult({ outcome: "refused", operation: "plan-abandon", reason, recommendedPromptText: text });
 }
 
-function failure(suffix: string, message: string): LocusMutationResultV1 {
+function failure(suffix: LocusErrorStage, message: string): LocusMutationResultV1 {
   return createLocusMutationResult({
-    outcome: "error", operation: "plan-abandon", error: { code: `locus.plan-abandon.${suffix}`, message },
+    outcome: "error", operation: "plan-abandon", error: { code: locusErrorCode("plan-abandon", suffix), message },
     recommendedPromptText: "Inspect the retained grooming tail before retrying.",
   });
 }

@@ -3,12 +3,15 @@
 import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 
+import type { z } from "zod";
+
 import type { LocusRecordReadResult } from "./record-store.js";
 import {
   LocusIdentityV1Schema,
   LocusMutationResultV1Schema,
   LocusRecordV1Schema,
   LocusRoleSchema,
+  locusErrorCode,
   type LocusIdentityV1,
   type LocusAnchor,
   type LocusMutationResultV1,
@@ -291,7 +294,9 @@ export async function updateLocusRole(options: {
 }
 
 /** Validate a complete command-independent locus mutation result. */
-export function createLocusMutationResult(value: unknown): LocusMutationResultV1 {
+export function createLocusMutationResult(
+  value: z.input<typeof LocusMutationResultV1Schema>,
+): LocusMutationResultV1 {
   return LocusMutationResultV1Schema.parse(value);
 }
 
@@ -471,7 +476,7 @@ function failure(
     outcome: "error",
     operation: options.operation,
     error: {
-      code: "locus.record-pop.failed",
+      code: locusErrorCode(options.operation, "record-pop"),
       message: error instanceof Error ? error.message || "Record pop failed" : "Record pop failed",
     },
     recommendedPromptText: options.recommendedPromptText,
