@@ -12,12 +12,12 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.E.d — Make post-mutation failure recoverable (all six subtasks)
-- **Next Task:** Task 7.E.i — Split the grooming and housekeeping tails from their Node wiring (line ~1628)
+- **Last Completed:** Task 7.E.e.i — Close the mutation error vocabulary
+- **Next Task:** Task 7.E.e.ii — Require the authority coordinates on open success and canonical UTC (line ~1620)
 - **Blockers:** [none]
 
-- **Next Action:** Enter Task 7.E.i.1 — split `groom/close-runtime.ts` and `groom/tail-runtime.ts` into
-  composition over injected seams plus Node wiring, per the task's `_Sequencing:_` note (precedes 7.E.e/g/h)
+- **Next Action:** Enter Task 7.E.e.ii — require `allocation`, `recordId`, and `leaseId` alongside the two path
+  fields on open success, and make the persisted timestamp schema reject non-`Z` offsets
 
 - **PR URL:** [none]
 - **Completed:** [none]
