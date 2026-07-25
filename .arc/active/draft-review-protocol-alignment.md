@@ -114,7 +114,7 @@ per-chunk diversity is given up.
 `review-chunking` explicitly deferred automated construction and transport of chunk scopes, per-chunk scope
 identities, and receipts to `chunk-scope-binding`, which is `planned` and unblocked.
 
-### 3. Diagnostic durability
+### 3. Diagnostic durability and ephemeral-checkout lifecycle
 
 Preserve or export provider diagnostics **before** the ephemeral checkout is released on timeout or failure, so an
 adapter incident can be investigated without replaying a costly review.
@@ -125,6 +125,78 @@ merits instead, and they are sufficient: PR #354's two typed `execution-timeout`
 no partial result, the only artifact that would have explained them was deleted with the ephemeral worktree, and
 diagnosing it cost a second costly review rather than a log read. A typed failure outcome with no retained
 diagnostic is not actionable — which is the WU's root defect expressed on the evidence axis.
+
+**Two independent losses, not one.** The originating capture described a single "evidence destroyed" failure. The
+adapter and its host actually lose the evidence twice, by unrelated mechanisms, and the fixes are separable:
+
+1. **In-process — output is discarded before disk is ever involved.** On the abort path the frontline execution
+   adapter returns a `timed-out` outcome without ever assigning its process result, so whatever the provider had
+   already written to stdout and stderr is dropped. The non-abort error path is worse: it synthesizes empty stdout
+   and stderr rather than preserving what was read. Even with the checkout retained, a timeout would still surface
+   no partial output.
+2. **On-disk — teardown removes the provider's own artifacts.** The frontline materialization host creates a
+   temporary root, adds a detached worktree inside it, and releases by removing the worktree and then recursively
+   deleting the root. The provider runs with that checkout as its working directory, so its saved prompts and
+   working state die with the root.
+
+Fixing only the second would not have explained PR #354. Both are in scope.
+
+**Resolved design decisions.**
+
+- **Trigger — failure-only by default, with an explicit opt-in for always.** Preserve on outcomes where the
+  provider actually executed and did not succeed: timeout, failure, and malformed-result parses. Exclude outcomes
+  where nothing ran (unsupported capability, unbound source) — there is no execution to explain. Green runs
+  produce artifacts nobody reads, so always-on only consumes disk; the opt-in covers deliberate comparative
+  investigation, where the successful baseline is the point and is known to be wanted in advance.
+- **Destination — a per-repository state root outside the repository, keyed by target and pass.** Resolve under
+  the user's local state directory as `review-diagnostics/{repositoryId}/{headSha}/{pass}`. The repository
+  identity is already resolved during materialization, so no new identity concept is introduced. Keying by head
+  **and pass** is what makes two attempts on one target distinguishable — precisely the PR #354 case, where two
+  timeouts were indistinguishable after the fact. Never under the repository, and never under any path reachable
+  by notes sync.
+- **Retention — age-based, with a generous default.** The use case is investigating an incident discovered days
+  later, which count-based retention serves poorly once a busy period evicts the interesting run. Age bounds disk
+  adequately at this volume. Reap it through the existing session-init sweep surfaces rather than silently, so a
+  growing diagnostics root is visible rather than mysterious. The default is cheap to revisit once real volume is
+  observed.
+- **Ownership — capture in the adapter, preservation in the host.** The adapter owns the process handles, so
+  threading partial stdout and stderr into the timed-out outcome is its responsibility; that half needs no
+  directory changes at all. The host owns the directory lifecycle, so preservation hooks into its release path.
+  **Implementation constraint:** the release path's recursive delete currently sits in a `finally`, which is what
+  guarantees teardown today. Preservation must run before that guarantee and must be failure-tolerant — a
+  preserve that throws must never prevent cleanup, or a failed review leaks a worktree and reproduces the
+  clutter problem below. Add to the cleanup guarantee; do not weaken it.
+- **Trust boundary — the destination decision carries it, on security grounds rather than tidiness.** Preserved
+  prompts embed source. The system temporary directory is world-readable on most systems, so simply retaining the
+  temporary root would make source-bearing artifacts readable by any local user for the whole retention window.
+  A state directory under the user's own home can be owner-only. Preserved diagnostics are therefore
+  **local-only: never synced, never committed, never written to a repository path.**
+
+**Worktree registration isolation (the fifth decision).** The same lifecycle carries a second defect that is
+independently annoying: every ephemeral review checkout is registered in the repository's common git directory, so
+it appears in `git worktree list` from every worktree until released. A parallel review cycle currently leaves
+several temporary chunk checkouts visible alongside real work units, and a leaked one lingers indefinitely.
+
+The registration namespace is the fixable part. Materializing review checkouts inside a **throwaway local clone**
+rather than the primary repository moves the registration into the clone's own git directory, where it is
+invisible to the primary, and collapses cleanup to a single recursive delete with no worktree records to orphan.
+A local clone hardlinks the object store, so it is fast and cheap; and unlike an alternates-based clone, hardlinked
+objects stay valid even if the source repacks, so the usual correctness hazard of clone-based isolation does not
+apply.
+
+Two supporting observations, both recorded so they are not re-derived:
+
+- **Checkout count is a parallelism choice, not a requirement.** The observed chunk checkouts all sat at one head
+  with scope carried separately, so sequential review needs exactly one. Concurrency should be a deliberate knob
+  rather than an emergent default.
+- **The existing sweep cannot see them.** Session-init already classifies stale worktrees and stamped husks as
+  removable, blocked, or externally managed — but an unstamped detached checkout under the temporary directory
+  falls through as externally managed at best. The problem is not that these exist; it is that they are invisible
+  to the reaper that already exists. Stamping review checkouts with their owning work unit and cycle would let
+  that machinery own them.
+
+This WU settles the pattern and applies it to the frontline ephemeral checkout it already touches. Applying the
+same pattern to chunk projections belongs to `chunk-scope-binding`, which owns that machinery.
 
 ### 4. The guidance surface
 
@@ -296,8 +368,10 @@ rest.
   `Depends On` edge is recorded.
 - **`chunk-scope-binding` — now load-bearing, still no hard edge.** It owns the partition transport this WU
   declines, and it owns the restoration condition for `coderabbit-cli`'s chunked capability. It is `planned` with
-  `Depends On: review-chunking — landed`, so it is unblocked. This WU should leave it a clean handoff: the removed
-  capability, why it was removed, and the three things restoring it requires.
+  `Depends On: review-chunking — landed`, so it is unblocked. This WU should leave it a clean handoff on two
+  fronts: the removed capability — why it was removed and the three things restoring it requires — and the
+  worktree registration-isolation pattern settled in concern 3, which chunk projections should adopt so a parallel
+  review cycle stops registering temporary checkouts in the primary repository.
 - **`review-chunking` — the evidence source, shipped.** Its `analysis-review-chunking.md` carries the three carrier
   shadows, the exact scopes, and the latency and untracked-file caveats. Read it rather than re-deriving the
   carrier question. Its advisory packet is SHA-bound and is not review coverage for anything.
@@ -338,21 +412,25 @@ method prose — wide, but no longer carrying an unrun measurement on its critic
 
 ## Continuity
 
-- **State:** maturing, and materially closer to formalization-ready than at the end of the first pass — the item
-  previously named as the one fundamental still open is now answered from prior measurement.
+- **State:** maturing, approaching formalization-ready. The item previously named as the one fundamental still
+  open is answered from prior measurement, and concern 3 — the last core concern with substantial design
+  surface — is now settled to the decision level. Concern 1 is the remaining unspecified core concern.
 - **Resolved:** the problem framing and its single root (authority claims outrunning evidence); the six-concern
   scope; concern 2's carrier question, answered as ARC-side curated orchestration and re-cut to a capability
   removal with a named restoration condition and an accepted evaluator-diversity cost; the standard-lane-only
-  consequence of that removal; concern 3 re-justified on its own merits; concern 4's trim-to-contract-floor
-  decision, its three drift findings, and the inverted sequencing (trim first); concern 5 resolved to a
-  schema-emitting flag; concern 6 resolved to three wording edits with its rejected shapes recorded;
-  coordination-not-dependency with `judgment-authority-model`; the handoff contract with `chunk-scope-binding`;
-  `Class: Heavy`.
-- **Open:** the single trimmed-guidance timeout observation; whether the parity check lands as a unit test or a
-  pre-commit contract check; `ci-defer-heavy` placement.
-- **Next:** specify concerns 1 and 3 — the two remaining core concerns with real design surface. Concern 3's
-  diagnostic-preservation point sits inside the ephemeral-checkout lifecycle and needs the release path named
-  precisely; concern 1 needs the operator selection input's typed shape settled against the driver's existing
-  outcome vocabulary. Neither is gated on anything outstanding.
+  consequence of that removal; concern 3's two-loss decomposition and all five of its design decisions — trigger,
+  destination, retention, ownership split, and trust boundary — plus the worktree registration-isolation pattern
+  and its two supporting observations; concern 4's trim-to-contract-floor decision, its three drift findings, and
+  the inverted sequencing (trim first); concern 5 resolved to a schema-emitting flag; concern 6 resolved to three
+  wording edits with its rejected shapes recorded; coordination-not-dependency with `judgment-authority-model`;
+  the two-front handoff contract with `chunk-scope-binding`; `Class: Heavy`.
+- **Open:** concern 1's typed shape; the single trimmed-guidance timeout observation; whether the parity check
+  lands as a unit test or a pre-commit contract check; the retention default's concrete value once real
+  diagnostics volume is observed; `ci-defer-heavy` placement.
+- **Next:** specify concern 1 — the last core concern with real design surface. Its operator selection and skip
+  input needs a typed shape settled against the driver's existing outcome vocabulary, and the binding constraint
+  is that the shape must not become a second route to fabricating a safe-fallback outcome, which is the defect it
+  exists to close. Nothing gates it. Once it lands, the draft is a candidate for the formalization-readiness
+  assessment.
 
 ---
