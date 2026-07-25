@@ -7,6 +7,39 @@
  * @module
  */
 
+import { z } from "zod";
+import type { CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
+import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
+
+/** Validated input for release setup pattern rendering. */
+export const ReleaseSetupPrintPatternsInputSchema = z.object({
+  harness: z.string().min(1).optional(),
+  format: z.enum(["harness", "raw"]).default("harness"),
+}).strict();
+
+/** Commander input for release setup pattern rendering. */
+export type ReleaseSetupPrintPatternsOptions = z.input<typeof ReleaseSetupPrintPatternsInputSchema>;
+
+/** Registry contribution owned by release setup pattern rendering. */
+export const releaseSetupPrintPatternsInputRegistration = {
+  commandPath: "release setup print-patterns",
+  schema: ReleaseSetupPrintPatternsInputSchema,
+  schemaFields: { "option.harness": "harness", "option.format": "format" },
+} satisfies CommandInputRegistration;
+
+/** Safe output-format default owned by the pattern-rendering adapter. */
+export const releaseSetupPrintPatternsInputPolicyDeclarations = [{
+  commandPath: "release setup print-patterns",
+  aliases: [],
+  sites: [{
+    id: "option.format", source: { file: "cli.ts", symbol: "program" }, origin: "syntax",
+    acquisition: "safe-default", schemaOwnership: "owned", schemaField: "format",
+    defaultSource: JSON.stringify("harness"), cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--format <format>"], acceptedSyntax: ["--format <format>"] },
+    mutationBoundary: "release setup print-patterns handler", subprocess: "none",
+  }],
+}] satisfies readonly CommandInputDeclaration[];
+
 export interface RunReleaseSetupPrintPatternsOptions {
   harness?: string;
   format?: string;
@@ -82,11 +115,14 @@ export function runReleaseSetupPrintPatterns(
  *
  * @param opts - Commander-parsed harness and format options
  */
-export function handleReleaseSetupPrintPatterns(opts: {
-  harness?: string;
-  format?: string;
-}): void {
-  const result = runReleaseSetupPrintPatterns(opts);
+export function handleReleaseSetupPrintPatterns(opts: ReleaseSetupPrintPatternsOptions): void {
+  const parsed = ReleaseSetupPrintPatternsInputSchema.safeParse(opts);
+  if (!parsed.success) {
+    process.stderr.write(`${z.prettifyError(parsed.error)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const result = runReleaseSetupPrintPatterns(parsed.data);
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
   }

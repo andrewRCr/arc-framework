@@ -93,6 +93,19 @@ describe("arc config validate", () => {
     expectOnlyDevelopmentBuildWarning(result.stderr);
   });
 
+  it("preserves a whitespace-bearing explicit path token exactly", () => {
+    const root = fixtureRoot();
+    const selected = " selected.yml ";
+    writeFileSync(join(root, selected), "branch.protection: full\n");
+
+    const result = runConfigValidate(root, ["--file", selected]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(`PASS  Config file exists: ${selected}`);
+    expect(result.stdout).toContain("PASS  branch.protection: full");
+    expectOnlyDevelopmentBuildWarning(result.stderr);
+  });
+
   it("accepts an absolute explicit path and propagates validation errors", () => {
     const root = fixtureRoot();
     const selected = join(root, "absolute.yml");

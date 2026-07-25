@@ -50,6 +50,8 @@ describe("ARC config field catalog", () => {
       "hooks.subject_max_length": 10,
       "hooks.body_max_lines": 1,
       "hooks.body_max_line_length": 1,
+      "review.frontline_max_passes": 1,
+      "review.standard_max_passes": 1,
       "inbox.remind_after_days": 1,
       "integration.stale_after_days": 1,
     };
@@ -93,6 +95,47 @@ describe("ARC config field catalog", () => {
     }
   });
 
+  it("owns the exact frontline and standard review-source authoring domains", () => {
+    const frontline = field("review.frontline_sources").schema;
+    for (const value of [
+      "",
+      "[]",
+      "project-reviewer",
+      "[coderabbit-cli, project-reviewer]",
+      "[,project-reviewer,,]",
+    ]) {
+      expect(frontline.safeParse(value).success, `frontline: ${value}`).toBe(true);
+    }
+    for (const value of [
+      "[project-reviewer",
+      "project reviewer",
+      "[coderabbit-pr]",
+      "[codex-pr]",
+      "[delegated-agent]",
+    ]) {
+      expect(frontline.safeParse(value).success, `frontline: ${value}`).toBe(false);
+    }
+
+    const standard = field("review.standard_sources").schema;
+    for (const value of [
+      "[]",
+      "[coderabbit-pr]",
+      "[coderabbit-pr, codex-pr, delegated-agent]",
+      "[,codex-pr,,]",
+    ]) {
+      expect(standard.safeParse(value).success, `standard: ${value}`).toBe(true);
+    }
+    for (const value of [
+      "",
+      "coderabbit-pr",
+      "[project-reviewer]",
+      "[codex-pr",
+      "codex-pr]",
+    ]) {
+      expect(standard.safeParse(value).success, `standard: ${value}`).toBe(false);
+    }
+  });
+
   it("classifies quoted-empty values per key and rejects them for invalid leaves", () => {
     const unset = new Set([
       "worktree.post_create",
@@ -112,6 +155,9 @@ describe("ARC config field catalog", () => {
       "hooks.body_max_line_length",
       "inbox.remind_after_days",
       "integration.stale_after_days",
+      "review.frontline_max_passes",
+      "review.standard_max_passes",
+      "review.standard_sources",
       "review.chunking_threshold_lines",
       "review.chunking_threshold_files",
     ]);
@@ -153,6 +199,9 @@ describe("ARC config field catalog", () => {
       ["hooks.contributor_protected_paths", "active/|backlog/"],
       ["platform.type", "github"],
       ["review.frontline_sources", "[]"],
+      ["review.standard_sources", "[]"],
+      ["review.frontline_max_passes", "2"],
+      ["review.standard_max_passes", "2"],
       ["review.chunking_threshold_lines", "0"],
       ["review.chunking_threshold_files", "0"],
       ["pm.mode", "none"],

@@ -70,6 +70,7 @@ function fixture() {
   const result = {
     status: "complete" as const,
     result: "clean" as const,
+    repositoryId: target.repositoryId,
     targetId: target.targetId,
     headSha: target.headSha,
     headTree: target.headTree,

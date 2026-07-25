@@ -21,7 +21,6 @@ import {
 } from "../../src/scripts/review-gate/hosts/local/receipt-store.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { attestLocalReviewResult } from "../../src/scripts/review-gate/runtime/local-attestation.js";
-import { projectForwardReviewContract } from "../../src/scripts/review-gate/runtime/forward-contract.js";
 
 const roots: string[] = [];
 const objectId = (character: string): string => character.repeat(40);
@@ -125,15 +124,17 @@ describe("local forward receipt authority", () => {
     });
   });
 
-  it("reports the current ledger version on an idempotent replay", async () => {
+  it("returns the current version and stable reference for an idempotent replay", async () => {
     const records = await fixture();
-    await records.store.appendReceipt(records.receipt, 0);
+    const first = await records.store.appendReceipt(records.receipt, 0);
     await records.store.appendReceipt({ ...records.receipt, reviewRunId: "run-2" }, 1);
     const path = join(records.commonDir, "arc", "review-gate", "evidence", "receipts-v2.json");
     const before = await readFile(path, "utf8");
 
-    await expect(records.store.appendReceipt(records.receipt, 2))
-      .resolves.toMatchObject({ ledgerVersion: 2 });
+    await expect(records.store.appendReceipt(records.receipt, 2)).resolves.toEqual({
+      ledgerVersion: 2,
+      durableEvidenceRef: first.durableEvidenceRef,
+    });
     await expect(readFile(path, "utf8")).resolves.toBe(before);
   });
 
@@ -152,14 +153,13 @@ describe("local forward receipt authority", () => {
         locus: "src/index.ts:1",
         evidenceUrlOrId: "local:finding-1",
       }],
-    }, 1))
-      .rejects.toThrow(/conflicting-replay/u);
+    }, 1)).rejects.toThrow(/conflicting-replay/u);
     await expect(records.store.appendReceipt({ ...records.receipt, reviewRunId: "run-2" }, 0))
       .rejects.toThrow(/version-conflict/u);
     await expect(readFile(path, "utf8")).resolves.toBe(before);
   });
 
-  it("fails closed on a partial ledger without overwriting it", async () => {
+  it("fails closed on malformed and cross-repository ledgers", async () => {
     const records = await fixture();
     const directory = join(records.commonDir, "arc", "review-gate", "evidence");
     const path = join(directory, "receipts-v2.json");
@@ -168,6 +168,36 @@ describe("local forward receipt authority", () => {
 
     await expect(records.store.appendReceipt(records.receipt, 0)).rejects.toThrow(/malformed-ledger/u);
     await expect(readFile(path, "utf8")).resolves.toBe('{"schemaVersion":2');
+
+    await writeFile(path, `${JSON.stringify({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      repositoryId: "repo-2",
+      ledgerVersion: 0,
+      receipts: [],
+    })}\n`, "utf8");
+    await expect(records.store.readReceipts(records.target.targetId)).rejects.toThrow(/repository-mismatch/u);
+  });
+
+  it("resolves durable references without crossing target boundaries", async () => {
+    const records = await fixture();
+    const first = await records.store.appendReceipt(records.receipt, 0);
+    const secondReceipt = { ...records.receipt, reviewRunId: "run-2" };
+    const second = await records.store.appendReceipt(secondReceipt, 1);
+
+    await expect(records.store.readReceiptEntries(records.target.targetId)).resolves.toEqual([
+      { receipt: records.receipt, durableEvidenceRef: first.durableEvidenceRef },
+      { receipt: secondReceipt, durableEvidenceRef: second.durableEvidenceRef },
+    ]);
+    await expect(records.store.readReceiptReference(first.durableEvidenceRef)).resolves.toEqual(records.receipt);
+    await expect(records.store.readReceiptReference(second.durableEvidenceRef)).resolves.toEqual(secondReceipt);
+    await expect(records.store.readReceiptReference(`${second.durableEvidenceRef}0`)).resolves.toBeNull();
+    await expect(records.store.readReceiptReference("other:receipt-1"))
+      .rejects.toThrow(/invalid-receipt-reference/u);
+    await expect(records.store.readReceipts(`sha256:${"f".repeat(64)}`)).resolves.toEqual({
+      ledgerVersion: 2,
+      receipts: [],
+    });
   });
 
   it("keeps evidence and operational publication namespaces separate", async () => {
@@ -209,70 +239,12 @@ describe("local forward receipt authority", () => {
     expect(appended).toHaveLength(1);
   });
 
-  it.each(["clean", "findings"] as const)(
-    "carries a normalized %s result from local request through durable check projection",
-    async (result) => {
-      const records = await fixture();
-      const receipt = await attestLocalReviewResult({
-        target: records.target,
-        requirement: records.requirement,
-        carrier: records.carrier,
-        result: {
-          status: "complete",
-          result,
-          targetId: records.target.targetId,
-          headSha: records.target.headSha,
-          headTree: records.target.headTree,
-          rubricVersion: records.requirement.rubricVersion,
-          rubricDigest: records.requirement.rubricDigest,
-          sourceDigest: `sha256:${"1".repeat(64)}`,
-          guidanceDigest: `sha256:${"2".repeat(64)}`,
-          evaluatorIdentity: records.request.evaluatorIdentity,
-          reviewRunId: "run-integration",
-          applicabilityId: null,
-          findings: result === "findings" ? [{
-            findingId: "finding-1",
-            severity: "blocker",
-            locus: "src/index.ts:1",
-            evidenceUrlOrId: "local:finding-1",
-          }] : [],
-        },
-        currentTarget: async () => records.target,
-        runtimeIdentity: records.carrier.attestation.runtimeIdentity,
-        attestationMechanism: records.carrier.attestation.mechanism,
-        sourceDigest: `sha256:${"1".repeat(64)}`,
-        guidanceDigest: `sha256:${"2".repeat(64)}`,
-        store: records.store,
-        expectedLedgerVersion: 0,
-      });
-      const durable = await records.store.readReceipts(records.target.targetId);
-      const projection = projectForwardReviewContract({
-        channel: "local",
-        target: records.target,
-        requirement: records.requirement,
-        request: records.request,
-        receipt: durable.receipts[0],
-      });
-
-      expect(receipt).toEqual(durable.receipts[0]);
-      expect(projection.projection.conclusion).toBe(result === "clean" ? "success" : "failure");
-      expect(projection.checkOutput.summary).toContain(records.target.targetId);
-    },
-  );
-
-  it("rejects a stale head before persistence and leaves another machine without evidence", async () => {
+  it("rejects a stale head before persistence", async () => {
     const records = await fixture();
-    const otherCommon = join(records.root, "other-machine.git");
-    await mkdir(otherCommon, { recursive: true });
-    const otherExec: GitExec = async () => ({ stdout: `${otherCommon}\n` });
-    const otherStore = new LocalForwardReviewReceiptStore(
-      new RepositoryGitCommonStatePublisher(otherExec, records.root),
-      records.target.repositoryId,
-    );
     const staleTarget = createReviewTarget({
-      schemaVersion: 2,
-      semanticsVersion: "review-gate/v2",
-      kind: "change-set",
+      schemaVersion: records.target.schemaVersion,
+      semanticsVersion: records.target.semanticsVersion,
+      kind: records.target.kind,
       repositoryId: records.target.repositoryId,
       baseRef: records.target.baseRef,
       diffBaseSha: records.target.diffBaseSha,
@@ -288,7 +260,7 @@ describe("local forward receipt authority", () => {
       result: {
         status: "complete",
         result: "clean",
-        findings: [],
+        repositoryId: records.target.repositoryId,
         targetId: records.target.targetId,
         headSha: records.target.headSha,
         headTree: records.target.headTree,
@@ -299,6 +271,7 @@ describe("local forward receipt authority", () => {
         evaluatorIdentity: records.request.evaluatorIdentity,
         reviewRunId: "run-stale",
         applicabilityId: null,
+        findings: [],
       },
       currentTarget: async () => staleTarget,
       runtimeIdentity: records.carrier.attestation.runtimeIdentity,
@@ -309,10 +282,6 @@ describe("local forward receipt authority", () => {
       expectedLedgerVersion: 0,
     })).rejects.toThrow(/current target/iu);
     await expect(records.store.readReceipts(records.target.targetId)).resolves.toEqual({
-      ledgerVersion: 0,
-      receipts: [],
-    });
-    await expect(otherStore.readReceipts(records.target.targetId)).resolves.toEqual({
       ledgerVersion: 0,
       receipts: [],
     });

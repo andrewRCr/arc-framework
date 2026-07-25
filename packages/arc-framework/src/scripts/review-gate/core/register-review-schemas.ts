@@ -23,7 +23,7 @@ import { registerReviewPrimitiveSchemas } from "./review-primitives.js";
 import { registerForwardLifecycleTailSchema } from "./lifecycle-tail.js";
 import { registerReviewApplicabilitySchemas } from "./applicability.js";
 import { registerForwardReceiptLedgerSchema } from "./forward-receipt-ledger-schema.js";
-import { registerSeverityGatingSchemas } from "./severity-gating.js";
+import { registerSeverityGatingPolicySchema } from "./severity-gating-policy.js";
 import { assertReviewDurableRecordInventory } from "./schema-inventory.js";
 
 /** Compose every currently implemented review schema into a fresh kernel registry. */
@@ -34,7 +34,7 @@ export function registerReviewDomainSchemas(registry: KernelRegistry): KernelReg
   registerFindingRecordSchemas(registry);
   registerFixAuthorizationSchemas(registry);
   registerDispositionRecordSchemas(registry);
-  registerSeverityGatingSchemas(registry);
+  registerSeverityGatingPolicySchema(registry);
   registerReviewResponseSchemas(registry);
   registerReviewOperationStateSchemas(registry);
   registerLocalReviewSourceSchemas(registry);

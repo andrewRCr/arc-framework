@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   FrontlineResolveEnvelopeSchema,
 } from "../core/review-command-envelope.js";
+import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
 import { FrontlineInvocationOverrideSchema } from "./frontline-resolution.js";
 import { resolveFrontlineReview, type FrontlineSemanticRecord } from "./frontline-semantic.js";
 import type {
@@ -17,13 +18,13 @@ export const FrontlineCommandRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   changeSet: z.unknown(),
   invocation: FrontlineInvocationOverrideSchema,
-  pass: z.union([z.literal(1), z.literal(2)]).optional(),
-  maxPasses: z.union([z.literal(1), z.literal(2)]).optional(),
+  pass: ReviewPassSchema.optional(),
+  maxPasses: ReviewPassSchema.optional(),
 }).superRefine((request, context) => {
-  if (request.pass === 2 && request.maxPasses !== 2) {
+  if (request.pass !== undefined && request.pass > (request.maxPasses ?? 1)) {
     context.addIssue({
       code: "custom",
-      message: "frontline pass 2 requires a two-pass allowance",
+      message: "frontline pass cannot exceed maxPasses",
       path: ["pass"],
     });
   }
@@ -37,8 +38,8 @@ export interface FrontlineCommandResult {
   payload: {
     routing: Pick<ReviewRoutingResolution, "facts" | "decision">;
     frontlineReview: FrontlineSemanticRecord;
-    pass?: 1 | 2;
-    maxPasses?: 1 | 2;
+    pass?: ReviewPass;
+    maxPasses?: ReviewPass;
   };
   state: "skipped" | "offered" | "ready";
   nextAction: "none" | "bind-source" | "obtain-authorization" | "run-frontline";

@@ -31,14 +31,18 @@ import {
   type PlanningEntryRoute,
   type ProtectionMode,
 } from "../lib/git/write-context.js";
-import { gitExec } from "../lib/io-context.js";
-import { SlugSchema } from "../lib/kernel/index.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+import { createGitExec } from "../lib/io-context.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { resolveBacklogStub } from "../lib/work-unit/backlog-stub.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 import * as p from "@clack/prompts";
+import { z } from "zod";
+import { SlugSchema } from "../lib/kernel/index.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 
 /** Meta `**State:**` phases for which a work unit occupies its worktree. */
 const OCCUPYING_PHASES: ReadonlySet<string> = new Set(["Planning", "Active", "Integrating"]);
@@ -50,16 +54,43 @@ export interface PlanCheckOptions {
   json?: boolean;
 }
 
-export async function handlePlanCheck(opts: PlanCheckOptions): Promise<void> {
+/** Validated input for planning-entry inspection. */
+export const PlanCheckInputSchema = z.object({ name: SlugSchema.optional(), json: z.boolean().optional() }).strict();
+
+/** Registry contribution owned by plan check. */
+export const planCheckInputRegistration = {
+  commandPath: "plan check",
+  schema: PlanCheckInputSchema,
+  schemaFields: { "option.name": "name", "option.json": "json" },
+} satisfies CommandInputRegistration;
+
+/** Machine-output policy owned by the planning preflight adapter. */
+export const planCommandInputPolicyDeclarations = [{
+  commandPath: "plan check", aliases: [], sites: [declareCliOptionSite("json", {
+    acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+    cancellation: "not-applicable", automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })],
+}] satisfies readonly CommandInputDeclaration[];
+
+export async function handlePlanCheck(opts: PlanCheckOptions, interaction?: InteractionContext): Promise<void> {
+  const parsed = PlanCheckInputSchema.safeParse(opts);
+  if (!parsed.success) {
+    process.stderr.write(`${z.prettifyError(parsed.error)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  opts = parsed.data;
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+  const exec = createGitExec(interaction?.subprocess);
 
   const { settings } = await readConfigSettings(cwd);
   const baseBranch = settings["branch.base"];
   // Unknown / unset `branch.protection` degrades to `partial` — the fail-safe floor.
   const protection: ProtectionMode = settings["branch.protection"] === "full" ? "full" : "partial";
 
-  const writeContext = await resolveWriteContext({ exec: gitExec, baseBranch });
+  const writeContext = await resolveWriteContext({ exec, baseBranch });
   const { onPlanningBranch, activeWorkUnit } = await resolveActiveWorkUnitFacts(
     cwd,
     writeContext.currentBranch,

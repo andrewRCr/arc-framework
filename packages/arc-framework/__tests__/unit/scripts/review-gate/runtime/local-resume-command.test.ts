@@ -109,6 +109,7 @@ function fixture() {
     result: {
       status: "complete",
       result: "clean",
+      repositoryId: target.repositoryId,
       targetId: target.targetId,
       headSha: target.headSha,
       headTree: target.headTree,
@@ -368,6 +369,7 @@ describe("local resume command", () => {
       result: {
         status: "complete",
         result: "findings",
+        repositoryId: records.operation.repositoryId,
         targetId: records.operation.targetId,
         headSha: records.operation.target.headSha,
         headTree: records.operation.target.headTree,
@@ -454,6 +456,7 @@ describe("local resume command", () => {
       result: {
         status: "complete",
         result: "findings",
+        repositoryId: records.operation.repositoryId,
         targetId: records.operation.targetId,
         headSha: records.operation.target.headSha,
         headTree: records.operation.target.headTree,

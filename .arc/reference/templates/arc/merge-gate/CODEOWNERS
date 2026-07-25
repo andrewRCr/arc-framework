@@ -6,9 +6,10 @@
 # and ride the auto-merge lane. CODEOWNERS is last-match-wins, so the unowned
 # auto-merge block must come AFTER the reviewed-lane entries.
 #
-# An auto-merge PR must touch only unowned paths; if any changed file matches an
-# owned pattern, the whole PR requires review — which is exactly the "lanes
-# never split a PR" rule.
+# These patterns mirror the classifier's supported directories and depths.
+# CODEOWNERS cannot express filename grammar or Git type/mode changes, so the
+# canonical classifier remains authoritative when ARC arms auto-merge. When the
+# optional arc-cleared context is required, it enforces that decision host-side.
 #
 # Replace @your-org/reviewers with your reviewers (a user or team).
 
@@ -25,17 +26,47 @@
 # No owner on these lines clears the catch-all above, so these paths merge once
 # `merge-ok` is green, with no required review. Keep this block LAST.
 #
-# Scoped by artifact PREFIX, NOT all of backlog/ — so derived / shared surfaces
-# (ROADMAP, the *-INBOX queues) keep the catch-all owner and stay reviewed.
-# Specs and PRDs are absent by design: they carry design authority. cohort-*
-# coordination records ride the auto-merge lane (content grooming); their
-# concurrent multi-owner edits are a separate, project-level concern.
-/.arc/active/draft-*
-/.arc/active/tasks-*
-/.arc/active/meta-*
-/.arc/active/notes-*
-/.arc/backlog/**/draft-*
-/.arc/backlog/**/tasks-*
-/.arc/backlog/**/meta-*
-/.arc/backlog/**/notes-*
-/.arc/backlog/**/cohort-*
+# Scoped by artifact PREFIX, NOT all of backlog/ — so shared inboxes keep the
+# catch-all owner and stay reviewed. The exact generated ROADMAP is planning;
+# other derived or shared backlog paths are not.
+/.arc/active/draft-*.md
+/.arc/active/tasks-*.md
+/.arc/active/meta-*.md
+/.arc/active/notes-*.md
+/.arc/active/cohort-*.md
+/.arc/active/research-*.md
+/.arc/active/analysis-*.md
+/.arc/active/spec-*.md
+/.arc/backlog/planned/*/draft-*.md
+/.arc/backlog/planned/*/tasks-*.md
+/.arc/backlog/planned/*/meta-*.md
+/.arc/backlog/planned/*/notes-*.md
+/.arc/backlog/planned/*/cohort-*.md
+/.arc/backlog/planned/*/research-*.md
+/.arc/backlog/planned/*/analysis-*.md
+/.arc/backlog/planned/*/spec-*.md
+/.arc/backlog/planned/*/*/draft-*.md
+/.arc/backlog/planned/*/*/tasks-*.md
+/.arc/backlog/planned/*/*/meta-*.md
+/.arc/backlog/planned/*/*/notes-*.md
+/.arc/backlog/planned/*/*/cohort-*.md
+/.arc/backlog/planned/*/*/research-*.md
+/.arc/backlog/planned/*/*/analysis-*.md
+/.arc/backlog/planned/*/*/spec-*.md
+/.arc/backlog/provisional/*/draft-*.md
+/.arc/backlog/provisional/*/tasks-*.md
+/.arc/backlog/provisional/*/meta-*.md
+/.arc/backlog/provisional/*/notes-*.md
+/.arc/backlog/provisional/*/cohort-*.md
+/.arc/backlog/provisional/*/research-*.md
+/.arc/backlog/provisional/*/analysis-*.md
+/.arc/backlog/provisional/*/spec-*.md
+/.arc/backlog/provisional/*/*/draft-*.md
+/.arc/backlog/provisional/*/*/tasks-*.md
+/.arc/backlog/provisional/*/*/meta-*.md
+/.arc/backlog/provisional/*/*/notes-*.md
+/.arc/backlog/provisional/*/*/cohort-*.md
+/.arc/backlog/provisional/*/*/research-*.md
+/.arc/backlog/provisional/*/*/analysis-*.md
+/.arc/backlog/provisional/*/*/spec-*.md
+/.arc/backlog/ROADMAP.md

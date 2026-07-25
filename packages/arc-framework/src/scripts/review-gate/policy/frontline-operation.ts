@@ -15,6 +15,7 @@ import {
   FrontlineRunStateSchema,
   type FrontlineRunState,
 } from "../core/operation-state-schema.js";
+import type { ReviewPass } from "../core/review-pass.js";
 import type {
   FrontlineOutcomeStore,
   ReviewOperationStateStore,
@@ -201,8 +202,8 @@ export interface FrontlineRunExecutionDependencies {
 }
 
 export interface FrontlineRunExecutionInput extends FrontlineRunBindingInput {
-  pass: 1 | 2;
-  maxPasses: 1 | 2;
+  pass: ReviewPass;
+  maxPasses: ReviewPass;
   lockWaitMs: number;
 }
 

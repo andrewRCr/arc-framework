@@ -158,6 +158,34 @@ describe("advisory review records", () => {
     }).success).toBe(false);
   });
 
+  it("retains executable identity when a launched carrier reports an unsupported capability", () => {
+    const unsupported = normalizeFrontlineOutcome({
+      providerResult: { kind: "capability-unsupported" },
+      source: outcome.source,
+      target,
+      pass: 1,
+      maxPasses: 2,
+    });
+    const record = createFrontlineOutcomeRecord({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: "repo-1",
+      operationId: "operation-3",
+      sourceIdentity: "review-cli",
+      executableIdentity: {
+        digest: canonicalDigest({ executable: "reviewer" }),
+        qualifiedVersion: "reviewer/v1",
+      },
+      outcome: unsupported,
+    });
+
+    expect(FrontlineOutcomeRecordSchema.parse(record)).toEqual(record);
+    expect(FrontlineOutcomeRecordSchema.safeParse({
+      ...record,
+      executableIdentity: null,
+    }).success).toBe(true);
+  });
+
   it("registers strict reduction state and action pairings", () => {
     const projection = {
       schemaVersion: 1,

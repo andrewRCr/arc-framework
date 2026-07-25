@@ -112,6 +112,12 @@ export async function promptTools(sentinel: symbol, initialValues?: string[]): P
  */
 export async function runInitPrompts(
   cwd: string,
+  supplied: {
+    readonly name?: string;
+    readonly tools?: readonly string[];
+    readonly pmMode?: string;
+    readonly teamMode?: boolean;
+  } = {},
 ): Promise<InitPromptResult | null> {
   const sentinel = Symbol("prompt-cancelled");
 
@@ -127,15 +133,15 @@ export async function runInitPrompts(
       "Project name",
     );
 
-    const project_name = await p.text({
-      message: "Project name?",
-      defaultValue: defaultName,
-      placeholder: defaultName,
-    });
+    const project_name = supplied.name ?? await p.text({
+        message: "Project name?",
+        defaultValue: defaultName,
+        placeholder: defaultName,
+      });
     if (p.isCancel(project_name)) cancelAndThrow(sentinel);
 
     // 2. Tools
-    const tools = await promptTools(sentinel);
+    const tools = supplied.tools === undefined ? await promptTools(sentinel) : [...supplied.tools];
 
     // 3. PM mode — note preamble with descriptions, then clean select
     p.note(
@@ -154,19 +160,19 @@ export async function runInitPrompts(
       "Project Management options",
     );
 
-    const pm_mode = await p.select({
-      message: "Project management approach?",
-      options: PM_MODE_OPTIONS,
-      initialValue: "none",
-    });
+    const pm_mode = supplied.pmMode ?? await p.select({
+        message: "Project management approach?",
+        options: PM_MODE_OPTIONS,
+        initialValue: "none",
+      });
     if (p.isCancel(pm_mode)) cancelAndThrow(sentinel);
 
     // 4. Team mode
-    const team_mode = await p.confirm({
-      message:
-        "Enable multi-developer coordination? (ARC Team Mode: task ownership, team handoffs, team branching)",
-      initialValue: false,
-    });
+    const team_mode = supplied.teamMode ?? await p.confirm({
+        message:
+          "Enable multi-developer coordination? (ARC Team Mode: task ownership, team handoffs, team branching)",
+        initialValue: false,
+      });
     if (p.isCancel(team_mode)) cancelAndThrow(sentinel);
 
     return {

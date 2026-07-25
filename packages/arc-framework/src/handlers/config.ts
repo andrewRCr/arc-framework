@@ -14,6 +14,7 @@ import { join, resolve } from "node:path";
 import {
   buildConfigSessionInitSummary,
   buildConfigStatusSummary,
+  ConfigValidateCommandInputSchema,
   runConfigSessionInitStatus,
   runConfigStatus,
   validateConfigFile,
@@ -33,7 +34,13 @@ export interface ConfigValidateCliOptions {
 
 /** Validate the default project config or an explicitly selected file. */
 export async function handleConfigValidate(opts: ConfigValidateCliOptions): Promise<void> {
-  const selectedPath = opts.file;
+  const parsed = ConfigValidateCommandInputSchema.safeParse(opts);
+  if (!parsed.success) {
+    process.stderr.write(`${parsed.error.issues.map((issue) => issue.message).join("\n")}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const selectedPath = parsed.data.file;
   let readPath: string;
   let displayPath: string;
 

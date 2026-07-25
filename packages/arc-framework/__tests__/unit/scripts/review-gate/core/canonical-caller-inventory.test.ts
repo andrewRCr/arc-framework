@@ -33,17 +33,12 @@ describe("review-gate canonical serializer inventory", () => {
       ...directUsers("canonicalizePlainJson", "core/identity.ts"),
     ].sort()).toEqual([
       "core/identity.ts",
-      "runtime/reconcile-runtime.ts",
-      "runtime/repair-main.ts",
     ]);
   });
 
   it("closes the frozen version-one caller set", () => {
     expect(directUsers("canonicalizeReviewGateV1", "core/legacy-canonical-v1.ts")).toEqual([
-      "core/attestations.ts",
       "core/request-key.ts",
-      "runtime/qualification-activation.ts",
-      "runtime/qualification-contract.ts",
     ]);
   });
 
@@ -55,12 +50,10 @@ describe("review-gate canonical serializer inventory", () => {
     expect(kernelImports).toEqual([
       "core/applicability.ts",
       "core/dispositions.ts",
-      "core/forward-coverage.ts",
       "core/gate-contract-v2-schema.ts",
       "core/gate-contract-v2.ts",
       "core/identity.ts",
       "core/local-operation.ts",
-      "core/severity-gating.ts",
       "hosts/local/disposition-record-store.ts",
       "hosts/local/frontline-outcome-store.ts",
       "hosts/local/operation-state-store.ts",
@@ -69,7 +62,6 @@ describe("review-gate canonical serializer inventory", () => {
       "policy/frontline-operation.ts",
       "policy/local-review-guidance.ts",
       "policy/local-review-policy.ts",
-      "policy/self-hosting/guidance.ts",
       "policy/standard-review-guidance.ts",
       "policy/standard-review-schema.ts",
       "policy/standard-review.ts",

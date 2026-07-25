@@ -541,37 +541,46 @@ version-1 review-gate identity behind a repository-private frozen serializer.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification**
+
+- _Quality gates:_ Focused reconciliation suites and the full Vitest matrix (7,763 passed, 1 skipped), both
+  TypeScript typecheck surfaces, TypeScript/shell/Markdown lint, staged Markdown certification, ARC contract tests,
+  and the package build all passed.
+- _Success criteria:_ 14 criteria met; the review-gate identity criterion records the reconciled controller
+  retirement as a deviation while preserving the surviving frozen version-1 receipt seam.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Every selected boundary validates through its owning Zod schema, and migrated structural exports are
+- `[x]` Every selected boundary validates through its owning Zod schema, and migrated structural exports are
   inferred rather than maintained in parallel.
-- `[ ]` The composed registry exposes exactly the four declared roots with stable metadata and runtime/projection
+- `[x]` The composed registry exposes exactly the four declared roots with stable metadata and runtime/projection
   parity while the generated kernel-only artifact remains unchanged.
-- `[ ]` Audit persistence rejects all invalid command, interlock, decision, refusal, and outcome combinations before
+- `[x]` Audit persistence rejects all invalid command, interlock, decision, refusal, and outcome combinations before
   I/O without changing redaction or returned filesystem failures.
-- `[ ]` Both meta layouts parse to the same semantic fields, the canonical full layout round-trips exact absence
+- `[x]` Both meta layouts parse to the same semantic fields, the canonical full layout round-trips exact absence
   tokens, localized legacy mutations preserve unrelated bytes, malformed tokens retain independent evidence, and
   strict pointer composition rejects before worktree teardown.
-- `[ ]` The configuration catalog covers packaged and consumed keys exactly once while each adapter retains its
+- `[x]` The configuration catalog covers packaged and consumed keys exactly once while each adapter retains its
   defaults, precedence, warnings, hard errors, fallbacks, and normalization policy.
-- `[ ]` `arc config validate` and the installed `validate-config.sh` path agree on diagnostics, summary counts,
+- `[x]` `arc config validate` and the installed `validate-config.sh` path agree on diagnostics, summary counts,
   selected paths, custom `ARC_DIR` behavior, and exit codes; retired validator-only keys warn as unknown.
-- `[ ]` Persisted sync-state versions 2–4 hydrate to strict version 4, preserve valid optional state through writes,
+- `[x]` Persisted sync-state versions 2–4 hydrate to strict version 4, preserve valid optional state through writes,
   and retain missing/malformed versus I/O-failure behavior.
-- `[ ]` Cut maps retain all structural and graph invariants, targeted version diagnostics, canonical order, and
+- `[x]` Cut maps retain all structural and graph invariants, targeted version diagnostics, canonical order, and
   receipt bytes without appearing in the registry.
-- `[ ]` Malformed successful worktree porcelain produces a stable domain validation error distinct from Git process
+- `[x]` Malformed successful worktree porcelain produces a stable domain validation error distinct from Git process
   failure, while forward-compatible attributes and caller degradation remain supported.
-- `[ ]` Cold-start and cross-work-unit adapters retain classification, merge identity, no-throw failures, and
+- `[x]` Cold-start and cross-work-unit adapters retain classification, merge identity, no-throw failures, and
   lossless raw reconstruction through schema-derived payloads.
-- `[ ]` Recomputable review-gate identities adopt kernel bytes, durable version-1 identities remain verifiable through
+- `[x]` Recomputable review-gate identities adopt kernel bytes, durable version-1 identities remain verifiable through
   the frozen serializer, and the direct-caller inventory is closed.
-- `[ ]` No in-scope handwritten structural authority, validator bypass, transitional shim, or parallel reusable test
+    - **Deviation:** The reconciled base retires the controller-era attestation and qualification identity domains.
+      The surviving version-1 receipt key remains on the frozen serializer, and the closed inventory proves the
+      removed domains were not resurrected.
+- `[x]` No in-scope handwritten structural authority, validator bypass, transitional shim, or parallel reusable test
   helper remains.
-- `[ ]` All quality gates pass (focused and full tests, both typecheck surfaces, TypeScript and shell lint, Markdown
+- `[x]` All quality gates pass (focused and full tests, both typecheck surfaces, TypeScript and shell lint, Markdown
   lint, and package build).
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.

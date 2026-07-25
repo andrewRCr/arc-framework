@@ -146,7 +146,35 @@ describe("validation-surface projection fidelity", () => {
     assertAcceptanceParity(VALIDATION_SURFACE_SCHEMA_IDS.arcConfig, ArcConfigSchema, [
       { label: "known key", value: { "branch.protection": "full" }, accepted: true },
       { label: "unknown dotted key", value: { "future.setting": "value" }, accepted: true },
+      {
+        label: "compatible review sources",
+        value: {
+          "review.frontline_sources": "[coderabbit-cli, project-reviewer]",
+          "review.standard_sources": "[coderabbit-pr, codex-pr, delegated-agent]",
+        },
+        accepted: true,
+      },
       { label: "invalid known value", value: { "branch.protection": "sometimes" }, accepted: false },
+      {
+        label: "frontline-incompatible source",
+        value: { "review.frontline_sources": "[coderabbit-pr]" },
+        accepted: false,
+      },
+      {
+        label: "standard-incompatible source",
+        value: { "review.standard_sources": "[project-reviewer]" },
+        accepted: false,
+      },
+      {
+        label: "standard source without list syntax",
+        value: { "review.standard_sources": "coderabbit-pr" },
+        accepted: false,
+      },
+      {
+        label: "quoted-empty standard sources",
+        value: { "review.standard_sources": "" },
+        accepted: false,
+      },
       { label: "malformed key", value: { "Future-setting": "value" }, accepted: false },
       { label: "non-string unknown value", value: { "future.setting": 1 }, accepted: false },
     ]);

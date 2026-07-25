@@ -49,6 +49,8 @@ const VALIDATION_DOMAIN_ORDER = [
   "hooks.body_max_line_length",
   "merge.strategy",
   "platform.type",
+  "review.frontline_max_passes",
+  "review.standard_max_passes",
   "review.chunking_threshold_lines",
   "review.chunking_threshold_files",
   "pm.mode",
@@ -185,7 +187,41 @@ function renderFrontlineSources(
       error(output, `${key} entries must be lowercase registry IDs (got '${entry}')`);
       continue;
     }
+    if (["coderabbit-pr", "codex-pr", "delegated-agent"].includes(entry)) {
+      error(output, `${key} source '${entry}' is not frontline-compatible`);
+      continue;
+    }
     pass(output, `${key} entry is a safe registry ID`);
+  }
+}
+
+function renderStandardSources(
+  output: ValidationOutput,
+  values: Readonly<Record<string, string>>,
+): void {
+  const key = "review.standard_sources";
+  const configured = values[key] ?? getArcConfigField(key).defaultValue;
+  const hasOpening = configured.startsWith("[");
+  const hasClosing = configured.endsWith("]");
+  if (hasOpening !== hasClosing) {
+    error(output, `${key} must use matched list brackets`);
+    return;
+  }
+  if (!hasOpening) {
+    error(output, `${key} must use list syntax`);
+    return;
+  }
+
+  const entries = configured.slice(1, -1)
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== "");
+  for (const entry of entries) {
+    if (!["coderabbit-pr", "codex-pr", "delegated-agent"].includes(entry)) {
+      error(output, `${key} source '${entry}' is not standard-compatible`);
+      continue;
+    }
+    pass(output, `${key} entry is a standard source`);
   }
 }
 
@@ -287,6 +323,7 @@ export async function validateConfigFile(
 
   for (const key of VALIDATION_DOMAIN_ORDER) renderDomain(output, key, values, invalidKeys);
   renderFrontlineSources(output, values);
+  renderStandardSources(output, values);
 
   const locationTemplate = values["worktree.location_template"];
   if (locationTemplate !== undefined && invalidKeys.has("worktree.location_template")) {

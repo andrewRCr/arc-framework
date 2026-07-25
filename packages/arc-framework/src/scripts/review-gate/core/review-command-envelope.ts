@@ -12,7 +12,9 @@ import {
   FrontlineUnavailableRetryReasonSchema,
 } from "../policy/frontline-outcome.js";
 import { FrontlineFollowUpAdviceSchema } from "../policy/frontline-follow-up.js";
+import { ReviewResolveEnvelopeSchema } from "../policy/review-policy-driver.js";
 import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
+import { ReviewPassSchema } from "./review-pass.js";
 import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
 import { ReviewReductionProjectionSchema } from "./advisory-records.js";
 import { NormalizedReviewFindingSchema } from "./finding-records.js";
@@ -24,6 +26,11 @@ import {
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
 import { LocalReviewerPayloadSchema } from "./local-review-payload.js";
+import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
+import { ReviewUnlockEnvelopeSchema } from "../unlock.js";
+import { HostedRequestResultSchema } from "../hosted/request.js";
+import { HostedAwaitResultSchema } from "../hosted/await.js";
+import { HostedSettleResultSchema } from "../hosted/settle.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -31,6 +38,9 @@ const DurableReferenceSchema = z.string().trim().min(1);
 const PersistedVersionSchema = z.number().int().positive();
 
 export const ReviewCommandModeSchema = z.enum([
+  "review-readiness",
+  "review-unlock",
+  "review-resolve",
   "review-frontline-resolve",
   "review-chunking-resolve",
   "review-frontline-run",
@@ -39,6 +49,9 @@ export const ReviewCommandModeSchema = z.enum([
   "review-respond",
   "review-reduce",
   "review-local-resume",
+  "review-hosted-request",
+  "review-hosted-await",
+  "review-hosted-settle",
 ]);
 export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
 
@@ -208,8 +221,8 @@ const FrontlineResolveBasePayload = {
 };
 const FrontlineReadyPayloadSchema = z.strictObject({
   ...FrontlineResolveBasePayload,
-  pass: z.union([z.literal(1), z.literal(2)]),
-  maxPasses: z.union([z.literal(1), z.literal(2)]),
+  pass: ReviewPassSchema,
+  maxPasses: ReviewPassSchema,
 }).superRefine((payload, context) => {
   if (payload.pass > payload.maxPasses) {
     context.addIssue({
@@ -576,6 +589,9 @@ function errorVariant<Mode extends ReviewCommandMode, Code extends string>(
 /** Register every command envelope as a strict-current protocol contract. */
 export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): KernelRegistry {
   for (const [id, schema] of [
+    ["review-readiness-envelope", ReviewReadinessEnvelopeSchema],
+    ["review-unlock-envelope", ReviewUnlockEnvelopeSchema],
+    ["review-resolve-envelope", ReviewResolveEnvelopeSchema],
     ["review-frontline-resolve-envelope", FrontlineResolveEnvelopeSchema],
     ["review-chunking-resolve-envelope", ReviewChunkingResolveEnvelopeSchema],
     ["review-frontline-run-envelope", FrontlineRunEnvelopeSchema],
@@ -584,6 +600,9 @@ export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): 
     ["review-respond-envelope", RespondEnvelopeSchema],
     ["review-reduce-envelope", ReduceEnvelopeSchema],
     ["review-local-resume-envelope", LocalResumeEnvelopeSchema],
+    ["review-hosted-request-envelope", HostedRequestResultSchema],
+    ["review-hosted-await-envelope", HostedAwaitResultSchema],
+    ["review-hosted-settle-envelope", HostedSettleResultSchema],
     ["review-command-error-envelope", ReviewCommandErrorEnvelopeSchema],
   ] as const) {
     registry.register(schema, { id, version: 1, migrationPosture: "strict-current" });

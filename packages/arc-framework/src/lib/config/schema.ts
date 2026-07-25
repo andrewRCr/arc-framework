@@ -128,15 +128,36 @@ function unsignedSafeIntegerField<const Key extends string>(key: Key, defaultVal
   } satisfies ArcConfigFieldDescriptor<Key>;
 }
 
-function registryIdListField<const Key extends string>(key: Key, defaultValue: string) {
+function registryIdListField<const Key extends string, Schema extends z.ZodType<string>>(
+  key: Key,
+  schema: Schema,
+  defaultValue: string,
+  quotedEmpty: QuotedEmptyPosture,
+) {
   return {
     key,
-    schema: z.string(),
+    schema,
     defaultValue,
-    quotedEmpty: "default",
+    quotedEmpty,
     policy: { kind: "registry-id-list" },
   } satisfies ArcConfigFieldDescriptor<Key>;
 }
+
+const REGISTRY_ID_SOURCE = "[a-z][a-z0-9]*(?:-[a-z0-9]+)*";
+const STANDARD_SOURCE_ID_SOURCE = "(?:coderabbit-pr|codex-pr|delegated-agent)";
+const FRONTLINE_SOURCE_ID_SOURCE =
+  `(?!(?:${STANDARD_SOURCE_ID_SOURCE})(?=\\s*(?:,|\\]|$)))${REGISTRY_ID_SOURCE}`;
+const FRONTLINE_SOURCE_SEGMENT = `\\s*(?:${FRONTLINE_SOURCE_ID_SOURCE})?\\s*`;
+const STANDARD_SOURCE_SEGMENT = `\\s*(?:${STANDARD_SOURCE_ID_SOURCE})?\\s*`;
+const FrontlineSourceListSchema = z.string().regex(new RegExp(
+  `^(?:${FRONTLINE_SOURCE_SEGMENT}(?:,${FRONTLINE_SOURCE_SEGMENT})*`
+    + `|\\[${FRONTLINE_SOURCE_SEGMENT}(?:,${FRONTLINE_SOURCE_SEGMENT})*\\])$`,
+  "u",
+));
+const StandardSourceListSchema = z.string().regex(new RegExp(
+  `^\\[${STANDARD_SOURCE_SEGMENT}(?:,${STANDARD_SOURCE_SEGMENT})*\\]$`,
+  "u",
+));
 
 /** Complete field catalog; later consumers derive keys, defaults, and schemas from this tuple. */
 export const ARC_CONFIG_FIELDS = [
@@ -214,7 +235,10 @@ export const ARC_CONFIG_FIELDS = [
     ["github", "gitlab", "bitbucket", "azure-devops"],
     "github",
   ),
-  registryIdListField("review.frontline_sources", "[]"),
+  registryIdListField("review.frontline_sources", FrontlineSourceListSchema, "[]", "default"),
+  registryIdListField("review.standard_sources", StandardSourceListSchema, "[]", "invalid"),
+  positiveSafeIntegerField("review.frontline_max_passes", "2", 1),
+  positiveSafeIntegerField("review.standard_max_passes", "2", 1),
   unsignedSafeIntegerField("review.chunking_threshold_lines", "0"),
   unsignedSafeIntegerField("review.chunking_threshold_files", "0"),
   enumField("pm.mode", ["none", "arc-in-git", "external"], "none"),

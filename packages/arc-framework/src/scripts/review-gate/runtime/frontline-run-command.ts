@@ -16,6 +16,7 @@ import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
 } from "../core/review-command-envelope.js";
+import type { ReviewPass } from "../core/review-pass.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   executeFrontlineRun,
@@ -62,8 +63,8 @@ export interface FrontlineRunCommandDependencies {
   execute(input: {
     source: FrontlineSourceDescriptor;
     target: ReviewTarget;
-    pass: 1 | 2;
-    maxPasses: 1 | 2;
+    pass: ReviewPass;
+    maxPasses: ReviewPass;
     remainingMs: number;
     signal: AbortSignal;
     reviewRoot: string;

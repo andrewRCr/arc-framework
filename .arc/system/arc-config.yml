@@ -188,6 +188,14 @@ platform.type: github
 # Empty means unbound. Add developer overrides with `git config --add arc.frontlineSources <source-id>`.
 review.frontline_sources: [coderabbit-cli]
 
+# Ordered sources for ordinary review. Empty disables the standard-review lane.
+# Built-ins: delegated-agent, coderabbit-pr, codex-pr.
+review.standard_sources: [coderabbit-pr,codex-pr,delegated-agent]
+
+# Positive safe-integer pass ceilings. An exceptional extra pass requires explicit approval.
+review.frontline_max_passes: 2
+review.standard_max_passes: 2
+
 # Exact-target attention tripwires for considering contract-cohesive review chunks.
 # These are not chunk-size caps or review-provider limits. Either dimension can be
 # enabled independently; 0 disables that dimension (both 0 preserves whole-target review).

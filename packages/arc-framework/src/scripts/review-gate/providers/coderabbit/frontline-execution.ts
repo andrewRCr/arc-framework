@@ -2,6 +2,7 @@
 
 import type { ReviewTarget } from "../../core/gate-contract-v2-schema.js";
 import type { FrontlineExecutableIdentity } from "../../core/advisory-records.js";
+import type { ReviewPass } from "../../core/review-pass.js";
 import { normalizeFrontlineOutcome, type FrontlineExecutionOutcome } from "../../policy/frontline-outcome.js";
 import type {
   FrontlineSourceDescriptor,
@@ -64,8 +65,8 @@ function awaitWithSignal<T>(operation: Promise<T>, signal: AbortSignal): Promise
 export async function executeCodeRabbitFrontline(input: {
   source: FrontlineSourceDescriptor;
   target: ReviewTarget;
-  pass: 1 | 2;
-  maxPasses: 1 | 2;
+  pass: ReviewPass;
+  maxPasses: ReviewPass;
   reviewRoot: string;
   remainingMs: number;
   signal: AbortSignal;

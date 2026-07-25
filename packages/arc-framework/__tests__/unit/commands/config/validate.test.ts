@@ -51,6 +51,8 @@ describe("validateConfigFile", () => {
       "PASS  hooks.body_max_line_length: 100",
       "PASS  merge.strategy: [absent, default: merge]",
       "PASS  platform.type: [absent, default: github]",
+      "PASS  review.frontline_max_passes: 2",
+      "PASS  review.standard_max_passes: 2",
       "PASS  review.chunking_threshold_lines: 0",
       "PASS  review.chunking_threshold_files: 0",
       "PASS  pm.mode: [absent, default: none]",
@@ -64,9 +66,9 @@ describe("validateConfigFile", () => {
       "PASS  sync.auto_pull: [absent, default: false]",
       "PASS  archive.cadence: [absent, default: with-integration]",
       "",
-      "Summary: 26 passed, 0 warnings, 0 errors (26 checks)",
+      "Summary: 28 passed, 0 warnings, 0 errors (28 checks)",
     ]);
-    expect(result).toMatchObject({ passes: 26, warnings: 0, errors: 0, exitCode: 0 });
+    expect(result).toMatchObject({ passes: 28, warnings: 0, errors: 0, exitCode: 0 });
   });
 
   it("reports catalog-domain failures without exposing unrelated values", async () => {
@@ -91,7 +93,7 @@ describe("validateConfigFile", () => {
     expect(result.lines).toContain(
       "ERROR worktree.location_template: '' is not valid (expected: non-empty value)",
     );
-    expect(result).toMatchObject({ passes: 24, warnings: 0, errors: 3, exitCode: 2 });
+    expect(result).toMatchObject({ passes: 26, warnings: 0, errors: 3, exitCode: 2 });
   });
 
   it("warns for every validatable unknown occurrence in source order", async () => {
@@ -119,7 +121,7 @@ describe("validateConfigFile", () => {
       "WARN  Unknown key: 'hooks.subject_warn_length' (possible typo?)",
       "WARN  Unknown key: 'unknown.two' (possible typo?)",
     ]);
-    expect(result).toMatchObject({ passes: 26, warnings: 5, errors: 0, exitCode: 1 });
+    expect(result).toMatchObject({ passes: 28, warnings: 5, errors: 0, exitCode: 1 });
   });
 
   it("distinguishes default, unset, and invalid quoted-empty fields", async () => {
@@ -146,7 +148,7 @@ describe("validateConfigFile", () => {
     expect(result.lines).toContain(
       "ERROR inbox.remind_after_days must be a positive integer (got '')",
     );
-    expect(result).toMatchObject({ passes: 25, warnings: 0, errors: 2, exitCode: 2 });
+    expect(result).toMatchObject({ passes: 27, warnings: 0, errors: 2, exitCode: 2 });
   });
 
   it("applies custom-pattern dependencies without compiling or echoing pattern bodies", async () => {
@@ -232,8 +234,8 @@ describe("validateConfigFile", () => {
       "WARN  Unknown key: 'unknown.key' (possible typo?)",
       "WARN  Unknown key: 'unknown.key' (possible typo?)",
     ]);
-    expect(result.lines.at(-1)).toBe("Summary: 25 passed, 3 warnings, 1 errors (29 checks)");
-    expect(result).toMatchObject({ passes: 25, warnings: 3, errors: 1, exitCode: 2 });
+    expect(result.lines.at(-1)).toBe("Summary: 27 passed, 3 warnings, 1 errors (31 checks)");
+    expect(result).toMatchObject({ passes: 27, warnings: 3, errors: 1, exitCode: 2 });
   });
 
   it("enforces positive-safe-integer minima and accepts normalized boundaries", async () => {
@@ -259,5 +261,94 @@ describe("validateConfigFile", () => {
       "ERROR integration.stale_after_days must be a positive integer (got '9007199254740992')",
     );
     expect(result.exitCode).toBe(2);
+  });
+
+  it("enforces review-source compatibility at the typed validation boundary", async () => {
+    const accepted = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.frontline_sources: [coderabbit-cli, project-reviewer]",
+        "review.standard_sources: [coderabbit-pr, codex-pr, delegated-agent]",
+      ].join("\n")),
+    });
+    expect(accepted.lines).toContain(
+      "PASS  review.frontline_sources entry is a safe registry ID",
+    );
+    expect(accepted.lines).toContain("PASS  review.standard_sources entry is a standard source");
+    expect(accepted.exitCode).toBe(0);
+
+    const rejected = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.frontline_sources: [coderabbit-pr]",
+        "review.standard_sources: [project-reviewer]",
+      ].join("\n")),
+    });
+    expect(rejected.lines).toContain(
+      "ERROR review.frontline_sources source 'coderabbit-pr' is not frontline-compatible",
+    );
+    expect(rejected.lines).toContain(
+      "ERROR review.standard_sources source 'project-reviewer' is not standard-compatible",
+    );
+    expect(rejected.exitCode).toBe(2);
+  });
+
+  it("requires list syntax for standard sources and matched brackets for both source lists", async () => {
+    const scalar = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue("review.standard_sources: coderabbit-pr\n"),
+    });
+    expect(scalar.lines).toContain("ERROR review.standard_sources must use list syntax");
+
+    const unmatched = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.frontline_sources: [project-reviewer",
+        "review.standard_sources: codex-pr]",
+      ].join("\n")),
+    });
+    expect(unmatched.lines).toContain(
+      "ERROR review.frontline_sources must use matched list brackets",
+    );
+    expect(unmatched.lines).toContain(
+      "ERROR review.standard_sources must use matched list brackets",
+    );
+    expect(unmatched.exitCode).toBe(2);
+  });
+
+  it("applies positive safe-integer domains to review pass ceilings", async () => {
+    const accepted = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.frontline_max_passes: 1",
+        "review.standard_max_passes: 9007199254740991",
+      ].join("\n")),
+    });
+    expect(accepted.lines).toContain("PASS  review.frontline_max_passes: 1");
+    expect(accepted.lines).toContain(
+      "PASS  review.standard_max_passes: 9007199254740991",
+    );
+    expect(accepted.exitCode).toBe(0);
+
+    const rejected = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.frontline_max_passes: 0",
+        "review.standard_max_passes: 9007199254740992",
+      ].join("\n")),
+    });
+    expect(rejected.lines).toContain(
+      "ERROR review.frontline_max_passes: '0' must be an unsigned base-10 safe integer >= 1",
+    );
+    expect(rejected.lines).toContain(
+      "ERROR review.standard_max_passes: '9007199254740992' must be an unsigned base-10 safe integer >= 1",
+    );
+    expect(rejected.exitCode).toBe(2);
   });
 });
