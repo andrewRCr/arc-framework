@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  classifyLeaseAuthority,
   selectSessionAnchor,
   verifyProcessAnchor,
   type AncestorProcessSnapshot,
@@ -79,5 +80,65 @@ describe("process-anchor liveness", () => {
     await expect(verifyProcessAnchor(anchor, inspector({ kind: "absent" }))).resolves.toBe("dead");
     await expect(verifyProcessAnchor(anchor, inspector({ kind: "unverifiable", reason: "denied" })))
       .resolves.toBe("unknown");
+  });
+});
+
+describe("lease authority", () => {
+  const anchor = {
+    kind: "process" as const,
+    pid: 42,
+    startToken: "start-42",
+    inspector: "fixture",
+    selector: "codex",
+  };
+  const inspector = (inspection: Awaited<ReturnType<ProcessInspector["inspect"]>>): ProcessInspector => ({
+    kind: "fixture",
+    inspect: async () => inspection,
+  });
+  const present = inspector({
+    kind: "present", pid: 42, parentPid: 1, startToken: "start-42", commandIdentity: "codex",
+  });
+
+  it("resolves self when the recorded anchor names this process", async () => {
+    await expect(classifyLeaseAuthority(anchor, present, anchor)).resolves.toBe("self");
+  });
+
+  it("resolves self without inspection, where inspection cannot reach", async () => {
+    const exploded: ProcessInspector = {
+      kind: "fixture",
+      inspect: () => Promise.reject(new Error("process table is unreadable")),
+    };
+    await expect(classifyLeaseAuthority(anchor, exploded, anchor)).resolves.toBe("self");
+    await expect(classifyLeaseAuthority(anchor, inspector({ kind: "unverifiable", reason: "denied" }), anchor))
+      .resolves.toBe("self");
+    await expect(classifyLeaseAuthority({ ...anchor, inspector: "other-platform" }, present, {
+      ...anchor, inspector: "other-platform",
+    })).resolves.toBe("self");
+  });
+
+  it("separates a foreign holder from this process on every non-identity axis", async () => {
+    await expect(classifyLeaseAuthority(anchor, present, { ...anchor, pid: 43 })).resolves.toBe("foreign");
+    await expect(classifyLeaseAuthority(anchor, present, { ...anchor, startToken: "start-43" }))
+      .resolves.toBe("foreign");
+    await expect(classifyLeaseAuthority(anchor, present, { ...anchor, inspector: "other-platform" }))
+      .resolves.toBe("foreign");
+  });
+
+  it("ignores the selector, which names the route rather than the process", async () => {
+    await expect(classifyLeaseAuthority(anchor, present, { ...anchor, selector: "interactive-shell" }))
+      .resolves.toBe("self");
+  });
+
+  it("falls back to liveness when this process has no verifiable anchor of its own", async () => {
+    const own = { kind: "unverifiable" as const, reason: "shared host" };
+    await expect(classifyLeaseAuthority(anchor, present, own)).resolves.toBe("foreign");
+    await expect(classifyLeaseAuthority(anchor, inspector({ kind: "absent" }), own)).resolves.toBe("dead");
+    await expect(classifyLeaseAuthority(anchor, inspector({ kind: "unverifiable", reason: "denied" }), own))
+      .resolves.toBe("unverifiable");
+  });
+
+  it("leaves occupancy liveness reading live for a self-held lease", async () => {
+    await expect(classifyLeaseAuthority(anchor, present, anchor)).resolves.toBe("self");
+    await expect(verifyProcessAnchor(anchor, present)).resolves.toBe("live");
   });
 });

@@ -1874,13 +1874,18 @@ identity on the anchor nor a per-platform record store is therefore in scope.
   occupancy changes; a separate authority classification is consulted only where recovery decides. Occupancy asks
   whether someone is there, authority asks whether I may act, and each layer reads the axis it owns.
 
-    - `[ ]` **7.G.a.i Add the lease-authority classification**
-        - `classifyLeaseAuthority(anchor, inspector, ownAnchor)` returns `self` / `foreign` / `dead` /
-          `unverifiable`, resolving `self` when the recorded anchor equals the anchor this process would mint now
-          (same inspector kind, PID, and creation token). `verifyProcessAnchor` is untouched.
-        - Cover self-detection, a foreign live anchor, dead, and unverifiable — plus an explicit case asserting
-          that an occupancy guard still fires on `self`, since that is the invariant the two-axis shape exists to
-          hold structurally.
+    - `[x]` **7.G.a.i Add the lease-authority classification**
+        - `classifyLeaseAuthority` in `process-inspector.ts` returns `self` / `foreign` / `dead` / `unverifiable`
+          over the anchor this process would select now. `verifyProcessAnchor` and `ProcessLiveness` are untouched,
+          so the fourteen modules reading occupancy see no change.
+        - Self is resolved **before** inspection rather than after, which is what makes it reachable in the case
+          that motivated the phase: self-identification is a structural comparison the caller already owns, so it
+          holds where inspection cannot reach — an unreadable process table or a differing inspector kind, the two
+          readings that previously collapsed to `unknown` and stranded. `selector` is excluded from the comparison
+          because it names the route by which an anchor was chosen, not the process it identifies.
+        - Covered by self-detection, self under both unreachable-inspection shapes, foreign separation on each of
+          PID / creation token / inspector kind, the unverifiable-own-anchor fallback, and an explicit assertion
+          that occupancy liveness still reads `live` for a self-held lease.
 
     - `[ ]` **7.G.a.ii Classify the stop reasons into tiers**
         - Derive `hard` / `authority` / `advisory` over `LocusStopReason` rather than restating the members, on the
