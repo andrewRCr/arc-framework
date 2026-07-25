@@ -62,8 +62,10 @@ if [ -f "$config_script" ]; then
         error "Config validation found errors"
     elif [ "$config_exit" -eq 1 ]; then
         warn "Config validation found warnings"
-    else
+    elif [ "$config_exit" -eq 0 ]; then
         pass "Config validation clean"
+    else
+        error "Config validation exited unexpectedly with status $config_exit"
     fi
 else
     warn "validate-config.sh not found"

@@ -96,4 +96,18 @@ describe("verify-integrity.sh", () => {
       stdout: expect.stringContaining("closing `---`"),
     });
   });
+
+  it("reports an unexpected config-validator exit as an error", async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "arc-verify-integrity-"));
+    await writeMinimalArcInstall(tmpDir);
+    await writeExecutable(
+      join(tmpDir, ".arc/system/.internal/scripts/validate-config.sh"),
+      "echo validator crashed\nexit 127\n",
+    );
+
+    await expect(execFileAsync("bash", [verifyIntegrityScript], { cwd: tmpDir })).rejects.toMatchObject({
+      code: 2,
+      stdout: expect.stringContaining("ERROR Config validation exited unexpectedly with status 127"),
+    });
+  });
 });
