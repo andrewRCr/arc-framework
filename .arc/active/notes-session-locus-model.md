@@ -367,6 +367,13 @@ split forces the decomposition that was owed either way, now against three targe
 D1 carries most of the remaining remediation; D2 and D3 come out comparatively light. The split buys review
 proportionality, not a fast first merge.
 
+**The D2 line above needs re-settling before the carve.** It predates the boundary correction, and both of its
+premises moved. The six carved findings are one design question — the systematic generation-capability contract —
+and that contract spans every generation-taking verb, of which `open`, `close`, `abandon`, `partial-settle`, and
+`promote` are now D1's; D2 itself is down to `leave` and `materialize`. Routing a cross-cutting contract to the
+smallest deliverable in the stack is probably wrong, but the alternative (D1 authors it, D2 and D3 inherit it) is
+a real design call, not a clerical fix. Settle it when the specs are authored, not by editing this list.
+
 ### Lifecycle calls
 
 - **Three work units, not one shipping three PRs.** Nothing in the current model supports stacked delivery
