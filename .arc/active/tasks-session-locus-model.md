@@ -1403,6 +1403,14 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
             - Deliberately not provenance-minting: recording the source slug or claim on the promoted role or
               worktree marker is a durable-shape change and belongs to the carved capability contract, not here.
 
+        - `[x]` **7.E.c.vi.2 Accept only the transaction-produced meta state as recoverable dirt** — E4-F3
+            - `inspectCheckout` compared `line.slice(3)` against the meta path and ignored the XY columns, so any
+              staged, modified, or conflicted state on that path read as the promotion's own write. The allowance
+              is now the exact entry the transaction produces — one untracked meta — and the two refusals carry
+              distinct messages, since "beyond its own untracked meta" and "has uncommitted changes" are different
+              conditions. Reproduced at the integration tier by staging the meta between a failed retirement and
+              its recovery: the recovery took the user's index state as its own and retired the identity.
+
 - _Outcome:_ Nine findings, one cause: every destructive path read its authority from state gathered before the
   step that authorizes it, then proved that authority afterwards — or never. The proof moved ahead of the
   mutation in each case, and what counts as proof differs by path rather than by a single mechanism: leave and
@@ -1414,14 +1422,6 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   findings did not survive verification (`L4-F3` did not reproduce; `E3-F2`'s literal reading contradicted
   shipped in-place close and was narrowed to foreign occupancy), which is why the disposition set matters as much
   as the fix set.
-
-        - `[x]` **7.E.c.vi.2 Accept only the transaction-produced meta state as recoverable dirt** — E4-F3
-            - `inspectCheckout` compared `line.slice(3)` against the meta path and ignored the XY columns, so any
-              staged, modified, or conflicted state on that path read as the promotion's own write. The allowance
-              is now the exact entry the transaction produces — one untracked meta — and the two refusals carry
-              distinct messages, since "beyond its own untracked meta" and "has uncommitted changes" are different
-              conditions. Reproduced at the integration tier by staging the meta between a failed retirement and
-              its recovery: the recovery took the user's index state as its own and retired the identity.
 
 ### `[ ]` **7.E.d Make post-mutation failure recoverable**
 
