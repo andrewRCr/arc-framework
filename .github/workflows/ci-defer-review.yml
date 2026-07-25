@@ -1,0 +1,86 @@
+name: CI Defer On Review
+
+# Toggle the `ci-defer-heavy` label from review outcomes so the heavy suite
+# fires once per review cycle instead of once per intermediate head.
+#
+# A changes-requested review starts the fix loop, so the heavy legs are deferred
+# from that point; an approving review ends it, so removing the label re-runs the
+# full suite before merge. The pull request's first run is untouched, which keeps
+# early failure discovery: a late integration failure creates a new head and can
+# force a re-review, which costs far more than the minutes this saves.
+#
+# Every failure mode is fail-safe. A label wrongly present makes ci-ok fail and
+# blocks the merge; a label wrongly absent runs the full suite. No outcome here
+# can let an unverified head merge.
+#
+# Weight is deliberately not consulted: ci-ok only treats the label as blocking
+# when the classified weight is not light, so a docs-only pull request keeps a
+# green rollup with the label attached.
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+# Least-privilege default; the single job requests exactly what it needs.
+permissions: {}
+
+# Serialize toggles per pull request so two reviews landing together cannot
+# interleave read-then-write. Never cancel: a cancelled toggle would leave the
+# label in the state the previous review implied.
+concurrency:
+  group: ci-defer-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  toggle:
+    name: Toggle ci-defer-heavy
+    # Only pull requests targeting the default branch run CI at all.
+    if: ${{ github.event.pull_request.base.ref == github.event.repository.default_branch }}
+    permissions:
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply or remove the defer label for this review outcome
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+          LABEL: ci-defer-heavy
+        run: |
+          set -euo pipefail
+
+          # Webhook payloads report lowercase review states while the REST API
+          # reports uppercase. Normalize rather than depending on which one fed us.
+          state="$(printf '%s' "$REVIEW_STATE" | tr '[:upper:]' '[:lower:]')"
+          case "$state" in
+            changes_requested) intent=present ;;
+            approved)          intent=absent ;;
+            *)
+              echo "review state '$state' does not toggle the label; nothing to do"
+              exit 0
+              ;;
+          esac
+
+          # Read current labels and act only on a real difference, so replayed or
+          # repeated reviews are no-ops rather than API errors.
+          if gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" \
+            --jq '.[].name' | grep -Fxq "$LABEL"; then
+            current=present
+          else
+            current=absent
+          fi
+
+          if [ "$current" = "$intent" ]; then
+            echo "label '$LABEL' already $intent for review state '$state'; nothing to do"
+            exit 0
+          fi
+
+          if [ "$intent" = present ]; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" \
+              -f "labels[]=$LABEL" --silent
+            echo "deferred heavy CI: added '$LABEL' after a changes-requested review"
+          else
+            gh api --method DELETE \
+              "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels/$LABEL" --silent
+            echo "restored heavy CI: removed '$LABEL' after an approving review"
+          fi
