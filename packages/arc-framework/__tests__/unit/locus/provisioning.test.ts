@@ -7,6 +7,7 @@ import {
   type ProvisionTransientLocusDependencies,
   type ProvisionTransientLocusOptions,
 } from "../../../src/lib/locus/provisioning.js";
+import { PrimaryCheckoutResidueError } from "../../../src/lib/locus/provisioning-types.js";
 import type { LocusAllocationPlan } from "../../../src/lib/locus/allocator.js";
 import type { LocusIdentityV1, LocusRecordV1 } from "../../../src/lib/locus/schema/index.js";
 
@@ -410,6 +411,39 @@ describe("provisionTransientLocus", () => {
       kind: "error",
       error: { message: "checkout failed" },
       evidence: { kind: "identity-only" },
+    });
+    expect(events).toEqual(["acquire-lock", "revalidate", "checkout-primary", "release-lock"]);
+  });
+
+  it("carries an unreconciled primary checkout into marker-record-mismatch evidence", async () => {
+    const events: string[] = [];
+    const primaryProposal: Extract<LocusAllocationPlan, { kind: "proposal" }> = {
+      ...proposal,
+      allocation: { kind: "primary", checkoutPath: "/repo" },
+    };
+    const harness = testHarness(events, {
+      acquireRecordLock: async () => {
+        events.push("acquire-lock");
+        return {
+          kind: "acquired",
+          handle: { recordId: `sha256:${"e".repeat(64)}`, recordPath: "/loci/primary.json", token: "lock" },
+        };
+      },
+      revalidateTarget: async () => {
+        events.push("revalidate");
+        return { kind: "ready" };
+      },
+      checkoutPrimary: async () => {
+        events.push("checkout-primary");
+        throw new PrimaryCheckoutResidueError("/repo", new Error("fatal: cannot switch branches"));
+      },
+    });
+
+    const result = await provisionTransientLocus(options(harness.dependencies, { proposal: primaryProposal }));
+
+    expect(result).toMatchObject({
+      kind: "error",
+      evidence: { kind: "marker-record-mismatch", checkoutPath: "/repo", markerBytes: null, recordBytes: null },
     });
     expect(events).toEqual(["acquire-lock", "revalidate", "checkout-primary", "release-lock"]);
   });

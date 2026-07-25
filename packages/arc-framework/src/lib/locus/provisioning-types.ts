@@ -34,6 +34,25 @@ export interface PrimaryCheckoutReceipt {
   readonly head: string;
 }
 
+/**
+ * A primary checkout that mutated Git and could not undo the mutation itself.
+ *
+ * The mutation lands before the head probe that would build its receipt, so a failure there leaves
+ * the caller holding no receipt to roll back with. The adapter compensates instead; when that
+ * compensation also fails, the checkout stays switched and any branch the attempt created stays
+ * present — this error is how that residue reaches the caller's evidence.
+ */
+export class PrimaryCheckoutResidueError extends Error {
+  readonly checkoutPath: string;
+
+  constructor(checkoutPath: string, cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    super(`Primary checkout at ${checkoutPath} could not be reconciled after mutation: ${detail}`, { cause });
+    this.name = "PrimaryCheckoutResidueError";
+    this.checkoutPath = checkoutPath;
+  }
+}
+
 export interface ProvisionTransientLocusDependencies {
   createLinkedWorktree(options: LinkedWorktreeCreationOptions): Promise<LinkedWorktreeCreationResult>;
   scanWorktrees(): Promise<RegisteredWorktreeScanResult>;

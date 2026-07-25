@@ -21,10 +21,11 @@ import { acquireLocusLock, releaseLocusLock, type LocusLockHandle } from "./lock
 import { deriveLocusRecordId, type PathFlavor } from "./path-identity.js";
 import type { ProcessInspector } from "./process-inspector.js";
 import { readPrimarySafety } from "./primary-safety.js";
-import type {
-  PrimaryCheckoutReceipt,
-  ProvisionTransientLocusDependencies,
-  ProvisioningRecordLock,
+import {
+  PrimaryCheckoutResidueError,
+  type PrimaryCheckoutReceipt,
+  type ProvisionTransientLocusDependencies,
+  type ProvisioningRecordLock,
 } from "./provisioning-types.js";
 import {
   mintLocusRecord,
@@ -223,18 +224,52 @@ async function checkoutPrimary(
       kind: "idempotent", branchCreated: false, branch: previousBranch, previousBranch, head: previousHead,
     };
   }
+  // Everything past the mutating checkout runs under compensation: the head it reads is what the
+  // caller's rollback proves against, so a failure before that read leaves nothing to roll back with.
   if (expectedBranchHead !== null) {
     await exec("git", ["checkout", branch], { cwd: checkoutPath });
-    const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-    if (head !== expectedBranchHead) {
-      await exec("git", ["checkout", previousBranch], { cwd: checkoutPath });
-      throw new Error("Retained Errand branch does not match the expected resume head");
-    }
-    return { kind: "applied", branchCreated: false, branch, previousBranch, head };
+    return await compensateOnFailure(exec, checkoutPath, { previousBranch, createdBranch: null }, async () => {
+      const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
+      if (head !== expectedBranchHead) {
+        throw new Error("Retained Errand branch does not match the expected resume head");
+      }
+      return { kind: "applied", branchCreated: false, branch, previousBranch, head };
+    });
   }
   await exec("git", ["checkout", "-b", branch, previousBranch], { cwd: checkoutPath });
-  const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-  return { kind: "applied", branchCreated: true, branch, previousBranch, head };
+  return await compensateOnFailure(exec, checkoutPath, { previousBranch, createdBranch: branch }, async () => {
+    const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
+    if (head === "") throw new Error("Primary checkout head is unavailable after branch creation");
+    return { kind: "applied", branchCreated: true, branch, previousBranch, head };
+  });
+}
+
+/**
+ * Run one post-mutation step, undoing the mutation when it fails.
+ *
+ * A successful undo restores the pre-mutation checkout and rethrows the original failure, so the
+ * caller's evidence stays identity-only. An undo that fails raises
+ * {@link PrimaryCheckoutResidueError}, since the checkout is then left mutated.
+ */
+async function compensateOnFailure(
+  exec: GitExec,
+  checkoutPath: string,
+  undo: { previousBranch: string; createdBranch: string | null },
+  run: () => Promise<PrimaryCheckoutReceipt>,
+): Promise<PrimaryCheckoutReceipt> {
+  try {
+    return await run();
+  } catch (error) {
+    try {
+      await exec("git", ["checkout", undo.previousBranch], { cwd: checkoutPath });
+      if (undo.createdBranch !== null) {
+        await exec("git", ["branch", "-D", undo.createdBranch], { cwd: checkoutPath });
+      }
+    } catch (undoError) {
+      throw new PrimaryCheckoutResidueError(checkoutPath, undoError);
+    }
+    throw error;
+  }
 }
 
 async function rollbackPrimary(

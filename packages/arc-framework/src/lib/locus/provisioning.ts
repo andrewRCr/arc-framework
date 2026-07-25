@@ -9,13 +9,14 @@ import {
 } from "./mutation.js";
 import { resolveProvisioningAuthority } from "./provisioning-authority.js";
 import { establishReadyMarker, transientMarkerSubject } from "./provisioning-marker.js";
-import type {
-  PrimaryCheckoutReceipt,
-  ProvisioningEvidence,
-  ProvisioningRecordLock,
-  ProvisioningRefusalReason,
-  ProvisionTransientLocusOptions,
-  ProvisionTransientLocusResult,
+import {
+  PrimaryCheckoutResidueError,
+  type PrimaryCheckoutReceipt,
+  type ProvisioningEvidence,
+  type ProvisioningRecordLock,
+  type ProvisioningRefusalReason,
+  type ProvisionTransientLocusOptions,
+  type ProvisionTransientLocusResult,
 } from "./provisioning-types.js";
 import type { LocusRecordV1 } from "./schema/index.js";
 
@@ -202,6 +203,16 @@ async function provisionPrimaryUnderLock(
           recordBytes: null,
         });
       }
+    } else if (error instanceof PrimaryCheckoutResidueError) {
+      // The adapter mutated and could not undo it, so there is no receipt to roll back with and the
+      // checkout is still switched — identity-only would understate what is left behind. The path
+      // comes from the error: the adapter is what knows where the residue actually is.
+      return failure(error, {
+        kind: "marker-record-mismatch",
+        checkoutPath: error.checkoutPath,
+        markerBytes: null,
+        recordBytes: null,
+      });
     }
     return failure(error, { kind: "identity-only" });
   }

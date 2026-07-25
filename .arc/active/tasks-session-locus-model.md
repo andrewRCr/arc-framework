@@ -1439,15 +1439,17 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   offers "model a durable settlement state or accept every proven post-deletion state idempotently", take the
   acceptance arm, since a durable-shape change belongs to the carved capability contract.
 
-    - `[ ]` **7.E.d.i Reconcile a primary checkout whose post-mutation probe failed** — L4-F5
-        - `checkoutPrimary` runs `git checkout` / `git checkout -b` before the `rev-parse` that builds its receipt,
-          so a throw at the probe leaves `provisionPrimaryUnderLock`'s `checkout` binding null, its catch arm skips
-          rollback, and the result reports `identity-only` evidence over a switched primary and a created branch.
-          Give the adapter a partial receipt exact enough to roll back what it just did — the previous branch, and
-          whether it created one — or reconcile inside the adapter itself, without depending on the head it never
-          read. Rollback must still prove it is undoing its own generation, as `7.E.c.ii` established.
-        - Cover a probe failure after each of the two mutating arms (`checkout` with a pinned expected head, and
-          `checkout -b`), asserting the primary is left on its original branch with no residual branch.
+    - `[x]` **7.E.d.i Reconcile a primary checkout whose post-mutation probe failed** — L4-F5
+        - The adapter now reconciles its own mutation rather than exposing a partial receipt: everything past the
+          mutating checkout runs inside `compensateOnFailure`, which restores the previous branch, deletes a branch
+          this attempt created, and rethrows the original failure — so the caller's `identity-only` evidence
+          becomes true rather than merely unchanged. Compensation was chosen over a partial receipt because
+          `rollbackPrimary` proves the head it is undoing, and a failed head probe is precisely the case with no
+          head to prove.
+        - When the undo also fails the checkout really is left mutated, so `PrimaryCheckoutResidueError` carries
+          that path to `provisionPrimaryUnderLock`, which reports `marker-record-mismatch`. Both mutating arms now
+          compensate through one path: the retained-branch arm's hand-rolled restore folded into the guarded
+          region, and the created-branch arm gained the empty-probe guard its pre-mutation sibling already had.
 
     - `[ ]` **7.E.d.ii Roll back an Errand identity only against identity-only evidence** — E2-F1
         - `rollbackAfterFailure` and `rollbackAfterRefusal` retire the claim on every non-provisioned result without
