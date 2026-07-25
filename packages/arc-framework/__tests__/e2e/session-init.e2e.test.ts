@@ -667,7 +667,7 @@ describe("session-init E2E — deferred rename move advisory", () => {
       to,
       remedy: {
         argv: ["git", "worktree", "move", canonicalFrom, to],
-        text: `git worktree move ${canonicalFrom} ${to}`,
+        text: `Move the registered worktree from ${JSON.stringify(canonicalFrom)} to ${JSON.stringify(to)}.`,
       },
     }]);
   });

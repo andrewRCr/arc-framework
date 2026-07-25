@@ -352,7 +352,7 @@ describe("runStaleWorktreeSweep", () => {
       to: "/wt/project.new-name",
       remedy: {
         argv: ["git", "worktree", "move", "/wt/project.old-name", "/wt/project.new-name"],
-        text: "git worktree move /wt/project.old-name /wt/project.new-name",
+        text: "Move the registered worktree from \"/wt/project.old-name\" to \"/wt/project.new-name\".",
       },
     }]);
   });

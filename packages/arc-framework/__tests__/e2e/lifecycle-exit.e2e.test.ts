@@ -26,11 +26,9 @@ import { fileURLToPath } from "node:url";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
-import { canonicalDigest, canonicalize, isCanonicalDigest } from "../../src/lib/canonical/canonical-json.js";
-import { preparationId, receiptId as deriveReceiptId } from "../../src/lib/canonical/receipt-id.js";
+import { canonicalDigest, isCanonicalDigest } from "../../src/lib/canonical/canonical-json.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { parseDecomposePreparationRecord } from "../../src/lib/work-unit/decompose-preparation.js";
-import type { DecomposePreparationRecord } from "../../src/lib/work-unit/retirement-authority.js";
 import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -283,8 +281,8 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const extractedReceiptId = /sha256:[0-9a-f]{64}/u.exec(output)?.[0];
     expect(extractedReceiptId).toBeDefined();
     if (extractedReceiptId === undefined || !isCanonicalDigest(extractedReceiptId)) return;
-    let preparedReceiptId = extractedReceiptId;
-    let receiptPath = join(
+    const preparedReceiptId = extractedReceiptId;
+    const receiptPath = join(
       repo,
       ".arc/system/.internal/retirement-receipts",
       `${preparedReceiptId.replace(":", "-")}.json`,
@@ -303,57 +301,17 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const parsedPreparation = parseDecomposePreparationRecord(await readFile(receiptPath, "utf8"));
     expect(parsedPreparation?.schemaVersion).toBe(2);
     if (parsedPreparation?.schemaVersion !== 2) return;
-    const { inventoryRead, ...preparationBase } = parsedPreparation;
-    expect(["tree-only", "reachable", "degraded"]).toContain(inventoryRead);
-    preparedReceiptId = deriveReceiptId({
-      schemaVersion: 1,
-      subject: parsedPreparation.locator.scope.subject,
-      transition: "decompose",
-      sourceBranch: parsedPreparation.locator.scope.source.branch,
-      sourceHead: parsedPreparation.locator.scope.source.head,
-    });
-    const v1PreparationId = preparationId({
-      receiptId: preparedReceiptId,
-      baseHead: parsedPreparation.locator.scope.resultProjection.head,
-      sourceInventoryDigest: parsedPreparation.sourceInventoryDigest,
-      incomingEdgeInventoryDigest: parsedPreparation.incomingEdgeInventoryDigest,
-      outgoingEdgeInventoryDigest: parsedPreparation.outgoingEdgeInventoryDigest,
-      cutMapDigest: parsedPreparation.cutMapDigest,
-    });
-    const legacyPreparation: DecomposePreparationRecord = {
-      ...preparationBase,
-      schemaVersion: 1,
-      locator: {
-        ...parsedPreparation.locator,
-        receiptId: preparedReceiptId,
-        preparationId: v1PreparationId,
-      },
-    };
-    expect(parseDecomposePreparationRecord(canonicalize(legacyPreparation), preparedReceiptId))
-      .toEqual(legacyPreparation);
-    const v2ReceiptPath = receiptPath;
-    await rm(v2ReceiptPath);
-    const legacyDirectory = join(repo, ".arc/.internal/retirement-receipts");
-    await mkdir(legacyDirectory, { recursive: true });
-    const legacyPath = join(legacyDirectory, `${preparedReceiptId.replace(":", "-")}.json`);
-    await writeFile(legacyPath, canonicalize(legacyPreparation));
-    await git(repo, ["add", "-A", "--", v2ReceiptPath, legacyPath]);
-    receiptPath = join(
-      repo,
-      ".arc/system/.internal/retirement-receipts",
-      `${preparedReceiptId.replace(":", "-")}.json`,
-    );
+    expect(["tree-only", "reachable", "degraded"]).toContain(parsedPreparation.inventoryRead);
 
     const cohortDoc = join(repo, ".arc/backlog/planned/mono/cohort-mono.md");
     await writeFile(cohortDoc, "# Cohort: mono\n\nPurpose: split the origin safely.\n");
     await git(repo, ["add", "--", ".arc/backlog/planned/mono/cohort-mono.md"]);
     const indexLock = join(repo, ".git/index.lock");
     await writeFile(indexLock, "locked");
-    const interruptedMigration = await runArc(["decompose", "mono", "--finalize", preparedReceiptId], repo);
+    const interruptedFinalization = await runArc(["decompose", "mono", "--finalize", preparedReceiptId], repo);
     await rm(indexLock);
-    expect(interruptedMigration.exitCode).not.toBe(0);
+    expect(interruptedFinalization.exitCode).not.toBe(0);
     expect(JSON.parse(await readFile(receiptPath, "utf8"))).toMatchObject({ kind: "prepared-decompose" });
-    expect(await pathExists(legacyPath)).toBe(false);
 
     const finalized = await runArc(["decompose", "mono", "--finalize", preparedReceiptId], repo);
     expect(
@@ -361,7 +319,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       `${finalized.stdout}${finalized.stderr}\nStaged:\n${await git(repo, ["diff", "--cached", "--name-status"])}`,
     ).toBe(0);
     expect(JSON.parse(await readFile(receiptPath, "utf8"))).toMatchObject({ transition: "decompose" });
-    expect(await pathExists(legacyPath)).toBe(false);
 
     const committed = await commitAttempt(repo, "finalized decompose");
     expect(committed.exitCode, committed.stdout + committed.stderr).toBe(0);

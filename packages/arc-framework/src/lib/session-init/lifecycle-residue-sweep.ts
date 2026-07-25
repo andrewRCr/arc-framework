@@ -29,7 +29,7 @@ import {
   type TeardownBlobReader,
 } from "../work-unit/teardown-retirement-driver.js";
 
-/** Exact outside-worktree command for one validated deferred rename move. */
+/** Structured outside-worktree action for one validated deferred rename move. */
 export interface RenameMoveRemedy {
   argv: readonly ["git", "worktree", "move", string, string];
   text: string;
@@ -125,7 +125,7 @@ export function projectRenameMoveRemedy(
     ...pending,
     remedy: {
       argv: ["git", "worktree", "move", pending.from, pending.to],
-      text: `git worktree move ${pending.from} ${pending.to}`,
+      text: `Move the registered worktree from ${JSON.stringify(pending.from)} to ${JSON.stringify(pending.to)}.`,
     },
   };
 }
@@ -139,13 +139,8 @@ export function projectRenameMoveRemedy(
 export async function runLandedRetirementSweep(
   options: RunLandedRetirementSweepOptions,
 ): Promise<LandedRetirementSweepResult> {
-  const activePaths = new Set(
-    options.roster.entries
-      .filter((entry) => entry.metaFilePath !== undefined)
-      .map((entry) => entry.worktreePath),
-  );
   const candidates = options.topology.filter((entry) => {
-    if (entry.detached || entry.branch === null || activePaths.has(entry.path)) return false;
+    if (entry.detached || entry.branch === null) return false;
     const marker = options.markers.get(entry.path);
     return marker?.kind === "present"
       && marker.marker.createdFor?.kind === "work-unit"
@@ -199,26 +194,7 @@ export async function runLandedRetirementSweep(
     const slug = marker.marker.createdFor.name;
     const receipts = matchingRetirementReceipts(enumeration, slug);
     if (receipts.length === 0) continue;
-    if (receipts.length > 1) {
-      retirements.push({
-        status: "blocked",
-        worktreePath: candidate.path,
-        subject: { slug, branch: candidate.branch as string },
-        reason: "authority-ambiguous",
-      });
-      continue;
-    }
-    const receipt = receipts[0];
-    if (receipt === undefined || candidate.branch === null) continue;
-    if (!await clean(candidate.path)) {
-      retirements.push({
-        status: "blocked",
-        worktreePath: candidate.path,
-        subject: { slug, branch: candidate.branch },
-        reason: "uncommitted",
-      });
-      continue;
-    }
+    if (candidate.branch === null) continue;
     const decision = await authority({
       subject: { kind: "work-unit", name: slug },
       branch: candidate.branch,
@@ -227,11 +203,39 @@ export async function runLandedRetirementSweep(
       requestedMode: "abandoned",
     });
     if (decision.status !== "authorized") {
+      if (await refusalConcernsCurrentRetirement(
+        options.exec,
+        { branch: candidate.branch, head: candidate.head },
+        receipts,
+      )) {
+        retirements.push({
+          status: "blocked",
+          worktreePath: candidate.path,
+          subject: { slug, branch: candidate.branch },
+          reason: decision.reason,
+        });
+      }
+      continue;
+    }
+    const evidence = decision.evidence;
+    const receipt = evidence.kind === "receipt"
+      ? receipts.find((candidateReceipt) => candidateReceipt.receiptId === evidence.receiptId)
+      : undefined;
+    if (receipt === undefined) {
       retirements.push({
         status: "blocked",
         worktreePath: candidate.path,
         subject: { slug, branch: candidate.branch },
-        reason: decision.reason,
+        reason: "evidence-mismatch",
+      });
+      continue;
+    }
+    if (!await clean(candidate.path)) {
+      retirements.push({
+        status: "blocked",
+        worktreePath: candidate.path,
+        subject: { slug, branch: candidate.branch },
+        reason: "uncommitted",
       });
       continue;
     }
@@ -264,6 +268,47 @@ export async function runLandedRetirementSweep(
     });
   }
   return { retirements, warnings: [] };
+}
+
+async function refusalConcernsCurrentRetirement(
+  exec: GitExec,
+  candidate: { branch: string; head: string },
+  receipts: readonly LandedRetirementReceipt[],
+): Promise<boolean> {
+  const branchReceipts = receipts.filter((receipt) => receipt.source.branch === candidate.branch);
+  if (branchReceipts.some((receipt) =>
+    receipt.transition === "decompose" && receipt.source.head === candidate.head
+  )) {
+    return true;
+  }
+
+  const abandonReceipts = branchReceipts.filter((receipt) =>
+    receipt.transition === "abandon" && receipt.source.head !== candidate.head
+  );
+  if (abandonReceipts.length === 0) return false;
+
+  const firstParent = await readFirstParent(exec, candidate.head);
+  if (firstParent.status === "unavailable") {
+    // Branch binding plus a distinct source/current HEAD is the strongest
+    // evidence available when Git cannot resolve the direct-transition parent.
+    return true;
+  }
+  return firstParent.oid !== null
+    && abandonReceipts.some((receipt) => receipt.source.head === firstParent.oid);
+}
+
+async function readFirstParent(
+  exec: GitExec,
+  head: string,
+): Promise<{ status: "resolved"; oid: string | null } | { status: "unavailable" }> {
+  try {
+    const { stdout } = await exec("git", ["rev-list", "--parents", "-n", "1", head]);
+    const [resolvedHead, firstParent] = stdout.trim().split(/\s+/u);
+    if (resolvedHead !== head) return { status: "unavailable" };
+    return { status: "resolved", oid: firstParent ?? null };
+  } catch {
+    return { status: "unavailable" };
+  }
 }
 
 function matchingRetirementReceipts(

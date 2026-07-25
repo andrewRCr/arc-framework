@@ -176,8 +176,8 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
   };
 
   const retirement: AbandonContext["retirement"] = {
-    captureSource: async ({ name }) => {
-      calls.push(`retirement:capture:${name}:${removed.length}`);
+    captureSource: async ({ name, expectedBranch }) => {
+      calls.push(`retirement:capture:${name}:${removed.length}:${expectedBranch ?? "[none]"}`);
       return {
         scope: {
           subject: { kind: "work-unit", name },
@@ -275,7 +275,7 @@ describe("runAbandon — started WU (active)", () => {
     const result = await runAbandon(ctx, BASE);
 
     expect(result.status).toBe("abandoned");
-    expect(calls).toContain("retirement:capture:foo:0");
+    expect(calls).toContain("retirement:capture:foo:0:feat/foo");
     expect(recordedReceipts).toHaveLength(1);
     expect(recordedReceipts[0]?.source).toEqual({
       branch: "feat/foo",
@@ -421,16 +421,19 @@ describe("runAbandon — backlog stub (provisional)", () => {
 });
 
 describe("runAbandon — parked WU", () => {
-  it("defers the preserved branch deletion until its receipt has landed", async () => {
+  it("records authority for the preserved branch before deleting it in place", async () => {
     const { ctx, calls } = buildCtx([PARKED]);
 
     const result = await runAbandon(ctx, { name: "foo", confirmed: true });
 
     expect(result.status).toBe("abandoned");
     if (result.status !== "abandoned") return;
-    expect(calls).not.toContain("branch:delete:feat/foo");
+    expect(calls).toContain("retirement:capture:foo:0:feat/foo");
+    expect(calls.indexOf("retirement:record")).toBeLessThan(calls.indexOf("branch:delete:feat/foo"));
+    expect(calls).toContain("branch:delete:feat/foo");
     expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
-    expect(result.lifecycle.cleanup.branch).toEqual({ status: "pending" });
+    expect(result.lifecycle.cleanup.branch).toEqual({ status: "completed" });
+    expect(result.lifecycle.cleanup.worktree).toEqual({ status: "not-applicable" });
   });
 });
 
@@ -452,11 +455,11 @@ describe("planAbandon — the impact plan per from-state", () => {
     expect(plan.lines.some((l) => /Branch:|Worktree:|Teardown:/.test(l))).toBe(false);
   });
 
-  it("a parked WU plans the same landed receipt-backed teardown", () => {
+  it("a parked WU plans receipt-first preserved-branch deletion", () => {
     const plan = planAbandon("parked", "feat/foo", "foo");
     expect(plan.legal).toBe(true);
-    expect(plan.lines.some((l) => /Teardown:.*arc teardown foo/.test(l))).toBe(true);
-    expect(plan.lines.some((l) => /Branch:|Worktree:|--force/.test(l))).toBe(false);
+    expect(plan.lines.some((l) => /Branch:.*feat\/foo.*retirement authority/.test(l))).toBe(true);
+    expect(plan.lines.some((l) => /Worktree:|Teardown:|--force/.test(l))).toBe(false);
   });
 
   it("an illegal source (integrating) yields no plan", () => {

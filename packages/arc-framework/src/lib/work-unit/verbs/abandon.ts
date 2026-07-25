@@ -12,9 +12,11 @@
  *
  * - `provisional` / `planned` — a branchless backlog stub: just remove the
  *   artifact set.
- * - `planning` / `active` / `parked` — remove the artifact set in-verb, record
- *   the receipt, and defer branch, worktree, and per-WU workspace cleanup until
- *   that evidence is authoritative on the protection-aware base.
+ * - `planning` / `active` — remove the artifact set in-verb, record the receipt,
+ *   and defer branch, worktree, and per-WU workspace cleanup until that evidence
+ *   is authoritative on the protection-aware base.
+ * - `parked` — record the receipt, then delete the preserved branch in-verb; a
+ *   parked WU has no worktree.
  *
  * `integrating` and merged / `shipped` are illegal (the table's marked cells):
  * post-merge backout is a new origin-linked WU (ADR-026 amendment), never a
@@ -137,20 +139,23 @@ export interface AbandonPlan {
  * Compose the destructive-cascade impact plan for a resolved source state, gated on
  * the state's table cell: a backlog stub removes only artifacts; a started WU
  * removes artifacts in-verb and defers cleanup to a landed-evidence
- * `arc teardown <name>`; a parked WU follows the same receipt-backed branch path.
+ * `arc teardown <name>`; a parked WU records authority before deleting its
+ * preserved branch in-verb.
  * Pure: the handler resolves the state + branch, prints these lines, and
  * refuses without explicit confirmation.
  *
  * @param state - The target WU's resolved lifecycle state.
- * @param branch - The WU's recorded branch, retained for the stable planning API.
+ * @param branch - The WU's recorded branch, deleted in-verb for a parked WU.
  * @param name - The WU slug for the landed cleanup command.
  * @returns The legality verdict and the impact-plan lines (empty when illegal).
  */
-export function planAbandon(state: LifecycleState, _branch: string | null, name: string): AbandonPlan {
+export function planAbandon(state: LifecycleState, branch: string | null, name: string): AbandonPlan {
   if (!validFromStates("abandon").includes(state)) return { legal: false, lines: [] };
   const lines = ["Artifacts: remove the work unit's artifact set"];
-  if (STARTED.has(state) || IN_VERB_BRANCH_DELETE.has(state)) {
+  if (STARTED.has(state)) {
     lines.push(`Teardown:  after landing — \`arc teardown ${name}\` (receipt-backed cleanup)`);
+  } else if (IN_VERB_BRANCH_DELETE.has(state)) {
+    lines.push(`Branch:    delete \`${branch ?? "[none]"}\` after recording retirement authority`);
   }
   lines.push(
     STARTED.has(state) || IN_VERB_BRANCH_DELETE.has(state)
@@ -165,7 +170,8 @@ export function planAbandon(state: LifecycleState, _branch: string | null, name:
  * Run `abandon`: resolve the source state, compose the per-cell operands, and
  * dispatch the destructive cascade. A started WU's branch + worktree teardown is
  * **not** fired here — it is deferred to receipt-authorized `arc teardown` after
- * landing. Rejects without confirmation (the `confirmation` guard) or from an
+ * landing. A parked WU's preserved branch is deleted only after its receipt is
+ * recorded. Rejects without confirmation (the `confirmation` guard) or from an
  * illegal source (the table's lookup — `integrating` / merged / `shipped`).
  *
  * @param ctx - The executor seams plus the artifact-removal fs.
@@ -223,7 +229,9 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
     source = await retirement.captureSource({
       name,
       sourceDir: posix.dirname(writablePath),
-      expectedBranch: STARTED.has(state) ? meta?.branch ?? null : null,
+      expectedBranch: STARTED.has(state) || IN_VERB_BRANCH_DELETE.has(state)
+        ? meta?.branch ?? null
+        : null,
     });
   } catch (err) {
     return {
@@ -242,11 +250,18 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
     return { status: "rejected", reason: "Cannot record abandon evidence: retirement authority already exists." };
   }
 
+  let parkedBranchCleanup: { status: "completed" } | { status: "blocked"; reason: string } | null = null;
+  const deferredBranchCleanup: Array<() => Promise<unknown>> = [];
   const workspaceHandler = executor.sideEffects?.["user-workspace"];
   const transitionExecutor = {
     ...executor,
     scaffoldOrRemove,
-    reconcileBranch: () => Promise.resolve(),
+    reconcileBranch: (op: Parameters<typeof executor.reconcileBranch>[0]) => {
+      if (IN_VERB_BRANCH_DELETE.has(state)) {
+        deferredBranchCleanup.push(() => executor.reconcileBranch(op));
+      }
+      return Promise.resolve();
+    },
     sideEffects: workspaceHandler === undefined
       ? executor.sideEffects
       : {
@@ -306,16 +321,37 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
-  const lifecycle = projectPendingRetirementLifecycle({
+  const advisories = [...outcome.advisories];
+  for (const run of deferredBranchCleanup) {
+    try {
+      await run();
+      parkedBranchCleanup = { status: "completed" };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      parkedBranchCleanup = { status: "blocked", reason };
+      advisories.push(`Abandon evidence was recorded, but parked branch cleanup did not complete: ${reason}.`);
+    }
+  }
+  const pendingLifecycle = projectPendingRetirementLifecycle({
     slug: name,
     branch: receipt.source.branch,
     transition: "abandon",
     receiptId: receipt.receiptId,
     authorityVersion: recorded.authorityVersion,
   });
+  const lifecycle = parkedBranchCleanup === null
+    ? pendingLifecycle
+    : {
+        ...pendingLifecycle,
+        cleanup: {
+          ...pendingLifecycle.cleanup,
+          branch: parkedBranchCleanup,
+          worktree: { status: "not-applicable" as const },
+        },
+      };
   return {
     status: "abandoned",
-    outcome,
+    outcome: advisories.length === outcome.advisories.length ? outcome : { ...outcome, advisories },
     receipt,
     authorityVersion: recorded.authorityVersion,
     lifecycle,

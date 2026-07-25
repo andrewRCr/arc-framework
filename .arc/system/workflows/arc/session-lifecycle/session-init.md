@@ -842,24 +842,26 @@ tracked source documents the work.
   ```
 
 - `sweep.value.retirements` non-empty: surface every receipt-backed retirement report. `actionable` offers
-  `teardown.text`; never execute it automatically. Dispatch on `lifecycle.successorReadiness.actionable`: `true`
-  offers the non-null `remedy.text`; `false` renders a non-empty `candidates` list without selecting one.
+  `teardown.text`; never execute it automatically. Dispatch on `lifecycle.successorReadiness.remedy`: a non-null
+  remedy is the unique default; otherwise render any `candidates` without selecting one. Treat `actionable`
+  independently as the readiness-authority signal, because multiple actionable candidates have no default remedy.
   `blocked` carries its CLI-classified reason and grants no action.
 
   ```text
   **Landed retirement cleanup:** {N} work unit(s) have authoritative cleanup residue:
   - `{lifecycle.subject.slug}` (`{lifecycle.subject.branch}`) → clean up? `{teardown.text}`
-    - Ready successor: `{lifecycle.successorReadiness.remedy.text}`
-    - Ready successors: {candidate list}; no default selected
+    - Ready successor: `{lifecycle.successorReadiness.remedy.text}` (only when the remedy is non-null)
+    - Ready successors: {candidate list}; no default selected (when the remedy is null and candidates are present)
   - `{subject.slug}` (`{subject.branch}`) — {reason}; surfaced without an action
   ```
 
-- `sweep.value.renameMoves` non-empty: surface each precomposed `remedy.text` as an outside-worktree action.
+- `sweep.value.renameMoves` non-empty: surface each `remedy.text` as an outside-worktree action. Treat
+  `remedy.argv` as the executable form and pass its arguments directly without shell reconstruction.
   Never execute it automatically and never reconstruct a move from marker fields.
 
   ```text
   **Deferred rename moves:** {N} renamed worktree path(s) lag:
-  - `{from}` → `{to}`; from outside the source worktree run `{remedy.text}`
+  - `{from}` → `{to}`; `{remedy.text}` Execute the structured `{remedy.argv}` from outside the source worktree.
   ```
 
 - `sweep.value.worktrees` non-empty (primary worktree only): branched shipped-WU worktrees and stamped detached
