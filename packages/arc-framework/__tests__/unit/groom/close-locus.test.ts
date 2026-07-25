@@ -12,7 +12,8 @@ import {
   type SettledPartialGroomRecord,
 } from "../../../src/lib/errand/index.js";
 import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
-import type { LocusRowV1, LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
+import type { LocusRowV1 } from "../../../src/lib/locus/schema/index.js";
+import { locusStateFixture } from "../../fixtures/locus-state.js";
 
 const ANCHOR = "alpha";
 const CHECKOUT = "/repo";
@@ -69,17 +70,6 @@ function groomRow(overrides: Partial<LocusRowV1> = {}): LocusRowV1 {
   } as LocusRowV1;
 }
 
-function state(rows: LocusRowV1[]): LocusStateV1 {
-  return {
-    roster: { mode: "locus", ok: true, primaryPath: CHECKOUT, rows, diagnostics: [] },
-    current: { kind: "none" },
-    primaryAvailability: { kind: "occupied", checkoutPath: CHECKOUT },
-    inFlightIdentities: [],
-    recovery: { kind: "none" },
-    reconciliation: { kind: "clean" },
-  } as unknown as LocusStateV1;
-}
-
 /** The identity tree as the close sees it, so ordering shows up as retained state. */
 interface IdentityWorld {
   record: GroomIdentityRecord | null;
@@ -103,7 +93,7 @@ function dependencies(
 ): CloseGroomDependencies {
   return {
     readClaim: vi.fn(async () => ({ kind: "ready" as const, value: world.record })),
-    readState: vi.fn(async () => ({ kind: "read" as const, state: state([groomRow()]) })),
+    readState: vi.fn(async () => ({ kind: "read" as const, state: locusStateFixture({ rows: [groomRow()] }) })),
     pinBaseHead: vi.fn(async () => ({ kind: "pinned" as const, head: HEAD })),
     readCheckout: vi.fn(async () => ({ dirty: false, head: HEAD })),
     isAncestor: vi.fn(async () => true),
@@ -199,7 +189,7 @@ describe("closeGroom — partial protection", () => {
     const result = await closeGroom({
       anchorStub: ANCHOR,
       dependencies: dependencies(world, {
-        readState: vi.fn(async () => ({ kind: "read" as const, state: state([]) })),
+        readState: vi.fn(async () => ({ kind: "read" as const, state: locusStateFixture({ rows: [] }) })),
         cleanupOccupancy,
       }),
     });
@@ -214,7 +204,7 @@ describe("closeGroom — partial protection", () => {
     const result = await closeGroom({
       anchorStub: ANCHOR,
       dependencies: dependencies(world, {
-        readState: vi.fn(async () => ({ kind: "read" as const, state: state([]) })),
+        readState: vi.fn(async () => ({ kind: "read" as const, state: locusStateFixture({ rows: [] }) })),
       }),
     });
 

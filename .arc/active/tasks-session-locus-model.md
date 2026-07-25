@@ -1625,33 +1625,11 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   `gh pr list --json baseRefName,headRefName,headRefOid` shape the runtime parses. `leave --state
   awaiting-merge` reads the same host boundary and gains coverage from the same stub.
 
-### `[ ]` **7.E.i Split the grooming and housekeeping tails from their Node wiring**
+### `[x]` **7.E.i Split the grooming and housekeeping tails from their Node wiring**
 
 - _Goal:_ `closeGroomAtRuntime`, `settleGroomAtRuntime`, and `settleHousekeepAtRuntime` compose over injected
   evidence the way settlement and occupancy closing already do, so their ordering and authorization claims are
   provable at the unit tier instead of only through a real CLI run.
-
-- _Note:_ Carries no finding — surfaced while executing `7.E.d.iv`, and it is the same remediation `7.E.c.iv` and
-  `7.E.c.v.1` already applied to their siblings, on the modules those tasks did not reach. Each of the three
-  acquires its own session anchor, constructs platform process inspectors, and reads locus state internally, so
-  nothing below a real CLI run can reach them. Both `P1` findings were ordering defects in exactly these modules,
-  invisible for exactly that reason — the same sentence `7.E.c.iv` recorded about `partial-settle`. The cost is
-  already being paid rather than predicted: `7.E.d.iv.1` could only prove its post-failure states by first
-  extracting the teardown into its own module, and `7.E.d.iv.2` by seeding a crashed state through a real CLI
-  sequence.
-
-- _Approach:_ Follow the landed split shape — composition module over injected seams plus a `*-runtime.ts` holding
-  the Node wiring — and reuse the existing seams (`locus/evidence.ts`, `locus/locked-generation.ts`, the
-  provisioning dependencies) rather than minting per-module ones. Behavior-preserving: every ordering claim the
-  split exposes should be expressible as a unit test that fails against the pre-split sequence, which is also the
-  check that the extraction did not quietly change one.
-
-- _Sequencing:_ Runs before `7.E.e`, `7.E.g`, and `7.E.h` despite following them in file order — all three edit
-  these same modules (`7.E.e` recomposes their outcomes, `7.E.g` carries `P1-F3`/`P1-F4` in the housekeeping
-  lifecycle and grooming path authorization), so landing them on the split earns unit coverage instead of writing
-  them against the unreachable shape and rewriting after. `7.E.f` is independent. The regression net the split
-  needs is the real-CLI coverage `7.E.d.iv` added: the partial grooming sweep end to end, the settled-claim
-  replay, and the already-deleted branch generation.
 
     - `[x]` **7.E.i.1 Split the grooming close and settle tails**
         - `groom/close-locus.ts` and `groom/tail-locus.ts` hold the compositions; the `*-runtime.ts` modules keep the
@@ -1661,9 +1639,19 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           the reordered sequence, and the settlement composition takes host truth as its lifecycle vocabulary so the
           branded evidence stays a runtime concern.
 
-    - `[ ]` **7.E.i.2 Split the housekeeping lifecycle tail**
-        - `housekeep/lifecycle-runtime.ts` — close, settle, and the partial abandon arm share one occupancy
-          cleanup; the file is the largest of the three and carries the close/settle/abandon fan-out.
+    - `[x]` **7.E.i.2 Split the housekeeping lifecycle tail**
+        - `housekeep/lifecycle-locus.ts` holds `closeHousekeep` and `settleHousekeep`, including the partial abandon
+          arm, over the one evidence set all three read; `lifecycle-runtime.ts` keeps the Node wiring and the same
+          deferred anchor. The occupancy selectors stayed in `open-runtime.ts` — they are already pure and unit-tested
+          where they live, so the composition consumes them rather than restating them.
+
+- _Outcome:_ All three tails now decide over injected evidence, and the two `P1` ordering defects the chunked
+  review found in exactly these modules are the kind a unit test can now catch: persist-before-pop, settle-before-
+  pop-before-retire, and cleanup-before-teardown each fail against a reordered sequence. `7.E.e`, `7.E.g`, and
+  `7.E.h` now edit the split shape and earn unit coverage rather than writing against the unreachable one. The
+  extraction is behavior-preserving by the real-CLI net `7.E.d.iv` added — the partial grooming sweep, the
+  settled-claim replay, the already-deleted branch generation, and the housekeeping suite — run green before and
+  after each step.
 
 ## **Phase 7.F:** Errand Close Reachability
 

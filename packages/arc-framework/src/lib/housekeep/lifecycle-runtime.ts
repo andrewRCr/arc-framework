@@ -1,4 +1,4 @@
-/** Exact housekeeping close, finalization, and abandonment composition. */
+/** Node wiring that supplies real evidence to the housekeeping lifecycle compositions. */
 
 import { withLockedUserInbox } from "../../commands/user/inbox-mutation.js";
 import type { UserIOContext } from "../../commands/user/types.js";
@@ -8,6 +8,7 @@ import {
   createGhChangeRequestLifecyclePort,
   resolveChangeRequestLifecycleConfiguration,
   transientTailRetirementTransform,
+  type ChangeRequestLifecycleEvidence,
 } from "../errand/change-request-lifecycle.js";
 import {
   readExactBranchGeneration,
@@ -18,8 +19,12 @@ import {
   pinGroomOpenedBaseHead,
   type HousekeepIdentityRecord,
 } from "../errand/identity-claims.js";
-import { projectLocusIdentity, serializeTransientIdentityRecord } from "../errand/identity-record.js";
-import { transactTransientIdentities } from "../errand/identity-transaction.js";
+import { serializeTransientIdentityRecord } from "../errand/identity-record.js";
+import {
+  transactTransientIdentities,
+  type IdentityTransactionOutcome,
+  type IdentityTransform,
+} from "../errand/identity-transaction.js";
 import { observeExactChangeRequest } from "../errand/leave-runtime.js";
 import { createLocusMutationResult, popOwnedLocusRole } from "../locus/mutation.js";
 import { createPlatformProcessAncestryInspector, createPlatformProcessInspector } from "../locus/platform-inspectors.js";
@@ -32,11 +37,19 @@ import type {
   LocusRowV1,
   LocusStateV1,
 } from "../locus/schema/index.js";
-import { selectedGenerationMismatch, type SelectedLocusGeneration } from "../locus/selected-generation.js";
-import { untrustedRefusalReason } from "../locus/trusted-row.js";
-import { classifyHousekeepChangedPaths } from "./path-policy.js";
-import { exactHousekeepRow, exactPartialHousekeepRow, readHousekeepState } from "./open-runtime.js";
-import { resolveExecutionNextOffer, type ExecutionNextOffer } from "./execution-offer.js";
+import type { SelectedLocusGeneration } from "../locus/selected-generation.js";
+import { readHousekeepState } from "./open-runtime.js";
+import { resolveExecutionNextOffer } from "./execution-offer.js";
+import {
+  closeHousekeep,
+  settleHousekeep,
+  type HousekeepEvidenceDependencies,
+  type HousekeepIdentityOutcome,
+  type HousekeepIdentityRead,
+  type HousekeepOccupancyTarget,
+  type HousekeepOperation,
+  type HousekeepStateReading,
+} from "./lifecycle-locus.js";
 
 export interface HousekeepLifecycleRuntimeOptions {
   readonly slug: string;
@@ -54,235 +67,169 @@ export interface HousekeepSettleRuntimeOptions extends HousekeepLifecycleRuntime
   readonly selected?: SelectedLocusGeneration;
 }
 
+/**
+ * One session anchor and its roster read, established at the first seam that needs them.
+ *
+ * Both are deferred rather than acquired up front so an unprovable anchor refuses at the step the
+ * roster is first consulted, leaving the identity-only decisions ahead of it reachable.
+ */
+interface HousekeepRuntimeLocus {
+  read(): Promise<HousekeepStateReading>;
+  cleanupOccupancy(target: HousekeepOccupancyTarget): Promise<LocusMutationResultV1>;
+}
+
 /** Preserve one complete sweep and close its exact local occupancy. */
 export async function closeHousekeepAtRuntime(
   options: HousekeepLifecycleRuntimeOptions,
 ): Promise<LocusMutationResultV1> {
-  const recordResult = await readIdentity(options);
-  if (recordResult.kind === "error") return failure("close", recordResult.message);
-  const record = recordResult.record;
-  const runtime = await runtimeState(options);
-  if (runtime.kind === "refused") return runtime.result;
-  const occupancy = record === null
-    ? exactPartialHousekeepRow(runtime.state, options.slug)
-    : exactHousekeepRow(runtime.state, record);
-  if (occupancy.kind === "untrusted") {
-    return refusal(
-      untrustedRefusalReason(occupancy.reasons),
-      `Housekeeping occupancy is not trusted: ${occupancy.reasons.join(", ")}.`,
-    );
-  }
-  if (occupancy.kind === "absent") {
-    if (record === null) {
-      return success("housekeep-close", "idempotent", null, null, "Housekeeping occupancy is already closed.");
-    }
-    if (record.state !== "awaiting-merge") return refusal("checkout-missing", "Exact housekeeping occupancy is absent.");
-    const offer = await nextOffer(options, currentWorkUnitPath(runtime.state));
-    if (offer.kind === "refused") return refusal("identity-conflict", offer.reason);
-    return success(
-      "housekeep-close", "idempotent", record, null, "Housekeeping change request is awaiting merge.", offer.nextOffer,
-    );
-  }
-  const row = occupancy.value.row;
-  const checkoutPath = occupancy.value.checkoutPath;
-  const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
-  if (dirty !== "") return refusal("preservation-unproven", "Housekeeping checkout has uncommitted changes.");
-  const head = (await options.io.exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-  if (record?.state === "awaiting-merge") {
-    if (head !== record.changeRequest.headSha) {
-      return refusal("preservation-unproven", "Housekeeping head moved after its review tail was preserved.");
-    }
-    const offer = await nextOffer(options, row.role?.parentCheckoutPath ?? null);
-    if (offer.kind === "refused") return refusal("identity-conflict", offer.reason);
-    const popped = await cleanupOccupancy(
-      options, runtime.state, row, record, runtime.anchor, runtime.inspector, head,
-    );
-    if (popped.outcome === "refused" || popped.outcome === "error") return popped;
-    return success(
-      "housekeep-close", "applied", record, popped.restoredParent,
-      "Housekeeping change request is awaiting merge; local occupancy closed.", offer.nextOffer,
-    );
-  }
-  const pinned = await pinGroomOpenedBaseHead(options.io.exec, { remote: "origin", baseRef: options.base });
-  if (pinned.kind !== "pinned") {
-    return refusal("preservation-unproven", pinned.kind === "refused" ? pinned.reason : pinned.message);
-  }
-
-  if (record === null) {
-    if (head !== pinned.head) {
-      return refusal("preservation-unproven", "Partial housekeeping HEAD is not the freshly pushed base head.");
-    }
-    const offer = await nextOffer(options, row.role?.parentCheckoutPath ?? null);
-    if (offer.kind === "refused") return refusal("identity-conflict", offer.reason);
-    const popped = await cleanupOccupancy(options, runtime.state, row, null, runtime.anchor, runtime.inspector, head);
-    if (popped.outcome === "refused" || popped.outcome === "error") return popped;
-    return success(
-      "housekeep-close", "applied", null, popped.restoredParent, "Partial housekeeping sweep completed.", offer.nextOffer,
-    );
-  }
-
-  const base = (await options.io.exec("git", ["merge-base", pinned.head, head], { cwd: checkoutPath })).stdout.trim();
-  const changed = await changedPaths(options, base, head, checkoutPath);
-  const policy = classifyHousekeepChangedPaths(changed);
-  if (policy.kind === "refused") {
-    return refusal("identity-conflict", `Housekeeping diff contains non-routing paths: ${policy.paths.join(", ")}`);
-  }
-  const observed = await observeExactChangeRequest(options.io.exec, record.branch, options.base, head);
-  if (observed.kind !== "observed") return refusal("change-request-unverifiable", observed.message);
-  const offer = await nextOffer(options, row.role?.parentCheckoutPath ?? null);
-  if (offer.kind === "refused") return refusal("identity-conflict", offer.reason);
-  const persisted = await transactTransientIdentities(identityIO(options), {
-    remote: "origin", message: `arc: close housekeep ${options.slug}`,
-    transform: housekeepAwaitMergeTransform({
-      previous: record, changeRequest: observed.changeRequest, updatedAt: nextTimestamp(record.updatedAt),
-    }),
+  const locus = createHousekeepRuntimeLocus(options);
+  return closeHousekeep({
+    slug: options.slug,
+    dependencies: {
+      ...evidenceDependencies(options, locus),
+      mergeBase: async (baseHead, head, checkoutPath) => (
+        await options.io.exec("git", ["merge-base", baseHead, head], { cwd: checkoutPath })
+      ).stdout.trim(),
+      changedPaths: async (from, to, checkoutPath) => {
+        const output = (await options.io.exec("git", ["diff", "--name-only", "-z", from, to], {
+          cwd: checkoutPath,
+        })).stdout;
+        return output.split("\0").filter((path) => path !== "");
+      },
+      observeChangeRequest: async (record, head) => {
+        const observed = await observeExactChangeRequest(options.io.exec, record.branch, options.base, head);
+        return observed.kind === "observed"
+          ? { kind: "observed", changeRequest: observed.changeRequest }
+          : observed;
+      },
+      persistAwaitingMerge: async (record, changeRequest) => identityOutcome(
+        await transactTransientIdentities(identityIO(options), {
+          remote: "origin", message: `arc: close housekeep ${options.slug}`,
+          transform: housekeepAwaitMergeTransform({
+            previous: record, changeRequest, updatedAt: nextTimestamp(record.updatedAt),
+          }),
+        }),
+      ),
+      resolveNextOffer: (parentCheckoutPath) => nextOffer(options, parentCheckoutPath),
+    },
   });
-  if (persisted.kind === "error") return failure(`identity-${persisted.stage}`, persisted.message);
-  if (persisted.kind === "refused") return refusal("identity-conflict", persisted.reason);
-  const popped = await cleanupOccupancy(
-    options, runtime.state, row, persisted.value, runtime.anchor, runtime.inspector, head,
-  );
-  if (popped.outcome === "refused" || popped.outcome === "error") return popped;
-  return success(
-    "housekeep-close", "applied", persisted.value, popped.restoredParent,
-    "Housekeeping change request preserved; routing occupancy closed.", offer.nextOffer,
-  );
 }
 
 /** Finalize a merged tail or explicitly abandon an open/closed-unmerged generation. */
 export async function settleHousekeepAtRuntime(
   options: HousekeepSettleRuntimeOptions,
 ): Promise<LocusMutationResultV1> {
-  const operation = options.action === "finalize" ? "housekeep-close" : "housekeep-abandon";
-  const recordResult = await readIdentity(options);
-  if (recordResult.kind === "error") return failure("identity", recordResult.message, operation);
-  const record = recordResult.record;
-  if (record === null) {
-    if (options.action !== "abandon") {
-      return success(operation, "idempotent", null, null, "Housekeeping generation is already retired.");
-    }
-    return abandonPartialHousekeep(options);
-  }
+  const locus = createHousekeepRuntimeLocus(options);
+  // Retirement authorizes against the exact host truth the tail read proved, so the evidence is
+  // held from that read rather than re-fetched under a host that may have moved.
+  let tail: ChangeRequestLifecycleEvidence | null = null;
 
-  let expectedHead: string | null;
-  let retirementTransform: ReturnType<typeof transientTailRetirementTransform> | null = null;
-  if (record.state === "awaiting-merge") {
-    const configured = await resolveChangeRequestLifecycleConfiguration(options.io.exec, options.base);
-    if (configured === null) return refusal("change-request-unverifiable", "Change-request coordinates are unavailable.", operation);
-    const lifecycle = await createGhChangeRequestLifecyclePort(options.io.exec).read(configured, record.changeRequest);
-    const required = options.action === "finalize" ? "merged" : "closed-unmerged";
-    if (lifecycle.kind !== required) {
-      return refusal("change-request-unverifiable", `Housekeeping tail is '${lifecycle.kind}', not '${required}'.`, operation);
-    }
-    expectedHead = record.changeRequest.headSha;
-    retirementTransform = transientTailRetirementTransform({ previous: record, action: options.action, lifecycle });
-  } else {
-    if (options.action !== "abandon") {
-      return refusal("change-request-unverifiable", "Open housekeeping has no merged tail to finalize.", operation);
-    }
-    const generation = await readExactBranchGeneration(options.io.exec, {
-      branch: record.branch, subject: "housekeeping", temporaryRefNamespace: "refs/arc/tmp/housekeep-abandon",
-    });
-    if (generation.kind === "unproven") return refusal("preservation-unproven", generation.message, operation);
-    expectedHead = generation.kind === "exact" ? generation.head : null;
-  }
-
-  const runtime = await runtimeState(options);
-  if (runtime.kind === "refused") return createLocusMutationResult({ ...runtime.result, operation });
-  const occupancy = exactHousekeepRow(runtime.state, record);
-  if (occupancy.kind === "untrusted") {
-    return refusal(
-      untrustedRefusalReason(occupancy.reasons),
-      `Housekeeping occupancy is not trusted: ${occupancy.reasons.join(", ")}.`,
-      operation,
-    );
-  }
-  const mismatch = selectedGenerationMismatch(options.selected, occupancy.kind === "absent"
-    ? null
-    : { recordId: occupancy.value.row.recordId, leaseId: occupancy.value.row.lease?.leaseId ?? null });
-  if (mismatch !== null) return refusal("lease-generation-mismatch", mismatch, operation);
-  if (occupancy.kind === "trusted") {
-    if (expectedHead === null) {
-      return refusal(
-        "preservation-unproven", "Housekeeping occupancy remains after its branch generation was deleted.", operation,
-      );
-    }
-    const { row, checkoutPath } = occupancy.value;
-    const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
-    const actual = (await options.io.exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-    if (dirty !== "" || actual !== expectedHead) {
-      return refusal("preservation-unproven", "Housekeeping checkout is dirty or moved from its exact head.", operation);
-    }
-    const cleanup = await cleanupOccupancy(
-      options, runtime.state, row, record, runtime.anchor, runtime.inspector, expectedHead, operation,
-    );
-    if (cleanup.outcome === "refused" || cleanup.outcome === "error") return cleanup;
-  }
-  const pinned = await pinGroomOpenedBaseHead(options.io.exec, { remote: "origin", baseRef: options.base });
-  if (pinned.kind !== "pinned") {
-    return refusal("preservation-unproven", pinned.kind === "refused" ? pinned.reason : pinned.message, operation);
-  }
-  if (expectedHead !== null) {
-    const refs = await tearDownExactBranchGeneration(options.io.exec, {
-      branch: record.branch, expectedHead, subject: "housekeeping",
-      temporaryRefNamespace: "refs/arc/tmp/housekeep-settle",
-    });
-    if (refs.kind === "refused" || refs.kind === "error") {
-      return refusal("preservation-unproven", refs.message, operation);
-    }
-  }
-  const retired = await transactTransientIdentities(identityIO(options), {
-    remote: "origin", message: `arc: ${options.action} housekeep ${options.slug}`,
-    transform: retirementTransform ?? exactRetirement(record),
+  return settleHousekeep({
+    slug: options.slug,
+    action: options.action,
+    ...(options.selected === undefined ? {} : { selected: options.selected }),
+    dependencies: {
+      ...evidenceDependencies(options, locus),
+      readTail: async (record) => {
+        const configured = await resolveChangeRequestLifecycleConfiguration(options.io.exec, options.base);
+        if (configured === null) {
+          return { kind: "unavailable", message: "Change-request coordinates are unavailable." };
+        }
+        tail = await createGhChangeRequestLifecyclePort(options.io.exec).read(configured, record.changeRequest);
+        return { kind: "read", truth: tail.kind };
+      },
+      readBranchGeneration: (record) => readExactBranchGeneration(options.io.exec, {
+        branch: record.branch, subject: "housekeeping", temporaryRefNamespace: "refs/arc/tmp/housekeep-abandon",
+      }),
+      tearDownBranch: (record, expectedHead) => tearDownExactBranchGeneration(options.io.exec, {
+        branch: record.branch, expectedHead, subject: "housekeeping",
+        temporaryRefNamespace: "refs/arc/tmp/housekeep-settle",
+      }),
+      retire: async (retirement) => {
+        const lifecycle = tail;
+        if (retirement.kind === "merged-tail" && lifecycle === null) {
+          return { kind: "error", stage: "transform", message: "Housekeeping tail evidence is unavailable." };
+        }
+        return identityOutcome(await transactTransientIdentities(identityIO(options), {
+          remote: "origin", message: `arc: ${options.action} housekeep ${options.slug}`,
+          transform: retirement.kind === "merged-tail" && lifecycle !== null
+            ? transientTailRetirementTransform({
+              previous: retirement.record, action: options.action, lifecycle,
+            })
+            : exactRetirement(retirement.record),
+        }));
+      },
+    },
   });
-  if (retired.kind === "error") return failure(`identity-${retired.stage}`, retired.message, operation);
-  if (retired.kind === "refused") return refusal("identity-conflict", retired.reason, operation);
-  return success(
-    operation, "applied", null, null,
-    options.action === "finalize" ? "Merged housekeeping tail finalized." : "Housekeeping generation abandoned.",
-  );
 }
 
-async function abandonPartialHousekeep(
-  options: HousekeepSettleRuntimeOptions,
-): Promise<LocusMutationResultV1> {
-  const runtime = await runtimeState(options);
-  if (runtime.kind === "refused") return createLocusMutationResult({ ...runtime.result, operation: "housekeep-abandon" });
-  const occupancy = exactPartialHousekeepRow(runtime.state, options.slug);
-  if (occupancy.kind === "untrusted") {
-    return refusal(
-      untrustedRefusalReason(occupancy.reasons),
-      `Partial housekeeping occupancy is not trusted: ${occupancy.reasons.join(", ")}.`,
-      "housekeep-abandon",
-    );
-  }
-  const mismatch = selectedGenerationMismatch(options.selected, occupancy.kind === "absent"
-    ? null
-    : { recordId: occupancy.value.row.recordId, leaseId: occupancy.value.row.lease?.leaseId ?? null });
-  if (mismatch !== null) return refusal("lease-generation-mismatch", mismatch, "housekeep-abandon");
-  if (occupancy.kind === "absent") {
-    return success("housekeep-abandon", "idempotent", null, null, "Partial housekeeping generation is already retired.");
-  }
-  const { row, checkoutPath } = occupancy.value;
-  const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
-  const head = (await options.io.exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
-  const pinned = await pinGroomOpenedBaseHead(options.io.exec, { remote: "origin", baseRef: options.base });
-  if (dirty !== "" || pinned.kind !== "pinned" || head !== pinned.head) {
-    return refusal(
-      "preservation-unproven", "Partial housekeeping checkout is dirty or not at the freshly fetched base head.",
-      "housekeep-abandon",
-    );
-  }
-  const cleanup = await cleanupOccupancy(
-    options, runtime.state, row, null, runtime.anchor, runtime.inspector, head, "housekeep-abandon",
-  );
-  if (cleanup.outcome === "refused" || cleanup.outcome === "error") return cleanup;
-  return success("housekeep-abandon", "applied", null, cleanup.restoredParent, "Partial housekeeping sweep abandoned.");
+/** The evidence seams both housekeeping lifecycle verbs read the same way. */
+function evidenceDependencies(
+  options: HousekeepLifecycleRuntimeOptions,
+  locus: HousekeepRuntimeLocus,
+): HousekeepEvidenceDependencies {
+  return {
+    readIdentity: () => readIdentity(options),
+    readState: () => locus.read(),
+    readCheckout: async (checkoutPath) => ({
+      dirty: (await options.io.exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout !== "",
+      head: (await options.io.exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim(),
+    }),
+    pinBaseHead: () => pinGroomOpenedBaseHead(options.io.exec, { remote: "origin", baseRef: options.base }),
+    cleanupOccupancy: (target) => locus.cleanupOccupancy(target),
+  };
 }
 
-async function readIdentity(options: HousekeepLifecycleRuntimeOptions): Promise<
-  { kind: "ok"; record: HousekeepIdentityRecord | null } | { kind: "error"; message: string }
-> {
+/**
+ * Acquire the session anchor and roster once, on first use.
+ *
+ * The anchor is the same one occupancy cleanup pops under, so both seams share it rather than
+ * proving session identity twice against a state that could move between them.
+ */
+function createHousekeepRuntimeLocus(options: HousekeepLifecycleRuntimeOptions): HousekeepRuntimeLocus {
+  let established: Promise<
+    | { kind: "established"; anchor: LocusProcessAnchor; inspector: ReturnType<typeof createPlatformProcessInspector>; state: LocusStateV1 }
+    | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  > | null = null;
+
+  const establish = async () => {
+    const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
+    if (anchor.kind !== "process") {
+      return { kind: "refused" as const, reason: "lease-unknown" as const, message: anchor.reason };
+    }
+    const inspector = createPlatformProcessInspector();
+    return {
+      kind: "established" as const,
+      anchor,
+      inspector,
+      state: await readHousekeepState(options, anchor, inspector),
+    };
+  };
+
+  const resolve = () => (established ??= establish());
+
+  return {
+    read: async () => {
+      const resolved = await resolve();
+      return resolved.kind === "established" ? { kind: "read", state: resolved.state } : resolved;
+    },
+    cleanupOccupancy: async (target) => {
+      const resolved = await resolve();
+      if (resolved.kind !== "established") {
+        return createLocusMutationResult({
+          outcome: "refused", operation: target.operation, reason: resolved.reason,
+          recommendedPromptText: resolved.message,
+        });
+      }
+      return cleanupOccupancy(
+        options, target.state, target.row, target.record,
+        resolved.anchor, resolved.inspector, target.expectedHead, target.operation,
+      );
+    },
+  };
+}
+
+async function readIdentity(options: HousekeepLifecycleRuntimeOptions): Promise<HousekeepIdentityRead> {
   const basis = await transactTransientIdentities(identityIO(options), {
     remote: "origin", message: `arc: reconcile housekeep ${options.slug}`,
     transform: (records) => ({ kind: "idempotent", value: records.get(options.slug) ?? null }),
@@ -297,15 +244,12 @@ async function readIdentity(options: HousekeepLifecycleRuntimeOptions): Promise<
   return { kind: "ok", record: value };
 }
 
-async function runtimeState(options: HousekeepLifecycleRuntimeOptions): Promise<
-  | { kind: "ready"; state: LocusStateV1; anchor: LocusProcessAnchor; inspector: ReturnType<typeof createPlatformProcessInspector> }
-  | { kind: "refused"; result: LocusMutationResultV1 }
-> {
-  const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
-  if (anchor.kind !== "process") return { kind: "refused", result: refusal("lease-unknown", anchor.reason) };
-  const inspector = createPlatformProcessInspector();
-  const state = await readHousekeepState(options, anchor, inspector);
-  return { kind: "ready", state, anchor, inspector };
+/** Map one identity transaction onto the composition's ready / refused / error channel. */
+function identityOutcome<T>(result: IdentityTransactionOutcome<T>): HousekeepIdentityOutcome<T> {
+  if (result.kind === "applied" || result.kind === "idempotent") return { kind: "ready", value: result.value };
+  return result.kind === "refused"
+    ? { kind: "refused", reason: result.reason }
+    : { kind: "error", stage: result.stage, message: result.message };
 }
 
 async function cleanupOccupancy(
@@ -316,7 +260,7 @@ async function cleanupOccupancy(
   anchor: LocusProcessAnchor,
   inspector: ReturnType<typeof createPlatformProcessInspector>,
   expectedHead: string,
-  operation: "housekeep-close" | "housekeep-abandon" = "housekeep-close",
+  operation: HousekeepOperation,
 ): Promise<LocusMutationResultV1> {
   const { checkoutPath, recordId } = row;
   const leaseId = row.lease?.leaseId;
@@ -363,16 +307,6 @@ async function cleanupOccupancy(
   }
 }
 
-async function changedPaths(
-  options: HousekeepLifecycleRuntimeOptions,
-  from: string,
-  to: string,
-  cwd: string,
-): Promise<string[]> {
-  const output = (await options.io.exec("git", ["diff", "--name-only", "-z", from, to], { cwd })).stdout;
-  return output.split("\0").filter((path) => path !== "");
-}
-
 async function nextOffer(
   options: HousekeepLifecycleRuntimeOptions,
   parentCheckoutPath: string | null,
@@ -385,15 +319,9 @@ async function nextOffer(
   return transaction.result;
 }
 
-function currentWorkUnitPath(state: LocusStateV1): string | null {
-  if (state.current.kind !== "resolved") return null;
-  const activeRecordId = state.current.activeRecordId;
-  return state.roster.rows.find((row) => row.recordId === activeRecordId
-    && row.role?.kind === "work-unit")?.checkoutPath ?? null;
-}
-
-function exactRetirement(record: HousekeepIdentityRecord) {
-  return (records: ReadonlyMap<string, import("../errand/identity-record.js").TransientIdentityRecord>) => {
+/** Retire a routing generation only while it still matches the one settlement decided on. */
+function exactRetirement(record: HousekeepIdentityRecord): IdentityTransform<null> {
+  return (records) => {
     const actual = records.get(record.slug);
     if (actual === undefined) return { kind: "idempotent" as const, value: null };
     if (serializeTransientIdentityRecord(actual) !== serializeTransientIdentityRecord(record)) {
@@ -413,37 +341,10 @@ function nextTimestamp(previous: string): string {
   return new Date(Math.max(Date.now(), Date.parse(previous) + 1)).toISOString();
 }
 
-function success(
-  operation: "housekeep-close" | "housekeep-abandon",
-  outcome: "applied" | "idempotent",
-  record: HousekeepIdentityRecord | null,
-  restoredParent: { recordId: string; checkoutPath: string } | null,
-  text: string,
-  nextOffer: ExecutionNextOffer = null,
-): LocusMutationResultV1 {
-  return createLocusMutationResult({
-    outcome, operation, allocation: null, recordId: null, leaseId: null,
-    activeLocusPath: null, sessionHomePath: restoredParent?.checkoutPath ?? null,
-    identity: record === null ? null : projectLocusIdentity(record), originEntry: null,
-    restoredParent, nextOffer, recommendedPromptText: text,
-  });
-}
-
 function refusal(
   reason: LocusRefusalReason,
   text: string,
-  operation: "housekeep-close" | "housekeep-abandon" = "housekeep-close",
+  operation: HousekeepOperation = "housekeep-close",
 ): LocusMutationResultV1 {
   return createLocusMutationResult({ outcome: "refused", operation, reason, recommendedPromptText: text });
-}
-
-function failure(
-  suffix: string,
-  message: string,
-  operation: "housekeep-close" | "housekeep-abandon" = "housekeep-close",
-): LocusMutationResultV1 {
-  return createLocusMutationResult({
-    outcome: "error", operation, error: { code: `locus.${operation}.${suffix}`, message },
-    recommendedPromptText: "Inspect the retained housekeeping identity and session locus before retrying.",
-  });
 }
