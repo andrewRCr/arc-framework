@@ -58,7 +58,13 @@ describe("ARC config field catalog", () => {
 
     for (const [key, minimum] of Object.entries(minima)) {
       const schema = field(key).schema;
-      for (const value of [String(minimum), `000${String(minimum)}`, String(Number.MAX_SAFE_INTEGER)]) {
+      for (const value of [
+        String(minimum),
+        `000${String(minimum)}`,
+        "9000000000000000",
+        "9007199254740989",
+        String(Number.MAX_SAFE_INTEGER),
+      ]) {
         expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(true);
       }
       for (const value of ["", "+1", "-1", "1.0", "0x10", String(minimum - 1), "9007199254740992"]) {
@@ -70,7 +76,16 @@ describe("ARC config field catalog", () => {
   it("accepts exact unsigned safe-integer domains, including all-zero strings", () => {
     for (const key of ["review.chunking_threshold_lines", "review.chunking_threshold_files"]) {
       const schema = field(key).schema;
-      for (const value of ["0", "00", "0000", "1", "0001", String(Number.MAX_SAFE_INTEGER)]) {
+      for (const value of [
+        "0",
+        "00",
+        "0000",
+        "1",
+        "0001",
+        "9000000000000000",
+        "9007199254740989",
+        String(Number.MAX_SAFE_INTEGER),
+      ]) {
         expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(true);
       }
       for (const value of ["", "+0", "-0", "1.0", "0x10", "9007199254740992"]) {

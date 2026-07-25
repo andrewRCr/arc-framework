@@ -99,9 +99,16 @@ function stringField<const Key extends string, Schema extends z.ZodType<string>>
   } satisfies ArcConfigFieldDescriptor<Key>;
 }
 
-const POSITIVE_SAFE_INTEGER_PATTERN = /^0*(?:[1-9]\d{0,14}|[1-8]\d{15}|900719925474099[01])$/u;
-const SAFE_INTEGER_AT_LEAST_TEN_PATTERN = /^0*(?:[1-9]\d{1,14}|[1-8]\d{15}|900719925474099[01])$/u;
-const UNSIGNED_SAFE_INTEGER_PATTERN = /^0*(?:0|[1-9]\d{0,14}|[1-8]\d{15}|900719925474099[01])$/u;
+const UNSIGNED_DECIMAL_PATTERN = /^\d+$/u;
+
+function safeIntegerStringSchema(minimum: number) {
+  return z.string()
+    .regex(UNSIGNED_DECIMAL_PATTERN)
+    .refine((value) => {
+      const numeric = Number(value);
+      return Number.isSafeInteger(numeric) && numeric >= minimum;
+    });
+}
 
 function positiveSafeIntegerField<const Key extends string>(
   key: Key,
@@ -110,9 +117,7 @@ function positiveSafeIntegerField<const Key extends string>(
 ) {
   return {
     key,
-    schema: z.string().regex(
-      minimum === 1 ? POSITIVE_SAFE_INTEGER_PATTERN : SAFE_INTEGER_AT_LEAST_TEN_PATTERN,
-    ),
+    schema: safeIntegerStringSchema(minimum),
     defaultValue,
     quotedEmpty: "invalid",
     policy: { kind: "positive-safe-integer", minimum },
@@ -122,7 +127,7 @@ function positiveSafeIntegerField<const Key extends string>(
 function unsignedSafeIntegerField<const Key extends string>(key: Key, defaultValue: string) {
   return {
     key,
-    schema: z.string().regex(UNSIGNED_SAFE_INTEGER_PATTERN),
+    schema: safeIntegerStringSchema(0),
     defaultValue,
     quotedEmpty: "invalid",
     policy: { kind: "unsigned-safe-integer" },
