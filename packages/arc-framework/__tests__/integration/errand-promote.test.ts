@@ -136,6 +136,31 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
       .toMatchObject({ wuName: "growth", createdFor: { kind: "work-unit", name: "growth" } });
   });
 
+  it("refuses recovery when the meta carries index state the promotion never produced", async () => {
+    const exec = makeGitExec(primary);
+    const execInput = makeGitExecInput(primary);
+    const anchor = await currentAnchor();
+    await exec("git", ["switch", "-c", "chore/growing"]);
+    await makeCommit(primary, "errand work");
+    const identity = ordinaryRecord();
+    await writeIdentity(exec, execInput, identity);
+    const root = await requireRoot(exec);
+    await writeRecord(root, primary, errandLocusRecord(primary, identity, anchor, null));
+
+    const failingExec: typeof exec = (command, args, options) => args[0] === "commit-tree"
+      ? Promise.reject(new Error("injected identity retirement failure"))
+      : exec(command, args, options);
+    const failed = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, failingExec, execInput, root, anchor));
+    expect(failed).toMatchObject({ outcome: "error" });
+
+    // The promotion leaves its meta untracked; staging it is the user's own index state.
+    await exec("git", ["add", ".arc/active/meta-growth.md"]);
+    const result = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "promotion-source-invalid" });
+    expect(await readIdentity(exec, execInput)).toMatchObject({ slug: "growing", state: "open" });
+  });
+
   it("refuses an unrelated work unit that merely shares the requested name", async () => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);

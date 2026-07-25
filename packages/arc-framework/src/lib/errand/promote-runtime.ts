@@ -351,10 +351,18 @@ async function inspectCheckout(
     const absoluteMeta = join(checkoutPath, metaPath);
     const meta = await readOptionalFile(absoluteMeta);
     const status = (await exec("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: checkoutPath })).stdout;
-    const allowedDirty = branch === targetBranch && meta === expectedMeta
-      ? status.split(/\r?\n/u).filter(Boolean).every((line) => line.slice(3) === metaPath)
-      : status === "";
-    if (!allowedDirty) return refused("promotion-source-invalid", "Promotion checkout has uncommitted changes.");
+    const entries = status.split(/\r?\n/u).filter(Boolean);
+    // Only the promotion's own write is recoverable dirt, and it produces exactly one untracked
+    // meta. Any other index or worktree state on that path is the user's, not the transaction's.
+    const recoverable = branch === targetBranch && meta === expectedMeta;
+    const allowedDirty = recoverable
+      ? entries.every((entry) => entry === `?? ${metaPath}`)
+      : entries.length === 0;
+    if (!allowedDirty) {
+      return refused("promotion-source-invalid", recoverable
+        ? "Promotion checkout carries changes beyond its own untracked meta."
+        : "Promotion checkout has uncommitted changes.");
+    }
     return { kind: "ready", branch, head, metaPresent: meta !== null, metaMatches: meta === expectedMeta };
   } catch (error) {
     return { kind: "error", message: error instanceof Error ? error.message : String(error) };

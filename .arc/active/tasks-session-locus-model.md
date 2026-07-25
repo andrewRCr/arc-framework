@@ -1292,7 +1292,7 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   the design said what a present value means and nothing about a missing one, the implementation supplied an
   answer and a test recorded it.
 
-### `[ ]` **7.E.c Prove exact authority before destructive dispatch**
+### `[x]` **7.E.c Prove exact authority before destructive dispatch**
 
 - _Findings:_ L2-F1, L4-F1, L4-F3, S2-F2, E2-F2, E3-F1, E3-F2, E4-F1, E4-F3
 
@@ -1302,19 +1302,6 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   settlement and leave validate the locked role and lease before mutating, close proves occupancy absent before
   finalizing, promotion recovery binds to its source generation, and dirty-state recovery accepts only the exact
   transaction-produced state rather than arbitrary user index and worktree content.
-
-- _Shape:_ Subtasks are scoped to the **review's own leaf contexts** (`L2`, `L4`, `S2`, `E2`, `E3`, `E4`) rather
-  than one per finding, because that partition is the re-review unit — a fix increment's review is then a bounded
-  delta against that leaf's preserved report. Where a leaf carries more than one finding they are not assumed to
-  share a fix; each such leaf decomposes again at its own entry, as `7.E.b.v` did.
-
-- _Note:_ Two boundaries to hold while executing. **`L2-F1` must not grow into the carved contract** — its
-  correction boundary reads "carry an exact generation capability into every subject driver," which is the
-  systematic capability contract deliberately carved to a follow-on unit with `L4-F2`, `L4-F4`, `A-F4`, `E4-F2`,
-  `W1-F5`. Fix the abandon dispatch path here; do not author the general contract. **`L4-F3`'s evidence is a bare
-  reviewer claim** ("the reviewer claimed lock-live and lock-unknown proceed through spawned rollback") with no
-  cited mechanism, unlike every other finding in this task — verify against source before implementing; it may
-  not reproduce, as `S2S1-002` did not.
 
     - `[x]` **7.E.c.i Carry the selected generation into abandon dispatch** — L2-F1
         - `resolveLocusGeneration` now dispatches a `LocusResolveDispatch` carrying the record and lease it just
@@ -1400,14 +1387,7 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           occupancy mine — was already answered by the reader's `current` projection, which resolves against the
           entering anchor. Reusing that projection kept close free of both a lock and a second ownership rule.
 
-    - `[ ]` **7.E.c.vi Bind promotion recovery to its source generation** — E4-F1, E4-F3
-
-        - _Both findings verified against source 2026-07-25; they do not share a fix, so the leaf decomposes per
-          this task's `_Shape:_`._ The harm in E4-F1 needs the work-unit arm to be reachable at all: `exactTarget`
-          accepts any work-unit row named `<name>` whose lease is live, `classifyTargetRole` then passes because
-          that lease is this session's own, and a primary checkout runs no marker check — so promoting `--name foo`
-          from a session holding an unrelated work unit `foo` with no meta writes the promotion meta into that
-          checkout and retires the Errand identity against work that was never promoted.
+    - `[x]` **7.E.c.vi Bind promotion recovery to its source generation** — E4-F1, E4-F3
 
         - `[x]` **7.E.c.vi.1 Require promotion evidence before a work-unit row serves as the target** — E4-F1
             - `exactTarget` now reports which arm matched, and the work-unit arm must present the evidence the
@@ -1423,10 +1403,25 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
             - Deliberately not provenance-minting: recording the source slug or claim on the promoted role or
               worktree marker is a durable-shape change and belongs to the carved capability contract, not here.
 
-        - `[ ]` **7.E.c.vi.2 Accept only the transaction-produced meta state as recoverable dirt** — E4-F3
-            - `inspectCheckout` compares `line.slice(3)` against the meta path and ignores the XY columns, so a
-              staged, modified, or conflicted meta reads as the promotion's own untracked write. Require the exact
-              status the transaction produces; every other state is user content the recovery must refuse.
+- _Outcome:_ Nine findings, one cause: every destructive path read its authority from state gathered before the
+  step that authorizes it, then proved that authority afterwards — or never. The proof moved ahead of the
+  mutation in each case, and what counts as proof differs by path rather than by a single mechanism: leave and
+  partial settlement revalidate their own record under their own lock, close reads the reader's resolved locus
+  because the roster already answers whose occupancy it is, cleanup consults the occupancy veto it shares with
+  the guarded remover, abandon carries its selected generation into dispatch, and promotion requires the evidence
+  its own transaction writes. The systematic version of this — one exact-generation capability threaded through
+  every subject driver — stays carved out; each path here proves authority with what it already holds. Two
+  findings did not survive verification (`L4-F3` did not reproduce; `E3-F2`'s literal reading contradicted
+  shipped in-place close and was narrowed to foreign occupancy), which is why the disposition set matters as much
+  as the fix set.
+
+        - `[x]` **7.E.c.vi.2 Accept only the transaction-produced meta state as recoverable dirt** — E4-F3
+            - `inspectCheckout` compared `line.slice(3)` against the meta path and ignored the XY columns, so any
+              staged, modified, or conflicted state on that path read as the promotion's own write. The allowance
+              is now the exact entry the transaction produces — one untracked meta — and the two refusals carry
+              distinct messages, since "beyond its own untracked meta" and "has uncommitted changes" are different
+              conditions. Reproduced at the integration tier by staging the meta between a failed retirement and
+              its recovery: the recovery took the user's index state as its own and retired the identity.
 
 ### `[ ]` **7.E.d Make post-mutation failure recoverable**
 
