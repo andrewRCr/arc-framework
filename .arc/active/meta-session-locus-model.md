@@ -12,12 +12,12 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.E.c.iv — Prove ownership before partial settlement mutates the inbox
-- **Next Task:** Task 7.E.c.v.1 — Prove the locked generation before leave moves a checkout (line ~1375)
+- **Last Completed:** Task 7.E.c — Prove exact authority before destructive dispatch (all six subtasks)
+- **Next Task:** Task 7.E.d — Make post-mutation failure recoverable (line ~1426)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 7.E.c.v.1 — validate the exact generation immediately after the record lock in
-  `leave-runtime.ts`, before `restorePrimaryCheckout` switches the primary or the spawned arm removes the worktree
+- **Next Action:** Enter Task 7.E.d — verify its eight findings against source, then decompose into leaf-scoped
+  subtasks per the phase preamble before implementing any of them
 
 - **PR URL:** [none]
 - **Completed:** [none]
