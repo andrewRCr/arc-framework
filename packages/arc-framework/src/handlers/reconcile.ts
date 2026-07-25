@@ -10,7 +10,7 @@ import { resolve } from "node:path";
 import * as p from "@clack/prompts";
 
 import { createUserIOContext } from "../lib/io-context.js";
-import { getCurrentBranch } from "../lib/git/exec.js";
+import { captureGitIndexState, getCurrentBranch } from "../lib/git/exec.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
 import {
@@ -73,6 +73,7 @@ export async function handleWuReconcile(
     stagePaths: async (paths) => {
       if (paths.length > 0) await exec("git", ["add", "--", ...paths]);
     },
+    captureIndexState: () => captureGitIndexState(exec, cwd),
   }, {
     slug: target.slug,
     metaPath: target.metaPath,

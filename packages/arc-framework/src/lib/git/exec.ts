@@ -50,6 +50,29 @@ export type GitExec = (
 export type GitExecInput = (args: string[], input: string) => Promise<string>;
 
 /**
+ * Capture the exact current Git index and return a bounded restore operation.
+ *
+ * The snapshot is materialized as a tree object before the caller mutates the
+ * index. Restoring it replaces only index state; working-tree bytes are owned by
+ * the caller's corresponding filesystem rollback.
+ *
+ * @param exec - Injectable command executor
+ * @param cwd - Repository root whose index should be captured
+ * @returns A restore operation bound to the captured index tree
+ */
+export async function captureGitIndexState(
+  exec: GitExec,
+  cwd: string,
+): Promise<() => Promise<void>> {
+  const { stdout } = await exec("git", ["write-tree"], { cwd });
+  const tree = stdout.trim();
+  if (tree === "") throw new Error("git write-tree returned an empty index snapshot");
+  return async () => {
+    await exec("git", ["read-tree", tree], { cwd });
+  };
+}
+
+/**
  * Checks whether git is available on PATH.
  *
  * @param exec - Injectable command executor

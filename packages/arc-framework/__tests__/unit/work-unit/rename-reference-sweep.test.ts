@@ -90,6 +90,29 @@ describe("sweepRenameReferences", () => {
     );
   });
 
+  it("rewrites every exact basename-bound plan resume anchor", async () => {
+    const path = ".arc/backlog/planned/sample/draft-sample.md";
+    const files = new Map([[
+      path,
+      "# Draft: sample\n\n`--plan sample`\n\nResume later with `--plan sample`.\n",
+    ]]);
+
+    await sweepRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+    }, {
+      listFiles: async () => ["backlog/planned/sample/draft-sample.md"],
+      readFile: async (candidate) => files.get(candidate) ?? "",
+      writeFile: async (candidate, content) => { files.set(candidate, content); },
+    });
+
+    expect(files.get(path)).toBe(
+      "# Draft: renamed-sample\n\n`--plan renamed-sample`\n\n"
+      + "Resume later with `--plan renamed-sample`.\n",
+    );
+  });
+
   it.each([
     ["later identity H1", "draft-sample.md", "# Other\n\n# Draft: sample\n"],
     ["mismatched basename", "draft-other.md", "# Draft: sample\n"],

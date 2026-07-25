@@ -145,6 +145,7 @@ export interface CurrentWuReconcileContext {
   readFile: (path: string) => Promise<string>;
   writeFile: (path: string, content: string) => Promise<void>;
   stagePaths: (paths: readonly string[]) => Promise<void>;
+  captureIndexState: () => Promise<() => Promise<void>>;
 }
 
 /** Read-only dependencies for producing one exact current-WU reconcile plan. */
@@ -156,7 +157,7 @@ export type CurrentWuReconcilePrepareContext = Pick<
 /** Mutation dependencies for applying a previously prepared exact plan. */
 export type CurrentWuReconcileApplyContext = Pick<
   CurrentWuReconcileContext,
-  "readFile" | "writeFile" | "stagePaths"
+  "readFile" | "writeFile" | "stagePaths" | "captureIndexState"
 >;
 
 /** Closed public operation result used by CLI and lifecycle callers. */
@@ -258,7 +259,7 @@ export async function planDependencyReconcile(
     after: conflicts.length === 0 ? canonicalEdges(after) : before,
     replacements,
     drops,
-    discharged: canonicalEdges(discharged),
+    discharged: conflicts.length === 0 ? canonicalEdges(discharged) : [],
     live: conflicts.length === 0 ? canonicalEdges(live) : before,
     conflicts,
   };
@@ -462,7 +463,7 @@ export async function prepareCurrentWuReconcile(
  *
  * @param ctx - Read, write, and staging boundaries
  * @param prepared - The exact plan produced before the enclosing ceremony mutated
- * @returns A clean, applied, or stale-content conflict result
+ * @returns A clean, pending-advisory, applied, or stale-content conflict result
  */
 export async function applyPreparedCurrentWuReconcile(
   ctx: CurrentWuReconcileApplyContext,
@@ -475,8 +476,13 @@ export async function applyPreparedCurrentWuReconcile(
       reason: prepared.plan.dependency.conflicts[0]?.reason ?? "invalid-meta",
     };
   }
-  if (prepared.edits.length === 0) return { status: "clean", prepared };
+  if (prepared.edits.length === 0) {
+    return prepared.plan.advisories.length === 0
+      ? { status: "clean", prepared }
+      : { status: "pending", prepared };
+  }
 
+  const originalByPath = new Map<string, string>();
   for (const guard of prepared.guards ?? prepared.edits) {
     let current: string;
     try {
@@ -487,11 +493,51 @@ export async function applyPreparedCurrentWuReconcile(
     if (canonicalDigest(current) !== guard.expectedContentDigest) {
       return { status: "conflict", prepared, reason: "stale-content" };
     }
+    originalByPath.set(guard.path, current);
   }
-  for (const edit of prepared.edits) await ctx.writeFile(edit.path, edit.content);
+
+  const restoreIndexState = await ctx.captureIndexState();
+  const attemptedPaths: string[] = [];
   const stagedPaths = prepared.edits.map((edit) => edit.path);
-  await ctx.stagePaths(stagedPaths);
+  try {
+    for (const edit of prepared.edits) {
+      attemptedPaths.push(edit.path);
+      await ctx.writeFile(edit.path, edit.content);
+    }
+    await ctx.stagePaths(stagedPaths);
+  } catch (error) {
+    const rollbackFailures: string[] = [];
+    for (const path of [...new Set(attemptedPaths)].reverse()) {
+      const original = originalByPath.get(path);
+      if (original === undefined) {
+        rollbackFailures.push(`${path}: original content unavailable`);
+        continue;
+      }
+      try {
+        await ctx.writeFile(path, original);
+      } catch (rollbackError) {
+        rollbackFailures.push(`${path}: ${errorMessage(rollbackError)}`);
+      }
+    }
+    try {
+      await restoreIndexState();
+    } catch (rollbackError) {
+      rollbackFailures.push(`index: ${errorMessage(rollbackError)}`);
+    }
+    if (rollbackFailures.length > 0) {
+      throw new Error(
+        `current-WU reconcile failed: ${errorMessage(error)}. `
+        + `Rollback was incomplete: ${rollbackFailures.join("; ")}.`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
   return { status: "applied", prepared, stagedPaths };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function invalidPrepared(
@@ -593,6 +639,7 @@ export async function dischargeDepEdges(
     readFile: ctx.readMeta,
     writeFile: ctx.writeMeta,
     stagePaths: () => Promise.resolve(),
+    captureIndexState: () => Promise.resolve(() => Promise.resolve()),
   }, { ...op, apply: true });
   return {
     discharged: [...result.prepared.plan.dependency.discharged],

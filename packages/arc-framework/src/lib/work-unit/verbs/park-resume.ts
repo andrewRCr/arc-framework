@@ -699,8 +699,14 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
 
   const advisories = [...outcome.advisories];
   for (const effectCtx of deferredRoadmap) {
-    const advisory = await roadmapHandler?.(effectCtx);
-    if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+    try {
+      const advisory = await roadmapHandler?.(effectCtx);
+      if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+    } catch (error) {
+      advisories.push(
+        `Resume completed, but ROADMAP reconciliation failed: ${error instanceof Error ? error.message : String(error)}.`,
+      );
+    }
   }
   const completedOutcome = advisories.length === outcome.advisories.length
     ? outcome

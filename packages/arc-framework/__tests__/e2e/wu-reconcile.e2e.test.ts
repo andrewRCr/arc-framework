@@ -180,6 +180,33 @@ describe("arc wu reconcile", () => {
     );
   });
 
+  it("keeps advisory-only apply pending and visible in human output", async () => {
+    const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
+    const notesPath = join(repo, ".arc", "active", "notes-dependent.md");
+    await writeFile(metaPath, meta("dependent", "main", "[none]"), "utf8");
+    await writeFile(notesPath, "The origin remains narrative context.\n", "utf8");
+    await git(repo, ["add", "--all"]);
+    await git(repo, ["commit", "-m", "advisory-only dependent"]);
+
+    const json = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
+    expect(json.exitCode).toBe(0);
+    expect(JSON.parse(json.stdout)).toMatchObject({
+      status: "pending",
+      edits: [],
+      stagedPaths: [],
+      advisories: [expect.objectContaining({
+        path: ".arc/active/notes-dependent.md",
+        referenceKind: "narrative",
+        subject: "origin",
+      })],
+    });
+
+    const human = await runArc(["wu", "reconcile", "dependent", "--apply"], repo);
+    expect(human.exitCode).toBe(0);
+    expect(human.stdout + human.stderr).toMatch(/Pending reconcile[\s\S]*1 advisory finding/u);
+    expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
+  });
+
   it("surfaces a pending session reconcile without writing tracked state", async () => {
     const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
     const beforeMeta = await readFile(metaPath, "utf8");

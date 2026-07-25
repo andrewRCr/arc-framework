@@ -297,15 +297,13 @@ export async function runSessionInitStatus(
       ? await safeProbe("currentWuReconcile", () =>
         probes.currentWuReconcile({ slug: activeWuName, metaPath: activePath }))
       : undefined;
-  const userReferenceProbe = probes.userReferenceReconcile;
   const userReferenceReconcile =
     active.isOk()
     && active.value.resolution === "single"
     && activeWuName !== null
     && identity !== null
-    && userReferenceProbe !== undefined
       ? await safeProbe("userReferenceReconcile", () =>
-        userReferenceProbe({ slug: activeWuName }))
+        probes.userReferenceReconcile({ slug: activeWuName }))
       : undefined;
   const notesVerdict = qualifiedUser.isOk() && qualifiedUser.value.notesDrift
     ? resolveCleanArmNotesVerdict({ ...qualifiedUser.value.notesDrift, activeWuName })

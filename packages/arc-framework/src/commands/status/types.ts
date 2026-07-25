@@ -553,7 +553,7 @@ export interface SessionInitProbes extends SessionSharedProbes {
     input: { slug: string; metaPath: string },
   ) => Promise<CurrentWuReconcileSessionResult>;
   /** Inspect permitted current-user surfaces against protection-aware base evidence. */
-  userReferenceReconcile?: (
+  userReferenceReconcile: (
     input: { slug: string },
   ) => Promise<UserReferenceReconcileSessionResult>;
   /**

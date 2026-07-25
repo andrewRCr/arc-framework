@@ -347,6 +347,14 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const cohortDoc = join(repo, ".arc/backlog/planned/mono/cohort-mono.md");
     await writeFile(cohortDoc, "# Cohort: mono\n\nPurpose: split the origin safely.\n");
     await git(repo, ["add", "--", ".arc/backlog/planned/mono/cohort-mono.md"]);
+    const indexLock = join(repo, ".git/index.lock");
+    await writeFile(indexLock, "locked");
+    const interruptedMigration = await runArc(["decompose", "mono", "--finalize", preparedReceiptId], repo);
+    await rm(indexLock);
+    expect(interruptedMigration.exitCode).not.toBe(0);
+    expect(JSON.parse(await readFile(receiptPath, "utf8"))).toMatchObject({ kind: "prepared-decompose" });
+    expect(await pathExists(legacyPath)).toBe(false);
+
     const finalized = await runArc(["decompose", "mono", "--finalize", preparedReceiptId], repo);
     expect(
       finalized.exitCode,

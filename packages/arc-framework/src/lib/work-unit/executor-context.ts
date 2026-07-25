@@ -45,7 +45,7 @@ import {
   reconcileMetaFields,
 } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
-import { getCurrentBranch, type GitExec } from "../git/exec.js";
+import { captureGitIndexState, getCurrentBranch, type GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
 import { renderRoadmapFromIndexViewResult } from "../status/roadmap-regeneration-assert.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
@@ -271,6 +271,7 @@ export function buildExecutorContext(
             stagePaths: async (paths) => {
               if (paths.length > 0) await exec("git", ["add", "--", ...paths]);
             },
+            captureIndexState: () => captureGitIndexState(exec, cwd),
           },
           prepared,
         ),

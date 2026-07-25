@@ -317,7 +317,17 @@ async function migrateLegacyPreparation(
   try {
     legacy = await deps.readFile(legacyPath);
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") return;
+    if (isNodeError(error) && error.code === "ENOENT") {
+      const canonical = await readDecomposeRecord(deps, id);
+      const preparation = canonical === null ? null : parseDecomposePreparationRecord(canonical, id);
+      if (preparation?.schemaVersion === 1) {
+        await stageDecomposePaths(deps, [
+          resolveRetirementRecordRelativePath(id),
+          resolveLegacyRetirementRecordRelativePath(id),
+        ]);
+      }
+      return;
+    }
     throw error;
   }
   const preparation = parseDecomposePreparationRecord(legacy, id);

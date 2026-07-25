@@ -167,6 +167,18 @@ describe("dischargeDepEdges — live edges stay", () => {
     // Nothing satisfied → no meta rewrite.
     expect(writes).toEqual([]);
   });
+
+  it("returns a non-overlapping conservative projection when any edge conflicts", async () => {
+    const { ctx, writes } = buildCtx(["shipped-dep", "missing-dep"]);
+
+    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
+
+    expect(result).toEqual({
+      discharged: [],
+      live: ["missing-dep", "shipped-dep"],
+    });
+    expect(writes).toEqual([]);
+  });
 });
 
 describe("current-WU dependency reconcile planning", () => {
@@ -442,6 +454,7 @@ describe("current-WU dependency reconcile planning", () => {
 });
 
 describe("current-WU dependency reconcile apply", () => {
+  const captureCleanIndex = () => Promise.resolve(() => Promise.resolve());
   const original = meta("Active", ["origin"]);
   const index = buildLifecycleIndexFromMetas([
     { path: DEPENDENT_PATH, content: original },
@@ -464,6 +477,7 @@ describe("current-WU dependency reconcile apply", () => {
       readFile: async () => original,
       writeFile: async (_path, content) => { writes.push(content); },
       stagePaths: async (paths) => { stages.push(paths); },
+      captureIndexState: captureCleanIndex,
     }, { slug: "dependent", metaPath: DEPENDENT_PATH, apply: false });
 
     expect(result).toMatchObject({
@@ -486,6 +500,7 @@ describe("current-WU dependency reconcile apply", () => {
       readFile: async () => original,
       writeFile: async (path, content) => { writes.push({ path, content }); },
       stagePaths: async (paths) => { stages.push(paths); },
+      captureIndexState: captureCleanIndex,
     }, { slug: "dependent", metaPath: DEPENDENT_PATH, apply: true });
 
     expect(result).toMatchObject({ status: "applied", stagedPaths: [DEPENDENT_PATH] });
@@ -505,6 +520,7 @@ describe("current-WU dependency reconcile apply", () => {
       readFile: async () => reads++ === 0 ? original : meta("Active", ["changed"]),
       writeFile: async (_path, content) => { writes.push(content); },
       stagePaths: async (paths) => { stages.push(paths); },
+      captureIndexState: captureCleanIndex,
     }, { slug: "dependent", metaPath: DEPENDENT_PATH, apply: true });
 
     expect(result).toMatchObject({ status: "conflict", reason: "stale-content" });
@@ -525,6 +541,7 @@ describe("current-WU dependency reconcile apply", () => {
       readFile: (path) => Promise.resolve(files.get(path)!),
       writeFile: () => Promise.resolve(),
       stagePaths: () => Promise.resolve(),
+      captureIndexState: captureCleanIndex,
     }, { slug: "dependent", metaPath: DEPENDENT_PATH, apply: false });
 
     expect(result).toMatchObject({
@@ -566,9 +583,105 @@ describe("current-WU dependency reconcile apply", () => {
       },
       writeFile: async (path) => { writes.push(path); },
       stagePaths: async (paths) => { stages.push(paths); },
+      captureIndexState: captureCleanIndex,
     }, { slug: "dependent", metaPath: DEPENDENT_PATH, apply: true });
 
     expect(result).toMatchObject({ status: "conflict", reason: "stale-content" });
+    expect(writes).toEqual([]);
+    expect(stages).toEqual([]);
+  });
+
+  it.each(["write", "stage"] as const)(
+    "rolls back a partial multi-file %s failure so the exact plan can retry",
+    async (failurePoint) => {
+      const metaContent = meta("Active", ["origin"]);
+      const specPath = ".arc/active/spec-dependent.md";
+      const specContent = "See `spec-origin.md`.\n";
+      const files = new Map([[DEPENDENT_PATH, metaContent], [specPath, specContent]]);
+      let failed = false;
+      let writeAttempt = 0;
+      const stageCalls: Array<readonly string[]> = [];
+      const indexFiles = new Map([[DEPENDENT_PATH, "pre-existing staged content"]]);
+      const context = {
+        index,
+        queryDisposition,
+        enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+        listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, specPath]),
+        readFile: (path: string) => Promise.resolve(files.get(path)!),
+        writeFile: (path: string, content: string) => {
+          writeAttempt += 1;
+          if (failurePoint === "write" && !failed && writeAttempt === 2) {
+            failed = true;
+            return Promise.reject(new Error("write failed"));
+          }
+          files.set(path, content);
+          return Promise.resolve();
+        },
+        stagePaths: (paths: readonly string[]) => {
+          if (failurePoint === "stage" && !failed) {
+            failed = true;
+            indexFiles.set(DEPENDENT_PATH, files.get(DEPENDENT_PATH)!);
+            indexFiles.set(specPath, files.get(specPath)!);
+            return Promise.reject(new Error("stage failed"));
+          }
+          stageCalls.push(paths);
+          for (const path of paths) indexFiles.set(path, files.get(path)!);
+          return Promise.resolve();
+        },
+        captureIndexState: () => {
+          const snapshot = new Map(indexFiles);
+          return Promise.resolve(async () => {
+            indexFiles.clear();
+            for (const [path, content] of snapshot) indexFiles.set(path, content);
+          });
+        },
+      };
+
+      await expect(runCurrentWuReconcile(
+        context,
+        { slug: "dependent", metaPath: DEPENDENT_PATH, apply: true },
+      )).rejects.toThrow(`${failurePoint} failed`);
+      expect(files).toEqual(new Map([[DEPENDENT_PATH, metaContent], [specPath, specContent]]));
+      expect(indexFiles).toEqual(new Map([[DEPENDENT_PATH, "pre-existing staged content"]]));
+
+      const retried = await runCurrentWuReconcile(
+        context,
+        { slug: "dependent", metaPath: DEPENDENT_PATH, apply: true },
+      );
+
+      expect(retried).toMatchObject({
+        status: "applied",
+        stagedPaths: [DEPENDENT_PATH, specPath],
+      });
+      expect(parseMetaRecord(files.get(DEPENDENT_PATH)!)["Depends On"]).toBe("successor");
+      expect(files.get(specPath)).toBe("See `spec-successor.md`.\n");
+      expect(stageCalls.at(-1)).toEqual([DEPENDENT_PATH, specPath]);
+    },
+  );
+
+  it("preserves an advisory-only plan when apply has no mechanical edits", async () => {
+    const metaContent = meta("Active", []);
+    const notesPath = ".arc/active/notes-dependent.md";
+    const notesContent = "The origin remains relevant context.\n";
+    const files = new Map([[DEPENDENT_PATH, metaContent], [notesPath, notesContent]]);
+    const writes: string[] = [];
+    const stages: Array<readonly string[]> = [];
+
+    const result = await runCurrentWuReconcile({
+      index,
+      queryDisposition: () => Promise.resolve({ status: "absent" }),
+      enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+      listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, notesPath]),
+      readFile: (path) => Promise.resolve(files.get(path)!),
+      writeFile: async (path) => { writes.push(path); },
+      stagePaths: async (paths) => { stages.push(paths); },
+      captureIndexState: captureCleanIndex,
+    }, { slug: "dependent", metaPath: DEPENDENT_PATH, apply: true });
+
+    expect(result).toMatchObject({
+      status: "pending",
+      prepared: { edits: [], plan: { advisories: [expect.objectContaining({ path: notesPath })] } },
+    });
     expect(writes).toEqual([]);
     expect(stages).toEqual([]);
   });

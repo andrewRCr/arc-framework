@@ -337,7 +337,10 @@ export type TransitionOutcome =
       to: LifecyclePosition | null;
       /** The encoding legs that fired, in order. */
       legsFired: EncodingLeg[];
-      /** The side-effects that fired, in declared order. */
+      /**
+       * The side-effects that fired, in actual fire order. `reconcile-roadmap`
+       * follows final meta staging even when declared earlier.
+       */
       sideEffectsFired: SideEffectId[];
       /** Advisories surfaced by encoding legs or side-effects (e.g. post-create notices / regen lines). */
       advisories: string[];
@@ -527,10 +530,11 @@ export async function executeTransition(
   }
 
   // 7–8.5 Post-side-effect meta writes. These run only after the encoding legs
-  //   and the declared side-effects have landed, so a throw here is forward-only
-  //   recoverable (finish the failed write) — reported as `finalize-failed`,
-  //   distinct from the pre-side-effect `encoding-failed`. `failedWrite` tracks
-  //   the in-flight write so the report names which one threw.
+  //   and declared non-ROADMAP side-effects have landed. ROADMAP follows final
+  //   staging so it renders the exact commit projection. A throw here is
+  //   forward-only recoverable (finish the failed write) — reported as
+  //   `finalize-failed`, distinct from the pre-side-effect `encoding-failed`.
+  //   `failedWrite` tracks the in-flight write so the report names which one threw.
   let branchFieldWritten: string | null;
   let currentWorkflowCleared: string | null;
   let softFieldsWritten: MetaFieldName[];

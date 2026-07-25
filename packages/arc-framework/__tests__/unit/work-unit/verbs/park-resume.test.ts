@@ -710,6 +710,23 @@ describe("runResume — the inverse", () => {
     // The branch re-attach (spawn) already ran — the failure is post-mutation.
     expect(calls).toContain("worktree:spawn");
   });
+
+  it("returns a structured advisory when deferred ROADMAP reconciliation throws", async () => {
+    const { ctx } = buildCtx([PARKED]);
+    ctx.executor.sideEffects!["reconcile-roadmap"] = async () => {
+      throw new Error("renderer unavailable");
+    };
+
+    const result = await runResume(ctx, BASE_RESUME);
+
+    expect(result).toMatchObject({
+      status: "resumed",
+      outcome: {
+        status: "ok",
+        advisories: ["Resume completed, but ROADMAP reconciliation failed: renderer unavailable."],
+      },
+    });
+  });
 });
 
 describe("park / resume reject a non-slug name", () => {

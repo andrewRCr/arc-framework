@@ -179,7 +179,7 @@ function rewriteArtifactSelfReferences(
     if (label !== undefined) lines[firstH1] = `# ${label}: ${targetSlug}${carriageReturn}`;
   }
 
-  return lines.join("\n").replace(
+  return lines.join("\n").replaceAll(
     `\`--plan ${sourceSlug}\``,
     `\`--plan ${targetSlug}\``,
   );

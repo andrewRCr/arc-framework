@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
+  captureGitIndexState,
   checkGitAvailable,
   isGitRepo,
   gitConfigGet,
@@ -7,6 +8,23 @@ import {
   gitConfigUnset,
   gitMergeFile,
 } from "../../../src/lib/git/exec.js";
+
+describe("captureGitIndexState", () => {
+  it("restores the exact tree captured before index mutation", async () => {
+    const tree = "a".repeat(40);
+    const mockExec = vi.fn()
+      .mockResolvedValueOnce({ stdout: `${tree}\n` })
+      .mockResolvedValueOnce({ stdout: "" });
+
+    const restore = await captureGitIndexState(mockExec, "/repo");
+    await restore();
+
+    expect(mockExec.mock.calls).toEqual([
+      ["git", ["write-tree"], { cwd: "/repo" }],
+      ["git", ["read-tree", tree], { cwd: "/repo" }],
+    ]);
+  });
+});
 
 describe("checkGitAvailable", () => {
   it("returns true when git is on PATH", async () => {
