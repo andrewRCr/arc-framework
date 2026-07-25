@@ -53,7 +53,7 @@ capability; a typed failure outcome with no retained diagnostic is not actionabl
 
 ## Scope
 
-Six concerns, in rough dependency order. The first four are the hosted-protocol core; the last two are adjacent
+Seven concerns, in rough dependency order. The first four are the hosted-protocol core; the last three are adjacent
 surfaces that arrived through their own captures and are confirmed in scope.
 
 ### 1. Selection authority (the core)
@@ -379,6 +379,64 @@ unreliable); and _deleting the field_ (discards real coverage signal to fix a wo
 but if the provider-protocol work above runs long it can ship independently as an errand without disturbing the
 rest.
 
+### 7. Convergence semantics and severity provenance
+
+**Convergence is currently defined as an empty backlog, not a weakening signal.** The exit gate reads: a pass
+converges when it surfaces no _open_ primary-confirmed finding above `minor`, and it states explicitly that a
+finding the primary has fixed, dropped, or carried forward "does not force another pass by itself." Because
+disposition empties the backlog, fixing everything converges immediately — so **the change most likely to
+introduce a defect, a fix to a material finding, is the one a fresh pass never examines.** In practice most loops
+exit after one pass and the reviewer has to supply the missing lens by hand.
+
+Two distinct rules are collapsed into one sentence:
+
+- **Exit gate — completeness.** No confirmed finding above `minor` may remain undisposed when the loop closes. A
+  property of the disposition backlog.
+- **Convergence — signal.** Another pass is worth running while fresh looks keep surfacing material findings. A
+  property of what the pass _produced_, independent of what was then done about it.
+
+**Resolved: convergence is measured on what the pass surfaced.** A pass converges when it surfaced no
+triage-confirmed finding above `minor`. Fixing a material finding does not make the pass that found it a
+converging pass; it means the next pass has something new to examine. The exit gate stays, stated separately. Both
+must hold, and they disagree productively — a fixed material finding satisfies the gate while withholding
+convergence, and an undisposed minor converges while holding the gate open.
+
+Cost tracks risk under this reading rather than being flat: a clean artifact still converges in one pass, while a
+material finding buys exactly one verification pass, bounded by the same cap.
+
+**Severity provenance — the signal must come from ARC's own classification.** Every hosted finding carries two
+severities today and nothing reconciles them. The triage method contracts the primary to verify each finding
+against source and record its severity; the gate parses severity from provider text at an adapter boundary. The
+typed record — the only surface a control decision can read — holds the **provider's** label, while the verified
+judgment sits in prose no mechanism can see. Keying convergence off the provider's label would let an
+over-labelling reviewer inflate the loop and an under-labelling one end it early: control flow driven by an
+unaudited external opinion, which is this WU's root defect expressed on the severity axis. Convergence keys on the
+triage-confirmed severity, which requires that verdict to reach the typed record.
+
+**Shared, not duplicated.** One definition of convergence governs both the adversarial-review loop and the review
+gate's lanes. It matters more at the gate, where the loop is costlier and the severity provenance gap actually
+exists — the adversarial-review method already anchors to primary-confirmed severity.
+
+**Judgment admitted at exactly one point.** The default is deterministic and needs no judgment: did the last pass
+surface a triage-confirmed finding above `minor`? Layered on top, the agent may judge that a `minor` nonetheless
+carries strong enough signal to warrant another look — and **recommends** it, citing the signal. At the cap with
+live material findings, the agent states whether the evidence warrants continuing rather than stopping silently.
+**The agent may recommend past the cap; it may never proceed past it.** Judgment is admitted where it adds
+information and structurally barred where it would erode the bound.
+
+**Severity vocabulary — rename `blocker` to `critical`.** `blocker` names an outcome where the scale wants a
+magnitude; `critical > major > minor` reads in one register. It also removes a translation hop from the provider
+label of the same name. Most decisively, `blocker` is overloaded three ways — the severity, the work-unit
+impediment field carried by over a hundred live meta files, and a review resolution state named for stopping.
+After the rename each sense is unambiguous. The sweep is bounded and mechanical across the code and a handful of
+methodology files, with one hazard: the impediment field is a different concept and must never be caught by a
+blind replace. **Sequence it first**, because the provenance work above edits the same schema.
+
+**Scope note.** The wording and the shared definition are cheap. Landing triage-confirmed severity in the typed
+record is the one part with real code cost, and the gate's exit becoming materiality-based is a genuine behavior
+change — today any finding forces a response cycle, where a pass carrying only minors could converge. Size those
+two against the response path before committing to them inside this WU.
+
 ## Alternatives
 
 - **Restore the deleted admission machinery** to re-establish carrier authority. Rejected — right-sizing removed it
@@ -414,6 +472,17 @@ rest.
 - **Split the adjacent surfaces (5–6) into their own work units.** Rejected for now: both are small once settled,
   and concern 6's shape resolved to three wording edits rather than a protocol. Each carries an independent-ship
   escape hatch instead.
+- **Answer disproportionate review spend with a durable multidimensional review-budget ledger** — logical passes,
+  evaluator invocations, and token or payload budget, accumulated across a work unit's whole integration lineage
+  and inherited by each new head. Proposed from a sibling work unit's integration, where four review waves and
+  eighteen evaluator invocations ran without an effective bound. **Rejected as disproportionate to its own
+  evidence.** Roughly three quarters of the measured raw cost came from implementation workers inheriting full
+  conversation history, which is a spawn default rather than an accounting failure; and the caps that should have
+  bounded the rest already exist and are already wired to an approval interlock — they went unenforced because the
+  request that reaches them cannot be composed, not because they were absent or too coarse. Building an accounting
+  mechanism first would elaborately measure a cost that mostly evaporates once the spawn default and the
+  composability gap are fixed. The proportionate response is concern 5's derivability half, concern 7's
+  convergence definition, and a bounded spawn context — none of which is new machinery.
 
 ## Unknowns and Assumptions
 
@@ -453,6 +522,13 @@ rest.
       intent — approval is theirs, the button-press is not withheld — so the line is a live instance of a
       procedural statement written to locate authority being read as removing capability. Evidence that the face is
       real and recurring, not an argument for fixing the wording here.
+- **`execution-delegation-doctrine` — owns the spawn-context guard.** Implementation and review workers inheriting
+  full conversation history accounted for most of the raw cost measured at a sibling work unit's integration.
+  Bounding what a spawned worker receives — the exact target, owned loci, governing documents, normalized findings,
+  and required gates rather than the whole authoring conversation — belongs there, alongside the per-harness
+  activation machinery that WORKING-MEMORY already records as its scope. It is also the one place in this cluster
+  where prose alone is insufficient: a harness whose spawn primitive carries no instructions cannot be constrained
+  by a method the spawned process never reads.
 - **`chunk-scope-binding` — now load-bearing, still no hard edge.** It owns the partition transport this WU
   declines, and it owns the restoration condition for `coderabbit-cli`'s chunked capability. It is `planned` with
   `Depends On: review-chunking — landed`, so it is unblocked. This WU should leave it a clean handoff on two
@@ -550,16 +626,25 @@ method prose — wide, but no longer carrying an unrun measurement on its critic
   consequence of that removal; concern 3's two-loss decomposition and all five of its design decisions — trigger,
   destination, retention, ownership split, and trust boundary — plus the worktree registration-isolation pattern
   and its two supporting observations; concern 4's trim-to-contract-floor decision, its three drift findings, and
-  the inverted sequencing (trim first); concern 5 resolved to a schema-emitting flag; concern 6 resolved to three
-  wording edits with its rejected shapes recorded; coordination-not-dependency with `judgment-authority-model`;
-  the two-front handoff contract with `chunk-scope-binding`; the `ci-defer-heavy` mechanism and its routing out to
+  the inverted sequencing (trim first); concern 5 resolved to a schema-emitting flag, and split into its
+  discoverability and derivability halves; concern 6 resolved to three
+  wording edits with its rejected shapes recorded; concern 7's separation of the exit gate from the convergence
+  signal, convergence measured on what a pass surfaced, severity provenance anchored to triage rather than the
+  provider label, one shared definition across both loops, the recommend-but-never-proceed boundary for judgment
+  at the cap, and the `blocker` → `critical` rename sequenced first; the review-budget ledger rejected with its
+  reasoning; coordination-not-dependency with `judgment-authority-model`;
+  the two-front handoff contract with `chunk-scope-binding`; the spawn-context guard routed to
+  `execution-delegation-doctrine`; the `ci-defer-heavy` mechanism and its routing out to
   an errand; `Class: Heavy`.
-- **Open:** whether existing test coverage already proves the enforced fallback rule, or a test is owed; the single
+- **Open:** the size of landing triage-confirmed severity in the typed record, and whether the gate's
+  materiality-based exit belongs in this WU — both to be assessed against the response path; whether existing test
+  coverage already proves the enforced fallback rule, or a test is owed; the single
   trimmed-guidance timeout observation; whether the parity check lands as a unit test or a pre-commit contract
   check; the retention default's concrete value once real diagnostics volume is observed.
-- **Next:** run the formalization-readiness assessment. Direction is settled across all six concerns, so the
-  remaining question is whether the open items above are detail-design that a spec can absorb — the reading this
-  draft now takes — or whether any of them still masks a decision. Consolidation has run this pass, so the draft
-  should be a coherent single input rather than accreted layers.
+- **Next:** size concern 7's two code-bearing parts against `arc review respond` — whether the triage verdict can
+  ride the existing disposition set, and what the gate's exit change costs. That result decides whether concern 7
+  stays whole in this WU or sheds its gate half. Then run the formalization-readiness assessment: direction is
+  settled across all seven concerns, and the remaining question is whether the open items are detail-design a spec
+  can absorb.
 
 ---
