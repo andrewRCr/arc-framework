@@ -11,7 +11,9 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { runBaseDrift, type BaseDriftResult } from "../lib/git/base-distance.js";
 import { composeUnavailableRegister } from "../lib/git/base-drift-register.js";
 import { syncLocalBase, type BaseSyncResult } from "../lib/git/base-sync.js";
-import { gitExec } from "../lib/io-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import { createGitExec } from "../lib/io-context.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 /** Options for `arc base sync`. */
@@ -26,10 +28,23 @@ export interface BaseDriftOptions {
   json?: boolean;
 }
 
+const baseJsonPolicy = declareCliOptionSite("json", {
+  acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+  automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+  mutationBoundary: "output selection", subprocess: "none",
+});
+
+/** Machine-output policies owned by the base command adapters. */
+export const baseCommandInputPolicyDeclarations = [
+  { commandPath: "base drift", aliases: [], sites: [baseJsonPolicy] },
+  { commandPath: "base sync", aliases: [], sites: [baseJsonPolicy] },
+] satisfies readonly CommandInputDeclaration[];
+
 /** Run the authoritative shared base-drift analyzer. */
-export async function handleBaseDrift(opts: BaseDriftOptions): Promise<void> {
+export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: InteractionContext): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+  const exec = createGitExec(interaction?.subprocess);
 
   const config = await readConfigSettings(cwd);
   const configUnavailable = config.warnings.some(
@@ -51,10 +66,10 @@ export async function handleBaseDrift(opts: BaseDriftOptions): Promise<void> {
         failureReason: "error",
       }
     : await runBaseDrift({
-        exec: gitExec,
+        exec,
         baseBranch: config.settings["branch.base"],
         mode: "authoritative",
-        ...createCurrentBaseDriftAdapters(gitExec),
+        ...createCurrentBaseDriftAdapters(exec),
       });
 
   if (opts.json) {
@@ -103,12 +118,13 @@ function refusalMessage(result: Extract<BaseSyncResult, { status: "refused" }>):
 }
 
 /** Run `arc base sync`. */
-export async function handleBaseSync(opts: BaseSyncOptions): Promise<void> {
+export async function handleBaseSync(opts: BaseSyncOptions, interaction?: InteractionContext): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+  const exec = createGitExec(interaction?.subprocess);
 
   const { settings } = await readConfigSettings(cwd);
-  const result = await syncLocalBase({ exec: gitExec, baseBranch: settings["branch.base"] });
+  const result = await syncLocalBase({ exec, baseBranch: settings["branch.base"] });
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);

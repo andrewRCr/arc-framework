@@ -1,9 +1,15 @@
 /** Machine-readable review workflow handlers. */
 
 import { readFile } from "node:fs/promises";
-import { ZodError, type ZodType } from "zod";
+import { z, ZodError, type ZodType } from "zod";
 
-import { createRawGitExec, gitExec } from "../lib/io-context.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../lib/command-input/interaction-context.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import { createGitExec, createRawGitExec, gitExec } from "../lib/io-context.js";
 import {
   classifyPlanningLane,
   resolveChangeSet,
@@ -109,6 +115,113 @@ import {
   reduceReviewCommand,
 } from "../scripts/review-gate/runtime/reduce-command.js";
 
+/**
+ * Build the request-source operand schema owned by one review command.
+ *
+ * Each command registers its own instance: the registry keys schemas by identity,
+ * so a shared instance would collide across the family's seven canonical paths.
+ *
+ * @returns One review command's request-source operand schema
+ */
+function reviewCommandInputSchema(): z.ZodType<{ input: string }> {
+  return z.object({
+    input: z.string().trim().min(1, "A JSON request file path, or - for stdin, is required."),
+  }).strict();
+}
+
+/** Request-source operand schema shared by the review handlers' own validation. */
+export const ReviewCommandInputSchema = reviewCommandInputSchema();
+
+/** Canonical paths of the review commands sharing the JSON request-source operand. */
+const REVIEW_JSON_COMMAND_PATHS = [
+  "review readiness",
+  "review unlock",
+  "review resolve",
+  "review chunking resolve",
+  "review frontline resolve",
+  "review frontline run",
+  "review hosted request",
+  "review hosted await",
+  "review hosted settle",
+  "review local prepare",
+  "review local attest",
+  "review local resume",
+  "review respond",
+  "review reduce",
+] as const;
+
+/** Syntax-owned exact-change input for the planning-lane classifier. */
+export const ReviewPlanningLaneInputSchema = z.object({
+  base: z.string().regex(/^[a-f0-9]{40}$/u),
+  head: z.string().regex(/^[a-f0-9]{40}$/u),
+  repository: z.string().trim().min(1).optional(),
+}).strict();
+
+/** Registry contributions owned by the review command adapters. */
+export const reviewCommandInputRegistrations = [
+  ...REVIEW_JSON_COMMAND_PATHS.map((commandPath) => ({
+    commandPath,
+    schema: reviewCommandInputSchema(),
+    schemaFields: { "operand.input": "input" },
+  })),
+  {
+    commandPath: "review planning-lane",
+    schema: ReviewPlanningLaneInputSchema,
+    schemaFields: {
+      "operand.base": "base",
+      "operand.head": "head",
+      "option.repository": "repository",
+    },
+  },
+] satisfies readonly CommandInputRegistration[];
+
+/** Input and interaction policies owned by the review command adapters. */
+export const reviewCommandInputPolicyDeclarations = [
+  {
+    commandPath: "review", aliases: [], sites: [
+      declareInteractionSite(
+        { file: "handlers/review.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
+        {
+          acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
+          automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
+          mutationBoundary: "review request read", subprocess: "explicit-stdin",
+        },
+      ),
+      declareInteractionSite(
+        { file: "scripts/review-gate/hosted/gh-process.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
+        {
+          acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+          automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+          mutationBoundary: "hosted review GitHub subprocess boundary", subprocess: "close-stdin",
+        },
+      ),
+    ],
+  },
+  {
+    commandPath: "review chunking resolve", aliases: [], sites: [declareInteractionSite(
+      { file: "lib/change-facts.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
+      {
+        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "review target diff read", subprocess: "close-stdin",
+      },
+    )],
+  },
+  {
+    commandPath: "review frontline run", aliases: [], sites: [
+      "scripts/review-gate/providers/coderabbit/executable.ts",
+      "scripts/review-gate/providers/coderabbit/process.ts",
+    ].map((file) => declareInteractionSite(
+      { file, kind: "subprocess", callee: "execa", occurrence: 1 },
+      {
+        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "frontline provider subprocess boundary", subprocess: "close-stdin",
+      },
+    )),
+  },
+] satisfies readonly CommandInputDeclaration[];
+
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin as AsyncIterable<Buffer | string>) {
@@ -149,11 +262,19 @@ export async function handleReviewPlanningLane(
   overrides: Partial<ReviewPlanningLaneHandlerDependencies> = {},
 ): Promise<void> {
   const dependencies = { ...defaultReviewPlanningLaneDependencies(), ...overrides };
-  const validSha = /^[a-f0-9]{40}$/u;
   let lane: "planning" | "reviewed" = "reviewed";
-  if (validSha.test(base) && validSha.test(head)) {
+  const input = ReviewPlanningLaneInputSchema.safeParse({
+    base,
+    head,
+    ...(options.repository === undefined ? {} : { repository: options.repository }),
+  });
+  if (input.success) {
     try {
-      lane = await dependencies.classify(base, head, options.repository ?? process.cwd());
+      lane = await dependencies.classify(
+        input.data.base,
+        input.data.head,
+        input.data.repository ?? process.cwd(),
+      );
     } catch {
       lane = "reviewed";
     }
@@ -374,6 +495,12 @@ async function executeReviewHandler(input: {
   dependencies: ReviewHandlerBoundary;
   execute(request: unknown, root: string): Promise<unknown>;
 }): Promise<void> {
+  const operand = ReviewCommandInputSchema.safeParse({ input: input.source });
+  if (!operand.success) {
+    emitReviewCommandError(input.mode, operand.error, "request", input.dependencies);
+    return;
+  }
+
   let root: string;
   try {
     const resolved = input.dependencies.resolveRoot(process.cwd());
@@ -386,7 +513,7 @@ async function executeReviewHandler(input: {
 
   let request: unknown;
   try {
-    request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(input.source)));
+    request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(operand.data.input)));
   } catch (error) {
     emitReviewCommandError(input.mode, error, "request", input.dependencies);
     return;
@@ -416,9 +543,15 @@ async function executeHostedReviewHandler(input: {
   dependencies: HostedReviewHandlerBoundary;
   execute(request: unknown): Promise<unknown>;
 }): Promise<void> {
+  const operand = ReviewCommandInputSchema.safeParse({ input: input.source });
+  if (!operand.success) {
+    emitHostedReviewError(input.mode, operand.error, "request", input.dependencies);
+    return;
+  }
+
   let request: unknown;
   try {
-    request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(input.source)));
+    request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(operand.data.input)));
   } catch (error) {
     emitHostedReviewError(input.mode, error, "request", input.dependencies);
     return;
@@ -570,12 +703,13 @@ export interface ReviewFrontlineRunHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultFrontlineRunDependencies(): ReviewFrontlineRunHandlerDependencies {
+function defaultFrontlineRunDependencies(context: InteractionContext): ReviewFrontlineRunHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     run: (request, root) => runFrontlineReviewCommand(
       request,
-      createFrontlineRunDependencies({ exec: gitExec, cwd: root }),
+      createFrontlineRunDependencies({ exec, cwd: root, interaction: context.subprocess }),
     ),
   };
 }
@@ -585,13 +719,20 @@ function defaultFrontlineRunDependencies(): ReviewFrontlineRunHandlerDependencie
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
  * @returns Resolves after stdout and exit status are assigned.
  */
 export async function handleReviewFrontlineRun(
   source: string,
   overrides: Partial<ReviewFrontlineRunHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultFrontlineRunDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultFrontlineRunDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-frontline-run",
     source,

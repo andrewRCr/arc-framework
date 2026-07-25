@@ -7,6 +7,7 @@
 import { access } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
+import { z } from "zod";
 
 import {
   findStaleUserWuSubdirs, listUserWuSubdirContents, removeStaleUserWuSubdir,
@@ -23,18 +24,30 @@ import {
   type UserCompactResult,
   type UserIOContext,
 } from "../commands/user.js";
-import { isRefusalCondition, slugifyIdentity } from "../lib/git/index.js";
+import { isRefusalCondition } from "../lib/git/index.js";
+import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
+import { SlugSchema } from "../lib/kernel/index.js";
+import {
+  declareCliOptionSite,
+  declareInteractionSite,
+  type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
 import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../lib/command-input/interaction-context.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import { gitFailureText } from "../lib/git/process-error.js";
 import {
-  runWithSpinner, isHandledError, isNonInteractiveEnvironment,
+  runWithSpinner, isHandledError,
   requireArcProjectRoot, resolveUserIdentity, isRemoteError,
   resolveCurrentBranchName, ARC_PROJECT_ROOT_ERROR,
   isUserFetchOutcome, isUserFetchSuccess, reportUserFetchOutcome,
@@ -43,30 +56,33 @@ import {
 /** Uniform overwrite-confirm prompt copy. */
 const OVERWRITE_CONFIRM_MESSAGE = "Local notes will be overwritten by remote. Continue?";
 
-/** Returns true when the overwrite confirm should be skipped (--yes or non-interactive). */
-function shouldSkipOverwriteConfirm(yes: boolean | undefined): boolean {
-  return Boolean(yes) || isNonInteractiveEnvironment();
-}
-
 // --- Add ---
 
-export async function handleUserAdd(rawIdentity: string): Promise<void> {
+/** Validated input for creating an identity workspace. */
+export const UserAddInputSchema = z.object({ identity: SlugSchema }).strict();
+
+export async function handleUserAdd(
+  rawIdentity: string,
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc user add");
   const output = createSyncOutput(false);
 
-  // Sanitize identity to prevent path traversal from raw CLI input
-  const identity = slugifyIdentity(rawIdentity);
-  if (!identity) {
+  const normalizedIdentity = normalizeCommandIdentity(rawIdentity);
+  const parsed = UserAddInputSchema.safeParse({ identity: normalizedIdentity });
+  if (!parsed.success) {
     p.log.error("Invalid identity — must contain at least one alphanumeric character.");
+    process.exitCode = 1;
     return;
   }
+  const identity = parsed.data.identity;
   if (identity !== rawIdentity) {
     p.log.info(`Identity normalized to: ${identity}`);
   }
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
 
   try {
     await runWithSpinner(
@@ -95,9 +111,21 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
  * the non-destructive keep and never aborts the open: under a non-interactive
  * environment it auto-skips to keep rather than hanging on a cancellable prompt.
  */
-export async function handleUserOpen(wuName: string): Promise<void> {
+export async function handleUserOpen(
+  wuName: string,
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false, machineReadable: false, yes: "absent",
+  });
   p.intro("arc user open");
   const output = createSyncOutput(false);
+  const target = SlugSchema.safeParse(wuName);
+  if (!target.success) {
+    p.log.error("Invalid work-unit name.");
+    process.exitCode = 1;
+    return;
+  }
 
   let identity: string;
   try {
@@ -107,7 +135,7 @@ export async function handleUserOpen(wuName: string): Promise<void> {
     throw err;
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
@@ -116,19 +144,19 @@ export async function handleUserOpen(wuName: string): Promise<void> {
     p.log.info(`Reconciled retired subdir user/${identity}/${subdir}/ (shipped; backed up).`);
   }
 
-  const staleSubdirs = await findStaleUserWuSubdirs({ cwd, io, identity, wuName });
+  const staleSubdirs = await findStaleUserWuSubdirs({ cwd, io, identity, wuName: target.data });
   for (const stale of staleSubdirs) {
-    await resolveResidualStaleSubdir({ cwd, io, identity, stale });
+    await resolveResidualStaleSubdir({ cwd, io, identity, stale, context });
   }
 
   try {
     await runWithSpinner(
       output,
-      `Opening user workspace for ${wuName}...`,
+      `Opening user workspace for ${target.data}...`,
       () => runUserOpen({
-        cwd, io, identity, wuName, internalTemplateDir: getInternalTemplatePath(),
+        cwd, io, identity, wuName: target.data, internalTemplateDir: getInternalTemplatePath(),
       }),
-      `User workspace opened at user/${identity}/${wuName}/.`,
+      `User workspace opened at user/${identity}/${target.data}/.`,
     );
   } catch (err) {
     if (isHandledError(err)) return;
@@ -150,12 +178,13 @@ async function resolveResidualStaleSubdir(options: {
   io: UserIOContext;
   identity: string;
   stale: string;
+  context: InteractionContext;
 }): Promise<void> {
-  const { cwd, io, identity, stale } = options;
+  const { cwd, io, identity, stale, context } = options;
 
   // Non-interactive: keep silently. A clack prompt would auto-cancel here and,
   // pre-fix, abort the whole open — so skip to the safe default instead.
-  if (isNonInteractiveEnvironment()) {
+  if (context.interaction === "forbidden") {
     p.log.info(`Keeping stale subdir user/${identity}/${stale}/ (non-interactive).`);
     return;
   }
@@ -197,6 +226,12 @@ async function resolveResidualStaleSubdir(options: {
 export async function handleUserClose(wuName: string): Promise<void> {
   p.intro("arc user close");
   const output = createSyncOutput(false);
+  const target = SlugSchema.safeParse(wuName);
+  if (!target.success) {
+    p.log.error("Invalid work-unit name.");
+    process.exitCode = 1;
+    return;
+  }
 
   let identity: string;
   try {
@@ -212,9 +247,9 @@ export async function handleUserClose(wuName: string): Promise<void> {
   try {
     await runWithSpinner(
       output,
-      `Closing user workspace for ${wuName}...`,
-      () => runUserClose({ cwd, identity, wuName }),
-      `User workspace closed (user/${identity}/${wuName}/).`,
+      `Closing user workspace for ${target.data}...`,
+      () => runUserClose({ cwd, identity, wuName: target.data }),
+      `User workspace closed (user/${identity}/${target.data}/).`,
     );
   } catch (err) {
     if (isHandledError(err)) return;
@@ -237,17 +272,36 @@ export interface UserInboxRemoveOptions {
   inboxEntryFile?: string;
 }
 
+/** Validated, mutually exclusive title sources for inbox removal. */
+export const UserInboxRemoveInputSchema = z.object({
+  literal: z.string().min(1).optional(),
+  inboxTitleFile: z.string().min(1).optional(),
+  inboxEntryFile: z.string().min(1).optional(),
+}).strict().superRefine((value, refinement) => {
+  const count = [value.literal, value.inboxTitleFile, value.inboxEntryFile]
+    .filter((candidate) => candidate !== undefined).length;
+  if (count !== 1) refinement.addIssue({ code: "custom", message: "Provide exactly one inbox title source." });
+});
+
 export async function handleUserInboxRemove(
   literal: string | undefined,
   opts: UserInboxRemoveOptions,
+  context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc user inbox-remove");
+
+  const parsed = UserInboxRemoveInputSchema.safeParse({ literal, ...opts });
+  if (!parsed.success) {
+    p.log.error(z.prettifyError(parsed.error));
+    process.exitCode = 1;
+    return;
+  }
 
   let slug: string;
   try {
     slug = await resolveInboxEntryOperand({
-      literal,
-      file: opts.inboxTitleFile ?? opts.inboxEntryFile,
+      literal: parsed.data.literal,
+      file: parsed.data.inboxTitleFile ?? parsed.data.inboxEntryFile,
     });
   } catch (err) {
     p.log.error(`Could not resolve the inbox entry title: ${err instanceof Error ? err.message : String(err)}`);
@@ -267,7 +321,7 @@ export async function handleUserInboxRemove(
   if (!cwd) return;
 
   try {
-    const io = createUserIOContext();
+    const io = createUserIOContext(context?.subprocess);
     const result = await runUserInboxRemove({ cwd, io, identity, slug });
     if (result.removed) p.log.success(`Removed USER-INBOX entry: ${slug}`);
     else if (result.inboxMissing) p.log.info(`No USER-INBOX for ${identity}; nothing to remove.`);
@@ -326,7 +380,15 @@ export interface UserLoadOptions {
   currentWuName?: string;
 }
 
-export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> {
+export async function handleUserLoad(
+  opts: UserLoadOptions = {},
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: false,
+    yes: opts.yes === true ? "compatibility" : "absent",
+  });
   p.intro("arc user load");
   const output = createSyncOutput(false);
 
@@ -337,7 +399,7 @@ export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> 
     if (isHandledError(err)) return;
     throw err;
   }
-  const io = createUserIOContext();
+  const io = createUserIOContext(context.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const spinner = output.spinner();
@@ -399,7 +461,10 @@ export interface UserPushOptions {
  * `force` unset, so the I7 advisory-refusal contract still covers every
  * non-explicit push.
  */
-export async function handleUserPush(opts: UserPushOptions): Promise<void> {
+export async function handleUserPush(
+  opts: UserPushOptions,
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc user push");
   const output = createSyncOutput(false);
 
@@ -410,7 +475,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     if (isHandledError(err)) return;
     throw err;
   }
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
@@ -489,13 +554,26 @@ export interface UserFetchOptions {
   identity?: string;
 }
 
-export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
+/** Validated input for selecting an optional notes identity. */
+export const UserFetchInputSchema = z.object({ identity: SlugSchema.optional() }).strict();
+
+export async function handleUserFetch(
+  opts: UserFetchOptions,
+  context?: InteractionContext,
+): Promise<void> {
   p.intro("arc user fetch");
   const output = createSyncOutput(false);
 
   let identity: string;
   if (opts.identity) {
-    identity = opts.identity;
+    const normalizedIdentity = normalizeCommandIdentity(opts.identity);
+    const parsed = UserFetchInputSchema.safeParse({ identity: normalizedIdentity });
+    if (!parsed.success) {
+      p.log.error("Invalid identity — must contain at least one alphanumeric character.");
+      process.exitCode = 1;
+      return;
+    }
+    identity = parsed.data.identity ?? "";
     p.log.info(`Fetching notes for identity: ${identity}`);
   } else {
     try {
@@ -505,7 +583,7 @@ export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
       throw err;
     }
   }
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
 
   const spinner = output.spinner();
   spinner.start("Fetching user notes...");
@@ -530,13 +608,109 @@ export interface UserPullOptions {
   currentWuName?: string;
 }
 
-export async function handleUserPull(opts: UserPullOptions): Promise<void> {
+/** Validated optional identity selector for user pull. */
+export const UserPullInputSchema = z.object({ identity: SlugSchema.optional() }).strict();
+
+/** Registry contributions owned by schema-bearing user commands. */
+export const userCommandInputRegistrations = [
+  { commandPath: "user add", schema: UserAddInputSchema, schemaFields: { "operand.identity": "identity" } },
+  {
+    commandPath: "user open",
+    schema: z.object({ wuName: SlugSchema }).strict(),
+    schemaFields: { "operand.wu-name": "wuName" },
+  },
+  {
+    commandPath: "user close",
+    schema: z.object({ wuName: SlugSchema }).strict(),
+    schemaFields: { "operand.wu-name": "wuName" },
+  },
+  {
+    commandPath: "user inbox-remove",
+    schema: UserInboxRemoveInputSchema,
+    schemaFields: {
+      "operand.slug": "literal",
+      "option.inbox-title-file": "inboxTitleFile",
+      "option.inbox-entry-file": "inboxEntryFile",
+    },
+  },
+  { commandPath: "user fetch", schema: UserFetchInputSchema, schemaFields: { "option.identity": "identity" } },
+  { commandPath: "user pull", schema: UserPullInputSchema, schemaFields: { "option.identity": "identity" } },
+] as const satisfies readonly CommandInputRegistration[];
+
+/** Command-owned policy that syntax cannot express for user-state acquisition. */
+export const userCommandInputPolicyDeclarations = [{
+  commandPath: "user open",
+  aliases: [],
+  sites: [declareInteractionSite(
+    { file: "handlers/user.ts", kind: "prompt", callee: "p.select", occurrence: 1 },
+    {
+    acquisition: "safe-default",
+    schemaOwnership: "none",
+    defaultSource: "keep",
+    cancellation: "safe-default",
+    automation: { noInput: "use-default", flags: [], acceptedSyntax: [] },
+    mutationBoundary: "stale user subdirectory removal",
+    subprocess: "none",
+    },
+  )],
+}, {
+  commandPath: "user pull",
+  aliases: [],
+  sites: [declareCliOptionSite("yes", {
+    acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
+    mutationBoundary: "user pull handler", subprocess: "none",
+  }), declareInteractionSite(
+    { file: "handlers/user.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
+    {
+      acquisition: "protected-confirmation",
+      schemaOwnership: "none",
+      cancellation: "stop",
+      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+      mutationBoundary: "local notes overwrite",
+      subprocess: "none",
+    },
+  )],
+}, {
+  commandPath: "user compact",
+  aliases: [],
+  sites: [declareCliOptionSite("json", {
+    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })],
+}, {
+  commandPath: "user status",
+  aliases: [],
+  sites: (["json", "session-init"] as const).map((option) => declareCliOptionSite(option, {
+    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: [`--${option}`], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })),
+}] satisfies readonly CommandInputDeclaration[];
+
+export async function handleUserPull(
+  opts: UserPullOptions,
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: false,
+    yes: opts.yes === true ? "authority" : "absent",
+  });
   p.intro("arc user pull");
   const output = createSyncOutput(false);
 
   let identity: string;
   if (opts.identity) {
-    identity = opts.identity;
+    const normalizedIdentity = normalizeCommandIdentity(opts.identity);
+    const parsed = UserPullInputSchema.safeParse({ identity: normalizedIdentity });
+    if (!parsed.success) {
+      p.log.error("Invalid identity — must contain at least one alphanumeric character.");
+      process.exitCode = 1;
+      return;
+    }
+    identity = parsed.data.identity ?? "";
     p.log.info(`Pulling notes for identity: ${identity}`);
   } else {
     try {
@@ -547,12 +721,17 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
     }
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context.subprocess);
   const hasLocal = await hasLocalNotes(io, identity);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
-  if (hasLocal && !shouldSkipOverwriteConfirm(opts.yes)) {
+  if (hasLocal && context.confirmation !== "accept") {
+    if (context.interaction === "forbidden") {
+      p.log.error("Local notes would be overwritten; re-run with --yes to authorize the pull.");
+      process.exitCode = 1;
+      return;
+    }
     const proceed = await p.confirm({
       message: OVERWRITE_CONFIRM_MESSAGE,
       initialValue: true,
@@ -608,7 +787,10 @@ export interface UserCompactHandlerOptions {
   json?: boolean;
 }
 
-export async function handleUserCompact(opts: UserCompactHandlerOptions = {}): Promise<void> {
+export async function handleUserCompact(
+  opts: UserCompactHandlerOptions = {},
+  context?: InteractionContext,
+): Promise<void> {
   const json = Boolean(opts.json);
   const output = createSyncOutput(json);
   output.intro("arc user compact");
@@ -635,7 +817,7 @@ export async function handleUserCompact(opts: UserCompactHandlerOptions = {}): P
     return;
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   const result = await runWithSpinner(
     output,
     "Compacting user notes...",
@@ -697,7 +879,10 @@ export interface UserStatusOptions {
   json?: boolean;
 }
 
-export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
+export async function handleUserStatus(
+  opts: UserStatusOptions,
+  context?: InteractionContext,
+): Promise<void> {
   const json = Boolean(opts.json);
   const output = createSyncOutput(json);
   output.intro("arc user status");
@@ -715,7 +900,7 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
     throw err;
   }
 
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   const cwd = json ? resolveArcRoot(process.cwd()) : requireArcProjectRoot();
   if (!cwd) {
     if (json) {

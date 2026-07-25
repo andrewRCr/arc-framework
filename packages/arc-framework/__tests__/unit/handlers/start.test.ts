@@ -118,6 +118,21 @@ vi.mock("../../../src/lib/git/worktree-roster.js", async (importOriginal) => {
 
 const mockIsNonInteractive = vi.fn(() => true);
 
+vi.mock("../../../src/lib/command-input/interaction-context.js", () => ({
+  resolveProcessInteractionContext: (input: { yes: string }) => ({
+    interaction: mockIsNonInteractive() || input.yes !== "absent" ? "forbidden" : "allowed",
+    confirmation: "ask",
+    machineReadable: false,
+    promptInput: process.stdin,
+    promptOutput: process.stdout,
+    subprocess: {
+      terminalPrompts: mockIsNonInteractive() || input.yes !== "absent" ? "forbidden" : "allowed",
+      presenters: mockIsNonInteractive() || input.yes !== "absent" ? "forbidden" : "allowed",
+      ambientStdin: mockIsNonInteractive() || input.yes !== "absent" ? "closed" : "inherit",
+    },
+  }),
+}));
+
 vi.mock("../../../src/handlers/shared.js", () => ({
   resolveUserIdentity: async () => "andrew",
   isHandledError: () => false,
@@ -533,8 +548,11 @@ describe("handleStart — dispatch orchestration", () => {
 
     await handleStart("widget", {});
 
-    expect(mockConfirm).toHaveBeenCalledTimes(1);
-    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/indeterminate/i) }));
+    expect(mockConfirm).toHaveBeenCalledTimes(2);
+    expect(mockConfirm).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ message: expect.stringMatching(/indeterminate/i) }),
+    );
     expect(mockRunCreateNew).toHaveBeenCalledTimes(1);
     expect(process.exitCode).toBeUndefined();
   });

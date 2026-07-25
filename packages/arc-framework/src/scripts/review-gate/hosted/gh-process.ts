@@ -47,6 +47,7 @@ export const hostedGhRunner: HostedProcessRunner = {
   run: async (args, options) => {
     try {
       const result = await execa("gh", args, {
+        stdin: "ignore",
         timeout: 60_000,
         ...(options?.signal === undefined ? {} : { cancelSignal: options.signal }),
       });

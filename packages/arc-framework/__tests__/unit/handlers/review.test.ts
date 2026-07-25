@@ -13,6 +13,7 @@ import {
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
+  handleReviewPlanningLane,
   handleReviewReduce,
   handleReviewRespond,
 } from "../../../src/handlers/review.js";
@@ -152,6 +153,38 @@ const hostedHandle = {
     createdAt: "2026-07-24T12:00:00Z",
   },
 };
+
+describe("handleReviewPlanningLane", () => {
+  it("parses the exact-change operands before invoking the classifier", async () => {
+    const classify = vi.fn().mockResolvedValue("planning");
+    const output: string[] = [];
+
+    await handleReviewPlanningLane(
+      "a".repeat(40),
+      "b".repeat(40),
+      { repository: " /repo " },
+      { classify, write: (text) => output.push(text) },
+    );
+
+    expect(classify).toHaveBeenCalledWith("a".repeat(40), "b".repeat(40), "/repo");
+    expect(output).toEqual(["planning\n"]);
+  });
+
+  it("fails closed without invoking the classifier when syntax-owned input is invalid", async () => {
+    const classify = vi.fn().mockResolvedValue("planning");
+    const output: string[] = [];
+
+    await handleReviewPlanningLane(
+      "not-a-sha",
+      "b".repeat(40),
+      {},
+      { classify, write: (text) => output.push(text) },
+    );
+
+    expect(classify).not.toHaveBeenCalled();
+    expect(output).toEqual(["reviewed\n"]);
+  });
+});
 
 describe("handleReviewReadiness", () => {
   it("emits exactly one validated readiness envelope through the handler seam", async () => {
@@ -424,6 +457,29 @@ describe("handleReviewResolve", () => {
 });
 
 describe("hosted review handlers", () => {
+  it("rejects an invalid request-source operand before reading from disk", async () => {
+    const readText = vi.fn();
+    const request = vi.fn();
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewHostedRequest(" ", {
+      readText,
+      request,
+      write,
+      setExitCode,
+    });
+
+    expect(readText).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      mode: "review-hosted-request",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
   it("rejects malformed input before requesting a hosted review", async () => {
     const request = vi.fn();
     const write = vi.fn();
