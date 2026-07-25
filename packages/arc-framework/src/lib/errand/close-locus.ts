@@ -51,10 +51,22 @@ type RetirementResult =
   | { kind: "refused"; reason: string }
   | { kind: "error"; message: string };
 
+/**
+ * What local occupancy permits for the exact Errand under close.
+ *
+ * Required rather than optional: an omitted reading would silently restore the unguarded path, in
+ * which host truth alone authorized deleting refs beneath a checkout another session still holds.
+ */
+export type CloseOccupancyResult =
+  | { kind: "clear" }
+  | { kind: "refused"; reason: LocusRefusalReason; message: string }
+  | { kind: "error"; message: string };
+
 export interface CloseOrdinaryErrandDependencies {
   readIdentity(): Promise<IdentityRead>;
   resolveTarget(record: OrdinaryErrandRecord): Promise<CloseTargetResolution>;
   readLifecycle(target: CloseTarget): Promise<ChangeRequestLifecycleEvidence>;
+  readOccupancy(record: OrdinaryErrandRecord): Promise<CloseOccupancyResult>;
   cleanupRefs(target: CloseTarget): Promise<CloseRefCleanupResult>;
   removeInbox(record: OrdinaryErrandRecord): Promise<CloseInboxResult>;
   retire(target: CloseTarget, lifecycle: ChangeRequestLifecycleEvidence): Promise<RetirementResult>;
@@ -116,6 +128,17 @@ export async function closeOrdinaryErrand(
       `Exact host truth is '${lifecycle.kind}', not merged.`,
     );
   }
+
+  // Read immediately before the first destructive step: ref deletion, capture removal, and
+  // retirement all proceed on host truth, which says nothing about who holds the checkout.
+  let occupancy: CloseOccupancyResult;
+  try {
+    occupancy = await options.dependencies.readOccupancy(record);
+  } catch (error) {
+    return failure("locus.errand-close.occupancy", message(error));
+  }
+  if (occupancy.kind === "refused") return refusal(occupancy.reason, occupancy.message);
+  if (occupancy.kind === "error") return failure("locus.errand-close.occupancy", occupancy.message);
 
   let refs: CloseRefCleanupResult;
   try {

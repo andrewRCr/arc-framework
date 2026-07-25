@@ -1,17 +1,29 @@
 /** Production ports for exact ordinary-v3 Errand merge finalization. */
 
+import { access, lstat, readFile, realpath } from "node:fs/promises";
+
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { uniqueRefToken } from "../git/ref-tree.js";
 import { gitFailureText, normalizeGitRejection } from "../git/process-error.js";
-import type { LocusMutationResultV1 } from "../locus/schema/index.js";
+import { createLocusEvidenceIO } from "../locus/evidence.js";
+import {
+  createPlatformProcessAncestryInspector,
+  createPlatformProcessInspector,
+} from "../locus/platform-inspectors.js";
+import { acquireSessionAnchor } from "../locus/process-inspector.js";
+import { readPrimarySafety } from "../locus/primary-safety.js";
+import { readLocusState } from "../locus/reader.js";
+import type { LocusMutationResultV1, LocusStateV1 } from "../locus/schema/index.js";
 import { deleteRemoteBranch } from "../work-unit/mutators/reconcile-branch.js";
 import {
   createGhChangeRequestLifecyclePort,
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
+import { classifyErrandCloseOccupancy } from "./close-occupancy.js";
 import {
   closeOrdinaryErrand,
   type CloseInboxResult,
+  type CloseOccupancyResult,
   type CloseRefCleanupResult,
   type CloseTarget,
   type CloseTargetResolution,
@@ -26,6 +38,7 @@ export interface CloseOrdinaryErrandRuntimeOptions {
   readonly protection: "full" | "partial";
   readonly force: boolean;
   readonly identity: string;
+  readonly identityGlobalUserDir: string;
   readonly exec: GitExec;
   readonly execInput: GitExecInput;
   readonly removeInbox: (record: OrdinaryErrandRecord) => Promise<CloseInboxResult>;
@@ -57,6 +70,7 @@ export async function closeOrdinaryErrandAtRuntime(
           : { kind: "error", message: result.message };
       },
       resolveTarget: (record) => resolveCloseChangeRequest(options, record),
+      readOccupancy: (record) => readCloseOccupancy(options, record),
       readLifecycle: async (target) => {
         const configured = await resolveChangeRequestLifecycleConfiguration(options.exec, options.base)
           ?? { repositoryRef: "", hostRef: "", baseRef: "" };
@@ -83,6 +97,51 @@ export async function closeOrdinaryErrandAtRuntime(
       },
     },
   });
+}
+
+/**
+ * Read what local occupancy permits for the exact Errand under close.
+ *
+ * The session anchor is required rather than best-effort: without it the reader cannot say which
+ * occupancy is this session's own, and unprovable ownership is refused rather than assumed.
+ */
+async function readCloseOccupancy(
+  options: CloseOrdinaryErrandRuntimeOptions,
+  record: OrdinaryErrandRecord,
+): Promise<CloseOccupancyResult> {
+  const inspector = createPlatformProcessInspector();
+  const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
+  if (anchor.kind !== "process") {
+    return {
+      kind: "refused",
+      reason: "lease-unknown",
+      message: `Errand close cannot establish a durable session anchor: ${anchor.reason}`,
+    };
+  }
+  let state: LocusStateV1;
+  try {
+    state = await readLocusState({
+      identity: options.identity,
+      pathFlavor: process.platform === "win32" ? "windows" : "posix",
+      evidenceIO: createLocusEvidenceIO({ exec: options.exec, identity: options.identity, inspector }),
+      subjectMetaIO: {
+        readFile: (path) => readFile(path, "utf8"),
+        pathExists: async (path) => access(path).then(() => true, () => false),
+        realpath,
+        lstat,
+      },
+      identityGlobalUserDir: options.identityGlobalUserDir,
+      enteringAnchor: anchor,
+      readPrimarySafety: (path) => readPrimarySafety({
+        primaryPath: path,
+        baseBranch: options.base,
+        exec: options.exec,
+      }),
+    });
+  } catch (error) {
+    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  }
+  return classifyErrandCloseOccupancy({ state, slug: record.slug, claimId: record.claimId });
 }
 
 /**

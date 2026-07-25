@@ -1008,6 +1008,11 @@ export async function handleErrandClose(
         protection: "full",
         force: opts.force === true,
         identity,
+        identityGlobalUserDir: (await resolveUserSurfaceResolver({
+          cwd,
+          identity: SlugSchema.parse(identity),
+          exec: io.exec,
+        })).identityGlobalRoot,
         exec: io.exec,
         execInput: io.execInput,
         removeInbox: async (record) => {

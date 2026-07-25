@@ -1366,11 +1366,7 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           previously did both and had no coverage at any tier, which is why an ordering defect in it was invisible;
           the ordering claim is now a unit test that fails against the old sequence.
 
-    - `[ ]` **7.E.c.v Validate the locked generation before leave and close mutate** — E3-F1, E3-F2
-
-        - _Both findings verified against source 2026-07-25; they do not share a fix, so the leaf decomposes per
-          this task's `_Shape:_`._ `validateOwnedLocusRole` (`locus/mutation.ts`, from `7.E.c.iv`) is the shared
-          predicate both subtasks consume.
+    - `[x]` **7.E.c.v Validate the locked generation before leave and close mutate** — E3-F1, E3-F2
 
         - `[x]` **7.E.c.v.1 Prove the locked generation before leave moves a checkout** — E3-F1
             - Confirmed against source: `recordId`, `leaseId`, and the row all came from the pre-lock roster read, and
@@ -1385,17 +1381,24 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
               `cleanup` seam. The lock-generation contract `7.E.c.iv` introduced became shared
               (`errand/locked-generation.ts`) rather than copied into a second module.
 
-        - `[ ]` **7.E.c.v.2 Refuse close over foreign occupancy** — E3-F2
-            - `closeOrdinaryErrandAtRuntime` supplies `readIdentity`, `resolveTarget`, `readLifecycle`,
-              `cleanupRefs`, `removeInbox`, and `retire` — **none reads the locus roster**, so close deletes the
-              local and remote branch, drops the capture, and retires the identity purely on merged host truth,
-              with no occupancy input at all. Needs a roster read plus a new dependency on the close composition.
-            - _Predicate settled 2026-07-25 — do not widen it to plain occupancy._ Refuse only when the errand's
-              checkout is occupied by a generation that is **not** the caller's own; the caller's own occupancy
-              proceeds untouched. Plain absence would contradict `7.F.a.iii`, which deliberately has close finalize
-              from inside its own still-occupied checkout and leave the role to the recovery replay path. The
-              finding's real risk is refs deleted beneath a _retained or live foreign_ checkout, which the
-              foreign-only reading covers. Rationale in `notes-session-locus-model.md`.
+        - `[x]` **7.E.c.v.2 Refuse close over foreign occupancy** — E3-F2
+            - Close now takes a required `readOccupancy` dependency, read immediately before ref cleanup — the first
+              of the three destructive steps host truth alone used to authorize. `errand/close-occupancy.ts` holds
+              the predicate: no claim clears, the caller's own generation clears, and a foreign claim refuses with
+              the reason its occupancy carries (`lease-live` for another live session, `lease-unknown` for
+              unverifiable liveness, `role-conflict` for a retained or untrusted claim, `duplicate-locus` for more
+              than one). The dependency is required rather than optional so an omitted reading cannot silently
+              restore the unguarded path.
+            - Per the settled predicate, only _foreign_ occupancy refuses — the caller's own generation proceeds, so
+              the in-place close `7.F.a.iii` enables still finalizes from inside its own occupied checkout.
+            - `close-runtime.ts` supplies the reading (session anchor, locus state, classify) and now takes
+              `identityGlobalUserDir`, threaded from the handler; an anchor that cannot be established refuses
+              `lease-unknown` rather than assuming ownership.
+
+        - _Outcome:_ The two findings needed different authority proofs, not the shared predicate the leaf was
+          entered expecting: leave proves its own record under its own lock, while close's question — is this
+          occupancy mine — was already answered by the reader's `current` projection, which resolves against the
+          entering anchor. Reusing that projection kept close free of both a lock and a second ownership rule.
 
     - `[ ]` **7.E.c.vi Bind promotion recovery to its source generation** — E4-F1, E4-F3
         - Identity-absent promotion recovery matches on work-unit name, branch, generated meta, and a live lease,
@@ -1453,6 +1456,15 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   instead of falling back to branch and meta inference. Coverage stops asserting doubles — derivation-floor
   promotion regains real-runtime integration coverage, and the current-open, ROADMAP, adoption, and materialize
   cases exercise real v3 Errands rather than seeded legacy records.
+
+- _Note:_ The v3 ordinary close path has no real-CLI coverage at all — every `arc errand close` case in the e2e
+  suite seeds a legacy record or asserts a `--force` refusal, because finalizing a merged v3 tail needs live
+  `gh pr list` host truth and the harness has no `gh` stub. The destructive-verb standard asks for real-CLI
+  coverage here, so decompose a scripted `gh` on `PATH` (the idiom the anchor harness already uses for a fake
+  executable, keeping git, refs, and inbox files real) and cover the merged happy path plus the
+  foreign-occupancy refusal `7.E.c.v.2` added. Fidelity is the constraint: the stub must emit the exact
+  `gh pr list --json baseRefName,headRefName,headRefOid` shape the runtime parses. `leave --state
+  awaiting-merge` reads the same host boundary and gains coverage from the same stub.
 
 ## **Phase 7.F:** Errand Close Reachability
 
