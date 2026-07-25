@@ -424,5 +424,34 @@ keying on authority over the lease rather than on deadness.
   their coverage lives inside shared integration and e2e files. Source carves cleanly; tests will not.
 - **D1's `session-init.md` needs rewriting, not reverting** — the signal-leaf spine must route housekeep and
   grooming the pre-model way while retaining locus dispatch.
-- **`7.G.a` is unsettled design** on D1's critical path, and its resolution may change what the anchor code is.
-  Settle it in the spec before carving D1's locus core.
+
+### Execution state and sequencing (2026-07-25)
+
+The plan's three first actions were: settle `7.G.a`, size the test entanglement, prove the carve.
+
+- **Action 1 is complete.** Phase `7.G` settled the recovery-authority design in the spec and shipped it
+  (`7.G.a.i`–`.iv`, plus `7.G.b`, which the work surfaced). That phase _was_ this plan's first step, not a
+  detour back into implementation.
+- **Actions 2 and 3 are now `Phase 7.S` in `tasks-session-locus-model.md`**, rather than living only here. They
+  spent a full session recorded in these notes and untracked by the task list, which is the surface that actually
+  drives session work — that is how they were silently deferred.
+- **Sequencing: carve after `7.E.e` closes, before `7.E.f` / `g` / `h`.** Those three span deliverables and are
+  undecomposed; cutting them against the origin forfeits the main benefit of splitting.
+
+### ARC runs no ceremony for this carve
+
+Checked before scheduling, and it changes the cost. `decompose-work-unit.md` stops on an `Active` origin whose
+committed code spans several would-be members, and routes to the full-split escape hatch in
+`strategy-work-organization.md` § Active-state decomposition. `arc decompose` covers **extraction** — origin stays
+active, only _unbuilt_ scope splits — which does not fit, because both the transient-lifecycle and claimed-sweep
+deliverables are already built.
+
+The strategy lists two full-split mechanics: cherry-pick for cleanly-separated commits, history surgery for
+interleaved ones. **This carve takes neither.** It re-creates each deliverable from **tip state** onto a fresh
+branch off the base — forward-only on a pushed branch, no history rewriting, no orphaned SHA-keyed notes. That is a
+third shape the strategy does not enumerate, chosen deliberately: it accepts losing the origin's 195-commit
+narrative in exchange for avoiding surgery the strategy itself calls a smell. The mitigation stands — port each
+deliverable as a meaningful commit sequence, and retain the origin branch unmerged as the development record.
+
+Worth recording for the routing lesson above: the strategy already says to _"decompose at the planning maturity
+gate before the code exists, so the cut stays clean."_ The doctrine existed; nothing fired it.

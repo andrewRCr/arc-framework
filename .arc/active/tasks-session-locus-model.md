@@ -2011,6 +2011,48 @@ identity on the anchor nor a per-platform record store is therefore in scope.
 
 - _Discovered:_ during `7.G.a.iii.2.a`, while writing the test that proved the stranded row reaches residue.
 
+## **Phase 7.S:** Decomposition Readiness
+
+_Purpose:_ Establish that the delivery-stack carve recorded in `notes-session-locus-model.md` § Decomposition into
+a delivery stack is viable, and at what cost, before executing it. The carve itself is **not** a task here — it is
+this phase's exit condition, and it dissolves this task list into three.
+
+_Design decisions:_ ARC runs no ceremony for this. `decompose-work-unit.md` stops on an `Active` origin whose
+committed code spans several would-be members and routes to the full-split escape hatch in
+`strategy-work-organization.md` § Active-state decomposition; `arc decompose` covers extraction of **unbuilt**
+scope only, and both the transient-lifecycle and claimed-sweep deliverables are built. The strategy's two listed
+mechanics are cherry-pick (clean commits) and history surgery (interleaved); this carve takes neither. It
+re-creates each deliverable from **tip state** onto a fresh branch off the base, which is forward-only on a pushed
+branch and needs no history rewriting — at the recorded cost of the origin's 195-commit narrative, mitigated by
+porting each deliverable as a meaningful commit sequence and retaining the origin branch unmerged as the record.
+
+_Sequencing:_ run after `7.E.e` closes and **before** `7.E.f`, `7.E.g`, and `7.E.h`. Those three are the
+undecomposed parents that span deliverables, and decomposing them against the origin forfeits the main benefit of
+splitting — each should be cut against one small target instead. `7.G` was this plan's first action and is
+complete; what remains before the carve is below.
+
+### `[ ]` **7.S.a Size the test entanglement**
+
+- _Goal:_ The carve's largest unknown is quantified: which suites move whole, which split, and which cannot be
+  separated without restructuring.
+
+- _Evidence:_ source separates cleanly along the dependency direction, but coverage does not. Housekeeping has one
+  named test file (87 lines) and grooming none — their behavior is exercised inside shared integration and e2e
+  files alongside every other subject. Open those files and classify each suite per deliverable.
+
+### `[ ]` **7.S.b Prove the carve on a throwaway branch**
+
+- _Goal:_ The four recorded seam fixes are shown sufficient to make the base deliverable compile and pass on its
+  own, before any real branch is created.
+
+- _Approach:_ move `identity-snapshot` behind the port `evidence.ts` already declares; relocate `readHousekeepState`
+  into `locus`; relocate `observeExactChangeRequest` out of `leave-runtime`; de-wire the transient-lifecycle and
+  claimed-sweep CLI registrations plus the session-init signal-leaf dispatch. The last is a rewrite rather than a
+  revert — the spine must route housekeeping and grooming the pre-model way while retaining locus dispatch.
+
+- _Note:_ throwaway means throwaway. The output is the answer to "does this carve work and what does it cost",
+  not a branch anyone keeps.
+
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
