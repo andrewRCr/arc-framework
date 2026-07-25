@@ -57,6 +57,13 @@ jobs:
         with:
           app-id: ${{ vars.ARC_FRAMEWORK_BOT_APP_ID }}
           private-key: ${{ secrets.ARC_FRAMEWORK_BOT_APP_PRIVATE_KEY }}
+          # Narrow the minted token to the one grant this job uses. The
+          # workflow-level `permissions: {}` above governs only the automatic
+          # token; an installation token would otherwise carry every permission
+          # the App holds. Pull-request scope covers a pull request's labels —
+          # issue scope would too, but the App is not granted it, and requesting
+          # a permission outside the installation's grants fails the mint.
+          permission-pull-requests: write
 
       - name: Apply or remove the defer label for this review outcome
         env:
