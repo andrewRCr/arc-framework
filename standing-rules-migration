@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "standing-rules-migration",
-  "origin": "description",
-  "intent": "Migrate two standing rules out of WORKING-MEMORY into DEV-RULES.PROJECT, where they are findable at point of use: the self-hosting commit scope/type discipline, and the friction/idiom observation-routing protocol.",
-  "branch": "chore/standing-rules-migration",
-  "createdAt": "2026-07-25T15:33:41.137Z",
-  "returnBranch": "main"
-}
