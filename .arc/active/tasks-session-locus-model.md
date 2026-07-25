@@ -1881,11 +1881,10 @@ identity on the anchor nor a per-platform record store is therefore in scope.
         - Self is resolved **before** inspection rather than after, which is what makes it reachable in the case
           that motivated the phase: self-identification is a structural comparison the caller already owns, so it
           holds where inspection cannot reach — an unreadable process table or a differing inspector kind, the two
-          readings that previously collapsed to `unknown` and stranded. `selector` is excluded from the comparison
-          because it names the route by which an anchor was chosen, not the process it identifies.
-        - Covered by self-detection, self under both unreachable-inspection shapes, foreign separation on each of
-          PID / creation token / inspector kind, the unverifiable-own-anchor fallback, and an explicit assertion
-          that occupancy liveness still reads `live` for a self-held lease.
+          readings that previously collapsed to `unknown` and stranded.
+        - Covered by self-detection, self under both unreachable-inspection shapes, foreign separation on each
+          identity axis, the unverifiable-own-anchor fallback, and an explicit assertion that occupancy liveness
+          still reads `live` for a self-held lease.
 
     - `[x]` **7.G.a.ii Classify the stop reasons into tiers**
         - `stop-tier.ts` classifies all fifteen published reasons as `hard` / `authority` / `advisory`. An
@@ -1902,11 +1901,33 @@ identity on the anchor nor a per-platform record store is therefore in scope.
           the `authority` tier, contradicting D6's foreign-live stop. D6 governs, and the tier text now matches it.
 
     - `[ ]` **7.G.a.iii Route self-held and unverifiable residue to the confirmed exit**
-        - `deriveRecovery` offers the operator-confirmed path for a self-held or unverifiable lease, and
-          `resolveLocusGeneration` accepts that release scoped to an unresolved subject or an explicit abandon.
-        - Cover the recorded stranding case — a self-held lease on a `subject-unresolved` row reaching abandon —
-          that a foreign live lease still refuses with no confirmation path, and that confirmation relaxes no
-          occupancy, cleanliness, provenance, exact-head, or generation guard.
+
+        - _Note:_ decomposed at entry. Reading the resolve path surfaced two prerequisites outside the leaf's
+          stated scope — a second self-test already in the reader, and a frame rule that would have regressed
+          every live transient session — so the reconciliation lands first and the routing builds on it.
+
+        - `[x]` **7.G.a.iii.1 Reconcile the self-tests and narrow the frame rule**
+            - `state.ts` already self-identified: `resolveCurrent` selected the current frame with a private
+              `anchorsEqual` against the entering anchor, so `7.G.a.i` had introduced a second self-test with
+              different strictness. `sameProcessAnchor` is now the single exported test and both read it.
+            - `selector` participates, adopting the reader's stricter comparison over the one `7.G.a.i` recorded.
+              The asymmetry decides it: a false `foreign` costs a detour through operator confirmation and
+              recovers, while a false `self` releases a genuinely foreign session's lease and does not.
+            - Corrected a second spec error found here. D6 read that any role whose lease is absent, dead,
+              **self-held**, or unknown is residue — but a running Errand, grooming pass, or housekeeping sweep
+              holds a self-held live lease for its whole life, so that rule would have demoted every live
+              transient session to residue and offered it for abandonment. Self-held is residue-eligible only in
+              conjunction with being unable to become the current frame, which is the stranded shape the phase
+              exists for; self-identification alone never demotes a frame.
+
+        - `[ ]` **7.G.a.iii.2 Route the confirmed exit**
+            - `deriveRecovery` offers the operator-confirmed path for a self-held-and-unclaimable or unverifiable
+              lease, and `resolveLocusGeneration` accepts that release scoped to an unresolved subject or an
+              explicit abandon, in place of its present flat `lease-live` and `lease-unknown` refusals.
+            - Cover the recorded stranding case — a self-held lease on a `subject-unresolved` row reaching abandon
+              — that a live transient session still reads `active` and is never offered as residue, that a foreign
+              live lease still refuses with no confirmation path, and that confirmation relaxes no occupancy,
+              cleanliness, provenance, exact-head, or generation guard.
 
     - `[ ]` **7.G.a.iv Move the advisory tier off the stop path and correct the narration**
         - `primary-dirty` and `primary-off-base` stop rendering as stops. Residue guidance reads **"dies when the

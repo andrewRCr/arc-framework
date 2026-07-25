@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   classifyLeaseAuthority,
+  sameProcessAnchor,
   selectSessionAnchor,
   verifyProcessAnchor,
   type AncestorProcessSnapshot,
@@ -116,17 +117,21 @@ describe("lease authority", () => {
     })).resolves.toBe("self");
   });
 
-  it("separates a foreign holder from this process on every non-identity axis", async () => {
+  it("separates a foreign holder on every identity axis, selector included", async () => {
     await expect(classifyLeaseAuthority(anchor, present, { ...anchor, pid: 43 })).resolves.toBe("foreign");
     await expect(classifyLeaseAuthority(anchor, present, { ...anchor, startToken: "start-43" }))
       .resolves.toBe("foreign");
     await expect(classifyLeaseAuthority(anchor, present, { ...anchor, inspector: "other-platform" }))
       .resolves.toBe("foreign");
+    await expect(classifyLeaseAuthority(anchor, present, { ...anchor, selector: "interactive-shell" }))
+      .resolves.toBe("foreign");
   });
 
-  it("ignores the selector, which names the route rather than the process", async () => {
-    await expect(classifyLeaseAuthority(anchor, present, { ...anchor, selector: "interactive-shell" }))
-      .resolves.toBe("self");
+  it("shares one self-test with frame selection", () => {
+    expect(sameProcessAnchor(anchor, anchor)).toBe(true);
+    expect(sameProcessAnchor(anchor, { ...anchor, selector: "interactive-shell" })).toBe(false);
+    expect(sameProcessAnchor(null, anchor)).toBe(false);
+    expect(sameProcessAnchor(anchor, { kind: "unverifiable", reason: "shared host" })).toBe(false);
   });
 
   it("falls back to liveness when this process has no verifiable anchor of its own", async () => {

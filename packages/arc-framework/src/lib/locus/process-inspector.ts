@@ -1,6 +1,6 @@
 /** Cross-platform process inspection, anchor selection, and liveness. */
 
-import type { LocusProcessAnchor } from "./schema/index.js";
+import type { LocusAnchor, LocusProcessAnchor } from "./schema/index.js";
 
 export type ProcessInspection =
   | {
@@ -158,24 +158,38 @@ export async function classifyLeaseAuthority(
   inspector: ProcessInspector,
   ownAnchor: SelectedSessionAnchor,
 ): Promise<LeaseAuthority> {
-  if (isSameProcessAnchor(anchor, ownAnchor)) return "self";
+  if (sameProcessAnchor(anchor, ownAnchor)) return "self";
   const liveness = await verifyProcessAnchor(anchor, inspector);
   if (liveness === "dead") return "dead";
   return liveness === "unknown" ? "unverifiable" : "foreign";
 }
 
 /**
- * Compare two anchors by process identity alone.
+ * Compare two anchors for exact identity, including how each was selected.
  *
  * PID plus creation token is the pair that defeats PID reuse, and the inspector kind scopes both to
- * one platform's namespace. `selector` describes how an anchor was chosen rather than which process
- * it names, so comparing it would reject the same process reached by a different route.
+ * one platform's process namespace. `selector` participates too: a differing selector on the same
+ * PID means the anchor was reached by a different route, which is weak evidence that the session
+ * shape changed underneath it. The asymmetry decides the strictness — a false `foreign` costs a
+ * detour through operator confirmation and recovers, while a false `self` releases a lease held by
+ * a session that is genuinely someone else's, and does not.
+ *
+ * This is the single self-test. Frame selection and authority classification both read it, so the
+ * two cannot drift into disagreeing about which anchor is the caller's own.
+ *
+ * @param left - an anchor recorded with a lease or lock, if any
+ * @param right - the anchor to compare it against
+ * @returns whether both are process anchors naming the same process, selected the same way
  */
-function isSameProcessAnchor(anchor: LocusProcessAnchor, own: SelectedSessionAnchor): boolean {
-  return own.kind === "process"
-    && own.inspector === anchor.inspector
-    && own.pid === anchor.pid
-    && own.startToken === anchor.startToken;
+export function sameProcessAnchor(
+  left: LocusAnchor | null | undefined,
+  right: LocusAnchor | null | undefined,
+): boolean {
+  if (left?.kind !== "process" || right?.kind !== "process") return false;
+  return left.pid === right.pid
+    && left.startToken === right.startToken
+    && left.inspector === right.inspector
+    && left.selector === right.selector;
 }
 
 function harnessSelector(snapshot: AncestorProcessSnapshot): "codex" | "claude" | "gemini" | null {

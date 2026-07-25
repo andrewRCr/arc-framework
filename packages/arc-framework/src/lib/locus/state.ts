@@ -1,5 +1,6 @@
 /** Pure frame and current-locus derivation over provisional roster rows. */
 
+import { sameProcessAnchor } from "./process-inspector.js";
 import type { ProvisionalLocusRow } from "./roster.js";
 import type { PrimarySafetyResult } from "./primary-safety.js";
 import type {
@@ -275,7 +276,7 @@ function resolveCurrent(
   enteringAnchor: LocusAnchor,
 ): LocusStateV1["current"] {
   const matching = rows.filter((row) =>
-    row.lease?.state === "live" && anchorsEqual(row.leaseAnchor, enteringAnchor));
+    row.lease?.state === "live" && sameProcessAnchor(row.leaseAnchor, enteringAnchor));
   const transients = matching.filter((row) => row.role?.kind !== "work-unit");
   if (transients.length > 1) return ambiguous(transients);
   const transient = transients[0];
@@ -330,13 +331,6 @@ function isRetainedWorkUnit(row: ProvisionalLocusRow): boolean {
     && row.diagnostics.every((item) => item.code === "lease-dead");
 }
 
-function anchorsEqual(left: LocusAnchor | null, right: LocusAnchor): boolean {
-  if (left?.kind !== "process" || right.kind !== "process") return false;
-  return left.pid === right.pid
-    && left.startToken === right.startToken
-    && left.inspector === right.inspector
-    && left.selector === right.selector;
-}
 
 function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));

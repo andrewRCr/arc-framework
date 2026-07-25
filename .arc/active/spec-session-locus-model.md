@@ -689,8 +689,15 @@ with `lease: null` and a valid identity-only tail are `idle` — for a WU checko
 during ordinary sessions, since leases are verb-scoped (D4), never a finding. A WU role whose lease is conclusively
 dead likewise reads `idle`, carrying a `lease-dead` diagnostic — the durable role, not the lease, holds WU
 ownership, and the next attaching operation reaps the stale lease. Any other managed role whose lease is absent,
-dead, self-held, or unknown is `residue`; attach may replace a conclusively dead WU lease, while self-held and
-unknown liveness stop automatic replacement and route to the authority rule below.
+dead, or unknown is `residue`; attach may replace a conclusively dead WU lease, but unknown liveness always stops
+automatic replacement and routes to the authority rule below.
+
+A self-held live lease is the **ordinary** state of a running transient session, not residue — an Errand, grooming
+pass, or housekeeping sweep holds exactly that for its whole life, and current-state selection below claims it as
+the active frame. It becomes residue-eligible only in conjunction: self-held **and** unable to become the current
+frame, which is the stranded shape — the role survives while its subject no longer resolves, so nothing can claim
+it and, under deadness-keyed exits, nothing could release it either. Self-identification alone never demotes a
+frame.
 
 **Recovery actions key on authority over the lease, not on deadness.** Deadness is one proof of authority, not the
 only one, and treating it as the only one leaves two safe states with no exit at all. The rule is:
