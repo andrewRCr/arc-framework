@@ -1433,6 +1433,88 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
   create-new rollback compensates its minted role, groom and housekeep tails stay replayable across ref deletion
   and occupancy removal, and a crashed lock breaker leaves a reclaimable secondary rather than a wedged lock.
 
+- _Approach:_ All eight findings reproduce against the post-`7.E.c` head. `.i` precedes `.ii` because the
+  identity-rollback branch `.ii` adds reads the provisioning evidence kinds `.i` may extend; the remaining leaves
+  are independent. Compensation is preferred over new durable state throughout — where a correction boundary
+  offers "model a durable settlement state or accept every proven post-deletion state idempotently", take the
+  acceptance arm, since a durable-shape change belongs to the carved capability contract.
+
+    - `[ ]` **7.E.d.i Reconcile a primary checkout whose post-mutation probe failed** — L4-F5
+        - `checkoutPrimary` runs `git checkout` / `git checkout -b` before the `rev-parse` that builds its receipt,
+          so a throw at the probe leaves `provisionPrimaryUnderLock`'s `checkout` binding null, its catch arm skips
+          rollback, and the result reports `identity-only` evidence over a switched primary and a created branch.
+          Give the adapter a partial receipt exact enough to roll back what it just did — the previous branch, and
+          whether it created one — or reconcile inside the adapter itself, without depending on the head it never
+          read. Rollback must still prove it is undoing its own generation, as `7.E.c.ii` established.
+        - Cover a probe failure after each of the two mutating arms (`checkout` with a pinned expected head, and
+          `checkout -b`), asserting the primary is left on its original branch with no residual branch.
+
+    - `[ ]` **7.E.d.ii Roll back an Errand identity only against identity-only evidence** — E2-F1
+        - `rollbackAfterFailure` and `rollbackAfterRefusal` retire the claim on every non-provisioned result without
+          reading `provisioned.evidence`, so a `marker-record-mismatch` or `pending-marker` outcome — a durable
+          record, a retained marker, or a failed lock release — strands a role naming an identity generation that
+          rollback removed or restored. Branch on the evidence kind: roll back only `identity-only`, and retain the
+          claim on every durable-residue kind, surfacing the residue in the returned error rather than compounding it.
+        - Cover failures after record creation and after lease attachment, asserting the claim survives both.
+
+    - `[ ]` **7.E.d.iii Recover an interrupted or colliding rename** — W1-F1, W1-F2, W1-F3
+
+        - `[ ]` **7.E.d.iii.1 Preserve both rename coordinates and prove the target before the move** — W1-F1, W1-F2
+            - `already-moved` supplies the destination as both source and target, so re-entry after an interruption
+              between the worktree move and the target mint reads the destination key, finds nothing, and settles
+              `absent` — leaving the live checkout unmanaged and the source-keyed record holding the old path and
+              slug. Reconstruct the source coordinate for that arm (the inverse of `resolveRenameWorktreeMove`'s
+              leaf rewrite) so re-entry rekeys the record that actually exists.
+            - In the same transaction, read the target record before `moveWorktree()` runs: a collision or an
+              incompatible target generation must refuse with the checkout still in place, and idempotent re-entry
+              must stay distinguishable from collision. A persistence failure after the move compensates rather
+              than leaving split physical and logical state.
+            - Cover interruption after the move and before mint, and a pre-existing target record on both arms.
+
+        - `[ ]` **7.E.d.iii.2 Compensate the minted role when create-new rolls back** — W1-F3
+            - The spawn leg mints a durable role through `ctx.locus.reconcile`, whose `WorkUnitLocusReceipt`
+              `reconcileWorkUnitWorktree` discards, so `runCreateNew`'s scaffold-failure arm force-removes the
+              worktree and branch and leaves a role for a checkout that no longer exists. Thread the receipt out of
+              the spawn result and compensate it by exact generation before the worktree is removed — only when
+              `roleCreated` is true, so a pre-existing role is never destroyed by a rollback that did not mint it.
+            - Cover a scaffold failure after a role mint and after an idempotent reconcile, asserting the record is
+              removed in the first case and retained in the second.
+
+    - `[ ]` **7.E.d.iv Make grooming and housekeeping tails replayable** — P1-F1, P1-F2
+
+        - `[ ]` **7.E.d.iv.1 Keep tail settlement replayable across branch deletion** — P1-F1
+            - `settleGroomAtRuntime` and `settleHousekeepAtRuntime` delete the exact local and remote branch refs
+              before retiring the identity, so a failure in between strands the claim: replay re-enters
+              `deleteExactBranchGeneration`, cannot resolve `refs/heads/<branch>`, and refuses
+              `preservation-unproven` — permanently, since the refs it demands are exactly what the first pass
+              removed. Accept the proven post-deletion state instead: both sides absent is the deletion already
+              applied, and settlement proceeds to identity retirement. Absence must be proven on both sides — a ref
+              present at any head still refuses, and an unreachable remote is unproven rather than absent.
+            - Inject a failure after local deletion, after remote deletion, and before identity publication; assert
+              replay reaches retirement in each case.
+
+        - `[ ]` **7.E.d.iv.2 Let a partial grooming close survive a failed identity retirement** — P1-F2
+            - Partial `closeGroomAtRuntime` pops occupancy before `rollbackIdentityClaim`, so a failed retirement
+              leaves a claim whose replay refuses `checkout-missing` at the `exactGroomRow` gate before it can reach
+              the retirement again. Permit exact retirement with absent occupancy on the partial arm, gated on what
+              survives the removal — the claim read this pass being exactly the recorded generation, and the base
+              proof the record already carries — so the claim is retirable precisely when its occupancy is already
+              gone. Retiring a claim whose work was never proven pushed stays refused; if that proof cannot be made
+              exact from the record alone, persist the settled state into the claim ahead of occupancy removal
+              instead, and record the choice.
+            - Cover the identity-stage failure and the replay that follows it, plus an absent-occupancy replay whose
+              base proof does not hold.
+
+    - `[ ]` **7.E.d.v Leave a crashed lock breaker reclaimable** — L2-F2
+        - `breakDeadLocusLock` writes a `.break` file holding only the breaker's token, so an exit between that
+          exclusive create and the `finally` release makes every later breaker return `generation-mismatch`;
+          `acquireLocusLock` then retries to its deadline and refuses `unknown` forever, wedging a record lock whose
+          main holder is already conclusively dead. Give the secondary holder the same process-anchored shape the
+          main holder carries so a conclusively dead breaker is reclaimable, while a live or unverifiable breaker
+          still excludes competitors.
+        - Cover crash residue from a dead breaker (a later breaker reclaims and completes the break), a live
+          breaker's residue (still excluded), and an unverifiable breaker anchor (unknown, never reclaimed).
+
 ### `[ ]` **7.E.e Close the typed boundaries and make receipts describe the operation**
 
 - _Findings:_ L1-F1, L1-F2, L1-F3, L3-F3, L4-F6, E5-F3, X1-F1, X1-F2, X1-F3, A-F3, E2-F3, S1-F3
