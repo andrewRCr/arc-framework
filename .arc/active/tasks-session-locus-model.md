@@ -1475,45 +1475,38 @@ performs, against merged rather than open host truth.
           which is what makes the replay path work at all. The direct `arc errand abandon` verb supplies no
           selection and is unchanged.
 
-### `[ ]` **7.F.b Let a residue row satisfy the precondition that defines it**
+### `[x]` **7.F.b Let a residue row satisfy the precondition that defines it**
 
 - _Goal:_ The replay path `7.F.a.iii` routes to is reachable: a dead-leased, clean, ARC-provenanced residue row
   passes `arc locus resolve`'s preservation gate and reaches its subject driver, for `resume` as well as `abandon`.
 
-- _Evidence, traced to source:_ `resolveLocusAtRuntime` computes
-  `generationProven = row.diagnostics.length === 0 && row.frame === "residue"` (`locus/command-runtime.ts`), and the
-  two conjuncts are mutually exclusive. `frame: "residue"` requires a dead-or-absent lease (`locus/state.ts`); a dead
-  lease unconditionally emits a `lease-dead` diagnostic (`locus/roster.ts`, `recordDiagnostics`); the leaseless
-  escape is closed separately as `record-malformed` (`locus/resolve-driver.ts`). **No residue row can satisfy the
-  predicate**, so `resolveLocusGeneration` refuses `preservation-unproven` before dispatch and every residue
-  `deriveRecovery` offers is unresolvable. Hit live at session-init against the `test-fixture-cwd-path` row
-  `7.F.a.iii` was written to release — the third distinct refusal that row has produced across three sessions
-  (`lease-live`, then `role-conflict`, now this).
+    - `[x]` **7.F.b.i Ground the preservation gate in preservation evidence**
+        - `resolveLocusGeneration` no longer takes an injected `generationProven`; it projects the row through
+          `projectTrustedLocusRow` itself and refuses with that projection's own reasons rather than one generic
+          message. `abandon` tolerates exactly `subject-unresolved` — the defining condition of the residue it
+          exists to clear, so treating it as disqualifying made the exit unreachable precisely where it is needed —
+          while `resume` gets no allowance, since it reattaches through the subject's operation driver and an
+          unresolved subject leaves it nothing to reattach to. Every other authority failure stays fatal to both,
+          preserving the provenance, identity, version, and path evidence D6 requires. `preservation-unproven` now
+          names only the dirty checkout, and the residue-frame assertion stays as its own refusal.
 
-- _Note:_ A conformance defect against D6, not an input to `7.G`. The spec states abandon's preconditions as a dead
-  lease, a clean checkout, resolvable ARC provenance, and proven branch/ref preservation — it never requires a
-  diagnostic-free row. The WU's own settled predicate agrees: `7.E.a.i` made `lease-dead` deliberately non-fatal in
-  `projectTrustedLocusRow` ("a dead lease or lock is not, since replacement and break exist to act on exactly
-  that"), and `isIdleWorkUnitRow` tolerates it via `diagnostics.every(d => d.code === "lease-dead")`. The
-  `length === 0` form is the outlier and predates `7.E.a` (`a645833b5`, 2026-07-21). Prefer reusing the trusted-row
-  projection over minting a third predicate — but note the residue this must clear is `subject-unresolved`, which
-  **is** authority-fatal to that projection, so trust alone does not settle it; the gate wants preservation
-  evidence (dead lease, clean checkout, provenance), not authority to act as the subject.
+    - `[x]` **7.F.b.ii Cover the runtime computation the unit tests bypass**
+        - The bypass was the injection: with the predicate computed inside the driver, the existing driver tests
+          exercise it directly. The row builder was the deeper fiction — it emitted `diagnostics: []` for a dead
+          lease, a shape the reader never produces — so it now attaches the liveness evidence the reader attaches,
+          and every case in the file runs against the published shape. Added: abandon reaches dispatch on a row
+          carrying `lease-dead` + `subject-unresolved`; resume refuses the same row; abandon still refuses on
+          `cross-identity`, `marker-missing`, `identity-malformed`, `unsupported-version`, and `path-unavailable`;
+          a non-residue frame refuses.
 
-- _Note:_ Verify whether `resume` needs the same relief or is correctly stricter — it reattaches rather than
-  retires, so its evidence bar may differ. Settle it rather than inheriting the shared gate by default.
-
-    - `[ ]` **7.F.b.i Ground the preservation gate in preservation evidence**
-        - Replace the diagnostic-count proxy with the preconditions D6 names, and state which diagnostics are
-          compatible with resolving a residue row rather than disqualifying from it.
-
-    - `[ ]` **7.F.b.ii Cover the runtime computation the unit tests bypass**
-        - `resolve-driver.test.ts` injects `checkoutClean` / `generationProven` as parameters, so the
-          `command-runtime.ts` computation has no unit coverage; e2e covers only input validation
-          (`--action erase` → `locus.resolve.input`). The success path of `arc locus resolve` has never been
-          executed by a test, which is why an unsatisfiable predicate shipped green. Add coverage that drives a
-          real residue row through `resolveLocusAtRuntime` to dispatch — the `7.E.b` pattern of a green suite
-          ratifying the defect, so the test must assert reachability, not restate the current gate.
+- _Outcome:_ The two conjuncts of `generationProven` were mutually exclusive — `frame: "residue"` requires a
+  dead-or-absent lease, and a dead lease always carries `lease-dead` — so no residue row could satisfy it and
+  every residue `deriveRecovery` offered was unresolvable, `resume` and `abandon` alike. The gate had been
+  standing in for an authority check with a diagnostic count, which is why it contradicted both D6's stated
+  preconditions and `7.E.a.i`'s deliberately `lease-dead`-tolerant predicate. Proven end to end against the live
+  `test-fixture-cwd-path` residue this branch had been blocked behind for three sessions: `applied`, dispatching
+  into `7.F.a.iii`'s identity-absent arm, with the probe moving `recovery: residue → none`,
+  `reconciliation: stop → clean`, and `primaryAvailability: unsafe → free`.
 
 ## **Phase 7.G:** Recovery Reachability Without a Dead Lease
 

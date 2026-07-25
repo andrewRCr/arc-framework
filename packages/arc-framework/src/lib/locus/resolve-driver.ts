@@ -2,7 +2,8 @@
 
 import { createLocusMutationResult } from "./mutation.js";
 import type { SelectedLocusGeneration } from "./selected-generation.js";
-import type { LocusMutationResultV1, LocusRowV1 } from "./schema/index.js";
+import { projectTrustedLocusRow, untrustedRefusalReason } from "./trusted-row.js";
+import type { LocusMutationResultV1, LocusRowV1, LocusStopReason } from "./schema/index.js";
 
 export type LocusResolveSubject = "errand" | "housekeep" | "groom";
 export type LocusResolveAction = "resume" | "abandon";
@@ -19,12 +20,37 @@ export interface LocusResolveDriverDependencies {
   run(dispatch: LocusResolveDispatch): Promise<LocusMutationResultV1>;
 }
 
+/**
+ * Authority failures an `abandon` may carry and still resolve.
+ *
+ * An unresolvable subject is the defining condition of the residue abandon exists to clear — a role
+ * whose subject retired out from under it — so treating it as disqualifying makes the exit
+ * unreachable exactly where it is needed. `resume` gets no such allowance: it reattaches through the
+ * subject's own operation driver, which leaves it nothing to reattach to.
+ *
+ * Every other authority failure stays fatal to both actions, so provenance, identity, version, and
+ * path evidence must still hold before anything destructive dispatches.
+ */
+const ABANDON_TOLERATED_REASONS: ReadonlySet<LocusStopReason> = new Set<LocusStopReason>(["subject-unresolved"]);
+
+/**
+ * Reasons that block resolving one row, after the action's own tolerance is applied.
+ *
+ * Authority is projected through the shared predicate rather than a resolve-local rule, so a code
+ * added to either published enum reaches this gate with no second list to update.
+ */
+function blockingReasons(row: LocusRowV1, action: LocusResolveAction): readonly LocusStopReason[] {
+  const projected = projectTrustedLocusRow(row);
+  if (projected.kind === "trusted") return [];
+  if (action !== "abandon") return projected.reasons;
+  return projected.reasons.filter((reason) => !ABANDON_TOLERATED_REASONS.has(reason));
+}
+
 /** Revalidate safety facts, derive the subject from trusted state, and invoke its lifecycle driver. */
 export async function resolveLocusGeneration(options: {
   readonly row: LocusRowV1;
   readonly action: LocusResolveAction;
   readonly checkoutClean: boolean;
-  readonly generationProven: boolean;
   readonly dependencies: LocusResolveDriverDependencies;
 }): Promise<LocusMutationResultV1> {
   const row = options.row;
@@ -34,8 +60,13 @@ export async function resolveLocusGeneration(options: {
   if (row.lease === null) return refusal("record-malformed", "The selected transient role has no dead lease generation.");
   if (row.lease.state === "live") return refusal("lease-live", "The selected transient lease is live.");
   if (row.lease.state === "unknown") return refusal("lease-unknown", "The selected transient lease has unknown liveness.");
-  if (!options.checkoutClean || !options.generationProven) {
-    return refusal("preservation-unproven", "The selected checkout is dirty or its generation cannot be proven.");
+  if (!options.checkoutClean) {
+    return refusal("preservation-unproven", "The selected checkout is dirty.");
+  }
+  if (row.frame !== "residue") return refusal("role-conflict", "The selected generation is not residue.");
+  const blocked = blockingReasons(row, options.action);
+  if (blocked.length > 0) {
+    return refusal(untrustedRefusalReason(blocked), `The selected generation is untrusted: ${blocked.join(", ")}.`);
   }
   const subject = deriveSubject(row);
   if (subject === null) return refusal("role-conflict", "The selected role is not a resolvable transient subject.");

@@ -317,9 +317,8 @@ export async function resolveLocusAtRuntime(options: ResolveLocusRuntimeOptions)
   if (row === undefined) return refusal("locus-resolve", matches.length > 1 ? "duplicate-locus" : "checkout-missing", "Select one exact session locus record generation.");
   const checkoutClean = row.checkoutPath !== null
     && (await options.io.exec("git", ["status", "--porcelain"], { cwd: row.checkoutPath })).stdout === "";
-  const generationProven = row.diagnostics.length === 0 && row.frame === "residue";
   return resolveLocusGeneration({
-    row, action: options.action, checkoutClean, generationProven,
+    row, action: options.action, checkoutClean,
     dependencies: {
       run: async (dispatch) => dispatch.action === "abandon"
         ? options.abandon(dispatch)
