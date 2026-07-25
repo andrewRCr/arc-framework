@@ -14,6 +14,7 @@ For ARC methodology rules (commit discipline, task execution, session management
 - [Testing Requirements](#testing-requirements) — test strategy and coverage
 - [Code Quality Principles](#code-quality-principles) — engineering standards
 - [Documentation Standards](#documentation-standards) — markdown quality, style conventions
+- [Commit Conventions (self-hosting)](#commit-conventions-self-hosting) — scope and type adherence in this repo
 - [Package-Project Sync](#package-project-sync) — two-copy discipline for framework files
 - [Audience Boundaries](#audience-boundaries) — adopter-facing vs. internal-dev-facing surfaces
 - [Capture Routing](#capture-routing) — where deferred issues go
@@ -178,6 +179,22 @@ mechanics) gets one extra degree of freedom here that adopters lack: the `arc` C
 mechanics-narrating line that exists because no verb covers the operation is a **verb-gap signal** — surface
 it for potential `arc-inbox` capture rather than accepting the coupling as permanent.
 
+## Commit Conventions (self-hosting)
+
+The universal format lives in the [commit-format][commit-format] and [commit-footer][commit-footer] methods.
+One project-specific adherence rule applies on top, because this repository is ARC:
+
+**`(arc)` is not the default scope here.** `commit-format` § Subject scope reserves `(arc)` for cross-cutting
+framework concerns and ARC lifecycle-ceremony invocations — "not a default-when-uncertain catch-all." In an
+adopter repo `(arc)` carries real signal (it scopes edits to installed ARC artifacts); **in this repo everything
+is ARC, so it carries none.** Prefer the narrowest descriptive locus: `fix(brief)`, `fix(hook)`, `fix(strategy)`,
+`fix(method)`, `chore(backlog)`, `feat(status)`, `feat(session-init)`. Reserve `(arc)` for genuinely cross-cutting
+changes with no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/activate/archive/handoff
+…`) remain a legitimate use.
+
+**`docs` is external-facing prose only** — `README.md`, docs-site content, onboarding. Methodology-artifact edits
+are `fix` / `refactor` / `feat` by intent, never `docs`.
+
 ## Package-Project Sync
 
 This repo has two copies of ARC framework content: `packages/arc-framework/arc/` (authoritative
@@ -274,6 +291,24 @@ surfaces. Both apply.
 Using `pm.mode: arc-in-git` — deferred work routes through ARC's built-in capture surfaces.
 See [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full routing table.
 
+### Surface agent-side friction and idiom divergence
+
+**Dev-internal to this repository only** — never carry this to other ARC projects, where an
+ARC-improvement observation is something the reader cannot act on. Two trigger classes:
+
+- **Friction (factual).** The harness or methodology made the job measurably harder — you had to hunt for
+  something, a surface misled you, a workaround or retry loop was needed. Floor: systemic or likely-recurring,
+  never one-off trivia.
+- **Idiom divergence (opinion — stricter floor).** ARC's design departs from established industry idiom _at an
+  observable cost_, or leaves unhandled a case the norm covers. Never aesthetic preference. Engage any recorded
+  rationale (ADRs, strategies) before raising it — an observation that ignores a recorded decision is noise; one
+  that engages it is signal. Mark these as judgment, not fact.
+
+**Protocol:** batch to the next natural report boundary (completion report, handoff) as one proposed line each —
+"hit friction X — capture?" — never a mid-execution interrupt. On confirmation, route via `arc-inbox`. When
+running unattended (deferred review), capture directly and note it in the report, so a missing approval moment
+never loses the thought.
+
 ## Architecture Documentation
 
 ### Architecture Decision Records (ADRs)
@@ -300,5 +335,7 @@ for docs-site content.
 [testing-methodology]: ../../reference/strategies/project/strategy-testing-methodology.md
 [test-first]: ../methods/test-first.md
 [testing-standards]: ../methods/testing-standards.md
+[commit-format]: ../methods/commit-format.md
+[commit-footer]: ../methods/commit-footer.md
 [package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
