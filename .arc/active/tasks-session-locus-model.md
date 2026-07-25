@@ -1463,7 +1463,7 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           refusals still roll back — they are proven pre-effect, and the call site now states that rather than
           inheriting it from a default.
 
-    - `[ ]` **7.E.d.iii Recover an interrupted or colliding rename** — W1-F1, W1-F2, W1-F3
+    - `[x]` **7.E.d.iii Recover an interrupted or colliding rename** — W1-F1, W1-F2, W1-F3
 
         - `[x]` **7.E.d.iii.1 Preserve both rename coordinates and prove the target before the move** — W1-F1, W1-F2
             - `resolveRenameWorktreeMove` now carries a `sourceWorktreePath` on its `already-moved` arm — the exact
@@ -1483,14 +1483,24 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
               (`carriesRenamedSubject`) is now one predicate shared with the settled-outcome read rather than two
               restatements of the same rule.
 
-        - `[ ]` **7.E.d.iii.2 Compensate the minted role when create-new rolls back** — W1-F3
-            - The spawn leg mints a durable role through `ctx.locus.reconcile`, whose `WorkUnitLocusReceipt`
-              `reconcileWorkUnitWorktree` discards, so `runCreateNew`'s scaffold-failure arm force-removes the
-              worktree and branch and leaves a role for a checkout that no longer exists. Thread the receipt out of
-              the spawn result and compensate it by exact generation before the worktree is removed — only when
-              `roleCreated` is true, so a pre-existing role is never destroyed by a rollback that did not mint it.
-            - Cover a scaffold failure after a role mint and after an idempotent reconcile, asserting the record is
-              removed in the first case and retained in the second.
+        - `[x]` **7.E.d.iii.2 Compensate the minted role when create-new rolls back** — W1-F3
+            - The spawn result now carries the `WorkUnitLocusReceipt` it previously discarded, and `runCreateNew`'s
+              scaffold-failure arm retires the role through the same driver that minted it — which proves the exact
+              generation under the record lock before removing anything — rather than force-removing the checkout
+              and leaving a role naming it. Compensation is gated on `roleCreated`, so a role the spawn reused is
+              never destroyed by a rollback that did not create it.
+            - Retiring through the driver rather than deleting the record directly is what keeps the rollback from
+              becoming a second, weaker ownership rule; the driver's own removal order (checkout, then record under
+              the same lock) is unchanged, so an interruption still leaves a visible stale record rather than an
+              unmanaged checkout.
+
+        - _Outcome:_ Three findings, one cause: each composition computed the fact its own recovery needed and then
+          discarded it — the source coordinate collapsed into the destination, the target's occupancy learned only
+          from a refused mint, the role receipt dropped at the call that returned it. None of the three needed a new
+          mechanism, because the driver, the record store, and the retire path all already did the work; what was
+          missing was carrying a value across one seam. That is why the fixes are small and the failures were
+          terminal: a discarded fact is invisible at the site that discards it and only surfaces where recovery is
+          impossible.
 
     - `[ ]` **7.E.d.iv Make grooming and housekeeping tails replayable** — P1-F1, P1-F2
 

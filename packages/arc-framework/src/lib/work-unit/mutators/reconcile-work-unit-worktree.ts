@@ -59,7 +59,7 @@ import {
   reconcileLinkedIdentityGlobalUserSurfaces,
   type UserSurfaceMigrationDirent,
 } from "../../user-surface-migration.js";
-import type { WorkUnitLocusDriver } from "../work-unit-locus.js";
+import type { WorkUnitLocusDriver, WorkUnitLocusReceipt } from "../work-unit-locus.js";
 import type { TeardownLocusDriver } from "../teardown-locus.js";
 import type { TeardownOccupancyDecision } from "../teardown-occupancy.js";
 import type { WorktreeSubject } from "../../git/worktree-marker.js";
@@ -216,7 +216,14 @@ export type ReconcileWorkUnitWorktreeOp =
 
 /** Outcome of a {@link reconcileWorkUnitWorktree} call. */
 export type ReconcileWorkUnitWorktreeResult =
-  | { mutation: "spawn"; worktreePath: string; branch: string; postCreateNotice?: string }
+  | {
+      mutation: "spawn";
+      worktreePath: string;
+      branch: string;
+      postCreateNotice?: string;
+      /** Role this spawn established — the generation a rollback must compensate. */
+      locus?: WorkUnitLocusReceipt;
+    }
   | { mutation: "teardown"; worktreePath: string; locusHopped: boolean }
   | {
       mutation: "move";
@@ -404,7 +411,7 @@ export async function reconcileWorkUnitWorktree(
       spawningIdentity: op.spawningIdentity,
       now: op.now,
     });
-    await ctx.locus?.reconcile({
+    const locus = await ctx.locus?.reconcile({
       checkoutPath: worktreePath,
       branch: op.branch,
       wuName: op.wuName,
@@ -416,6 +423,7 @@ export async function reconcileWorkUnitWorktree(
       worktreePath,
       branch: op.branch,
       ...setup,
+      ...(locus === undefined ? {} : { locus }),
     };
   }
 

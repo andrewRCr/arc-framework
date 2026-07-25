@@ -66,7 +66,11 @@ import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
-import { createNodeWorkUnitLocusDriver } from "../lib/work-unit/work-unit-locus.js";
+import {
+  createNodeWorkUnitLocusDriver,
+  type WorkUnitLocusDriver,
+  type WorkUnitLocusReceipt,
+} from "../lib/work-unit/work-unit-locus.js";
 
 /**
  * The arm `start` dispatches to for a resolved lifecycle state. `create-new`
@@ -802,13 +806,16 @@ export async function runCreateNew(
   // Spawn leg: cut the branch + worktree and write the ARC-created marker.
   let worktreePath: string;
   let postCreateNotice: string | undefined;
+  let spawnedLocus: WorkUnitLocusReceipt | undefined;
+  const locusDriver = ctx.workUnitLocus
+    ?? createNodeWorkUnitLocusDriver({ exec: ctx.io.exec, identity: params.identity });
   try {
     const spawnResult = await reconcileWorkUnitWorktree(
       {
         exec: ctx.io.exec,
         chdir: (dir) => { process.chdir(dir); },
         fs: nodeReconcileWorkUnitWorktreeFs,
-        locus: ctx.workUnitLocus ?? createNodeWorkUnitLocusDriver({ exec: ctx.io.exec, identity: params.identity }),
+        locus: locusDriver,
       },
       {
         mutation: "spawn",
@@ -828,6 +835,7 @@ export async function runCreateNew(
     }
     worktreePath = spawnResult.worktreePath;
     postCreateNotice = spawnResult.postCreateNotice;
+    spawnedLocus = spawnResult.locus;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `could not spawn the worktree: ${message}` };
@@ -850,7 +858,10 @@ export async function runCreateNew(
       }),
     });
   } catch (err) {
-    await rollbackSpawnedWorktree(ctx.io.exec, worktreePath, branch);
+    await rollbackSpawnedWorktree(ctx.io.exec, worktreePath, branch, {
+      wuName,
+      ...(spawnedLocus?.roleCreated === true ? { driver: locusDriver } : {}),
+    });
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `could not scaffold the work unit: ${message}` };
   }
@@ -871,14 +882,24 @@ export async function runCreateNew(
  * worktree and delete its branch. Errors are swallowed so the original scaffold
  * failure is the one surfaced (the user-facing teardown leg refuses a dirty
  * worktree; `--force` stays rollback-only, as here).
+ *
+ * A role this spawn minted is retired through its own driver, which proves the exact generation
+ * under the record lock before removing anything — otherwise the rollback would report success
+ * while leaving a role naming a checkout that no longer exists. A role the spawn merely reused is
+ * not this rollback's to retire, so it is left alone.
  */
 async function rollbackSpawnedWorktree(
   exec: SpawnWorktreeContext["io"]["exec"],
   worktreePath: string,
   branch: string,
+  role: { wuName: string; driver?: WorkUnitLocusDriver },
 ): Promise<void> {
-  try {
+  const removeCheckout = async (): Promise<void> => {
     await exec("git", ["worktree", "remove", "--force", worktreePath]);
+  };
+  try {
+    if (role.driver?.retire === undefined) await removeCheckout();
+    else await role.driver.retire({ checkoutPath: worktreePath, wuName: role.wuName, removeCheckout });
     await exec("git", ["branch", "-D", branch]);
   } catch {
     // Best-effort — the original scaffold failure is the one worth surfacing.
