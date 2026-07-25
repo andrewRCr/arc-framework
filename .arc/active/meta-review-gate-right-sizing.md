@@ -1,8 +1,8 @@
 # Metadata: review-gate-right-sizing
 
-| **State** | **Owner** | **Branch**                      | **Class** | **Priority** |
-| --------- | --------- | ------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/review-gate-right-sizing` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                      | **Class** | **Priority** |
+| ------------- | --------- | ------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/review-gate-right-sizing` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,12 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Planning finalized and activated; public PR review record correction folded into the
-  implementation design and task list
-- **Next Task:** Begin Task 1.1 — Establish hosted request, await, and thread-settlement verbs
+- **Last Completed:** Task 6.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
