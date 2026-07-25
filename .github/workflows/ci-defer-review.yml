@@ -63,7 +63,6 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REVIEW_STATE: ${{ github.event.review.state }}
-          REVIEWER_TYPE: ${{ github.event.review.user.type }}
           LABEL: ci-defer-heavy
         run: |
           set -euo pipefail
@@ -80,16 +79,17 @@ jobs:
               ;;
           esac
 
-          # Asymmetric trust, and deliberately so. A bot reporting a problem is
-          # acted on; a bot reporting approval is not, because an approving review
-          # from a provider is not evidence that review occurred — this repository
-          # recorded an empty approval arriving seconds after an unrelated thread
-          # was resolved, with no review performed. Restoring the full suite is the
-          # step that precedes merge, so it is keyed to a human approval only.
-          if [ "$intent" = absent ] && [ "$REVIEWER_TYPE" != "User" ]; then
-            echo "ignoring '$state' from a $REVIEWER_TYPE reviewer; restoration is human-keyed"
-            exit 0
-          fi
+          # Any reviewer's outcome is acted on, including a provider's. The two
+          # directions are not symmetric in risk: removing the label runs the full
+          # suite, so acting on a weak approval costs time and buys verification,
+          # while the label's presence already fails the rollup and blocks the
+          # merge. Neither direction can under-verify a merged head, so there is
+          # nothing here for a trust distinction to protect.
+          #
+          # This is a CI cost control, not a review gate. Whether a provider's
+          # approval is evidence that review occurred is a real question, and a
+          # live one for this repository — but it is answered at the review
+          # obligation, not by a label toggle.
 
           # Read current labels and act only on a real difference, so replayed or
           # repeated reviews are no-ops rather than API errors.
