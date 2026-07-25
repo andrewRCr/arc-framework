@@ -54,7 +54,7 @@ jobs:
         name: Mint a short-lived App installation token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         with:
-          app-id: ${{ vars.ARC_FRAMEWORK_BOT_APP_ID }}
+          client-id: ${{ vars.ARC_FRAMEWORK_BOT_APP_CLIENT_ID }}
           private-key: ${{ secrets.ARC_FRAMEWORK_BOT_APP_PRIVATE_KEY }}
           # Narrow the minted token to the one grant this job uses. The
           # workflow-level `permissions: {}` above governs only the automatic
