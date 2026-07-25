@@ -51,9 +51,27 @@ Underneath all four is the same shape, and it is worth naming because it is also
 misread status is not authoritative; a capability declared in policy but absent from the request contract is not a
 capability; a typed failure outcome with no retained diagnostic is not actionable.
 
+### The second pattern — correct rules, unreachable at the decision point
+
+Grooming surfaced a distinct shape often enough to name it separately, because it changes what a fix has to
+accomplish. In each case the governing rule is present, correct, and well designed; what fails is that it cannot be
+reached from where the decision is actually made.
+
+| Rule                 | Its state                                   | Why it does not bite                               |
+| -------------------- | ------------------------------------------- | -------------------------------------------------- |
+| Review pass ceilings | implemented, wired to an approval interlock | the request that reaches them cannot be composed   |
+| Triage severity      | contracted to be verified against source    | the verdict lands in prose no mechanism reads      |
+| Review obligation    | typed and routed                            | no verb exposes the router's output                |
+| Stop discipline      | stated precisely, with worked principles    | stated only in a shipped work unit's archived spec |
+
+None of these is a missing rule, so none is fixed by writing a better one. Each is fixed by making an existing rule
+reachable — a producing verb, a field in the typed record, a statement carried into the workflow the agent loads.
+That distinction decides the size of every concern below: where the rule already exists, the work is plumbing, not
+design, and proposals that add governing machinery are answering a question that was already answered.
+
 ## Scope
 
-Seven concerns, in rough dependency order. The first four are the hosted-protocol core; the last three are adjacent
+Eight concerns, in rough dependency order. The first four are the hosted-protocol core; the last four are adjacent
 surfaces that arrived through their own captures and are confirmed in scope.
 
 ### 1. Selection authority (the core)
@@ -437,6 +455,49 @@ record is the one part with real code cost, and the gate's exit becoming materia
 change — today any finding forces a response cycle, where a pass carrying only minors could converge. Size those
 two against the response path before committing to them inside this WU.
 
+### 8. Stop discipline and spend opt-in
+
+Two halves of one question: what the integration stretch does without asking, and who decided that it may.
+
+**The choreography already matches its design intent; the rule that says so is unreachable.** The shipped
+right-sizing spec states the target plainly — human stops track authority rather than every judgment, final
+dispositions and release coincide in one structured gate when nothing earlier needs approval, exceeding a pass
+ceiling is a third stop by exception, and ordinary agent judgments do not create permission turns. Counting the
+integration workflow's own stop-class callouts confirms the shape: one stop before merge, plus the conditional
+finding-driven and ceiling stops. But that spec is a completed work unit's archived artifact, so the agent running
+integration never loads it. The discipline exists and is correct; nothing states it where the decision is made.
+This is the second pattern above, in its clearest form.
+
+Two concrete asymmetries follow:
+
+- **The lighter vehicle carries more autonomy guidance than the heavier one.** The errand workflow states four
+  times that a confident bounded call proceeds without a permission stop, including at review applicability and
+  supplemental review. The integration workflow states it twice, and its own review-applicability step instructs
+  the agent to make and disclose the judgment without saying it proceeds. Integration is the long autonomous
+  stretch the design intended to protect, and it is the one carrying less of the rule.
+- **The verification fire-point stops at every `Class`.** The adversarial fire-point scales its _posture_ by
+  `Class` — recommend at `Novel`, neutral offer otherwise — but the offer awaits a call regardless. At `Light`,
+  that is a permission turn to ask about a pass the posture already declines to recommend.
+
+**Spend is opt-in for code review and ungated for adversarial review.** Both review lanes ship with empty source
+lists, so an adopter incurs no automatic review spend until a source is named; the pass ceilings bind only once a
+lane exists. The adversarial method has **no configuration surface at all**, across five fire points — three
+planning stages, verification, and integration. An adopter who does not want subagent spend can only decline, at
+every fire point, indefinitely. Combined with the asymmetry above, that adopter pays five permission turns and
+receives nothing for them.
+
+**Resolved: a `Class`-threshold configuration key, defaulting to disabled.** Gate the fire-points on a minimum
+`Class` rather than a boolean, so the setting reuses the axis the method already scales on instead of minting a
+new concept, and a project can ask for offers at `Novel` only. Disabled is the shipped default, matching the empty
+source lists — **ARC ships with no automatic spend and each project opts in**. Discoverability is a documentation
+concern and does not outweigh consistency with the lanes.
+
+**Boundary with `judgment-authority-model`.** That work unit owns the authority model: which rules yield to
+demonstrated judgment, who may override, and how an override is disclosed. This concern is narrower and is exactly
+this work unit's stated purpose — whether the shipped workflow carries the discipline its own spec defined. Fixing
+the carriage does not settle the authority question, and settling the authority question would not have carried
+the rule.
+
 ## Alternatives
 
 - **Restore the deleted admission machinery** to re-establish carrier authority. Rejected — right-sizing removed it
@@ -631,7 +692,10 @@ method prose — wide, but no longer carrying an unrun measurement on its critic
   wording edits with its rejected shapes recorded; concern 7's separation of the exit gate from the convergence
   signal, convergence measured on what a pass surfaced, severity provenance anchored to triage rather than the
   provider label, one shared definition across both loops, the recommend-but-never-proceed boundary for judgment
-  at the cap, and the `blocker` → `critical` rename sequenced first; the review-budget ledger rejected with its
+  at the cap, and the `blocker` → `critical` rename sequenced first; concern 8's finding that the stop discipline
+  is correct but archived, the two autonomy asymmetries, and the `Class`-threshold spend gate defaulting to
+  disabled; the second pattern named in the problem framing — correct rules unreachable at the decision point;
+  the review-budget ledger rejected with its
   reasoning; coordination-not-dependency with `judgment-authority-model`;
   the two-front handoff contract with `chunk-scope-binding`; the spawn-context guard routed to
   `execution-delegation-doctrine`; the `ci-defer-heavy` mechanism and its routing out to
