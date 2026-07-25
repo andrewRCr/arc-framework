@@ -1475,7 +1475,47 @@ performs, against merged rather than open host truth.
           which is what makes the replay path work at all. The direct `arc errand abandon` verb supplies no
           selection and is unchanged.
 
-## **Phase 7.G:** Unknown-Liveness Recovery Reachability
+### `[ ]` **7.F.b Let a residue row satisfy the precondition that defines it**
+
+- _Goal:_ The replay path `7.F.a.iii` routes to is reachable: a dead-leased, clean, ARC-provenanced residue row
+  passes `arc locus resolve`'s preservation gate and reaches its subject driver, for `resume` as well as `abandon`.
+
+- _Evidence, traced to source:_ `resolveLocusAtRuntime` computes
+  `generationProven = row.diagnostics.length === 0 && row.frame === "residue"` (`locus/command-runtime.ts`), and the
+  two conjuncts are mutually exclusive. `frame: "residue"` requires a dead-or-absent lease (`locus/state.ts`); a dead
+  lease unconditionally emits a `lease-dead` diagnostic (`locus/roster.ts`, `recordDiagnostics`); the leaseless
+  escape is closed separately as `record-malformed` (`locus/resolve-driver.ts`). **No residue row can satisfy the
+  predicate**, so `resolveLocusGeneration` refuses `preservation-unproven` before dispatch and every residue
+  `deriveRecovery` offers is unresolvable. Hit live at session-init against the `test-fixture-cwd-path` row
+  `7.F.a.iii` was written to release — the third distinct refusal that row has produced across three sessions
+  (`lease-live`, then `role-conflict`, now this).
+
+- _Note:_ A conformance defect against D6, not an input to `7.G`. The spec states abandon's preconditions as a dead
+  lease, a clean checkout, resolvable ARC provenance, and proven branch/ref preservation — it never requires a
+  diagnostic-free row. The WU's own settled predicate agrees: `7.E.a.i` made `lease-dead` deliberately non-fatal in
+  `projectTrustedLocusRow` ("a dead lease or lock is not, since replacement and break exist to act on exactly
+  that"), and `isIdleWorkUnitRow` tolerates it via `diagnostics.every(d => d.code === "lease-dead")`. The
+  `length === 0` form is the outlier and predates `7.E.a` (`a645833b5`, 2026-07-21). Prefer reusing the trusted-row
+  projection over minting a third predicate — but note the residue this must clear is `subject-unresolved`, which
+  **is** authority-fatal to that projection, so trust alone does not settle it; the gate wants preservation
+  evidence (dead lease, clean checkout, provenance), not authority to act as the subject.
+
+- _Note:_ Verify whether `resume` needs the same relief or is correctly stricter — it reattaches rather than
+  retires, so its evidence bar may differ. Settle it rather than inheriting the shared gate by default.
+
+    - `[ ]` **7.F.b.i Ground the preservation gate in preservation evidence**
+        - Replace the diagnostic-count proxy with the preconditions D6 names, and state which diagnostics are
+          compatible with resolving a residue row rather than disqualifying from it.
+
+    - `[ ]` **7.F.b.ii Cover the runtime computation the unit tests bypass**
+        - `resolve-driver.test.ts` injects `checkoutClean` / `generationProven` as parameters, so the
+          `command-runtime.ts` computation has no unit coverage; e2e covers only input validation
+          (`--action erase` → `locus.resolve.input`). The success path of `arc locus resolve` has never been
+          executed by a test, which is why an unsatisfiable predicate shipped green. Add coverage that drives a
+          real residue row through `resolveLocusAtRuntime` to dispatch — the `7.E.b` pattern of a green suite
+          ratifying the defect, so the test must assert reachability, not restate the current gate.
+
+## **Phase 7.G:** Recovery Reachability Without a Dead Lease
 
 _Purpose:_ Give unverifiable liveness an exit. Every other residue state resolves: a dead lease reaches
 `arc locus resolve`, a dead lock reaches `break-dead-lock`, an orphaned record reaches `reap-stale-record`. An
@@ -1492,7 +1532,7 @@ refuse, D10 makes age and heartbeat staleness informational only, and current v3
 `close --force`. The remaining exit is deleting the record by hand — the out-of-band move the model exists to
 prevent.
 
-_Design decisions:_ **Open — settle in `spec-session-locus-model.md` before implementing.** Unknown liveness is
+_Design decisions:_ **Open — settle in `spec-session-locus-model.md` § Q1 before implementing.** Unknown liveness is
 specified state, not a defect: D5 has mutation proceed with an unverifiable anchor precisely at unknown liveness.
 What is unspecified is how residue in that state is ever resolved. Three candidate shapes, none chosen: a bounded
 operator-confirmed override (the awaiting-merge resume arm is the existing precedent for operator-confirmed truth
@@ -1501,17 +1541,30 @@ the stop is surfaced; or narrowing the unknown surface itself, so a cross-inspec
 portable signal instead of reading unverifiable. The first two accept the state and add an exit; the third
 removes most of its reachability and leaves the rest genuinely unverifiable.
 
-### `[ ]` **7.G.a Settle how unverifiable-liveness residue resolves**
+_Scope widened 2026-07-24:_ self-held residue is the same defect from the opposite end — liveness verifiably **self**
+rather than unverifiable, and equally without an exit. Both reduce to "recovery keys on deadness," so the phase
+settles one question (recovery keys on **authority over the lease**) rather than two. The widened statement, its live
+evidence, and the do-not-weaken-the-anchor boundary are recorded in the spec's § Q1; under that reframe the third
+candidate above stops being a separate shape and becomes part of the same choice.
 
-- _Goal:_ A session that cannot verify its predecessor's liveness has a defined, in-model way forward, and the
-  path is reachable from the surface that reports the stop. No recovery state depends on hand-editing the record
-  store.
+### `[ ]` **7.G.a Settle how residue without a dead lease resolves**
+
+- _Goal:_ A session that cannot verify its predecessor's liveness — or that is provably the stranding process
+  itself — has a defined, in-model way forward, and the path is reachable from the surface that reports the stop.
+  No recovery state depends on hand-editing the record store.
 
 - _Note:_ Route the decision to the spec first — this is emergent design, not a conformance defect, and the
   choice changes what the implementation is. Distinct from `7.E.d`, which recovers mutations that failed midway;
-  this is a state that never becomes resolvable at all. Include the cross-platform reachability question in the
-  decision: if the third shape is taken, most of this phase becomes an anchor-portability change rather than a
-  recovery-vocabulary one.
+  this is a state that never becomes resolvable at all. Distinct too from `7.F.b`, where a conclusively dead lease
+  fails its own exit — that is a conformance defect against D6 and does not wait on this decision. Include the
+  cross-platform reachability question: if the anchor-portability shape is taken, most of this phase becomes an
+  anchor change rather than a recovery-vocabulary one. Gate any self-attested release on operator confirmation, and
+  do not weaken the process anchor to reach it.
+
+- _Also in scope:_ the residue guidance says the lease "dies with the session" without saying what ends one. It
+  should read **"dies when the process exits"** — that phrasing is what led a handoff to predict an exit a
+  conversation reset could not reach — paired with a guidance line for the self-held case ("this lease is yours;
+  exit this process to release it") in place of today's bare reconciliation stop.
 
 ## **Phase 8:** Verification
 

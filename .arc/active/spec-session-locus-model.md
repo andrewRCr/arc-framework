@@ -1529,5 +1529,48 @@ motivating failure.
 
 ## Open Questions
 
-None. Platform command invocation details and internal module/file partitioning may be selected during task
-generation and implementation so long as they satisfy the process-inspector and layer-boundary contracts above.
+Platform command invocation details and internal module/file partitioning may be selected during task generation
+and implementation so long as they satisfy the process-inspector and layer-boundary contracts above.
+
+### Q1. What authorizes a recovery action — deadness, or authority over the lease?
+
+D4 and D6 key every residue exit on a **conclusively dead** lease: `deriveRecovery` offers `resume`/`abandon` only
+for a dead-or-absent lease, `resolveLocusGeneration` refuses `lease-live` and `lease-unknown`, and
+`projectTrustedLocusRow` makes unverifiable liveness authority-fatal. Deadness is treated as the sole proof that
+acting on another generation is safe. Two states satisfy that safety condition without being dead, and both are
+currently unreachable:
+
+- **Unverifiable liveness.** `verifyProcessAnchor` returns `unknown` when inspection fails **or when the recorded
+  anchor's inspector kind differs from the running one** — so a checkout reached from two of the four supported
+  platforms reads its own healthy lease as unverifiable with nothing wrong. Every exit then refuses, leaving
+  hand-deleting the record as the only move — the out-of-band action the model exists to prevent.
+- **Self-held residue.** A lease whose recorded anchor is provably the **caller's own process** has no exit either.
+  Observed live at session-init: an in-place Errand close left the expected role at the primary with
+  `subject-unresolved`; a conversation reset started a new session inside the same process, so the anchor
+  (`pid 470247`, `startToken 24602157`, verified against `/proc/470247/stat` as the session's own parent) still read
+  live. `arc locus resolve --action abandon` refused `lease-live`, `arc locus release --lease <id>` refused
+  `role-conflict` (untrusted row on `subject-unresolved`, per D6's trusted-row predicate), and handoff refused
+  `locus-unresolved`. The lease dies when the **process** exits, not when the conversation ends.
+
+Candidate reframe: recovery actions key on **authority over the lease** rather than on deadness — dead ⇒ anyone may
+resolve; self ⇒ I may. Self-identification is strictly stronger evidence than deadness, since the process asserting
+it is the one whose death every other exit is waiting on. Gate a self-attested release on operator confirmation (the
+awaiting-merge resume arm is the precedent) rather than agent assertion, and scope it to an unresolved subject or an
+explicit abandon — never a general `--force`. This requires no detection of conversation resets, which are
+unobservable to the CLI; the point is that they never need to be observed.
+
+**Do not weaken the process anchor to reach this.** After a conversation reset the same process still holds live
+shell state and full write capability in that checkout, so dropping the lease there would open a genuine
+concurrent-occupancy hole. Occupancy identity and conversation identity are orthogonal and diverge in both
+directions: compaction is same process/same conversation, a reset is same process/new conversation, and a resumed
+session is new process/same conversation (already treated as a new session). The anchor tracks the right invariant;
+only the recovery vocabulary is short.
+
+Settling this subsumes the third candidate shape recorded for unverifiable-liveness recovery — narrowing the unknown
+surface through a portable anchor signal — so the two resolve as one decision rather than two. A third instance,
+where a **conclusively dead** lease still fails to reach its exit, is a conformance defect against D6's stated
+abandon preconditions rather than an input to this question; it is fixed independently and does not wait on it.
+
+Whatever is chosen, the residue guidance should state that a lease **dies when the process exits** rather than that
+it "dies with the session," and the self-held case should carry its own line ("this lease is yours; exit this
+process to release it") in place of a bare reconciliation stop.
