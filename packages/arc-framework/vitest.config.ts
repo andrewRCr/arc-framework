@@ -26,6 +26,24 @@ if (process.platform === "win32") {
   process.env.TMPDIR = canonicalTempRoot;
 }
 
+// Vitest sizes its worker pool from `availableParallelism() - 1`, which assumes the run
+// owns the machine. CI schedules several jobs of this graph at once, so each one claiming
+// all-but-one core oversubscribes the shared cores — surfacing as timing-sensitive test
+// failures rather than as honest slowness. Cap the pool under CI; leave developer machines
+// on the default, where the spare cores are real. The cap is a share rather than a count so
+// it tracks the host's core count instead of pinning to one machine size, and
+// `VITEST_MAX_WORKERS` overrides both so it can be retuned from the runner without a
+// code change.
+const configuredWorkers = process.env["VITEST_MAX_WORKERS"] ?? (process.env["CI"] ? "50%" : undefined);
+if (configuredWorkers !== undefined && !/^(?:[1-9]\d*|[1-9]\d?%|100%)$/u.test(configuredWorkers)) {
+  throw new Error(
+    `VITEST_MAX_WORKERS must be a positive integer or a percentage; received "${configuredWorkers}"`,
+  );
+}
+const maxWorkers = configuredWorkers?.endsWith("%") === false
+  ? Number(configuredWorkers)
+  : configuredWorkers;
+
 // Single multi-project config so one `vitest run` executes every tier and prints
 // one combined summary. Per-tier runs use `--project <name>` (see package.json).
 //
@@ -35,6 +53,7 @@ if (process.platform === "win32") {
 // import-cost win without their hoisted mocks leaking across file boundaries.
 export default defineConfig({
   test: {
+    ...(maxWorkers === undefined ? {} : { maxWorkers }),
     projects: [
       {
         test: {
