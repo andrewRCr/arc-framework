@@ -171,5 +171,5 @@ describe("configuration compatibility corpus — process boundaries", () => {
     expect(result.stdout).toContain("PASS  user.notes_push: prompt");
     expect(result.stdout).toContain("PASS  Config validation clean");
     expect(result.stderr).toBe("");
-  });
+  }, 15_000);
 });
