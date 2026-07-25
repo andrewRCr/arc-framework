@@ -63,8 +63,15 @@ jobs:
 
           # Read current labels and act only on a real difference, so replayed or
           # repeated reviews are no-ops rather than API errors.
-          if gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" \
-            --jq '.[].name' | grep -Fxq "$LABEL"; then
+          #
+          # The read is hoisted out of the conditional deliberately: errexit is
+          # disabled for an `if` condition, so a failed read inside one would be
+          # reclassified as "label absent" and the removal branch would then
+          # report success without removing anything. As an assignment it takes
+          # the substitution's status, so a failed read stops the step loudly.
+          labels="$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" --jq '.[].name')"
+          if printf '%s\n' "$labels" | grep -Fxq "$LABEL"; then
             current=present
           else
             current=absent
