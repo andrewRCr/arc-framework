@@ -1401,11 +1401,32 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           entering anchor. Reusing that projection kept close free of both a lock and a second ownership rule.
 
     - `[ ]` **7.E.c.vi Bind promotion recovery to its source generation** — E4-F1, E4-F3
-        - Identity-absent promotion recovery matches on work-unit name, branch, generated meta, and a live lease,
-          and `exactTarget` accepts a work-unit row by name with no source slug or claim provenance, so a retired
-          or live Errand can recover through an unrelated same-name work unit and retire the wrong identity.
-          Dirty-state recovery separately accepts any porcelain status whose path equals the meta path, ignoring
-          its XY state, so user-created staged or modified meta state reads as promotion-owned evidence.
+
+        - _Both findings verified against source 2026-07-25; they do not share a fix, so the leaf decomposes per
+          this task's `_Shape:_`._ The harm in E4-F1 needs the work-unit arm to be reachable at all: `exactTarget`
+          accepts any work-unit row named `<name>` whose lease is live, `classifyTargetRole` then passes because
+          that lease is this session's own, and a primary checkout runs no marker check — so promoting `--name foo`
+          from a session holding an unrelated work unit `foo` with no meta writes the promotion meta into that
+          checkout and retires the Errand identity against work that was never promoted.
+
+        - `[x]` **7.E.c.vi.1 Require promotion evidence before a work-unit row serves as the target** — E4-F1
+            - `exactTarget` now reports which arm matched, and the work-unit arm must present the evidence the
+              transaction leaves behind — the checkout on the promotion branch with the rendered meta at the
+              promotion meta path — before it can serve as the target. A replay always presents both, since the
+              role only becomes `work-unit` after the rename and meta write succeed; an unrelated work unit of the
+              same name presents neither and refuses `promotion-source-invalid`. Identity-absent recovery consumes
+              the same predicate (`carriesPromotedEvidence`), so the two paths cannot drift.
+            - Reproduced first at the integration tier against real Git: a live Errand identity whose local record
+              is absent, plus a same-named work unit this session leases, promoted into that unrelated checkout —
+              writing the meta there and retiring the Errand identity — because a primary checkout runs no marker
+              check and the shared name was the only thing proven.
+            - Deliberately not provenance-minting: recording the source slug or claim on the promoted role or
+              worktree marker is a durable-shape change and belongs to the carved capability contract, not here.
+
+        - `[ ]` **7.E.c.vi.2 Accept only the transaction-produced meta state as recoverable dirt** — E4-F3
+            - `inspectCheckout` compares `line.slice(3)` against the meta path and ignores the XY columns, so a
+              staged, modified, or conflicted meta reads as the promotion's own untracked write. Require the exact
+              status the transaction produces; every other state is user content the recovery must refuse.
 
 ### `[ ]` **7.E.d Make post-mutation failure recoverable**
 

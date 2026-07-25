@@ -136,6 +136,26 @@ describe("promoteOrdinaryErrandAtRuntime", () => {
       .toMatchObject({ wuName: "growth", createdFor: { kind: "work-unit", name: "growth" } });
   });
 
+  it("refuses an unrelated work unit that merely shares the requested name", async () => {
+    const exec = makeGitExec(primary);
+    const execInput = makeGitExecInput(primary);
+    const anchor = await currentAnchor();
+    // The requested name belongs to a work unit this session already holds, and the Errand's own
+    // locus record is absent locally — so the work-unit row is the only candidate the target search sees.
+    await exec("git", ["switch", "-c", "feat/growth"]);
+    await makeCommit(primary, "unrelated work-unit work");
+    const identity = ordinaryRecord();
+    await writeIdentity(exec, execInput, identity);
+    const root = await requireRoot(exec);
+    await writeRecord(root, primary, workUnitLocusRecord(primary, "growth", anchor));
+
+    const result = await promoteOrdinaryErrandAtRuntime(runtimeOptions(primary, exec, execInput, root, anchor));
+
+    expect(result).toMatchObject({ outcome: "refused", reason: "promotion-source-invalid" });
+    await expect(readFile(join(primary, ".arc/active/meta-growth.md"), "utf8")).rejects.toThrow();
+    expect(await readIdentity(exec, execInput)).toMatchObject({ slug: "growing", state: "open" });
+  });
+
   it("refuses a dirty source without renaming the branch or retiring identity", async () => {
     const exec = makeGitExec(primary);
     const execInput = makeGitExecInput(primary);

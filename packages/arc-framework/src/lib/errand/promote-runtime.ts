@@ -143,6 +143,12 @@ async function replaceLocalFrame(
   }
   const source = await inspectCheckout(options.exec, row.checkoutPath, record.branch, branch, metaPath, expectedMeta);
   if (source.kind !== "ready") return source;
+  if (target.arm === "work-unit" && !carriesPromotedEvidence(source, branch)) {
+    return refused(
+      "promotion-source-invalid",
+      `Work unit '${options.name}' carries no evidence of this promotion, so it is not the Errand's own frame.`,
+    );
+  }
   if (source.branch === record.branch && source.metaPresent) {
     return refused("work-unit-name-taken", `Work-unit meta '${metaPath}' already exists.`);
   }
@@ -317,10 +323,9 @@ async function recoverPromotedFrame(
   const metaPath = promotionMetaPath(options.name);
   const expectedMeta = renderMetaFile(options.name, metaOverrides(options, branch));
   const inspected = await inspectCheckout(options.exec, row.checkoutPath, branch, branch, metaPath, expectedMeta);
-  if (inspected.kind !== "ready" || inspected.branch !== branch || !inspected.metaMatches) {
-    return inspected.kind === "ready"
-      ? refused("promotion-source-invalid", "Promoted work-unit evidence is incomplete.")
-      : inspected;
+  if (inspected.kind !== "ready") return inspected;
+  if (!carriesPromotedEvidence(inspected, branch)) {
+    return refused("promotion-source-invalid", "Promoted work-unit evidence is incomplete.");
   }
   return receipt("idempotent", row, branch, metaPath, false);
 }
@@ -360,18 +365,36 @@ function exactTarget(
   state: LocusStateV1,
   record: OrdinaryErrandRecord,
   name: string,
-): { kind: "ready"; row: LocusRowV1 } | { kind: "refused"; result: Extract<PromotionFrameResult, { kind: "refused" }> } {
-  const matches = state.roster.rows.filter((row) => (row.role?.subject.kind === "errand"
-    && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId)
-    || (row.role?.kind === "work-unit" && row.role.subject.kind === "work-unit"
-      && row.role.subject.key === name && row.role.subject.claimId === null));
+): { kind: "ready"; row: LocusRowV1; arm: "errand" | "work-unit" }
+  | { kind: "refused"; result: Extract<PromotionFrameResult, { kind: "refused" }> } {
+  const errandRows = state.roster.rows.filter((row) => row.role?.subject.kind === "errand"
+    && row.role.subject.key === record.slug && row.role.subject.claimId === record.claimId);
+  const workUnitRows = state.roster.rows.filter((row) => row.role?.kind === "work-unit"
+    && row.role.subject.kind === "work-unit"
+    && row.role.subject.key === name && row.role.subject.claimId === null);
+  const matches = [...errandRows, ...workUnitRows];
   if (matches.length !== 1 || matches[0] === undefined) {
     return {
       kind: "refused",
       result: refused(matches.length === 0 ? "checkout-missing" : "duplicate-locus", "Exact live Errand session locus is unavailable."),
     };
   }
-  return { kind: "ready", row: matches[0] };
+  return { kind: "ready", row: matches[0], arm: errandRows.length === 1 ? "errand" : "work-unit" };
+}
+
+/**
+ * Whether a checkout carries the evidence a completed promotion leaves behind.
+ *
+ * The work-unit arm of target selection and identity-absent recovery both accept a row on the
+ * requested name alone, which any unrelated work unit of that name satisfies. This is what
+ * separates the promotion's own replay from a stranger: the role only becomes `work-unit` after the
+ * branch rename and meta write succeed, so a genuine replay always presents both.
+ */
+function carriesPromotedEvidence(
+  inspected: { branch: string; metaMatches: boolean },
+  promotedBranch: string,
+): boolean {
+  return inspected.branch === promotedBranch && inspected.metaMatches;
 }
 
 function parentRow(state: LocusStateV1, target: LocusRowV1): LocusRowV1 | null {
