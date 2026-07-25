@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "ci-defer-heavy-automation",
-  "origin": "description",
-  "intent": "Auto-toggle the ci-defer-heavy label from pull_request_review events so heavy CI legs fire once per PR without manual tracking",
-  "branch": "chore/ci-defer-heavy-automation",
-  "createdAt": "2026-07-25T20:36:24.308Z",
-  "returnBranch": "main"
-}
