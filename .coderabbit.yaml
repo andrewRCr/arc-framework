@@ -37,10 +37,12 @@ reviews:
           - Return clean only after the complete requested change set and every rubric dimension were considered.
           - Unavailable, partial, ambiguous, or failed review is never clean.
           <!-- arc:review-guidance:end -->
+  # Review is requested explicitly per pull request; there is no automatic trigger.
+  # `inheritance: true` is set above, so every automatic path is pinned off here rather
+  # than left unset — an unset key would take the account-level default.
   auto_review:
-    enabled: true
-    labels:
-      - arc-review-gate
+    enabled: false
+    labels: []
     drafts: false
     auto_incremental_review: false
     description_keyword: ""
