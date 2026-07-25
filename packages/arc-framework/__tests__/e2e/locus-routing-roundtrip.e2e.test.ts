@@ -149,6 +149,32 @@ describe("grooming and housekeeping locus round trips", () => {
     expect(disjointAbandoned).toMatchObject({ outcome: "applied", operation: "plan-abandon" });
   });
 
+  it("settles a grooming tail whose branch generation a prior pass already deleted", async () => {
+    const stub = await runArc(["stub", "alpha", "--commitment", "provisional", "--priority", "P2"], repository);
+    expect(stub.exitCode, stub.stderr || stub.stdout).toBe(0);
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "--no-verify", "-m", "add grooming stub"]);
+    await git(repository, ["push", "origin", "main"]);
+
+    const branch = "chore/groom-alpha";
+    const sequence = await runArcAnchoredSequence([
+      ["plan", "open", "alpha", "--json"],
+      { command: ["git", "push", "-u", "origin", branch], cwdFromPreviousJson: "activeLocusPath" },
+      // The remote leg of the teardown, applied without the local leg or the
+      // identity retirement that follow it — the state an interrupted settle leaves.
+      { command: ["git", "push", "origin", `:refs/heads/${branch}`], reuseResolvedCwd: true },
+      { args: ["plan", "abandon", "alpha", "--json"], reuseResolvedCwd: true },
+      { args: ["plan", "abandon", "alpha", "--json"], cwd: repository },
+    ], repository, { timeout: 90_000, anchorShellPath: harness.executable });
+
+    expect(sequence.exitCode, sequence.stderr || sequence.stdout).toBe(0);
+    const [opened, abandoned, replayed] = sequence.results as Record<string, unknown>[];
+    expect(opened).toMatchObject({ outcome: "applied", operation: "plan-open" });
+    expect(abandoned, JSON.stringify(abandoned)).toMatchObject({ outcome: "applied", operation: "plan-abandon" });
+    expect(replayed, JSON.stringify(replayed)).toMatchObject({ outcome: "idempotent", operation: "plan-abandon" });
+    await expect(git(repository, ["rev-parse", "--verify", `refs/heads/${branch}`])).rejects.toThrow();
+  });
+
   it("resumes an awaiting-merge grooming set from an ordinary open change request", async () => {
     const stub = await runArc(["stub", "alpha", "--commitment", "provisional", "--priority", "P2"], repository);
     expect(stub.exitCode, stub.stderr || stub.stdout).toBe(0);

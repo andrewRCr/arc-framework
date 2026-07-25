@@ -3,8 +3,6 @@
 import { access, lstat, readFile, realpath } from "node:fs/promises";
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
-import { uniqueRefToken } from "../git/ref-tree.js";
-import { gitFailureText, normalizeGitRejection } from "../git/process-error.js";
 import { createLocusEvidenceIO } from "../locus/evidence.js";
 import {
   createPlatformProcessAncestryInspector,
@@ -14,11 +12,11 @@ import { acquireSessionAnchor } from "../locus/process-inspector.js";
 import { readPrimarySafety } from "../locus/primary-safety.js";
 import { readLocusState } from "../locus/reader.js";
 import type { LocusMutationResultV1, LocusStateV1 } from "../locus/schema/index.js";
-import { deleteRemoteBranch } from "../work-unit/mutators/reconcile-branch.js";
 import {
   createGhChangeRequestLifecyclePort,
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
+import { resolveOptionalCommit, tearDownExactBranchGeneration } from "./exact-branch-generation.js";
 import { classifyErrandCloseOccupancy } from "./close-occupancy.js";
 import {
   closeOrdinaryErrand,
@@ -192,80 +190,13 @@ export async function cleanupOrdinaryErrandRefs(
   exec: GitExec,
   target: CloseTarget,
 ): Promise<CloseRefCleanupResult> {
-  const record = target.record;
-  const expected = target.changeRequest.headSha;
-  const localRef = `refs/heads/${record.branch}`;
-  const remoteRef = `refs/heads/${record.branch}`;
-  const temporaryRef = `refs/arc/tmp/errand-close/${uniqueRefToken()}`;
-  const remote = await fetchExactRemoteHead(exec, remoteRef, temporaryRef);
-  try {
-    await exec("git", ["update-ref", "-d", temporaryRef]);
-  } catch (error) {
-    if (remote.kind !== "error") return gitCleanupError(error, ["update-ref", "-d", temporaryRef]);
-  }
-  if (remote.kind === "error") return remote;
-  if (remote.kind === "present" && remote.oid !== expected) {
-    return { kind: "refused", reason: "preservation-unproven", message: "Remote Errand head moved." };
-  }
-
-  const local = await resolveOptionalCommit(exec, localRef);
-  if (local.kind === "error") return local;
-  if (local.kind === "present" && local.oid !== expected) {
-    return { kind: "refused", reason: "preservation-unproven", message: "Local Errand head moved." };
-  }
-
-  let changed = false;
-  if (remote.kind === "present") {
-    try {
-      const deleted = await deleteRemoteBranch(exec, "origin", record.branch, expected);
-      if (deleted === "stale") {
-        return { kind: "refused", reason: "preservation-unproven", message: "Remote Errand head moved." };
-      }
-      changed ||= deleted === "deleted";
-    } catch (error) {
-      return gitCleanupError(error, ["push", "origin", "--delete", record.branch]);
-    }
-  }
-  if (local.kind === "present") {
-    try {
-      await exec("git", ["update-ref", "-d", localRef, expected]);
-      changed = true;
-    } catch (error) {
-      return gitCleanupError(error, ["update-ref", "-d", localRef, expected]);
-    }
-  }
-  return { kind: changed ? "applied" : "idempotent" };
-}
-
-type OptionalCommit = { kind: "absent" } | { kind: "present"; oid: string } | Extract<CloseRefCleanupResult, { kind: "error" }>;
-
-async function resolveOptionalCommit(exec: GitExec, ref: string): Promise<OptionalCommit> {
-  const args = ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`];
-  try {
-    const oid = (await exec("git", args)).stdout.trim();
-    return /^[0-9a-f]{40}$/u.test(oid) ? { kind: "present", oid } : { kind: "error", message: "Ref resolved to an invalid OID." };
-  } catch (error) {
-    const normalized = normalizeGitRejection(error, { command: "git", args });
-    return normalized.exitCode === 1 || normalized.exitCode === 128
-      ? { kind: "absent" }
-      : { kind: "error", message: normalized.message };
-  }
-}
-
-async function fetchExactRemoteHead(exec: GitExec, remoteRef: string, temporaryRef: string): Promise<OptionalCommit> {
-  const args = ["fetch", "--", "origin", `+${remoteRef}:${temporaryRef}`];
-  try {
-    await exec("git", args);
-  } catch (error) {
-    const normalized = normalizeGitRejection(error, { command: "git", args });
-    return normalized.expectedOutcome === "absent-remote-ref"
-      || /(?:could(?:n't| not)|cannot) find remote ref/iu.test(gitFailureText(error))
-      ? { kind: "absent" }
-      : { kind: "error", message: normalized.message };
-  }
-  return resolveOptionalCommit(exec, temporaryRef);
-}
-
-function gitCleanupError(error: unknown, args: string[]): Extract<CloseRefCleanupResult, { kind: "error" }> {
-  return { kind: "error", message: normalizeGitRejection(error, { command: "git", args }).message };
+  const result = await tearDownExactBranchGeneration(exec, {
+    branch: target.record.branch,
+    expectedHead: target.changeRequest.headSha,
+    subject: "Errand",
+    temporaryRefNamespace: "refs/arc/tmp/errand-close",
+  });
+  return result.kind === "refused"
+    ? { kind: "refused", reason: "preservation-unproven", message: result.message }
+    : result;
 }

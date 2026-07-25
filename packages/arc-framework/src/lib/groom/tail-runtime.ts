@@ -10,7 +10,10 @@ import {
   resolveChangeRequestLifecycleConfiguration,
   transientTailRetirementTransform,
 } from "../errand/change-request-lifecycle.js";
-import type { GroomIdentityRecord } from "../errand/identity-claims.js";
+import {
+  readExactBranchGeneration,
+  tearDownExactBranchGeneration,
+} from "../errand/exact-branch-generation.js";
 import { transactTransientIdentities } from "../errand/identity-transaction.js";
 import {
   cleanupGroomOccupancy,
@@ -41,7 +44,7 @@ export async function settleGroomAtRuntime(options: SettleGroomRuntimeOptions): 
     return refusal("full-protection-required", "Only full-mode grooming tails can be settled separately.");
   }
 
-  let expectedHead: string;
+  let expectedHead: string | null;
   let retirementTransform: ReturnType<typeof transientTailRetirementTransform> | null = null;
   if (record.state === "awaiting-merge") {
     const configured = await resolveChangeRequestLifecycleConfiguration(options.exec, options.base);
@@ -55,7 +58,11 @@ export async function settleGroomAtRuntime(options: SettleGroomRuntimeOptions): 
     retirementTransform = transientTailRetirementTransform({ previous: record, action: options.action, lifecycle });
   } else {
     if (options.action !== "abandon") return refusal("change-request-unverifiable", "Open grooming has no merged tail to finalize.");
-    expectedHead = await exactLocalAndRemoteHead(options, record);
+    const generation = await readExactBranchGeneration(options.exec, {
+      branch: record.branch, subject: "grooming", temporaryRefNamespace: "refs/arc/tmp/groom-abandon",
+    });
+    if (generation.kind === "unproven") return refusal("preservation-unproven", generation.message);
+    expectedHead = generation.kind === "exact" ? generation.head : null;
   }
 
   const anchor = await acquireSessionAnchor(process.pid, createPlatformProcessAncestryInspector());
@@ -68,6 +75,9 @@ export async function settleGroomAtRuntime(options: SettleGroomRuntimeOptions): 
     : { recordId: row.recordId, leaseId: row.lease?.leaseId ?? null });
   if (mismatch !== null) return refusal("lease-generation-mismatch", mismatch);
   if (row !== null) {
+    if (expectedHead === null) {
+      return refusal("preservation-unproven", "Grooming occupancy remains after its branch generation was deleted.");
+    }
     if (row.checkoutPath === null) return refusal("checkout-missing", "Grooming checkout path is absent.");
     const dirty = (await options.exec("git", ["status", "--porcelain"], { cwd: row.checkoutPath })).stdout;
     const actual = (await options.exec("git", ["rev-parse", "HEAD"], { cwd: row.checkoutPath })).stdout.trim();
@@ -77,8 +87,13 @@ export async function settleGroomAtRuntime(options: SettleGroomRuntimeOptions): 
     const cleanup = await cleanupGroomOccupancy(options, state, row, record, anchor, inspector, expectedHead);
     if (cleanup.outcome === "refused" || cleanup.outcome === "error") return cleanup;
   }
-  const refs = await deleteExactBranchGeneration(options, record.branch, expectedHead);
-  if (refs !== null) return refusal("preservation-unproven", refs);
+  if (expectedHead !== null) {
+    const refs = await tearDownExactBranchGeneration(options.exec, {
+      branch: record.branch, expectedHead, subject: "grooming",
+      temporaryRefNamespace: "refs/arc/tmp/groom-settle",
+    });
+    if (refs.kind === "refused" || refs.kind === "error") return refusal("preservation-unproven", refs.message);
+  }
   const retired = await transactTransientIdentities(identityIO(options), {
     remote: "origin", message: `arc: ${options.action} groom ${options.anchorStub}`,
     transform: retirementTransform ?? ((records) => {
@@ -92,41 +107,6 @@ export async function settleGroomAtRuntime(options: SettleGroomRuntimeOptions): 
   if (retired.kind === "error") return failure(`identity-${retired.stage}`, retired.message);
   if (retired.kind === "refused") return refusal("identity-conflict", retired.reason);
   return success("applied", options.action === "finalize" ? "Merged grooming tail finalized." : "Grooming generation abandoned.");
-}
-
-async function exactLocalAndRemoteHead(options: SettleGroomRuntimeOptions, record: GroomIdentityRecord): Promise<string> {
-  const local = (await options.exec("git", ["rev-parse", `refs/heads/${record.branch}^{commit}`])).stdout.trim();
-  const snapshot = `refs/arc/tmp/groom-abandon/${record.claimId}`;
-  try {
-    await options.exec("git", ["fetch", "--", "origin", `+refs/heads/${record.branch}:${snapshot}`]);
-    const remote = (await options.exec("git", ["rev-parse", `${snapshot}^{commit}`])).stdout.trim();
-    if (remote !== local) throw new Error("Local and remote grooming heads differ");
-    return local;
-  } finally {
-    await options.exec("git", ["update-ref", "-d", snapshot]).catch(() => undefined);
-  }
-}
-
-async function deleteExactBranchGeneration(
-  options: SettleGroomRuntimeOptions,
-  branch: string,
-  expectedHead: string,
-): Promise<string | null> {
-  const snapshot = `refs/arc/tmp/groom-settle/${expectedHead.slice(0, 16)}`;
-  try {
-    const local = (await options.exec("git", ["rev-parse", `refs/heads/${branch}^{commit}`])).stdout.trim();
-    if (local !== expectedHead) return "Local grooming branch is absent or moved";
-    await options.exec("git", ["fetch", "--", "origin", `+refs/heads/${branch}:${snapshot}`]);
-    const remote = (await options.exec("git", ["rev-parse", `${snapshot}^{commit}`])).stdout.trim();
-    if (remote !== expectedHead) return "Remote grooming branch is absent or moved";
-    await options.exec("git", ["push", `--force-with-lease=refs/heads/${branch}:${expectedHead}`, "origin", `:refs/heads/${branch}`]);
-    await options.exec("git", ["update-ref", "-d", `refs/heads/${branch}`, expectedHead]);
-    return null;
-  } catch (error) {
-    return error instanceof Error ? error.message : String(error);
-  } finally {
-    await options.exec("git", ["update-ref", "-d", snapshot]).catch(() => undefined);
-  }
 }
 
 function identityIO(options: SettleGroomRuntimeOptions) {

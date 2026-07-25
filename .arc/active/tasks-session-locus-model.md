@@ -1504,16 +1504,22 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
 
     - `[ ]` **7.E.d.iv Make grooming and housekeeping tails replayable** — P1-F1, P1-F2
 
-        - `[ ]` **7.E.d.iv.1 Keep tail settlement replayable across branch deletion** — P1-F1
-            - `settleGroomAtRuntime` and `settleHousekeepAtRuntime` delete the exact local and remote branch refs
-              before retiring the identity, so a failure in between strands the claim: replay re-enters
-              `deleteExactBranchGeneration`, cannot resolve `refs/heads/<branch>`, and refuses
-              `preservation-unproven` — permanently, since the refs it demands are exactly what the first pass
-              removed. Accept the proven post-deletion state instead: both sides absent is the deletion already
-              applied, and settlement proceeds to identity retirement. Absence must be proven on both sides — a ref
-              present at any head still refuses, and an unreachable remote is unproven rather than absent.
-            - Inject a failure after local deletion, after remote deletion, and before identity publication; assert
-              replay reaches retirement in each case.
+        - `[x]` **7.E.d.iv.1 Keep tail settlement replayable across branch deletion** — P1-F1
+            - Both tails now settle through `exact-branch-generation.ts`, which classifies each side before
+              touching it: present at the proven head (delete it), proven absent (an earlier pass deleted it), or
+              moved (refuse). The ordinary Errand close path already made exactly this reading, so the fix was
+              giving grooming and housekeeping the classification a sibling path already had — `cleanupOrdinaryErrandRefs`
+              delegates to the same module, and the two hand-rolled `deleteExactBranchGeneration` copies are gone.
+            - The head read for an open tail was the second wedge, upstream of the deletion: it derived the settled
+              head from the refs and threw (grooming) or refused (housekeeping) once they were gone. It is now
+              three-way, and asymmetric by the teardown's own deletion order — a local head over a proven-absent
+              remote is that teardown's unfinished work, so it still names the generation, while the mirror stays
+              unproven. Occupancy that survives a deleted generation refuses rather than settling headless.
+            - Absence is a proof obligation throughout: an unreachable remote is an error, never an absent ref, so
+              a network failure cannot be read as a completed deletion.
+            - Covered at the seam over every post-failure state (remote deleted, both deleted, either side moved,
+              a raced lease, an unreachable remote), plus a real-CLI grooming abandon whose remote leg was applied
+              out of band — it reaches identity retirement, and replays idempotent.
 
         - `[ ]` **7.E.d.iv.2 Let a partial grooming close survive a failed identity retirement** — P1-F2
             - Partial `closeGroomAtRuntime` pops occupancy before `rollbackIdentityClaim`, so a failed retirement

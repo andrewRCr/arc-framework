@@ -10,6 +10,10 @@ import {
   transientTailRetirementTransform,
 } from "../errand/change-request-lifecycle.js";
 import {
+  readExactBranchGeneration,
+  tearDownExactBranchGeneration,
+} from "../errand/exact-branch-generation.js";
+import {
   housekeepAwaitMergeTransform,
   pinGroomOpenedBaseHead,
   type HousekeepIdentityRecord,
@@ -160,7 +164,7 @@ export async function settleHousekeepAtRuntime(
     return abandonPartialHousekeep(options);
   }
 
-  let expectedHead: string;
+  let expectedHead: string | null;
   let retirementTransform: ReturnType<typeof transientTailRetirementTransform> | null = null;
   if (record.state === "awaiting-merge") {
     const configured = await resolveChangeRequestLifecycleConfiguration(options.io.exec, options.base);
@@ -176,9 +180,11 @@ export async function settleHousekeepAtRuntime(
     if (options.action !== "abandon") {
       return refusal("change-request-unverifiable", "Open housekeeping has no merged tail to finalize.", operation);
     }
-    const exact = await exactLocalAndRemoteHead(options, record);
-    if (exact.kind === "refused") return refusal("preservation-unproven", exact.reason, operation);
-    expectedHead = exact.head;
+    const generation = await readExactBranchGeneration(options.io.exec, {
+      branch: record.branch, subject: "housekeeping", temporaryRefNamespace: "refs/arc/tmp/housekeep-abandon",
+    });
+    if (generation.kind === "unproven") return refusal("preservation-unproven", generation.message, operation);
+    expectedHead = generation.kind === "exact" ? generation.head : null;
   }
 
   const runtime = await runtimeState(options);
@@ -196,6 +202,11 @@ export async function settleHousekeepAtRuntime(
     : { recordId: occupancy.value.row.recordId, leaseId: occupancy.value.row.lease?.leaseId ?? null });
   if (mismatch !== null) return refusal("lease-generation-mismatch", mismatch, operation);
   if (occupancy.kind === "trusted") {
+    if (expectedHead === null) {
+      return refusal(
+        "preservation-unproven", "Housekeeping occupancy remains after its branch generation was deleted.", operation,
+      );
+    }
     const { row, checkoutPath } = occupancy.value;
     const dirty = (await options.io.exec("git", ["status", "--porcelain"], { cwd: checkoutPath })).stdout;
     const actual = (await options.io.exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();
@@ -211,8 +222,15 @@ export async function settleHousekeepAtRuntime(
   if (pinned.kind !== "pinned") {
     return refusal("preservation-unproven", pinned.kind === "refused" ? pinned.reason : pinned.message, operation);
   }
-  const refs = await deleteExactBranchGeneration(options, record.branch, expectedHead);
-  if (refs !== null) return refusal("preservation-unproven", refs, operation);
+  if (expectedHead !== null) {
+    const refs = await tearDownExactBranchGeneration(options.io.exec, {
+      branch: record.branch, expectedHead, subject: "housekeeping",
+      temporaryRefNamespace: "refs/arc/tmp/housekeep-settle",
+    });
+    if (refs.kind === "refused" || refs.kind === "error") {
+      return refusal("preservation-unproven", refs.message, operation);
+    }
+  }
   const retired = await transactTransientIdentities(identityIO(options), {
     remote: "origin", message: `arc: ${options.action} housekeep ${options.slug}`,
     transform: retirementTransform ?? exactRetirement(record),
@@ -372,49 +390,6 @@ function currentWorkUnitPath(state: LocusStateV1): string | null {
   const activeRecordId = state.current.activeRecordId;
   return state.roster.rows.find((row) => row.recordId === activeRecordId
     && row.role?.kind === "work-unit")?.checkoutPath ?? null;
-}
-
-async function exactLocalAndRemoteHead(
-  options: HousekeepLifecycleRuntimeOptions,
-  record: HousekeepIdentityRecord,
-): Promise<{ kind: "exact"; head: string } | { kind: "refused"; reason: string }> {
-  try {
-    const local = (await options.io.exec("git", ["rev-parse", `refs/heads/${record.branch}^{commit}`])).stdout.trim();
-    const snapshot = `refs/arc/tmp/housekeep-abandon/${record.claimId}`;
-    try {
-      await options.io.exec("git", ["fetch", "--", "origin", `+refs/heads/${record.branch}:${snapshot}`]);
-      const remote = (await options.io.exec("git", ["rev-parse", `${snapshot}^{commit}`])).stdout.trim();
-      return remote === local ? { kind: "exact", head: local } : { kind: "refused", reason: "Local and remote housekeeping heads differ." };
-    } finally {
-      await options.io.exec("git", ["update-ref", "-d", snapshot]).catch(() => undefined);
-    }
-  } catch (error) {
-    return { kind: "refused", reason: error instanceof Error ? error.message : String(error) };
-  }
-}
-
-async function deleteExactBranchGeneration(
-  options: HousekeepLifecycleRuntimeOptions,
-  branch: string,
-  expectedHead: string,
-): Promise<string | null> {
-  const snapshot = `refs/arc/tmp/housekeep-settle/${expectedHead.slice(0, 16)}`;
-  try {
-    const local = (await options.io.exec("git", ["rev-parse", `refs/heads/${branch}^{commit}`])).stdout.trim();
-    if (local !== expectedHead) return "Local housekeeping branch is absent or moved";
-    await options.io.exec("git", ["fetch", "--", "origin", `+refs/heads/${branch}:${snapshot}`]);
-    const remote = (await options.io.exec("git", ["rev-parse", `${snapshot}^{commit}`])).stdout.trim();
-    if (remote !== expectedHead) return "Remote housekeeping branch is absent or moved";
-    await options.io.exec("git", [
-      "push", `--force-with-lease=refs/heads/${branch}:${expectedHead}`, "origin", `:refs/heads/${branch}`,
-    ]);
-    await options.io.exec("git", ["update-ref", "-d", `refs/heads/${branch}`, expectedHead]);
-    return null;
-  } catch (error) {
-    return error instanceof Error ? error.message : String(error);
-  } finally {
-    await options.io.exec("git", ["update-ref", "-d", snapshot]).catch(() => undefined);
-  }
 }
 
 function exactRetirement(record: HousekeepIdentityRecord) {
