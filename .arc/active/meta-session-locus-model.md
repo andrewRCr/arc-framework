@@ -12,16 +12,12 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.F.a.iii — Release the occupancy an in-place close leaves behind
-- **Next Task:** Task 7.E.c.iv — Prove ownership before partial settlement mutates the inbox (line ~1354)
-- **Blockers:** Retired-Errand residue occupies the primary — `test-fixture-cwd-path`'s role row survives its
-  close with an unresolvable subject. Its lease was live at handoff, so `arc locus release` refused it as
-  untrusted and `arc locus resolve` refused it as live; handoff itself refused `locus-unresolved`. The lease
-  dies with the session, so the next session resolves it.
+- **Last Completed:** Task 7.E.c.iv — Prove ownership before partial settlement mutates the inbox
+- **Next Task:** Task 7.E.c.v.1 — Prove the locked generation before leave moves a checkout (line ~1375)
+- **Blockers:** [none]
 
-- **Next Action:** Clear the residue before any task work: `arc locus resolve
-  sha256:aa0fd1be1eabefe3f84f969bdeb4c92181f3fe6654366acc6b6f0d993599ec5a --action abandon` — the live
-  dogfood proof of Task 7.F.a.iii — then begin Task 7.E.c.iv
+- **Next Action:** Start Task 7.E.c.v.1 — validate the exact generation immediately after the record lock in
+  `leave-runtime.ts`, before `restorePrimaryCheckout` switches the primary or the spawned arm removes the worktree
 
 - **PR URL:** [none]
 - **Completed:** [none]
