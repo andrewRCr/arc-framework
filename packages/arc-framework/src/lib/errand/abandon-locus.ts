@@ -23,6 +23,15 @@ type RetirementResult =
 
 export interface AbandonOrdinaryErrandDependencies {
   readIdentity(): Promise<IdentityRead>;
+  /**
+   * Release occupancy whose identity is already retired.
+   *
+   * Finalizing an Errand in its own checkout retires the identity but leaves the locus role and
+   * lease behind, so a retired identity is not proof that the checkout was released. Runs only on
+   * the identity-absent arm, and only against a caller-selected generation; idempotent when no
+   * such occupancy remains.
+   */
+  releaseRetiredResidue?(): Promise<AbandonStepResult>;
   cleanupResidue(record: OrdinaryErrandRecord): Promise<AbandonStepResult>;
   readLifecycle(record: OrdinaryErrandRecord): Promise<ChangeRequestLifecycleEvidence>;
   clearExecuteBound(record: OrdinaryErrandRecord): Promise<AbandonStepResult>;
@@ -53,7 +62,16 @@ export async function abandonOrdinaryErrand(
   }
   if (read.kind === "refused") return refusal("identity-conflict", read.reason);
   if (read.kind === "error") return failure("locus.errand-abandon.identity-read", read.message);
-  if (read.record === null) return alreadyAbandoned(slug);
+  if (read.record === null) {
+    const dependencies = options.dependencies;
+    if (dependencies.releaseRetiredResidue === undefined) return alreadyAbandoned(slug, "idempotent");
+    const released = await runStep(
+      "locus.errand-abandon.residue",
+      () => dependencies.releaseRetiredResidue?.() ?? Promise.resolve({ kind: "idempotent" as const }),
+    );
+    if ("result" in released) return released.result;
+    return alreadyAbandoned(slug, released.step.kind);
+  }
   if (!isOrdinary(read.record) || read.record.slug !== slug) {
     return refusal("identity-conflict", `Identity '${slug}' is not an ordinary v3 Errand.`);
   }
@@ -141,12 +159,14 @@ function sameChangeRequest(evidence: ChangeRequestLifecycleEvidence, record: Ord
     && observed.headSha === expected.headSha;
 }
 
-function alreadyAbandoned(slug: string): LocusMutationResultV1 {
+function alreadyAbandoned(slug: string, outcome: "applied" | "idempotent"): LocusMutationResultV1 {
   return createLocusMutationResult({
-    outcome: "idempotent", operation: "errand-abandon", allocation: null, recordId: null, leaseId: null,
+    outcome, operation: "errand-abandon", allocation: null, recordId: null, leaseId: null,
     activeLocusPath: null, sessionHomePath: null, identity: null, originEntry: null,
     restoredParent: null, nextOffer: null,
-    recommendedPromptText: `Errand '${slug}' is already abandoned.`,
+    recommendedPromptText: outcome === "applied"
+      ? `Errand '${slug}' was already retired; released the session locus it left behind.`
+      : `Errand '${slug}' is already abandoned.`,
   });
 }
 

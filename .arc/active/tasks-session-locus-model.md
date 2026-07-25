@@ -1438,7 +1438,7 @@ branch head, never branch shape. An `open` record simply carries no recorded cha
 one at finalization time instead of reading one the record already holds — the same observation `leave`
 performs, against merged rather than open host truth.
 
-### `[ ]` **7.F.a Close an Errand that merged while its checkout was still occupied**
+### `[x]` **7.F.a Close an Errand that merged while its checkout was still occupied**
 
 - _Goal:_ An Errand that stays in session through its own merge reaches the same terminal as one that left
   first: refs reaped against the proven head, the originating capture dropped, the identity and its lease
@@ -1460,15 +1460,20 @@ performs, against merged rather than open host truth.
           exact local branch head; an absent local branch, ambiguous or unmerged host truth, and head drift
           each refuse before any ref or identity mutation.
 
-    - `[ ]` **7.F.a.iii Release the occupancy an in-place close leaves behind**
-        - _Goal:_ Finalizing in place ends with the checkout free, as leaving first does. Close retires the
-          identity but never pops the locus role or lease — `leave` owns that today — so an Errand closed from
-          its own checkout retires its identity and strands a `managed-role` row whose subject no longer
-          resolves, leaving the primary occupied.
-        - Reuse `leave`'s occupancy composition (record lock, marker provenance, `popOwnedLocusRole` against
-          the exact generation, parent restoration) rather than reimplementing it in close; a spawned transient
-          additionally needs its worktree torn down. Until this lands, closing an in-place Errand trades a
-          stranded identity for a stranded role.
+    - `[x]` **7.F.a.iii Release the occupancy an in-place close leaves behind**
+        - Close retires the identity but never pops the locus role or lease, so an Errand finalized in its own
+          checkout left a `managed-role` row whose subject no longer resolves. Released through the recovery
+          replay path rather than by teardown inside close: once the closing session ends, its lease dies, the
+          row becomes residue, and session-init already offers `arc locus resolve <record-id> --action abandon`
+          against it. That dispatch reached `abandonOrdinaryErrand`, which returned "already abandoned" on the
+          absent identity **before** any residue cleanup — a retired identity read as proof the checkout had
+          been released.
+        - The identity-absent arm now releases the caller-selected generation first, keyed on the row rather
+          than the missing record: exact `recordId` and `leaseId`, a dead lease, a clean checkout, marker
+          provenance for a spawned worktree, then `popLocusRole` under the record lock. `popLocusRole` takes
+          observed liveness rather than anchor equality, so a cold session finalizes what a departed one left —
+          which is what makes the replay path work at all. The direct `arc errand abandon` verb supplies no
+          selection and is unchanged.
 
 ## **Phase 8:** Verification
 
