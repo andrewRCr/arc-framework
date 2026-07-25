@@ -385,13 +385,25 @@ executable/environment evidence. Direct interactive invocation may anchor to the
 non-interactive, unrecognized caller—or a harness exposing only a shared host—records an unverifiable lease rather
 than anchoring to the wrong process.
 
-Verification compares both PID and `startToken` and returns exactly three states:
+Verification compares both PID and `startToken` and returns exactly four states:
 
-- **live** — the anchored PID exists with the same creation token;
+- **self** — the recorded anchor is the anchor the running process would select right now (same inspector kind, PID,
+  and creation token). A refinement of `live`, not a peer of it: the holder is the caller;
+- **live** — the anchored PID exists with the same creation token and is not the caller's own;
 - **dead** — the PID is absent or exists with a different creation token;
-- **unknown** — the inspector cannot prove either result.
+- **unknown** — the inspector cannot prove any of the above.
 
-Heartbeat age is rendered as context only. It never changes a live/unknown result and never grants cleanup.
+`self` is strictly stronger evidence than `dead` for authorizing a recovery action, because the process asserting it
+is the one whose exit every other exit is waiting on. It is evidence about **authority**, never about occupancy: the
+process still holds live shell state and full write capability in that checkout, so `self` never suppresses an
+occupancy guard and never licenses a general override. D6 states what it authorizes.
+
+Occupancy identity and conversation identity are orthogonal and diverge in both directions — compaction is the same
+process and the same conversation, a conversation reset is the same process and a new conversation, and a resumed
+session is a new process already treated as a new session. Verification tracks the process, and no path detects a
+conversation reset; the vocabulary above is what makes detecting one unnecessary.
+
+Heartbeat age is rendered as context only. It never changes a self/live/unknown result and never grants cleanup.
 
 ### D6. Read-time join, reconciliation, and `arc locus`
 
@@ -677,7 +689,23 @@ with `lease: null` and a valid identity-only tail are `idle` — for a WU checko
 during ordinary sessions, since leases are verb-scoped (D4), never a finding. A WU role whose lease is conclusively
 dead likewise reads `idle`, carrying a `lease-dead` diagnostic — the durable role, not the lease, holds WU
 ownership, and the next attaching operation reaps the stale lease. Any other managed role whose lease is absent,
-dead, or unknown is `residue`; attach may replace a conclusively dead WU lease, but unknown liveness always stops.
+dead, self-held, or unknown is `residue`; attach may replace a conclusively dead WU lease, while self-held and
+unknown liveness stop automatic replacement and route to the authority rule below.
+
+**Recovery actions key on authority over the lease, not on deadness.** Deadness is one proof of authority, not the
+only one, and treating it as the only one leaves two safe states with no exit at all. The rule is:
+
+- **dead or absent** — anyone may resolve. Automatic, unchanged.
+- **self** — the holder may resolve, gated on operator confirmation, and scoped to an unresolved subject or an
+  explicit abandon. Never a general force, never agent-asserted.
+- **unknown** — the same operator-confirmed path is reachable, and the stop that reports it names it. The operator
+  can observe their own machine where the inspector cannot; this is the evidence asymmetry the confirmation exists
+  to close, and it is the same idiom as awaiting-merge resume accepting operator-confirmed host truth.
+- **live and foreign** — stop. No confirmation path. The code holds positive evidence of another session that the
+  operator's context does not contradict, and overriding it would open a genuine concurrent-occupancy hole.
+
+Confirmation authorizes acting on the **lease**; it never relaxes an occupancy, cleanliness, provenance, exact-head,
+or generation guard, and no recovery state is ever resolved by hand-editing the record store.
 Malformed, unmanaged, duplicate, and unresolved rows have `frame: null`. Current-state selection follows D9: among
 live leases matching the entering anchor, prefer the transient role, resolve its optional parent, otherwise take the
 matching WU; multiple plausible children or parents are ambiguous.
@@ -1336,6 +1364,35 @@ it later without changing the locus interface.
 Rejected. A quiet but live session can have an old heartbeat. Only a missing or creation-token-mismatched process
 anchor proves death; age may explain a prompt but cannot authorize removal.
 
+### Key every recovery action on a conclusively dead lease
+
+Rejected — it is the shape D4/D6 originally carried, and it leaves two safe states with no exit. A lease whose
+anchor is provably the caller's own process satisfies the safety condition without being dead: an in-place Errand
+close left the expected role at the primary reading `subject-unresolved`, a conversation reset started a new session
+inside the same process, and the anchor still verified live against its own parent. Abandon refused `lease-live`,
+release refused `role-conflict`, and handoff refused `locus-unresolved` — leaving hand-deletion of the record, the
+out-of-band action the model exists to prevent. Unverifiable liveness strands the same way whenever inspection
+fails. D5's `self` verdict and D6's authority rule replace deadness as the sole proof.
+
+### Add portable machine identity to the process anchor
+
+Rejected as solving an already-solved case. It was proposed so a differing inspector kind could still conclude dead
+or self across platforms, but record identity is derived from a flavor-normalized checkout spelling, and
+normalization rejects a Windows drive or UNC spelling under the POSIX flavor and a rooted POSIX spelling under the
+Windows flavor. Windows and POSIX record spaces are therefore disjoint by construction and never read each other's
+anchors. The residual mismatch is two same-flavor inspector kinds at an identically spelled absolute path, which
+requires a shared or synchronized mount; it degrades to `unknown` and reaches the operator-confirmed path like any
+other unverifiable reading. Adding a machine axis to record identity would also duplicate a partition the path
+flavor already provides.
+
+### Scope the record store per platform
+
+Rejected for the same reason, and additionally as an axis that earns nothing. Records already resolve under
+`<primary>/.arc/user/{identity}/.internal/loci/`, so separate checkouts yield separate stores and one shared
+checkout yields distinct digests per flavor. Keying the store or record ID to an inspector kind would enforce a
+partition the normalization layer already enforces, at the cost of changing record identity and every consumer that
+derives it.
+
 ## Cross-cutting Considerations
 
 ### Security and trust boundaries
@@ -1380,6 +1437,26 @@ advisory or simple-conflict semantics and never hard-refuse on identity recognit
 Retained hardening behind this line (platform inspectors, record-scoped locks with stale-break, staged provisioning
 receipts, the complete-basis identity transaction) is deliberate and closed: extend none of it without a new
 motivating failure.
+
+**The refusal vocabulary carries the same budget.** `LocusStopReason` is one flat set whose members differ in what
+they cost to be wrong about, so each is classified into exactly one tier:
+
+- **hard** — proceeding destroys or strands work. No override exists at any layer.
+- **authority** — resolution needs evidence the caller cannot supply. The operator may release it; the agent may
+  not. `lease-live` on a foreign anchor sits here, as does every self-held and unverifiable reading under D6's
+  authority rule.
+- **advisory** — the code cannot verify a condition that session context may settle, and proceeding destroys
+  nothing. `primary-dirty` and `primary-off-base` are allocation preconditions on non-destructive paths and belong
+  here.
+
+The governing test: **an agent may act on evidence the code lacks, and may not act where the code holds evidence
+the agent lacks.** An unverifiable anchor on a session that knows it is alone is the first; a live foreign lease is
+the second. An advisory proceeding emits exactly one line recording that it did — visible, never a prompt — so a
+wrong call stays catchable without restoring the friction the tier removes.
+
+Narration follows the same budget. Residue guidance states that a lease **dies when the process exits** rather than
+that it dies with the session, and the self-held case reads as its own instruction — this lease is yours; exit this
+process to release it — rather than a bare reconciliation stop.
 
 ### Testing
 
@@ -1526,51 +1603,12 @@ motivating failure.
     leaving a stale record, an unmanaged checkout, or an unresolved subject. The rekey clears a conclusively dead
     lease, rebases an entering-anchor lease onto the new path, refuses foreign-live and unknown liveness, and
     re-runs idempotently.
+18. Every residue state reaches an in-model exit: a dead lease resolves automatically, a self-held or unverifiable
+    lease resolves through operator confirmation scoped to an unresolved subject or explicit abandon, and a foreign
+    live lease stops. No recovery state requires hand-editing the record store, and each stop reason is classified
+    into exactly one of the hard, authority, and advisory tiers.
 
 ## Open Questions
 
 Platform command invocation details and internal module/file partitioning may be selected during task generation
 and implementation so long as they satisfy the process-inspector and layer-boundary contracts above.
-
-### Q1. What authorizes a recovery action — deadness, or authority over the lease?
-
-D4 and D6 key every residue exit on a **conclusively dead** lease: `deriveRecovery` offers `resume`/`abandon` only
-for a dead-or-absent lease, `resolveLocusGeneration` refuses `lease-live` and `lease-unknown`, and
-`projectTrustedLocusRow` makes unverifiable liveness authority-fatal. Deadness is treated as the sole proof that
-acting on another generation is safe. Two states satisfy that safety condition without being dead, and both are
-currently unreachable:
-
-- **Unverifiable liveness.** `verifyProcessAnchor` returns `unknown` when inspection fails **or when the recorded
-  anchor's inspector kind differs from the running one** — so a checkout reached from two of the four supported
-  platforms reads its own healthy lease as unverifiable with nothing wrong. Every exit then refuses, leaving
-  hand-deleting the record as the only move — the out-of-band action the model exists to prevent.
-- **Self-held residue.** A lease whose recorded anchor is provably the **caller's own process** has no exit either.
-  Observed live at session-init: an in-place Errand close left the expected role at the primary with
-  `subject-unresolved`; a conversation reset started a new session inside the same process, so the anchor
-  (`pid 470247`, `startToken 24602157`, verified against `/proc/470247/stat` as the session's own parent) still read
-  live. `arc locus resolve --action abandon` refused `lease-live`, `arc locus release --lease <id>` refused
-  `role-conflict` (untrusted row on `subject-unresolved`, per D6's trusted-row predicate), and handoff refused
-  `locus-unresolved`. The lease dies when the **process** exits, not when the conversation ends.
-
-Candidate reframe: recovery actions key on **authority over the lease** rather than on deadness — dead ⇒ anyone may
-resolve; self ⇒ I may. Self-identification is strictly stronger evidence than deadness, since the process asserting
-it is the one whose death every other exit is waiting on. Gate a self-attested release on operator confirmation (the
-awaiting-merge resume arm is the precedent) rather than agent assertion, and scope it to an unresolved subject or an
-explicit abandon — never a general `--force`. This requires no detection of conversation resets, which are
-unobservable to the CLI; the point is that they never need to be observed.
-
-**Do not weaken the process anchor to reach this.** After a conversation reset the same process still holds live
-shell state and full write capability in that checkout, so dropping the lease there would open a genuine
-concurrent-occupancy hole. Occupancy identity and conversation identity are orthogonal and diverge in both
-directions: compaction is same process/same conversation, a reset is same process/new conversation, and a resumed
-session is new process/same conversation (already treated as a new session). The anchor tracks the right invariant;
-only the recovery vocabulary is short.
-
-Settling this subsumes the third candidate shape recorded for unverifiable-liveness recovery — narrowing the unknown
-surface through a portable anchor signal — so the two resolve as one decision rather than two. A third instance,
-where a **conclusively dead** lease still fails to reach its exit, is a conformance defect against D6's stated
-abandon preconditions rather than an input to this question; it is fixed independently and does not wait on it.
-
-Whatever is chosen, the residue guidance should state that a lease **dies when the process exits** rather than that
-it "dies with the session," and the self-held case should carry its own line ("this lease is yours; exit this
-process to release it") in place of a bare reconciliation stop.

@@ -1836,20 +1836,23 @@ refuse, D10 makes age and heartbeat staleness informational only, and current v3
 `close --force`. The remaining exit is deleting the record by hand — the out-of-band move the model exists to
 prevent.
 
-_Design decisions:_ **Open — settle in `spec-session-locus-model.md` § Q1 before implementing.** Unknown liveness is
-specified state, not a defect: D5 has mutation proceed with an unverifiable anchor precisely at unknown liveness.
-What is unspecified is how residue in that state is ever resolved. Three candidate shapes, none chosen: a bounded
-operator-confirmed override (the awaiting-merge resume arm is the existing precedent for operator-confirmed truth
-where host truth is unreachable); recording manual record deletion as the sanctioned exit and documenting it where
-the stop is surfaced; or narrowing the unknown surface itself, so a cross-inspector anchor re-verifies through a
-portable signal instead of reading unverifiable. The first two accept the state and add an exit; the third
-removes most of its reachability and leaves the rest genuinely unverifiable.
+_Design decisions:_ **Settled in `spec-session-locus-model.md` — implement against it.** Recovery keys on authority
+over the lease rather than on deadness: dead or absent resolves automatically, self-held and unverifiable resolve
+through operator confirmation scoped to an unresolved subject or an explicit abandon, and a foreign live lease
+stops with no confirmation path. D5 gains a `self` verdict as a refinement of `live`, D6 carries the authority
+rule, and the Proportionality boundary classifies every stop reason into hard, authority, or advisory tiers under
+one test — an agent may act on evidence the code lacks, and may not act where the code holds evidence the agent
+lacks. Confirmation authorizes acting on the lease alone and relaxes no occupancy, cleanliness, provenance,
+exact-head, or generation guard.
 
-_Scope widened 2026-07-24:_ self-held residue is the same defect from the opposite end — liveness verifiably **self**
-rather than unverifiable, and equally without an exit. Both reduce to "recovery keys on deadness," so the phase
-settles one question (recovery keys on **authority over the lease**) rather than two. The widened statement, its live
-evidence, and the do-not-weaken-the-anchor boundary are recorded in the spec's § Q1; under that reframe the third
-candidate above stops being a separate shape and becomes part of the same choice.
+_Anchor portability was rejected, and the cross-platform premise with it._ Record identity derives from a
+flavor-normalized checkout spelling, and normalization rejects a Windows drive or UNC spelling under the POSIX
+flavor and a rooted POSIX spelling under the Windows flavor — so the two record spaces are disjoint by construction
+and never read each other's anchors. The residual mismatch is two same-flavor inspector kinds at an identically
+spelled absolute path, needing a shared or synchronized mount; it degrades to `unknown` and reaches the same
+operator-confirmed path. The unverifiable readings that actually occur come from inspection failure — permission
+boundaries, an unreadable `/proc`, a failing `ps` — not from inspector-kind mismatch. Neither a portable machine
+identity on the anchor nor a per-platform record store is therefore in scope.
 
 ### `[ ]` **7.G.a Settle how residue without a dead lease resolves**
 
@@ -1857,13 +1860,12 @@ candidate above stops being a separate shape and becomes part of the same choice
   itself — has a defined, in-model way forward, and the path is reachable from the surface that reports the stop.
   No recovery state depends on hand-editing the record store.
 
-- _Note:_ Route the decision to the spec first — this is emergent design, not a conformance defect, and the
-  choice changes what the implementation is. Distinct from `7.E.d`, which recovers mutations that failed midway;
-  this is a state that never becomes resolvable at all. Distinct too from `7.F.b`, where a conclusively dead lease
-  fails its own exit — that is a conformance defect against D6 and does not wait on this decision. Include the
-  cross-platform reachability question: if the anchor-portability shape is taken, most of this phase becomes an
-  anchor change rather than a recovery-vocabulary one. Gate any self-attested release on operator confirmation, and
-  do not weaken the process anchor to reach it.
+- _Note:_ The design is settled above; what remains is implementation against it. Distinct from `7.E.d`, which
+  recovers mutations that failed midway; this is a state that never becomes resolvable at all. Distinct too from
+  `7.F.b`, where a conclusively dead lease fails its own exit — that is a conformance defect against D6 and does
+  not wait on this one. Gate any self-attested release on operator confirmation, and do not weaken the process
+  anchor to reach it: after a conversation reset the same process still holds live shell state and full write
+  capability in that checkout, so dropping the lease there would open a genuine concurrent-occupancy hole.
 
 - _Also in scope:_ the residue guidance says the lease "dies with the session" without saying what ends one. It
   should read **"dies when the process exits"** — that phrasing is what led a handoff to predict an exit a
