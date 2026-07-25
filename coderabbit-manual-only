@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "coderabbit-manual-only",
-  "origin": "description",
-  "intent": "Make CodeRabbit auto-review explicitly manual-only; the label gate it requires no longer exists, so an ordinary PR emits a misleading 'review skipped' status",
-  "branch": "fix/coderabbit-manual-only",
-  "createdAt": "2026-07-25T16:09:14.430Z",
-  "returnBranch": "main"
-}
