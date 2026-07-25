@@ -18,8 +18,8 @@ their own primitives; only this recipe is GitHub-specific.
   as a second standalone workflow would roll up nothing and leave your real CI ungated — see § Why a snippet.
 - **`arc-clearance.yml`** — an opt-in exact-head merge guard rendered by the
   [Set Up ARC Clearance workflow][clearance-setup]. It runs the exact ARC package version recorded in the
-  installation manifest, treats pull-request content only as data, and publishes `arc-cleared` through a
-  secretless environment.
+  installation manifest, treats pull-request content only as data, publishes planning clearance directly, and
+  publishes reviewed-head clearance through a secretless environment.
 
 ## The `merge-ok` gate (merge into your CI workflow)
 
@@ -37,22 +37,34 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: _arc_change_data
           fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
       - id: lane
+        env:
+          ARC_FRAMEWORK_VERSION: '<installed-arc-version>'
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          npm_config_audit: 'false'
+          npm_config_ignore_scripts: 'true'
         run: |
-          base='${{ github.event.pull_request.base.sha }}'
-          head='${{ github.event.pull_request.head.sha }}'
-          changed="$(git diff --name-only "$base...$head")"
-          echo "changed paths:"; printf '%s\n' "$changed"
-          # Auto-merge lane = per-WU / per-cohort planning artifacts only,
-          # matched by PREFIX: draft- / tasks- / meta- / notes- / cohort-*
-          # under active/ or backlog/. Any other path -> reviewed lane.
-          if printf '%s\n' "$changed" \
-            | grep -qvE '^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)-'; then
-            echo "lane=reviewed" >> "$GITHUB_OUTPUT"
-          else
-            echo "lane=auto" >> "$GITHUB_OUTPUT"
+          lane=reviewed
+          if [ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]; then
+            lane="$(npm exec --yes --package="@arc-framework/cli@$ARC_FRAMEWORK_VERSION" -- \
+              arc review planning-lane "$BASE_SHA" "$HEAD_SHA" \
+              --repository "$GITHUB_WORKSPACE/_arc_change_data")"
           fi
+          case "$lane" in
+            planning) echo "lane=auto" >>"$GITHUB_OUTPUT" ;;
+            reviewed) echo "lane=reviewed" >>"$GITHUB_OUTPUT" ;;
+            *) echo "::error::invalid planning classifier output"; exit 1 ;;
+          esac
 
   # your existing heavy jobs gain these two lines each:
   #   needs: classify
@@ -75,6 +87,10 @@ jobs:
           done
           echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }})"
 ```
+
+Replace `<installed-arc-version>` with the exact `framework_version` from
+`.arc/system/.internal/manifest.json`. The pinned CLI classifies Git's raw change record, so rename/copy endpoints
+and type/mode changes participate and any unreadable or malformed change remains reviewed.
 
 Branch protection requires **only** `merge-ok`. The heavy jobs are lane-skipped on planning-only PRs; `merge-ok`
 runs unconditionally and treats a skipped job as success, so a planning PR gets a green required check without

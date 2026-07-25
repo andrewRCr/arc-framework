@@ -4,6 +4,10 @@ import { readFile } from "node:fs/promises";
 import { ZodError, type ZodType } from "zod";
 
 import { createRawGitExec, gitExec } from "../lib/io-context.js";
+import {
+  classifyPlanningLane,
+  resolveChangeSet,
+} from "../lib/change-facts.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import {
@@ -111,6 +115,50 @@ async function readStdin(): Promise<string> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks).toString("utf8");
+}
+
+export interface ReviewPlanningLaneOptions {
+  repository?: string;
+}
+
+export interface ReviewPlanningLaneHandlerDependencies {
+  classify(base: string, head: string, repository: string): Promise<"planning" | "reviewed">;
+  write(text: string): void;
+}
+
+function defaultReviewPlanningLaneDependencies(): ReviewPlanningLaneHandlerDependencies {
+  return {
+    classify: async (base, head, repository) =>
+      classifyPlanningLane(await resolveChangeSet(createRawGitExec(repository), base, head)),
+    write: (text) => process.stdout.write(text),
+  };
+}
+
+/**
+ * Classify one exact Git change as planning or reviewed for the merge guard.
+ *
+ * @param base - Exact base commit SHA.
+ * @param head - Exact proposed-head commit SHA.
+ * @param options - Repository location containing both commits.
+ * @param overrides - Test-only classifier and output boundaries.
+ */
+export async function handleReviewPlanningLane(
+  base: string,
+  head: string,
+  options: ReviewPlanningLaneOptions,
+  overrides: Partial<ReviewPlanningLaneHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultReviewPlanningLaneDependencies(), ...overrides };
+  const validSha = /^[a-f0-9]{40}$/u;
+  let lane: "planning" | "reviewed" = "reviewed";
+  if (validSha.test(base) && validSha.test(head)) {
+    try {
+      lane = await dependencies.classify(base, head, options.repository ?? process.cwd());
+    } catch {
+      lane = "reviewed";
+    }
+  }
+  dependencies.write(`${lane}\n`);
 }
 
 interface ReviewHandlerBoundary {

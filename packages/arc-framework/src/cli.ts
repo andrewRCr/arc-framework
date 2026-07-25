@@ -97,8 +97,10 @@ import {
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
+  handleReviewPlanningLane,
   handleReviewReduce,
   handleReviewRespond,
+  type ReviewPlanningLaneOptions,
 } from "./handlers/review.js";
 import {
   handleCheckCommitMessage,
@@ -837,6 +839,13 @@ reviewCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewReadiness(input));
+
+reviewCmd
+  .command("planning-lane <base> <head>")
+  .description("Classify an exact Git change for planning clearance")
+  .option("--repository <path>", "Repository containing both exact commits")
+  .action((base: string, head: string, opts: ReviewPlanningLaneOptions) =>
+    handleReviewPlanningLane(base, head, opts));
 
 reviewCmd
   .command("unlock")

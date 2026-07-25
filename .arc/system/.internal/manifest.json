@@ -86,6 +86,11 @@
       "layer": "core",
       "pristine_hash": "afaf33a5d7cb515da51ef33060d347726db0796427570c5bb00942b06102a599"
     },
+    "reference/templates/arc/merge-gate/README.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "a891fede6db83df826550655b74e6dc1b1233af8fe63867e866b5a9680327117"
+    },
     "reference/templates/arc/merge-gate/arc-clearance.yml": {
       "classification": "Framework",
       "layer": "core",
@@ -615,6 +620,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "2a9baff6221bb2bddf204c143fa44b4cfab856db70fe3d2e898003caf2a346a6"
+    },
+    "system/workflows/arc/supplemental/setup-merge-gate.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "c3cdc5798e5ef7f275c17cf284f257d90e93c8bdf6b671b933c5d10f6f6874d0"
     },
     "system/workflows/arc/supplemental/add-agent.md": {
       "classification": "Framework",

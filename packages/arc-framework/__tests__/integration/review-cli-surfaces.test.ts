@@ -42,6 +42,7 @@ describe("packaged review CLI surfaces", () => {
 
     expect(reviewHelp.exitCode).toBe(0);
     expect(reviewHelp.stdout).toContain("readiness");
+    expect(reviewHelp.stdout).toContain("planning-lane");
     expect(reviewHelp.stdout).toMatch(/^\s+resolve(?:\s|\[)/mu);
     expect(reviewHelp.stdout).toContain("hosted");
     expect(reviewHelp.stdout).toContain("unlock");
@@ -49,6 +50,31 @@ describe("packaged review CLI surfaces", () => {
     expect(hostedHelp.stdout).toContain("request");
     expect(hostedHelp.stdout).toContain("await");
     expect(hostedHelp.stdout).toContain("settle");
+  });
+
+  it("classifies an exact planning change through the packaged CLI", async () => {
+    await run("git", ["config", "user.email", "arc@example.invalid"], { cwd: fixtureRoot });
+    await run("git", ["config", "user.name", "ARC Test"], { cwd: fixtureRoot });
+    await run("git", ["add", "."], { cwd: fixtureRoot });
+    await run("git", ["commit", "-qm", "base"], { cwd: fixtureRoot });
+    const base = (await run("git", ["rev-parse", "HEAD"], { cwd: fixtureRoot })).stdout.trim();
+    const planningPath = join(fixtureRoot, ".arc", "active", "spec-demo.md");
+    await mkdir(join(fixtureRoot, ".arc", "active"), { recursive: true });
+    await writeFile(planningPath, "# Spec: Demo\n");
+    await run("git", ["add", "."], { cwd: fixtureRoot });
+    await run("git", ["commit", "-qm", "planning"], { cwd: fixtureRoot });
+    const head = (await run("git", ["rev-parse", "HEAD"], { cwd: fixtureRoot })).stdout.trim();
+
+    const result = await runCli([
+      "review",
+      "planning-lane",
+      base,
+      head,
+      "--repository",
+      fixtureRoot,
+    ], { cwd: fixtureRoot });
+
+    expect(result).toMatchObject({ exitCode: 0, stdout: "planning\n" });
   });
 
   it.each([

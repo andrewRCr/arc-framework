@@ -39,6 +39,10 @@ duplicates.
    If the host is not GitHub, jump to [§ Other Hosts](#other-hosts). If `gh` lacks admin, the settings steps
    (3–4) drop to their guided-manual fallback.
 
+3. **Exact installed framework version.** Read `framework_version` from
+   `.arc/system/.internal/manifest.json`, require strict SemVer, and confirm it matches `arc --version`. Use that
+   exact value for `<installed-arc-version>` in the classifier snippet.
+
 ## Step 1: Add the merge-ok gate to your CI workflow
 
 The gate is a snippet, not a drop-in file — `needs:` reaches only jobs in the same workflow, so it must live
@@ -53,9 +57,11 @@ repo's CI layout:
   workflow and a thin parent that `uses:` them and hosts `classify` + `merge-ok`; mark only the parent's
   `merge-ok` required. (Advanced fallback: a `workflow_run` aggregator — see the README.)
 
-Then confirm the lane classifier matches the project's layout. The default covers ARC's
-`draft-/tasks-/meta-/notes-/cohort-/research-/analysis-/spec-*` prefixes under `active/` and `backlog/`, plus the
-exact generated `.arc/backlog/ROADMAP.md`. Set the workflow's `pull_request` trigger to the base branch.
+Then confirm the pinned classifier matches the project's layout. The default consumes Git's raw change record and
+accepts regular-file content changes only: direct ARC planning artifacts under `active/`, one- or two-coordinate
+artifacts under `backlog/planned/` and `backlog/provisional/`, plus the exact generated
+`.arc/backlog/ROADMAP.md`. Rename/copy endpoints and type/mode changes remain reviewed. Set the workflow's
+`pull_request` trigger to the base branch.
 
 **Detect-if-present:** if a `merge-ok` job already exists, do NOT duplicate — diff against the snippet and
 reconcile with the user.
@@ -74,7 +80,8 @@ cp .arc/reference/templates/arc/merge-gate/CODEOWNERS .github/CODEOWNERS
 ```
 
 Then replace `@your-org/reviewers` with the real reviewer(s), and confirm the constitutional and unowned blocks
-match the project's paths.
+match the project's paths. CODEOWNERS supplies path ownership only; the pinned classifier and required
+`arc-cleared` context remain authoritative for exact filename, rename/copy, and mode semantics.
 
 ## Step 3: Require the merge-ok check in branch protection
 

@@ -732,24 +732,44 @@ describe("trusted review-gate workflows", () => {
   it("ships an installable clearance workflow pinned to the installed framework version", async () => {
     const templatePath = "packages/arc-framework/arc/reference/templates/arc/merge-gate/arc-clearance.yml";
     const setupPath = "packages/arc-framework/arc/system/workflows/arc/supplemental/setup-arc-clearance.md";
-    const [template, setup, recipe] = await Promise.all([
+    const [template, setup, recipe, codeowners, recipeReadme] = await Promise.all([
       readRepositoryFile(templatePath),
       readRepositoryFile(setupPath),
       readRepositoryFile("packages/arc-framework/init-recipe.json"),
+      readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/CODEOWNERS"),
+      readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/README.md"),
     ]);
     const inventory = JSON.parse(recipe) as { include_files: string[] };
+    const installedWorkflow = load(template) as {
+      on?: Record<string, unknown>;
+      jobs?: Record<string, unknown>;
+    };
 
+    expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/README.md");
     expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/arc-clearance.yml");
     expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/CODEOWNERS");
     expect(inventory.include_files).toContain("system/workflows/arc/supplemental/setup-arc-clearance.md");
+    expect(inventory.include_files).toContain("system/workflows/arc/supplemental/setup-merge-gate.md");
     expect(template).toContain("@arc-framework/cli@{{ARC_FRAMEWORK_VERSION}}");
     expect(template).toContain("npm exec --yes --package=");
+    expect(installedWorkflow.on).toHaveProperty("pull_request");
+    expect(installedWorkflow.on).toHaveProperty("repository_dispatch");
+    expect(installedWorkflow.jobs).toHaveProperty("planning-clearance");
+    expect(template).toContain('arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
+    expect(template.match(/@arc-framework\/cli@\{\{ARC_FRAMEWORK_VERSION\}\}/gu)).toHaveLength(2);
     expect(template).not.toMatch(/@(?:latest|next|beta)|node_modules\/.bin|packages\/arc-framework\/src/u);
     expect(template).toContain("path: _arc_pr_data");
     expect(template).not.toMatch(/working-directory: _arc_pr_data|(?:bash|node|npm|npx|tsx)\s+_arc_pr_data\//u);
+    expect(codeowners).not.toContain("/.arc/backlog/**/");
+    expect(codeowners).toContain("/.arc/backlog/planned/*/*/spec-*.md");
+    expect(codeowners).toContain("/.arc/backlog/provisional/*/meta-*.md");
+    expect(recipeReadme).not.toContain("git diff --name-only");
+    expect(recipeReadme).toContain('arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
+    expect(recipeReadme).toContain('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');
     expect(setup).toContain(".arc/system/.internal/manifest.json");
     expect(setup).toContain("arc --version");
     expect(setup).toContain("{{ARC_FRAMEWORK_VERSION}}");
+    expect(setup).toContain("both fixed writers");
   });
 
   it("keeps clearance setup additive, idempotent, and fail-closed at protection settlement", async () => {

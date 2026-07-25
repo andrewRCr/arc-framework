@@ -572,7 +572,12 @@ async function runExecutable(args: string[]): Promise<void> {
 }
 
 const invokedPath = process.argv[1];
-if (invokedPath !== undefined && fileURLToPath(import.meta.url) === resolve(invokedPath)) {
+const modulePath = fileURLToPath(import.meta.url);
+if (
+  invokedPath !== undefined
+  && /(?:^|[/\\])change-facts\.(?:ts|js)$/u.test(modulePath)
+  && modulePath === resolve(invokedPath)
+) {
   try {
     await runExecutable(process.argv.slice(2));
   } catch (error) {

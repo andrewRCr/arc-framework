@@ -32,7 +32,9 @@ The manifest version is the sole replacement for `{{ARC_FRAMEWORK_VERSION}}`.
 Render the [clearance template][clearance-template] to
 `.github/workflows/arc-clearance.yml`, replacing every `{{ARC_FRAMEWORK_VERSION}}` token with the validated
 manifest version. Reject a version outside strict SemVer syntax before substitution. After rendering, require
-exactly one literal `@arc-framework/cli@<manifest-version>` and no unresolved token.
+exactly two literal `@arc-framework/cli@<manifest-version>` package specs and no unresolved token. Confirm the
+rendered workflow retains both fixed writers: `pull_request` planning classification and `repository_dispatch`
+reviewed-head validation.
 
 Detect the target first:
 
@@ -44,17 +46,17 @@ Detect the target first:
 The workflow is safe to commit before host configuration. It cannot satisfy a required context until the
 environment and branch-protection steps below are completed.
 
-## 3. Require the workflow on the default branch
+## 3. Require both writers on the default branch
 
 Resolve the repository and default branch with `gh repo view`. Confirm the workflow is present on the default
-branch, not only in the working branch:
+branch, not only in the working branch, and that its live content retains both event types:
 
 ```bash
 gh api "repos/{owner}/{repo}/contents/.github/workflows/arc-clearance.yml?ref={default-branch}"
 ```
 
-If it is absent, stop before changing required checks. Commit and merge the workflow through the repository's
-normal path, then rerun this workflow. A workflow-only partial setup is harmless.
+If it is absent or either writer is missing, stop before changing required checks. Commit and merge the workflow
+through the repository's normal path, then rerun this workflow. A workflow-only partial setup is harmless.
 
 ## 4. Provision or verify the environment
 
@@ -74,9 +76,9 @@ detection queries afterward and stop until they confirm the required state.
 
 ## 5. Add the required context
 
-Reconfirm that the workflow is present on the live default branch and the environment matches Step 4. Only then
-read the current required contexts and add `arc-cleared` without replacing `ci-ok`, `merge-ok`, CODEOWNERS review,
-or any other requirement:
+Reconfirm that both workflow writers are present on the live default branch and the environment matches Step 4.
+Only then read the current required contexts and add `arc-cleared` without replacing `ci-ok`, `merge-ok`,
+CODEOWNERS review, or any other requirement:
 
 ```bash
 gh api "repos/{owner}/{repo}/branches/{default-branch}/protection/required_status_checks/contexts"
@@ -93,10 +95,10 @@ first; do not report setup complete.
 
 ## 6. Verify
 
-Repeat the detection reads for workflow, environment, deployment policy, secrets, and required contexts. Report
-which parts were already correct and which changed. The guard is ready only when the rendered workflow exists on
-the default branch, the secretless environment is constrained to that branch, and `arc-cleared` is additive in
-branch protection.
+Repeat the detection reads for both workflow writers, environment, deployment policy, secrets, and required
+contexts. Report which parts were already correct and which changed. The guard is ready only when the rendered
+workflow and both writers exist on the default branch, the secretless environment is constrained to that branch,
+and `arc-cleared` is additive in branch protection.
 
 ---
 

@@ -1,14 +1,52 @@
 name: ARC Clearance
 
 on:
+  pull_request:
+    types: [opened, reopened, synchronize]
   repository_dispatch:
     types: [arc-clearance]
 
 permissions: {}
 
 jobs:
+  planning-clearance:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      statuses: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '24'
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: _arc_change_data
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Publish planning-lane ARC clearance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          npm_config_audit: 'false'
+          npm_config_ignore_scripts: 'true'
+        run: |
+          lane="$(npm exec --yes --package=@arc-framework/cli@{{ARC_FRAMEWORK_VERSION}} -- \
+            arc review planning-lane "$BASE_SHA" "$HEAD_SHA" \
+            --repository "$GITHUB_WORKSPACE/_arc_change_data")"
+          test "$lane" = planning || test "$lane" = reviewed
+          if [ "$lane" = planning ]; then
+            target="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state=success -f context=arc-cleared \
+              -f description='ARC planning lane cleared this exact head' -f target_url="$target"
+          fi
+
   validate:
-    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    if: ${{ github.event_name == 'repository_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     permissions:
       contents: read
       pull-requests: read
