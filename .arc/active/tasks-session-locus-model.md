@@ -1854,7 +1854,7 @@ operator-confirmed path. The unverifiable readings that actually occur come from
 boundaries, an unreadable `/proc`, a failing `ps` — not from inspector-kind mismatch. Neither a portable machine
 identity on the anchor nor a per-platform record store is therefore in scope.
 
-### `[ ]` **7.G.a Settle how residue without a dead lease resolves**
+### `[ ]` **7.G.a Give residue without a dead lease an in-model exit**
 
 - _Goal:_ A session that cannot verify its predecessor's liveness — or that is provably the stranding process
   itself — has a defined, in-model way forward, and the path is reachable from the surface that reports the stop.
@@ -1867,10 +1867,41 @@ identity on the anchor nor a per-platform record store is therefore in scope.
   anchor to reach it: after a conversation reset the same process still holds live shell state and full write
   capability in that checkout, so dropping the lease there would open a genuine concurrent-occupancy hole.
 
-- _Also in scope:_ the residue guidance says the lease "dies with the session" without saying what ends one. It
-  should read **"dies when the process exits"** — that phrasing is what led a handoff to predict an exit a
-  conversation reset could not reach — paired with a guidance line for the self-held case ("this lease is yours;
-  exit this process to release it") in place of today's bare reconciliation stop.
+- _Approach:_ **two axes, not a widened verdict.** `ProcessLiveness` is read by occupancy guards in fourteen
+  modules, so widening it to carry `self` would silently change the meaning of every existing `=== "live"` check —
+  a guard could open without anyone editing it, which is exactly what D5's "refinement of `live`, not a peer of
+  it" forbids. `verifyProcessAnchor` therefore keeps returning `live` / `dead` / `unknown` and nothing that guards
+  occupancy changes; a separate authority classification is consulted only where recovery decides. Occupancy asks
+  whether someone is there, authority asks whether I may act, and each layer reads the axis it owns.
+
+    - `[ ]` **7.G.a.i Add the lease-authority classification**
+        - `classifyLeaseAuthority(anchor, inspector, ownAnchor)` returns `self` / `foreign` / `dead` /
+          `unverifiable`, resolving `self` when the recorded anchor equals the anchor this process would mint now
+          (same inspector kind, PID, and creation token). `verifyProcessAnchor` is untouched.
+        - Cover self-detection, a foreign live anchor, dead, and unverifiable — plus an explicit case asserting
+          that an occupancy guard still fires on `self`, since that is the invariant the two-axis shape exists to
+          hold structurally.
+
+    - `[ ]` **7.G.a.ii Classify the stop reasons into tiers**
+        - Derive `hard` / `authority` / `advisory` over `LocusStopReason` rather than restating the members, on the
+          idiom `trusted-row.ts` already uses for its authority-fatal set, so a reason added to the enum fails to
+          compile until it is classified. The existing authority-fatal set becomes the `authority` tier.
+        - Cover that every published reason resolves to exactly one tier, and that the derivation rejects an
+          unclassified member.
+
+    - `[ ]` **7.G.a.iii Route self-held and unverifiable residue to the confirmed exit**
+        - `deriveRecovery` offers the operator-confirmed path for a self-held or unverifiable lease, and
+          `resolveLocusGeneration` accepts that release scoped to an unresolved subject or an explicit abandon.
+        - Cover the recorded stranding case — a self-held lease on a `subject-unresolved` row reaching abandon —
+          that a foreign live lease still refuses with no confirmation path, and that confirmation relaxes no
+          occupancy, cleanliness, provenance, exact-head, or generation guard.
+
+    - `[ ]` **7.G.a.iv Move the advisory tier off the stop path and correct the narration**
+        - `primary-dirty` and `primary-off-base` stop rendering as stops. Residue guidance reads **"dies when the
+          process exits"** rather than "dies with the session" — the phrasing that led a handoff to predict an exit
+          a conversation reset could not reach — paired with a self-held line ("this lease is yours; exit this
+          process to release it") in place of today's bare reconciliation stop.
+        - Cover that an advisory reason no longer blocks, and both guidance strings.
 
 ## **Phase 8:** Verification
 
