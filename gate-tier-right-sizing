@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "gate-tier-right-sizing",
-  "origin": "description",
-  "intent": "Right-size this repo's own quality-gate command tiers: make Tier 1 actually targeted, record measured per-gate costs, add relevance + unchanged-tree conditions. Project-instance surfaces only; vocabulary-neutral.",
-  "branch": "chore/gate-tier-right-sizing",
-  "createdAt": "2026-07-25T12:37:37.733Z",
-  "returnBranch": "main"
-}
