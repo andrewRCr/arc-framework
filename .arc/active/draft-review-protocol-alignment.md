@@ -411,7 +411,8 @@ rest.
   rightful owner and became a capability removal, which takes the largest and least-bounded item out of the WU.
   Concerns 5 and 6 keep their independent-ship escape hatches. Re-run the cohort-fit read once concerns 1 and 3 are
   specified, which is now the point where decomposition becomes decidable.
-- **`ci-defer-heavy` placement** remains open (below).
+- **Resolved — `ci-defer-heavy` placement.** Settled to a repository-local review-event workflow and routed out of
+  this WU as an errand (below).
 
 ## Composition / Coordination
 
@@ -436,10 +437,11 @@ rest.
 - **`unit-scoped-review`** — relocates the approval gate to the WU boundary, which changes what the
   author-response cycle above is collapsing. Coordinate framing; do not pre-empt.
 
-### Carried input — `ci-defer-heavy` automation (placement open)
+### Carried input — `ci-defer-heavy` automation (settled; routed to an errand)
 
-Raised during this WU's grooming, recorded here so it is not lost, **with placement deliberately unsettled** —
-it may belong to `self-hosted-ci-qualification`, its own stub, or a later phase here.
+Raised during this WU's grooming and settled in the same session. **Not this WU's work and not a stub** — the
+mechanism below is one small repository-local workflow file with no design left to derive, which is errand-shaped.
+Recorded here so the errand is a straight implementation rather than a re-derivation.
 
 The proposal: auto-apply the project-level `ci-defer-heavy` label when a PR opens heavy, and remove it once review
 settles, so the heavy CI legs fire exactly once per PR rather than on every intermediate head. Findings from the
@@ -460,6 +462,43 @@ grooming evaluation, so they are not re-derived:
   first-of-its-kind activation firing on every errand and every integration.
 - **Defer-from-open costs early failure discovery**, and a late failure creates a new head, which can force a
   complete re-review — more expensive than the minutes saved. Heavy-once-then-defer is the better shape.
+
+**Settled mechanism — a repository-local workflow keyed on review events, not an agent-layer procedure.** The
+label toggles on the change-request-submitted and approved review events the host already emits: a
+changes-requested review adds the label, an approving review removes it. The sequence is exactly the endorsed
+shape — the pull request opens and runs heavy once for early discovery, the fix loop runs deferred, approval
+removes the label so the full suite runs once before merge.
+
+Two alternatives were considered and rejected:
+
+- **New extension seams wired into the review lifecycle.** No declared seam fires at the right moment: the
+  pre-open and post-open seams both precede review, the per-push seam cannot distinguish a first push from a fix
+  push without inspecting state, and the pre-merge seam sits after review-response processing, where removing the
+  label starts a run that merge authorization's exact-head recheck then treats as unsettled. Serving this would
+  mean minting two new fire points in shipped Framework workflows — permanent framework surface with
+  forward-compatibility obligations — for one repository's CI cost. The deeper objection is that the trigger is
+  not a lifecycle moment at all: it is a host review event, which the agent layer would be reconstructing rather
+  than owning.
+- **A standing rule in the project development rules.** This relocates the remembering from the developer to the
+  agent rather than removing it, cannot fire when no agent is present at the moment a reviewer responds, and
+  spends always-loaded context on a conditional optimization.
+
+**Why this is safe to set and forget: every failure mode is fail-safe.** Wrongly applying the label makes the
+rollup status fail, which blocks the merge; wrongly removing it runs the full suite. No defect in the mechanism
+can let an unverified head merge. That property, not the minutes saved, is what makes the automation
+proportionate — and it is also why the agent layer is the wrong home, since the mechanism needs no judgment.
+
+Three edges to handle in the errand:
+
+- **A clean hosted Codex pass may not be an approving review.** Its clean signal is an issue comment rather than a
+  review state, so removal keyed only on approval would not fire for it. Removing on any approving review is
+  sufficient, because the developer's own approval always precedes merge and is the authoritative gate.
+- **CodeRabbit appears to approve once all conversations are resolved**, even where it was not the requested
+  reviewer. That is convenient here — thread resolution is a good proxy for the fix loop ending — and its failure
+  mode only forfeits savings: resolving threads early un-defers early, degrading to undeferred behavior rather
+  than to an unsafe one.
+- **Concurrent reviewers** could approve while another has outstanding change requests. Not this project's normal
+  operation, and the early un-defer it would cause is fail-safe.
 
 ## Scope Estimate
 
@@ -485,11 +524,11 @@ method prose — wide, but no longer carrying an unrun measurement on its critic
   and its two supporting observations; concern 4's trim-to-contract-floor decision, its three drift findings, and
   the inverted sequencing (trim first); concern 5 resolved to a schema-emitting flag; concern 6 resolved to three
   wording edits with its rejected shapes recorded; coordination-not-dependency with `judgment-authority-model`;
-  the two-front handoff contract with `chunk-scope-binding`; `Class: Heavy`.
+  the two-front handoff contract with `chunk-scope-binding`; the `ci-defer-heavy` mechanism and its routing out to
+  an errand; `Class: Heavy`.
 - **Open:** whether existing test coverage already proves the enforced fallback rule, or a test is owed; the single
   trimmed-guidance timeout observation; whether the parity check lands as a unit test or a pre-commit contract
-  check; the retention default's concrete value once real diagnostics volume is observed; `ci-defer-heavy`
-  placement.
+  check; the retention default's concrete value once real diagnostics volume is observed.
 - **Next:** run the formalization-readiness assessment. Direction is settled across all six concerns, so the
   remaining question is whether the open items above are detail-design that a spec can absorb — the reading this
   draft now takes — or whether any of them still masks a decision. Consolidation has run this pass, so the draft
