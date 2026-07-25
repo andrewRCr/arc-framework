@@ -51,7 +51,10 @@ export const locusCommandInputRegistrations = [
 
 export interface LocusAttachOptions extends LocusCliOptions { checkout?: string }
 export interface LocusReleaseOptions extends LocusCliOptions { lease: string }
-export interface LocusResolveOptions extends LocusCliOptions { action: string }
+export interface LocusResolveOptions extends LocusCliOptions {
+  action: string;
+  confirmNoLiveSession?: boolean;
+}
 
 /** Attach the entering process to one reader-trusted managed checkout. */
 export async function handleLocusAttach(options: LocusAttachOptions): Promise<void> {
@@ -90,6 +93,7 @@ export async function handleLocusResolve(recordId: string, options: LocusResolve
   })).identityGlobalRoot;
   const common = {
     recordId, action, base: settings["branch.base"], identity, cwd,
+    confirmedNoLiveSession: options.confirmNoLiveSession === true,
     postCreateScript: settings["worktree.post_create"],
     registeredHarnessDirs: settings["worktree.harness_dirs"],
     io: { ...io, execInput },

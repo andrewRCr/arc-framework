@@ -58,6 +58,8 @@ export interface LocusCommandRuntimeOptions {
 export interface ResolveLocusRuntimeOptions extends LocusCommandRuntimeOptions {
   readonly recordId: string;
   readonly action: "resume" | "abandon";
+  /** Operator attestation that no live session holds the selected lease. */
+  readonly confirmedNoLiveSession: boolean;
   abandon(dispatch: LocusResolveDispatch): Promise<LocusMutationResultV1>;
 }
 
@@ -327,6 +329,7 @@ export async function resolveLocusAtRuntime(options: ResolveLocusRuntimeOptions)
     && (await options.io.exec("git", ["status", "--porcelain"], { cwd: row.checkoutPath })).stdout === "";
   return resolveLocusGeneration({
     row, action: options.action, checkoutClean,
+    confirmedNoLiveSession: options.confirmedNoLiveSession,
     dependencies: {
       run: async (dispatch) => dispatch.action === "abandon"
         ? options.abandon(dispatch)

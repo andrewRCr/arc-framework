@@ -1,9 +1,10 @@
 /** Pure frame and current-locus derivation over provisional roster rows. */
 
 import { sameProcessAnchor } from "./process-inspector.js";
-import { projectTrustedLocusRow } from "./trusted-row.js";
+import { locusRowAuthorityReasons } from "./trusted-row.js";
 import type { ProvisionalLocusRow } from "./roster.js";
 import type { PrimarySafetyResult } from "./primary-safety.js";
+import type { LocusRowAuthorityInputs } from "./trusted-row.js";
 import type {
   LocusAnchor,
   LocusDiagnosticV1,
@@ -162,7 +163,12 @@ function deriveRecovery(
 function isStrandedSelfHeld(row: LocusRowV1): boolean {
   return row.lease?.state === "live"
     && row.lease.selfHeld
-    && projectTrustedLocusRow(row).kind === "untrusted";
+    && !isTrusted(row);
+}
+
+/** Authority established, over the inputs a row carries before and after publication. */
+function isTrusted(row: LocusRowAuthorityInputs): boolean {
+  return locusRowAuthorityReasons(row).length === 0;
 }
 
 function derivePrimaryAvailability(options: {
@@ -266,7 +272,9 @@ export function deriveLocusFrames(options: {
   enteringAnchor: LocusAnchor;
 }): LocusFrameDerivation {
   const frames = new Map<ProvisionalLocusRow, LocusRowV1["frame"]>();
-  for (const row of options.rows) frames.set(row, baseFrame(row));
+  for (const row of options.rows) {
+    frames.set(row, baseFrame(row, sameProcessAnchor(row.leaseAnchor, options.enteringAnchor)));
+  }
 
   for (const child of options.rows.filter(isLiveTransient)) {
     const parentPath = child.role?.parentCheckoutPath;
@@ -292,11 +300,15 @@ export function deriveLocusFrames(options: {
   };
 }
 
-function baseFrame(row: ProvisionalLocusRow): LocusRowV1["frame"] {
+function baseFrame(row: ProvisionalLocusRow, selfHeld: boolean): LocusRowV1["frame"] {
   if (row.kind === "identity-only") return "idle";
   if (row.kind !== "managed-role" || row.role === null) return null;
   if (row.role.kind === "work-unit" && (row.lease === null || row.lease.state === "dead")) return "idle";
   if (row.lease === null) return "residue";
+  // A frame no operation can enter is not a frame. A self-held lease on a row whose authority is
+  // unestablished reads `active` on liveness alone, yet every attach refuses it — so the resolve
+  // path saw `active` and refused as not-residue, the last link in the deadlock.
+  if (row.lease.state === "live" && selfHeld && !isTrusted(row)) return "residue";
   return row.lease.state === "live" ? "active" : "residue";
 }
 

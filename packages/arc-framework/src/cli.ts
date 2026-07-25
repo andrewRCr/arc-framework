@@ -973,8 +973,12 @@ locusCmd
 
 locusCmd
   .command("resolve <record-id>")
-  .description("Resume or abandon one exact conclusively dead transient generation")
+  .description("Resume or abandon one exact transient generation no live session holds")
   .requiredOption("--action <action>", "Resolution action: resume | abandon")
+  .option(
+    "--confirm-no-live-session",
+    "Attest that no live session holds the lease; refused when one is verifiably live elsewhere",
+  )
   .option("--json", "Emit one typed session locus mutation result")
   .action((recordId: string, opts: LocusResolveOptions, command: Command) => handleLocusResolve(recordId, {
     ...opts,

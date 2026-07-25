@@ -1900,7 +1900,7 @@ identity on the anchor nor a per-platform record store is therefore in scope.
         - Corrected a spec inconsistency found here: the Proportionality boundary placed a foreign `lease-live` in
           the `authority` tier, contradicting D6's foreign-live stop. D6 governs, and the tier text now matches it.
 
-    - `[ ]` **7.G.a.iii Route self-held and unverifiable residue to the confirmed exit**
+    - `[x]` **7.G.a.iii Route self-held and unverifiable residue to the confirmed exit**
 
         - _Note:_ decomposed at entry. Reading the resolve path surfaced two prerequisites outside the leaf's
           stated scope — a second self-test already in the reader, and a frame rule that would have regressed
@@ -1936,14 +1936,26 @@ identity on the anchor nor a per-platform record store is therefore in scope.
               every untrusted row including work units.
             - `probe-envelope.md` documents the new field in both copies; fixtures across eighteen suites carry it.
 
-        - `[ ]` **7.G.a.iii.2.b Accept the confirmed release**
-            - `resolveLocusGeneration` accepts an operator-confirmed release for a self-held or unverifiable lease,
-              scoped to an unresolved subject or an explicit abandon, in place of its present flat `lease-live` and
-              `lease-unknown` refusals. Surfaced as `arc locus resolve --confirm-self-held`, refused unless the
-              selected generation actually classifies `self`, so it cannot become a general force.
-            - Cover the recorded stranding case reaching abandon, a foreign live lease still refusing with no
-              confirmation path, and confirmation relaxing no occupancy, cleanliness, provenance, exact-head, or
-              generation guard.
+        - `[x]` **7.G.a.iii.2.b Accept the confirmed release**
+            - `resolveLocusGeneration` takes `confirmedNoLiveSession` and admits a self-held or unverifiable lease
+              on it, scoped to an unresolved subject or an explicit abandon. A verifiably foreign live lease
+              refuses ahead of the gate and has no confirmation path at all, which is what keeps the attestation
+              from becoming a general force. Surfaced as `arc locus resolve --confirm-no-live-session`.
+            - The flag covers both halves of the phase goal rather than self-identification alone. A self-held
+              attestation was the earlier shape, but an unverifiable lease held by _another_ anchor — a stale
+              record whose process-table read failed — is the other stranded state, and the operator's evidence is
+              identical in both cases: they can see their own machine. One attestation, one name.
+            - The attestation clears exactly the reason it attests to. `lease-unknown` stops blocking, since that
+              diagnostic states the very thing the operator supplies; `lock-unknown` deliberately does not, because
+              an unverifiable lock holder may be a process mid-mutation, which is a different claim.
+            - Frame derivation now reads a stranded self-held row as `residue` rather than `active`, so selection,
+              the recovery verdict, and the resolve gate agree instead of the driver special-casing a frame that
+              disagreed with it. Trust moved behind `locusRowAuthorityReasons`, shared by the trusted-row
+              projection, frame derivation, and this driver over the inputs all three read.
+            - Covered by a foreign live lease refusing however loudly it is attested, a self-held lease refusing
+              until attested, the recorded stranding case clearing once attested, an unverifiable non-self lease
+              clearing, and the attestation failing to substitute for the dirty-checkout or cross-identity guards.
+              Verified end to end against the real CLI: the flag reaches the driver and a refusal exits non-zero.
 
 ### `[ ]` **7.G.b Settle what `current` means for a row nothing can attach to**
 

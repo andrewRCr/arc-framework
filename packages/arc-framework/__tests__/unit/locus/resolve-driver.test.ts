@@ -55,7 +55,7 @@ describe("locus resolve driver", () => {
         restoredParent: null, nextOffer: null, recommendedPromptText: "Delegated.",
       }));
       const result = await resolveLocusGeneration({
-        row: row(subject), action, checkoutClean: true, dependencies: { run },
+        row: row(subject), action, checkoutClean: true, confirmedNoLiveSession: false, dependencies: { run },
       });
       expect(run).toHaveBeenCalledWith({
         subject, action, key: "subject",
@@ -73,7 +73,7 @@ describe("locus resolve driver", () => {
       restoredParent: null, nextOffer: null, recommendedPromptText: "Released.",
     }));
     const result = await resolveLocusGeneration({
-      row: publishedResidue("subject-unresolved"), action: "abandon", checkoutClean: true,
+      row: publishedResidue("subject-unresolved"), action: "abandon", checkoutClean: true, confirmedNoLiveSession: false,
       dependencies: { run },
     });
     expect(run).toHaveBeenCalledTimes(1);
@@ -84,7 +84,7 @@ describe("locus resolve driver", () => {
     ["live", "lease-live"], ["unknown", "lease-unknown"],
   ] as const)("refuses %s lease evidence", async (lease, reason) => {
     const result = await resolveLocusGeneration({
-      row: row("errand", lease), action: "abandon", checkoutClean: true,
+      row: row("errand", lease), action: "abandon", checkoutClean: true, confirmedNoLiveSession: false,
       dependencies: { run: vi.fn() },
     });
     expect(result).toMatchObject({ outcome: "refused", reason });
@@ -93,18 +93,18 @@ describe("locus resolve driver", () => {
   it("refuses dirty, missing, and changed authority before dispatch", async () => {
     const run = vi.fn();
     expect(await resolveLocusGeneration({
-      row: row("groom"), action: "resume", checkoutClean: false, dependencies: { run },
+      row: row("groom"), action: "resume", checkoutClean: false, confirmedNoLiveSession: false, dependencies: { run },
     })).toMatchObject({ outcome: "refused", reason: "preservation-unproven" });
     expect(await resolveLocusGeneration({
-      row: { ...row("groom"), checkoutPath: null }, action: "resume", checkoutClean: true,
+      row: { ...row("groom"), checkoutPath: null }, action: "resume", checkoutClean: true, confirmedNoLiveSession: false,
       dependencies: { run },
     })).toMatchObject({ outcome: "refused", reason: "checkout-missing" });
     expect(await resolveLocusGeneration({
-      row: { ...row("groom"), lease: null }, action: "resume", checkoutClean: true,
+      row: { ...row("groom"), lease: null }, action: "resume", checkoutClean: true, confirmedNoLiveSession: false,
       dependencies: { run },
     })).toMatchObject({ outcome: "refused", reason: "record-malformed" });
     expect(await resolveLocusGeneration({
-      row: { ...row("groom"), frame: "idle" }, action: "resume", checkoutClean: true,
+      row: { ...row("groom"), frame: "idle" }, action: "resume", checkoutClean: true, confirmedNoLiveSession: false,
       dependencies: { run },
     })).toMatchObject({ outcome: "refused", reason: "role-conflict" });
     expect(run).not.toHaveBeenCalled();
@@ -113,7 +113,7 @@ describe("locus resolve driver", () => {
   it("refuses resume on the unresolved subject abandon tolerates", async () => {
     const run = vi.fn();
     const result = await resolveLocusGeneration({
-      row: publishedResidue("subject-unresolved"), action: "resume", checkoutClean: true,
+      row: publishedResidue("subject-unresolved"), action: "resume", checkoutClean: true, confirmedNoLiveSession: false,
       dependencies: { run },
     });
     expect(result).toMatchObject({ outcome: "refused", reason: "role-conflict" });
@@ -129,10 +129,85 @@ describe("locus resolve driver", () => {
   ] as const)("refuses abandon on %s authority evidence", async (code, reason) => {
     const run = vi.fn();
     const result = await resolveLocusGeneration({
-      row: publishedResidue("subject-unresolved", code), action: "abandon", checkoutClean: true,
+      row: publishedResidue("subject-unresolved", code), action: "abandon", checkoutClean: true, confirmedNoLiveSession: false,
       dependencies: { run },
     });
     expect(result).toMatchObject({ outcome: "refused", reason });
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe("operator attestation over a lease no inspector can retire", () => {
+  function selfHeld(lease: "live" | "unknown", ...codes: LocusDiagnosticV1["code"][]): LocusRowV1 {
+    const base = row("errand", lease);
+    return {
+      ...base,
+      lease: { ...base.lease as NonNullable<LocusRowV1["lease"]>, selfHeld: true },
+      diagnostics: [...base.diagnostics, ...codes.map(diagnostic)],
+    };
+  }
+
+  it("refuses a verifiably foreign live lease however loudly it is confirmed", async () => {
+    const run = vi.fn();
+    const result = await resolveLocusGeneration({
+      row: row("errand", "live"), action: "abandon", checkoutClean: true,
+      confirmedNoLiveSession: true, dependencies: { run },
+    });
+    expect(result).toMatchObject({ outcome: "refused", reason: "lease-live" });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("refuses a self-held lease until the attestation is given", async () => {
+    const run = vi.fn();
+    const result = await resolveLocusGeneration({
+      row: selfHeld("live", "subject-unresolved"), action: "abandon", checkoutClean: true,
+      confirmedNoLiveSession: false, dependencies: { run },
+    });
+    expect(result).toMatchObject({ outcome: "refused", reason: "lease-live" });
+    expect(result.recommendedPromptText).toContain("exit this process");
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("clears the recorded stranding case once attested", async () => {
+    const run = vi.fn(async () => createLocusMutationResult({
+      outcome: "applied", operation: "errand-abandon",
+      allocation: null, recordId: null, leaseId: null, activeLocusPath: null, sessionHomePath: null,
+      identity: null, originEntry: null, restoredParent: null, nextOffer: null,
+      recommendedPromptText: "Abandoned.",
+    }));
+    const result = await resolveLocusGeneration({
+      row: selfHeld("live", "subject-unresolved"), action: "abandon", checkoutClean: true,
+      confirmedNoLiveSession: true, dependencies: { run },
+    });
+    expect(result).toMatchObject({ outcome: "applied" });
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({ subject: "errand", action: "abandon" }));
+  });
+
+  it("clears an unverifiable lease that is not this process's own", async () => {
+    const run = vi.fn(async () => createLocusMutationResult({
+      outcome: "applied", operation: "errand-abandon",
+      allocation: null, recordId: null, leaseId: null, activeLocusPath: null, sessionHomePath: null,
+      identity: null, originEntry: null, restoredParent: null, nextOffer: null,
+      recommendedPromptText: "Abandoned.",
+    }));
+    expect(await resolveLocusGeneration({
+      row: row("errand", "unknown"), action: "abandon", checkoutClean: true,
+      confirmedNoLiveSession: true, dependencies: { run },
+    })).toMatchObject({ outcome: "applied" });
+  });
+
+  it("never lets the attestation stand in for the other guards", async () => {
+    const run = vi.fn();
+    // Dirty checkout: preservation is unproven whatever the operator attests about liveness.
+    expect(await resolveLocusGeneration({
+      row: selfHeld("live", "subject-unresolved"), action: "abandon", checkoutClean: false,
+      confirmedNoLiveSession: true, dependencies: { run },
+    })).toMatchObject({ outcome: "refused", reason: "preservation-unproven" });
+    // Foreign identity evidence stays fatal to the dispatch it would authorize.
+    expect(await resolveLocusGeneration({
+      row: selfHeld("live", "cross-identity"), action: "abandon", checkoutClean: true,
+      confirmedNoLiveSession: true, dependencies: { run },
+    })).toMatchObject({ outcome: "refused", reason: "role-conflict" });
     expect(run).not.toHaveBeenCalled();
   });
 });

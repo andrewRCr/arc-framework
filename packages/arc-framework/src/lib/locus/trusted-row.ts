@@ -68,20 +68,43 @@ function isAuthorityFatal(
  *   in published-enum order.
  */
 export function projectTrustedLocusRow(row: LocusRowV1): TrustedLocusRowResult {
+  const reasons = locusRowAuthorityReasons(row);
+  if (reasons.length > 0) return { kind: "untrusted", reasons };
+
+  const { recordId, checkoutPath, role } = row;
+  if (recordId === null || checkoutPath === null || role === null) {
+    return { kind: "untrusted", reasons: [ROW_KIND_REASON["stale-record"]] };
+  }
+  return { kind: "trusted", value: { row, recordId, checkoutPath, role } };
+}
+
+/**
+ * The authority inputs a row carries, which are the same before and after publication.
+ *
+ * Trust reads a row's kind, coordinates, and diagnostics and never its lease, so the predicate is
+ * expressed over that subset — letting frame derivation consult it on a pre-publication row without
+ * a cast, and keeping one implementation rather than a second that could disagree.
+ */
+export type LocusRowAuthorityInputs =
+  Pick<LocusRowV1, "kind" | "recordId" | "checkoutPath" | "role" | "diagnostics">;
+
+/**
+ * Report every reason a row's authority is unestablished.
+ *
+ * @param row - Any row carrying the authority inputs, published or provisional.
+ * @returns Deduplicated stop reasons in published-enum order; empty when authority is established.
+ */
+export function locusRowAuthorityReasons(row: LocusRowAuthorityInputs): readonly LocusStopReason[] {
   const reasons = new Set<LocusStopReason>();
 
   if (row.kind !== "managed-role") reasons.add(ROW_KIND_REASON[row.kind]);
   for (const diagnostic of row.diagnostics) {
     if (isAuthorityFatal(diagnostic.code)) reasons.add(diagnostic.code);
   }
-
-  const { recordId, checkoutPath, role } = row;
-  if (recordId === null || checkoutPath === null || role === null) {
+  if (row.recordId === null || row.checkoutPath === null || row.role === null) {
     reasons.add("record-malformed");
-    return { kind: "untrusted", reasons: sortedReasons(reasons) };
   }
-  if (reasons.size > 0) return { kind: "untrusted", reasons: sortedReasons(reasons) };
-  return { kind: "trusted", value: { row, recordId, checkoutPath, role } };
+  return sortedReasons(reasons);
 }
 
 /**
