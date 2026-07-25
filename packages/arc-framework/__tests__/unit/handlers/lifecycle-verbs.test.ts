@@ -234,6 +234,27 @@ const {
 } = await import("../../../src/handlers/lifecycle.js");
 
 const okOutcome = { status: "ok", advisories: [] as string[] };
+const cleanReconcile = {
+  status: "clean",
+  prepared: {
+    slug: "foo",
+    plan: {
+      status: "ready",
+      dependency: {
+        before: [],
+        after: [],
+        replacements: [],
+        drops: [],
+        discharged: [],
+        live: [],
+        conflicts: [],
+      },
+      trackedReferences: { edits: [] },
+      advisories: [],
+    },
+    edits: [],
+  },
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -271,7 +292,12 @@ beforeEach(() => {
   });
   mockResolveSlugState.mockReturnValue("active");
   mockPlanAbandon.mockReturnValue({ legal: true, lines: ["Artifacts: remove the work unit's artifact set"] });
-  mockRunIntegrate.mockResolvedValue({ status: "integrated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
+  mockRunIntegrate.mockResolvedValue({
+    status: "integrated",
+    outcome: okOutcome,
+    metaPath: ".arc/active/meta-foo.md",
+    reconcile: cleanReconcile,
+  });
   mockRunReopen.mockResolvedValue({ status: "reopened", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
   mockPrSource.mockResolvedValue(new Map([["feat/foo", { merged: false }]]));
@@ -654,6 +680,20 @@ describe("handleIntegrate", () => {
     });
   });
 
+  it("forwards explicit advisory-retention authority", async () => {
+    await handleIntegrate("foo", {
+      lastCompleted: "Phase 7 — verification",
+      action: "open the PR",
+      allowAdvisories: true,
+    });
+    expect(mockRunIntegrate.mock.calls[0]?.[1]).toEqual({
+      name: "foo",
+      lastCompleted: "Phase 7 — verification",
+      nextAction: "open the PR",
+      allowAdvisories: true,
+    });
+  });
+
   it("refuses without the orientation inputs and never dispatches", async () => {
     await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification" });
     expect(mockRunIntegrate).not.toHaveBeenCalled();
@@ -665,6 +705,66 @@ describe("handleIntegrate", () => {
     await handleIntegrate(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
     expect(mockRunIntegrate).toHaveBeenCalledTimes(1);
     expect(mockRunIntegrate.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
+  });
+
+  it("surfaces every pending reconcile advisory and refuses phase entry", async () => {
+    mockRunIntegrate.mockResolvedValueOnce({
+      status: "reconcile-pending",
+      reason: "Cannot integrate `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+      metaPath: ".arc/active/meta-foo.md",
+      reconcile: {
+        status: "pending",
+        prepared: {
+          slug: "foo",
+          plan: {
+            status: "ready",
+            dependency: {
+              before: [],
+              after: [],
+              replacements: [],
+              drops: [],
+              discharged: [],
+              live: [],
+              conflicts: [],
+            },
+            trackedReferences: { edits: [] },
+            advisories: [
+              {
+                path: ".arc/active/spec-foo.md",
+                line: 12,
+                context: "Historical mention of retired-alpha.",
+                referenceKind: "narrative",
+                subject: "retired-alpha",
+                suggestedDisposition: "review-rename",
+              },
+              {
+                path: ".arc/active/notes-foo.md",
+                line: 4,
+                context: "`notes-retired-beta.md`",
+                referenceKind: "dangling-artifact",
+                subject: "retired-beta",
+                suggestedDisposition: "remove-or-retarget",
+              },
+            ],
+          },
+          edits: [],
+        },
+      },
+    });
+
+    await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+
+    expect(mockLogInfo.mock.calls.map(([message]) => message)).toEqual([
+      "Reconcile advisory: .arc/active/spec-foo.md:12 — narrative reference to `retired-alpha`; "
+        + "review-rename. Context: Historical mention of retired-alpha.",
+      "Reconcile advisory: .arc/active/notes-foo.md:4 — dangling-artifact reference to `retired-beta`; "
+        + "remove-or-retarget. Context: `notes-retired-beta.md`",
+    ]);
+    expect(mockLogError).toHaveBeenCalledWith(
+      "Cannot integrate `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+    );
+    expect(process.exitCode).toBe(1);
+    expect(mockNote).not.toHaveBeenCalled();
   });
 });
 

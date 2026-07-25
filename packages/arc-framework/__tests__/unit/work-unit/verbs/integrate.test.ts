@@ -206,6 +206,151 @@ describe("runIntegrate — the set-phase-only move", () => {
     expect(result.status).toBe("rejected");
     expect(calls).not.toContain("setPhase:Integrating");
   });
+
+  it("returns a typed reconcile failure when the prepared apply becomes stale", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+    ctx.currentWuReconcile.apply = async (prepared) => ({
+      status: "conflict",
+      prepared,
+      reason: "stale-content",
+    });
+
+    const result = await runIntegrate(ctx, BASE);
+
+    expect(result).toMatchObject({
+      status: "reconcile-failed",
+      reconcile: { status: "conflict", reason: "stale-content" },
+    });
+    expect(calls).not.toContain("setPhase:Integrating");
+  });
+
+  it("stops on advisory-only pending reconcile before changing phase", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+    const inspected = await ctx.currentWuReconcile.prepare({
+      slug: "foo",
+      metaPath: ".arc/active/meta-foo.md",
+    });
+    const prepared = {
+      ...inspected.prepared,
+      plan: {
+        ...inspected.prepared.plan,
+        advisories: [{
+          path: ".arc/active/spec-foo.md",
+          line: 12,
+          context: "Retain retired-subject for historical context.",
+          referenceKind: "narrative" as const,
+          subject: "retired-subject",
+          suggestedDisposition: "review-rename" as const,
+        }],
+      },
+    };
+    ctx.currentWuReconcile.prepare = async () => ({ status: "pending", prepared });
+    ctx.currentWuReconcile.apply = async () => ({ status: "pending", prepared });
+
+    const result = await runIntegrate(ctx, BASE);
+
+    expect(result).toMatchObject({
+      status: "reconcile-pending",
+      reconcile: {
+        status: "pending",
+        prepared: { plan: { advisories: [{ subject: "retired-subject" }] } },
+      },
+    });
+    expect(calls).not.toContain("setPhase:Integrating");
+    expect(calls).not.toContain("side:reconcile-roadmap");
+  });
+
+  it("enters Integrating when advisory retention is explicitly authorized", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+    const inspected = await ctx.currentWuReconcile.prepare({
+      slug: "foo",
+      metaPath: ".arc/active/meta-foo.md",
+    });
+    const prepared = {
+      ...inspected.prepared,
+      plan: {
+        ...inspected.prepared.plan,
+        advisories: [{
+          path: ".arc/active/spec-foo.md",
+          line: 12,
+          context: "Retain retired-subject for historical context.",
+          referenceKind: "narrative" as const,
+          subject: "retired-subject",
+          suggestedDisposition: "review-rename" as const,
+        }],
+      },
+    };
+    ctx.currentWuReconcile.prepare = async () => ({ status: "pending", prepared });
+    ctx.currentWuReconcile.apply = async () => ({ status: "pending", prepared });
+
+    const result = await runIntegrate(ctx, { ...BASE, allowAdvisories: true });
+
+    expect(result).toMatchObject({
+      status: "integrated",
+      reconcile: {
+        status: "pending",
+        prepared: { plan: { advisories: [{ subject: "retired-subject" }] } },
+      },
+    });
+    expect(calls).toContain("setPhase:Integrating");
+    expect(calls).toContain("side:reconcile-roadmap");
+  });
+
+  it("still requires advisory authority after applying mechanical edits", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+    const inspected = await ctx.currentWuReconcile.prepare({
+      slug: "foo",
+      metaPath: ".arc/active/meta-foo.md",
+    });
+    const prepared = {
+      ...inspected.prepared,
+      plan: {
+        ...inspected.prepared.plan,
+        advisories: [{
+          path: ".arc/active/spec-foo.md",
+          line: 12,
+          context: "Retain retired-subject for historical context.",
+          referenceKind: "narrative" as const,
+          subject: "retired-subject",
+          suggestedDisposition: "review-rename" as const,
+        }],
+      },
+    };
+    ctx.currentWuReconcile.prepare = async () => ({ status: "pending", prepared });
+    ctx.currentWuReconcile.apply = async () => ({
+      status: "applied",
+      prepared,
+      stagedPaths: [".arc/active/meta-foo.md"],
+    });
+
+    const result = await runIntegrate(ctx, BASE);
+
+    expect(result).toMatchObject({
+      status: "reconcile-pending",
+      reconcile: {
+        status: "applied",
+        prepared: { plan: { advisories: [{ subject: "retired-subject" }] } },
+      },
+    });
+    expect(calls).not.toContain("setPhase:Integrating");
+  });
+
+  it("continues into Integrating after applying mechanical reconcile edits", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+    ctx.currentWuReconcile.apply = async (prepared) => ({
+      status: "applied",
+      prepared,
+      stagedPaths: [".arc/active/meta-foo.md"],
+    });
+
+    const result = await runIntegrate(ctx, BASE);
+
+    expect(result).toMatchObject({
+      status: "integrated",
+      reconcile: { status: "applied", stagedPaths: [".arc/active/meta-foo.md"] },
+    });
+    expect(calls).toContain("setPhase:Integrating");
+  });
 });
 
 describe("runIntegrate — the illegal-edge lookup", () => {

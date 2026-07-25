@@ -383,6 +383,7 @@ program
   .description("Open review on an Active work unit: Active → Integrating (defaults to the current WU); marks phase entry, not the merge")
   .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
   .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
+  .option("--allow-advisories", "Retain every surfaced advisory-only reconcile finding and enter review")
   .action(withInteractionContext(
     {},
     (context, slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts, context),
@@ -722,7 +723,10 @@ userCmd
   .description("Inspect or apply protection-aware managed user-reference repairs")
   .option("--apply", "Apply exact managed USER-INBOX repairs under the notes lock")
   .option("--json", "Emit the typed result as JSON")
-  .action((opts: UserReconcileReferencesOptions) => handleUserReconcileReferences(opts));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: UserReconcileReferencesOptions) => handleUserReconcileReferences(opts, context),
+  ));
 
 userCmd
   .command("sync")

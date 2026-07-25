@@ -43,12 +43,25 @@ export interface IntegrateParams {
   lastCompleted: string;
   /** The integration pointer (e.g. "open the PR") — the `Next Action` `input` the edge requires. */
   nextAction: string;
+  /** Explicit authority to retain advisory-only reconcile findings while entering review. */
+  allowAdvisories?: boolean;
 }
 
-/** The outcome of an `integrate` attempt — a rejection, or the integrating meta path. */
+/** The outcome of an `integrate` attempt, including reconcile stops before phase mutation. */
 export type IntegrateResult =
   | { status: "rejected"; reason: string }
-  | { status: "integrated"; outcome: TransitionOutcome; metaPath: string; reconcile: CurrentWuReconcileResult }
+  | {
+      status: "integrated";
+      outcome: TransitionOutcome;
+      metaPath: string;
+      reconcile: Extract<CurrentWuReconcileResult, { status: "clean" | "pending" | "applied" }>;
+    }
+  | {
+      status: "reconcile-pending";
+      reason: string;
+      metaPath: string;
+      reconcile: Extract<CurrentWuReconcileResult, { status: "pending" | "applied" }>;
+    }
   | {
       status: "reconcile-failed";
       reason: string;
@@ -63,13 +76,13 @@ export type IntegrateResult =
  *
  * @param ctx - The executor seams (the render + `user-workspace` handlers are registered by the caller).
  * @param params - The target WU and the integration orientation inputs.
- * @returns A rejection (illegal source, or executor failure) or the integrating meta path.
+ * @returns A pre-transition reconcile stop, a rejection, or the integrating meta path.
  */
 export async function runIntegrate(
   ctx: ExecuteTransitionContext & CurrentWuReconcileHost,
   params: IntegrateParams,
 ): Promise<IntegrateResult> {
-  const { name, lastCompleted, nextAction } = params;
+  const { name, lastCompleted, nextAction, allowAdvisories } = params;
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
     return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to integrate.` };
@@ -101,6 +114,17 @@ export async function runIntegrate(
       reason:
         `Integration preflight for \`${name}\` became stale before mutation (${applied.reason}). `
         + `Rerun \`arc integrate\` after reconciling the current branch.`,
+      metaPath,
+      reconcile: applied,
+    };
+  }
+  const advisories = applied.prepared.plan.advisories;
+  if (applied.status !== "clean" && advisories.length > 0 && allowAdvisories !== true) {
+    return {
+      status: "reconcile-pending",
+      reason:
+        `Cannot integrate \`${name}\`: current-WU reconcile has `
+        + `${advisories.length} advisory reference(s) requiring review.`,
       metaPath,
       reconcile: applied,
     };

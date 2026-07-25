@@ -14,7 +14,7 @@ import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/comma
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createUserIOContext } from "../lib/io-context.js";
-import { captureGitIndexState, getCurrentBranch } from "../lib/git/exec.js";
+import { captureGitIndexState, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
@@ -100,7 +100,7 @@ export async function handleWuReconcile(
   const cwd = requireArcProjectRoot();
   if (cwd === null) return;
   const io = createUserIOContext(context?.subprocess);
-  const exec = (cmd: string, args: string[]) => io.exec(cmd, args, { cwd });
+  const exec: GitExec = (cmd, args, options) => io.exec(cmd, args, { cwd, ...options });
   const [index, currentBranch] = await Promise.all([
     buildLifecycleIndex({ cwd, fs: nodeLifecycleFs }),
     getCurrentBranch(exec),
@@ -119,8 +119,8 @@ export async function handleWuReconcile(
       listCurrentWuArtifactPaths(slug, metaPath, (path) => readdir(resolve(cwd, path))),
     readFile: (path) => io.readFile(resolve(cwd, path)),
     writeFile: (path, content) => io.writeFile(resolve(cwd, path), content),
-    stagePaths: async (paths) => {
-      if (paths.length > 0) await exec("git", ["add", "--", ...paths]);
+    stagePaths: async (paths, indexFile) => {
+      if (paths.length > 0) await exec("git", ["add", "--", ...paths], { indexFile });
     },
     captureIndexState: () => captureGitIndexState(exec, cwd),
   }, {

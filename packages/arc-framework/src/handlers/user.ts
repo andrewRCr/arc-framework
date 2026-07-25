@@ -82,11 +82,12 @@ export interface UserReconcileReferencesOptions {
 /** Inspect or apply protection-aware identity-global user-reference repairs. */
 export async function handleUserReconcileReferences(
   opts: UserReconcileReferencesOptions,
+  context?: InteractionContext,
 ): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const identity = SlugSchema.parse(await resolveUserIdentity());
-  const io = createUserIOContext();
+  const io = createUserIOContext(context?.subprocess);
   const exec = (cmd: string, args: string[]) => io.exec(cmd, args, { cwd });
   const [{ settings }, surfaces, currentWuName] = await Promise.all([
     readConfigSettings(cwd),
@@ -155,7 +156,8 @@ export async function handleUserReconcileReferences(
 async function readOptional(io: UserIOContext, path: string): Promise<string> {
   try {
     return await io.readFile(path);
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     return "";
   }
 }
@@ -171,7 +173,7 @@ function emitUserReferenceResult(
   const envelope = {
     schemaVersion: 1,
     ...result,
-    recommendedCommand: result.plan?.edits.length
+    recommendedCommand: result.status === "pending" && result.plan?.edits.length
       ? ["arc", "user", "reconcile-references", "--apply", "--json"]
       : null,
   };
@@ -806,6 +808,14 @@ export const userCommandInputPolicyDeclarations = [{
   )],
 }, {
   commandPath: "user compact",
+  aliases: [],
+  sites: [declareCliOptionSite("json", {
+    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })],
+}, {
+  commandPath: "user reconcile-references",
   aliases: [],
   sites: [declareCliOptionSite("json", {
     acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",

@@ -351,6 +351,7 @@ export const IntegrateCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   lastCompleted: z.string().trim().min(1),
   action: z.string().trim().min(1),
+  allowAdvisories: z.boolean().optional(),
 }).strict();
 export const ReopenCommandInputSchema = OptionalLifecycleTargetSchema.extend({ keepPr: z.boolean().optional() });
 export const ArchiveCommandInputSchema = z.object({
@@ -468,6 +469,7 @@ export const lifecycleCommandInputRegistrations = [
       "operand.slug": "slug",
       "option.last-completed": "lastCompleted",
       "option.action": "action",
+      "option.allow-advisories": "allowAdvisories",
     },
   },
   {
@@ -1476,6 +1478,7 @@ export async function handleMaterialize(
 export interface IntegrateOptions {
   lastCompleted?: string;
   action?: string;
+  allowAdvisories?: boolean;
 }
 
 /**
@@ -1503,7 +1506,12 @@ export async function handleIntegrate(
   const { lastCompleted, action } = input;
 
   const { executor } = await buildExecutor(base);
-  const result = await runIntegrate(executor, { name: target, lastCompleted, nextAction: action });
+  const result = await runIntegrate(executor, {
+    name: target,
+    lastCompleted,
+    nextAction: action,
+    ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
+  });
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
@@ -1511,6 +1519,26 @@ export async function handleIntegrate(
   if (result.status === "reconcile-failed") {
     refuse(result.reason);
     return;
+  }
+  if (result.status === "reconcile-pending") {
+    for (const advisory of result.reconcile.prepared.plan.advisories) {
+      p.log.info(
+        `Reconcile advisory: ${advisory.path}:${advisory.line} — `
+        + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
+        + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
+      );
+    }
+    refuse(result.reason);
+    return;
+  }
+  if (result.reconcile.status === "pending") {
+    for (const advisory of result.reconcile.prepared.plan.advisories) {
+      p.log.info(
+        `Accepted reconcile advisory: ${advisory.path}:${advisory.line} — `
+        + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
+        + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
+      );
+    }
   }
   reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }

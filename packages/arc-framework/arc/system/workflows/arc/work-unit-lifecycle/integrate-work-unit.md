@@ -71,6 +71,10 @@ The executor fires the full `integrate` edge: flips `**State:** Active → Integ
 `State` column reflects `Integrating`, and stages both the meta and the ROADMAP. `{name}` defaults to the current
 worktree's WU. The `Integrating` state covers PR open through review-response.
 
+An advisory-only reconcile stops before the transition and surfaces every reference. Edit and rerun, or obtain
+explicit user direction to retain all surfaced advisories and rerun the same command with `--allow-advisories`.
+The flag does not accept conflicts or stale mechanical edits.
+
 Confirm the regenerated ROADMAP diff is clean (the `State` flip only) before committing.
 
 > [!CAUTION]
@@ -426,8 +430,10 @@ At the zero-behind head, apply the current WU's exact reconcile and parse its JS
 arc wu reconcile {name} --apply --json
 ```
 
-Accept only a schema-v1 result for the exact slug with status `clean`, `applied`, or `conflict`. Malformed,
-unrecognized, or command-failure output stops integration. `conflict` — including missing, ambiguous, corrupt, or
+Accept only a schema-v1 result for the exact slug with status `clean`, `pending`, `applied`, or `conflict`. Malformed,
+unrecognized, or command-failure output stops integration. `pending` stops and surfaces every advisory reference:
+edit and rerun until `clean` / `applied`, or obtain explicit user direction to retain each advisory as intentional
+before continuing. `conflict` — including missing, ambiguous, corrupt, or
 otherwise unavailable replacement evidence — stops unmerged and surfaces the typed reason; the WU may remain
 `Integrating`.
 

@@ -268,8 +268,8 @@ export function buildExecutorContext(
           {
             readFile: (path) => io.readFile(at(path)),
             writeFile: (path, content) => io.writeFile(at(path), content),
-            stagePaths: async (paths) => {
-              if (paths.length > 0) await exec("git", ["add", "--", ...paths]);
+            stagePaths: async (paths, indexFile) => {
+              if (paths.length > 0) await exec("git", ["add", "--", ...paths], { indexFile });
             },
             captureIndexState: () => captureGitIndexState(exec, cwd),
           },

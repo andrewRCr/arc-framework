@@ -430,7 +430,7 @@ describe("current-WU dependency reconcile planning", () => {
     });
   });
 
-  it("refuses a missing decompose replacement target", async () => {
+  it("refuses a decompose replacement target with no later retirement evidence", async () => {
     const result = await planDependencyReconcile({
       index: buildLifecycleIndexFromMetas([
         { path: DEPENDENT_PATH, content: meta("Active", ["origin"]) },
@@ -448,13 +448,61 @@ describe("current-WU dependency reconcile planning", () => {
 
     expect(result).toMatchObject({
       status: "conflict",
-      dependency: { conflicts: [{ subject: "missing", reason: "missing-target" }] },
+      dependency: { conflicts: [{ subject: "missing", reason: "missing-evidence" }] },
+    });
+  });
+
+  it("composes recursive replacements that mix retained and abandoned outcomes", async () => {
+    const result = await planDependencyReconcile({
+      index: buildLifecycleIndexFromMetas([
+        { path: DEPENDENT_PATH, content: meta("Active", ["origin"]) },
+        { path: ".arc/active/meta-final.md", content: meta("Active") },
+      ]),
+      dependentSlug: "dependent",
+      edges: ["origin"],
+      queryDisposition: queryResults({
+        origin: {
+          status: "unique",
+          evidenceQuality: "reachable",
+          disposition: { kind: "replace", replacementTargets: ["first", "second"] },
+        },
+        first: {
+          status: "unique",
+          evidenceQuality: "reachable",
+          disposition: { kind: "retarget", targetSlug: "final" },
+        },
+        second: {
+          status: "unique",
+          evidenceQuality: "reachable",
+          disposition: { kind: "abandoned" },
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({
+      status: "ready",
+      dependency: {
+        after: ["final"],
+        replacements: [{
+          retiredSubject: "origin",
+          replacementTargets: ["final"],
+        }],
+        drops: [{
+          retiredSubject: "second",
+          reason: "retired work unit was abandoned",
+        }],
+        conflicts: [],
+      },
     });
   });
 });
 
 describe("current-WU dependency reconcile apply", () => {
-  const captureCleanIndex = () => Promise.resolve(() => Promise.resolve());
+  const captureCleanIndex = () => Promise.resolve({
+    indexFile: "candidate-index",
+    commit: () => Promise.resolve(),
+    rollback: () => Promise.resolve(),
+  });
   const original = meta("Active", ["origin"]);
   const index = buildLifecycleIndexFromMetas([
     { path: DEPENDENT_PATH, content: original },
@@ -602,6 +650,7 @@ describe("current-WU dependency reconcile apply", () => {
       let writeAttempt = 0;
       const stageCalls: Array<readonly string[]> = [];
       const indexFiles = new Map([[DEPENDENT_PATH, "pre-existing staged content"]]);
+      let candidateIndex: Map<string, string> | null = null;
       const context = {
         index,
         queryDisposition,
@@ -617,22 +666,31 @@ describe("current-WU dependency reconcile apply", () => {
           files.set(path, content);
           return Promise.resolve();
         },
-        stagePaths: (paths: readonly string[]) => {
+        stagePaths: (paths: readonly string[], indexFile: string) => {
+          expect(indexFile).toBe("candidate-index");
+          if (candidateIndex === null) throw new Error("index transaction not captured");
           if (failurePoint === "stage" && !failed) {
             failed = true;
-            indexFiles.set(DEPENDENT_PATH, files.get(DEPENDENT_PATH)!);
-            indexFiles.set(specPath, files.get(specPath)!);
+            candidateIndex.set(DEPENDENT_PATH, files.get(DEPENDENT_PATH)!);
+            candidateIndex.set(specPath, files.get(specPath)!);
             return Promise.reject(new Error("stage failed"));
           }
           stageCalls.push(paths);
-          for (const path of paths) indexFiles.set(path, files.get(path)!);
+          for (const path of paths) candidateIndex.set(path, files.get(path)!);
           return Promise.resolve();
         },
         captureIndexState: () => {
-          const snapshot = new Map(indexFiles);
-          return Promise.resolve(async () => {
-            indexFiles.clear();
-            for (const [path, content] of snapshot) indexFiles.set(path, content);
+          candidateIndex = new Map(indexFiles);
+          return Promise.resolve({
+            indexFile: "candidate-index",
+            commit: async () => {
+              indexFiles.clear();
+              for (const [path, content] of candidateIndex ?? []) indexFiles.set(path, content);
+              candidateIndex = null;
+            },
+            rollback: async () => {
+              candidateIndex = null;
+            },
           });
         },
       };

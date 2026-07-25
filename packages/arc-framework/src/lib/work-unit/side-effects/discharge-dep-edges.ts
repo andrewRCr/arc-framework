@@ -17,6 +17,7 @@ import {
   setMetaBulletFields,
 } from "../../active/meta-reader.js";
 import { canonicalDigest, type CanonicalDigest } from "../../canonical/canonical-json.js";
+import type { GitIndexTransaction } from "../../git/exec.js";
 import type { LifecycleIndex } from "../lifecycle-index.js";
 import { resolveSlugState } from "../lifecycle-resolver.js";
 import {
@@ -143,8 +144,8 @@ export interface CurrentWuReconcileContext {
   listArtifactPaths?: (slug: string, metaPath: string) => Promise<readonly string[]>;
   readFile: (path: string) => Promise<string>;
   writeFile: (path: string, content: string) => Promise<void>;
-  stagePaths: (paths: readonly string[]) => Promise<void>;
-  captureIndexState: () => Promise<() => Promise<void>>;
+  stagePaths: (paths: readonly string[], indexFile: string) => Promise<void>;
+  captureIndexState: () => Promise<GitIndexTransaction>;
 }
 
 /** Read-only dependencies for producing one exact current-WU reconcile plan. */
@@ -194,7 +195,7 @@ interface ResolvedRetiredEdge {
   targets: string[];
   discharged: string[];
   evidence: DependencyReconcileEvidence[];
-  dropReason?: string;
+  drops: DependencyReconcileComponent["drops"][number][];
 }
 
 /**
@@ -236,12 +237,10 @@ export async function planDependencyReconcile(
       continue;
     }
     discharged.push(...resolved.discharged);
-    if (resolved.dropReason !== undefined) {
-      drops.push({
-        retiredSubject: edge,
-        reason: resolved.dropReason,
-        evidence: resolved.evidence,
-      });
+    drops.push(...resolved.drops);
+    if (resolved.targets.length === 0
+      && resolved.discharged.length === 0
+      && resolved.drops.length > 0) {
       continue;
     }
     replacements.push({
@@ -303,41 +302,74 @@ async function resolveRetiredEdge(
       const state = resolveSlugState(input.index, target);
       if (state === "nonexistent") {
         const tail = await resolveRetiredEdge(input, originalEdge, target, visited);
-        return "conflict" in tail ? tail : { ...tail, evidence: [...evidence, ...tail.evidence] };
+        return "conflict" in tail
+          ? tail
+          : {
+              ...tail,
+              evidence: [...evidence, ...tail.evidence],
+              drops: tail.drops.map((drop) => ({
+                ...drop,
+                evidence: [...evidence, ...drop.evidence],
+              })),
+            };
       }
       return state === "shipped" || state === "integrating"
-        ? { targets: [], discharged: [target], evidence }
-        : { targets: [target], discharged: [], evidence };
+        ? { targets: [], discharged: [target], evidence, drops: [] }
+        : { targets: [target], discharged: [], evidence, drops: [] };
     }
     case "replace": {
       const targets = canonicalEdges(resolution.disposition.replacementTargets);
       const retained: string[] = [];
       const satisfied: string[] = [];
+      const composedEvidence = [...evidence];
+      const drops: DependencyReconcileComponent["drops"][number][] = [];
       for (const target of targets) {
         if (target === input.dependentSlug) {
           return { conflict: { edge: originalEdge, subject: target, reason: "self-dependency" } };
         }
         const state = resolveSlugState(input.index, target);
         if (state === "nonexistent") {
-          return { conflict: { edge: originalEdge, subject: target, reason: "missing-target" } };
+          const tail = await resolveRetiredEdge(input, originalEdge, target, new Set(visited));
+          if ("conflict" in tail) return tail;
+          retained.push(...tail.targets);
+          satisfied.push(...tail.discharged);
+          composedEvidence.push(...tail.evidence);
+          drops.push(...tail.drops.map((drop) => ({
+            ...drop,
+            evidence: [...evidence, ...drop.evidence],
+          })));
+          continue;
         }
         (state === "shipped" || state === "integrating" ? satisfied : retained).push(target);
       }
-      return { targets: retained, discharged: satisfied, evidence };
+      return {
+        targets: canonicalEdges(retained),
+        discharged: canonicalEdges(satisfied),
+        evidence: composedEvidence,
+        drops,
+      };
     }
     case "drop":
       return {
         targets: [],
         discharged: [],
         evidence,
-        dropReason: resolution.disposition.reason,
+        drops: [{
+          retiredSubject: subject,
+          reason: resolution.disposition.reason,
+          evidence,
+        }],
       };
     case "abandoned":
       return {
         targets: [],
         discharged: [],
         evidence,
-        dropReason: "retired work unit was abandoned",
+        drops: [{
+          retiredSubject: subject,
+          reason: "retired work unit was abandoned",
+          evidence,
+        }],
       };
   }
 }
@@ -494,7 +526,7 @@ export async function applyPreparedCurrentWuReconcile(
     originalByPath.set(guard.path, current);
   }
 
-  const restoreIndexState = await ctx.captureIndexState();
+  const indexTransaction = await ctx.captureIndexState();
   const attemptedPaths: string[] = [];
   const stagedPaths = prepared.edits.map((edit) => edit.path);
   try {
@@ -502,7 +534,8 @@ export async function applyPreparedCurrentWuReconcile(
       attemptedPaths.push(edit.path);
       await ctx.writeFile(edit.path, edit.content);
     }
-    await ctx.stagePaths(stagedPaths);
+    await ctx.stagePaths(stagedPaths, indexTransaction.indexFile);
+    await indexTransaction.commit();
   } catch (error) {
     const rollbackFailures: string[] = [];
     for (const path of [...new Set(attemptedPaths)].reverse()) {
@@ -518,7 +551,7 @@ export async function applyPreparedCurrentWuReconcile(
       }
     }
     try {
-      await restoreIndexState();
+      await indexTransaction.rollback();
     } catch (rollbackError) {
       rollbackFailures.push(`index: ${errorMessage(rollbackError)}`);
     }
@@ -637,7 +670,11 @@ export async function dischargeDepEdges(
     readFile: ctx.readMeta,
     writeFile: ctx.writeMeta,
     stagePaths: () => Promise.resolve(),
-    captureIndexState: () => Promise.resolve(() => Promise.resolve()),
+    captureIndexState: () => Promise.resolve({
+      indexFile: "unused",
+      commit: () => Promise.resolve(),
+      rollback: () => Promise.resolve(),
+    }),
   }, { ...op, apply: true });
   return {
     discharged: [...result.prepared.plan.dependency.discharged],

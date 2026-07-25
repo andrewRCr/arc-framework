@@ -138,6 +138,9 @@ arc wu reconcile {name} --apply --json
 ```
 
 - `clean` — continue without a write, stage, or commit.
+- `pending` — stop and surface every advisory reference. Inspect the referenced content; either edit it in this
+  dependent-owned review increment and rerun until `clean` / `applied`, or obtain explicit user direction to retain
+  the advisory as intentional before continuing. Never classify this schema-valid result as malformed.
 - `applied` — commit only the staged dependent-owned paths on the preserved WU branch:
 
   > [!CAUTION]
