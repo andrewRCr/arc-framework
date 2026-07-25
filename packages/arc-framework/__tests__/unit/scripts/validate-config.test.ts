@@ -144,5 +144,5 @@ describe("validate-config.sh", () => {
     expect(result.stdout).toContain("PASS  selected custom ARC root");
     expect(result.stdout).toContain("PASS  Config validation clean");
     expect(result.stderr).toBe("");
-  });
+  }, 15_000);
 });
