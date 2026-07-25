@@ -197,7 +197,7 @@ jobs:
           echo "classified lane=$lane (event=$event action=$action); see decide log above for weight"
 
   planning-classify:
-    name: Classify planning clearance
+    name: Classify PR lane for ARC clearance
     permissions:
       contents: read
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
@@ -232,8 +232,13 @@ jobs:
         run: |
           lane=reviewed
           if [ "$EVENT_NAME" = pull_request ] && [ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]; then
-            lane="$(CLASSIFY_REPOSITORY_DIR="$GITHUB_WORKSPACE/_arc_change_data" \
-              bash scripts/classify-change.sh planning-lane "$BASE_SHA" "$HEAD_SHA")"
+            classifier_usage="$(bash scripts/classify-change.sh 2>&1 || true)"
+            if grep -Fq 'planning-lane <base> <head>' <<<"$classifier_usage"; then
+              lane="$(CLASSIFY_REPOSITORY_DIR="$GITHUB_WORKSPACE/_arc_change_data" \
+                bash scripts/classify-change.sh planning-lane "$BASE_SHA" "$HEAD_SHA")"
+            else
+              echo "::warning::trusted base predates planning-lane; defaulting to reviewed"
+            fi
           fi
           if [ "$lane" != planning ] && [ "$lane" != reviewed ]; then
             echo "::error::invalid planning classifier output: $lane"
@@ -243,7 +248,7 @@ jobs:
           echo "head_sha=$HEAD_SHA" >>"$GITHUB_OUTPUT"
 
   planning-clearance:
-    name: Planning clearance
+    name: Post ARC clearance for planning-only PR
     needs: planning-classify
     if: ${{ needs.planning-classify.outputs.lane == 'planning' }}
     permissions:

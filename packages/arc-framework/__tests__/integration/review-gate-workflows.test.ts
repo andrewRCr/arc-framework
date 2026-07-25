@@ -703,6 +703,8 @@ describe("trusted review-gate workflows", () => {
     const workflow = await read("ci.yml");
     const classifier = jobValue(workflow, "planning-classify");
     const stamp = jobValue(workflow, "planning-clearance");
+    expect(classifier.name).toBe("Classify PR lane for ARC clearance");
+    expect(stamp.name).toBe("Post ARC clearance for planning-only PR");
     expect(classifier).not.toHaveProperty("if");
     expect(classifier.permissions).toEqual({ contents: "read" });
     expect(stamp.if).toBe("${{ needs.planning-classify.outputs.lane == 'planning' }}");
@@ -727,6 +729,8 @@ describe("trusted review-gate workflows", () => {
     });
 
     const classify = stepValue(workflow, "planning-classify", "planning-lane");
+    expect(classify.run).toContain("classifier_usage=");
+    expect(classify.run).toContain("trusted base predates planning-lane; defaulting to reviewed");
     expect(classify.run).toContain('lane="$(CLASSIFY_REPOSITORY_DIR="$GITHUB_WORKSPACE/_arc_change_data"');
     expect(classify.run).toContain('bash scripts/classify-change.sh planning-lane "$BASE_SHA" "$HEAD_SHA"');
     expect(classify.run).toContain('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');
