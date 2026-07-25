@@ -1441,10 +1441,14 @@ motivating failure.
 **The refusal vocabulary carries the same budget.** `LocusStopReason` is one flat set whose members differ in what
 they cost to be wrong about, so each is classified into exactly one tier:
 
-- **hard** — proceeding destroys or strands work. No override exists at any layer.
-- **authority** — resolution needs evidence the caller cannot supply. The operator may release it; the agent may
-  not. `lease-live` on a foreign anchor sits here, as does every self-held and unverifiable reading under D6's
-  authority rule.
+- **hard** — proceeding destroys or strands work, or the evidence needed to act is absent rather than merely
+  unverified. No override exists at any layer. A foreign live lease or lock sits here, matching D6: the code holds
+  positive evidence of another session, so there is no confirmation to give. Malformed, unsupported-version,
+  duplicate, cross-identity, and role-conflicting records sit here too — each leaves the target itself unestablished.
+- **authority** — the target is established but its disposition needs evidence the caller cannot supply, and the
+  operator can. Every self-held and unverifiable reading sits here under D6's authority rule, together with an
+  unresolved subject, a missing ownership marker, and an unavailable path — cases where the operator can attest to
+  what became of a checkout and the inspector cannot.
 - **advisory** — the code cannot verify a condition that session context may settle, and proceeding destroys
   nothing. `primary-dirty` and `primary-off-base` are allocation preconditions on non-destructive paths and belong
   here.

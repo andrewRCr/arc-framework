@@ -1887,12 +1887,19 @@ identity on the anchor nor a per-platform record store is therefore in scope.
           PID / creation token / inspector kind, the unverifiable-own-anchor fallback, and an explicit assertion
           that occupancy liveness still reads `live` for a self-held lease.
 
-    - `[ ]` **7.G.a.ii Classify the stop reasons into tiers**
-        - Derive `hard` / `authority` / `advisory` over `LocusStopReason` rather than restating the members, on the
-          idiom `trusted-row.ts` already uses for its authority-fatal set, so a reason added to the enum fails to
-          compile until it is classified. The existing authority-fatal set becomes the `authority` tier.
-        - Cover that every published reason resolves to exactly one tier, and that the derivation rejects an
-          unclassified member.
+    - `[x]` **7.G.a.ii Classify the stop reasons into tiers**
+        - `stop-tier.ts` classifies all fifteen published reasons as `hard` / `authority` / `advisory`. An
+          exhaustive `Record<LocusStopReason, LocusStopTier>` is the mechanism rather than the comment: adding a
+          member to the enum fails to compile here until its tier is decided, verified by temporarily adding one
+          and observing `TS2741` at the map.
+        - The tier line splits on whether the **target** is established, not on severity. A foreign live lease or
+          lock is `hard` because the code holds positive evidence of another session and there is no confirmation
+          to give; malformed, unsupported-version, duplicate, cross-identity, identity-malformed, and
+          role-conflicting records are `hard` because acting would mean acting on something unidentified. The
+          `authority` tier is where the target resolves but its disposition cannot be proven locally —
+          unverifiable lease and lock liveness, an unresolved subject, a missing marker, an unavailable path.
+        - Corrected a spec inconsistency found here: the Proportionality boundary placed a foreign `lease-live` in
+          the `authority` tier, contradicting D6's foreign-live stop. D6 governs, and the tier text now matches it.
 
     - `[ ]` **7.G.a.iii Route self-held and unverifiable residue to the confirmed exit**
         - `deriveRecovery` offers the operator-confirmed path for a self-held or unverifiable lease, and
