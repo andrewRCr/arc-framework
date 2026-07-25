@@ -399,47 +399,39 @@ activation ready for its immediate post-merge Errand.
 - _Outcome:_ The superseded evidence-gate program now survives only as historical design and finalized retirement
   authority; its planned identities, claim-bound implementation residue, and live backlog claims are gone.
 
-### `[ ]` **5.3 Exercise hosted-PR standard review on a live fixture and stage guard activation**
+### `[x]` **5.3 Exercise hosted-PR standard review on a live fixture and stage guard activation**
 
 - _Goal:_ A real GitHub PR containing this branch's implementation demonstrates the configured frontline and
   hosted-PR standard-review paths plus their human judgment surfaces, while evidence for the not-yet-default-branch
   guard remains explicit and the post-merge activation run is ready to execute.
 
-- _Note:_ This proof does not claim live `main` protection: `repository_dispatch` resolves workflow code from the
-  default branch, so the exact planning/reviewed guard matrix belongs to the captured immediate post-merge Errand.
+    - `[x]` **5.3.a Open a disposable reviewed-lane fixture from this WU head**
 
-    - `[ ]` **5.3.a Open a disposable reviewed-lane fixture from this WU head**
+        - Opened draft PR #348 against base `eea3f4f743a85ddfe4fc83a7f19bac39aebdb375`; the reviewed WU head
+          advanced from `617bd2c26cb6954b51cb3620b693629cc00fbf8b` to fixture head
+          `f937df29497a74dd2f0b71a0b056b7fe3a78d997`. No protection, required-context, or unlock mutation occurred.
 
-        - Cut a temporary branch from the completed WU head, add only a neutral fixture change if GitHub needs a
-          distinct head, push it, and open a draft PR against `main` so the reviewed diff contains this WU's code.
-        - Record the exact base/head and keep the fixture unmergeable; do not add `arc-cleared` to branch protection
-          or treat the branch copy of the unlock workflow as default-branch authority.
+    - `[x]` **5.3.b Exercise the live hosted review and disposition loop**
 
-    - `[ ]` **5.3.b Exercise the live hosted review and disposition loop**
+        - CodeRabbit was the configured hosted source for two complete/full passes, yielding 20 then 14 actionable
+          findings and 18 then 9 non-actionable nitpicks; no availability fallback was needed. Applicable findings
+          were dispositioned and settled where the provider supported it, while non-actionable observations
+          received no reply or resolution.
+        - The broad finding-driven WU delta received independent chunked and exact-delta local review instead of a
+          third high-latency hosted pass. The closed fixture retained 15 final-head threads because their approved
+          fixes landed on the WU branch after the fixture head; no manual resolution or extra hosted pass was
+          claimed.
 
-        - Run configured frontline resolution, standard-source selection, hosted request, bounded await, any safe
-          availability fallback, complete finding disposition, capability-backed settlement, and the combined
-          convergence/release presentation against the fixture, withholding approval because this disposable proof
-          must not integrate. Findings with `settlement: not-applicable` receive no host reply, resolution, or
-          compensating disposition comment.
-        - Verify the session never asks whether to review, which source to select next, or whether an in-ceiling
-          pass is authorized. After the broad finding-driven implementation delta, disclose the applicability
-          judgment and use a final independent chunked local review rather than another high-latency fixture pass;
-          do not fire a production unlock whose default-branch workflow is not installed.
+    - `[x]` **5.3.c Close the pre-merge proof and hand off activation inputs**
 
-    - `[ ]` **5.3.c Close the pre-merge proof and hand off activation inputs**
+        - Closed [PR #348](https://github.com/andrewRCr/arc-framework/pull/348) unmerged and removed its remote and
+          local disposable branches. The identity-global post-merge `arc-cleared` activation capture remains
+          complete, and the already-adopted frontline capture is absent.
 
-        - Record the fixture PR URL, exact base/head, selected standard source, and typed hosted-PR outcomes in this
-          task's completion note, including the broad-delta applicability judgment and final local review coverage;
-          keep born-lock, push-relock, planning-stamp, head-as-data readiness, and exact-head-unlock contract/fixture
-          results explicitly separate from the live hosted facts. The closed PR and task outcome are the durable
-          record—do not introduce an evidence ledger or new fixture artifact.
-        - Confirm the existing identity-global capture `Activate and dogfood arc-cleared after review-gate right-
-          sizing lands` still names both disposable planning- and reviewed-lane PRs, setup from updated `main`,
-          exact-head unlock, result recording, and branch/PR cleanup; update it in place only if an identity changed.
-        - After the hosted proof succeeds, remove the adopted `Enable the frontline-review method in the self-hosting
-          repo` capture, then close the fixture PR and remove its disposable branch. Preserve the activation capture
-          as the immediate post-merge Errand seed.
+- _Outcome:_ Live hosted proof exercised source selection, request, await, and disposition behavior without
+  production guard activation. Born-lock, push-relock, planning-stamp, head-as-data readiness, and exact-head
+  unlock remain contract/fixture evidence pending the captured post-merge activation run; `arc-cleared` remains an
+  explicit opt-in host boundary, while confident procedural classification remains human-bypassable by design.
 
 ## **Phase 6:** Verification
 
