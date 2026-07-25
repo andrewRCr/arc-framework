@@ -404,11 +404,44 @@ describe("trusted review-gate workflows", () => {
 
     const lanes = sectionBetween(packaged, "6. Land per lane:", "### Ship — partial protection");
     expect(lanes).toMatch(/Auto-merge-lane[\s\S]*--auto <merge-flag>[\s\S]*--match-head-commit/iu);
+    expect(lanes).toContain("arc review planning-lane <base-sha> {approved-head-sha}");
+    expect(lanes).toMatch(/only literal `planning`[\s\S]*arm(?:ing)?[\s\S]*auto-merge/iu);
     expect(lanes).toMatch(/Reviewed-lane[\s\S]*owner review[\s\S]*head change restarts Step 4/iu);
 
     const complete = sectionBetween(packaged, "### Complete");
     expect(complete).toMatch(/arc errand close <slug>[\s\S]*reaps the branch[\s\S]*removes the record/iu);
     expect(complete).toMatch(/Unattended merge[\s\S]*finalize pass[\s\S]*next session-init's errand sweep/iu);
+  });
+
+  it("keeps auto-merge arming on canonical classification without requiring ARC clearance", async () => {
+    const paths = {
+      errand: "system/workflows/arc/supplemental/run-errand.md",
+      drain: "system/workflows/arc/supplemental/drain-inbox.md",
+      setup: "system/workflows/arc/supplemental/setup-merge-gate.md",
+      readme: "reference/templates/arc/merge-gate/README.md",
+      codeowners: "reference/templates/arc/merge-gate/CODEOWNERS",
+      initial: "system/workflows/arc/initial-setup/01_verify-and-configure.md",
+      strategy: "reference/strategies/arc/strategy-work-organization.md",
+    };
+    const entries = await Promise.all(Object.entries(paths).map(async ([name, path]) => {
+      const packaged = await readRepositoryFile(`packages/arc-framework/arc/${path}`);
+      const project = await readRepositoryFile(`.arc/${path}`);
+      expect(project, name).toBe(packaged);
+      return [name, packaged] as const;
+    }));
+    const documents = Object.fromEntries(entries);
+
+    expect(documents.errand).toContain("arc review planning-lane <base-sha> {approved-head-sha}");
+    expect(documents.errand).toMatch(/only literal `planning`[\s\S]*arm(?:ing)?[\s\S]*auto-merge/iu);
+    expect(documents.drain).toMatch(
+      /arc review planning-lane <base-sha> <head-sha>[\s\S]*only[\s\S]*`planning`[\s\S]*arm/iu,
+    );
+    expect(documents.setup).toMatch(/canonical\s+classifier/iu);
+    expect(documents.setup).toMatch(/without\s+`arc-cleared`[\s\S]*procedural enforcement/iu);
+    expect(documents.setup).toMatch(/when `arc-cleared`\s+is required[\s\S]*structural/iu);
+    expect(documents.readme).toMatch(/without `arc-cleared`[\s\S]*canonical classifier/iu);
+    expect(documents.codeowners).not.toContain("required arc-cleared");
+    expect(documents.initial).toMatch(/planning auto-merge lane[\s\S]*canonical classifier/iu);
   });
 
   it("uses one late authoritative base-reconcile mutation site", async () => {

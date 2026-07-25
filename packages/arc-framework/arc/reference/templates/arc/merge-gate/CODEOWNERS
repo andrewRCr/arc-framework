@@ -8,7 +8,8 @@
 #
 # These patterns mirror the classifier's supported directories and depths.
 # CODEOWNERS cannot express filename grammar or Git type/mode changes, so the
-# required arc-cleared context remains the authoritative lane decision.
+# canonical classifier remains authoritative when ARC arms auto-merge. When the
+# optional arc-cleared context is required, it enforces that decision host-side.
 #
 # Replace @your-org/reviewers with your reviewers (a user or team).
 

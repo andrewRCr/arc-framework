@@ -80,8 +80,11 @@ cp .arc/reference/templates/arc/merge-gate/CODEOWNERS .github/CODEOWNERS
 ```
 
 Then replace `@your-org/reviewers` with the real reviewer(s), and confirm the constitutional and unowned blocks
-match the project's paths. CODEOWNERS supplies path ownership only; the pinned classifier and required
-`arc-cleared` context remain authoritative for exact filename, rename/copy, and mode semantics.
+match the project's paths. CODEOWNERS supplies path ownership only. ARC-managed PR workflows run the canonical
+classifier over the exact base/head before arming auto-merge; only literal `planning` is eligible. Without
+`arc-cleared`, that classifier gate plus the integration interlock is procedural enforcement. When `arc-cleared`
+is required through the independent clearance setup, its planning writer makes the same decision structural at
+the host.
 
 ## Step 3: Require the merge-ok check in branch protection
 
@@ -120,16 +123,21 @@ gh repo edit --enable-auto-merge                              # enable if false
 
 **Guided-manual fallback:** Settings → General → Pull Requests → "Allow auto-merge".
 
-With auto-merge on, a planning-only PR merges itself once `merge-ok` is green and no owner review is required; a
-reviewed-lane PR additionally waits on owner approval. Auto-merge is armed per PR (`gh pr merge --auto` or the
-PR UI) once these conditions are in place.
+With auto-merge on, an armed planning-only PR merges itself once `merge-ok` is green and no owner review is
+required; a reviewed-lane PR additionally waits on owner approval. Auto-merge is armed per PR
+(`gh pr merge --auto` or the PR UI) once these conditions are in place. The repository setting alone never
+authorizes arming: immediately before ARC arms a PR, rerun
+`arc review planning-lane <base-sha> <head-sha>` and require literal `planning`. `reviewed`, command failure, or
+malformed output must not arm auto-merge.
 
 ## Step 5: Verify
 
 Summarize what landed: the `merge-ok` gate in the CI workflow, the CODEOWNERS location + reviewers, the
 required check, and the auto-merge setting. To confirm end-to-end, open a planning-only PR (touch only a supported
 planning artifact) and confirm `merge-ok` reports and the PR is auto-merge-eligible with no required review; a PR
-touching a constitutional path (a rule, ADR, or strategy) should require owner review.
+touching a constitutional path (a rule, ADR, or strategy) should require owner review. Also verify a mode-only
+change or malformed planning-looking filename classifies `reviewed` and is not armed. If `arc-cleared` is
+independently installed and required, confirm that reviewed head remains structurally locked as well.
 
 A second run of this workflow detects each piece already in place and confirms rather than duplicating.
 

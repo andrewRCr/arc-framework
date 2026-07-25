@@ -232,10 +232,12 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    authority, material cost, or genuine uncertainty.
 
    Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and integration
-   authority. After the routed review settles, classify the merge lane by what the Errand touched
-   ([§ Auto-Merge Lane][auto-lane]): code uses the **reviewed-lane**; pure planning or doc grooming may use the
-   **auto-merge-lane**. This merge lane is downstream presentation only and cannot change routing, response, or
-   evidence authority.
+   authority. After the routed review settles, run `arc review planning-lane <base-sha> <head-sha>` over the exact
+   PR delta. Only literal `planning` is eligible for the **auto-merge-lane**; `reviewed` selects the
+   **reviewed-lane**, while command failure or malformed output stops. Then apply the judgment-only threshold from
+   [§ Auto-Merge Lane][auto-lane]: foreign ownership or another confidently recognized review condition may move
+   an eligible change to reviewed without a permission stop, but never the reverse. The merge lane is downstream
+   presentation only and cannot change routing, response, or evidence authority.
 
 5. **Settle the final head.** Establish `vehicle: errand` from the strict Errand record, branch, and exact PR. That
    vehicle is explicitly outside WU composition-product requirements. Never infer the exemption from absent or
@@ -283,10 +285,13 @@ lane action.
    continues; `reconcile` returns to Step 5 and requires a new exact-head checkpoint and approval, while unavailable
    or malformed output stops.
 
-   **Auto-merge-lane** — resolve `merge.strategy` via the config probe, then arm native auto-merge with the
-   matching method (`merge` → `--merge`, `squash` → `--squash`, `rebase` → `--rebase`):
+   **Auto-merge-lane** — re-read the PR's exact base SHA and rerun the canonical classifier immediately before
+   arming. Only literal `planning` preserves this lane; `reviewed` returns to Step 5 as reviewed-lane, while command
+   failure or malformed output stops. Then resolve `merge.strategy` via the config probe and arm native auto-merge
+   with the matching method (`merge` → `--merge`, `squash` → `--squash`, `rebase` → `--rebase`):
 
    ```bash
+   arc review planning-lane <base-sha> {approved-head-sha}
    arc config status --json   # read settings["merge.strategy"]
    gh pr merge <pr-number> --auto <merge-flag> --match-head-commit {approved-head-sha}
    ```
@@ -297,7 +302,8 @@ lane action.
    unchanged head, then leave the PR open for owner review on `{approved-head-sha}`. A head change restarts Step 4;
    native owner approval satisfies its own requirement but never replaces the integration-interlock.
 
-   The auto-merge lane invokes no unlock: its trusted CI poster supplies `arc-cleared`.
+   The auto-merge lane invokes no unlock: when the optional guard is installed, its trusted CI poster supplies
+   `arc-cleared`; otherwise no such context is required.
 
 ### Ship — partial protection
 

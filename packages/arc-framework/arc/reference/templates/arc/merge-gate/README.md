@@ -98,6 +98,12 @@ the heavy jobs running — while a code/constitutional PR waits on them. This is
 roll-up gate and **not** a path-ignored CI workflow (a path-filtered required check never reports and stalls
 the merge at _Pending_).
 
+Without `arc-cleared`, ARC-managed PR workflows still rerun the canonical classifier over the exact base/head
+immediately before arming auto-merge and require literal `planning`; `reviewed`, command failure, or malformed
+output never arms. CODEOWNERS cannot express filename grammar or Git type/mode changes, so this classifier gate
+and the integration interlock are the procedural boundary. Installing `arc-cleared` independently adds structural
+host enforcement of the same exact decision.
+
 ## CI layouts
 
 - **Single CI workflow** (common): paste the snippet into it and add the two marked lines to each heavy job.
@@ -122,8 +128,9 @@ gate as a snippet to merge in — rather than a droppable file — keeps that fa
    **Require review from Code Owners**. Do not require the heavy jobs directly.
 4. Enable the repository's **native auto-merge** setting.
 
-A planning-only PR then merges unattended once `merge-ok` is green; a reviewed-lane PR additionally waits on
-owner approval. The [Set Up the Auto-Merge Gate workflow][setup-workflow] walks through all four steps.
+A planning-only PR may then be armed and merge unattended once `merge-ok` is green; a reviewed-lane PR
+additionally waits on owner approval and must not be armed by ARC. The
+[Set Up the Auto-Merge Gate workflow][setup-workflow] walks through all four steps.
 
 ---
 

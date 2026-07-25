@@ -216,7 +216,9 @@ These choices are independently selectable and default off. Configure only the l
   sources require their provider and repository integration to be available.
 - **Planning auto-merge lane** — under `branch.protection: full`, run the
   [Set Up the Auto-Merge Gate workflow][setup-merge-gate] to add `merge-ok`, planning-path CODEOWNERS, and native
-  auto-merge. Skip under partial protection. See [Auto-Merge Lane][work-org-auto-merge].
+  auto-merge. ARC-managed PR workflows require the canonical classifier's exact-head `planning` result before
+  arming a PR; the independently selectable merge guard adds structural host enforcement. Skip under partial
+  protection. See [Auto-Merge Lane][work-org-auto-merge].
 - **ARC merge guard** — on GitHub with full branch protection and repository admin access, run
   [Set Up ARC Clearance][setup-arc-clearance] to install the exact-version workflow, secretless environment, and
   additive `arc-cleared` required context. The workflow must land on the default branch before the context is
