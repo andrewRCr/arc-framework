@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { deriveLocusSessionGuidance } from "../../../src/lib/locus/session-guidance.js";
 import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
+import type { LocusRowV1 } from "../../../src/lib/locus/schema/index.js";
 
 describe("deriveLocusSessionGuidance", () => {
   it("suppresses expected leaseless WU checkout narration", () => {
@@ -44,7 +45,8 @@ describe("deriveLocusSessionGuidance", () => {
     expect(result).toMatchObject({
       kind: "ready",
       cleanup: [
-        "Cleanup for /wt/unknown is manual because lease liveness is unknown.",
+        "Cleanup for /wt/unknown is manual because lease liveness is unknown; "
+          + "resolve it with `--confirm-no-live-session` once no live session holds it.",
       ],
     });
     expect(JSON.stringify(result)).not.toMatch(/\/wt\/(live|dead)/u);
@@ -133,5 +135,69 @@ describe("deriveLocusSessionGuidance", () => {
       kind: "unavailable",
       message: "Session locus state is unavailable (runtime): identity tree unavailable",
     });
+  });
+});
+
+describe("advisory suppression and reachable residue exits", () => {
+  const RECORD = `sha256:${"a".repeat(64)}`;
+
+  /** Narrow to the composed variant; an `unavailable` result here is a fixture bug, not a case. */
+  function ready(result: ReturnType<typeof deriveLocusSessionGuidance>) {
+    if (result.kind !== "ready") throw new Error(`expected ready guidance, got ${result.kind}`);
+    return result;
+  }
+
+  function withPrimary(reasons: ("primary-dirty" | "primary-off-base" | "lock-live")[]) {
+    return ready(deriveLocusSessionGuidance({
+      ok: true,
+      value: {
+        ...locusStateFixture({}),
+        primaryAvailability: { kind: "unsafe", checkoutPath: "/repo", reasons },
+      },
+    }));
+  }
+
+  function withResidue(lease: LocusRowV1["lease"]) {
+    const row = { ...managedWorkUnitRow("demo", "/wt/demo"), lease };
+    return ready(deriveLocusSessionGuidance({
+      ok: true,
+      value: {
+        ...locusStateFixture({ rows: [row] }),
+        recovery: { kind: "residue", recordId: RECORD, actions: ["resume", "abandon"] },
+      },
+    }));
+  }
+
+  function lease(state: "live" | "unknown" | "dead", selfHeld: boolean): LocusRowV1["lease"] {
+    return {
+      leaseId: "b".repeat(32), state, selfHeld, sessionHomePath: "/wt/demo",
+      attachedAt: "2026-07-24T00:00:00.000Z", heartbeatAt: "2026-07-24T00:00:00.000Z",
+    };
+  }
+
+  it("says nothing about a primary that is only dirty or off base", () => {
+    expect(withPrimary(["primary-dirty", "primary-off-base"]).primaryAvailability).toBeUndefined();
+  });
+
+  it("still speaks when a reason costs more than an allocation precondition", () => {
+    expect(withPrimary(["primary-off-base", "lock-live"]).primaryAvailability)
+      .toContain("unsafe (primary-off-base, lock-live)");
+  });
+
+  it("tells the holder of a self-held lease how it actually ends", () => {
+    const text = withResidue(lease("live", true)).recovery ?? "";
+    expect(text).toContain("This lease is yours");
+    expect(text).toContain("dies when the process exits");
+    expect(text).toContain("--confirm-no-live-session");
+  });
+
+  it("names the exit from the surface that reports an unverifiable lease", () => {
+    expect(withResidue(lease("unknown", false)).recovery).toContain("--confirm-no-live-session");
+    expect(withResidue(lease("unknown", false)).cleanup.join(" ")).toContain("--confirm-no-live-session");
+  });
+
+  it("leaves an ordinary dead-lease residue offer unchanged", () => {
+    const text = withResidue(lease("dead", false)).recovery ?? "";
+    expect(text).toBe(`Session locus residue ${RECORD} offers: resume → abandon.`);
   });
 });

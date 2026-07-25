@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { locusStopTier } from "./stop-tier.js";
 import type { LocusRowV1, LocusStateV1 } from "./schema/index.js";
 
 const ready = z.strictObject({
@@ -71,10 +72,14 @@ function renderCurrent(state: LocusStateV1): string | null {
 
 function renderPrimary(state: LocusStateV1): string | null {
   const primary = state.primaryAvailability;
-  if (primary.kind === "unsafe") {
-    return `Primary checkout ${primary.checkoutPath} is unsafe (${primary.reasons.join(", ")}); reconcile before allocation.`;
-  }
-  return null;
+  if (primary.kind !== "unsafe") return null;
+  // Allocation still reads `primaryAvailability` and still refuses; this is narration only. A
+  // primary that is merely dirty or off base is an ordinary steady state — it is exactly what a
+  // checked-out branch or an in-flight errand leaves behind — so reporting it to every session that
+  // allocates nothing is the noise the tier model exists to remove. A reason that costs more than
+  // that still speaks.
+  if (primary.reasons.every((reason) => locusStopTier(reason) === "advisory")) return null;
+  return `Primary checkout ${primary.checkoutPath} is unsafe (${primary.reasons.join(", ")}); reconcile before allocation.`;
 }
 
 function renderRecovery(state: LocusStateV1): string | null {
@@ -82,7 +87,18 @@ function renderRecovery(state: LocusStateV1): string | null {
   if (recovery.kind === "none") return null;
   if (recovery.kind === "resume") return `Resume session locus record ${recovery.activeRecordId}.`;
   if (recovery.kind === "residue") {
-    return `Session locus residue ${recovery.recordId} offers: ${recovery.actions.join(" → ")}.`;
+    const offer = `Session locus residue ${recovery.recordId} offers: ${recovery.actions.join(" → ")}.`;
+    const lease = state.roster.rows.find((row) => row.recordId === recovery.recordId)?.lease ?? null;
+    // A lease dies when its process exits, not when a conversation ends — stating it the other way
+    // is what led a handoff to predict a release that a conversation reset could never reach. When
+    // the holder is this very process, the cheapest resolution is to say so plainly.
+    if (lease?.state === "live" && lease.selfHeld) {
+      return `${offer} This lease is yours: it dies when the process exits, so exit this process to release it, or resolve it now with \`--confirm-no-live-session\`.`;
+    }
+    if (lease?.state === "unknown") {
+      return `${offer} Its liveness cannot be verified; resolve it with \`--confirm-no-live-session\` once you have confirmed no live session holds it.`;
+    }
+    return offer;
   }
   return `Session locus recovery is stopped (${recovery.reasons.join(", ")}).`;
 }
@@ -109,6 +125,9 @@ function renderCleanup(row: LocusRowV1): string[] {
     }
     return [];
   }
-  if (row.lease?.state === "unknown") return [`Cleanup for ${target} is manual because lease liveness is unknown.`];
+  if (row.lease?.state === "unknown") {
+    return [`Cleanup for ${target} is manual because lease liveness is unknown; `
+      + "resolve it with `--confirm-no-live-session` once no live session holds it."];
+  }
   return [];
 }

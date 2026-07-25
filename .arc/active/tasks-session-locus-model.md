@@ -1854,7 +1854,7 @@ operator-confirmed path. The unverifiable readings that actually occur come from
 boundaries, an unreadable `/proc`, a failing `ps` — not from inspector-kind mismatch. Neither a portable machine
 identity on the anchor nor a per-platform record store is therefore in scope.
 
-### `[ ]` **7.G.a Give residue without a dead lease an in-model exit**
+### `[x]` **7.G.a Give residue without a dead lease an in-model exit**
 
 - _Goal:_ A session that cannot verify its predecessor's liveness — or that is provably the stranding process
   itself — has a defined, in-model way forward, and the path is reachable from the surface that reports the stop.
@@ -1957,6 +1957,30 @@ identity on the anchor nor a per-platform record store is therefore in scope.
               clearing, and the attestation failing to substitute for the dirty-checkout or cross-identity guards.
               Verified end to end against the real CLI: the flag reaches the driver and a refusal exits non-zero.
 
+    - `[x]` **7.G.a.iv Move the advisory tier off the stop path and correct the narration**
+        - `renderPrimary` suppresses an `unsafe` primary whose reasons are all advisory-tier. Allocation still
+          reads `primaryAvailability` and still refuses — this is narration only — but a primary that is merely
+          dirty or off base is the ordinary steady state a checked-out branch or in-flight errand leaves behind,
+          and reporting it to every session that allocates nothing was the noise the tier model exists to remove.
+          A reason costing more than that still speaks, including in a mixed set.
+        - Residue guidance reads **"dies when the process exits"** for a self-held lease, paired with the
+          instruction to exit the process, replacing the phrasing that led a handoff to predict a release a
+          conversation reset could never reach. Both the self-held and unverifiable arms name
+          `--confirm-no-live-session`, and so does the manual-cleanup line — the goal's reachability clause is
+          what makes the exit discoverable from the surface that reports the stop rather than from the spec.
+        - Covered by advisory-only suppression, a mixed set still speaking, both residue arms, the cleanup line,
+          and an ordinary dead-lease offer left byte-identical.
+
+- _Outcome:_ Recovery now keys on authority over the lease rather than on deadness, which is what makes the two
+  states that were safe-but-not-dead resolvable at all: a lease held by the caller's own process, and one whose
+  liveness no inspector can establish. The four leaves are one mechanism — classify authority, tier the refusals
+  by who may act past them, admit the stranded row to residue, and say so where the operator is standing. What
+  keeps it from being a force switch is that a verifiably foreign live lease never reaches the gate, so the
+  attestation is admissible exactly where the reader is uncertain and inadmissible exactly where it is not.
+  Two spec errors surfaced during execution and were corrected against the code that would consume them: a
+  foreign live lease placed in the operator-releasable tier, and a frame rule that would have demoted every live
+  transient session to residue.
+
 ### `[ ]` **7.G.b Settle what `current` means for a row nothing can attach to**
 
 - _Goal:_ Frame selection and attach authorization agree about which rows are claimable, so no verdict offers a
@@ -1978,13 +2002,6 @@ identity on the anchor nor a per-platform record store is therefore in scope.
   shipped, so this is a deliberate scope decision, not a defect waiting to be closed.
 
 - _Discovered:_ during `7.G.a.iii.2.a`, while writing the test that proved the stranded row reaches residue.
-
-    - `[ ]` **7.G.a.iv Move the advisory tier off the stop path and correct the narration**
-        - `primary-dirty` and `primary-off-base` stop rendering as stops. Residue guidance reads **"dies when the
-          process exits"** rather than "dies with the session" — the phrasing that led a handoff to predict an exit
-          a conversation reset could not reach — paired with a self-held line ("this lease is yours; exit this
-          process to release it") in place of today's bare reconciliation stop.
-        - Cover that an advisory reason no longer blocks, and both guidance strings.
 
 ## **Phase 8:** Verification
 
