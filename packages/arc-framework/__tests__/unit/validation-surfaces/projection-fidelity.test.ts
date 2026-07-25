@@ -175,6 +175,24 @@ describe("validation-surface projection fidelity", () => {
         value: { "review.standard_sources": "" },
         accepted: false,
       },
+      {
+        label: "safe-integer midrange",
+        value: {
+          "hooks.body_max_lines": "9000000000000000",
+          "review.chunking_threshold_lines": "9007199254740989",
+        },
+        accepted: true,
+      },
+      {
+        label: "unsafe integer above maximum",
+        value: { "review.chunking_threshold_lines": "9007199254740992" },
+        accepted: false,
+      },
+      {
+        label: "integer below field minimum",
+        value: { "hooks.subject_max_length": "9" },
+        accepted: false,
+      },
       { label: "malformed key", value: { "Future-setting": "value" }, accepted: false },
       { label: "non-string unknown value", value: { "future.setting": 1 }, accepted: false },
     ]);

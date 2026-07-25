@@ -99,16 +99,40 @@ function stringField<const Key extends string, Schema extends z.ZodType<string>>
   } satisfies ArcConfigFieldDescriptor<Key>;
 }
 
-const UNSIGNED_DECIMAL_PATTERN = /^\d+$/u;
+const MAX_SAFE_INTEGER_DECIMAL = String(Number.MAX_SAFE_INTEGER);
 
-function safeIntegerStringSchema(minimum: number) {
-  return z.string()
-    .regex(UNSIGNED_DECIMAL_PATTERN)
-    .refine((value) => {
-      const numeric = Number(value);
-      return Number.isSafeInteger(numeric) && numeric >= minimum;
-    });
+function decimalDigitRange(minimum: number, maximum: number): string {
+  return minimum === maximum ? String(minimum) : `[${minimum}-${maximum}]`;
 }
+
+function safeIntegerPattern(minimum: 0 | 1 | 10): RegExp {
+  const minimumDigits = minimum === 10 ? 2 : 1;
+  const maximumDigits = MAX_SAFE_INTEGER_DECIMAL.length;
+  const alternatives = minimum === 0 ? ["0"] : [];
+  alternatives.push(`[1-9]\\d{${minimumDigits - 1},${maximumDigits - 2}}`);
+
+  let equalPrefix = "";
+  for (let index = 0; index < maximumDigits; index += 1) {
+    const digitToken = MAX_SAFE_INTEGER_DECIMAL.charAt(index);
+    const maximumDigit = Number(digitToken);
+    const minimumDigit = index === 0 ? 1 : 0;
+    if (maximumDigit > minimumDigit) {
+      const suffixLength = maximumDigits - index - 1;
+      const suffix = suffixLength === 0 ? "" : `\\d{${suffixLength}}`;
+      alternatives.push(
+        `${equalPrefix}${decimalDigitRange(minimumDigit, maximumDigit - 1)}${suffix}`,
+      );
+    }
+    equalPrefix += digitToken;
+  }
+  alternatives.push(MAX_SAFE_INTEGER_DECIMAL);
+
+  return new RegExp(`^0*(?:${alternatives.join("|")})$`, "u");
+}
+
+const POSITIVE_SAFE_INTEGER_PATTERN = safeIntegerPattern(1);
+const SAFE_INTEGER_AT_LEAST_TEN_PATTERN = safeIntegerPattern(10);
+const UNSIGNED_SAFE_INTEGER_PATTERN = safeIntegerPattern(0);
 
 function positiveSafeIntegerField<const Key extends string>(
   key: Key,
@@ -117,7 +141,9 @@ function positiveSafeIntegerField<const Key extends string>(
 ) {
   return {
     key,
-    schema: safeIntegerStringSchema(minimum),
+    schema: z.string().regex(
+      minimum === 1 ? POSITIVE_SAFE_INTEGER_PATTERN : SAFE_INTEGER_AT_LEAST_TEN_PATTERN,
+    ),
     defaultValue,
     quotedEmpty: "invalid",
     policy: { kind: "positive-safe-integer", minimum },
@@ -127,7 +153,7 @@ function positiveSafeIntegerField<const Key extends string>(
 function unsignedSafeIntegerField<const Key extends string>(key: Key, defaultValue: string) {
   return {
     key,
-    schema: safeIntegerStringSchema(0),
+    schema: z.string().regex(UNSIGNED_SAFE_INTEGER_PATTERN),
     defaultValue,
     quotedEmpty: "invalid",
     policy: { kind: "unsigned-safe-integer" },
