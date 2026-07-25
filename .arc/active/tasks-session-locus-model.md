@@ -1351,11 +1351,20 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
           an omitted projection silently skipped the veto. Scope boundary (advisory veto here, lock linearization
           already in the guarded remover) recorded in `notes-session-locus-model.md`.
 
-    - `[ ]` **7.E.c.iv Prove ownership before partial settlement mutates the inbox** — E2-F2
-        - `settleInbox` runs before record-lock acquisition and before `popOwnedLocusRole` verifies the exact live
-          anchor; the initial roster check proves only that some lease ID exists. A foreign session can close or
-          remove another active partial Errand's capture and then receive a generation refusal, leaving role and
-          capture state inconsistent.
+    - `[x]` **7.E.c.iv Prove ownership before partial settlement mutates the inbox** — E2-F2
+        - Confirmed against source: the pre-flight check tested only that _some_ lease ID existed, never its state
+          or anchor, so a foreign live generation reached `settleInbox` — a real `removeCurrentInboxEntry` — and
+          was refused afterwards at the one site that proves ownership, leaving the capture destroyed and the role
+          retained. Settlement now acquires the record lock, revalidates the base, and proves the exact generation
+          _before_ touching the capture; a refusal or an absent record returns without an inbox write.
+        - The ownership rule inlined in `popOwnedLocusRole` became `validateOwnedLocusRole` in `locus/mutation.ts`,
+          so the pre-mutation proof applies the same rule as the authoritative pop rather than a weaker
+          restatement. The pop still revalidates on its own terms — the pre-check narrows the window, it does not
+          replace the atomic read-validate-remove.
+        - Settlement was split into `errand/partial-settle.ts` (composition over injected evidence) and
+          `errand/partial-settle-runtime.ts` (Node wiring), mirroring `leave.ts` / `leave-runtime.ts`. The module
+          previously did both and had no coverage at any tier, which is why an ordering defect in it was invisible;
+          the ordering claim is now a unit test that fails against the old sequence.
 
     - `[ ]` **7.E.c.v Validate the locked generation before leave and close mutate** — E3-F1, E3-F2
         - Leave switches the primary checkout or removes the spawned worktree before `popOwnedLocusRole` performs

@@ -350,6 +350,52 @@ export async function popLocusRole(options: {
 }
 
 /** Pop one live role only when its lease is owned by the entering process anchor. */
+/** The coordinates a caller must match to act as one exact owned locus generation. */
+export interface OwnedLocusRoleExpectations {
+  recordId: string;
+  checkoutPath: string;
+  expectedSubject: LocusRole["subject"];
+  expectedLeaseId: string;
+  enteringAnchor: LocusAnchor;
+}
+
+export type OwnedLocusRoleValidation =
+  | { kind: "owned" }
+  | { kind: "absent" }
+  | { kind: "refused"; reason: "record-malformed" | "role-conflict" | "lease-generation-mismatch" };
+
+/**
+ * Decide whether one already-read record is the caller's own exact generation.
+ *
+ * Shared so a caller that must prove ownership *before* mutating state outside the record uses the
+ * same rule the authoritative pop applies, rather than a weaker restatement of it.
+ *
+ * @param existing - Record read result, taken under the record lock.
+ * @param expectations - The exact coordinates the caller claims.
+ * @returns Ownership, absence, or the reason the claim fails.
+ */
+export function validateOwnedLocusRole(
+  existing: LocusRecordReadResult,
+  expectations: OwnedLocusRoleExpectations,
+): OwnedLocusRoleValidation {
+  if (existing.kind === "absent") return { kind: "absent" };
+  if (existing.kind !== "valid"
+    || existing.record.recordId !== expectations.recordId
+    || existing.record.checkoutPath !== expectations.checkoutPath) {
+    return { kind: "refused", reason: "record-malformed" };
+  }
+  if (!isDeepStrictEqual(existing.record.role.subject, expectations.expectedSubject)) {
+    return { kind: "refused", reason: "role-conflict" };
+  }
+  const lease = existing.record.lease;
+  if (lease === null
+    || lease.leaseId !== expectations.expectedLeaseId
+    || !isDeepStrictEqual(lease.anchor, expectations.enteringAnchor)) {
+    return { kind: "refused", reason: "lease-generation-mismatch" };
+  }
+  return { kind: "owned" };
+}
+
 export async function popOwnedLocusRole(options: {
   operation: LocusOperation;
   recommendedPromptText: string;
@@ -366,21 +412,10 @@ export async function popOwnedLocusRole(options: {
   } catch (error) {
     return failure(options, error);
   }
-  if (existing.kind === "absent") return popSuccess(options, "idempotent");
-  if (existing.kind !== "valid"
-    || existing.record.recordId !== options.recordId
-    || existing.record.checkoutPath !== options.checkoutPath) {
-    return refusal(options, "record-malformed");
-  }
-  if (!isDeepStrictEqual(existing.record.role.subject, options.expectedSubject)) {
-    return refusal(options, "role-conflict");
-  }
-  const lease = existing.record.lease;
-  if (lease === null
-    || lease.leaseId !== options.expectedLeaseId
-    || !isDeepStrictEqual(lease.anchor, options.enteringAnchor)) {
-    return refusal(options, "lease-generation-mismatch");
-  }
+  const validated = validateOwnedLocusRole(existing, options);
+  if (validated.kind === "absent") return popSuccess(options, "idempotent");
+  if (validated.kind === "refused") return refusal(options, validated.reason);
+  if (existing.kind !== "valid") return refusal(options, "record-malformed");
   try {
     const removed = await options.io.remove(existing.bytes);
     if (removed.kind === "removed") return popSuccess(options, "applied");
