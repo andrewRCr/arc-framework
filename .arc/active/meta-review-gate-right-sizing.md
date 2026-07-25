@@ -18,8 +18,7 @@
 - **Next Task:** Begin Task 1.1 — Establish hosted request, await, and thread-settlement verbs
 - **Blockers:** [none]
 
-- **Next Action:** Load process-task-loop.md and begin Task 1.1 — Establish hosted request, await, and
-  thread-settlement verbs
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

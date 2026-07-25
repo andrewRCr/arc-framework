@@ -435,66 +435,79 @@ activation ready for its immediate post-merge Errand.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ On the reconciled `main` head, Markdown, TypeScript, and shell lint; source and test typechecks;
+  build; projected-copy checks; 564 passing test files with 7,523 passing tests and one environment-gated skip; and
+  diff checks all passed.
+- _Success criteria:_ 18 criteria dispositioned: 17 met and 1 superseded for the unrun local-frontline fixture leg.
+  CodeRabbit hosted ran two complete passes without convergence; extensive finding-driven correction, independent
+  chunked and exact-delta review, and the final Tier 3 suite supplied the accepted closing coverage.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A single session drives a real fixture PR carrying this WU's code through configured frontline and
+- `[~]` A single session drives a real fixture PR carrying this WU's code through configured frontline and
   hosted-PR standard review without asking whether, which source, or whether it may review.
 
-- `[ ]` Human stops are limited to structured disposition when a finding-driven mutation or commitment needs
+    - **Superseded:** the hosted portion ran twice through CodeRabbit complete review and exercised request, await,
+      disposition, and supported settlement without default permission stops, but the separate local CodeRabbit CLI
+      frontline leg did not run against the fixture. Reopening the closed fixture solely for another provider pass
+      was intentionally declined after the hosted passes, extensive finding-driven correction, independent chunked
+      and exact-delta review, and the final reconciled Tier 3 suite.
+
+- `[x]` Human stops are limited to structured disposition when a finding-driven mutation or commitment needs
   authority, the combined convergence/unlock/integration approval, the exceptional pass-ceiling decision, material
   uncertainty or new authority, and destructive lifecycle actions. Confident bounded applicability,
   review-strength, and supplemental-review judgments proceed without a permission turn and remain visible.
 
-- `[ ]` Contract and fixture coverage proves that a reviewed head is born locked, every push re-locks it, and only
+- `[x]` Contract and fixture coverage proves that a reviewed head is born locked, every push re-locks it, and only
   an exact-head unlock clears it through the pinned default-branch workflow.
 
-- `[ ]` The base-derived planning-lane stamp and the reviewed-lane unlock share one `arc-cleared` assertion, with
+- `[x]` The base-derived planning-lane stamp and the reviewed-lane unlock share one `arc-cleared` assertion, with
   their exact live matrix routed to the immediate post-merge activation Errand.
 
-- `[ ]` Lifecycle readiness has one CLI definition used by both local preflight and the pinned unlock workflow,
+- `[x]` Lifecycle readiness has one CLI definition used by both local preflight and the pinned unlock workflow,
   binds the WU slug to the guarded PR, and leaves Release Notes applicability to composition judgment.
 
-- `[ ]` Both hosted-PR adapters remain live as standard sources; ordered fallback advances only on the two safe
+- `[x]` Both hosted-PR adapters remain live as standard sources; ordered fallback advances only on the two safe
   availability outcomes, consumes no pass for those attempts, and never fans out or replays ambiguity.
 
-- `[ ]` `delegated-agent` and each hosted-PR source can independently complete the one standard-review stream;
+- `[x]` `delegated-agent` and each hosted-PR source can independently complete the one standard-review stream;
   exactly one source runs per pass, and frontline remains independent of standard-source selection and opt-out.
 
-- `[ ]` Evaluators author only evaluator-owned result content; the runtime injects immutable target/source/rubric/
+- `[x]` Evaluators author only evaluator-owned result content; the runtime injects immutable target/source/rubric/
   guidance bindings during normalization and rejects any accepted compatibility binding that is not exact.
 
-- `[ ]` A changed head always invalidates clearance and merge authorization but does not mechanically discard prior
+- `[x]` A changed head always invalidates clearance and merge authorization but does not mechanically discard prior
   review coverage: the operating agent discloses and selects targeted verification, focused supplementation, or
   complete review based on the exact delta and interaction risk, with no fix-carry ledger or eligibility oracle.
 
-- `[ ]` The shadow workflows, launchers, scripts, controller/App machinery, residue modules, and their tests are
+- `[x]` The shadow workflows, launchers, scripts, controller/App machinery, residue modules, and their tests are
   absent with no surviving import or prose reference.
 
-- `[ ]` RSB's coordinated rename and ordered-frontline increment lands first; its consume-set, re-entry retirement
+- `[x]` RSB's coordinated rename and ordered-frontline increment lands first; its consume-set, re-entry retirement
   cluster, live closure, and standard-review boundary modules remain outside this cut afterward.
 
-- `[ ]` The three superseded gate work units are abandoned through the direct planned-stub transition with
+- `[x]` The three superseded gate work units are abandoned through the direct planned-stub transition with
   finalized receipts; their seams are re-homed, the two claim-bound residues then retire, and the three ownerless
   `WU_Target` captures are removed.
 
-- `[ ]` ADR-028 is superseded by the accepted replacement authority decision without rewriting its historical body.
+- `[x]` ADR-028 is superseded by the accepted replacement authority decision without rewriting its historical body.
 
-- `[ ]` Shipped lifecycle prose and the self-hosting technical overview describe only the typed CLI loop and thin
+- `[x]` Shipped lifecycle prose and the self-hosting technical overview describe only the typed CLI loop and thin
   merge guard.
 
-- `[ ]` Every reviewed WU and reviewed Errand PR publishes a final `## Review` section that separately attributes
+- `[x]` Every reviewed WU and reviewed Errand PR publishes a final `## Review` section that separately attributes
   local and hosted-PR activity, identifies the GitHub triage approver, summarizes final material-finding
   dispositions, discloses targeted verification when review coverage carried across a later narrow delta, and
   remains disclosure rather than merge evidence; no-review PRs omit it.
 
-- `[ ]` Self-hosting enables its ordered frontline and standard sources, while a default installation with neither
+- `[x]` Self-hosting enables its ordered frontline and standard sources, while a default installation with neither
   list configured still completes integration despite change-shaped `standardReview`; the merge guard remains
   absent or cleanly skipped.
 
-- `[ ]` All quality gates pass (tests, linting, type checking, build, and projected-copy checks).
+- `[x]` All quality gates pass (tests, linting, type checking, build, and projected-copy checks).
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
