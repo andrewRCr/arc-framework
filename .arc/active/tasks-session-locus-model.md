@@ -1548,15 +1548,21 @@ and recorded risk live in `notes-session-locus-model.md` § Chunked-review findi
       post-state is the cheaper correction wherever it is available, but availability is a property of the evidence,
       not a preference — reaching for it where the evidence cannot support it is how a gate silently weakens.
 
-    - `[ ]` **7.E.d.v Leave a crashed lock breaker reclaimable** — L2-F2
-        - `breakDeadLocusLock` writes a `.break` file holding only the breaker's token, so an exit between that
-          exclusive create and the `finally` release makes every later breaker return `generation-mismatch`;
-          `acquireLocusLock` then retries to its deadline and refuses `unknown` forever, wedging a record lock whose
-          main holder is already conclusively dead. Give the secondary holder the same process-anchored shape the
-          main holder carries so a conclusively dead breaker is reclaimable, while a live or unverifiable breaker
-          still excludes competitors.
-        - Cover crash residue from a dead breaker (a later breaker reclaims and completes the break), a live
-          breaker's residue (still excluded), and an unverifiable breaker anchor (unknown, never reclaimed).
+    - `[x]` **7.E.d.v Leave a crashed lock breaker reclaimable** — L2-F2
+        - The secondary lock now carries the same serialized holder the main lock does — token, process anchor,
+          creation stamp — so residue from a breaker that exited before its release is readable evidence rather
+          than opaque bytes. Reclaim is narrow: only a readable, process-anchored holder proven dead is removed,
+          and only by unlinking the exact bytes just observed, so a breaker replacing the residue between the read
+          and the unlink keeps its own file. Everything else — a live breaker, an unverifiable anchor, malformed
+          bytes — still refuses `generation-mismatch`, which the acquire loop continues to surface as `unknown`.
+        - Reclaiming through the secondary lock rather than through a timeout is what keeps the fix from becoming
+          a weaker second rule: the residue is proven dead by the same anchor check that authorizes breaking the
+          main holder, so a wedged lock and a contended one stay distinguishable.
+        - Covered by a reclaim case that fails against the pre-fix create, an exclusion case across all three
+          non-reclaimable residues, and an assertion that the secondary lock is written process-anchored — the
+          property reclaim depends on. Exclusion held before the fix too and is carried as a regression guard.
+          The exclusion case needs a pid-aware inspector: a fixture reporting one liveness for every process makes
+          the main holder live, so the break is never attempted and the case passes without reaching the residue.
 
     - `[ ]` **7.E.d.vi Guard the raced marker read that escapes spawn composition**
         - Found while verifying `.ii`'s throw arm, and in this phase's concern without being in its finding set:

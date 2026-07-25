@@ -87,6 +87,7 @@ export async function acquireLocusLock(options: {
           observed,
           inspector: options.inspector,
           breakerToken: token,
+          breakerAnchor: options.anchor,
           beforeBreakRecheck: options.beforeBreakRecheck,
         });
         if (broken.kind === "broken" || broken.kind === "already-absent") continue;
@@ -125,11 +126,23 @@ export async function breakDeadLocusLock(options: {
   observed: { kind: "valid"; holder: LocusLockHolder; bytes: Buffer };
   inspector: ProcessInspector;
   breakerToken: string;
+  breakerAnchor: LocusAnchor;
   beforeBreakRecheck?: () => Promise<void>;
 }): Promise<{ kind: "broken" | "already-absent" | "generation-mismatch" | "live" | "unknown" }> {
   const breakPath = `${options.path}.break`;
-  const breakBytes = Buffer.from(options.breakerToken, "utf8");
-  if (!await exclusiveCreate(breakPath, breakBytes)) return { kind: "generation-mismatch" };
+  // The secondary holder is anchored like the main one: a breaker that exits
+  // between this create and its release would otherwise leave bytes no later
+  // breaker can distinguish from a live competitor, wedging the record for a
+  // main holder already proven dead.
+  const breakBytes = serializeLocusLockHolder({
+    token: options.breakerToken,
+    anchor: options.breakerAnchor,
+    createdAt: new Date().toISOString(),
+  });
+  if (!await exclusiveCreate(breakPath, breakBytes)) {
+    if (!await reclaimDeadBreaker(breakPath, options.inspector)) return { kind: "generation-mismatch" };
+    if (!await exclusiveCreate(breakPath, breakBytes)) return { kind: "generation-mismatch" };
+  }
   try {
     await options.beforeBreakRecheck?.();
     const current = await readLocusLockHolder(options.path);
@@ -171,6 +184,22 @@ export async function readLocusLockHolder(path: string): Promise<LocusLockReadRe
   } finally {
     await handle?.close();
   }
+}
+
+/**
+ * Remove secondary-lock residue whose breaker is conclusively dead.
+ *
+ * Only a readable, process-anchored holder proven dead is reclaimed, and only by
+ * unlinking the exact bytes just observed — so a live breaker, an unverifiable
+ * anchor, and malformed residue all keep excluding competitors, and a breaker
+ * that replaces the residue between the read and the unlink keeps its own file.
+ */
+async function reclaimDeadBreaker(breakPath: string, inspector: ProcessInspector): Promise<boolean> {
+  const residue = await readLocusLockHolder(breakPath);
+  if (residue.kind !== "valid" || residue.holder.anchor.kind === "unverifiable") return false;
+  if (await verifyProcessAnchor(residue.holder.anchor, inspector) !== "dead") return false;
+  await releaseExactFile(breakPath, residue.bytes);
+  return true;
 }
 
 async function exclusiveCreate(path: string, bytes: Buffer): Promise<boolean> {
