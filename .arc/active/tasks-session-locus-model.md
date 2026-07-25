@@ -2045,18 +2045,20 @@ complete; what remains before the carve is below.
   barrel and the `command-input-registrations.ts` declarations, and D2 ships thinner coverage than its source
   share because the identity-core tests proving its state machine stay in D1.
 
-### `[ ]` **7.S.b Prove the carve on a throwaway branch**
+### `[x]` **7.S.b Prove the carve on a throwaway branch**
 
 - _Goal:_ The four recorded seam fixes are shown sufficient to make the base deliverable compile and pass on its
   own, before any real branch is created.
 
-- _Approach:_ move `identity-snapshot` behind the port `evidence.ts` already declares; relocate `readHousekeepState`
-  into `locus`; relocate `observeExactChangeRequest` out of `leave-runtime`; de-wire the transient-lifecycle and
-  claimed-sweep CLI registrations plus the session-init signal-leaf dispatch. The last is a rewrite rather than a
-  revert — the spine must route housekeeping and grooming the pre-model way while retaining locus dispatch.
-
-- _Note:_ throwaway means throwaway. The output is the answer to "does this carve work and what does it cost",
-  not a branch anyone keeps.
+- _Outcome:_ The carve works — D1 typechecks, builds, and passes the full suite standalone (733 files / 8,979
+  tests, 0 failures) at a total cost of 38 files, +96 / −6,152. The four recorded fixes were neither complete nor
+  entirely necessary: three held, `identity-snapshot` turned out not to be a seam at all (both ends are D1), and
+  three more were needed — the `errand/index.ts` barrel, the command-input registrations, and
+  `handlers/locus.ts`'s abandon dispatch. That last one moved a boundary: `abandon`, `partial-settle`, and
+  `execution-offer` (~1,040 lines) belong in D1, because `arc locus resolve --action abandon` is D1's own
+  residue exit and has no other driver. D2 and D3 are far smaller than recorded. The doc-surface rewrite is the
+  one cost this proof did not measure, and no gate catches it. Full record in
+  `notes-session-locus-model.md` § The carve, proved.
 
 ## **Phase 8:** Verification
 

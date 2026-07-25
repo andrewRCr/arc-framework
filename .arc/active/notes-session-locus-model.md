@@ -338,14 +338,18 @@ this WU's own vocabulary rather than an errand feature.
 
 Three deliverables, each its own work unit, in dependency order:
 
-- **D1 — `session-locus-model`** (~9–11k source): all of `lib/locus`, the v3 identity core
+- **D1 — `session-locus-model`** (~10–12k source): all of `lib/locus`, the v3 identity core
   (`identity-*`, `change-request-lifecycle`, `exact-branch-generation`, `locked-generation`), the base Errand verbs
-  (`open`, `link`, `close`, `promote`, `check`), `lib/recover`, session-init/handoff/compaction wiring, and the
-  `arc locus` reader. Retains the spec's Goals and the six motivating failures.
-- **D2 — errand transient lifecycle** (~4–5k): `leave`, `abandon`, `materialize`, `partial-settle`, and the six
-  carved generation-capability findings, which ship with the machinery they belong to instead of staying carved.
-- **D3 — claimed sweeps** (~1.9k): `lib/housekeep`, `lib/groom`, the `plan` claim protocol, and the housekeep
+  (`open`, `link`, `close`, `promote`, `check`, `abandon`), `partial-settle`, `lib/recover`,
+  session-init/handoff/compaction wiring, and the `arc locus` reader. Retains the spec's Goals and the six
+  motivating failures.
+- **D2 — errand transient lifecycle** (~1k): `leave` and `materialize`, plus the six carved generation-capability
+  findings, which ship with the machinery they belong to instead of staying carved.
+- **D3 — claimed sweeps** (~1.8k): `lib/housekeep`, `lib/groom`, the `plan` claim protocol, and the housekeep
   sweep verbs.
+
+The three sizes above are the corrected ones — the carve proof below measured them, and moved `abandon` and
+`partial-settle` from D2 to D1 for reasons the code settles.
 
 ### Remediation routing
 
@@ -458,7 +462,7 @@ operation union — all live in `lib/locus/schema` and the v3 identity core, whi
 merely names them is exercising D1 substrate and stays put, unchanged. Shared e2e helpers behave the same way:
 `runArcAnchored` / `runArcAnchoredSequence` land in D1 and D2/D3 inherit them down the stack.
 
-**Two things this changes.**
+**Two things this changes (test side).**
 
 - **Add two seams to the de-wire list.** Beyond the four recorded fixes, D1 must also drop `errand/index.ts`'s
   re-exports of the D2 runtimes and remove the matching `command-input-registrations.ts` declarations — the
@@ -467,6 +471,60 @@ merely names them is exercising D1 substrate and stays put, unchanged. Shared e2
 - **D2 ships thinner coverage than its source share.** Its ~4–5k source lines carry ~1.3k of dedicated test
   lines, because the identity-core tests that prove most of its state machine stay in D1. Expect its review to
   lean on D1's suite; if D2 wants standalone proof, that is new test work, not relocated test work.
+  _(The source figure is superseded below — D2 is ~1k, so its coverage ratio is fine after all. The observation
+  that its state machine is proven by D1's identity-core tests still holds.)_
+
+### The carve, proved (2026-07-25)
+
+Built D1 for real on a throwaway branch off the origin tip: deleted D2 and D3, applied the seam fixes the
+typechecker demanded, and ran the gates. **The carve works.** `typecheck:all` clean, `tsup` build clean, and the
+full suite green at 733 files / 8,979 tests, 0 failures. The whole cut is 38 files — 24 deleted, 13 edited,
++96 / −6,152 lines. Ninety-six inserted lines is the entire cost of making the base deliverable stand alone.
+
+**The four recorded seam fixes were neither complete nor entirely necessary.** Three held: `readHousekeepState`
+relocated into `lib/locus/command-runtime.ts` as `readCommandLocusState` (+29), `observeExactChangeRequest`
+relocated into `change-request-lifecycle.ts` (+51), and the CLI de-wire (8 command blocks in `cli.ts`). The
+relocation of `observeExactChangeRequest` came out cheaper than a move: the target module already had
+`resolveChangeRequestLifecycleConfiguration` doing the same origin-URL parsing, so the copy reuses it and the
+duplicate parser is gone.
+
+The fourth — moving `identity-snapshot` behind the port `evidence.ts` declares — is **not a seam**. Both ends are
+D1, so it never blocks the carve. It is a design-cleanliness item; do not schedule it as split work.
+
+Three more were needed, two of them already predicted by the test sizing: the `errand/index.ts` barrel
+re-exports; the command-input registrations and policy declarations, which live inside `handlers/errand.ts` and
+`handlers/housekeep.ts` rather than a central file; and — unpredicted — `handlers/locus.ts`'s
+`arc locus resolve --action abandon` dispatch, which wires a driver per transient subject.
+
+**That last one moved a boundary.** `arc locus resolve --action abandon` is D1's own residue exit, the one
+Phase `7.G` built, and errand-abandon is its only implementation. Three modules turn out to sit on the wrong side
+of the recorded partition, and the code settles each:
+
+- `abandon-locus` + `abandon-runtime` (636 lines, recorded D2) — abandon is close's counterpart, not leave's, and
+  D1's recovery exit has no other driver. Without it, the friction `7.G` exists to remove comes straight back.
+- `partial-settle` + `partial-settle-runtime` (363, recorded D2) — `errand close` and `errand abandon` both call
+  it under partial protection.
+- `housekeep/execution-offer` (41, recorded D3) — its only dependency is `user-sync/inbox-writer` and its only
+  callers are D1's close and abandon. It moved to `lib/user-sync/execution-offer.ts`.
+
+**D2 and D3 are far smaller than recorded.** Everything that actually left D1 is 3,633 source lines against a
+recorded D2 + D3 of roughly 6–7k. D2 specifically is `leave*` plus `materialize-branch` — about 870 source lines
+plus its handler and CLI surface, not 4–5k. The recorded figure had read `lib/errand`'s whole 5.6× growth as
+transient-lifecycle scope, but most of that growth is the v3 identity core, which D1 keeps.
+
+**Test cost matched the sizing, with one miss.** Four test files needed per-stop editing: the three predicted e2e
+splits plus `unit/handlers/errand-open-result.test.ts`, which mixes open / link / abandon / promote with
+materialize / leave at `describe` granularity. The sizing pass missed it because it names D2 only through
+`formatErrandLeaveResult` and the `errand-materialize` operation string. Cutting those four was the entire
+test-side cost; nothing needed restructuring, and every other failure was one of the slices already predicted.
+
+**The proof also exposed a blind spot.** The suite went fully green while the shipped documentation still promised
+`arc errand leave`, `arc housekeep open`, and `arc plan open` — commands the carved CLI no longer has.
+`locus-methodology-contracts.test.ts` asserts only that the reference material _contains_ those strings, so it
+passes unedited against a CLI that dropped them. Nothing in 733 test files catches a command surface that
+contradicts its own documentation. Two consequences: the doc rewrite (`session-init.md`'s signal-leaf spine,
+`QUICK-REFERENCE`, and the `arc-housekeep` / `arc-plan` / `arc-session` skills) is the one carve cost this proof
+did **not** measure, and it is the one part no gate will catch — it needs a deliberate pass, not a green run.
 
 ### Execution state and sequencing (2026-07-25)
 
