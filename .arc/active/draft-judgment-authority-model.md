@@ -146,6 +146,13 @@ the typo-invalidated review, and § Quality gate failure's mistyped filter — a
 unit's own grooming**, in sessions doing unrelated work. A defect that keeps producing fresh instances while being
 designed against is not a historical observation.
 
+A seventh enactment landed on base mid-grooming, and it is the compression half's doctrine rather than the
+authority model's: an errand rewrote § Method and extension loading to load a declared method **at its
+fire-point** instead of as a preload, and routed the rationale and marking guidance to the authoring strategy so
+the always-loaded rules "end up shorter than before." That is constraint-stays / procedure-moves, with the same
+justification, arrived at independently. The doctrine is being rediscovered per-site because nothing states it
+once.
+
 ## The model
 
 The load-bearing part is the anti-escape-hatch mechanism: **silent divergence is an escape hatch; stated
