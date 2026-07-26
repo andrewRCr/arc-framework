@@ -13,6 +13,18 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Keep targeted inbox removal visible across entry separators**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-23); captured during `wu-rename`
+  cross-WU coordination routing.
+- _Concern:_ `entryHeadingLines()` treats `---` as leaving the managed section, so list/removal operations silently
+  miss later valid-looking entries until another `## Errand` or `## Work Unit` heading. The failure forced a raw
+  identity-global inbox edit during routing.
+- _Fold-in:_ reconcile the interim reader/writer grammar when the remove half moves onto managed records. Either
+  keep separators inside the current section or remove that formatting from the accepted/written surface; cover
+  multiple separated entries, a post-separator match, and idempotent absence. Re-ground the implementation after
+  `session-locus-model` integrates because its completed branch overlaps `inbox-writer.ts`.
+
 ### `[ ]` **Deterministic same-entry cross-WU notes merge (FP 5.4 fast-follow)**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-07-18);

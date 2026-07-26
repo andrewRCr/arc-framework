@@ -2,5 +2,6 @@
 # Without this, a failing ARC hook is swallowed by the second command succeeding.
 set -e
 bash .arc/system/.internal/githooks/pre-commit
+npm run -s lint:md:staged
 bash scripts/check-package-sync.sh
 bash scripts/check-ts-quality.sh

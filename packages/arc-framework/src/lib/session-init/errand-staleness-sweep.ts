@@ -17,10 +17,13 @@
 import { z } from "zod";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const CALENDAR_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 
 const parseCreatedDayAtUtcMidnight = (created: string): number | null => {
+  if (!CALENDAR_DAY_PATTERN.test(created)) return null;
   const parsed = Date.parse(`${created}T00:00:00.000Z`);
-  return Number.isNaN(parsed) ? null : parsed;
+  if (Number.isNaN(parsed)) return null;
+  return new Date(parsed).toISOString().slice(0, 10) === created ? parsed : null;
 };
 
 /** A candidate entry to age: a stable key and its `YYYY-MM-DD` capture date. */
@@ -37,7 +40,7 @@ export const StaleErrandReportSchema = z
     slug: z.string().refine((value) => value.trim().length > 0, "entry title must not be empty"),
     created: z.string().refine(
       (value) => parseCreatedDayAtUtcMidnight(value) !== null,
-      "created must be parseable as a UTC-midnight day",
+      "created must be a valid YYYY-MM-DD calendar day",
     ),
     ageDays: z.number().int().nonnegative(),
   })

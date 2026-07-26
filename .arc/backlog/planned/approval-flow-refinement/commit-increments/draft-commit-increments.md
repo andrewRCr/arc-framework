@@ -2,55 +2,55 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Reconsider the `review increment` term holistically**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: commit-increments`), housekeep drain (2026-06-12); captured
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: commit-increments`), housekeep drain (2026-06-12); captured
   during `merge-safety-mechanism` Task 1.2 after a batch-review proposal surfaced the wording problem.
-- *Concern:* `review increment` reads as "an increment of review" and is inaccurate under deferred review, where
-  the unit is reviewable but not yet reviewed. The sharper concept is a bounded chunk of work that constitutes a
+- _Concern:_ `review increment` reads as "an increment of review" and is inaccurate under deferred review, where
+  the unit is reviewable but not yet reviewed. The sharper concept is a bounded unit of work that constitutes a
   reviewable unit. The acute wording symptom is phrasing like "review 4.2 as a single increment?", which can read
   as the agent reviewing rather than implementing one reviewable increment for human review.
-- *Proposed:* decide the term alongside the paired `commit increment` vocabulary this WU owns. Options include
+- _Proposed:_ decide the term alongside the paired `commit increment` vocabulary this WU owns. Options include
   `reviewable increment`, a `review boundary` / `commit boundary` pair, or another term; keep the rename cascade
   whole rather than creating a canonical-but-inconsistent gap. Exclude ADRs as historical record.
-- *Scope:* approximately 72 occurrences across roughly 22 files, with two-copy sync for methodology surfaces.
+- _Scope:_ approximately 72 occurrences across roughly 22 files, with two-copy sync for methodology surfaces.
   Coordinate with `naming-conventions` only for any general prose-vocabulary convention it codifies.
 
 ### `[ ]` **Let agents shape completion gates when recommending a held commit**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: commit-increments`), housekeep drain (2026-06-12); captured
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: commit-increments`), housekeep drain (2026-06-12); captured
   during `merge-safety-mechanism` Task 1.2 alongside the term concern.
-- *Concern:* the completion gate currently derives the literal prompt from `commitInterlock` mode, producing
+- _Concern:_ the completion gate currently derives the literal prompt from `commitInterlock` mode, producing
   contradictions when the agent's own recommendation is to hold the commit, such as "recommend holding this until
   the next task lands. Commit and proceed?". The literal verb fights the intended structured approval gate.
-- *Proposed:* separate the invariant from the string: preserve one explicit gate that names the work approval,
+- _Proposed:_ separate the invariant from the string: preserve one explicit gate that names the work approval,
   available commit action, and advancement target, while allowing context-fitting wording such as "Approve work;
   hold the commit until X?". The current rules handle a user overriding with `y; hold the commit`; this fills the
   agent-proactive recommendation case already motivating this draft's commit-interlock prompt work.
 
 ### `[ ]` **Coordinate vocabulary + decoupling with the new sibling `unit-scoped-review`**
 
-- *Coordination (cross-member, 2026-06-15):* `unit-scoped-review` joined the cohort — it widens the *review*
+- _Coordination (cross-member, 2026-06-15):_ `unit-scoped-review` joined the cohort — it widens the _review_
   increment to whole-WU scope (the limit of a leaf/phase/WU axis) and carries a hard `Depends On` to this WU.
-- *Vocabulary:* it introduces "review increment = whole WU." The term reconsideration above must settle jointly
+- _Vocabulary:_ it introduces "review increment = whole WU." The term reconsideration above must settle jointly
   with it — keep the rename cascade whole; don't land a canonical term here that the WU-scope case then bends.
-- *Decoupling:* its per-leaf-commits-*during*-a-WU-batch property IS this WU's deferred-review-releases-commits
+- _Decoupling:_ its per-leaf-commits-_during_-a-WU-batch property IS this WU's deferred-review-releases-commits
   fix at maximal scope. Confirm the fix generalizes to a WU-spanning batch (handoff-clean leaf commits; bundling
   signals still fire within the batch).
-- *Provenance:* the parallel approval-provenance-state concept (§ Unknowns) composes with its batch authorization
+- _Provenance:_ the parallel approval-provenance-state concept (§ Unknowns) composes with its batch authorization
   (a provenance source with WU scope) and its deviation ledger. See `cohort-approval-flow-refinement.md`.
 
 ### `[ ]` **Vocabulary + gate-shaping compose with `execution-delegation-doctrine`**
 
-- *Routed from:* `--plan` grooming session (2026-07-02) that minted `execution-delegation-doctrine`
+- _Routed from:_ `--plan` grooming session (2026-07-02) that minted `execution-delegation-doctrine`
   (standalone planned stub).
-- *Principle anchor:* the "let agents shape completion gates" entry above is a local expression of the doctrine's
+- _Principle anchor:_ the "let agents shape completion gates" entry above is a local expression of the doctrine's
   "no gate without a decision" half (a stop must carry a decision; separate the invariant from the literal
   string) — anchor its design rationale there rather than deriving it locally.
-- *Vocabulary:* the review-increment term reconsideration should also accommodate the doctrine's graduated-scope
+- _Vocabulary:_ the review-increment term reconsideration should also accommodate the doctrine's graduated-scope
   framing (increment scope as a parameter: leaf / phase / WU) so the rename cascade lands once across all three
   cohort consumers and the doctrine WU.
 
@@ -58,13 +58,13 @@
 
 ## Problem / Motivation
 
-ARC's task-execution model conflates two distinct boundaries — *where the agent stops to ask*
-(review granularity) and *where work crystallizes into history* (commit granularity). Today both
+ARC's task-execution model conflates two distinct boundaries — _where the agent stops to ask_
+(review granularity) and _where work crystallizes into history_ (commit granularity). Today both
 default to the leaf checkbox: one task = one review increment = one commit. The conflation
 mostly works, but it produces a real friction under deferred review.
 
 **The visible symptom.** Under `commit_interlock: on-task-approval`, deferred review (a
-user-scoped batch like "proceed to 2.R.2.a-d") suspends per-leaf review stops *and* suspends
+user-scoped batch like "proceed to 2.R.2.a-d") suspends per-leaf review stops _and_ suspends
 the commit auto-fire that would normally accompany each task approval. The stated reason: there
 is no per-task approval signal during the batch, so there is nothing to fire commits on. The
 consequence: changes accumulate uncommitted across the batch, and at return-time review the user
@@ -73,10 +73,10 @@ per-task atomicity at commit time requires hunk-splitting — a last-resort manu
 a regular flow. The user's options today are: accept the entangled commit, hunk-split after the
 fact, or avoid deferred review entirely. None of these scale.
 
-**The underlying issue.** The "approval" signal is doing double duty: it is *both* the review
-checkpoint *and* the commit trigger under `on-task-approval`. Deferred review legitimately
+**The underlying issue.** The "approval" signal is doing double duty: it is _both_ the review
+checkpoint _and_ the commit trigger under `on-task-approval`. Deferred review legitimately
 suspends the review checkpoint (the user pre-authorized the scope and stepped away), but there
-is no reason it must also suspend the commit trigger. The user-scoped scope declaration *is* the
+is no reason it must also suspend the commit trigger. The user-scoped scope declaration _is_ the
 approval signal — a stronger one than per-leaf approval, not a weaker one.
 
 **Why it matters for handoff.** Any fix has to preserve handoff coherence. Notes sync needs a
@@ -97,7 +97,7 @@ or methods accrete dependencies on the current conflation.
 ### Vocabulary
 
 Introduce `commit increment` alongside the existing `review increment`. Both are leaf concepts;
-they are *orthogonal axes* describing different boundaries:
+they are _orthogonal axes_ describing different boundaries:
 
 - **Review increment** — where the agent stops to ask. Default: every leaf task. Widened by
   deferred review (user-scoped batch suspends per-leaf stops within scope).
@@ -112,12 +112,12 @@ ends up reaching across both axes when only one needs adjusting.
 
 Leaf task = review increment AND commit increment. This matches existing user expectations,
 keeps handoff at a clean commit boundary always, and avoids any task-list structural rule that
-could collide with cross-machine resume. Hierarchy *does not* imply bundling — sibling subtasks
+could collide with cross-machine resume. Hierarchy _does not_ imply bundling — sibling subtasks
 under a parent are independent commit increments unless an explicit bundle judgment merges them.
 
 ### Bundling judgment — signal-triggered
 
-When two adjacent leaves are *genuinely one logical change* (e.g., "add helper" + "use helper"
+When two adjacent leaves are _genuinely one logical change_ (e.g., "add helper" + "use helper"
 where the helper is dead code on its own), the agent may recommend deferring the commit boundary
 across them. The recommendation is **signal-triggered, not always-evaluated**:
 
@@ -127,11 +127,11 @@ across them. The recommendation is **signal-triggered, not always-evaluated**:
 
 When no signal fires, no bundling consideration runs; the commit-interlock prompt is the normal
 prompt. When a signal fires, the agent evaluates and surfaces a transparent recommendation:
-*"Task X complete. Recommend deferring commit until Task Y — same logical change because
-[reason]. Proceed?"* The user can accept or override.
+_"Task X complete. Recommend deferring commit until Task Y — same logical change because
+[reason]. Proceed?"_ The user can accept or override.
 
 This keeps per-task overhead near zero (signals are mechanical; judgment runs only when there is
-something to judge) while preserving the value-add. Bundling is *judgment*, not *structure* —
+something to judge) while preserving the value-add. Bundling is _judgment_, not _structure_ —
 no formal task-list markers required (the explicit hint is the rare exception, not the norm).
 
 ### Method-not-strategy split
@@ -149,8 +149,8 @@ TBD at PRD). Rationale:
 
 ### Deferred-review fix
 
-Under `commit_interlock: on-task-approval`, deferred review *releases commits at leaf
-boundaries* during the batch. The user-scoped scope declaration is the approval signal; commits
+Under `commit_interlock: on-task-approval`, deferred review _releases commits at leaf
+boundaries_ during the batch. The user-scoped scope declaration is the approval signal; commits
 fire as each leaf completes. Push remains gated independently (`push_interlock` is unchanged).
 Bundling signals still fire transparently within the batch — when the agent detects overlap or
 sibling structure, it surfaces a deferral recommendation; otherwise it commits at the leaf.
@@ -223,7 +223,7 @@ the normal flow without the dispatch-time cost.
 
 **"Allow commits during deferred review, gate pushes only" (status-quo-minus-suspension).**
 Effectively this plan's deferred-review fix without the broader vocabulary or method
-restructuring. Considered as a minimal-change variant. Rejected as the *only* change because it
+restructuring. Considered as a minimal-change variant. Rejected as the _only_ change because it
 fixes the visible symptom but leaves the underlying conflation in place — future work (smart
 bundling, design-time atomicity hooks, configurable override) has nowhere to live cleanly.
 The vocabulary + method shape is what makes those extensions composable.
@@ -235,7 +235,7 @@ The vocabulary + method shape is what makes those extensions composable.
 - Method name. `commit-increment`? `commit-bundling`? Something else? Naming should compose
   with existing `commit-format` and `commit-context-format` siblings.
 - Signal threshold tuning. Sibling subtasks always trigger evaluation, or only when files
-  overlap *and* siblings? Calibration question; can iterate post-launch.
+  overlap _and_ siblings? Calibration question; can iterate post-launch.
 - Override surface for the explicit marker hint. Inline parenthetical in the task line?
   Frontmatter on the task list? CLI annotation? PRD-time decision.
 - Does the method extend `commit-format` / `commit-context-format`, or stand alongside them?
@@ -258,7 +258,7 @@ fresh and in-scope? fire (route per `releaseOptedIn`) : prompt to establish prov
 Composes with this plan because:
 
 - The deferred-review fix's "user-scoped scope declaration is the approval signal" framing maps
-  cleanly onto provenance state — deferred review *is* a provenance source with a defined scope.
+  cleanly onto provenance state — deferred review _is_ a provenance source with a defined scope.
 - Bundling signals + commit-interlock release would both read provenance rather than reconstruct it.
 - Cross-machine resume via plan-coord-probe gets a clean handoff property (provenance can be
   explicitly null at handoff; next session starts fresh, no inheritance ambiguity).
@@ -272,14 +272,14 @@ reshape on its own — could ship independently as a separate WU or fold in if s
 - The signal set (file overlap, sibling subtasks, explicit marker hint) covers the common
   bundling cases without false-positive noise. If beta usage shows signals firing too often or
   missing obvious bundling cases, calibration is needed.
-- Leaf-default commit boundaries are handoff-clean *in practice* under plan-coord-probe — i.e.,
+- Leaf-default commit boundaries are handoff-clean _in practice_ under plan-coord-probe — i.e.,
   the next machine's session-init can resume cleanly when the previous session committed at a
   leaf and pushed. Validate against plan-coord-probe's session-init contract once that lands.
 - The interlock-validation library shape from [plan-interlock-release-wrappers][plan-irw] reads
   commit-increment state cleanly without adapter friction. If the wrapper's interlock-state
   contract grows a "bundling-in-flight" axis, that's the wrapper's concern, not this plan's.
 - Existing `commit_interlock: on-task-approval` users do not experience the deferred-review
-  change as a regression. The change *enables* a previously-blocked use case (atomic commits
+  change as a regression. The change _enables_ a previously-blocked use case (atomic commits
   during batched execution); it shouldn't remove any prior functionality.
 - The method's `.override` mechanic is sufficient for projects wanting alternative bundling
   semantics. If the override surface needs to be richer than today's inline-content pattern

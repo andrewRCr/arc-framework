@@ -11,11 +11,27 @@ import { contentDigest, patchDigest, type PatchOperation } from "../lib/canonica
 import { validateManagedPath } from "../lib/canonical/managed-path.js";
 import { receiptId } from "../lib/canonical/receipt-id.js";
 import { readGitBlobBytes } from "../lib/io-context.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import {
   decodeRetirementRecordKey,
   RETIREMENT_RECORD_NAMESPACE,
 } from "../lib/work-unit/retirement-record-store.js";
 import { parseRetirementReceipt } from "../lib/work-unit/retirement-receipt-codec.js";
+import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
+
+/** Closed-stdin subprocess policies owned by the decompose-record hook adapter. */
+export const validateDecomposeRecordInputPolicyDeclarations = [{
+  commandPath: "hook-validate-decompose-record",
+  aliases: [],
+  sites: [1, 2, 3, 4].map((occurrence) => declareInteractionSite(
+    { file: "scripts/validate-decompose-record.ts", kind: "subprocess", callee: "execFileAsync", occurrence },
+    {
+      acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+      mutationBoundary: "hook-validate-decompose-record subprocess boundary", subprocess: "close-stdin",
+    },
+  )),
+}] satisfies readonly CommandInputDeclaration[];
 
 export interface StagedPathChange {
   status: "A" | "M" | "D";
@@ -59,6 +75,7 @@ const RECORD_PATTERN = new RegExp(
   `^${escapeRegExp(RETIREMENT_RECORD_NAMESPACE)}/(sha256-[0-9a-f]{64})\\.json$`,
   "u",
 );
+const FORBIDDEN_ROOT_INTERNAL_NAMESPACE = ".arc/.internal";
 const ACTIVE_META_PATTERN = /^\.arc\/active\/meta-([^/]+)\.md$/u;
 const NESTED_LIFECYCLE_META_PATTERN =
   /^\.arc\/(?:backlog\/(?:planned|provisional)|completed)(?:\/[^/]+)*\/meta-([^/]+)\.md$/u;
@@ -79,12 +96,20 @@ function apparentlyRetiredSlugs(changes: readonly StagedPathChange[]): string[] 
   return deletedOrigins.filter((origin) => !addedTargets.includes(origin));
 }
 
+interface ReceiptCoverage {
+  covered: Set<string>;
+  failedSubjects: Set<string>;
+  errors: string[];
+}
+
 function receiptCoveredRetirements(
   changes: readonly StagedPathChange[],
   readIndexBytes: DecomposeCommitGateInput["readIndexBytes"],
   readHeadBytes: DecomposeCommitGateInput["readHeadBytes"],
-): Set<string> {
+): ReceiptCoverage {
   const covered = new Set<string>();
+  const failedSubjects = new Set<string>();
+  const errors: string[] = [];
   const recordPaths = new Set(changes.filter((change) => RECORD_PATTERN.test(change.path)).map((change) => change.path));
   const operations: PatchOperation[] = [];
   try {
@@ -94,31 +119,62 @@ function receiptCoveredRetirements(
       if (change.status === "D") operations.push({ operation: "delete", path });
       else {
         const staged = readIndexBytes(change.path);
-        if (staged === null) return covered;
+        if (staged === null) return { covered, failedSubjects, errors };
         operations.push({ operation: "write", path, contentDigest: contentDigest(staged) });
       }
     }
   } catch {
-    return covered;
+    return { covered, failedSubjects, errors };
   }
   const stagedPatchDigest = patchDigest(operations);
   for (const change of changes) {
     const pathMatch = RECORD_PATTERN.exec(change.path);
-    if (change.status !== "A" || pathMatch?.[1] === undefined || readHeadBytes(change.path) !== null) continue;
+    if (pathMatch?.[1] === undefined) continue;
     const bytes = readIndexBytes(change.path);
     if (bytes === null) continue;
     try {
       const receipt = parseRetirementReceipt(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-      if (receipt?.subject.kind === "work-unit"
-        && (receipt.transition === "abandon" || receipt.transition === "decompose")
-        && decodeRetirementRecordKey(pathMatch[1]) === receipt.receiptId
-        && receipt.receiptId === receiptId({
+      if (receipt?.subject.kind !== "work-unit"
+        || (receipt.transition !== "abandon" && receipt.transition !== "decompose" && receipt.transition !== "rename")
+        || decodeRetirementRecordKey(pathMatch[1]) !== receipt.receiptId
+        || receipt.receiptId !== receiptId({
           schemaVersion: receipt.schemaVersion,
           subject: receipt.subject,
           transition: receipt.transition,
           sourceBranch: receipt.source.branch,
           sourceHead: receipt.source.head,
-        })
+        })) continue;
+
+      if (receipt.transition === "rename") {
+        const subject = receipt.subject.name;
+        const fail = (message: string): void => {
+          failedSubjects.add(subject);
+          errors.push(message);
+        };
+        if (change.status !== "A" || readHeadBytes(change.path) !== null) {
+          fail(`rename retirement record already exists or was amended for: ${subject}`);
+          continue;
+        }
+        const targetSlug = receipt.result.kind === "rename" ? receipt.result.targetSlug : "";
+        const targetAdded = changes.some((candidate) =>
+          candidate.status === "A" && lifecycleMetaSlug(candidate.path) === targetSlug);
+        if (!targetAdded) {
+          fail(`rename target lifecycle metadata is not staged as an addition: ${targetSlug}`);
+          continue;
+        }
+        if (!renameArtifactCorrespondenceMatches(changes, subject, targetSlug)) {
+          fail(`rename artifact correspondence mismatch: ${subject} -> ${targetSlug}`);
+          continue;
+        }
+        if (receipt.transitionPatchDigest !== stagedPatchDigest) {
+          fail(`rename finalized record patch digest mismatch for: ${subject}`);
+          continue;
+        }
+        covered.add(subject);
+        continue;
+      }
+      if (change.status === "A"
+        && readHeadBytes(change.path) === null
         && receipt.transitionPatchDigest === stagedPatchDigest) {
         covered.add(receipt.subject.name);
       }
@@ -126,7 +182,26 @@ function receiptCoveredRetirements(
       continue;
     }
   }
-  return covered;
+  return { covered, failedSubjects, errors };
+}
+
+function renameArtifactCorrespondenceMatches(
+  changes: readonly StagedPathChange[],
+  sourceSlug: string,
+  targetSlug: string,
+): boolean {
+  const sourceMatcher = artifactMatcher(sourceSlug);
+  const targetMatcher = artifactMatcher(targetSlug);
+  const sourcePrefixes = changes
+    .filter((change) => change.status === "D" && sourceMatcher.test(basename(change.path)))
+    .map((change) => basename(change.path).slice(0, -`-${sourceSlug}.md`.length))
+    .sort();
+  const targetPrefixes = changes
+    .filter((change) => change.status === "A" && targetMatcher.test(basename(change.path)))
+    .map((change) => basename(change.path).slice(0, -`-${targetSlug}.md`.length))
+    .sort();
+  return sourcePrefixes.length === targetPrefixes.length
+    && sourcePrefixes.every((prefix, index) => prefix === targetPrefixes[index]);
 }
 
 function hasPreparedDecomposeRecord(
@@ -163,9 +238,37 @@ function novelMergeChanges(input: DecomposeCommitGateInput): readonly StagedPath
   });
 }
 
+/**
+ * Whether one forbidden-namespace change is the legacy-receipt migration rather than a violation.
+ *
+ * Only a deletion qualifies, and only when the identical bytes are present at the canonical
+ * namespace in the same index. That keeps the guard's evidence-destruction bite — a bare removal
+ * still fails — while letting a branch that predates the relocation carry its receipts across.
+ */
+function migratesToCanonicalNamespace(
+  change: StagedPathChange,
+  input: DecomposeCommitGateInput,
+): boolean {
+  if (change.status !== "D") return false;
+  const leaf = change.path.slice(`${FORBIDDEN_ROOT_INTERNAL_NAMESPACE}/`.length);
+  if (leaf === "" || !leaf.startsWith("retirement-receipts/")) return false;
+  const preserved = input.readIndexBytes(
+    `${RETIREMENT_RECORD_NAMESPACE}/${leaf.slice("retirement-receipts/".length)}`,
+  );
+  return preserved !== null && bytesEqual(preserved, input.readHeadBytes(change.path));
+}
+
 /** Validate the staged decompose record and exact non-record patch. */
 export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): string[] {
-  const changes = novelMergeChanges(input);
+  const forbidden = input.changes.find((change) =>
+    (change.path === FORBIDDEN_ROOT_INTERNAL_NAMESPACE
+      || change.path.startsWith(`${FORBIDDEN_ROOT_INTERNAL_NAMESPACE}/`))
+    && !migratesToCanonicalNamespace(change, input));
+  if (forbidden !== undefined) {
+    return [`root-level ARC internal namespace is forbidden: ${forbidden.path}`];
+  }
+  const candidateChanges = novelMergeChanges(input);
+  const changes = candidateChanges;
   const errors: string[] = [];
   const recordChanges = changes.filter((change) => RECORD_PATTERN.test(change.path));
   if (input.mergeInProgress === true && recordChanges.length > 0) {
@@ -174,16 +277,18 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
   if (hasPreparedDecomposeRecord(recordChanges, (path) => input.readIndexBytes(path))) {
     return ["decompose record is prepared but not finalized"];
   }
-  const covered = receiptCoveredRetirements(
+  const coverage = receiptCoveredRetirements(
     changes,
     (path) => input.readIndexBytes(path),
     (path) => input.readHeadBytes(path),
   );
-  const uncovered = apparentlyRetiredSlugs(changes).filter((slug) => !covered.has(slug));
+  errors.push(...coverage.errors);
+  const uncovered = apparentlyRetiredSlugs(changes).filter((slug) =>
+    !coverage.covered.has(slug) && !coverage.failedSubjects.has(slug));
   if (uncovered.length > 0) {
     errors.push(`lifecycle retirement is missing a finalized retirement record for: ${uncovered.join(", ")}`);
-    return errors;
   }
+  if (errors.length > 0) return errors;
   if (recordChanges.length === 0) {
     return errors;
   }
@@ -220,7 +325,7 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
     errors.push("decompose retirement record already exists or was amended");
     return errors;
   }
-  if (record.schemaVersion !== 1) {
+  if (record.schemaVersion !== 1 && record.schemaVersion !== 2) {
     return ["decompose retirement record is not a finalized decompose receipt"];
   }
   const match = RECORD_PATTERN.exec(recordChange.path);

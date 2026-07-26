@@ -97,11 +97,11 @@ export function renderForwardGateProjection(
       ? "pending"
       : "failure";
   const blockers = conclusion === "failure"
-    ? [{ code: `independent-analysis:${evaluation.state}`, detail: `independent analysis is ${evaluation.state}` }]
+    ? [{ code: `standard-review:${evaluation.state}`, detail: `standard review is ${evaluation.state}` }]
     : [];
   const summary = evaluation.requirement === null
-    ? "independent analysis: exempt"
-    : `independent analysis: ${evaluation.state}; requirement ${evaluation.requirement.requirementId}`;
+    ? "standard review: exempt"
+    : `standard review: ${evaluation.state}; requirement ${evaluation.requirement.requirementId}`;
   return {
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",

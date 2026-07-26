@@ -124,36 +124,22 @@ canonical commit/push path under workflow guidance. Off-workflow commits use raw
 
 ### Self-Hosting Review Gate
 
-The review controller is not operational merge authority. Until its separate qualification and promotion work
-completes, integration uses the established manual integration path and the live legacy CI requirement; checked-in
-controller state, receipts, or verdicts must not be treated as permission to merge.
+Self-hosting integration runs one configured review loop through the shipped `arc review` command tree. Frontline
+sources run independently through `frontline resolve` and `frontline run`. The standard-review stream resolves one
+ordered source per pass: `delegated-agent` uses the local prepare/attest/resume boundary, while `coderabbit-pr` and
+`codex-pr` use the hosted request/await/settle boundary. Chunking and source resolution return typed actions, so the
+workflow dispatches mechanics without reconstructing provider state or asking which source to try next.
 
-This repository carries a repository-only TypeScript review controller under
-`packages/arc-framework/src/scripts/review-gate/`; it is linted, typechecked, and tested with the CLI source but is
-outside the tsup entry graph and npm package manifest. Its immutable private entrypoint registry composes three layers:
+The CLI owns deterministic mechanics: immutable target and guidance bindings, ordered safe fallback, bounded
+awaiting, result normalization, and thread settlement. The operating agent owns bounded judgment about finding
+disposition, later-head applicability, and whether targeted verification, focused supplementation, or a complete
+pass fits a changed target. Confident in-scope choices proceed and are disclosed; mutations, durable commitments,
+material uncertainty, exceptional cost, and final integration remain human-authorized.
 
-- **Neutral contracts and runtimes** — typed policy, request reservation, receipts, evidence, admission, fallback,
-  findings, settlement, passive waiting, head mutability, and verdict reduction depend on injected ports rather than
-  GitHub or provider APIs.
-- **GitHub and provider implementations** — REST/GraphQL readers, App-authored ledger/check writers, native review
-  state, CodeRabbit and hosted-Codex parsers, trigger actions, and exact-head settlement implement those ports.
-- **Repository policy and launchers** — self-hosting source identities, provider order, risk rules, workflow entry
-  points, local watcher, qualification coordinator, and repair tooling remain repository-specific.
-
-The dedicated GitHub App has no webhook or service runtime. Short-lived GitHub Actions runs execute protected
-default-branch code: secretless discovery emits bounded repository/PR candidates, environment-scoped App jobs re-query
-canonical state, and per-PR concurrency serializes authoritative writes. Event reconciliation and scheduled discovery
-converge on the same canonical state. Provider effects are admitted only after a durable reservation and confirmed
-App-authored pending projection; active flights freeze the reviewed head, and finding settlement remains bound to its
-original conversation.
-
-The private qualification launcher runs only from a clean checkout at an immutable remote default-branch SHA. It
-performs assigned developer-authenticated actions, dispatches protected App/token/repair probes, re-queries GitHub,
-and persists mode-restricted raw non-secret evidence plus tamper-evident checkpoints outside the repository. A closed
-typed matrix and deterministic activation compiler emit only sanitized candidates. Incomplete, contaminated,
-credential-shaped, mismatched, or unshipped results cannot activate policy. The checked-in policy remains inactive
-and legacy CI remains authoritative until live baseline qualification and the later source-pinned enforcement
-promotion complete their add-before-remove proofs.
+The final exact candidate head may invoke `arc review unlock` only from the combined disposition and integration
+interlock. The required `arc-cleared` commit status is a thin lifecycle lock: pushes re-lock a reviewed PR, and an
+exact-head unlock releases only the still-current, lifecycle-ready candidate. It does not prove provider evidence or
+grant autonomous merge authority. No GitHub App or resident review controller exists.
 
 ## 3. Infrastructure
 
@@ -186,11 +172,11 @@ _CI & configuration:_
   suite, build verification, template structure validation, internal link checking
 - **Merge gating**: `ci-ok` rolls up the classifier-driven CI graph; `lane` controls auto-merge vs reviewed PRs,
   while `weight` lets docs-only or already-verified code trees skip heavy code/test/portability work without skipping
-  documentation lint. The current live authority remains the thin CI `merge-ok` compatibility job; no App-owned
-  review context is required or claimed live-proven yet. `main` protection enforces that legacy context,
-  `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is enabled—planning/backlog grooming PRs
-  auto-merge, while code and constitutional PRs merge deliberately (solo repo: no formal Code Owner review). See
-  `strategy-work-organization.md` § Auto-Merge Lane and `.github/review-gate.md` for the owned promotion sequence.
+  documentation lint. Reviewed PRs are born with `arc-cleared` locked, every push re-locks the head, and only the
+  pinned default-branch unlock workflow may clear an exact lifecycle-ready candidate. Commit status is a deliberate
+  lock, not evidence proof or autonomous merge authority. `.github/CODEOWNERS` marks the reviewed lane, and native
+  auto-merge is enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge
+  deliberately (solo repo: no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line ending normalization,
   `tsconfig.json` for TypeScript, `tsup.config.ts` for build, `vitest.config.ts` for tests
 

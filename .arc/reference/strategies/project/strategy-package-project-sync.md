@@ -15,7 +15,7 @@ those are project-owned with no package counterparts.
 This repo has two copies of the ARC framework content:
 
 | Copy                 | Location                      | Role                                                                         |
-|----------------------|-------------------------------|------------------------------------------------------------------------------|
+| -------------------- | ----------------------------- | ---------------------------------------------------------------------------- |
 | **Package source**   | `packages/arc-framework/arc/` | Authoritative. What adopters receive via `arc init` and `arc update`.        |
 | **Project instance** | `.arc/`                       | Rendered output of the package source, plus project-specific customizations. |
 
@@ -28,7 +28,7 @@ source to reach adopters.
 Edit direction depends on file classification (per [strategy-file-classification.md][file-class]):
 
 | Classification    | Edit direction    | Rationale                                                                             |
-|-------------------|-------------------|---------------------------------------------------------------------------------------|
+| ----------------- | ----------------- | ------------------------------------------------------------------------------------- |
 | **Framework**     | Package → `.arc/` | `.arc/` copy should match package. Edits here are methodology changes that must ship. |
 | **Configurable**  | Both (by section) | Framework sections from package; project-specific sections in `.arc/` only.           |
 | **Scaffolded**    | `.arc/` only      | Project-owned after init. Package has template, `.arc/` has rendered content.         |
@@ -66,7 +66,7 @@ tree by then. Use targeted edits from the start.
 `<!-- arc:if -->` conditionals resolved during rendering:
 
 | Template file                   | Conditions           |
-|---------------------------------|----------------------|
+| ------------------------------- | -------------------- |
 | `session-init.template.md`      | team.mode (2 blocks) |
 | `02_define-project.template.md` | pm.mode (10 blocks)  |
 
@@ -124,7 +124,7 @@ shipped to adopters — only universal checks belong there. This supersedes the 
 **Strategy documents** and **ADRs** serve complementary roles in ARC's documentation system:
 
 | Aspect     | Strategy documents                            | ADRs                                       |
-|------------|-----------------------------------------------|--------------------------------------------|
+| ---------- | --------------------------------------------- | ------------------------------------------ |
 | Content    | Synthesized approaches to problem domains     | Specific decisions made at a point in time |
 | Style      | "How we think about X"                        | "What we chose for X situation"            |
 | Mutability | Updated as understanding evolves              | Immutable once accepted (supersession)     |
@@ -152,7 +152,7 @@ Configurable sets. The self-hosting configuration currently resolves 86 Framewor
 `init-recipe.json` plus `classification.ts`; the generated self-hosting manifest is the reviewable inventory, and
 `framework-sync.test.ts` verifies each installed Framework file against rendered package source.
 
-### Configurable files (project sections expected to differ) — 34
+### Configurable files (project sections expected to differ) — 35
 
 - `completed/README.md`
 - `system/rules/DEV-RULES.PROJECT.md`
@@ -177,8 +177,9 @@ Configurable sets. The self-hosting configuration currently resolves 86 Framewor
 - `system/methods/commit-footer.md`
 - `system/methods/commit-format.md`
 - `system/methods/frontline-review.md`
-- `system/methods/independent-analysis.md`
+- `system/methods/standard-review.md`
 - `system/methods/implementation-audit.md`
+- `system/methods/review-chunking.md`
 - `system/methods/self-review.md`
 - `system/methods/issue-triage.md`
 - `system/methods/quality-gate-commands.md`
@@ -215,17 +216,17 @@ Configurable sets. The self-hosting configuration currently resolves 86 Framewor
 ### Summary
 
 | Classification | Count | Update Behavior                                       |
-|----------------|-------|-------------------------------------------------------|
+| -------------- | ----- | ----------------------------------------------------- |
 | Framework      | 86    | Wholesale replaced. No conflicts.                     |
-| Configurable   | 34    | Three-way merge. Conflicts expected in user sections. |
+| Configurable   | 35    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 4     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Self-hosting installed files:** 124. **Template counterparts:** 11. Conditional recipe arms change installed
+**Self-hosting installed files:** 125. **Template counterparts:** 11. Conditional recipe arms change installed
 membership: external PM adds its setup workflow, arc-in-git adds four planning files, and team mode adds the team
 coordination strategy.
 
-*`DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not counted.*
+_`DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not counted._
 
 ---
 

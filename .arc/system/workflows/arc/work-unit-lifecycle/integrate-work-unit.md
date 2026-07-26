@@ -6,7 +6,8 @@ arc:
     - adversarial-review
     - self-review
     - frontline-review
-    - independent-analysis
+    - standard-review
+    - review-chunking
     - implementation-audit
     - review-triage
     - review-response
@@ -70,6 +71,10 @@ The executor fires the full `integrate` edge: flips `**State:** Active → Integ
 `State` column reflects `Integrating`, and stages both the meta and the ROADMAP. `{name}` defaults to the current
 worktree's WU. The `Integrating` state covers PR open through review-response.
 
+An advisory-only reconcile stops before the transition and surfaces every reference. Edit and rerun, or obtain
+explicit user direction to retain all surfaced advisories and rerun the same command with `--allow-advisories`.
+The flag does not accept conflicts or stale mechanical edits.
+
 Confirm the regenerated ROADMAP diff is clean (the `State` flip only) before committing.
 
 > [!CAUTION]
@@ -93,25 +98,16 @@ every pre-PR / PR-open step that already ran** — re-enter at the first incompl
 point from observable state — PR open vs. merged, plus worktree/branch presence — never by redoing a completed
 step:
 
-When review is suspended, read its versioned `review-suspension` operation record before selecting a review action.
-If the record is absent on this machine, reconstruct it only from canonical vehicle, request, exact-target, source,
-policy/rubric, deadline, and wakeup-token facts, then publish with expected version zero. Refuse a version conflict.
-The re-entry check re-reads current host/provider state and derives any `review-response` plan and resume text afresh;
-the meta's narrative `Next Action` and persisted controller conclusions are never operational authority.
-
-After persisting a suspension, prefer an injected promoted watcher capability when one is explicitly available. Arm
-it with the exact operation, target/request, generation, deadline, and wakeup-deduplication token. An absent capability
-selects the ordinary fallback path; do not probe, invoke, await, or infer it from controller or workflow modules.
-
-On fallback, arm a harness-native scheduled wakeup only when that capability is injected and its run time is no later
-than the suspension deadline. Otherwise leave the vehicle in `Integrating` and state the exact human resume condition:
-which source state change or deadline should trigger re-entry, and which WU or Errand integration to resume. A bounded
-wait timeout or failed/unavailable provider result enters this same explicit human-reentry path. Before any scheduled
-action rereads live state, reject it unless operation, target/request, generation, and wakeup token still match the
-current suspension; duplicate current wakeups are harmless canonical rereads.
+On interruption, re-enter local and frontline review only through the public protocol in Step 3. Retain the returned
+operation ID and follow the last typed `state` / `nextAction`: resume a local operation with
+`arc review local resume -`, and re-invoke the owning idempotent verb for frontline, response, or reduction work.
+Resume a hosted operation by passing its self-contained handle back to `arc review hosted await -`. Never publish
+or reconstruct review state from workflow prose; the meta's narrative `Next Action` is not operational authority.
+When no public action can advance yet, leave the vehicle in `Integrating` and state the exact source change or
+deadline that should trigger human re-entry.
 
 | Resolver and PR state                         | Demonstrably already ran             | Resume at                                                          |
-|-----------------------------------------------|--------------------------------------|--------------------------------------------------------------------|
+| --------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------ |
 | `integrating`; no PR open                     | transition                           | Step 2 (local preflight → creation path)                           |
 | `integrating`; PR open, not merged            | transition, PR open                  | Step 4 (`post-pr-open` → review iteration), then candidate tail    |
 | `shipped` in `completed`; PR open, not merged | transition, PR open, candidate sweep | Step 13 (validate products, then final settlement)                 |
@@ -150,25 +146,44 @@ actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise,
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
 
-From the pushed branch, compose the exact aggregate review target and the explicit routing-facts record the
-resolver consumes — `changeSetState`, `contentKind`, `reviewRisk`, `changeDeterminacy`, `ownership`,
-`surfaceAuthority`, `assurance`, and `activity`. These are review-policy facts, not the canonical changed-path
-record; supplying the latter resolves `changeSetState: unknown` and the maximal floor. Run
-`arc review frontline resolve -` with `"invocation": {"mode": "inherit"}`, then execute only its selected action:
+From the pushed branch, compose the immutable policy target
+`{ repository, pullRequest: null, headSha }`, the routed `standardReview` projection, and the explicit routing facts.
+For each new target, invoke `arc review chunking resolve -` once and retain its target statistics. Select
+whole-target or chunked scope separately for frontline and standard review, then pass the exact selection to
+`arc review resolve -`. The chunking recommendation informs this bounded scope judgment; the workflow never
+recomputes thresholds.
 
-- `skip` — continue.
-- `offer` — surface its preparation or authorization action; execute only when accepted and the carrier is ready.
-- `attempt` — prepare the registered source and run [`frontline-review`][frontline-review] against the exact target.
+Resolve the frontline lane first, then the pre-PR standard lane. Follow only each returned `state` /
+`nextAction` pair:
 
-Resolve `frontline-run` through `ReviewOperationStateStore` before execution. Reuse only an unchanged exact
-target/source/policy/generation binding; otherwise invalidate it. Publish pending state before the carrier effect and
-the normalized outcome after it. This operational record never enters review receipts or gate reduction.
+- `skipped | no-op | pass-complete / none` — the lane is complete at this boundary.
+- `awaiting-change-request / open-change-request` — retain the standard-lane progress and continue to PR creation.
+- `ready / run-frontline` — invoke `arc review frontline resolve -`, then
+  `arc review frontline run -` with the exact driver selection.
+- `ready / local-prepare` — invoke `arc review local prepare -`.
+- `findings / respond` — enter the disposition protocol below.
+- `approval-required / obtain-ceiling-override` — surface the returned exact one-pass consequence and
+  `Approve (or redirect)?`; only exact approval returns that override to the next identical target/lane call.
+- `chunk-pending / continue-chunks` — continue the selected local chunk series without consuming the pass.
+- `stale-target / select-scope` — recompose the target and rerun chunking before resolving again.
+- `blocked | unavailable | invalid-override / stop` — surface the typed diagnostics and stop.
 
-Route normalized findings through [`review-response`][review-response]. Apply only the approved fix set, run Tier 1
-quality gates, commit through the applicable interlock, and push through the workflow-wide push contract. After every
-persisted fix, recompose the exact target and resolve frontline routing again; run only the bounded follow-up the
-result permits. Surface clean, unavailable, failed, and pass-cap outcomes as advisory publication orientation, then
-continue without treating them as review evidence.
+Dispatch frontline and local operations only through their public typed actions. Local preparation receives the
+evaluator identity and routing facts; the evaluator submits status, result, findings, and run identity to
+`arc review local attest -`. Runtime-owned bindings for repository, target/tree, source, rubric, and guidance are
+injected from the immutable operation. Any supplied compatibility binding must match exactly. Resume with
+`arc review local resume -`; reduce with `arc review reduce -`; submit approved disposition state with
+`arc review respond -`. A command error envelope, including `invalid-input`, carries no dispatchable state.
+
+For every finding, run [`review-triage`][review-triage] and [`review-response`][review-response]. Present reviewer
+severity, ARC re-grade, source locus, and a discrete `Recommended disposition:` line. Approval is required before
+any finding-driven fix, durable deferral, channel settlement, or other mutation/commitment. A complete no-action
+record-only set may remain proposed for the final combined gate. Approved fixes run Tier 1 gates, commit atomically,
+push through the workflow contract, and produce a new target; apply Step 4's review applicability judgment rather
+than carrying clearance or merge authority.
+
+Never treat advisory receipts, outcomes, reductions, scope recommendations, or disposition proposals as merge
+authority.
 
 Immediately before creation, compose
 `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }` from the pushed branch. If `pre-pr-open`
@@ -193,19 +208,56 @@ describing post-merge workflow continuity or next actions — those route to the
 
 Resolve the one open PR and compose `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open`
 is active, execute its numbered `.actions` in authored order before review iteration. This idempotent hook fires on
-both the newly-created path and every open-PR re-entry; actions derive current controller/host state from `hostRef`.
-Review coordination and every hook invocation share this exact-head contract. If a review action changes the head,
-recompose `openedChangeRequest` from the canonical current head before re-entry; never carry the prior head forward.
+both the newly-created path and every open-PR re-entry; actions derive current host state from `hostRef`. Every
+hook and review invocation shares this exact-head contract. If an action changes the head, recompose
+`openedChangeRequest` from the canonical current head before re-entry.
 
-Invoke the active project review coordinator's source-neutral independent-analysis cycle with the exact target,
-effective routed obligation, and explicit project channel `local | hosted | both`. The coordinator selects and
-normalizes the admitted carrier, reduces its result, and sends findings through [`review-response`][review-response].
-If the selected source is unavailable, partial, or failed, only a required obligation blocks; recommended work stays
-visible and non-blocking. Recompose and repeat the cycle after any approved fix changes the target.
+Before spending a hosted pass on a branch already behind its base, read `arc base drift --json`. Keep `clean` and
+regenerable-only drift silent. For substantive overlap, reconcile early only when the interaction is clear and
+reviewing first would waste the pass; use an append-only merge, rerun Tier 1 gates, push, and recompose the target
+without a permission stop. A conflict, material interaction, or uncertain product decision stops. This advisory
+never replaces Step 13's authoritative final drift read.
 
-Process any reviewer findings per the [`review-triage` method][review-triage]; commit fixes per the
-[`commit-footer` method][commit-footer]. Re-run Tier 1 quality gates on modified files after each review-driven
-commit.
+For the opened target, rerun `arc review chunking resolve -` and invoke `arc review resolve -` for any incomplete
+lane. Follow the Step 3 dispatch. On `ready / hosted-request`, invoke `arc review hosted request -` with the selected
+provider, exact opened target, and `coverage: complete`:
+
+- `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use the bounded
+  wait again when it returns `pending / await`; do not build an agent polling loop.
+- `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
+- `findings / triage` — run the disposition protocol. For each approved finding with
+  `settlement: reply-and-resolve`, settle before feeding `findings` back to the driver. For `defer` or `reject`,
+  invoke `arc review hosted settle -` with the unchanged originating `target` and `fixTarget: null`. For `fix`,
+  apply and verify the approved change, commit and push it, recompose the current target, then invoke the same verb
+  with the originating `target` plus that changed `fixTarget`. A finding with `settlement: not-applicable` is
+  triage-only: never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for
+  it, regardless of disposition.
+- `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it may
+  select the next configured source without consuming the pass.
+- Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
+  an uncertain request.
+
+While a hosted await is live, speculative drafting of Completion Notes, Release Notes, and the cleanup plan is
+allowed when useful. Do not commit, push, archive, regenerate readiness, or destructively clean from that draft
+before `review-settled`.
+
+After every target movement, make and disclose a **review applicability** judgment from the exact delta:
+
+- use targeted verification when prior complete coverage confidently remains applicable to a narrow,
+  non-interacting record-only or lifecycle delta;
+- run a focused supplemental check when a bounded interaction deserves attention but not a complete pass;
+- repeat the applicable complete review for behavioral, authority, contract, materially interacting, or uncertain
+  change.
+
+These are judgment signals, not an eligibility checklist or proof obligation. A confident bounded choice proceeds
+without asking permission and is retained for the final gate. An agent-selected supplemental review is disclosed
+as it runs and enters the same finding/disposition loop; it does not settle `standardReview` unless it ran that
+contract. A hosted supplemental request uses `coverage: incremental`; if its adapter reports
+`effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only when the pass needs
+new authority, material cost, or resolution of genuine uncertainty.
+
+Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and merge authorization;
+never rewrite a prior exact-target result as if it ran on the new head.
 
 The WU stays in `**State:** Integrating` throughout this phase. Composition + sweep do not fire here.
 
@@ -221,12 +273,14 @@ pass, or an unattested result does not establish it.
 
 ### 6) Confirm review coordination
 
-Confirm the source-neutral open-PR review cycle has reduced the routed WU obligation to `review-settled`. This is not
-the final-head checkpoint; base freshness belongs only to Step 13, after candidate composition.
+Confirm the public open-PR review protocol has reduced the routed WU obligation to `review-settled`. Every
+mutation- or commitment-bearing disposition must already be approved; a complete no-action record-only set may
+remain proposed for the combined final gate. This is not the final-head checkpoint; base freshness belongs only to
+Step 13, after candidate composition.
 
-Only that cycle's settled reduction establishes `review-settled`. Any pre-composition direction to merge once review
-settles authorizes autonomous advance through candidate assembly to the final integration interlock; it is not
-prospective merge authority over the candidate's not-yet-known head.
+Only that protocol's settled reduction establishes `review-settled`. Any pre-composition direction to merge once
+review settles authorizes autonomous advance through candidate assembly to the final integration interlock; it is
+not prospective merge authority over the candidate's not-yet-known head.
 
 After settlement, clean the WU content:
 
@@ -324,16 +378,12 @@ What gets pushed varies by cadence:
 
 Repeat the Step 3 push extension contract before this push.
 
-Invoke the active project review coordinator's exact-head mutability action with the current
-`openedChangeRequest`, the outgoing local head, and any `begin-fix` authorization receipt. Stop on any typed refusal;
-never reverse the current/outgoing head order.
-
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
 After push, this is a provisional integration candidate, never merge readiness.
-Always recompose the candidate after any correction or interacting reconcile; only Step 13's exact-head integration
-authorization can release the merge.
+Recompose its exact target, rerun chunking preflight, and apply Step 4's review applicability judgment. Only
+Step 13's exact-head integration authorization can release the merge.
 
 ### 13) Behind-base reconcile gate and merge
 
@@ -361,13 +411,11 @@ git merge --no-edit {baseOid}
 ```
 
 A merge conflict stops without resolution. Otherwise run Tier 1 quality gates and recompose the exact target. Ask
-the active project review coordinator for the typed applicability proof. Carry the composition basis only when the
-proof establishes the reviewed WU delta is unchanged and selects `carry`; an interacting or otherwise non-carry
-result discards the basis, returns to Step 4 for required review, and recomposes the candidate afterward.
+the operating agent for the same disclosed review applicability judgment as Step 4. Preserve prior complete
+coverage with targeted verification when the merge is confidently non-interacting; otherwise run focused or
+complete review and recompose the candidate afterward. Clearance and integration authority never carry.
 
-Repeat the Step 3 push extension contract, then invoke the active project review coordinator's exact-head mutability
-action with the current `openedChangeRequest` and outgoing local head. Stop on a typed refusal; never reverse those
-heads.
+Repeat the Step 3 push extension contract.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
@@ -375,6 +423,35 @@ heads.
 After push, re-run required CI and routing on the new exact head before `pre-merge`. If the base moves again, return
 to the same Step 13 drift read. Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. Continue
 only when the authoritative result is `clean`.
+
+At the zero-behind head, apply the current WU's exact reconcile and parse its JSON:
+
+```bash
+arc wu reconcile {name} --apply --json
+```
+
+Accept only a schema-v1 result for the exact slug with status `clean`, `pending`, `applied`, or `conflict`. Malformed,
+unrecognized, or command-failure output stops integration. `pending` stops and surfaces every advisory reference:
+edit and rerun until `clean` / `applied`, or obtain explicit user direction to retain each advisory as intentional
+before continuing. `conflict` — including missing, ambiguous, corrupt, or
+otherwise unavailable replacement evidence — stops unmerged and surfaces the typed reason; the WU may remain
+`Integrating`.
+
+`clean` proceeds without a commit. On `applied`, run Tier 1 quality gates over the staged correction, then commit:
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): reconcile {name} before integration
+
+Context: meta-{name}.md (integration reconcile)
+```
+
+Repeat the Step 3 push extension contract and exact-head mutability action, then push through `workflowPush`.
+Rerun required CI and exact-head review coordination, and restart Step 13 from the authoritative base-drift read.
+The correction invalidates every prior base, lifecycle, review, and pre-merge checkpoint; rebuild them from the new
+head. Do not widen the review-readiness request or add a second merge-guard criterion.
 
 At the zero-behind final head, retain the `clean` result's `baseOid` as the current base-freshness evidence. Resolve
 authoritative lifecycle state:
@@ -388,16 +465,23 @@ Require a valid result for the exact WU and cadence. Under `with-integration`, r
 require resolver state `integrating`; archive and readiness products remain post-merge. Both cadences require
 Completion Notes and any applicable Release Notes. Missing, ambiguous, or wrong-cadence products stop.
 
-Compose the current `openedChangeRequest` and fire `pre-merge` when active. Its actions must report lifecycle
-readiness plus checks, conversations, requirements, and controller settlement for this exact head, then
-retain `openedChangeRequest.headSha` as `{approved-head-sha}`. Any candidate mutation or review action invalidates the
-checkpoint and any prospective authorization: return to the authoritative lifecycle/drift reads, reconcile if
-needed, and fire the final hook again. No lifecycle- or review-authored commit or push is allowed after this stable
-checkpoint and before the integration interlock.
+Compose the current `openedChangeRequest` and invoke `arc review readiness -` with the exact tree root, target,
+vehicle, and WU slug. Require the ready envelope for this head. Fire `pre-merge` when active; its actions report
+checks, conversations, and requirements without replacing readiness or review settlement. Retain
+`openedChangeRequest.headSha` as `{approved-head-sha}`. Any candidate mutation or review action invalidates the
+checkpoint: return to the authoritative lifecycle/drift reads, reconcile if needed, and fire the final hook again.
+No lifecycle- or review-authored commit or push is allowed after this stable checkpoint and before the integration
+interlock.
 
 Compose the exact candidate-tail diff from the settled implementation head through task and notes cleanup,
 composition, cohort closeout, archive moves, readiness regeneration, and reconcile commits. Surface this exact diff,
 not excerpts alone.
+
+Compose and preview the final content-gated `## Review` record. Report `Local` and `Hosted PR` activity by
+human-readable product/model and count, using `None` for an empty category. Report `Triage` with the GitHub identity
+approving the final disposition set and distinct material-finding counts by final disposition. When prior complete
+coverage carried across a later narrow delta, add `Coverage` with the targeted verification and delta character;
+omit `Coverage` when every reported pass ran on this head. Omit the whole section when no review ran.
 
 No `gh pr merge`, auto-merge enablement, or queued merge may occur before these products exist and the final
 integration-interlock fires. The integration-interlock is the sole merge authority.
@@ -406,25 +490,34 @@ A post-composition failure leaves the candidate unmerged and stops with its evid
 incomplete candidate-tail step; never infer readiness from later products that happen to exist.
 
 > [!IMPORTANT]
-> `integration-interlock`: Stop before merge. Surface the exact approved head, complete candidate-tail diff, PR
-> status (open threads, required approvals, checks), requirements, merge method, lifecycle readiness, and the clean
-> base-drift result; await explicit integration approval before merging.
+> `integration-interlock`: Stop before merge. Surface the exact approved head, complete candidate-tail diff, every
+> review applicability call and targeted verification, the proposed final dispositions and `## Review` record, PR
+> status, requirements, merge method, lifecycle readiness, and the clean base-drift result. State that approval
+> applies final dispositions and channel settlement, ends review, invokes the exact-head unlock when available, and
+> authorizes merge only if the required status and ordinary exact-head rechecks succeed unchanged. Close with
+> `Approve (or redirect)?`.
 
 If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
 the requested composition correction — never amend or rewrite the pushed head — rerun affected gates and routing,
 push through the workflow contract, rebuild lifecycle/base evidence, and refire the integration-interlock over the
 new exact head.
 
-Immediately after approval, recompose `openedChangeRequest` from the canonical current head. If its `headSha`
-differs from `{approved-head-sha}`, invalidate the approval and return to the review cycle. Otherwise, re-read PR status
-for that exact head. If threads, required approvals, or required checks are no longer settled, invalidate the
-approval and return to the review cycle.
+Immediately after approval, apply the approved final dispositions and channel settlements, then recompose
+`openedChangeRequest` from the canonical current head. If its `headSha` differs from `{approved-head-sha}`,
+invalidate the approval and return through review applicability. Otherwise, re-read PR status for that exact head.
+If threads, required approvals, or required checks are no longer settled, invalidate the approval and return
+through review.
+
+Invoke `arc review unlock -` with the exact approved target, vehicle, and tree root. Follow only its typed action:
+`dispatched / await-clearance` waits for the required `arc-cleared` status; `no-unlock / none` continues because the
+default-branch workflow is absent; `blocked / stop` invalidates approval. Re-read required checks on the unchanged
+head, then replace any stale PR review summary with the previewed `## Review` record immediately before merge.
 
 With PR state still settled, immediately invoke `arc base drift --json` once more and apply the same strict
 validation. `unavailable`, `skipped`, malformed, or unrecognized stops; `reconcile` returns to the reconcile loop
 and requires a new exact-head checkpoint plus integration approval. Only `clean` permits the merge command, with
-no extension, review action, lifecycle mutation, commit, push, fetch, or human stop between this final read and
-merge:
+no extension, review action, lifecycle mutation, commit, push, fetch, or second human stop between this final read
+and merge:
 
 ```text
 result = arc base drift --json
@@ -508,7 +601,6 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 
 [branch-format]: ../../../methods/branch-format.md
 [self-review]: ../../../methods/self-review.md
-[frontline-review]: ../../../methods/frontline-review.md
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md

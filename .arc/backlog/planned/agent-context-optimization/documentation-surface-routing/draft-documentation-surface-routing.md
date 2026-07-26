@@ -97,7 +97,7 @@ confirms this is not yet a named pattern in the broader ecosystem — this WU co
 ### `notes-*.md` positioning
 
 `notes-*.md` is intentionally free-form. Positive boundaries are not the codification goal;
-negative boundaries are — what does *not* belong, namely material that already lives in commit
+negative boundaries are — what does _not_ belong, namely material that already lives in commit
 body, task-list Outcome, status file, or SESSION-NOTES for the same work.
 
 Characteristics carried forward to the strategy doc:
@@ -274,10 +274,10 @@ additions; possibly reference-card generator.
 
 ### With scalable-core (ADR-020)
 
-- **Ownership split:** this WU owns *what* completion surfaces carry (the synthesis-over-record routing);
-  ADR-020 owns *whether* `completed/` persists (the `archive.preserve` toggle). Complementary, no overlap.
+- **Ownership split:** this WU owns _what_ completion surfaces carry (the synthesis-over-record routing);
+  ADR-020 owns _whether_ `completed/` persists (the `archive.preserve` toggle). Complementary, no overlap.
 - **Supplies the toggle's value-prop:** the synthesis-vs-record framing is what `archive.preserve: false`
-  trades away — not the record (git holds that, P6) but the durable *synthesis* layer. ADR-020 cites this
+  trades away — not the record (git holds that, P6) but the durable _synthesis_ layer. ADR-020 cites this
   framing directly.
 - **Reinforcing:** as this WU succeeds in making completion notes less restate-y of git (more pure
   synthesis), the archive becomes less reconstructable from git → the cost of deleting rises → reinforces
@@ -332,9 +332,9 @@ Strategy doc's audience-analysis section consumes the research findings directly
 - **Future scope re-entry.** If salience layer proves insufficient post-ship, body-vs-Outcome
   duplication detection re-enters as a future-WU candidate.
 - **Interim project-doctrine surface routing (captured from Worktree Foundation planning, 2026-05-24).**
-  Some `WORKING-MEMORY.md` entries are project *interim-doctrine* ("use pattern X until WU-Y ships") —
+  Some `WORKING-MEMORY.md` entries are project _interim-doctrine_ ("use pattern X until WU-Y ships") —
   broadly-applicable and removal-triggered — rather than personal scaffolding. WF resolved that ARC adds
-  no project-scoped *ephemeral* tier (shared-ephemeral collapses into ceremony; loading it at everyone's
+  no project-scoped _ephemeral_ tier (shared-ephemeral collapses into ceremony; loading it at everyone's
   init spends attention without consent). The residual routing question lands here: should this content
   route to a **tracked, reviewed, init-loaded** surface with explicit removal triggers — for ARC the
   init-loaded home is a demarcated interim section of `AGENT-BRIEF.PROJECT` / `DEV-RULES.PROJECT`, not a

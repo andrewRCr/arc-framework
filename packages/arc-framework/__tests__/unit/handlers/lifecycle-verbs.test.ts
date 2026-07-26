@@ -11,12 +11,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
 const mockNote = vi.fn();
+const mockSelect = vi.fn();
 const mockIoExec = vi.fn();
+const mockCreateUserIOContext = vi.fn();
+const mockSpinnerStart = vi.fn();
+const mockSpinnerStop = vi.fn();
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
   note: (...a: unknown[]) => mockNote(...a),
+  select: (...a: unknown[]) => mockSelect(...a),
+  isCancel: () => false,
   log: { error: (...a: unknown[]) => mockLogError(...a), info: (...a: unknown[]) => mockLogInfo(...a) },
+  spinner: () => ({ start: (...a: unknown[]) => mockSpinnerStart(...a), stop: (...a: unknown[]) => mockSpinnerStop(...a) }),
 }));
 
 vi.mock("../../../src/handlers/shared.js", () => ({
@@ -26,12 +33,15 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 }));
 
 vi.mock("../../../src/lib/io-context.js", () => ({
-  createUserIOContext: () => ({
-    exec: mockIoExec,
-    readFile: vi.fn(async () => "meta"),
-    writeFile: vi.fn(),
-    mkdir: vi.fn(),
-  }),
+  createUserIOContext: (...args: unknown[]) => {
+    mockCreateUserIOContext(...args);
+    return {
+      exec: mockIoExec,
+      readFile: vi.fn(async () => "meta"),
+      writeFile: vi.fn(),
+      mkdir: vi.fn(),
+    };
+  },
   prepareGitRefVerification: vi.fn(),
   readGitBlobBytes: vi.fn(),
 }));
@@ -68,11 +78,19 @@ vi.mock("../../../src/lib/git/write-context.js", () => ({
 }));
 
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
-  parseMetaRecord: () => ({ Branch: "feat/foo" }),
+  parseMetaRecord: () => ({ branch: "feat/foo" }),
   readActiveMetaCandidates: async () => ({ candidates: [{ filename: "meta-foo.md" }] }),
 }));
 
-vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({ buildLifecycleIndex: async () => new Map() }));
+const mockBuildLifecycleIndex = vi.fn();
+vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
+  buildLifecycleIndex: (...a: unknown[]) => mockBuildLifecycleIndex(...a),
+}));
+
+const mockResolveComposedLifecycleIndex = vi.fn();
+vi.mock("../../../src/lib/work-unit/composed-lifecycle-index.js", () => ({
+  resolveComposedLifecycleIndex: (...args: unknown[]) => mockResolveComposedLifecycleIndex(...args),
+}));
 
 const mockRunStub = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/stub.js", () => ({ runStub: (...a: unknown[]) => mockRunStub(...a) }));
@@ -216,11 +234,55 @@ const {
 } = await import("../../../src/handlers/lifecycle.js");
 
 const okOutcome = { status: "ok", advisories: [] as string[] };
+const pendingRetirementLifecycle = {
+  subject: { slug: "foo", branch: "feat/foo" },
+  transition: "abandon",
+  authority: { kind: "receipt-backed", receiptId: `sha256:${"a".repeat(64)}`, authorityVersion: "version" },
+  cleanup: {
+    branch: { status: "pending" },
+    worktree: { status: "pending" },
+    userWorkspace: { status: "pending" },
+  },
+  successorReadiness: { candidates: [], actionable: false, remedy: null },
+} as const;
+const branchlessRetirementLifecycle = {
+  ...pendingRetirementLifecycle,
+  subject: { slug: "foo", branch: null },
+  cleanup: {
+    branch: { status: "not-applicable" },
+    worktree: { status: "not-applicable" },
+    userWorkspace: { status: "not-applicable" },
+  },
+} as const;
+const cleanReconcile = {
+  status: "clean",
+  prepared: {
+    slug: "foo",
+    plan: {
+      status: "ready",
+      dependency: {
+        before: [],
+        after: [],
+        replacements: [],
+        drops: [],
+        discharged: [],
+        live: [],
+        conflicts: [],
+      },
+      trackedReferences: { edits: [] },
+      advisories: [],
+    },
+    edits: [],
+  },
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
   process.exitCode = undefined;
   mockRunStub.mockResolvedValue({ status: "scaffolded", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
+  mockBuildLifecycleIndex.mockResolvedValue(new Map([
+    ["foo", { name: "foo", location: "provisional", path: ".arc/backlog/provisional/foo/meta-foo.md" }],
+  ]));
   mockRunPromote.mockResolvedValue({ status: "moved", outcome: okOutcome, metaPath: ".arc/backlog/planned/foo/meta-foo.md" });
   mockRunDemote.mockResolvedValue({ status: "moved", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
   mockRunPark.mockResolvedValue({
@@ -231,17 +293,35 @@ beforeEach(() => {
   mockLandParkPlanningTransition.mockResolvedValue({
     status: "landed",
     commit: "abc123",
-    receiptPath: ".arc/.internal/retirement-receipts/receipt.json",
+    receiptPath: ".arc/system/.internal/retirement-receipts/receipt.json",
     plannedPaths: [".arc/backlog/planned/foo/meta-foo.md"],
   });
   mockRunResume.mockResolvedValue({ status: "resumed", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunMaterialize.mockResolvedValue({ status: "materialized", outcome: okOutcome, branch: "feat/foo", inPlace: false });
   mockRunActivate.mockResolvedValue({ status: "activated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunDeactivate.mockResolvedValue({ status: "deactivated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
-  mockRunAbandon.mockResolvedValue({ status: "abandoned", outcome: okOutcome });
+  mockRunAbandon.mockResolvedValue({
+    status: "abandoned",
+    outcome: okOutcome,
+    lifecycle: pendingRetirementLifecycle,
+  });
+  mockResolveComposedLifecycleIndex.mockResolvedValue({
+    index: new Map(),
+    recordsBySlug: new Map(),
+    qualityFacts: { warnings: [], resultMarks: [], bySlug: new Map() },
+    worktreePathBySlug: new Map(),
+    liveRefs: {},
+    reachable: true,
+    readQuality: "reachable",
+  });
   mockResolveSlugState.mockReturnValue("active");
   mockPlanAbandon.mockReturnValue({ legal: true, lines: ["Artifacts: remove the work unit's artifact set"] });
-  mockRunIntegrate.mockResolvedValue({ status: "integrated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
+  mockRunIntegrate.mockResolvedValue({
+    status: "integrated",
+    outcome: okOutcome,
+    metaPath: ".arc/active/meta-foo.md",
+    reconcile: cleanReconcile,
+  });
   mockRunReopen.mockResolvedValue({ status: "reopened", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
   mockPrSource.mockResolvedValue(new Map([["feat/foo", { merged: false }]]));
@@ -253,6 +333,12 @@ beforeEach(() => {
   mockRunDecompose.mockResolvedValue({
     status: "decomposed",
     result: {
+      placement: {
+        kind: "cohortless",
+        cohort: null,
+        coordination: "none",
+        summary: "flat planned siblings (no cohort)",
+      },
       members: [{ slug: "alpha" }, { slug: "beta" }],
       repointed: [],
       origin: "retired",
@@ -262,6 +348,12 @@ beforeEach(() => {
   mockRunPreparedDecompose.mockResolvedValue({
     status: "decomposed",
     result: {
+      placement: {
+        kind: "cohortless",
+        cohort: null,
+        coordination: "none",
+        summary: "flat planned siblings (no cohort)",
+      },
       members: [{ slug: "alpha" }, { slug: "beta" }],
       repointed: [],
       origin: "retired",
@@ -276,6 +368,7 @@ beforeEach(() => {
     status: "recorded",
     receipt: { receiptId: `sha256:${"a".repeat(64)}` },
     authorityVersion: "finalized-version",
+    lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
   });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({
@@ -310,15 +403,24 @@ describe("handleStub", () => {
     });
   });
 
-  it("narrows an invalid commitment to undefined (runStub then refuses)", async () => {
+  it("rejects an invalid commitment before dispatch", async () => {
     await handleStub("foo", { commitment: "bogus", priority: "P1" });
-    expect(mockRunStub.mock.calls[0]?.[1]).toMatchObject({ commitment: undefined });
+    expect(mockRunStub).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
   });
 
   it("refuses without a name and never dispatches", async () => {
     await handleStub(undefined, { commitment: "provisional", priority: "P1" });
     expect(mockRunStub).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses an absent name before eliciting handler-level inputs", async () => {
+    await handleStub(undefined, {});
+
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockRunStub).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });
@@ -336,6 +438,10 @@ describe("handleDecompose", () => {
     );
     const params = mockRunPreparedDecompose.mock.calls[0]?.[1];
     expect(params).toMatchObject({ cut: { origin: { slug: "mono" } } });
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringContaining("Placement:  flat planned siblings (no cohort)"),
+      "Decomposed",
+    );
   });
 
   it("finalizes one canonical receipt without rereading the scratch cut-map", async () => {
@@ -346,6 +452,21 @@ describe("handleDecompose", () => {
     expect(mockPrepareDecompose).not.toHaveBeenCalled();
     expect(mockFinalizeDecompose).toHaveBeenCalledWith("mono", receiptId);
     expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
+    expect(mockNote).toHaveBeenCalledWith(expect.stringContaining("arc teardown mono"), "Decompose finalized");
+  });
+
+  it("does not advertise teardown when finalizing a branchless origin", async () => {
+    const receiptId = `sha256:${"a".repeat(64)}`;
+    mockFinalizeDecompose.mockResolvedValue({
+      status: "recorded",
+      receipt: { receiptId },
+      authorityVersion: "finalized-version",
+      lifecycle: { ...branchlessRetirementLifecycle, transition: "decompose" },
+    });
+
+    await handleDecompose("mono", { finalize: receiptId });
+
+    expect(mockNote).toHaveBeenCalledWith(expect.not.stringContaining("arc teardown"), "Decompose finalized");
   });
 
   it("refuses a malformed cut-map before any mutation", async () => {
@@ -394,9 +515,9 @@ describe("handleDecompose", () => {
 
 describe("handlePromote / handleDemote", () => {
   it("promote dispatches runPromote for the slug", async () => {
-    await handlePromote("foo");
+    await handlePromote("foo", { class: "Novel" });
     expect(mockRunPromote).toHaveBeenCalledTimes(1);
-    expect(mockRunPromote.mock.calls[0]?.[1]).toEqual({ name: "foo" });
+    expect(mockRunPromote.mock.calls[0]?.[1]).toEqual({ name: "foo", class: "Novel" });
   });
 
   it("demote dispatches runDemote for the slug", async () => {
@@ -470,6 +591,10 @@ describe("handleMaterialize", () => {
       repo: "myrepo",
       spawningIdentity: "andrew",
     });
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Fetching origin/feat/foo...");
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Fetch complete.");
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Spawning materialize worktree...");
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Worktree ready.");
   });
 
   it("dispatches an in-place materialize under `--here` after fetching the remote ref", async () => {
@@ -486,6 +611,28 @@ describe("handleMaterialize", () => {
       branch: "feat/foo",
       inPlace: true,
     });
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Materializing in place...");
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Materialize complete.");
+  });
+
+  it("propagates forbidden subprocess interaction to the network boundary", async () => {
+    const subprocess = {
+      terminalPrompts: "forbidden" as const,
+      presenters: "forbidden" as const,
+      ambientStdin: "closed" as const,
+    };
+
+    await handleMaterialize("foo", {}, {
+      interaction: "forbidden",
+      terminal: "non-interactive",
+      confirmation: "ask",
+      machineReadable: false,
+      promptInput: process.stdin,
+      promptOutput: process.stdout,
+      subprocess,
+    });
+
+    expect(mockCreateUserIOContext).toHaveBeenCalledWith(subprocess);
   });
 
   it("refuses when the requested slug is not a remote-only materialize candidate", async () => {
@@ -496,6 +643,7 @@ describe("handleMaterialize", () => {
     expect(mockRunMaterialize).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
+    expect(mockSpinnerStart).not.toHaveBeenCalled();
   });
 });
 
@@ -543,6 +691,18 @@ describe("handleAbandon", () => {
     expect(mockRunAbandon.mock.calls[0]?.[1]).toMatchObject({ name: "foo", confirmed: true });
   });
 
+  it("does not advertise teardown for a branchless abandon", async () => {
+    mockRunAbandon.mockResolvedValue({
+      status: "abandoned",
+      outcome: okOutcome,
+      lifecycle: branchlessRetirementLifecycle,
+    });
+
+    await handleAbandon("foo", { yes: true });
+
+    expect(mockNote).toHaveBeenLastCalledWith(expect.not.stringContaining("arc teardown"), "Abandoned");
+  });
+
   it("refuses an illegal source state up front, printing no plan and never dispatching", async () => {
     mockResolveSlugState.mockReturnValue("integrating");
     mockPlanAbandon.mockReturnValue({ legal: false, lines: [] });
@@ -572,6 +732,20 @@ describe("handleIntegrate", () => {
     });
   });
 
+  it("forwards explicit advisory-retention authority", async () => {
+    await handleIntegrate("foo", {
+      lastCompleted: "Phase 7 — verification",
+      action: "open the PR",
+      allowAdvisories: true,
+    });
+    expect(mockRunIntegrate.mock.calls[0]?.[1]).toEqual({
+      name: "foo",
+      lastCompleted: "Phase 7 — verification",
+      nextAction: "open the PR",
+      allowAdvisories: true,
+    });
+  });
+
   it("refuses without the orientation inputs and never dispatches", async () => {
     await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification" });
     expect(mockRunIntegrate).not.toHaveBeenCalled();
@@ -583,6 +757,66 @@ describe("handleIntegrate", () => {
     await handleIntegrate(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
     expect(mockRunIntegrate).toHaveBeenCalledTimes(1);
     expect(mockRunIntegrate.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
+  });
+
+  it("surfaces every pending reconcile advisory and refuses phase entry", async () => {
+    mockRunIntegrate.mockResolvedValueOnce({
+      status: "reconcile-pending",
+      reason: "Cannot integrate `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+      metaPath: ".arc/active/meta-foo.md",
+      reconcile: {
+        status: "pending",
+        prepared: {
+          slug: "foo",
+          plan: {
+            status: "ready",
+            dependency: {
+              before: [],
+              after: [],
+              replacements: [],
+              drops: [],
+              discharged: [],
+              live: [],
+              conflicts: [],
+            },
+            trackedReferences: { edits: [] },
+            advisories: [
+              {
+                path: ".arc/active/spec-foo.md",
+                line: 12,
+                context: "Historical mention of retired-alpha.",
+                referenceKind: "narrative",
+                subject: "retired-alpha",
+                suggestedDisposition: "review-rename",
+              },
+              {
+                path: ".arc/active/notes-foo.md",
+                line: 4,
+                context: "`notes-retired-beta.md`",
+                referenceKind: "dangling-artifact",
+                subject: "retired-beta",
+                suggestedDisposition: "remove-or-retarget",
+              },
+            ],
+          },
+          edits: [],
+        },
+      },
+    });
+
+    await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+
+    expect(mockLogInfo.mock.calls.map(([message]) => message)).toEqual([
+      "Reconcile advisory: .arc/active/spec-foo.md:12 — narrative reference to `retired-alpha`; "
+        + "review-rename. Context: Historical mention of retired-alpha.",
+      "Reconcile advisory: .arc/active/notes-foo.md:4 — dangling-artifact reference to `retired-beta`; "
+        + "remove-or-retarget. Context: `notes-retired-beta.md`",
+    ]);
+    expect(mockLogError).toHaveBeenCalledWith(
+      "Cannot integrate `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+    );
+    expect(process.exitCode).toBe(1);
+    expect(mockNote).not.toHaveBeenCalled();
   });
 });
 

@@ -43,6 +43,7 @@ describe("kernel schema artifact generation", () => {
     const firstBundle = projectKernelSchemas(first);
 
     expect(Object.keys(firstBundle.schemas)).toEqual([
+      "approved-disposition-record",
       "approved-disposition-set",
       "canonical-change",
       "canonical-change-set",
@@ -54,38 +55,54 @@ describe("kernel schema artifact generation", () => {
       "disposition-set-preimage",
       "disposition-set-state",
       "finding-classification",
-      "finding-conversation-closure",
-      "finding-conversation-requirement",
       "finding-disposition",
       "finding-settlement",
       "fix-authorization",
       "fix-authorization-consumption",
       "fix-authorization-preimage",
+      "frontline-execution-outcome",
+      "frontline-outcome-digest-preimage",
+      "frontline-outcome-record",
       "frontline-run-state",
-      "independent-analysis-contract",
-      "independent-analysis-obligation-projection",
-      "independent-analysis-rubric-digest-preimage",
-      "local-disposition-terminal",
+      "local-review-policy-binding",
+      "local-review-policy-binding-digest-preimage",
+      "local-review-source",
+      "local-review-source-digest-preimage",
+      "local-review-state",
       "normalized-review-finding",
       "priority",
       "project-routing-promotion",
       "proposed-disposition-set",
-      "provider-native-conversation-closure",
       "review-applicability",
       "review-applicability-id-preimage",
       "review-assurance-input",
+      "review-chunking-resolve-envelope",
+      "review-chunking-resolve-request",
+      "review-command-error-envelope",
+      "review-frontline-resolve-envelope",
+      "review-frontline-run-envelope",
       "review-guidance-digest-preimage",
+      "review-hosted-await-envelope",
+      "review-hosted-request-envelope",
+      "review-hosted-settle-envelope",
       "review-lifecycle-tail-proof",
+      "review-local-attest-envelope",
+      "review-local-prepare-envelope",
+      "review-local-resume-envelope",
       "review-method-activity",
       "review-operation-state",
       "review-policy-version-preimage",
+      "review-readiness-envelope",
       "review-receipt",
       "review-receipt-ledger",
-      "review-reentry-result",
+      "review-reduce-envelope",
+      "review-reduction-projection",
       "review-request",
       "review-request-id-preimage",
       "review-requirement",
       "review-requirement-id-preimage",
+      "review-resolve-envelope",
+      "review-respond-envelope",
       "review-response-input",
       "review-response-plan",
       "review-routing-decision",
@@ -95,9 +112,12 @@ describe("kernel schema artifact generation", () => {
       "review-suspension-state",
       "review-target",
       "review-target-id-preimage",
+      "review-unlock-envelope",
       "severity-gating-policy",
-      "severity-settlement-gate-result",
       "slug",
+      "standard-review-contract",
+      "standard-review-obligation-projection",
+      "standard-review-rubric-digest-preimage",
       "work-class",
       "work-unit-review-assurance",
       "work-unit-state",
@@ -108,6 +128,23 @@ describe("kernel schema artifact generation", () => {
       .toEqual({ $ref: "review-severity.schema.json" });
     expect(firstBundle.schemas["review-routing-facts"]?.properties?.activity)
       .toEqual({ $ref: "review-method-activity.schema.json" });
+    const frontlineEnvelope = JSON.stringify(
+      firstBundle.schemas["review-frontline-resolve-envelope"],
+    );
+    const localPrepareEnvelope = JSON.stringify(
+      firstBundle.schemas["review-local-prepare-envelope"],
+    );
+    expect(frontlineEnvelope).toContain('"$ref":"review-routing-facts.schema.json"');
+    expect(frontlineEnvelope).toContain('"frontlineReview":{"type":"object"');
+    expect(frontlineEnvelope).toContain(
+      '"required":["schemaVersion","semanticsVersion","action","reasons","source","maxPasses","promptText"]',
+    );
+    expect(localPrepareEnvelope).toContain('"request":{"$ref":"review-request.schema.json"}');
+    expect(localPrepareEnvelope).toContain('"reviewerPayload":{"type":"object"');
+    expect(localPrepareEnvelope).toContain(
+      '"required":["schemaVersion","reviewRoot","diffBaseSha","headSha","sourceRef","sourceDigest",'
+      + '"guidance","guidanceDigest","reviewerInstructions"]',
+    );
     expect(firstBundle.schemas["work-unit-review-assurance"]?.properties?.reviewRubric)
       .toEqual({ $ref: "review-rubric-overlay-resolution.schema.json" });
     expect(serializeKernelSchemaBundle(projectKernelSchemas(second)))

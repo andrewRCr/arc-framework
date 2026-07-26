@@ -45,7 +45,7 @@ structure is identical — team scaling requires no migration. Add team members 
 between developers. Project-level planning artifacts stay in their natural shared locations
 where the whole team can see them.
 
-**Common point of confusion:** task lists and work unit files are *project-level*. They live in
+**Common point of confusion:** task lists and work unit files are _project-level_. They live in
 `.arc/active/`, not in `user/{identity}/`. The user directory is for personal content that
 shouldn't leave your machine by default.
 

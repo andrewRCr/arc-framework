@@ -6,6 +6,9 @@
  */
 
 import { normalizeGitRejection } from "./process-error.js";
+import type { InteractionContext } from "../command-input/interaction-context.js";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
+import { isAbsolute, resolve } from "node:path";
 
 /** Result from executing a git command. */
 export interface ExecResult {
@@ -31,6 +34,8 @@ export interface GitExecOptions {
    * repository-local Git variables.
    */
   indexFile?: string;
+  /** Per-invocation terminal, presenter, and ambient-stdin policy. */
+  interaction?: InteractionContext["subprocess"];
 }
 
 /** Plain-Promise, argument-array Git execution seam. */
@@ -48,6 +53,83 @@ export type GitExec = (
  * execa stdin adapter without shell interpolation.
  */
 export type GitExecInput = (args: string[], input: string) => Promise<string>;
+
+/** One Git index transaction staged through the repository's index lock. */
+export interface GitIndexTransaction {
+  /** Alternate index path that staging commands must use. */
+  indexFile: string;
+  /** Atomically install the candidate index as the repository index. */
+  commit(): Promise<void>;
+  /** Discard the candidate index, leaving the repository index unchanged. */
+  rollback(): Promise<void>;
+}
+
+/**
+ * Capture the exact current Git index into its exclusive lock file.
+ *
+ * Staging commands operate on {@link GitIndexTransaction.indexFile}; commit
+ * atomically renames that candidate over the real index, while rollback removes
+ * it. The real index is therefore never mutated by a transaction that fails.
+ *
+ * @param exec - Injectable command executor
+ * @param cwd - Repository root whose index should be transacted
+ * @returns A transaction owning the repository's index lock
+ */
+export async function captureGitIndexState(
+  exec: GitExec,
+  cwd: string,
+): Promise<GitIndexTransaction> {
+  const { stdout } = await exec("git", ["rev-parse", "--git-path", "index"], { cwd });
+  const renderedPath = stdout.trim();
+  if (renderedPath === "") throw new Error("git rev-parse returned an empty index path");
+  const indexPath = isAbsolute(renderedPath) ? renderedPath : resolve(cwd, renderedPath);
+  const snapshot = await readOptionalFile(indexPath);
+  if (snapshot === null) throw new Error("Git index does not exist");
+  const lockPath = `${indexPath}.lock`;
+  await writeFile(lockPath, snapshot, { flag: "wx" });
+  let active = true;
+  try {
+    const current = await readOptionalFile(indexPath);
+    if (!sameBytes(current, snapshot)) {
+      throw new Error("Git index changed while acquiring its lock");
+    }
+  } catch (error) {
+    active = false;
+    await rm(lockPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+  return {
+    indexFile: lockPath,
+    commit: async () => {
+      if (!active) throw new Error("Git index transaction is no longer active");
+      const current = await readOptionalFile(indexPath);
+      if (!sameBytes(current, snapshot)) {
+        throw new Error("Git index changed during transaction; refusing to overwrite it");
+      }
+      await rename(lockPath, indexPath);
+      active = false;
+    },
+    rollback: async () => {
+      if (!active) return;
+      await rm(lockPath, { force: true });
+      active = false;
+    },
+  };
+}
+
+async function readOptionalFile(path: string): Promise<Uint8Array | null> {
+  try {
+    return await readFile(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+function sameBytes(left: Uint8Array | null, right: Uint8Array | null): boolean {
+  if (left === null || right === null) return left === right;
+  return Buffer.from(left).equals(Buffer.from(right));
+}
 
 /**
  * Checks whether git is available on PATH.

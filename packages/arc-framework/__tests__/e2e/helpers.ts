@@ -20,6 +20,7 @@ export interface RunResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+  timedOut?: true;
 }
 
 /**
@@ -56,6 +57,14 @@ export async function runArc(
   options?: { timeout?: number; env?: Record<string, string> },
 ): Promise<RunResult> {
   assertCliBuilt();
+  // JSON contracts need a clean stdout channel. On Linux, `script` allocates a
+  // pseudo-TTY whose transcript merges stderr into the captured stdout, so a
+  // self-hosting stale-build warn would prefix `--json` payloads and break
+  // `JSON.parse`. Route JSON invocations through the non-TTY helper; keep the
+  // TTY path for interactive clack/TUI coverage.
+  if (args.includes("--json")) {
+    return runArcNoTty(args, cwd, options);
+  }
   const timeout = options?.timeout ?? 30_000;
   const env = { ...process.env, NO_COLOR: "1", ...options?.env };
   try {
@@ -76,6 +85,7 @@ export async function runArc(
       stdout?: string;
       stderr?: string;
       code?: number | string;
+      killed?: boolean;
     };
     // Non-zero exit: code is the exit code number.
     // System errors (ENOENT, ETIMEDOUT): code is a string — map to 1.
@@ -84,6 +94,7 @@ export async function runArc(
       stdout: e.stdout ?? "",
       stderr: e.stderr ?? "",
       exitCode,
+      ...(e.code === "ETIMEDOUT" || e.killed === true ? { timedOut: true as const } : {}),
     };
   }
 }
@@ -111,9 +122,14 @@ export async function runArcNoTty(
     const { stdout, stderr } = await execFileAsync(process.execPath, [CLI_PATH, ...args], { cwd, timeout, env });
     return { stdout, stderr, exitCode: 0 };
   } catch (err: unknown) {
-    const e = err as { stdout?: string; stderr?: string; code?: number | string };
+    const e = err as { stdout?: string; stderr?: string; code?: number | string; killed?: boolean };
     const exitCode = typeof e.code === "number" ? e.code : 1;
-    return { stdout: e.stdout ?? "", stderr: e.stderr ?? "", exitCode };
+    return {
+      stdout: e.stdout ?? "",
+      stderr: e.stderr ?? "",
+      exitCode,
+      ...(e.code === "ETIMEDOUT" || e.killed === true ? { timedOut: true as const } : {}),
+    };
   }
 }
 
@@ -142,9 +158,14 @@ export async function runArcWithStdoutPipe(
     );
     return { stdout, stderr, exitCode: 0 };
   } catch (err: unknown) {
-    const e = err as { stdout?: string; stderr?: string; code?: number | string };
+    const e = err as { stdout?: string; stderr?: string; code?: number | string; killed?: boolean };
     const exitCode = typeof e.code === "number" ? e.code : 1;
-    return { stdout: e.stdout ?? "", stderr: e.stderr ?? "", exitCode };
+    return {
+      stdout: e.stdout ?? "",
+      stderr: e.stderr ?? "",
+      exitCode,
+      ...(e.code === "ETIMEDOUT" || e.killed === true ? { timedOut: true as const } : {}),
+    };
   }
 }
 

@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { lint } from "markdownlint/promise";
 
 import {
   composeProjectReadinessView,
@@ -185,6 +186,23 @@ describe("composeProjectReadinessView", () => {
     expect(view).toContain("| blocked-gamma | P3");
   });
 
+  it("keeps derived readiness tables display-aligned for wide record values", async () => {
+    const view = composeProjectReadinessView({
+      renderedRef: "abc1234",
+      title: "Roadmap: Widths",
+      records: mergeProjectReadinessRecords([
+        record("表示", { location: "active", state: "Active", owner: "é", cohort: "team/👩‍💻" }),
+        record("plain", { location: "planned", dependsOn: ["✈️"] }),
+      ]),
+    });
+    const results = await lint({
+      strings: { ".arc/backlog/ROADMAP.md": view },
+      config: { default: false, MD060: { style: "aligned" } },
+    });
+
+    expect(results[".arc/backlog/ROADMAP.md"]).toEqual([]);
+  });
+
   it("uses the default title without reading the existing ROADMAP", async () => {
     const readPaths: string[] = [];
 
@@ -326,6 +344,44 @@ describe("composeProjectReadinessView", () => {
     expect(prospective.sourceWarnings).not.toContainEqual(expect.objectContaining({
       rendered: expect.stringContaining("cleanup may be required"),
     }));
+  });
+
+  it("suppresses only the explicitly superseded source ref after a staged rename", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const oldSlug = "old-name";
+    const oldBranch = `feat/${oldSlug}`;
+    const newSlug = "new-name";
+    const newBranch = `feat/${newSlug}`;
+    const sibling = "unrelated";
+    const siblingBranch = `feat/${sibling}`;
+    await writeMeta(join(root, ".arc", "active", `meta-${newSlug}.md`), meta(newSlug, "Active"));
+    const exec = makeInFlightExec({
+      worktrees: [
+        { path: root, branch: newBranch },
+        { path: join(root, "..", oldSlug), branch: oldBranch },
+        { path: join(root, "..", sibling), branch: siblingBranch },
+      ],
+      metas: {
+        [`${oldBranch}:.arc/active/meta-${oldSlug}.md`]: oracleMeta({ branch: oldBranch, state: "Active" }),
+        [`${siblingBranch}:.arc/active/meta-${sibling}.md`]: oracleMeta({
+          branch: siblingBranch,
+          state: "Active",
+        }),
+      },
+    });
+
+    const input = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      prospective: {
+        currentBranch: newBranch,
+        superseded: { slug: oldSlug, branch: oldBranch },
+      },
+    });
+
+    expect(input.records.some((record) => record.slug === oldSlug)).toBe(false);
+    expect(input.records.some((record) => record.slug === newSlug)).toBe(true);
+    expect(input.records.some((record) => record.slug === sibling)).toBe(true);
   });
 
   it("keeps a genuine live sibling ahead of its completed tree record", async () => {

@@ -7,9 +7,9 @@
 > shape, fragment substrate, session-agenda compiler); this doc carries the doctrine that outlives any one WU and
 > points at it.
 >
-> **Status:** In-development reference — architectural *direction*, not a description of what ARC is today. Minted
+> **Status:** In-development reference — architectural _direction_, not a description of what ARC is today. Minted
 > 2026-07-16 from an architecture-direction review; updated whenever a grooming pass settles or revises a principle.
-> *Naming note:* this doc family's own name ("strategy") is among the things the knowledge-layer target model
+> _Naming note:_ this doc family's own name ("strategy") is among the things the knowledge-layer target model
 > redesigns; the file follows the current live convention until that lands.
 
 **Purpose:** Forward-compat discipline for ARC's procedural substrate — how procedural instruction is represented,
@@ -41,9 +41,9 @@ Consult this doc when authoring or iterating any plan / PRD / WU that touches:
   mechanics, or logic moving in either direction across the boundary.
 - **Correctness machinery for procedural content** — lint checks, structural budgets, parity tests, evals.
 
-**The question for each:** *does this design compose with the layered execution model — deterministic logic in the
+**The question for each:** _does this design compose with the layered execution model — deterministic logic in the
 CLI, structure in typed contracts, judgment in minimal prose — or does it grow the prose-encoded logic a later
-compilation must undo?* If the latter, surface the tension explicitly during authoring rather than deferring it.
+compilation must undo?_ If the latter, surface the tension explicitly during authoring rather than deferring it.
 
 ---
 
@@ -90,7 +90,7 @@ Discipline that keeps interim work composing toward the target without locking i
 ### 1. If the CLI can compute it, the CLI computes it
 
 The cohort thesis (`cohort-agent-context-optimization.md`), held here as the substrate-wide rule: prose never
-*evaluates* state — it dispatches on precomputed slots. A new conditional surface lands as a CLI slot plus a
+_evaluates_ state — it dispatches on precomputed slots. A new conditional surface lands as a CLI slot plus a
 dispatch line, never as comparison logic written in English.
 **Anti-pattern:** a workflow step of the form `state == "clean" AND refState == "local-ahead"` — that is code
 wearing prose, unexecutable and uncheckable where it sits.
@@ -143,7 +143,7 @@ earns a definition before use.
   (`loadset-composition`, `instruction-optimization`, `handoff-optimization`) execute it across surfaces.
 - **`workflow-eval-harness`** — owner of Principle 5's instrument.
 - **[`strategy-knowledge-evolution.md`](strategy-knowledge-evolution.md)** — sibling check-doc; it owns the
-  *non-procedural* knowledge layer, this doc the procedural one. Its Principles 5 and 8 (methods mechanism,
+  _non-procedural_ knowledge layer, this doc the procedural one. Its Principles 5 and 8 (methods mechanism,
   author-for-humans / address-for-agents) are the seam the two share.
 - **[`strategy-storage-evolution.md`](strategy-storage-evolution.md)** — sibling check-doc; Principle 3 here
   composes with its Principles 1 and 6 (storage as abstraction, mode-agnostic workflow logic).

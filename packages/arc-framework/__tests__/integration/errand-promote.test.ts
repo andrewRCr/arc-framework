@@ -188,4 +188,26 @@ describe("promoteErrand", () => {
     expect(await branchExists(dir, "fix/growing")).toBe(true);
     expect(await readErrandRecord(io, "growing")).not.toBeNull();
   });
+
+  it.each([
+    ["priority", { priority: "urgent" }],
+    ["class", { class: "Huge" }],
+  ] as const)("rejects an invalid %s before any rename (no half-applied promotion)", async (_field, override) => {
+    await openErrand(io, { slug: "growing", base: "main", type: "fix", createdAt: CREATED_AT });
+
+    await expect(
+      promoteErrand(ctxFor(dir, io), {
+        slug: "growing",
+        name: "growth-feature",
+        type: "feat",
+        floor: "scale",
+        owner: IDENTITY,
+        ...override,
+      }),
+    ).rejects.toThrow();
+
+    expect(await branchExists(dir, "fix/growing")).toBe(true);
+    expect(await branchExists(dir, "feat/growth-feature")).toBe(false);
+    expect(await readErrandRecord(io, "growing")).not.toBeNull();
+  });
 });

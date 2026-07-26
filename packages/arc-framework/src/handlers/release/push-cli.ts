@@ -16,21 +16,39 @@ import { readFile } from "node:fs/promises";
 
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
-import { gitExec } from "../../lib/io-context.js";
+import { createGitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import {
   runPushabilityStatus,
   runWorktreeSyncStatus,
 } from "../../lib/git/index.js";
+import type { GitExec } from "../../lib/git/exec.js";
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
 import { normalizeGitRejection } from "../../lib/git/process-error.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../../lib/command-input/interaction-context.js";
+import type { CommandInputDeclaration } from "../../lib/command-input/declaration.js";
 
 import { runReleasePush, type SpawnPush } from "./push.js";
 
 export interface HandleReleasePushOptions {
   args: readonly string[];
 }
+
+/** Opaque argument policy owned by the release-push adapter. */
+export const releasePushInputPolicyDeclarations = [{
+  commandPath: "release push",
+  aliases: [],
+  sites: [{
+    id: "operand.args", source: { file: "cli.ts", symbol: "program" }, origin: "syntax",
+    acquisition: "opaque-passthrough", schemaOwnership: "opaque", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: [], acceptedSyntax: ["[args]"] },
+    mutationBoundary: "release push handler", subprocess: "opaque-arguments",
+  }],
+}] satisfies readonly CommandInputDeclaration[];
 
 /**
  * `arc release push` Commander entry point. Resolves the I/O surface
@@ -39,7 +57,13 @@ export interface HandleReleasePushOptions {
  * path forwards to a wrapped `git push` invocation that inherits stdout
  * for verbatim bubbling and captures stderr for `refStatus` parsing.
  */
-export async function handleReleasePush(opts: HandleReleasePushOptions): Promise<void> {
+export async function handleReleasePush(
+  opts: HandleReleasePushOptions,
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false, machineReadable: false, yes: "absent",
+  });
   let identity: string;
   try {
     identity = await resolveUserIdentity();
@@ -59,15 +83,16 @@ export async function handleReleasePush(opts: HandleReleasePushOptions): Promise
     return;
   }
 
+  const exec = createGitExec(context.subprocess);
   const settings = await resolveAllSettings({
     cwd,
-    exec: gitExec,
+    exec,
     readFile: (path) => readFile(path, "utf-8"),
   });
 
-  const currentBranch = (await resolveCurrentBranchName(gitExec)) ?? "";
+  const currentBranch = (await resolveCurrentBranchName(exec)) ?? "";
   const remoteSyncEnabled = settings.settings["session.remote_sync"] === "enabled";
-  const worktreeSync = await runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+  const worktreeSync = await runWorktreeSyncStatus({ exec, remoteSyncEnabled });
 
   const result = await runReleasePush({
     cwd,
@@ -77,13 +102,13 @@ export async function handleReleasePush(opts: HandleReleasePushOptions): Promise
     currentBranch,
     runPushability: () =>
       runPushabilityStatus({
-        exec: gitExec,
+        exec,
         access,
         target: "worktree",
         worktreeBranch: currentBranch,
         worktreeSyncState: worktreeSync.state,
       }),
-    spawnPush: realSpawnPush,
+    spawnPush: createRealSpawnPush(exec, context.subprocess),
   });
 
   if (result.exitCode !== 0) {
@@ -99,13 +124,17 @@ export async function handleReleasePush(opts: HandleReleasePushOptions): Promise
  * Reshapes the helper's `failed` arm into the orchestrator's first-class
  * `exitCode` field so audit attribution uses structured process evidence.
  */
-const realSpawnPush: SpawnPush = async ({ branch, args, cwd }) => {
+const createRealSpawnPush = (
+  exec: GitExec,
+  interaction: InteractionContext["subprocess"],
+): SpawnPush => async ({ branch, args, cwd }) => {
   const result = await pushWorktreeBranch({
-    exec: gitExec,
+    exec,
     branch,
     args,
     cwd,
     inheritStdio: true,
+    interaction,
   });
   if (result.status === "success") {
     return { status: "success", stdout: result.stdout, stderr: result.stderr };

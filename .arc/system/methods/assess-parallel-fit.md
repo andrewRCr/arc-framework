@@ -99,8 +99,8 @@ rejected posture, not the bar here.
 
 A second read, **informational and never posture-moving** — it surfaces the shape of design effort already in
 flight so the operator can weigh attention, not so the method can tell them to take on less. The scarce resource is
-**concurrent unsettled design**: execution and scale load are bounded and chunked (a settled plan, the per-task
-review grain), but holding more than one open, not-yet-settled design at once is what saturates.
+**concurrent unsettled design**: execution and scale load are bounded by a settled plan and per-task review
+increments, but holding more than one open, not-yet-settled design at once is what saturates.
 
 Two cheap inputs — the meta `**State:**` and whether a complete spec/tasks exist; no artifact deep-read:
 

@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 
 /** Repository-relative namespace owned by the in-repo authority adapter. */
-export const RETIREMENT_RECORD_NAMESPACE = ".arc/.internal/retirement-receipts";
+export const RETIREMENT_RECORD_NAMESPACE = ".arc/system/.internal/retirement-receipts";
 
 /** Filesystem-safe bijective spelling of a canonical digest. */
 export type RetirementRecordKey = `sha256-${string}`;
@@ -92,7 +92,8 @@ export async function writeRetirementRecord(
 ): Promise<void> {
   for (const path of [
     join(cwd, ".arc"),
-    join(cwd, ".arc", ".internal"),
+    join(cwd, ".arc", "system"),
+    join(cwd, ".arc", "system", ".internal"),
     join(cwd, RETIREMENT_RECORD_NAMESPACE),
   ]) {
     await ensureRealDirectory(path, fs);

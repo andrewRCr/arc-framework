@@ -107,6 +107,25 @@ describe("init", () => {
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-config.yml"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "system", "rules", "DEV-RULES.ARC.md"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "reference", "templates", "arc", "work-unit", "template-draft.md"))).toBe(true);
+
+    const taskTemplatePath = join(
+      tmpDir,
+      ".arc",
+      "reference",
+      "templates",
+      "arc",
+      "work-unit",
+      "template-tasks.md",
+    );
+    expect(await pathExists(taskTemplatePath)).toBe(true);
+
+    const taskTemplate = await readFile(taskTemplatePath, "utf-8");
+    const linkedTargets = [...taskTemplate.matchAll(/^\[(?:generate-tasks|task-list-formatting)\]:\s+(.+)$/gm)]
+      .map((match) => resolve(dirname(taskTemplatePath), match[1]!));
+    expect(linkedTargets).toHaveLength(2);
+    for (const target of linkedTargets) {
+      expect(await pathExists(target), target).toBe(true);
+    }
   });
 
   it("init with --pm-mode arc-in-git installs arc-in-git files", async () => {
@@ -136,10 +155,11 @@ describe("init", () => {
     expect(result.exitCode).toBe(0);
 
     const methodNames = [
-      "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "independent-analysis",
-      "implementation-audit", "self-review",
+      "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
+      "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
+      "implementation-audit", "review-chunking", "self-review", "design-audit",
       "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
-      "session-state", "spec-review", "test-first",
+      "session-state", "spec-review", "task-audit", "test-first",
     ];
     const extensionNames = [
       "post-context-load", "post-task-completion", "post-task-quality",
@@ -176,7 +196,7 @@ describe("init", () => {
       await pathExists(join(tmpDir, ".arc/system/extensions/arc-extensions.md")),
     ).toBe(false);
 
-    // All 18 registered in manifest with expected classifications.
+    // Every installed method and extension is registered with its expected classification.
     const manifestRaw = await readFile(
       join(tmpDir, ".arc/system/.internal/manifest.json"),
       "utf-8",

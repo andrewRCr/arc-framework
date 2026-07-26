@@ -19,6 +19,29 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Fix adversarial-review convergence and make cap exhaustion report**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during `wu-rename`
+  create-spec finalization.
+- _Concern:_ the current exit test asks whether primary-confirmed findings remain open after their repairs land,
+  so a pass that found several majors can immediately read as converged. Reaching the pass cap can then end the
+  loop silently even when another pass is still likely to find material issues.
+- _Fold-in:_ judge what the pass found and explicitly ask whether another pass is likely to find anything
+  material. Treat the cap as a cost ceiling that always reports: when not converged, recommend the additional
+  pass and let the author accept or decline. Include repair-introduced defects as evidence against convergence.
+  `wu-rename` required three passes despite a Heavy cap of two; pass two found a repair-introduced blocker and
+  pass three found an original blocker missed by both earlier passes.
+
+### `[ ]` **Collapse `create-spec` finalization into one scope-stating interlock**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during a planning-stage gate
+  discussion.
+- _Concern:_ `create-spec` asks for two approvals with no state change between them; Gate 1 releases no fire site,
+  while sibling planning workflows use one terminal gate beside the same advisory-review pattern.
+- _Approach:_ decide the gate shape once alongside generate-tasks and planning-closeout work. Prefer one prompt
+  whose wording names draft retirement, meta update, and commit; if two gates remain, codify the irreversibility
+  principle and apply it consistently across the planning pipeline.
+
 ### `[ ]` **Appetite/continuation tripwire for Heavy/Novel WUs + the low-leverage-completion smell**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: goal-aware-direction`, split at drain), housekeep drain

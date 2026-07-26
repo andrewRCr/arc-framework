@@ -2,12 +2,24 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  COMMIT_CHECK_CONFIG_FIELDS,
   COMMIT_CHECK_DEFAULTS,
   readCommitCheckConfiguration,
   resolveCommitCheckPolicy,
 } from "../../../src/lib/commit-check/index.js";
 
 describe("readCommitCheckConfiguration", () => {
+  it("derives its key set and defaults from the configuration catalog", () => {
+    expect(Object.keys(COMMIT_CHECK_DEFAULTS)).toEqual(
+      COMMIT_CHECK_CONFIG_FIELDS.map(({ key }) => key),
+    );
+    expect(COMMIT_CHECK_DEFAULTS).toEqual(
+      Object.fromEntries(
+        COMMIT_CHECK_CONFIG_FIELDS.map(({ key, defaultValue }) => [key, defaultValue]),
+      ),
+    );
+  });
+
   it("preserves all eight explicit values", () => {
     const configuration = readCommitCheckConfiguration({
       "hooks.commit_msg": "enabled",

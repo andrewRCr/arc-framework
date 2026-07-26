@@ -6,7 +6,7 @@ import {
   type InFlightWarning,
 } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
-import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 
 const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
 
@@ -1324,6 +1324,35 @@ describe("deriveInFlight input union", () => {
     expect(residue).toEqual([]);
   });
 
+  it("does not refresh a known errand when its live tip is ahead of remote tracking", async () => {
+    const branch = "fix/local-errand";
+    const staleSha = "4".repeat(40);
+    const refs = {
+      remoteTracking: { [branch]: staleSha },
+      localHeads: { [branch]: LIVE_REMOTE_TIP },
+    };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: [branch],
+      worktrees: [{ path: "/repo", branch }],
+    });
+
+    const { entries, residue, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      expandLiveOnly: true,
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([[branch, "local-errand"]]),
+    });
+
+    expect(entries).toEqual([
+      expect.objectContaining({ kind: "errand", branch, slug: "local-errand", remoteOnly: false }),
+    ]);
+    expect(residue).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
   it("keeps remote-only behavior for refs with no local worktree or local branch", async () => {
     const exec = makeExec({
       localRefs: ["feat/remote"],
@@ -1741,7 +1770,7 @@ describe("deriveInFlight — shared-reader field recovery", () => {
   it("recovers fields from a table-rendered, backticked meta", async () => {
     const exec = makeExec({
       metas: {
-        "origin/feat/x:.arc/active/meta-x.md": renderMetaFile("x", {
+        "origin/feat/x:.arc/active/meta-x.md": renderMetaProjectionFile("x", {
           State: "Active",
           Owner: "andrew",
           Branch: "feat/x",

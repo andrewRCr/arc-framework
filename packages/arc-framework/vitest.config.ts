@@ -1,8 +1,18 @@
 import { configDefaults, defineConfig } from "vitest/config";
 import { realpathSync } from "node:fs";
+import { dirname } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 
 import { ISOLATED_UNIT_MOCK_FILES } from "./__tests__/helpers/isolated-unit-mock-files.js";
+
+// Absolute package root from this config file — not process.cwd(). `root: "."`
+// resolves against the invoker's cwd, so `npx vitest --config …` from the monorepo
+// root (or an IDE workspace root) finds zero tests under `__tests__/…`. Pinning
+// here keeps include globs and globalSetup package-relative regardless of cwd.
+// Supported entry remains `npm test` (workspaces set package cwd); this removes
+// the silent empty-run failure mode when the config is pointed at directly.
+const packageRoot = dirname(fileURLToPath(import.meta.url));
 
 // Git reports physical worktree paths while `os.tmpdir()` can retain a host
 // alias (macOS `/var` vs `/private/var`). Give every temp fixture one canonical
@@ -16,6 +26,24 @@ if (process.platform === "win32") {
   process.env.TMPDIR = canonicalTempRoot;
 }
 
+// Vitest sizes its worker pool from `availableParallelism() - 1`, which assumes the run
+// owns the machine. CI schedules several jobs of this graph at once, so each one claiming
+// all-but-one core oversubscribes the shared cores — surfacing as timing-sensitive test
+// failures rather than as honest slowness. Cap the pool under CI; leave developer machines
+// on the default, where the spare cores are real. The cap is a share rather than a count so
+// it tracks the host's core count instead of pinning to one machine size, and
+// `VITEST_MAX_WORKERS` overrides both so it can be retuned from the runner without a
+// code change.
+const configuredWorkers = process.env["VITEST_MAX_WORKERS"] ?? (process.env["CI"] ? "50%" : undefined);
+if (configuredWorkers !== undefined && !/^(?:[1-9]\d*|[1-9]\d?%|100%)$/u.test(configuredWorkers)) {
+  throw new Error(
+    `VITEST_MAX_WORKERS must be a positive integer or a percentage; received "${configuredWorkers}"`,
+  );
+}
+const maxWorkers = configuredWorkers?.endsWith("%") === false
+  ? Number(configuredWorkers)
+  : configuredWorkers;
+
 // Single multi-project config so one `vitest run` executes every tier and prints
 // one combined summary. Per-tier runs use `--project <name>` (see package.json).
 //
@@ -25,11 +53,12 @@ if (process.platform === "win32") {
 // import-cost win without their hoisted mocks leaking across file boundaries.
 export default defineConfig({
   test: {
+    ...(maxWorkers === undefined ? {} : { maxWorkers }),
     projects: [
       {
         test: {
           name: "unit",
-          root: ".",
+          root: packageRoot,
           include: ["__tests__/unit/**/*.test.ts"],
           exclude: [...configDefaults.exclude, ...ISOLATED_UNIT_MOCK_FILES],
           // Module-mocking files are quarantined to the `unit-mocks` tier, so the
@@ -41,7 +70,7 @@ export default defineConfig({
       {
         test: {
           name: "unit-mocks",
-          root: ".",
+          root: packageRoot,
           include: [...ISOLATED_UNIT_MOCK_FILES],
           isolate: true,
           passWithNoTests: true,
@@ -50,7 +79,7 @@ export default defineConfig({
       {
         test: {
           name: "integration",
-          root: ".",
+          root: packageRoot,
           include: ["__tests__/integration/**/*.test.ts"],
           passWithNoTests: true,
         },
@@ -58,7 +87,7 @@ export default defineConfig({
       {
         test: {
           name: "e2e",
-          root: ".",
+          root: packageRoot,
           include: ["__tests__/e2e/**/*.test.ts"],
           globalSetup: ["__tests__/e2e/global-setup.ts"],
           testTimeout: 30_000,

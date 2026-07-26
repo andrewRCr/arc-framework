@@ -9,7 +9,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parseArcConfig } from "../../src/lib/config/index.js";
 
 const execFileAsync = promisify(execFile);
-const arcLibPath = resolve("arc/system/.internal/scripts/arc-lib.sh");
+// Anchored on this file, not the process cwd: `npm test` runs with the package as
+// cwd, but a direct `npx vitest` from the monorepo root does not, and a cwd-relative
+// fixture path fails there with "No such file or directory" rather than a real result.
+const arcLibPath = resolve(import.meta.dirname, "../../arc/system/.internal/scripts/arc-lib.sh");
 const roots: string[] = [];
 
 afterEach(async () => {

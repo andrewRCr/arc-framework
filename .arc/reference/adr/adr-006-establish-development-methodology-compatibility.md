@@ -63,7 +63,7 @@ Scrum answers: "What does the team commit to this sprint?" Kanban answers: "What
 item to pull?" ARC answers: "How does this developer-agent pair execute this task effectively right now?"
 
 These are naturally complementary because they address different concerns at different organizational scales.
-A Scrum team's sprint planning decides *what* gets built this sprint. ARC's task loop governs *how* each
+A Scrum team's sprint planning decides _what_ gets built this sprint. ARC's task loop governs _how_ each
 developer-agent pair works through their assigned items. Neither needs to know the details of the other —
 they interface through work items flowing from team planning into execution pair implementation.
 
@@ -77,7 +77,7 @@ methodologies that have decades of refinement and organizational buy-in.
 
 This positioning also aligns with ADR-001's core identity. ARC's principles (P1-P11) are about the
 developer-agent relationship: spec-directed development, co-development, focused execution, quality gates,
-context preservation. None of them prescribe how a *team* should coordinate. The execution-pair level is where
+context preservation. None of them prescribe how a _team_ should coordinate. The execution-pair level is where
 ARC's principles live, and confining the methodology to that level is both honest and strategically sound.
 
 ### Part 2: Construct Mapping
@@ -135,7 +135,7 @@ the sprint. ARC's task loop governs execution within the sprint.
    Task list creation happens during or just before sprint planning.
 3. **Sprint execution** → Developer activates ARC work unit, runs sessions, executes tasks. One-task-at-a-time
    governs agent collaboration rhythm. Multiple tasks complete per day; multiple stories complete per sprint.
-   Sprint velocity is unaffected — ARC determines *how* tasks execute, not *how many*.
+   Sprint velocity is unaffected — ARC determines _how_ tasks execute, not _how many_.
 4. **Daily standup** → Developer reports task-level progress. ARC task list checkboxes provide precise status.
 5. **Sprint review** → Completed work with ARC quality gate verification. Completion docs serve as review
    material.

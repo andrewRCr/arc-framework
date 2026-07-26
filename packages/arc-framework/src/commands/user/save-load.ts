@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { rename as renamePath, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { createHash } from "node:crypto";
 
@@ -44,6 +44,11 @@ import {
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index.js";
+import {
+  reconcileRenameUserWorkspaceDirectory,
+  type RenameUserWorkspaceDirectoryResult,
+  type RenameUserWorkspaceFs,
+} from "../../lib/work-unit/rename-user-workspace.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import {
   listAnnotatedNoteCommits,
@@ -117,71 +122,157 @@ export async function runUserSave(
   // the tombstone basis is also a repo-shared disk snapshot. Serialize the HEAD
   // resolution, disk read, tombstone apply, write, verification, and baseline
   // stamp together so every diff input belongs to the same locked view.
-  let commit!: string;
-  let result!: SerializeResult;
-  let savedNotesRefTip!: string | null;
-  const bookkeepingWarnings: string[] = [];
   const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
+  let saved: LockedUserSave;
   try {
-    const head = await io.exec("git", ["rev-parse", "HEAD"]);
-    commit = head.stdout.trim();
-    result = await serializeSplitUserManifest({
-      cwd,
-      io,
-      identity,
-      currentWuName,
-    });
-
-    if (Object.keys(result.manifest.files).length === 0) {
-      throw new UserSaveError("No eligible files found in user directory to save.");
-    }
-
-    const baseline = await readMaterializedBaselineStamp(io.exec, cwd, identity);
-    if (baseline !== null) {
-      applyRemovalTombstones(result.manifest, baseline.entries, new Date().toISOString());
-    }
-
-    const json = JSON.stringify(result.manifest);
-    await io.writeNote(notesRef(identity), json, commit);
-    await verifySavedNote(io, identity, commit, result.manifest);
-    const projectedSave = projectManifest(result.manifest);
-    savedNotesRefTip = await readNotesRefTip(io, identity);
-    try {
-      await writeMaterializedBaselineStamp({
-        exec: io.exec,
-        cwd,
-        identity,
-        manifest: projectedSave,
-        manifestHash: hashSyncManifest(projectedSave),
-        notesRefTip: savedNotesRefTip,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      bookkeepingWarnings.push(`materialized-baseline stamp update failed: ${message}`);
-    }
+    saved = await saveUserDirectoryUnderHeldLock(options, currentWuName);
   } finally {
     await releaseAdvisoryLock(lock);
   }
+  return finishUserSave(options, saved);
+}
+
+interface LockedUserSave {
+  commit: string;
+  result: SerializeResult;
+  savedNotesRefTip: string | null;
+  bookkeepingWarnings: string[];
+}
+
+async function saveUserDirectoryUnderHeldLock(
+  options: UserSaveOptions,
+  currentWuName: string | undefined,
+  resolver?: UserSurfaceResolver,
+): Promise<LockedUserSave> {
+  const { cwd, io, identity } = options;
+  const head = await io.exec("git", ["rev-parse", "HEAD"]);
+  const commit = head.stdout.trim();
+  const result = await serializeSplitUserManifest({
+    cwd,
+    io,
+    identity,
+    currentWuName,
+    ...(resolver === undefined ? {} : { resolver }),
+  });
+
+  if (Object.keys(result.manifest.files).length === 0) {
+    throw new UserSaveError("No eligible files found in user directory to save.");
+  }
+
+  const baseline = await readMaterializedBaselineStamp(io.exec, cwd, identity);
+  if (baseline !== null) {
+    applyRemovalTombstones(result.manifest, baseline.entries, new Date().toISOString());
+  }
+
+  const json = JSON.stringify(result.manifest);
+  await io.writeNote(notesRef(identity), json, commit);
+  await verifySavedNote(io, identity, commit, result.manifest);
   const projectedSave = projectManifest(result.manifest);
+  const savedNotesRefTip = await readNotesRefTip(io, identity);
+  const bookkeepingWarnings: string[] = [];
+  try {
+    await writeMaterializedBaselineStamp({
+      exec: io.exec,
+      cwd,
+      identity,
+      manifest: projectedSave,
+      manifestHash: hashSyncManifest(projectedSave),
+      notesRefTip: savedNotesRefTip,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    bookkeepingWarnings.push(`materialized-baseline stamp update failed: ${message}`);
+  }
+  return { commit, result, savedNotesRefTip, bookkeepingWarnings };
+}
+
+async function finishUserSave(options: UserSaveOptions, saved: LockedUserSave): Promise<UserSaveResult> {
+  const { cwd, io, identity } = options;
+  const projectedSave = projectManifest(saved.result.manifest);
   await writeLocalSyncStateBestEffort(
     cwd,
     io,
     identity,
     hashSyncManifest(projectedSave),
-    commit,
+    saved.commit,
     "save",
-    commit,
+    saved.commit,
     Object.keys(projectedSave.files),
-    savedNotesRefTip,
+    saved.savedNotesRefTip,
   );
 
   return {
     identity,
-    commit: await shortHash(io.exec, commit),
-    fileCount: Object.keys(result.manifest.files).length,
-    warnings: result.warnings,
-    ...(bookkeepingWarnings.length > 0 ? { bookkeepingWarnings } : {}),
+    commit: await shortHash(io.exec, saved.commit),
+    fileCount: Object.keys(saved.result.manifest.files).length,
+    warnings: saved.result.warnings,
+    ...(saved.bookkeepingWarnings.length > 0 ? { bookkeepingWarnings: saved.bookkeepingWarnings } : {}),
   };
+}
+
+/** Options for moving and immediately saving a work-unit user workspace. */
+export interface UserRenameWorkspaceOptions extends UserSaveOptions {
+  oldWuName: string;
+  newWuName: string;
+}
+
+/** Outcome of a non-interactive workspace move and notes save. */
+export type UserRenameWorkspaceResult =
+  | { status: "absent" }
+  | {
+      status: Exclude<RenameUserWorkspaceDirectoryResult["status"], "absent">;
+      save: UserSaveResult;
+    };
+
+const nodeRenameUserWorkspaceFs: RenameUserWorkspaceFs = {
+  directoryExists: async (path) => {
+    try {
+      return (await stat(path)).isDirectory();
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") return false;
+      throw error;
+    }
+  },
+  renameDirectory: renamePath,
+};
+
+/**
+ * Move a work unit's per-identity directory and save its new manifest under one
+ * notes lock. An already-moved directory is re-saved so interruption between
+ * the filesystem move and note write remains resumable.
+ *
+ * @param options - Save dependencies plus old and new work-unit slugs
+ * @returns The absent skip or moved-and-saved outcome
+ */
+export async function runUserRenameWorkspace(
+  options: UserRenameWorkspaceOptions,
+): Promise<UserRenameWorkspaceResult> {
+  const oldWuName = SlugSchema.parse(options.oldWuName);
+  const newWuName = SlugSchema.parse(options.newWuName);
+  const resolver = await resolveUserSurfaceResolver({
+    cwd: options.cwd,
+    identity: SlugSchema.parse(options.identity),
+    exec: options.io.exec,
+  });
+  const lock = await acquireAdvisoryLock(
+    await getNotesLockPath(options.io.exec, options.cwd, options.identity),
+  );
+  let directoryResult!: RenameUserWorkspaceDirectoryResult;
+  let saved: LockedUserSave | undefined;
+  try {
+    directoryResult = await reconcileRenameUserWorkspaceDirectory(nodeRenameUserWorkspaceFs, {
+      source: resolver.workUnitRoot(oldWuName),
+      destination: resolver.workUnitRoot(newWuName),
+    });
+    if (directoryResult.status !== "absent") {
+      saved = await saveUserDirectoryUnderHeldLock(options, newWuName, resolver);
+    }
+  } finally {
+    await releaseAdvisoryLock(lock);
+  }
+  if (directoryResult.status === "absent") return directoryResult;
+  if (saved === undefined) throw new Error("renamed user workspace was not saved");
+  return { status: directoryResult.status, save: await finishUserSave(options, saved) };
 }
 
 /**

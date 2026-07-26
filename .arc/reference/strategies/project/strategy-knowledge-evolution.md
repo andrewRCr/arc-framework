@@ -6,9 +6,9 @@
 > unified knowledge model. The target itself is `draft-knowledge-architecture.md` (north star); this doc
 > is the interim discipline that points at it.
 >
-> **Status:** In-development reference — architectural *direction*, not a description of what ARC is
+> **Status:** In-development reference — architectural _direction_, not a description of what ARC is
 > today. Projected from the north-star draft's settled principles (grooming through 2026-07-03); updated
-> whenever a grooming pass there settles or revises a principle. *Naming note:* this doc family's own
+> whenever a grooming pass there settles or revises a principle. _Naming note:_ this doc family's own
 > name ("strategy") is among the things the target model redesigns; the file follows the current live
 > convention until that lands.
 
@@ -38,8 +38,8 @@ Consult this doc when authoring or iterating any plan / PRD / WU that touches:
   frontmatter keys that affect loading.
 - **Doc-family naming or classification** — new artifact families, renames, frontmatter `type` values.
 
-**The question for each:** *does this design compose with the unified knowledge model as the future
-shape, or does it lock in placement, naming, or loading choices that model would have to undo?* If the
+**The question for each:** _does this design compose with the unified knowledge model as the future
+shape, or does it lock in placement, naming, or loading choices that model would have to undo?_ If the
 latter, surface the tension explicitly during authoring rather than deferring it.
 
 ---
@@ -53,7 +53,7 @@ as a category dissolves into four content kinds — (A) operational reference �
 (B) hard constraints → always/gate-site, (C) explanation/rationale → location-variable (docs site or
 labeled in-repo surface), (D) emergent-relevance doctrine → firing-condition index. Knowledge units are
 the public-knowledge counterpart of methods (two axes: procedure vs knowledge × private vs public), with
-access paths *derived* from structure rather than declared. Full model: `draft-knowledge-architecture.md`.
+access paths _derived_ from structure rather than declared. Full model: `draft-knowledge-architecture.md`.
 
 ---
 
@@ -71,13 +71,13 @@ file, never index-only. When a plan adds a constraint, place it where its operat
 ### 2. Author trigger surfaces as directive firing conditions
 
 Any entry whose job is to cause loading or invocation — index lines, skill descriptions, "consult when"
-lines — names its trigger *and* the default behavior to suppress ("ALWAYS load/do X when {trigger}; do
+lines — names its trigger _and_ the default behavior to suppress ("ALWAYS load/do X when {trigger}; do
 not {default action} directly"), never a title or passive summary. Passive descriptions are the
 measured weakest-firing style.
 
 ### 3. Anchor triggers to operations, not workflows
 
-A workflow is a *site where an operation occurs*, not the operation itself. Condition on "rendering
+A workflow is a _site where an operation occurs_, not the operation itself. Condition on "rendering
 ROADMAP" or "routing discovered work" — operation-anchored triggers cover ad-hoc invocation for free;
 workflow-anchored ones silently miss it.
 
@@ -90,7 +90,7 @@ declares it; it carries a fire line; it is in the loadSet manifest). Don't intro
 ### 5. Generalize the methods mechanism; declare at point of use
 
 New on-demand loading wants an `arc.methods`-style fire-site declaration, not bespoke machinery or prose
-instructions. Each artifact declares only what its *own body* consumes (a workflow never re-declares its
+instructions. Each artifact declares only what its _own body_ consumes (a workflow never re-declares its
 methods' dependencies); resolution is a deduped transitive closure the CLI can compute.
 
 ### 6. Extract on fan-in, not aesthetics
@@ -106,8 +106,8 @@ loading tier. Don't design new "command reference doc" surfaces.
 
 ### 8. Author for humans, address for agents
 
-Keep knowledge content coherently human-readable; fragmenting is an *addressing* concern (stable
-anchors, section-level reads), not necessarily a *storage* concern. Don't blind-shard documents into
+Keep knowledge content coherently human-readable; fragmenting is an _addressing_ concern (stable
+anchors, section-level reads), not necessarily a _storage_ concern. Don't blind-shard documents into
 agent-sized chunks.
 
 ### 9. Stay projection-compatible
@@ -120,7 +120,7 @@ distinction exists (team vs agent).
 ### 10. Don't grow the always-loaded set casually
 
 Instruction-following degrades measurably with instruction count; the `always` tier stays minimal.
-Demotion from always-loaded goes only to an *explicit trigger*, and constraints are never demoted
+Demotion from always-loaded goes only to an _explicit trigger_, and constraints are never demoted
 (the `loadset-composition` rule). New always-loaded content earns its slot against the budget.
 
 ---

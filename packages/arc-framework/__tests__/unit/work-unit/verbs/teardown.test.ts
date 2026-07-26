@@ -385,15 +385,15 @@ describe("runTeardown — arc-state authority gate", () => {
     expect(result.status).toBe("torn-down");
   });
 
-  it("refuses an `active/` WU through the compatibility seam when protection is omitted", async () => {
-    const { ctx, calls } = buildCtx([ACTIVE_META]);
+  it("infers receipt-backed cleanup for an unshipped WU without requiring `--force`", async () => {
+    const { ctx } = buildCtx([ACTIVE_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: "worktree /repo\nHEAD def\nbranch refs/heads/feat/demo\n",
+    });
 
     const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
-    expect(result.status).toBe("rejected");
-    if (result.status !== "rejected") return;
-    expect(result.reason).toMatch(/not shipped|completed/i);
-    expect(calls).toEqual([]);
+    expect(result.status).toBe("torn-down");
   });
 
   it("refreshes the remote base before reading full-protection lifecycle authority", async () => {
@@ -741,6 +741,36 @@ describe("runTeardown — linked self-husk", () => {
     expect(result.notices.some((notice) => /compare-and-delete/iu.test(notice))).toBe(true);
     expect(calls.some((call) => call[1] === "push" && call.includes("--delete"))).toBe(false);
     expect(calls).toContainEqual(["git", "fetch", "--prune", "origin"]);
+  });
+
+  it("skips compare-and-delete when the stamped local branch is already reaped", async () => {
+    // Post-integration husk cleanup: the branch was reaped earlier; the husk still
+    // carries a stamped localOid. A compare-and-delete would only noise with
+    // "unable to resolve reference" while the summary correctly reports already reaped.
+    const porcelain =
+      "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n"
+      + "worktree /repo.husk\nHEAD def\ndetached\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["main"],
+      worktreePorcelain: porcelain,
+      updateRefThrows: true,
+    });
+    ctx.readMarker = async () => ({
+      kind: "present",
+      marker: markerWithCurrentHusk({
+        remote: "origin",
+        oid: "def",
+        disposition: "delete",
+      }),
+    });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.branchDeleted).toBe(true);
+    expect(result.notices.some((notice) => /compare-and-delete/iu.test(notice))).toBe(false);
+    expect(calls.some((call) => call[1] === "update-ref" && call[2] === "-d")).toBe(false);
   });
 });
 

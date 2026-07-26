@@ -12,7 +12,7 @@ and the full person-to-person handoff procedure), see `strategy-team-coordinatio
 ## What Changes in Team Mode
 
 Most of ARC stays the same. The core adaptation is that "one task at a time" applies
-*per developer-agent pair* — multiple pairs can work on different tasks simultaneously.
+_per developer-agent pair_ — multiple pairs can work on different tasks simultaneously.
 Everything else layers on top of the existing model:
 
 | Aspect         | Solo (default)                | Team mode                                          |

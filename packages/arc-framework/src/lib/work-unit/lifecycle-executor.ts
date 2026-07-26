@@ -4,8 +4,8 @@
  * A transition is a table lookup plus mechanical application: resolve the slug's
  * current `(phase, location)` from the index, look up the legal edge for
  * `(verb, from)`, validate the edge's guards, fire its `encodingUpdates` mutator
- * legs in a recoverable order, fire its declared side-effects, apply its
- * soft-field disposition, and surface an ephemeral next-step suggestion. There is
+ * legs in a recoverable order, fire non-ROADMAP side-effects, apply and stage its
+ * final meta projection, render ROADMAP, and surface an ephemeral next-step suggestion. There is
  * **no bespoke per-verb code**: the {@link TRANSITIONS} table is the source of
  * truth, and everything verb-specific — the leg operands, the soft-field `input`
  * values, the suggestion text — is *supplied* by the caller as {@link
@@ -15,7 +15,7 @@
  *
  * The single filesystem touch is at entry — {@link buildLifecycleIndex} — after
  * which the lookup and guard validation run pure over the built index. The four
- * encoding mutators and the side-effects reach the executor **pre-bound** (their
+ * encoding mutators and side-effects reach the executor **pre-bound** (their
  * own git / fs seams already closed over) as injected runners on
  * {@link ExecuteTransitionContext}, so the orchestration stays decoupled from any
  * one mutator's I/O and the whole flow is unit-testable with spies. The CLI layer
@@ -27,7 +27,7 @@
 
 import { posix } from "node:path";
 
-import type { MetaFieldName, MetaFieldOverrides } from "../active/meta-reader.js";
+import type { MetaFieldName, MetaProjectionOverrides } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   buildLifecycleIndex,
@@ -77,12 +77,16 @@ export interface TransitionInputs {
   softFields?: Partial<Record<keyof SoftFieldDispositions, string>>;
   /** The WU's resolved `Class` — the `class-resolved` guard input (`promote`). */
   class?: string;
+  /** Persist a newly acquired Class in the relocated meta during promotion finalization. */
+  persistClass?: string;
   /** Whether the WU's PR has merged — the `pr-unmerged` guard input (`reopen`). */
   prMerged?: boolean;
   /** The PR-withdrawal mode the `withdraw-pr` side-effect applies — `close` (default) or `draft` (`reopen`). */
   prWithdrawMode?: "close" | "draft";
   /** Explicit confirmation for a destructive cascade — the `confirmation` guard input (`abandon`). */
   confirmed?: boolean;
+  /** Exact retiring ref candidate suppressed after the complete staged transition exists. */
+  supersededSource?: { slug: string; branch: string };
   /**
    * Override for the `worktree-occupancy` guard's placement test. Fresh worktree
    * spawns normally infer this from `worktreeOp.createBranch`, but remote
@@ -129,7 +133,7 @@ export type GuardValidator = (ctx: GuardContext) => GuardResult | Promise<GuardR
  */
 export const DEFAULT_GUARD_VALIDATORS: Partial<Record<GuardId, GuardValidator>> = {
   "class-resolved": ({ inputs }) =>
-    inputs.class !== undefined && inputs.class !== "" && inputs.class !== "[TBD]"
+    inputs.class !== undefined && inputs.class !== "" && inputs.class !== "TBD" && inputs.class !== "[TBD]"
       ? { ok: true }
       : { ok: false, message: "`promote` requires a resolved `Class` (not `[TBD]`) supplied in inputs." },
   confirmation: ({ inputs }) =>
@@ -217,7 +221,7 @@ export interface ExecuteTransitionContext {
   /** Apply soft-field updates to the meta at `metaPath` (read → rewrite → write). */
   writeSoftFields: (
     metaPath: string,
-    updates: Partial<Record<MetaFieldName, string>>,
+    updates: MetaProjectionOverrides,
   ) => Promise<void>;
 
   /** Write the meta `Branch` core-table field at `metaPath` (read → rewrite cell → write). */
@@ -227,9 +231,9 @@ export interface ExecuteTransitionContext {
    * Write the meta `Class` core-table field at `metaPath` (read → rewrite cell →
    * write). The weight-axis sibling of {@link writeBranchField}: the planning
    * ceremonies persist the resolved `Class` (`Light` / `Heavy` / `Novel`) at their
-   * finalize fire-points through this seam. Not a transition leg (no edge declares
-   * it) — the planning-finalize verb invokes it directly — so it reaches the executor
-   * as an optional seam; absent in contexts that never finalize planning.
+   * finalize fire-points through this seam. Promotion also uses it as an
+   * input-declared pre-relocation encoding leg when it acquires an unresolved Class.
+   * It remains optional for contexts whose operations never persist Class.
    */
   writeClassField?: (metaPath: string, value: string) => Promise<void>;
 
@@ -276,7 +280,7 @@ export interface ExecuteTransitionContext {
    */
   reconcileMeta?: (
     metaPath: string,
-    overrides: MetaFieldOverrides,
+    overrides: MetaProjectionOverrides,
   ) => Promise<MetaFieldName[]>;
 
   /**
@@ -302,7 +306,7 @@ export interface ExecuteTransitionContext {
 // ---------------------------------------------------------------------------
 
 /** The encoding legs, in their canonical fire order. */
-export type EncodingLeg = "setPhase" | "artifacts" | "reconcileWorktree" | "reconcileBranch";
+export type EncodingLeg = "setPhase" | "classField" | "artifacts" | "reconcileWorktree" | "reconcileBranch";
 
 /**
  * The post-side-effect meta writes, in their fire order — the finalize block that
@@ -320,6 +324,7 @@ export type FinalizeWrite = "branchField" | "currentWorkflowField" | "softFields
  * would otherwise refuse the worktree's checked-out branch.
  */
 const LEG_ORDER: readonly EncodingLeg[] = [
+  "classField",
   "setPhase",
   "artifacts",
   "reconcileWorktree",
@@ -335,7 +340,10 @@ export type TransitionOutcome =
       to: LifecyclePosition | null;
       /** The encoding legs that fired, in order. */
       legsFired: EncodingLeg[];
-      /** The side-effects that fired, in declared order. */
+      /**
+       * The side-effects that fired, in actual fire order. `reconcile-roadmap`
+       * follows final meta staging even when declared earlier.
+       */
       sideEffectsFired: SideEffectId[];
       /** Advisories surfaced by encoding legs or side-effects (e.g. post-create notices / regen lines). */
       advisories: string[];
@@ -445,12 +453,12 @@ export function softFieldsApply(record: TransitionRecord): boolean {
 
 /**
  * Execute one lifecycle transition: resolve, look up the legal edge, validate
- * guards + required inputs, fire the encoding legs, fire side-effects, apply the
- * soft-field disposition, and return the outcome (carrying the ephemeral
- * suggestion). Rejections, a mid-bundle encoding failure (`encoding-failed`,
- * retry-whole), and a post-side-effect finalize-write failure (`finalize-failed`,
- * forward-only) are reported as discriminated outcomes rather than thrown, so the
- * CLI surfaces them uniformly.
+ * guards + required inputs, fire the encoding legs and non-ROADMAP side-effects,
+ * apply and stage the final meta projection, render ROADMAP, and return the
+ * outcome (carrying the ephemeral suggestion). Rejections, a mid-bundle encoding
+ * failure (`encoding-failed`, retry-whole), and a post-side-effect finalize-write
+ * failure (`finalize-failed`, forward-only) are reported as discriminated outcomes
+ * rather than thrown, so the CLI surfaces them uniformly.
  *
  * @param ctx - The injected seams (pre-bound mutators, guard validators, side-effect handlers).
  * @param params - The verb, the target slug, and the caller-supplied inputs.
@@ -495,7 +503,7 @@ export async function executeTransition(
   const legsFired: EncodingLeg[] = [];
   const advisories: string[] = [];
   for (const leg of LEG_ORDER) {
-    if (!legDeclared(record, leg)) continue;
+    if (!legDeclared(record, leg, inputs)) continue;
     try {
       const advisory = await fireLeg(ctx, leg, record, slug, metaPath, inputs);
       if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
@@ -510,9 +518,12 @@ export async function executeTransition(
     legsFired.push(leg);
   }
 
-  // 6. Fire declared side-effects — only now that the encoding succeeded.
+  // 6. Fire declared non-ROADMAP side-effects once the encoding succeeded.
+  // ROADMAP waits until the final meta writes are staged so it renders the exact
+  // tracked snapshot the ceremony will commit.
   const sideEffectsFired: SideEffectId[] = [];
   for (const id of record.sideEffects) {
+    if (id === "reconcile-roadmap") continue;
     const handler = ctx.sideEffects?.[id];
     // Presence was validated in step 4; the guard here narrows the type.
     if (handler === undefined) continue;
@@ -522,10 +533,11 @@ export async function executeTransition(
   }
 
   // 7–8.5 Post-side-effect meta writes. These run only after the encoding legs
-  //   and the declared side-effects have landed, so a throw here is forward-only
-  //   recoverable (finish the failed write) — reported as `finalize-failed`,
-  //   distinct from the pre-side-effect `encoding-failed`. `failedWrite` tracks
-  //   the in-flight write so the report names which one threw.
+  //   and declared non-ROADMAP side-effects have landed. ROADMAP follows final
+  //   staging so it renders the exact commit projection. A throw here is
+  //   forward-only recoverable (finish the failed write) — reported as
+  //   `finalize-failed`, distinct from the pre-side-effect `encoding-failed`.
+  //   `failedWrite` tracks the in-flight write so the report names which one threw.
   let branchFieldWritten: string | null;
   let currentWorkflowCleared: string | null;
   let softFieldsWritten: MetaFieldName[];
@@ -550,6 +562,7 @@ export async function executeTransition(
     const wroteMeta =
       legsFired.includes("setPhase") ||
       branchFieldWritten !== null ||
+      inputs.persistClass !== undefined ||
       currentWorkflowCleared !== null ||
       softFieldsWritten.length > 0;
     if (wroteMeta && metaPath !== null) {
@@ -563,6 +576,18 @@ export async function executeTransition(
       failedWrite,
       message: err instanceof Error ? err.message : String(err),
     };
+  }
+
+  // 8.75 Render ROADMAP from the now-complete staged transition. The production
+  // adapter degrades render/write failures to advisories, preserving the
+  // transition's forward-recoverable boundary.
+  if (record.sideEffects.includes("reconcile-roadmap")) {
+    const handler = ctx.sideEffects?.["reconcile-roadmap"];
+    if (handler !== undefined) {
+      const advisory = await handler({ cwd: ctx.cwd, slug, from: record.from, to: record.to, inputs });
+      if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+      sideEffectsFired.push("reconcile-roadmap");
+    }
   }
 
   // 9. Surface the ephemeral suggestion (advisory; never persisted).
@@ -595,11 +620,13 @@ function lookupRejection(verb: Verb, position: LifecyclePosition | null): string
 }
 
 /** Whether the edge declares the given encoding leg. */
-function legDeclared(record: TransitionRecord, leg: EncodingLeg): boolean {
+function legDeclared(record: TransitionRecord, leg: EncodingLeg, inputs: TransitionInputs): boolean {
   const e = record.encodingUpdates;
   switch (leg) {
     case "setPhase":
       return e.setPhase === true;
+    case "classField":
+      return inputs.persistClass !== undefined;
     case "artifacts":
       return e.artifacts !== undefined;
     case "reconcileWorktree":
@@ -620,6 +647,9 @@ function validateInputs(
 ): string | null {
   const e = record.encodingUpdates;
 
+  if (inputs.persistClass !== undefined && ctx.writeClassField === undefined) {
+    return "Class persistence is unavailable.";
+  }
   if (e.artifacts === "relocate" && inputs.toDir === undefined) {
     return "this transition relocates artifacts but no `toDir` was supplied.";
   }
@@ -675,6 +705,13 @@ async function fireLeg(
         throw new Error("set-phase requires a resolved meta path and target phase.");
       }
       await ctx.setPhase({ metaPath, phase: record.to.phase });
+      return undefined;
+    }
+    case "classField": {
+      if (metaPath === null || inputs.persistClass === undefined || ctx.writeClassField === undefined) {
+        throw new Error("Class persistence requires a resolved meta path, value, and writer.");
+      }
+      await ctx.writeClassField(metaPath, inputs.persistClass);
       return undefined;
     }
     case "artifacts": {
@@ -806,7 +843,7 @@ async function applySoftFields(
   // After a relocate, the meta lives under the destination directory.
   const effectivePath = effectiveMetaPath(record, metaPath, inputs);
 
-  const updates: Partial<Record<MetaFieldName, string>> = {};
+  const updates: MetaProjectionOverrides = {};
   for (const key of Object.keys(DISPOSITION_KEY) as (keyof SoftFieldDispositions)[]) {
     const disposition = record.softFields[key];
     const field = DISPOSITION_KEY[key];

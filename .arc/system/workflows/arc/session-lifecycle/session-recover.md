@@ -14,7 +14,7 @@ Use this workflow only after a harness compaction event, or from the manual `arc
 fallback when a developer notices compaction erased ARC operating context. Recovery rehydrates
 the context-load layer from live state plus the latest compaction seed. It does not reconstruct
 the just-before-compaction action; the harness compaction summary owns that volatile current
-leaf — but that precedence governs reconciliation *after* the audit, and is never grounds to skip
+leaf — but that precedence governs reconciliation _after_ the audit, and is never grounds to skip
 recovery. Run the audit whenever a compaction injection fires, even if your remaining context feels
 sufficient: compaction loss is silent, so you cannot tell from inside what was dropped. Recovery
 does not run session-init, sync, pull, discover next work, relocate, commit, push, or prompt on a
@@ -48,7 +48,9 @@ If `verdict.status === "stop"`, inspect `verdict.stopReasons`:
   artifacts. If the summary is missing, vague, or contradictory, stop for direction. Do not fall
   back to active-meta `Current Workflow`.
 
-If `verdict.status === "ready"`, continue without prompting.
+If `verdict.status === "ready"`, continue to Step 3 without prompting. `ready` attests that the load set is
+trustworthy — no blocking drift between the seed and fresh state — not that context is restored. It is a property
+of the manifest, never a clearance to resume project work: recovery is incomplete until Step 3's reads land.
 
 Use the **fresh** report surfaces for context loading:
 
@@ -80,6 +82,16 @@ The recovery load set is ARC-owned context only. Repository-root harness instruc
 (such as `AGENTS.md` for Codex CLI and `CLAUDE.md` for Claude Code) are expected to come from
 the harness baseline and are not included in `report.recover.loadSet.value`. Do not read sibling
 harness instruction files during recovery.
+
+**The manifest is the complete recovery read** — reading past it spends the post-compaction budget on context
+the resumed step does not need. Two classes sit outside it:
+
+- **Frontmatter-declared methods and extensions.** Do not load a recovered lifecycle workflow's `arc.methods` /
+  `arc.extensions` declarations here; each loads at its fire-site when the resumed step reaches it.
+  Scope-limited override of DEV-RULES.ARC § Method and extension loading, for the recovery load only —
+  recovery resumes mid-workflow, so most declarations belong to steps already behind the resume point.
+- **Design artifacts.** `spec-*`, `notes-*`, and the task list beyond the manifest's `partial-strategic` slice
+  are not manifest members. Load them at their step trigger.
 
 Apply each entry's `readMode`:
 

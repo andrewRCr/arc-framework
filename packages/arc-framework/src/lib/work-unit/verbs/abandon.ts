@@ -12,13 +12,12 @@
  *
  * - `provisional` / `planned` — a branchless backlog stub: just remove the
  *   artifact set.
- * - `planning` / `active` — a started WU: remove the artifact set in-verb; its
- *   branch + worktree teardown is **out-of-band**, a post-action `arc teardown
- *   <name> --force` (the in-verb teardown legs tripped the `worktree-clean` guard
- *   on the verb's own staged removal and, in-place, targeted the un-removable
- *   primary worktree — see the abandon edges in `lifecycle-transitions`).
- * - `parked` — delete the preserved branch, but tear down no worktree (a parked
- *   WU has none, so no self-teardown to defer).
+ * - `planning` / `active` — remove the artifact set in-verb, record the receipt,
+ *   and defer branch, worktree, and per-WU workspace cleanup until that evidence
+ *   is authoritative on the protection-aware base.
+ * - `parked` — remove the base-branch pointer, record the preserved branch as
+ *   the unchanged retiring projection, and defer branch + workspace cleanup
+ *   until that evidence is authoritative.
  *
  * `integrating` and merged / `shipped` are illegal (the table's marked cells):
  * post-merge backout is a new origin-linked WU (ADR-026 amendment), never a
@@ -34,10 +33,12 @@
 
 import { basename, join, posix } from "node:path";
 
-import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
 import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
 import { DISCARD_RESULT, receiptId } from "../../canonical/receipt-id.js";
+import { resolveArcPath } from "../../layout/index.js";
+import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
 import { buildLifecycleIndex } from "../lifecycle-index.js";
 import {
   executeTransition,
@@ -54,6 +55,10 @@ import {
   type RetirementAuthorityScope,
   type RetirementReceipt,
 } from "../retirement-authority.js";
+import {
+  projectPendingRetirementLifecycle,
+  type RetirementLifecycleResult,
+} from "../retirement-lifecycle-result.js";
 import { validFromStates } from "./dispatch.js";
 
 /** Filesystem seam for the `remove` artifact disposition — list, delete files, drop the emptied subdir. */
@@ -74,6 +79,8 @@ export interface AbandonContext {
   executor: Omit<ExecuteTransitionContext, "scaffoldOrRemove">;
   fs: AbandonFs;
   retirement: AbandonRetirementContext;
+  /** Remote-aware lifecycle truth; omitted only by tree-compatible library callers. */
+  composed?: ComposedLifecycleIndexResult;
 }
 
 /** Source evidence captured before an abandon removes its artifact group. */
@@ -91,6 +98,10 @@ export interface AbandonRetirementContext {
     name: string;
     sourceDir: string;
     expectedBranch: string | null;
+    retirementSource?: {
+      branch: string;
+      sourceDir: string;
+    };
   }): Promise<AbandonSourceEvidence>;
   stageTransition(source: AbandonSourceEvidence): Promise<void>;
   rollbackTransition(source: AbandonSourceEvidence): Promise<void>;
@@ -113,13 +124,15 @@ export type AbandonResult =
       outcome: TransitionOutcome;
       receipt: RetirementReceipt;
       authorityVersion: string;
+      lifecycle: RetirementLifecycleResult;
     };
 
-/** Started states whose branch + worktree teardown is deferred to a post-action `arc teardown --force`. */
+/** Started states whose branch + worktree cleanup is deferred until receipt landing. */
 const STARTED: ReadonlySet<LifecycleState> = new Set(["planning", "active"]);
 
-/** Source states whose abandon cascade deletes a branch in-verb — only `parked` (no worktree to self-teardown). */
-const IN_VERB_BRANCH_DELETE: ReadonlySet<LifecycleState> = new Set(["parked"]);
+/** Parked state retains a branch but has no registered worktree. */
+const PARKED: ReadonlySet<LifecycleState> = new Set(["parked"]);
+const ACTIVE_DIR = resolveArcPath({ kind: "placement-root", tier: "active" });
 
 /** The destructive-cascade impact preview for an `abandon` — its legality and the cascade lines. */
 export interface AbandonPlan {
@@ -132,25 +145,30 @@ export interface AbandonPlan {
 /**
  * Compose the destructive-cascade impact plan for a resolved source state, gated on
  * the state's table cell: a backlog stub removes only artifacts; a started WU
- * removes artifacts in-verb and defers branch + worktree teardown to a post-action
- * `arc teardown <name> --force`; a parked WU deletes its branch in-verb but has no
- * worktree. Pure: the handler resolves the state + branch, prints these lines, and
+ * removes artifacts in-verb and defers cleanup to a landed-evidence
+ * `arc teardown <name>`; a parked WU removes its pointer while preserving the
+ * branch for the same landed cleanup.
+ * Pure: the handler resolves the state + branch, prints these lines, and
  * refuses without explicit confirmation.
  *
  * @param state - The target WU's resolved lifecycle state.
- * @param branch - The WU's branch (for the parked branch-delete leg), or null when none.
- * @param name - The WU slug, for the started-state post-action teardown command.
+ * @param branch - The WU's recorded branch, deleted in-verb for a parked WU.
+ * @param name - The WU slug for the landed cleanup command.
  * @returns The legality verdict and the impact-plan lines (empty when illegal).
  */
 export function planAbandon(state: LifecycleState, branch: string | null, name: string): AbandonPlan {
   if (!validFromStates("abandon").includes(state)) return { legal: false, lines: [] };
   const lines = ["Artifacts: remove the work unit's artifact set"];
   if (STARTED.has(state)) {
-    lines.push(`Teardown:  post-action — \`arc teardown ${name} --force\` (branch + worktree)`);
-  } else if (IN_VERB_BRANCH_DELETE.has(state)) {
-    lines.push(`Branch:    delete \`${branch ?? "[none]"}\` (local + remote)`);
+    lines.push(`Teardown:  after landing — \`arc teardown ${name}\` (receipt-backed cleanup)`);
+  } else if (PARKED.has(state)) {
+    lines.push(`Teardown:  after landing — \`arc teardown ${name}\` (preserved branch \`${branch ?? "[none]"}\`)`);
   }
-  lines.push("Workspace: remove the user session workspace");
+  lines.push(
+    STARTED.has(state) || PARKED.has(state)
+      ? "Workspace: close after landed cleanup"
+      : "Workspace: not applicable",
+  );
   lines.push("ROADMAP:   remove its row");
   return { legal: true, lines };
 }
@@ -158,9 +176,10 @@ export function planAbandon(state: LifecycleState, branch: string | null, name: 
 /**
  * Run `abandon`: resolve the source state, compose the per-cell operands, and
  * dispatch the destructive cascade. A started WU's branch + worktree teardown is
- * **not** fired here — it is deferred to a post-action `arc teardown --force` (see
- * the abandon edges in `lifecycle-transitions`); only a `parked` WU deletes its
- * branch in-verb. Rejects without confirmation (the `confirmation` guard) or from an
+ * **not** fired here — it is deferred to receipt-authorized `arc teardown` after
+ * landing. A parked WU's preserved branch is the unchanged retiring projection
+ * while the pointer removal lands on base. Rejects without confirmation (the
+ * `confirmation` guard) or from an
  * illegal source (the table's lookup — `integrating` / merged / `shipped`).
  *
  * @param ctx - The executor seams plus the artifact-removal fs.
@@ -171,19 +190,36 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
   const { name, confirmed } = params;
   const { executor, fs, retirement } = ctx;
 
-  const index = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
+  const index = ctx.composed?.index
+    ?? await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
   const state = resolveSlugState(index, name);
   const entry = index.get(name);
-  const meta = entry === undefined ? null : await readMeta(executor, entry.path);
+  const writablePath = ctx.composed === undefined
+    ? entry?.path
+    : ctx.composed.recordsBySlug.get(name)?.writablePath;
+  const meta = writablePath === undefined ? null : await readMeta(executor, writablePath);
 
-  const inputs: TransitionInputs = { confirmed };
+  const sourceBranch = meta?.branch;
+  const inputs: TransitionInputs = {
+    confirmed,
+    ...(sourceBranch === null || sourceBranch === undefined || sourceBranch === "[none]"
+      ? {}
+      : { supersededSource: { slug: name, branch: sourceBranch } }),
+  };
 
-  if (IN_VERB_BRANCH_DELETE.has(state) && meta !== null) {
-    inputs.branchOp = { mutation: "delete", branch: meta.Branch ?? "[none]" };
-  }
-
-  const scaffoldOrRemove = buildRemoveRunner(executor.cwd, fs);
-  if (confirmed !== true || entry === undefined || !validFromStates("abandon").includes(state)) {
+  const scaffoldOrRemove = buildRemoveRunner(executor.cwd, fs, executor.stageMeta);
+  if (
+    confirmed !== true
+    || entry === undefined
+    || writablePath === undefined
+    || !validFromStates("abandon").includes(state)
+  ) {
+    if (confirmed === true && entry !== undefined && writablePath === undefined) {
+      return {
+        status: "rejected",
+        reason: `Cannot abandon \`${name}\`: composed lifecycle truth does not grant current-checkout write authority.`,
+      };
+    }
     const outcome = await executeTransition(
       { ...executor, scaffoldOrRemove },
       { verb: "abandon", slug: name, inputs },
@@ -196,8 +232,13 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
   try {
     source = await retirement.captureSource({
       name,
-      sourceDir: posix.dirname(entry.path),
-      expectedBranch: STARTED.has(state) ? meta?.Branch ?? null : null,
+      sourceDir: posix.dirname(writablePath),
+      expectedBranch: STARTED.has(state)
+        ? meta?.branch ?? null
+        : null,
+      ...(PARKED.has(state) && meta?.branch !== null && meta?.branch !== undefined
+        ? { retirementSource: { branch: meta.branch, sourceDir: ACTIVE_DIR } }
+        : {}),
     });
   } catch (err) {
     return {
@@ -216,26 +257,15 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
     return { status: "rejected", reason: "Cannot record abandon evidence: retirement authority already exists." };
   }
 
-  const deferredCleanup: Array<{ label: string; run: () => Promise<unknown> }> = [];
   const workspaceHandler = executor.sideEffects?.["user-workspace"];
   const transitionExecutor = {
     ...executor,
     scaffoldOrRemove,
-    reconcileBranch: (op: Parameters<typeof executor.reconcileBranch>[0]) => {
-      deferredCleanup.push({ label: "branch cleanup", run: () => executor.reconcileBranch(op) });
-      return Promise.resolve();
-    },
     sideEffects: workspaceHandler === undefined
       ? executor.sideEffects
       : {
           ...executor.sideEffects,
-          "user-workspace": (effectCtx: Parameters<typeof workspaceHandler>[0]) => {
-            deferredCleanup.push({
-              label: "user workspace cleanup",
-              run: async () => await workspaceHandler(effectCtx),
-            });
-            return Promise.resolve(undefined);
-          },
+          "user-workspace": () => Promise.resolve(undefined),
         },
   };
   const outcome = await executeTransition(transitionExecutor, { verb: "abandon", slug: name, inputs });
@@ -257,9 +287,10 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
     };
   }
   const receipt: RetirementReceipt = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    inventoryRead: ctx.composed?.readQuality ?? "tree-only",
     receiptId: receiptId({
-      schemaVersion: 1,
+      schemaVersion: 2,
       subject: source.scope.subject,
       transition: "abandon",
       sourceBranch: source.scope.source.branch,
@@ -273,7 +304,7 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
       artifactDigest: source.artifactDigest,
     },
     transitionPatchDigest: patchDigest(transitionPatch),
-    retiringProjection: { kind: "direct-transition" },
+    retiringProjection: PARKED.has(state) ? { kind: "unchanged" } : { kind: "direct-transition" },
     authorization: "discard-confirmed",
     result: DISCARD_RESULT,
   };
@@ -289,21 +320,28 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
-  const advisories = [...outcome.advisories];
-  for (const { label, run } of deferredCleanup) {
-    try {
-      await run();
-    } catch (err) {
-      advisories.push(
-        `Abandon evidence was recorded, but ${label} did not complete: ${err instanceof Error ? err.message : String(err)}.`,
-      );
-    }
-  }
+  const pendingLifecycle = projectPendingRetirementLifecycle({
+    slug: name,
+    branch: sourceBranch ?? null,
+    transition: "abandon",
+    receiptId: receipt.receiptId,
+    authorityVersion: recorded.authorityVersion,
+  });
+  const lifecycle = !PARKED.has(state)
+    ? pendingLifecycle
+    : {
+        ...pendingLifecycle,
+        cleanup: {
+          ...pendingLifecycle.cleanup,
+          worktree: { status: "not-applicable" as const },
+        },
+      };
   return {
     status: "abandoned",
-    outcome: advisories.length === outcome.advisories.length ? outcome : { ...outcome, advisories },
+    outcome,
     receipt,
     authorityVersion: recorded.authorityVersion,
+    lifecycle,
   };
 }
 
@@ -333,7 +371,7 @@ async function rollbackAbandon(
 async function readMeta(
   executor: AbandonContext["executor"],
   relPath: string,
-): Promise<Record<MetaFieldName, string | null>> {
+): Promise<ParsedMetaRecord> {
   return parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, relPath)));
 }
 
@@ -342,7 +380,11 @@ async function readMeta(
  * from the source directory, then drop the directory itself when it is a per-WU
  * backlog subdir (basename === slug) — never the shared flat `active/` tier.
  */
-function buildRemoveRunner(cwd: string, fs: AbandonFs): ArtifactRunner {
+function buildRemoveRunner(
+  cwd: string,
+  fs: AbandonFs,
+  stagePath?: (path: string) => Promise<void>,
+): ArtifactRunner {
   return async ({ disposition, slug, fromDir }) => {
     if (disposition !== "remove") {
       throw new Error(`abandon removes artifacts; received a \`${disposition}\` disposition.`);
@@ -352,7 +394,10 @@ function buildRemoveRunner(cwd: string, fs: AbandonFs): ArtifactRunner {
     const absDir = join(cwd, fromDir);
     const matcher = artifactMatcher(slug);
     const names = (await fs.readdir(absDir)).filter((n) => matcher.test(n)).sort();
-    for (const n of names) await fs.rm(join(absDir, n));
+    for (const n of names) {
+      await fs.rm(join(absDir, n));
+      await stagePath?.(posix.join(fromDir, n));
+    }
 
     if (basename(fromDir) === slug) {
       try {

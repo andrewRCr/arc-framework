@@ -19,7 +19,7 @@ vi.mock("../../../src/lib/git/index.js", () => ({
     gitConfigGet: mocks.gitConfigGet,
     readConfiguredIdentity: mocks.readConfiguredIdentity,
 }));
-vi.mock("../../../src/lib/io-context.js", () => ({ gitExec: vi.fn() }));
+vi.mock("../../../src/lib/io-context.js", () => ({ createGitExec: () => vi.fn() }));
 vi.mock("../../../src/lib/user-surfaces.js", () => ({
     resolveUserSurfaceResolver: mocks.resolveUserSurfaceResolver,
 }));

@@ -4,7 +4,10 @@ import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canoni
 import { contentDigest, patchDigest } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
 import { receiptId as deriveReceiptId } from "../../../src/lib/canonical/receipt-id.js";
-import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/retirement-record-store.js";
+import {
+  RETIREMENT_RECORD_NAMESPACE,
+  resolveRetirementRecordRelativePath,
+} from "../../../src/lib/work-unit/retirement-record-store.js";
 import {
   parseStagedPathChanges,
   validateDecomposeCommitGate,
@@ -87,7 +90,120 @@ function validate(changes: StagedPathChange[], record = canonicalize(receipt), h
   });
 }
 
+interface RenameFixtureOptions {
+  sourcePaths?: string[];
+  targetPaths?: string[];
+  targetMetaStatus?: "A" | "M";
+  recordStatus?: "A" | "M";
+  headRecord?: boolean;
+  patchMismatch?: boolean;
+  extraChanges?: StagedPathChange[];
+}
+
+function validateRename(options: RenameFixtureOptions = {}): string[] {
+  const sourceSlug = "origin";
+  const targetSlug = "renamed-origin";
+  const sourcePaths = options.sourcePaths ?? [
+    `.arc/active/meta-${sourceSlug}.md`,
+    `.arc/active/spec-${sourceSlug}.md`,
+  ];
+  const targetPaths = options.targetPaths ?? [
+    `.arc/active/meta-${targetSlug}.md`,
+    `.arc/active/spec-${targetSlug}.md`,
+  ];
+  const changes: StagedPathChange[] = [
+    ...sourcePaths.map((path): StagedPathChange => ({ status: "D", path })),
+    ...targetPaths.map((path): StagedPathChange => ({
+      status: path.endsWith(`/meta-${targetSlug}.md`) ? options.targetMetaStatus ?? "A" : "A",
+      path,
+    })),
+    ...(options.extraChanges ?? []),
+  ];
+  const operationBytes = new Map<string, Uint8Array>();
+  for (const change of changes) {
+    if (change.status !== "D") operationBytes.set(change.path, bytes(`staged:${change.path}`));
+  }
+  const operations = changes.map((change) => change.status === "D"
+    ? { operation: "delete" as const, path: validateManagedPath(change.path) }
+    : {
+        operation: "write" as const,
+        path: validateManagedPath(change.path),
+        contentDigest: contentDigest(operationBytes.get(change.path) ?? bytes("missing")),
+      });
+  const subject = { kind: "work-unit" as const, name: sourceSlug };
+  const source = { branch: `feat/${sourceSlug}`, head: "e".repeat(40) };
+  const renameReceiptId = deriveReceiptId({
+    schemaVersion: 1,
+    subject,
+    transition: "rename",
+    sourceBranch: source.branch,
+    sourceHead: source.head,
+  });
+  const renameReceipt = {
+    schemaVersion: 1 as const,
+    receiptId: renameReceiptId,
+    subject,
+    transition: "rename" as const,
+    source: { ...source, artifactDigest: canonicalDigest("rename-source") },
+    transitionPatchDigest: options.patchMismatch ? canonicalDigest("wrong-patch") : patchDigest(operations),
+    retiringProjection: { kind: "direct-transition" as const },
+    authorization: "identity-renamed" as const,
+    result: {
+      kind: "rename" as const,
+      targetSlug,
+      artifactDigest: canonicalDigest("rename-result"),
+    },
+  };
+  const renameRecordPath = resolveRetirementRecordRelativePath(renameReceiptId);
+  changes.unshift({ status: options.recordStatus ?? "A", path: renameRecordPath });
+  const recordBytes = bytes(canonicalize(renameReceipt));
+  return validateDecomposeCommitGate({
+    changes,
+    readIndexBytes: (path) => path === renameRecordPath ? recordBytes : operationBytes.get(path) ?? null,
+    readHeadBytes: (path) => path === renameRecordPath && options.headRecord === true ? recordBytes : null,
+  });
+}
+
 describe("validateDecomposeCommitGate", () => {
+  it("covers a rename only when its target lifecycle metadata is a staged addition", () => {
+    expect(validateRename()).toEqual([]);
+    expect(validateRename({ targetPaths: [".arc/active/spec-renamed-origin.md"] }))
+      .toContainEqual(expect.stringMatching(/target lifecycle metadata.*renamed-origin/iu));
+    expect(validateRename({ targetMetaStatus: "M" }))
+      .toContainEqual(expect.stringMatching(/target lifecycle metadata.*addition/iu));
+  });
+
+  it("requires old-to-new artifact prefix multisets to correspond", () => {
+    expect(validateRename({ targetPaths: [".arc/active/meta-renamed-origin.md"] }))
+      .toContainEqual(expect.stringMatching(/artifact correspondence/iu));
+    expect(validateRename({
+      targetPaths: [
+        ".arc/active/meta-renamed-origin.md",
+        ".arc/active/spec-renamed-origin.md",
+        ".arc/active/tasks-renamed-origin.md",
+      ],
+    })).toContainEqual(expect.stringMatching(/artifact correspondence/iu));
+    expect(validateRename({
+      sourcePaths: [
+        ".arc/active/meta-origin.md",
+        ".arc/backlog/planned/group/meta-origin.md",
+      ],
+      targetPaths: [".arc/active/meta-renamed-origin.md"],
+    })).toContainEqual(expect.stringMatching(/artifact correspondence/iu));
+  });
+
+  it("ignores foreign staged files in rename correspondence", () => {
+    expect(validateRename({
+      extraChanges: [{ status: "A", path: ".arc/reference/unrelated.md" }],
+    })).toEqual([]);
+  });
+
+  it("reports amended and patch-mismatched rename evidence specifically", () => {
+    expect(validateRename({ recordStatus: "M", headRecord: true }))
+      .toContainEqual(expect.stringMatching(/already exists|amended/iu));
+    expect(validateRename({ patchMismatch: true }))
+      .toContainEqual(expect.stringMatching(/patch digest mismatch/iu));
+  });
   it("accepts a newly finalized record whose staged patch matches", () => {
     expect(validate([{ status: "A", path: recordPath }, { status: "A", path: targetPath }])).toEqual([]);
   });
@@ -273,7 +389,7 @@ describe("validateDecomposeCommitGate", () => {
     const abandon = abandonReceipt("origin");
     const canonicalPath = resolveRetirementRecordRelativePath(abandon.receiptId);
     const spoofedPath = canonicalPath.replace(
-      ".arc/.internal/retirement-receipts/",
+      `${RETIREMENT_RECORD_NAMESPACE}/`,
       "xarc/yinternal/retirement-receipts/",
     );
     expect(validateDecomposeCommitGate({
@@ -312,6 +428,69 @@ describe("validateDecomposeCommitGate", () => {
       ),
     ).toContainEqual(expect.stringMatching(/amended|already exists/i));
     expect(validate([{ status: "A", path: recordPath }])).toContainEqual(expect.stringMatching(/patch.*mismatch/i));
+  });
+
+  it.each(["A", "M", "D"] as const)("rejects %s changes beneath root-level .arc/.internal", (status) => {
+    const path = ".arc/.internal/retirement-receipts/record.json";
+    expect(validateDecomposeCommitGate({
+      changes: [{ status, path }],
+      readIndexBytes: () => status === "D" ? null : bytes("record"),
+      readHeadBytes: () => status === "A" ? null : bytes("record"),
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${path}`]);
+  });
+
+  it("admits a legacy receipt relocation whose exact bytes survive at the canonical namespace", () => {
+    const abandon = abandonReceipt("origin");
+    const canonicalPath = resolveRetirementRecordRelativePath(abandon.receiptId);
+    const legacyPath = canonicalPath.replace(
+      `${RETIREMENT_RECORD_NAMESPACE}/`,
+      ".arc/.internal/retirement-receipts/",
+    );
+    const preserved = bytes(canonicalize(abandon));
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacyPath }],
+      readIndexBytes: (path) => path === canonicalPath ? preserved : null,
+      readHeadBytes: (path) => path === legacyPath ? preserved : null,
+    })).toEqual([]);
+  });
+
+  it.each([
+    ["absent canonically", null],
+    ["canonically divergent", bytes("different record")],
+  ])("rejects a legacy receipt deletion %s", (_label, canonicalBytes) => {
+    const abandon = abandonReceipt("origin");
+    const canonicalPath = resolveRetirementRecordRelativePath(abandon.receiptId);
+    const legacyPath = canonicalPath.replace(
+      `${RETIREMENT_RECORD_NAMESPACE}/`,
+      ".arc/.internal/retirement-receipts/",
+    );
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacyPath }],
+      readIndexBytes: (path) => path === canonicalPath ? canonicalBytes : null,
+      readHeadBytes: (path) => path === legacyPath ? bytes(canonicalize(abandon)) : null,
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${legacyPath}`]);
+  });
+
+  it("rejects a legacy deletion outside retirement-receipts even when bytes exist canonically", () => {
+    const legacyPath = ".arc/.internal/other-state/record.json";
+    const preserved = bytes("record");
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacyPath }],
+      readIndexBytes: () => preserved,
+      readHeadBytes: () => preserved,
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${legacyPath}`]);
+  });
+
+  it("rejects root-level .arc/.internal inherited unchanged from a merge parent", () => {
+    const path = ".arc/.internal/retirement-receipts/record.json";
+    const inherited = bytes("legacy record");
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "A", path }],
+      mergeInProgress: true,
+      readIndexBytes: () => inherited,
+      readHeadBytes: () => null,
+      readParentBytes: () => [null, inherited],
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${path}`]);
   });
 });
 

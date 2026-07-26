@@ -16,7 +16,7 @@ The project-level PRD — the canonical statement of what this project is, the p
 itself to do. Referenced at lifecycle ceremonies as the alignment check for proposed work: does this serve the stated
 problem? Does it fall within scope? Does it align with project principles?
 
-Work-unit PRDs (one per chunk of work) reference this for context. PROJECT-PRD is the canonical statement of what this
+Work-unit PRDs (one per work unit) reference this for context. PROJECT-PRD is the canonical statement of what this
 project is; other ARC surfaces handle methodology, domain guidance, and decision records.
 
 > [!IMPORTANT]
@@ -61,7 +61,7 @@ What are you explicitly NOT doing, even if requested? Articulate the predictable
 and PRDs. Default format is a bulleted list with bolded names:
 `**Name**: one or two sentences on how this principle gets applied.`
 
-Principles are *discovered*, not invented — they emerge from recurring decisions that need consistent anchoring.
+Principles are _discovered_, not invented — they emerge from recurring decisions that need consistent anchoring.
 Resist filling this in vacuously at scaffold; let real patterns reveal them.
 
 [TBD — principles emerge from recurring decisions during work. Add as patterns surface.]

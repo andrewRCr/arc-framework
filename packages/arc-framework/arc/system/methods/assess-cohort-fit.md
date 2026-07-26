@@ -1,23 +1,23 @@
 ---
 name: assess-cohort-fit
-description: Upper-bound WU-vs-cohort boundary test — decompose a concern into a cohort, or keep it one work unit
+description: Upper-bound WU boundary test — decompose a concern into multiple work units, or keep it one
 override-active: false
 ---
 
 # Method: assess-cohort-fit
 
 > - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec]
-> - **When:** A work unit's design is the live artifact at a derivation stage — `draft-design` (the *predicted*
->   arm, design still forming) and `create-spec` (the *emergent* arm, a matured draft). A cheap confirm at every
+> - **When:** A work unit's design is the live artifact at a derivation stage — `draft-design` (the _predicted_
+>   arm, design still forming) and `create-spec` (the _emergent_ arm, a matured draft). A cheap confirm at every
 >   design-stage read, **not** depth-gated: decompose-candidacy keys on orthogonality/breadth, a different axis
 >   than derivation depth, so gating behind `high` depth would miss low-derivation-but-wide cohorts.
 >   `generate-tasks` coverage is free — a "this should be multiple WUs" discovery there is a derivation-class
 >   signal `resolve-planning-depth`'s re-entry valve already routes upstream to these design stages.
 >
 > - **Contract:** Given a work unit whose design is maturing, return either **"stays one WU"** or a **cut-map** —
->   the members (with slugs), their internal dependency edges, and deliverable boundaries — by testing
+>   the placement, members (with slugs), internal dependency edges, and deliverable boundaries — by testing
 >   design/subsystem orthogonality (not raw size) against the two guard rails and the design-maturity gate.
->   `decompose-work-unit` consumes the cut-map to execute the transform; this method *decides*, it never
+>   `decompose-work-unit` consumes the cut-map to execute the transform; this method _decides_, it never
 >   restructures. The full model and reasoning live in [strategy-work-organization][work-org] § Cohorts; this
 >   method is the
 >   single decide home every design stage declares, paired sibling of [classify-work-unit][classify-work-unit]
@@ -36,13 +36,13 @@ cut-map.
 
 ### The discriminator — orthogonality, not size
 
-Decompose on **design/subsystem orthogonality + independent deliverability/ownership** — *concern multiplicity*,
+Decompose on **design/subsystem orthogonality + independent deliverability/ownership** — _concern multiplicity_,
 not raw size. A concern spanning several orthogonal subsystems, each independently deliverable and ownable, is a
 cohort; one coherent concern designed as a whole is one WU, however large.
 
 **Size is a heads-up, never the trigger.** Review defect-detection craters past a few hundred LOC per increment,
 but ARC already reviews per task at that grain, so the PR-size argument is largely absorbed. Large size matters
-only when it spans *unrelated* subsystems (≈800–1000 LOC across orthogonal systems is a decompose signal);
+only when it spans _unrelated_ subsystems (≈800–1000 LOC across orthogonal systems is a decompose signal);
 tightly-coupled work designed as a whole stays one WU even when large — the per-task review grain carries the
 quality — and splits later only if it destabilizes. **Concern multiplicity is the trigger; LOC is a heads-up.**
 
@@ -73,9 +73,9 @@ Size doesn't trigger the cut, but it is the symptom that prompts the question. A
 method consumes ([strategy-work-organization][work-org] § WU sizing standard) — not re-authored here:
 
 - **Count distinct deliverables and independently-reviewable surfaces** — the primary signal. Several unrelated
-  review surfaces in one WU says *look closer*.
+  review surfaces in one WU says _look closer_.
 - **LOC and file count are secondary heads-up signals, not thresholds:** roughly `>~few-hundred LOC`,
-  `>~8–10 files`, or work that fails the "reviewable in one sitting" test says *look closer*, never *cut here*.
+  `>~8–10 files`, or work that fails the "reviewable in one sitting" test says _look closer_, never _cut here_.
 - **Stack vs. cohort:** sequentially-dependent pieces deliver as a **stack** (dependency-ordered WUs, each its
   own branch, merged in order); independent-ish pieces form a **cohort** of parallel WUs. A stack is a cohort's
   dependency-ordered delivery mode, not one WU spread across many branches.
@@ -83,10 +83,11 @@ method consumes ([strategy-work-organization][work-org] § WU sizing standard) �
 The mental model is **cohort ≈ epic, WU ≈ story** — this method fills the codified
 concern → WU-count mapping.
 
-### When it fires affirmative — a cohort of self-contained WUs
+### When it fires affirmative — self-contained WUs
 
-When a concern exceeds one WU it becomes a **cohort of self-contained, single-owner WUs** — each its own
-`meta-* + spec-* + tasks-*` and one branch — not one large WU sliced into smaller pieces.
+When a concern exceeds one WU it becomes multiple self-contained, single-owner WUs — each its own
+`meta-* + spec-* + tasks-*` and one branch — not one large WU sliced into smaller pieces. The placement decision
+determines whether those WUs share a cohort node or remain flat siblings.
 
 **Plan-grouping ≠ delivery-grouping.** One concern **plans** as a single coherent draft but **delivers** as a
 stack of WUs along natural deliverable/phase boundaries. At decomposition the one draft becomes **N
@@ -104,20 +105,26 @@ aren't self-describing); inter-member order, when it exists, lives in `Depends O
 
 The method produces either **"stays one WU"** or the **cut-map**:
 
+- **`parentPosition`** — `standalone`, `in-cohort`, `at-cap`, or `cohortless`;
+- **`cohort`** — required for `standalone` / `in-cohort`, omitted for `at-cap` / `cohortless`;
 - **members** — each with its legible slug;
 - **internal dependency edges** — `m_i → m_j`, authored from the cut's delivery order;
 - **deliverable boundaries** — what each member independently ships.
 
+`cohortless` means flat planned siblings whose relationships live only in their dependency graph. Select it only
+when every conserved source has a destination-owned home. Ownerless shared coordination requires a cohort-backed
+placement and a `cohort-coordination` destination.
+
 **Entry kinds.** A cut-map entry defaults to a **new member** (a freshly-minted WU, above). Two further kinds
-cover the non-symmetric transform shapes — a data-shape the cut-map carries, while *when* to use them stays this
+cover the non-symmetric transform shapes — a data-shape the cut-map carries, while _when_ to use them stays this
 method's judgment:
 
-- **surviving-origin** — names the *retained* origin as an entry (the extraction shape), carrying its disposition
+- **surviving-origin** — names the _retained_ origin as an entry (the extraction shape), carrying its disposition
   (`keep-active` / `park`); the origin survives the cut rather than retiring.
-- **existing/atomic-home** — names an *existing or atomic destination* (the heterogeneous shape): a sibling stub, a
+- **existing/atomic-home** — names an _existing or atomic destination_ (the heterogeneous shape): a sibling stub, a
   `draft-design` block, or an in-place atomic edit to a standing doc, rather than a new member.
 
-Producing the cut-map ends this method's job — it *decides*, it never executes the cut. `decompose-work-unit`
+Producing the cut-map ends this method's job — it _decides_, it never executes the cut. `decompose-work-unit`
 consumes the cut-map and runs the transform.
 
 ---

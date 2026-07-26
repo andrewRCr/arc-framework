@@ -32,9 +32,10 @@ const shippedEvidence: Extract<RetirementEvidenceRef, { kind: "shipped" }> = {
 };
 
 function receipt(
-  transition: "abandon" | "park-planning" = "abandon",
+  transition: "abandon" | "park-planning" | "rename" = "abandon",
 ): RetirementReceipt {
   const parked = transition === "park-planning";
+  const renamed = transition === "rename";
   return {
     schemaVersion: 1,
     receiptId: contentDigest(new TextEncoder().encode(`${transition}-receipt`)),
@@ -47,19 +48,25 @@ function receipt(
     },
     transitionPatchDigest: contentDigest(new TextEncoder().encode("patch")),
     retiringProjection: { kind: "direct-transition" },
-    authorization: parked ? "planning-relocated" : "discard-confirmed",
-    result: parked
-      ? { kind: "relocate", plannedArtifactDigest: contentDigest(new TextEncoder().encode("planned")) }
-      : { kind: "discard", artifactDigest: "absent" },
+    authorization: renamed ? "identity-renamed" : parked ? "planning-relocated" : "discard-confirmed",
+    result: renamed
+      ? {
+          kind: "rename",
+          targetSlug: "renamed-sample",
+          artifactDigest: contentDigest(new TextEncoder().encode("renamed")),
+        }
+      : parked
+        ? { kind: "relocate", plannedArtifactDigest: contentDigest(new TextEncoder().encode("planned")) }
+        : { kind: "discard", artifactDigest: "absent" },
   };
 }
 
 function context(candidate = receipt()): RetirementAuthorizationContext & {
-  local: { oid: string; ownedByRetiringWorktree: boolean };
+  local: { oid: string; worktreeProjectionSafe: boolean };
   remoteRef: { oid: string | null };
   candidate: { value: RetirementReceipt | null };
 } {
-  const local = { oid: head, ownedByRetiringWorktree: true };
+  const local = { oid: head, worktreeProjectionSafe: true };
   const remoteRef = { oid: head as string | null };
   const candidateState = { value: candidate as RetirementReceipt | null };
   return {
@@ -129,7 +136,7 @@ describe("authorizeRetirement", () => {
     });
 
     ctx.remoteRef.oid = head;
-    ctx.local.ownedByRetiringWorktree = false;
+    ctx.local.worktreeProjectionSafe = false;
     await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
       status: "refused",
       reason: "projection-mismatch",
@@ -144,6 +151,17 @@ describe("authorizeRetirement", () => {
       status: "refused",
       reason: "evidence-missing",
     });
+  });
+
+  it("refuses a rename receipt as teardown evidence before matrix validation", async () => {
+    const ctx = context(receipt("rename"));
+
+    await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
+      status: "refused",
+      reason: "unsupported-transition",
+    });
+    expect(ctx.validateReceiptRelation).not.toHaveBeenCalled();
+    expect(ctx.validateReceiptResult).not.toHaveBeenCalled();
   });
 
   it("refuses a park receipt whose effective base lacks the conserved result", async () => {

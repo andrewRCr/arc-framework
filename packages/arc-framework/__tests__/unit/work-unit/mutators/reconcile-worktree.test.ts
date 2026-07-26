@@ -7,12 +7,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { tmpdir } from "node:os";
 
 import {
+  nodeReconcileWorktreeFs,
   reconcileWorktree,
+  resolveRenameWorktreeMove,
   type ReconcileWorktreeContext,
 } from "../../../../src/lib/work-unit/mutators/reconcile-worktree.js";
 import { resolveWorktreeLocation } from "../../../../src/lib/git/worktree-location.js";
@@ -31,6 +33,8 @@ interface MockOptions {
   toplevel?: string;
   /** Make the configured post-create script fail. */
   failPostCreate?: boolean;
+  /** Make `git worktree move` fail as though the current directory is occupied. */
+  failOccupiedMove?: boolean;
   /** Primary-side directories that should appear present to the harness-dir copy seam. */
   existingDirs?: readonly string[];
 }
@@ -46,6 +50,12 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorktreeContext; even
   const exec: GitExec = async (cmd, args) => {
     events.push([cmd, ...args]);
     if (cmd !== "git" && opts.failPostCreate === true) throw new Error("exit 42");
+    if (args[0] === "worktree" && args[1] === "move" && opts.failOccupiedMove === true) {
+      throw Object.assign(new Error("worktree move failed"), {
+        code: 1,
+        stderr: "fatal: failed to move worktree: Permission denied",
+      });
+    }
     if (args[0] === "status") return { stdout: opts.status ?? "" };
     if (args[0] === "worktree" && args[1] === "list") return { stdout: opts.worktreeList ?? "" };
     if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return { stdout: `${opts.toplevel ?? ""}\n` };
@@ -85,6 +95,43 @@ function porcelain(primary: string, linked: string): string {
     "",
   ].join("\n");
 }
+
+describe("nodeReconcileWorktreeFs.copyDirectory", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-copy-harness-dir-"));
+  });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("preserves relative skill links inside the destination worktree", async () => {
+    const primary = join(root, "primary");
+    const destination = join(root, "linked");
+    const relativeTarget = "../../.arc/system/.internal/skills/arc-inbox";
+    const sourceSkill = join(primary, ".arc", "system", ".internal", "skills", "arc-inbox");
+    const destinationSkill = join(destination, ".arc", "system", ".internal", "skills", "arc-inbox");
+    await mkdir(sourceSkill, { recursive: true });
+    await mkdir(destinationSkill, { recursive: true });
+    await mkdir(join(primary, ".claude", "skills"), { recursive: true });
+    await writeFile(join(sourceSkill, "SKILL.md"), "primary\n");
+    await writeFile(join(destinationSkill, "SKILL.md"), "linked\n");
+    await writeFile(join(primary, ".claude", "settings.json"), "{}\n");
+    await symlink(relativeTarget, join(primary, ".claude", "skills", "arc-inbox"), "dir");
+
+    await nodeReconcileWorktreeFs.copyDirectory(
+      join(primary, ".claude"),
+      join(destination, ".claude"),
+    );
+
+    const copiedLink = join(destination, ".claude", "skills", "arc-inbox");
+    expect(await readlink(copiedLink)).toBe(relativeTarget);
+    expect(await realpath(copiedLink)).toBe(await realpath(destinationSkill));
+    expect(await readFile(join(copiedLink, "SKILL.md"), "utf8")).toBe("linked\n");
+    expect(await readFile(join(destination, ".claude", "settings.json"), "utf8")).toBe("{}\n");
+  });
+});
 
 describe("reconcileWorktree — spawn", () => {
   let root: string;
@@ -156,6 +203,8 @@ describe("reconcileWorktree — spawn", () => {
       now: Date.parse("2026-06-15T12:00:00.000Z"),
     });
 
+    expect(result.mutation).toBe("spawn");
+    if (result.mutation !== "spawn") throw new Error("expected spawn result");
     expect(isAbsolute(result.worktreePath)).toBe(true);
     expect(result).toMatchObject({ mutation: "spawn", worktreePath: expectedPath, branch: "plan/demo-wu" });
     // The `git worktree add` target is the absolute path, never the `..`-relative template.
@@ -409,6 +458,203 @@ describe("reconcileWorktree — spawn in place (--here)", () => {
       ["git", "checkout", "feat/demo-wu"],
       ["git", "rev-parse", "--show-toplevel"],
     ]);
+  });
+});
+
+describe("reconcileWorktree — rename move", () => {
+  it("defers a POSIX-legal self-move before invoking the worktree mutator", async () => {
+    const registered = "/work/project.old-name";
+    const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/new-name");
+    const { ctx } = buildCtx({ worktreeList: listing });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/new-name",
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      currentLocus: "/work/project.old-name/packages/arc-framework",
+    })).resolves.toEqual({
+      status: "deferred-self-move",
+      from: registered,
+      to: "/work/project.new-name",
+    });
+  });
+
+  it("derives an off-template destination from the registered path's final segment", async () => {
+    const registered = "/custom/workspaces/project.old-name";
+    const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/new-name");
+    const { ctx } = buildCtx({ worktreeList: listing });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/new-name",
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      currentLocus: "/work/primary",
+    })).resolves.toEqual({
+      status: "move",
+      from: registered,
+      to: "/custom/workspaces/project.new-name",
+    });
+  });
+
+  it("rewrites the final old-slug occurrence when the registered leaf contains it more than once", async () => {
+    const registered = "/custom/workspaces/old-name-tools.old-name";
+    const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/new-name");
+    const { ctx } = buildCtx({ worktreeList: listing });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/new-name",
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      currentLocus: "/work/primary",
+    })).resolves.toEqual({
+      status: "move",
+      from: registered,
+      to: "/custom/workspaces/old-name-tools.new-name",
+    });
+  });
+
+  it("accepts an already-moved path when the new slug contains the old slug", async () => {
+    const registered = "/custom/workspaces/project.foo-bar";
+    const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/foo-bar");
+    const { ctx } = buildCtx({ worktreeList: listing });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/foo-bar",
+      oldSlug: "foo",
+      newSlug: "foo-bar",
+      currentLocus: "/work/primary",
+    })).resolves.toEqual({ status: "already-moved", worktreePath: registered });
+  });
+
+  it("moves an old path when the old slug contains the new slug", async () => {
+    const registered = "/custom/workspaces/project.foo-bar";
+    const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/foo");
+    const { ctx } = buildCtx({ worktreeList: listing });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/foo",
+      oldSlug: "foo-bar",
+      newSlug: "foo",
+      currentLocus: "/work/primary",
+    })).resolves.toEqual({
+      status: "move",
+      from: registered,
+      to: "/custom/workspaces/project.foo",
+    });
+  });
+
+  it("still rewrites a final old slug outside an earlier new-slug occurrence", async () => {
+    const registered = "/custom/workspaces/foo-bar-tools.foo";
+    const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/foo-bar");
+    const { ctx } = buildCtx({ worktreeList: listing });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/foo-bar",
+      oldSlug: "foo",
+      newSlug: "foo-bar",
+      currentLocus: "/work/primary",
+    })).resolves.toEqual({
+      status: "move",
+      from: registered,
+      to: "/custom/workspaces/foo-bar-tools.foo-bar",
+    });
+  });
+
+  it("surfaces a registered leaf that contains no old-slug occurrence", async () => {
+    const registered = "/custom/workspaces/manual-location";
+    const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/new-name");
+    const { ctx } = buildCtx({ worktreeList: listing });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/new-name",
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      currentLocus: "/work/primary",
+    })).resolves.toEqual({ status: "unmatched", worktreePath: registered });
+  });
+
+  it("classifies an unregistered branch as an in-place subject", async () => {
+    const { ctx } = buildCtx({ worktreeList: porcelain("/work/primary", "/work/other") });
+
+    await expect(resolveRenameWorktreeMove(ctx.exec, {
+      branch: "feat/new-name",
+      oldSlug: "old-name",
+      newSlug: "new-name",
+      currentLocus: "/work/primary",
+    })).resolves.toEqual({ status: "in-place" });
+  });
+
+  it("moves the current worktree, hops to its destination, and reports the new path", async () => {
+    const { ctx, events } = buildCtx();
+
+    const result = await reconcileWorktree(ctx, {
+      mutation: "move",
+      from: "/work/project.old-name",
+      to: "/work/project.new-name",
+      currentLocus: "/work/project.old-name/packages/arc-framework",
+    });
+
+    expect(result).toEqual({
+      mutation: "move",
+      from: "/work/project.old-name",
+      to: "/work/project.new-name",
+      locusHopped: true,
+    });
+    expect(events).toEqual([
+      ["git", "worktree", "move", "/work/project.old-name", "/work/project.new-name"],
+      ["chdir", "/work/project.new-name"],
+    ]);
+  });
+
+  it("moves another worktree without changing the process locus", async () => {
+    const { ctx, events } = buildCtx();
+
+    await expect(reconcileWorktree(ctx, {
+      mutation: "move",
+      from: "/work/project.old-name",
+      to: "/work/project.new-name",
+      currentLocus: "/work/primary",
+    })).resolves.toMatchObject({ mutation: "move", locusHopped: false });
+    expect(events).toEqual([
+      ["git", "worktree", "move", "/work/project.old-name", "/work/project.new-name"],
+    ]);
+  });
+
+  it("returns a follow-up notice when the platform refuses an occupied self-move", async () => {
+    const { ctx, events } = buildCtx({ failOccupiedMove: true });
+
+    const result = await reconcileWorktree(ctx, {
+      mutation: "move",
+      from: "/work/project.old-name",
+      to: "/work/project.new-name",
+      currentLocus: "/work/project.old-name",
+    });
+
+    expect(result).toMatchObject({
+      mutation: "move",
+      locusHopped: false,
+      followUpNotice: expect.stringMatching(/outside.*worktree/iu),
+    });
+    expect(events).toEqual([
+      ["git", "worktree", "move", "/work/project.old-name", "/work/project.new-name"],
+    ]);
+  });
+
+  it("propagates a self-move failure unrelated to directory occupancy", async () => {
+    const { ctx } = buildCtx();
+    ctx.exec = async () => {
+      throw Object.assign(new Error("destination exists"), {
+        code: 1,
+        stderr: "fatal: destination path already exists",
+      });
+    };
+
+    await expect(reconcileWorktree(ctx, {
+      mutation: "move",
+      from: "/work/project.old-name",
+      to: "/work/project.new-name",
+      currentLocus: "/work/project.old-name",
+    })).rejects.toThrow(/destination exists/iu);
   });
 });
 

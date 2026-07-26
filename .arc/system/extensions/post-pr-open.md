@@ -7,25 +7,21 @@ active: false
 # Extension: post-pr-open
 
 > - **Workflows:** [integrate-work-unit.md][integrate-work-unit], [run-errand.md][run-errand]
-> - **Fires:** After a newly created or previously existing open change request is resolved, before review coordination.
+> - **Fires:** After a newly created or previously existing open change request is resolved, before review.
 >
 > - **Input:** `openedChangeRequest = { repositoryRef, hostRef, headSha }`. Callers supply these opaque coordinates;
 >   host adapters validate and convert them. The extension does not infer branch or work-unit state.
 >
 > - **Contract:** Execute numbered actions in authored order and halt before later actions when one fails. Actions are
->   idempotent across create and re-entry paths and derive current host/controller state from the supplied reference.
+>   idempotent across create and re-entry paths and derive current host state from the supplied reference.
 >   The contract is platform-neutral and assumes no relationship between work units and change-request cardinality.
 
 ## post-pr-open.actions
 
-1. **Coordinate the opened pull request.** Invoke [coordinate-pr-review.md][coordinate-pr-review] with the supplied
-   `openedChangeRequest`. Return immediately when the controller reports the PR exempt.
-
-2. **Future project actions.** Append additional actions here in authored order. Execute sequentially and halt before
+1. **Future project actions.** Append additional actions here in authored order. Execute sequentially and halt before
    later actions when an earlier action fails.
 
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [run-errand]: ../workflows/arc/supplemental/run-errand.md
-[coordinate-pr-review]: ../workflows/project/coordinate-pr-review.md

@@ -20,6 +20,7 @@ const METHOD_FRONTMATTER_FIELDS = new Set([
   "active",
   "related",
   "override-mode",
+  "review-augmentation",
 ]);
 
 /** Validated method frontmatter. */
@@ -30,6 +31,7 @@ export interface MethodFrontmatter {
   active?: boolean;
   related?: string[];
   "override-mode"?: "replace" | "extend";
+  "review-augmentation"?: unknown;
 }
 
 /** Parse result: frontmatter is present when errors is empty. */
@@ -60,6 +62,7 @@ export function parseMethodFrontmatter(
   const active = data.active;
   const related = data.related;
   const overrideMode = data["override-mode"];
+  const reviewAugmentation = data["review-augmentation"];
 
   if (typeof name !== "string") errors.push("missing or invalid `name` (expected string)");
   if (typeof description !== "string") errors.push("missing or invalid `description` (expected string)");
@@ -91,5 +94,6 @@ export function parseMethodFrontmatter(
   if (active !== undefined) frontmatter.active = active as boolean;
   if (related !== undefined) frontmatter.related = related as string[];
   if (overrideMode !== undefined) frontmatter["override-mode"] = overrideMode as "replace" | "extend";
+  if (reviewAugmentation !== undefined) frontmatter["review-augmentation"] = reviewAugmentation;
   return { frontmatter, errors: [] };
 }

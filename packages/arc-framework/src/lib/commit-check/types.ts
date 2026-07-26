@@ -8,11 +8,16 @@
  * @module
  */
 
+import type {
+  ArcConfigEnumValue,
+  CommitCheckConfigKey,
+} from "../config/schema.js";
+
 /** Commit-message formats supported by ARC policy. */
-export type CommitMessageFormat = "conventional" | "custom" | "any";
+export type CommitMessageFormat = ArcConfigEnumValue<"commit.format">;
 
 /** Context-footer modes supported by ARC policy. */
-export type ContextFooterMode = "required" | "recommended" | "custom" | "disabled";
+export type ContextFooterMode = ArcConfigEnumValue<"commit.context_footer">;
 
 /** Role used only for author-facing commit-footer advisories. */
 export type CommitCheckRole = "maintainer" | "contributor";
@@ -87,15 +92,7 @@ export interface CommitCheckFinding {
 export type CommitCheckVerdict = "pass" | "pass-with-warnings" | "fail";
 
 /** All configuration keys consumed by commit-message validation. */
-export type CommitCheckConfigurationKey =
-  | "hooks.commit_msg"
-  | "commit.format"
-  | "commit.context_footer"
-  | "commit.custom_pattern"
-  | "commit.context_pattern"
-  | "hooks.subject_max_length"
-  | "hooks.body_max_lines"
-  | "hooks.body_max_line_length";
+export type CommitCheckConfigurationKey = CommitCheckConfigKey;
 
 /** Raw, quote-normalized configuration values supplied to validation. */
 export type CommitCheckConfiguration = Readonly<Record<CommitCheckConfigurationKey, string>>;

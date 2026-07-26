@@ -14,7 +14,6 @@
 
 import {
   formatValue,
-  parseIdentifierList,
   parseMetaRecord,
   setMetaBulletFields,
 } from "../active/meta-reader.js";
@@ -41,7 +40,7 @@ export function repointDependsOn(
   originSlug: string,
   deliveringMembers: string[],
 ): string {
-  const current = parseIdentifierList(parseMetaRecord(content)["Depends On"]);
+  const current = parseMetaRecord(content).dependsOn;
   if (!current.includes(originSlug)) return content;
 
   const rewritten = replaceDependencySlot(current, originSlug, deliveringMembers);

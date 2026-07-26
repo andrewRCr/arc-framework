@@ -83,8 +83,8 @@ export async function resolveStagedOriginatingWorkUnit(
       const name = match[1];
       if (name === undefined || name === "") continue;
       const title = /^# (.+)$/mu.exec(stdout)?.[1]?.trim();
-      if (title !== `Metadata: ${name}` || record.State === null || record.State === "") continue;
-      const branch = record.Branch;
+      if (title !== `Metadata: ${name}` || record.state === null || record.state === "") continue;
+      const branch = record.branch;
       resolved.push({
         name,
         metaPath,

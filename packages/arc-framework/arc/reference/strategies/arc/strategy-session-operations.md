@@ -36,7 +36,7 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 ARC organizes agent context into three tiers based on when the content becomes relevant:
 
 | Tier | Name           | When Loaded                          | Content Type                                              |
-|------|----------------|--------------------------------------|-----------------------------------------------------------|
+| ---- | -------------- | ------------------------------------ | --------------------------------------------------------- |
 | T1   | Constitutional | Session initialization               | Principles, identity, constraints, navigation             |
 | T2   | State          | Session initialization               | Work status, session notes, task overview                 |
 | T3   | Procedural     | On-demand at workflow trigger points | Method defaults/overrides, strategies, detailed workflows |
@@ -73,7 +73,7 @@ Some T3 content becomes near-certain to be needed based on session state availab
 Content meeting these criteria promotes from T3 to the session-init load set:
 
 | Content           | State Signal                                      | Promotes When             |
-|-------------------|---------------------------------------------------|---------------------------|
+| ----------------- | ------------------------------------------------- | ------------------------- |
 | process-task-loop | Meta file resolved; `**Task List:**` not `[none]` | Active task work expected |
 
 Sessions without active task lists (planning, evaluation, exploratory) don't need ~240 lines of
@@ -104,7 +104,7 @@ wraps in the same `Probe<T>` discriminated union as session-init; per-slot failu
 branch rather than rejecting the composite. Mirrors the session-init field table in `session-init.md`.
 
 | Field            | Contents                                                                                                                                                       |
-|------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `identity`       | `{identity, role}` — either may be `null`                                                                                                                      |
 | `dirty`          | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                           |
 | `worktree`       | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                               |
@@ -149,7 +149,7 @@ guidance — classify it by asking:
 
 **T1 — Constitutional?**
 
-- Would violating this without knowing it cause incorrect behavior across *any* session activity?
+- Would violating this without knowing it cause incorrect behavior across _any_ session activity?
 - Is this a constraint, principle, or navigation index that applies regardless of task type?
 - Would deferring this create a risk of the agent acting contrary to project standards?
 
@@ -346,7 +346,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 ### Method Classification by Trigger
 
 | Method                | Trigger Workflow    | Session Applicability                      |
-|-----------------------|---------------------|--------------------------------------------|
+| --------------------- | ------------------- | ------------------------------------------ |
 | issue-triage          | process-task-loop   | Universal — every task execution session   |
 | quality-gate-commands | process-task-loop   | Universal — every task execution session   |
 | test-first            | process-task-loop   | Conditional — tasks with test-first marker |
@@ -354,7 +354,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | commit-footer         | prepare-commits     | User-triggered commit events               |
 | self-review           | integrate-work-unit | Integration phase only                     |
 | frontline-review      | integrate-work-unit | Optional advisory pre-publication review   |
-| independent-analysis  | integrate-work-unit | Satisfying exact-change-set standard       |
+| standard-review       | integrate-work-unit | Satisfying exact-change-set standard       |
 | implementation-audit  | integrate-work-unit | Integration review rubric                  |
 | review-triage         | integrate-work-unit | Integration phase only                     |
 | session-state         | session-handoff     | Session end only                           |
@@ -362,7 +362,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 ### Review enforcement boundary
 
 Agent-side review methods and extensions are best-effort ergonomics. Method activation and workflow declarations
-can require an agent to run an activity, and independent analysis can produce evidence eligible for a review
+can require an agent to run an activity, and standard review can produce evidence eligible for a review
 obligation, but none of those agent-layer controls prevents a direct host-UI merge. Only a configured required
 host-side check structurally enforces merge safety. Projects without that host control must describe review as
 procedural discipline, not a merge guarantee.
@@ -391,7 +391,7 @@ regardless of approval).
 The five interlocks attach to the operational junctions a unit of work passes through:
 
 | Interlock               | Configurability |
-|-------------------------|-----------------|
+| ----------------------- | --------------- |
 | `task-interlock`        | Invariant       |
 | `commit-interlock`      | Configurable    |
 | `sync-interlock`        | Configurable    |
@@ -567,7 +567,7 @@ For deeper rationale on stakes asymmetry and concurrent-session race surface, se
 
 When a single approval triggers multiple operations (commit-on-task-approval; push-on-sync), the cascade
 must be reversible. ARC v1 ships protocol-level support — a DEV-RULES rule (see
-[DEV-RULES.ARC][dev-rules-arc] § Commit Discipline, *cascade-undo*) requiring agents to present an
+[DEV-RULES.ARC][dev-rules-arc] § Commit Discipline, _cascade-undo_) requiring agents to present an
 undo plan and await explicit confirmation before destructive cascade reversals (resetting commits,
 retracting pushes).
 
@@ -583,7 +583,7 @@ Configurable interlock release creates cascades that can fail after the user has
 the boundary. Classify failures by the state they leave behind before choosing a recovery path:
 
 | Mode | Category  | Trigger                                                        | Recovery path                                                              |
-|------|-----------|----------------------------------------------------------------|----------------------------------------------------------------------------|
+| ---- | --------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | 1    | Bad state | Pre-commit hook fails during commit-on-task-approval           | Fix obvious issues; otherwise fall back to manual-with-prompt              |
 | 2    | Bad state | Tier 1/Tier 2 quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback                        |
 | 3    | Transit   | Network failure during push-on-sync                            | Preserve local state, surface in summary, retry when reachable             |
@@ -719,7 +719,7 @@ code commit that completes the task — the opposite rule from the meta file (se
 The distinction is volatility versus derived state. Meta-file fields are pointers whose value at
 time T is stale by T+10min — deferring updates to ceremony boundaries discards no information
 because the next consumer (session-init) reads only the latest pointer. Task-list `[x]` flips are
-*terminal derived state*: a completion event that won't reverse, and one a future reader needs at
+_terminal derived state_: a completion event that won't reverse, and one a future reader needs at
 the boundary that produced it. Bundling them with the change that produced them keeps cross-session
 recovery cheap (interrupted sessions leave the git record matching reality) and preserves the
 "what task did this commit complete" linkage in `git log` view.
@@ -849,7 +849,7 @@ workspace root, cross-WU scope.
 **Reminder flag.** A `## Errand` entry may carry an optional `_Remind:_` descriptor — a low-friction
 "don't let me forget" switch set at capture time, named for its effect rather than an urgency reading.
 When set, session-init surfaces the capture as an advisory orientation line after a delay. It renders as
-an italic descriptor bullet like the entry's others, but a *parsed* field marks itself by
+an italic descriptor bullet like the entry's others, but a _parsed_ field marks itself by
 backtick-delimiting its value: the `_Remind:_` key stays bare-italic and its value (`true`) is a code
 span — the backticks signalling data the sweep reads, not prose. It is boolean (default `false`) and
 renders only when `true`; the parser reads its absence as `false` — the same render rule `WU_Target`
@@ -869,17 +869,17 @@ agent-suggested**: it is an explicit per-entry choice at the drain's confirmatio
 same render rule `_Remind:_` follows). It is set by the drain, not by `arc-inbox` at capture. A `_Hold:_`
 entry is **triaged, not un-triaged**: it is excluded from the `inboxState.housekeepNeeded` count — so
 session-init does not re-offer housekeep for a deliberately-kept capture — while the reminder sweep still
-surfaces it (the sweep reads `_Remind:_` *or* `_Hold:_`), so a retained capture cannot rot. `_Remind:_`
-alone cannot serve this role: it means *nudge-until-drained*, the opposite of exempt-from-drain.
+surfaces it (the sweep reads `_Remind:_` _or_ `_Hold:_`), so a retained capture cannot rot. `_Remind:_`
+alone cannot serve this role: it means _nudge-until-drained_, the opposite of exempt-from-drain.
 Retaining re-stamps `_Created:_` to the retain date, so the never-same-day reminder floor applies from
 the retention. The drain therefore closes on **no un-triaged entries**, not necessarily an empty file.
 
 **Lifecycle.** Writes accepted any time (the live-capture role). The drain fires at the
-between-WUs housekeep flow — *not* at the integration ceremony; destinations vary by PM mode:
+between-WUs housekeep flow — _not_ at the integration ceremony; destinations vary by PM mode:
 
 - **`pm.mode: arc-in-git`** — housekeep routes each entry to its home: `§ Errand` items to their
   target stub or, if homeless, the shared `backlog/ATOMIC-INBOX.md`; `§ Work Unit` items to an
-  existing stub or a new *provisional* stub (there is no shared Work-Unit inbox). See
+  existing stub or a new _provisional_ stub (there is no shared Work-Unit inbox). See
   `strategy-planning-module.md` § Inbox Family and § Shared-Inbox Write Discipline for operational
   details.
 - **`pm.mode: external`** — entries route to the external tracker per the project's integration

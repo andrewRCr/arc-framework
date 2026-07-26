@@ -7,7 +7,7 @@ reviews:
     - path: "**/*"
       instructions: |
           <!-- arc:review-guidance:start -->
-          Rubric: `independent-analysis/v1` / `sha256:c34dfab26c476e8bfa07c60540b7af7f01b06834e6533a5e14d433e88a1d07f8`
+          Rubric: `standard-review/v1` / `sha256:cea850203b3e821cc9f81563b30d01c91a2cc85832fd2edff8b4a1da7dae6295`
 
           ### Coverage and evaluator boundary
 
@@ -37,10 +37,12 @@ reviews:
           - Return clean only after the complete requested change set and every rubric dimension were considered.
           - Unavailable, partial, ambiguous, or failed review is never clean.
           <!-- arc:review-guidance:end -->
+  # Review is requested explicitly per pull request; there is no automatic trigger.
+  # `inheritance: true` is set above, so every automatic path is pinned off here rather
+  # than left unset — an unset key would take the account-level default.
   auto_review:
-    enabled: true
-    labels:
-      - arc-review-gate
+    enabled: false
+    labels: []
     drafts: false
     auto_incremental_review: false
     description_keyword: ""

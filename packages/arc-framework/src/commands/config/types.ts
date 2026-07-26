@@ -9,33 +9,10 @@
  *
  */
 
-/** All agent-consumable arc-config settings. Raw string values. */
-export interface ConfigSettings {
-  "branch.base": string;
-  "branch.protection": string;
-  "worktree.location_template": string;
-  "worktree.post_create": string;
-  "worktree.harness_dirs": string;
-  "commit.format": string;
-  "commit.context_footer": string;
-  "commit.custom_pattern": string;
-  "commit.context_pattern": string;
-  "merge.strategy": string;
-  "platform.type": string;
-  "review.frontline_source": string;
-  "pm.mode": string;
-  "team.mode": string;
-  "session.remote_sync": string;
-  "session.init_pull.worktree": string;
-  "session.init_pull.notes": string;
-  "session.init_pull.base": string;
-  "session.init_load.notes": string;
-  "sync.auto_pull": string;
-  "archive.cadence": string;
-  "user.notes_push": string;
-  "inbox.remind_after_days": string;
-  "integration.stale_after_days": string;
-}
+import type { ConfigSettings } from "../../lib/config/schema.js";
+
+/** Compatibility export for the schema-derived agent-consumable settings record. */
+export type { ConfigSettings } from "../../lib/config/schema.js";
 
 /**
  * Init-gating subset — fields that affect session-init decisions before a

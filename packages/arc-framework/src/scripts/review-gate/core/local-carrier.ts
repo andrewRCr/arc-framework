@@ -1,4 +1,4 @@
-/** Exact-head admission contract for local independent-analysis carriers. */
+/** Exact-head admission contract for local standard-review carriers. */
 
 import { z } from "zod";
 

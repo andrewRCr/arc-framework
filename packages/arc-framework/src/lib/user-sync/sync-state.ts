@@ -23,6 +23,26 @@ import type { CoreIO } from "../types.js";
 
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "./notes-lock.js";
 import { getRepoSharedUserInternalDir } from "./repo-shared-paths.js";
+import {
+  LocalSyncStateSchema,
+  normalizeLocalSyncState,
+  PersistedLocalSyncStateSchema,
+  type LocalSyncState,
+} from "./schema.js";
+
+export {
+  LocalSyncStateSchema,
+  normalizeLocalSyncState,
+  PartialPushMarkerSchema,
+  PersistedLocalSyncStateSchema,
+  PriorFileListSchema,
+  RemoteMarkerProvenanceSchema,
+  type LocalSyncState,
+  type PartialPushMarker,
+  type PersistedLocalSyncState,
+  type PriorFileList,
+  type RemoteMarkerProvenance,
+} from "./schema.js";
 
 const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
 const LOCAL_SYNC_STATE_LOCK_FILENAME = ".sync-state.lock";
@@ -43,60 +63,6 @@ export function isComparableSourceCommit(
   return sourceCommit !== undefined
     && sourceCommit !== null
     && sourceCommit !== NO_COMPARABLE_SOURCE_COMMIT;
-}
-
-export interface LocalSyncState {
-  version: 4;
-  /**
-   * Legacy machine-id field — the canonical store is now the dedicated
-   * `.machine-id` file (see {@link getOrCreateMachineId}). No longer written by
-   * any current writer, nor surfaced by the validated {@link readLocalSyncState}
-   * read; retained on the type solely so a pre-`.machine-id` record stays
-   * parseable for the one-time migration adopt, which reads it via the raw read.
-   */
-  machineId?: string;
-  materializedManifestHash: string;
-  sourceCommit: string;
-  sourceOperation: "save" | "load";
-  /**
-   * ISO-8601 timestamp when this record was written. Optional in memory because
-   * v2 records on disk predate the field — they hydrate with `savedAt: undefined`
-   * and pick up a populated value on the next save.
-  */
-  savedAt?: string;
-  verifiedAt?: string;
-  /** Local notes-ref tip observed after this worktree's save/load completed. */
-  notesRefTip?: string;
-  /** This worktree's partial-push recovery marker. The `.sync-state.json` file is per-worktree. */
-  partialPush?: PartialPushMarker;
-  /**
-   * This worktree's errand-ref partial-push recovery marker — the errand leg's
-   * independent mirror of {@link partialPush}. Recorded when the errand-ref push
-   * leg fails after a worktree push succeeds; cleared on a successful errand
-   * push. Kept separate from the notes marker so the two refs recover
-   * independently. Optional and additive — pre-existing records hydrate without
-   * it (see the reserved-field convention above).
-   */
-  partialPushErrand?: PartialPushMarker;
-  /**
-   * Reserved extension point for the downstream drift tier — the file list
-   * captured at last sync. Not written here; carried forward round-trip so a
-   * later writer can populate it without a further version bump.
-   */
-  priorFileList?: string[];
-  /**
-   * Reserved extension point for the downstream remote partial-push marker's
-   * provenance, keyed per worktree so one remote marker can represent multiple
-   * worktrees without a further version bump. A per-worktree map
-   * (pluralizable), not a scalar; values stay generic until that work commits
-   * a shape. Not written here; carried forward round-trip.
-   */
-  remoteMarkerProvenance?: Record<string, unknown>;
-}
-
-export interface PartialPushMarker {
-  localRefHash: string;
-  sourceCommit: string;
 }
 
 /** Absolute path to the user's `.internal/` bookkeeping directory. */
@@ -160,73 +126,10 @@ function parseLocalSyncState(raw: string): LocalSyncStateParseResult {
   } catch {
     return { kind: "invalid" };
   }
-  if (typeof parsed !== "object" || parsed === null) return { kind: "skip" };
-  const record = parsed as Record<string, unknown>;
-
-  if (
-    (record.version === 2 || record.version === 3 || record.version === 4)
-    && typeof record.materializedManifestHash === "string"
-    && record.materializedManifestHash.length > 0
-    && typeof record.sourceCommit === "string"
-    && record.sourceCommit.length > 0
-    && (record.sourceOperation === "save" || record.sourceOperation === "load")
-  ) {
-    const partialPush = parsePartialPushMarker(record.partialPush);
-    const partialPushErrand = parsePartialPushMarker(record.partialPushErrand);
-    return {
-      kind: "state",
-      state: {
-        version: 4,
-        materializedManifestHash: record.materializedManifestHash,
-        sourceCommit: record.sourceCommit,
-        sourceOperation: record.sourceOperation,
-        ...(typeof record.savedAt === "string" && record.savedAt.length > 0
-          ? { savedAt: record.savedAt }
-          : {}),
-        ...(typeof record.verifiedAt === "string" && record.verifiedAt.length > 0
-          ? { verifiedAt: record.verifiedAt }
-          : {}),
-        ...(typeof record.notesRefTip === "string" && record.notesRefTip.length > 0
-          ? { notesRefTip: record.notesRefTip }
-          : {}),
-        ...(partialPush ? { partialPush } : {}),
-        ...(partialPushErrand ? { partialPushErrand } : {}),
-        ...(isPriorFileList(record.priorFileList) ? { priorFileList: record.priorFileList } : {}),
-        ...(isProvenanceMap(record.remoteMarkerProvenance)
-          ? { remoteMarkerProvenance: record.remoteMarkerProvenance }
-          : {}),
-      },
-    };
-  }
-
-  return { kind: "skip" };
-}
-
-function parsePartialPushMarker(value: unknown): PartialPushMarker | null {
-  if (typeof value !== "object" || value === null) return null;
-  const record = value as Record<string, unknown>;
-  if (
-    typeof record.localRefHash !== "string" ||
-    record.localRefHash.length === 0 ||
-    typeof record.sourceCommit !== "string" ||
-    record.sourceCommit.length === 0
-  ) {
-    return null;
-  }
-  return {
-    localRefHash: record.localRefHash,
-    sourceCommit: record.sourceCommit,
-  };
-}
-
-/** A reserved `priorFileList` worth carrying forward: an array of strings. */
-function isPriorFileList(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
-}
-
-/** A reserved provenance value worth carrying forward: a (per-worktree) object map. */
-function isProvenanceMap(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  const persisted = PersistedLocalSyncStateSchema.safeParse(parsed);
+  return persisted.success
+    ? { kind: "state", state: normalizeLocalSyncState(persisted.data) }
+    : { kind: "skip" };
 }
 
 /** Exclusive-create seam — defaults to the real filesystem primitive. */
@@ -474,7 +377,7 @@ async function updateLocalSyncStateRecord(
     try {
       const currentRaw = await readOptionalFile(io, syncStatePath);
       if (currentRaw === snapshot.targetRaw) {
-        await atomicWriteJson(syncStatePath, next);
+        await atomicWriteJson(syncStatePath, LocalSyncStateSchema.parse(next));
         return true;
       }
     } finally {

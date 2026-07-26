@@ -15,7 +15,6 @@ import {
 } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import {
   LocalReviewOperationStateStore,
-  reconstructReviewSuspensionState,
 } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 
 const roots: string[] = [];
@@ -97,40 +96,6 @@ describe("local review operation state authority", () => {
 
     await expect(records.store.publishOperation(records.state, 1)).rejects.toThrow(/operation-id-mismatch/u);
     await expect(readFile(path, "utf8")).resolves.toBe(`${mismatched}\n`);
-  });
-
-  it("reconstructs absent state from strict canonical vehicle and host facts only", async () => {
-    const records = await fixture();
-    const otherCommonDir = join(records.root, "other-machine.git");
-    await mkdir(otherCommonDir, { recursive: true });
-    const otherExec: GitExec = async () => ({ stdout: `${otherCommonDir}\n` });
-    const otherStore = new LocalReviewOperationStateStore(
-      new RepositoryGitCommonStatePublisher(otherExec, records.root),
-    );
-    const facts = {
-      operationId: "suspension-review-architecture-1",
-      observedAt: "2026-07-20T20:00:00Z",
-      vehicle: { kind: "work-unit" as const, identity: "review-architecture" },
-      repositoryId: "repo-1",
-      changeRequestId: "pull/42",
-      targetId: digest("target"),
-      requestId: digest("request"),
-      sourceIdentity: "codex-pr",
-      generation: 1,
-      policyVersion: digest("policy"),
-      rubricVersion: "independent-analysis/v1",
-      rubricDigest: digest("rubric"),
-      deadlineAt: "2026-07-20T21:00:00Z",
-      wakeupToken: digest("wakeup"),
-    };
-
-    await expect(otherStore.readOperation(facts.operationId)).resolves.toEqual({ version: 0, state: null });
-    const reconstructed = reconstructReviewSuspensionState(facts);
-    await expect(otherStore.publishOperation(reconstructed, 0)).resolves.toEqual({ version: 1 });
-    expect(() => reconstructReviewSuspensionState({
-      ...facts,
-      approval: { approvedBy: "maintainer" },
-    })).toThrow();
   });
 
   it("cannot parse operation variants as receipts or gate evidence", async () => {

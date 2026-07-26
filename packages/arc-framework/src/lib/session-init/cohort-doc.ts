@@ -22,9 +22,6 @@ import { parseMetaRecord } from "../active/meta-reader.js";
 import { SlugSchema, type Slug } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 
-/** The standalone-work-unit sentinel; carries no cohort grouping. */
-const NONE_SENTINEL = "[none]";
-
 /** Filesystem seam — injected so the resolver stays unit-testable. */
 export interface CohortDocFs {
   /** Read a file as UTF-8; rejects when the path is absent. */
@@ -65,10 +62,10 @@ export async function resolveActiveCohortDocPath(
     return null;
   }
 
-  const cohort = parseMetaRecord(content).Cohort;
+  const cohort = parseMetaRecord(content).cohort;
   if (cohort === null) return null;
   const field = cohort.trim();
-  if (field === "" || field === NONE_SENTINEL) return null;
+  if (field === "") return null;
 
   const segments = field.split("/").map((segment) => SlugSchema.safeParse(segment));
   if (segments.some((segment) => !segment.success)) return null;

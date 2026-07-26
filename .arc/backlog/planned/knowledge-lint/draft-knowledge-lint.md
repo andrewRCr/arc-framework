@@ -15,37 +15,37 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Refresh the stale `user/README.md` template**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: knowledge-lint`), housekeep drain (2026-07-07); captured
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-lint`), housekeep drain (2026-07-07); captured
   during `finalize-parallelism` Task 2.6.d (linked-worktree signpost) design discussion, 2026-07-05.
-- *Concern:* The tracked `.arc/user/README.md` (the user-dir template that ships to adopters) is out of date — it
+- _Concern:_ The tracked `.arc/user/README.md` (the user-dir template that ships to adopters) is out of date — it
   predates the identity-global vs. per-WU surface split and the resolver-backed materialization binding, so a
   direct reader (human or agent) opening it gets a stale picture of what lives under `user/{identity}/`.
-- *Approach:* Reconcile it to the current user-surface model (per-WU `SESSION-NOTES` vs. identity-global
+- _Approach:_ Reconcile it to the current user-surface model (per-WU `SESSION-NOTES` vs. identity-global
   `WORKING-MEMORY` / `USER-INBOX` / `STATUS.USER`, canonical materialization via the resolver). Adopter-facing
   doc-drift is the class `knowledge-lint` exists to catch, so route it here rather than a one-off hand-edit a later
   lint/regenerate pass would redo.
 
 ### `[ ]` **Align with the knowledge-architecture model: orphan semantics, incoming families, registry posture**
 
-- *Routed from:* `knowledge-architecture` grooming (2026-07-03), direct-edit routing on its grooming branch.
-- *Concern:* `knowledge-architecture` redefines the knowledge corpus's awareness/loading model in ways that touch
+- _Routed from:_ `knowledge-architecture` grooming (2026-07-03), direct-edit routing on its grooming branch.
+- _Concern:_ `knowledge-architecture` redefines the knowledge corpus's awareness/loading model in ways that touch
   three points of this charter. (1) **Family 4's orphan semantics:** that model derives access paths from
-  structure — a knowledge unit is an orphan iff no consumer declares it *and* it carries no `fire` line — which
+  structure — a knowledge unit is an orphan iff no consumer declares it _and_ it carries no `fire` line — which
   dissolves the link-graph root-set open question for the knowledge corpus; a link-graph orphan check specced now
   would be replaced by the structural definition. (2) **Incoming families:** it hands this WU new check families
   (awareness-contract schema validity, directive-form `fire` lines, buried-constraint heuristics) through the same
   family-registration seam minted for `operational-state-docs`. (3) **Family 5 shrinkage:** its index surface is
   generated from `fire` lines, removing the `STRATEGY-INDEX` successor from the parity surface (consistent with
   this WU's ditch-or-generate posture).
-- *Fold-in:* spec `arc lint` as a family **registry** (already the OSD seam's direction) so those families slot in
+- _Fold-in:_ spec `arc lint` as a family **registry** (already the OSD seam's direction) so those families slot in
   without reshaping the umbrella; scope family 4 to the non-knowledge doc tree, or defer it pending the
   awareness-contract schema.
-- *Soft ordering (deliberately not a `Depends On` edge — too coarse; it would block standing hygiene value):* most
+- _Soft ordering (deliberately not a `Depends On` edge — too coarse; it would block standing hygiene value):_ most
   of this charter is knowledge-architecture-independent and proceeds freely (families 1–3, the umbrella, the
   semantic sweep). If this WU specs first, family 4 defers or scopes down and the registry posture covers the
   rest; if `knowledge-architecture` settles its schema first, family 4 adopts the structural orphan definition
@@ -53,14 +53,14 @@
 
 ### `[ ]` **Evaluate coupling-audit primitives as a Knowledge Lint prototype**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: knowledge-lint`), housekeep drain (2026-07-18); captured
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-lint`), housekeep drain (2026-07-18); captured
   during `coupling-blast-radius-audit` task generation, final suite review, 2026-07-18.
-- *Concern:* the coupling-blast-radius audit is designing project-internal primitives that overlap Knowledge
+- _Concern:_ the coupling-blast-radius audit is designing project-internal primitives that overlap Knowledge
   Lint's standing mechanical and semantic tiers: tracked-corpus enumeration, literal/regex pattern manifests,
   catch-all residue, explicit exact/bulk dispositions, canonical evidence, deterministic projection, and
   captured finding routing. The audit intentionally stops short of a reusable subsystem, so the shipped seam may
   be useful as a prototype without warranting a dependency or shared abstraction now.
-- *Fold-in:* at spec time, inspect the audit's landed code and artifacts and reuse or extract only the
+- _Fold-in:_ at spec time, inspect the audit's landed code and artifacts and reuse or extract only the
   enumeration, matching, evidence, and disposition pieces that fit the recurring check-family contract. Do not
   inherit audit-specific volatility, fan-out ranking, corpus boundaries, or hard-consumer views; treat this as
   coordination evidence, not a pre-committed composition edge.
@@ -73,7 +73,7 @@ Karpathy's LLM-wiki and Google's OKF both name three operations over a markdown 
 **lint**. ARC has the first two richly built (session-lifecycle + housekeep + handoff = ingest/curate; session-init
 load + on-demand strategy/method loading = query) but **no standing Lint operation at all**. The closest standing
 machinery is `markdownlint` (format only), `point-scanner` (extension fire-points only), and the package-sync
-hooks. `doc-cascade-sweep` was a *one-shot* reconciliation work unit, not a recurring mechanism — so nothing
+hooks. `doc-cascade-sweep` was a _one-shot_ reconciliation work unit, not a recurring mechanism — so nothing
 periodically checks the knowledge base for consistency, and the `lifecycle-closeout` certifying audit had to catch
 a re-entered retired verb by hand.
 
@@ -94,17 +94,17 @@ plumbing as a third, orthogonal concern:
   reference docs: prose-canonical content no schema governs. Both consistency tiers below are its remit.
 - **`operational-state-docs` — the managed record class.** Meta files, session/user surfaces, the `STATUS.*`
   views: schema-governed records with rendered projections. Structural conformance there is OSD's round-trip
-  harness + corpus conformance gate, not lint. OSD also *shrinks this WU's surface by construction*:
+  harness + corpus conformance gate, not lint. OSD also _shrinks this WU's surface by construction_:
   resolve-don't-store means a rendered projection cannot carry a stale claim, so lint targets only what stays
   prose-canonical. OSD's conformance gate may surface as a check family under the same `arc lint` umbrella —
   the family-registration seam is coordinated at spec time.
 - **`quality-gate-hooks` — dispatch plumbing.** Tier ↔ hook-stage mapping and adopter-command dispatch (when and
-  where checks run); it stays free of knowledge-base check *content*. Its gates invoke `arc lint` exactly as they
+  where checks run); it stays free of knowledge-base check _content_. Its gates invoke `arc lint` exactly as they
   invoke the adopter's configured linters. The four knowledge-base content checks parked in its inbound buffer
   (enhanced link validation, forbidden-pattern adopter-language + path-style refs, relocatability link-defs, the
   adopter-facing transitional-framing sweep) migrate here — settled at this grooming.
 
-Adjacent, not overlapping: `roadmap-tooling`'s lifecycle link-*reanchoring* is write-time repair at artifact
+Adjacent, not overlapping: `roadmap-tooling`'s lifecycle link-_reanchoring_ is write-time repair at artifact
 moves; this WU's cross-reference check is standing detection — complementary halves, no shared machinery.
 `markdown-formatting` and `markdownlint` remain the format-only layer, out of scope here.
 
@@ -129,7 +129,7 @@ covering both copies (package source and `.arc/` instance) per the two-copy disc
    snapshots; for the verb register: `graduated lookup`, the `draft-* → notes-*` content-promotion colloquial,
    the `src/` internal `graduate` arm name). A richer verb-register variant — asserting doc verb-mentions against
    the code transition table — is a possible later upgrade; the token denylist + allowlist is the shipping shape.
-   The *rules* are owned where they live today (DEV-RULES, `naming-conventions`); this WU owns their enforcement.
+   The _rules_ are owned where they live today (DEV-RULES, `naming-conventions`); this WU owns their enforcement.
 3. **Relocatability** — source-side path-style link-defs inside movable artifacts (the dual of the target-side
    reference rule), plus the one-time sweep of the ~38 known offending link-defs.
 4. **Orphan detection** — durable docs unreachable from the doc graph's roots (no inbound links). Needs a
@@ -172,8 +172,8 @@ adding standing process weight.
 
 ## Relationship to other work
 
-- **`quality-gate-hooks`** — standalone sibling: it owns *when/where* checks run (tier ↔ stage dispatch), this WU
-  owns *what is checked* over the knowledge corpus. Its four migrated buffer entries land here; its format-layer
+- **`quality-gate-hooks`** — standalone sibling: it owns _when/where_ checks run (tier ↔ stage dispatch), this WU
+  owns _what is checked_ over the knowledge corpus. Its four migrated buffer entries land here; its format-layer
   and code-stack entries (table-align gates, TSDoc rule, actionlint, MD013 hook pass, E2E guards) stay put.
 - **`operational-state-docs`** — the record-conformance complement (see Charter). Coordinate the `arc lint`
   family-registration seam and the durable-vs-managed class boundary at both WUs' spec time.
@@ -181,9 +181,9 @@ adding standing process weight.
   (the CI-checkable core-size cap on workflow spines and fragments — "the same discipline as zero-tolerance
   markdown lint") is a candidate `arc lint` family: that WU owns the rule and the number, this WU is the natural
   enforcement vehicle; (b) its **stable-anchor convention** gives family 1's anchor validation a target grammar;
-  (c) its **index-hub pattern** widens family 5's remit. Fragment *reachability* (agenda/resolver-based, not
+  (c) its **index-hub pattern** widens family 5's remit. Fragment _reachability_ (agenda/resolver-based, not
   link-based) stays on its side of the line — see Open questions.
-- **`naming-conventions`** — owns the forbidden-pattern *rules* this WU enforces; token-set changes flow
+- **`naming-conventions`** — owns the forbidden-pattern _rules_ this WU enforces; token-set changes flow
   rule-side → enforcement-side.
 - **`idiomatic-alignment`** — the convention-side sibling of the same OKF / LLM-wiki convergence; coordinate
   framing. Verb-register token-set ownership needs an explicit owner (idiomatic-alignment excludes internal-vocab

@@ -13,9 +13,13 @@ their own primitives; only this recipe is GitHub-specific.
 - **`CODEOWNERS`** — a drop-in file. The reviewed-lane ownership skeleton: owned paths require review; the
   trailing unowned block clears the auto-merge-lane paths so they need none. Place it at `.github/CODEOWNERS`
   (or repo root / `docs/`) and replace `@your-org/reviewers` with your reviewers.
-- **The `merge-ok` gate** — a *snippet*, below, NOT a drop-in file. It must be **merged into the workflow that
+- **The `merge-ok` gate** — a _snippet_, below, NOT a drop-in file. It must be **merged into the workflow that
   runs your required CI jobs**, because GitHub `needs:` only reaches jobs in the same workflow. Dropping it in
   as a second standalone workflow would roll up nothing and leave your real CI ungated — see § Why a snippet.
+- **`arc-clearance.yml`** — an opt-in exact-head merge guard rendered by the
+  [Set Up ARC Clearance workflow][clearance-setup]. It runs the exact ARC package version recorded in the
+  installation manifest, treats pull-request content only as data, publishes planning clearance directly, and
+  publishes reviewed-head clearance through a secretless environment.
 
 ## The `merge-ok` gate (merge into your CI workflow)
 
@@ -33,22 +37,34 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: _arc_change_data
           fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
       - id: lane
+        env:
+          ARC_FRAMEWORK_VERSION: '<installed-arc-version>'
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          npm_config_audit: 'false'
+          npm_config_ignore_scripts: 'true'
         run: |
-          base='${{ github.event.pull_request.base.sha }}'
-          head='${{ github.event.pull_request.head.sha }}'
-          changed="$(git diff --name-only "$base...$head")"
-          echo "changed paths:"; printf '%s\n' "$changed"
-          # Auto-merge lane = per-WU / per-cohort planning artifacts only,
-          # matched by PREFIX: draft- / tasks- / meta- / notes- / cohort-*
-          # under active/ or backlog/. Any other path -> reviewed lane.
-          if printf '%s\n' "$changed" \
-            | grep -qvE '^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)-'; then
-            echo "lane=reviewed" >> "$GITHUB_OUTPUT"
-          else
-            echo "lane=auto" >> "$GITHUB_OUTPUT"
+          lane=reviewed
+          if [ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]; then
+            lane="$(npm exec --yes --package="@arc-framework/cli@$ARC_FRAMEWORK_VERSION" -- \
+              arc review planning-lane "$BASE_SHA" "$HEAD_SHA" \
+              --repository "$GITHUB_WORKSPACE/_arc_change_data")"
           fi
+          case "$lane" in
+            planning) echo "lane=auto" >>"$GITHUB_OUTPUT" ;;
+            reviewed) echo "lane=reviewed" >>"$GITHUB_OUTPUT" ;;
+            *) echo "::error::invalid planning classifier output"; exit 1 ;;
+          esac
 
   # your existing heavy jobs gain these two lines each:
   #   needs: classify
@@ -72,11 +88,21 @@ jobs:
           echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }})"
 ```
 
+Replace `<installed-arc-version>` with the exact `framework_version` from
+`.arc/system/.internal/manifest.json`. The pinned CLI classifies Git's raw change record, so rename/copy endpoints
+and type/mode changes participate and any unreadable or malformed change remains reviewed.
+
 Branch protection requires **only** `merge-ok`. The heavy jobs are lane-skipped on planning-only PRs; `merge-ok`
 runs unconditionally and treats a skipped job as success, so a planning PR gets a green required check without
 the heavy jobs running — while a code/constitutional PR waits on them. This is why the recipe uses a
 roll-up gate and **not** a path-ignored CI workflow (a path-filtered required check never reports and stalls
-the merge at *Pending*).
+the merge at _Pending_).
+
+Without `arc-cleared`, ARC-managed PR workflows still rerun the canonical classifier over the exact base/head
+immediately before arming auto-merge and require literal `planning`; `reviewed`, command failure, or malformed
+output never arms. CODEOWNERS cannot express filename grammar or Git type/mode changes, so this classifier gate
+and the integration interlock are the procedural boundary. Installing `arc-cleared` independently adds structural
+host enforcement of the same exact decision.
 
 ## CI layouts
 
@@ -91,7 +117,7 @@ the merge at *Pending*).
 
 `needs:` is intra-workflow only, so the gate must live alongside the jobs it rolls up. A standalone
 `merge-ok.yml` dropped in next to an untouched CI workflow would roll up only its own (empty) jobs — leaving
-real CI ungated, or, if real CI is also marked required, stalling planning-only PRs at *Pending*. Shipping the
+real CI ungated, or, if real CI is also marked required, stalling planning-only PRs at _Pending_. Shipping the
 gate as a snippet to merge in — rather than a droppable file — keeps that failure mode off the table.
 
 ## Apply
@@ -102,10 +128,12 @@ gate as a snippet to merge in — rather than a droppable file — keeps that fa
    **Require review from Code Owners**. Do not require the heavy jobs directly.
 4. Enable the repository's **native auto-merge** setting.
 
-A planning-only PR then merges unattended once `merge-ok` is green; a reviewed-lane PR additionally waits on
-owner approval. The [Set Up the Auto-Merge Gate workflow][setup-workflow] walks through all four steps.
+A planning-only PR may then be armed and merge unattended once `merge-ok` is green; a reviewed-lane PR
+additionally waits on owner approval and must not be armed by ARC. The
+[Set Up the Auto-Merge Gate workflow][setup-workflow] walks through all four steps.
 
 ---
 
 [doctrine]: ../../../strategies/arc/strategy-work-organization.md#auto-merge-lane
 [setup-workflow]: ../../../../system/workflows/arc/supplemental/setup-merge-gate.md
+[clearance-setup]: ../../../../system/workflows/arc/supplemental/setup-arc-clearance.md

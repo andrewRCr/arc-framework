@@ -77,6 +77,21 @@ vi.mock("../../src/handlers/push-recovery.js", () => ({
 
 const mockResolveUserIdentity = vi.fn();
 const mockIsNonInteractive = vi.fn(() => false);
+vi.mock("../../src/lib/command-input/interaction-context.js", () => ({
+  resolveProcessInteractionContext: (input: { yes: string }) => {
+    const forbidden = mockIsNonInteractive() || input.yes !== "absent";
+    return {
+      interaction: forbidden ? "forbidden" : "allowed",
+      terminal: mockIsNonInteractive() ? "non-interactive" : "interactive",
+      confirmation: input.yes === "authority" ? "accept" : "ask",
+      subprocess: {
+        terminalPrompts: forbidden ? "forbidden" : "allowed",
+        presenters: forbidden ? "forbidden" : "allowed",
+        ambientStdin: forbidden ? "closed" : "inherit",
+      },
+    };
+  },
+}));
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
   isHandledError: () => false,
@@ -439,7 +454,7 @@ describe("handleUserSync direction handling", () => {
     expect(mockRunUserPull).toHaveBeenCalledTimes(1);
   });
 
-  it("bypasses overwrite confirm in non-TTY environments", async () => {
+  it("requires explicit overwrite authority in non-TTY environments", async () => {
     setSyncState("remote-ahead", "same");
     mockHasLocalNotes.mockResolvedValue(true);
     mockIsNonInteractive.mockReturnValue(true);
@@ -456,7 +471,9 @@ describe("handleUserSync direction handling", () => {
     await handleUserSync();
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserPull).toHaveBeenCalledTimes(1);
+    expect(mockRunUserPull).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("--yes"));
+    expect(process.exitCode).toBe(1);
   });
 
   it("offers push, inspect, or cancel for conflict without a pull option", async () => {

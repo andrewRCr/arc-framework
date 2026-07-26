@@ -20,7 +20,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
 - `arc/strategy-work-planning.md` - Planning pipeline, depth model, spec forms (brief/outline/detailed), layered specs
     - Consult when: authoring specs, resolving planning depth, planning work units
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, checkpoint identification, task list integration
-    - Consult when: running quality gates beyond Tier 1, identifying integration checkpoints, escalation decisions
+    - Consult when: escalating a gate failure, or identifying a non-obvious integration checkpoint — routine
+      per-task and per-unit gate runs are covered by the `quality-gate-commands` method
 - `arc/strategy-session-operations.md` - Context loading model, monitoring, auto-compaction, session state portability
     - Consult when: adding new guidance content, deciding loading tier, configuring session state, working on session workflows
 - `arc/strategy-task-list-formatting.md` - Task list formatting rules — structure, ownership, verification, success criteria

@@ -27,7 +27,10 @@ vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
   buildLifecycleIndex: (...args: unknown[]) => mockBuildLifecycleIndex(...args),
 }));
 
-const { resolveVerbTargetOrReport } = await import("../../../src/handlers/lifecycle.js");
+const {
+  resolveVerbTargetOrReport,
+  TeardownCommandInputSchema,
+} = await import("../../../src/handlers/lifecycle.js");
 
 function entry(slug: string, phase: Phase, location: Location): LifecycleIndexEntry {
   return { slug, phase, location, cohort: null, dependsOn: [], path: `.arc/${location}/meta-${slug}.md` };
@@ -86,5 +89,18 @@ describe("resolveVerbTargetOrReport — slug-required, no slug", () => {
     expect(mockReadActiveMetaCandidates).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
     expect(mockLogError).toHaveBeenCalledWith("Parked: `shelved` · usage `arc resume <slug>`");
+  });
+});
+
+describe("teardown command input", () => {
+  it.each([
+    "/repo/worktree",
+    String.raw`C:\repo\worktree`,
+  ])("accepts cross-platform absolute husk path %s", (husk) => {
+    expect(TeardownCommandInputSchema.safeParse({ name: "widget", husk }).success).toBe(true);
+  });
+
+  it("rejects a relative husk path", () => {
+    expect(TeardownCommandInputSchema.safeParse({ name: "widget", husk: "../worktree" }).success).toBe(false);
   });
 });

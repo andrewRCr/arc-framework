@@ -16,8 +16,12 @@ function preferences(input: {
   project?: string | null;
 } = {}): FrontlineSourcePreferenceReader {
   return {
-    readDeveloperSourceId: vi.fn().mockResolvedValue(input.developer ?? null),
-    readProjectSourceId: vi.fn().mockResolvedValue(input.project ?? null),
+    readDeveloperSourceIds: vi.fn().mockResolvedValue(input.developer === undefined || input.developer === null
+      ? []
+      : [input.developer]),
+    readProjectSourceIds: vi.fn().mockResolvedValue(input.project === undefined || input.project === null
+      ? []
+      : [input.project]),
   };
 }
 
@@ -50,8 +54,8 @@ describe("frontline semantic resolution", () => {
       },
       diagnostics: [],
     });
-    expect(reader.readDeveloperSourceId).not.toHaveBeenCalled();
-    expect(reader.readProjectSourceId).not.toHaveBeenCalled();
+    expect(reader.readDeveloperSourceIds).not.toHaveBeenCalled();
+    expect(reader.readProjectSourceIds).not.toHaveBeenCalled();
   });
 
   it("selects a source for attempt and caps the default at two passes", async () => {
@@ -152,7 +156,19 @@ describe("frontline semantic resolution", () => {
     ]);
   });
 
-  it.each([0, 3])("rejects a V1 pass allowance of %s", async (maxPasses) => {
+  it("accepts a positive safe-integer pass allowance beyond two", async () => {
+    await expect(resolveFrontlineReview({
+      methodActive: true,
+      routerAction: "attempt",
+      preferences: preferences(),
+      registry,
+      maxPasses: 3,
+    })).resolves.toMatchObject({ frontlineReview: { maxPasses: 3 } });
+  });
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    "rejects an invalid pass allowance of %s",
+    async (maxPasses) => {
     await expect(resolveFrontlineReview({
       methodActive: true,
       routerAction: "attempt",
@@ -160,7 +176,8 @@ describe("frontline semantic resolution", () => {
       registry,
       maxPasses,
     })).rejects.toThrow();
-  });
+    },
+  );
 
   it("rejects records that violate skip or attempt invariants", () => {
     const base = {

@@ -18,6 +18,8 @@ const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const mockNote = vi.fn();
 const mockConfirm = vi.fn();
 const mockIsCancel = vi.fn(() => false) as Mock<(val: unknown) => boolean>;
+const mockSpinnerStart = vi.fn();
+const mockSpinnerStop = vi.fn();
 
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
@@ -26,6 +28,10 @@ vi.mock("@clack/prompts", () => ({
   note: (...args: unknown[]) => mockNote(...args),
   confirm: (opts: unknown) => mockConfirm(opts),
   isCancel: (val: unknown) => mockIsCancel(val),
+  spinner: () => ({
+    start: (...args: unknown[]) => mockSpinnerStart(...args),
+    stop: (...args: unknown[]) => mockSpinnerStop(...args),
+  }),
 }));
 
 const mockResolveStartDispatch = vi.fn();
@@ -88,7 +94,7 @@ vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({
 }));
 
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
-  parseMetaRecord: () => ({ Class: "Light" }),
+  parseMetaRecord: () => ({ workClass: "Light" }),
 }));
 
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
@@ -111,6 +117,21 @@ vi.mock("../../../src/lib/git/worktree-roster.js", async (importOriginal) => {
 });
 
 const mockIsNonInteractive = vi.fn(() => true);
+
+vi.mock("../../../src/lib/command-input/interaction-context.js", () => ({
+  resolveProcessInteractionContext: (input: { yes: string }) => ({
+    interaction: mockIsNonInteractive() || input.yes !== "absent" ? "forbidden" : "allowed",
+    confirmation: "ask",
+    machineReadable: false,
+    promptInput: process.stdin,
+    promptOutput: process.stdout,
+    subprocess: {
+      terminalPrompts: mockIsNonInteractive() || input.yes !== "absent" ? "forbidden" : "allowed",
+      presenters: mockIsNonInteractive() || input.yes !== "absent" ? "forbidden" : "allowed",
+      ambientStdin: mockIsNonInteractive() || input.yes !== "absent" ? "closed" : "inherit",
+    },
+  }),
+}));
 
 vi.mock("../../../src/handlers/shared.js", () => ({
   resolveUserIdentity: async () => "andrew",
@@ -198,7 +219,23 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockResolveStartDispatch).toHaveBeenCalledWith(expect.any(Map), "widget", { create: true });
     expect(mockRunCreateNew.mock.calls[0]?.[1]).toMatchObject({ baseRef: "base123" });
     expect((mockNote.mock.calls[0]?.[0] as string)).toContain("plan/widget");
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Spawning worktree...");
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Worktree ready.");
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Refreshing ROADMAP...");
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Committing and pushing start ceremony...");
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("stops the spawn spinner with a failure label when create-new is refused", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockRunCreateNew.mockResolvedValue({ ok: false, reason: "spawn refused" });
+
+    await handleStart("widget", { new: true });
+
+    expect(mockSpinnerStart).toHaveBeenCalledWith("Spawning worktree...");
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Spawn failed.");
+    expect(mockLog.error).toHaveBeenCalledWith("spawn refused");
+    expect(process.exitCode).toBe(1);
   });
 
   it.each([
@@ -511,8 +548,11 @@ describe("handleStart — dispatch orchestration", () => {
 
     await handleStart("widget", {});
 
-    expect(mockConfirm).toHaveBeenCalledTimes(1);
-    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/indeterminate/i) }));
+    expect(mockConfirm).toHaveBeenCalledTimes(2);
+    expect(mockConfirm).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ message: expect.stringMatching(/indeterminate/i) }),
+    );
     expect(mockRunCreateNew).toHaveBeenCalledTimes(1);
     expect(process.exitCode).toBeUndefined();
   });

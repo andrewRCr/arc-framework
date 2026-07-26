@@ -191,8 +191,8 @@ arc update
 ### Lifecycle Verbs
 
 The complete work-unit lifecycle command set — the full verb index. The `work-unit-lifecycle/` workflow files
-cover only the judgment-bearing subset, so a verb with no workflow file (`demote`, `teardown`, `stub`) is by
-design, not a missing ceremony.
+cover only the judgment-bearing subset, so a verb with no workflow file (`demote`, `rename`, `teardown`, `stub`) is
+by design, not a missing ceremony.
 
 ```bash
 # Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, dep-edges
@@ -204,6 +204,9 @@ arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <re
 # Start an existing work unit on plan/<name>; --new explicitly creates an absent name.
 # Spawns a worktree; --here uses the current checkout (init-work-unit.md).
 arc start [name] [--new] [--here] [--from <pointer-or-blurb>]
+
+# Rename a WU and its applicable branch, notes, remote, marker, and worktree identities — no ceremony
+arc rename <slug> <new-slug>
 
 # Promote a provisional stub to planned, requires a resolved Class (promote-work-unit.md)
 arc promote <slug>

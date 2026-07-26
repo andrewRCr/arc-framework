@@ -14,18 +14,18 @@ linking (stacked PRs, feature-branch hierarchies, branch naming), metadata/linki
 
 ## Patterns Surveyed
 
-| Pattern | Domain | Primary Use | Mechanism |
-| ------- | ------ | ----------- | --------- |
-| **Epics + Initiatives** | Agile hierarchy | Multi-sprint feature grouping | Issue tracker, 2–3 level nesting |
-| **SAFe Capabilities** | Portfolio scaling | Organizational alignment (4 levels) | PI-based cadence, formal hierarchy |
-| **Themes** | Strategic labeling | Cross-team goal alignment | Lightweight labels/grouping, no structure |
-| **Stacked PRs** | VCS-native linking | Linear code review chains | Tool-specific (Graphite, Gerrit) + rebasing discipline |
-| **Feature-branch hierarchy** | Git strategy | Sub-feature parallel work | Parent branch as integration point |
-| **RFC + impl pair** | Documentation-first | Design-then-code separation | Two sequential artifacts (RFC → PRs) |
-| **GitHub sub-issues** | GitHub-native | Task decomposition | First-class parent-child hierarchy (GA 2024) |
-| **Naming conventions** | Lightweight | Branch/PR organization | Prefixes/suffixes (`-p1`, `-part1`, `:2`) |
-| **Release trains** | SAFe/schedule | Multi-team cadence alignment | 8–12 week PI container for multiple teams |
-| **Spikes** | Agile exploration | Investigation precedes stories | Time-boxed story, feeds downstream work |
+| Pattern                      | Domain              | Primary Use                         | Mechanism                                              |
+| ---------------------------- | ------------------- | ----------------------------------- | ------------------------------------------------------ |
+| **Epics + Initiatives**      | Agile hierarchy     | Multi-sprint feature grouping       | Issue tracker, 2–3 level nesting                       |
+| **SAFe Capabilities**        | Portfolio scaling   | Organizational alignment (4 levels) | PI-based cadence, formal hierarchy                     |
+| **Themes**                   | Strategic labeling  | Cross-team goal alignment           | Lightweight labels/grouping, no structure              |
+| **Stacked PRs**              | VCS-native linking  | Linear code review chains           | Tool-specific (Graphite, Gerrit) + rebasing discipline |
+| **Feature-branch hierarchy** | Git strategy        | Sub-feature parallel work           | Parent branch as integration point                     |
+| **RFC + impl pair**          | Documentation-first | Design-then-code separation         | Two sequential artifacts (RFC → PRs)                   |
+| **GitHub sub-issues**        | GitHub-native       | Task decomposition                  | First-class parent-child hierarchy (GA 2024)           |
+| **Naming conventions**       | Lightweight         | Branch/PR organization              | Prefixes/suffixes (`-p1`, `-part1`, `:2`)              |
+| **Release trains**           | SAFe/schedule       | Multi-team cadence alignment        | 8–12 week PI container for multiple teams              |
+| **Spikes**                   | Agile exploration   | Investigation precedes stories      | Time-boxed story, feeds downstream work                |
 
 ---
 

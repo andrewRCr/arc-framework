@@ -104,6 +104,10 @@ describe("update integration — baseline (real recipe)", () => {
 
     const manifest = await readManifestFile(tempDir);
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
+    expect(manifest.files["system/.internal/skills/arc-design-audit/SKILL.md"]).toMatchObject({
+      classification: "Framework",
+      layer: "core",
+    });
   });
 
   it("restores executable permissions on installed hooks", async () => {
@@ -154,10 +158,11 @@ describe("update integration — baseline (real recipe)", () => {
     // through added/removed/updated/conflicts.
     const perFilePaths = [
       ...[
-        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "independent-analysis",
-        "implementation-audit", "self-review",
+        "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
+        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
+        "implementation-audit", "review-chunking", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
-        "session-state", "spec-review", "test-first",
+        "session-state", "spec-review", "task-audit", "test-first",
       ].map((n) => `system/methods/${n}.md`),
       ...[
         "post-context-load", "post-task-completion", "post-task-quality",
@@ -553,14 +558,16 @@ describe("update integration — arc-config migration", () => {
     currentConfig: string,
     templateConfig = "user.notes_push: on-sync\n",
     teamMode = false,
+    pristineConfig = currentConfig,
   ): Promise<UpdateResult> {
     await setupInitialState(
       tempDir,
       {
-        [configPath]: { content: currentConfig, classification: "Configurable" },
+        [configPath]: { content: pristineConfig, classification: "Configurable" },
       },
       installConfig(teamMode),
     );
+    await writeFile(join(tempDir, ".arc", configPath), currentConfig);
     templateDir = await createTemplateDir({ [configPath]: templateConfig });
 
     return runUpdate({
@@ -627,6 +634,30 @@ describe("update integration — arc-config migration", () => {
     expect(await readFile(join(tempDir, ".arc", configPath), "utf-8")).toBe(
       migratedConfig,
     );
+  });
+
+  it("adds new review thresholds while preserving existing project values", async () => {
+    const result = await runArcConfigUpdate(
+      "review.frontline_sources: [project-reviewer]\n",
+      [
+        "review.frontline_sources: []",
+        "",
+        "# Exact-target attention tripwires for considering contract-cohesive review chunks.",
+        "# These are not chunk-size caps or review-provider limits. Either dimension can be",
+        "# enabled independently; 0 disables that dimension (both 0 preserves whole-target review).",
+        "review.chunking_threshold_lines: 0",
+        "review.chunking_threshold_files: 0",
+        "",
+      ].join("\n"),
+      false,
+      "review.frontline_sources: []\n",
+    );
+
+    const content = await readFile(join(tempDir, ".arc", configPath), "utf-8");
+    expect(result.conflicts, content).toEqual([]);
+    expect(content).toContain("review.frontline_sources: [project-reviewer]");
+    expect(content).toContain("review.chunking_threshold_lines: 0");
+    expect(content).toContain("review.chunking_threshold_files: 0");
   });
 
   it("migrates the last (effective) legacy entry when duplicates are present", async () => {

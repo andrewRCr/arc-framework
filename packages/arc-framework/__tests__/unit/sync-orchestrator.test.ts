@@ -101,6 +101,21 @@ vi.mock("../../src/lib/user-sync/branch-bounded-notes-export.js", () => ({
 
 const mockResolveUserIdentity = vi.fn();
 const mockIsNonInteractive = vi.fn(() => false);
+vi.mock("../../src/lib/command-input/interaction-context.js", () => ({
+  resolveProcessInteractionContext: (input: { yes: string; machineReadable: boolean }) => {
+    const forbidden = mockIsNonInteractive() || input.machineReadable || input.yes !== "absent";
+    return {
+      interaction: forbidden ? "forbidden" : "allowed",
+      terminal: mockIsNonInteractive() ? "non-interactive" : "interactive",
+      confirmation: input.yes === "authority" ? "accept" : "ask",
+      subprocess: {
+        terminalPrompts: forbidden ? "forbidden" : "allowed",
+        presenters: forbidden ? "forbidden" : "allowed",
+        ambientStdin: forbidden ? "closed" : "inherit",
+      },
+    };
+  },
+}));
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),

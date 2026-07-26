@@ -10,27 +10,27 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Locus records: HUD consumer seam + authority-domain homing**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: session-locus-model`), housekeep drain (2026-07-18);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: session-locus-model`), housekeep drain (2026-07-18);
   captured at the storage-substrate grooming (2026-07-17). Precedent record:
   `research-storage-landscape-2026-07.md` § 6.
-- *Concern:* two compose-notes. (1) The `status-hud` stub's context card ("where is this WU at — stage, at a
+- _Concern:_ two compose-notes. (1) The `status-hud` stub's context card ("where is this WU at — stage, at a
   glance") upgrades from oracle/meta/cursor proxies to locus records when they land — locus should expose stage
   as a queryable record, not only as workflow-internal state. (2) Scope-model question: locus is arguably
   machine/worktree-local authority (the Swamp run-tracker precedent — "a PID is meaningful only on the machine";
   home state by authority domain, query across domains rather than replicate) — decide which locus fields are
   shared-store records vs. local-domain records exposed via query.
-- *Fold-in:* integrate both at this WU's next grooming.
+- _Fold-in:_ integrate both at this WU's next grooming.
 
 ### `[ ]` **Close the errand sweep loop: run-errand next-offer + `--errand` vs `--housekeep` doorway legibility**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during FP
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during FP
   wave-3 terminal-state UX review, alongside the terminal-WU handoff capture (routed to `handoff-optimization`).
-- *Concern:* triage-then-sweep connective tissue exists only on the drain side: `drain-inbox` § 6 hands each
+- _Concern:_ triage-then-sweep connective tissue exists only on the drain side: `drain-inbox` § 6 hands each
   execute-now atomic to `run-errand` and returns for the next, but `run-errand`'s Complete section just closes —
   no "further flagged captures exist — continue?" offer and no terminal marker — so a sweep entered via
   `arc-session --errand` (or continued past the first errand) has no loop. Doorway legibility compounds it:
@@ -38,7 +38,7 @@
   `--housekeep`'s drain. Semantics to preserve: housekeep stays the triage+sweep umbrella, run-errand stays
   single-concern, and no queue artifact returns (`ERRANDS.md` retired deliberately — the inbox is the durable
   queue; the session carries the agreed slate).
-- *Approach:* a next-offer hook at `run-errand` close (when flagged `§ Errand` captures remain), and a soft-offer
+- _Approach:_ a next-offer hook at `run-errand` close (when flagged `§ Errand` captures remain), and a soft-offer
   of the drain when bare `--errand` resolves against multiple flagged captures. **Integrate only after FP Task 5.3
   records the parallel-errand fork + batch-errand shape decision** (`tasks-finalize-parallelism.md`) — the
   recorded sequential-first leaning shapes the loop. Alternative owner if grooming finds the loop belongs with
@@ -46,9 +46,9 @@
 
 ### `[ ]` **Locus/attention records as the eventual live substrate for the concurrency-attention posture**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: session-locus-model`), housekeep drain (2026-07-18);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: session-locus-model`), housekeep drain (2026-07-18);
   captured during the sidecar-discovery session, 2026-07-18.
-- *Concern:* soft seam, awareness not obligation — the "scale concurrency to the attention you can give it"
+- _Concern:_ soft seam, awareness not obligation — the "scale concurrency to the attention you can give it"
   posture (concurrent-workload advisory, design-slot bookkeeping, the stage-aware design-load model tracked in
   `draft-stage-aware-design-load.md`) currently reads static meta fields. This WU's machine-local frame/locus
   records are the eventual live substrate such reads could consume (what is actually open, where attention
@@ -65,14 +65,14 @@ notes; `errand close` died on `git switch main` because the base is held by the 
 local base meant reaching into the primary with `git -C`; and a harness compaction landing mid-errand recovered
 **errand context only** — the suspended WU frame (governing workflow, loadset, task cursor) survived only in the
 harness summary, the channel recovery doctrine trusts least. The abstractions (WU/Errand, seam routing,
-interlocks) answered every call correctly; the friction lived entirely in the rules for *where work physically
-executes*.
+interlocks) answered every call correctly; the friction lived entirely in the rules for _where work physically
+executes_.
 
 Two coupled defects:
 
 1. **The execution-locus doctrine is sequential-era.** "Get off the WU branch" was generalized from a
    one-checkout world. Under linked worktrees, occupying a WU worktree in place is a category error — the
-   worktree *is* the WU's workspace. The old "errands stay out of worktrees" premise rested on spawn/teardown
+   worktree _is_ the WU's workspace. The old "errands stay out of worktrees" premise rested on spawn/teardown
    cost, which BI-1 provisioning (shipped) and `worktree-teardown-decoupling` (shipped) have dismantled.
 2. **Session state is single-frame.** A warm Errand pushes a WU→Errand frame with no recorded link, so neither
    recovery nor the return path can restore the suspended frame deterministically. Depth is bounded at two by
@@ -123,7 +123,7 @@ default flip for WUs):
 
 - **Partial protection — structural, not a preference.** Under partial protection an Errand is a direct base
   commit, and base is checked out in the primary; git refuses a second checkout, so an ephemeral worktree
-  *cannot* hold that work. In-place on the primary is the shape there, full stop.
+  _cannot_ hold that work. In-place on the primary is the shape there, full stop.
 - **Below the provisioning floor — economic.** Where spawn + provisioning dwarfs the work itself (a one-file
   fix behind a minute of dependency provisioning), in-place on a clean launchpad wins. The floor's threshold
   is empirical — see Unknowns.
@@ -133,7 +133,7 @@ default flip for WUs):
 - **Harness degrade path** — as recorded under Consumed shipped behavior.
 
 **Ephemerality is not a concurrency license.** All worktrees share the common git dir — refs, notes refs,
-ROADMAP regeneration, sync-state markers still contend. Ephemeral loci solve *checkout occupancy*;
+ROADMAP regeneration, sync-state markers still contend. Ephemeral loci solve _checkout occupancy_;
 simultaneous transient work still runs under the shared-mutable-surface discipline.
 
 **The frame record is a human-orientation surface, not only agent-recovery state.** Under warm entry the
@@ -156,7 +156,7 @@ the operations they protect).
 A deterministic record of what each checkout on this machine is doing and what session frame governs it.
 
 - **Storage class:** `user/{identity}/.internal/` — gitignored, machine-local, sibling to `.sync-state.json`.
-  This is a fact about *this machine's* checkouts and live sessions, not PM state: it never lifts into the
+  This is a fact about _this machine's_ checkouts and live sessions, not PM state: it never lifts into the
   backing-store target and is deliberately outside the materialized substrate
   (`strategy-storage-evolution.md` self-check run at this grooming — composes; no new storage axis). It is a
   code-owned record exposed through a read verb, never a hand-edited document.
@@ -186,7 +186,7 @@ A deterministic record of what each checkout on this machine is doing and what s
 
 Errand identity already lives in the orphan state-ref `refs/arc/user/{identity}/errands` (identity-scoped,
 machine-agnostic, records-only); WU identity lives in metas. The locus record answers the orthogonal question —
-*where does work physically execute on this machine, and what frame governs it* — and carries only a subject
+_where does work physically execute on this machine, and what frame governs it_ — and carries only a subject
 pointer, never duplicated identity fields. Occupancy never syncs cross-machine; identity never encodes locus.
 
 ### Consumed shipped behavior — the interim close fix
@@ -216,7 +216,7 @@ durable provenance the sweep trusts; the record is the live frame.
 ### Occupancy-aware husk cleanup (live-locus lease)
 
 Existing predicates (trusted provenance, clean tree, exact terminal `HEAD`, shipped subject, successful ref
-reaps) can prove a stamped husk's *contents* disposable but not that no live agent session *occupies* the
+reaps) can prove a stamped husk's _contents_ disposable but not that no live agent session _occupies_ the
 directory. Extend the locus record with a definitive **live-locus lease**:
 
 - Suppress cleanup while a lease is live.
@@ -245,7 +245,7 @@ directory. Extend the locus record with a definitive **live-locus lease**:
 
 ## Unknowns / Open — pending wave-3 evidence
 
-Wave 3 deliberately runs on the *current* model as this WU's evidence collector; these stay open until it
+Wave 3 deliberately runs on the _current_ model as this WU's evidence collector; these stay open until it
 reports:
 
 - **Contention and drain shape** for Errands running beside live WUs — the live-errand wave plus the
@@ -255,8 +255,8 @@ reports:
   `node_modules` for `lint:md` here. This sets the **provisioning floor** the ephemeral-default lean carves
   out — below it, in-place on a clean launchpad wins; the threshold is wave-3 empirics.
 - **Launchpad-occupancy collision rate:** the ephemeral-default lean rests on occupancy being a real cost,
-  not a theoretical one — in-place is not *broken* (switch-back to base always succeeds in the primary; what
-  occupancy costs is the *launchpad directory* as a stable base context, while `main`-the-ref stays free
+  not a theoretical one — in-place is not _broken_ (switch-back to base always succeeds in the primary; what
+  occupancy costs is the _launchpad directory_ as a stable base context, while `main`-the-ref stays free
   either way). First datapoint (2026-07-15, this WU's own grooming): three WU worktrees live, the primary
   mid-grooming with a dirty tree — a housekeep or cold-errand need at that moment has no locus at all until
   the grooming state commits; the current model serializes all transient work through the launchpad with a

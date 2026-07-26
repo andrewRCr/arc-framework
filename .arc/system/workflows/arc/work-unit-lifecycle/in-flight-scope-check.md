@@ -15,7 +15,7 @@ proceeds regardless of the outcome.
 
 **Data input.** The in-flight set is supplied by a data source the step treats as opaque; the step's shape is
 independent of how that set is gathered. The source is the in-flight **oracle** (`arc active in-flight --json` —
-identity-filtered remote refs + PRs), which sees work units and errands in flight across worktrees *and* machines,
+identity-filtered remote refs + PRs), which sees work units and errands in flight across worktrees _and_ machines,
 including remote-only ones with no local branch or worktree.
 
 ## Step

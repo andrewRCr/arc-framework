@@ -128,18 +128,18 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
 > [!IMPORTANT]
 > Stop. Present the **full routing plan** — every entry's proposed route, the groupings, new-stub commitment levels,
 > in-flight owner-adoption handoffs, atomic dispositions, any destination-path overlap advisories from § 2, and
-> the chunk plan (§ 4) if the sweep is large — and await explicit confirmation. **The drain makes no write before
+> the split plan (§ 4) if the sweep is large — and await explicit confirmation. **The drain makes no write before
 > this gate.**
 
 The user may adjust any proposal: regroup, change a commitment level, flip an atomic between execute-now / defer /
 retain, or **retain** an entry that would otherwise route. Routing (§ 5) proceeds only on the confirmed plan.
 
-### 4. Chunk if the sweep is large
+### 4. Split if the sweep is large
 
-Default a single routing batch. When the confirmed plan exceeds **one reviewable batch**, chunk by
-**concern-coherence + review-reachability** — split only when one unit would exceed a reviewer's reach. The chunk
+Default a single routing batch. When the confirmed plan exceeds **one reviewable batch**, split by
+**concern-coherence + review-reachability** — split only when one unit would exceed a reviewer's reach. The split
 shape follows protection mode (§ 5): under full, one auto-merge PR per lane; under partial, coherent commit
-boundaries (there are no routing PRs to chunk). Surface the chunk plan at the interlock; never silently truncate.
+boundaries (there are no routing PRs to split). Surface the split plan at the interlock; never silently truncate.
 
 ### 5. Route — write to homes
 
@@ -190,7 +190,7 @@ routing write.
   established is the fork point, not the write target: full protection forbids committing the shared paths to
   the base branch itself. The planning-routing writes (existing-stub edits, new provisional stubs, the
   homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane
-  off that branch (chunked per § 4 if large). Open it with a **lean grooming-PR body** — a one-line Summary
+  off that branch (split per § 4 if large). Open it with a **lean grooming-PR body** — a one-line Summary
   plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections, mirroring
   [run-errand][run-errand] § Ship step 3. A write touching a **foreign owner's** artifact is reviewed-lane
   and ships on its own.
@@ -199,8 +199,14 @@ routing write.
   > `integration-interlock`: Stop before arming auto-merge or merging the grooming PR. Surface PR status
   > (checks, resolved lane) and await explicit integration approval — never infer it from the § 3 routing
   > confirmation, which approved the _routing_, not the merge.
+
+  After approval, re-read the PR's exact base and head SHAs and run
+  `arc review planning-lane <base-sha> <head-sha>`. Only literal `planning` permits arming auto-merge; `reviewed`
+  follows the reviewed-lane settlement in [`run-errand`][run-errand], while command failure or malformed output
+  stops. Foreign ownership or another confidently recognized review condition may still move a planning result to
+  reviewed without another permission stop, but never the reverse.
 - **Partially protected** — every routing write is a **direct base-branch commit** with no PR or merge-wait;
-  keep coherent commit boundaries (the § 4 chunk shape). No lanes, no review-chunking.
+  keep coherent commit boundaries (the § 4 split shape). No lanes, no review-chunking.
 
 ### 6. Execution transition — committed atomics → `run-errand`
 

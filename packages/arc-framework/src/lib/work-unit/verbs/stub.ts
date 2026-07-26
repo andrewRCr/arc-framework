@@ -25,7 +25,8 @@ import { join } from "node:path";
 
 import { validateClass } from "../../../commands/active/types.js";
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
-import { renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import { renderMetaFile, type MetaRenderOverrides } from "../../active/meta-reader.js";
+import { MetaPrioritySchema } from "../../active/meta-schema.js";
 import { SlugSchema } from "../../kernel/index.js";
 import { resolveArcPath } from "../../layout/index.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
@@ -124,7 +125,7 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
   // An explicit `--class` must be a resolved weight — refuse an unresolvable value
   // rather than silently minting `[TBD]` over the caller's judgment.
   const clsArg = params.cls?.trim();
-  let cls: string | undefined;
+  let cls: "Light" | "Heavy" | "Novel" | undefined;
   if (clsArg !== undefined && clsArg !== "") {
     const validated = validateClass(clsArg);
     if (validated === "[TBD]") {
@@ -183,16 +184,20 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
     if (disposition !== "scaffold") {
       throw new Error(`stub scaffolds a fresh meta; received a \`${disposition}\` disposition.`);
     }
-    const overrides: MetaFieldOverrides = {
-      State: "Planning",
-      Owner: params.owner,
-      Branch: "[none]",
-      Priority: priority,
+    const overrides: MetaRenderOverrides = {
+      state: "Planning",
+      owner: params.owner,
+      branch: null,
+      priority: MetaPrioritySchema.parse(priority),
     };
-    if (params.origin !== undefined) overrides.Origin = params.origin;
-    if (params.design !== undefined) overrides.Design = params.design;
-    if (cls !== undefined) overrides.Class = cls;
-    if (hasCohort) overrides.Cohort = cohort;
+    if (params.origin !== undefined) {
+      overrides.origin = params.origin === "[internal]" ? "internal" : params.origin;
+    }
+    if (params.design !== undefined) {
+      overrides.design = params.design === "[none]" ? [] : [params.design];
+    }
+    if (cls !== undefined) overrides.workClass = cls;
+    if (hasCohort) overrides.cohort = cohort;
 
     await ensureDir(join(ctx.executor.cwd, toDir), ctx.fs.mkdir);
     await ctx.fs.writeFile(join(ctx.executor.cwd, metaPath), renderMetaFile(slug, overrides));

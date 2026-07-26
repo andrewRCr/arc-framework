@@ -95,8 +95,34 @@ describe("CodeRabbit structured frontline parser", () => {
     expect(parse(String(stale?.stdout), {
       expectedHead: String(stale?.expectedHead),
       observedHead: String(stale?.observedHead),
-    })).toEqual({ kind: "stale-head" });
+    })).toEqual({
+      kind: "stale-head",
+      expectedHeadSha: "a".repeat(40),
+      observedHeadSha: "b".repeat(40),
+    });
     expect(parse("", { exitCode: null, signal: "SIGTERM" }))
       .toEqual({ kind: "failed", reason: "process-signal:SIGTERM" });
+  });
+
+  it("normalizes a structured provider file-cap refusal as unsupported capability", () => {
+    const stdout = [
+      { type: "review_context", reviewType: "committed" },
+      { type: "status", phase: "setup", status: "setting_up" },
+      {
+        type: "error",
+        errorType: "review",
+        code: "too_many_files",
+        message: "Review failed: Too many files!",
+        recoverable: false,
+        retryable: false,
+        actionRequired: true,
+        actualFiles: 359,
+        maxFiles: 300,
+        details: {},
+      },
+    ].map((event) => JSON.stringify(event)).join("\n");
+
+    expect(parse(stdout, { cliVersion: "0.7.0", exitCode: 1 }))
+      .toEqual({ kind: "capability-unsupported" });
   });
 });

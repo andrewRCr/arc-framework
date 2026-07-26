@@ -35,7 +35,7 @@
 import { join, posix } from "node:path";
 
 import { cohortLeaf, cohortParent, isSafeCohortPath } from "../../active/cohort-path.js";
-import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
 import { SlugSchema, type Slug } from "../../kernel/index.js";
 import { ArchiveQuarterSchema, ArchiveSequenceSchema, resolveArcPath } from "../../layout/index.js";
 import {
@@ -133,7 +133,7 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
     slug: slug.data,
     artifact: "meta",
   });
-  let record: Record<MetaFieldName, string | null>;
+  let record: ParsedMetaRecord;
   try {
     record = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, sourceMetaPath)));
   } catch {
@@ -199,7 +199,7 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   // last member to ship.
   const postIndex = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
   const sweepArgs = {
-    cohort: record.Cohort,
+    cohort: record.cohort,
     quarter: destination.quarter,
     sequence: destination.sequence,
   };

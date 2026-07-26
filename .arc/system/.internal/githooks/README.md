@@ -126,25 +126,25 @@ staging files in `.arc/active/` or `.arc/backlog/`.
 
 Hook behavior is controlled by settings in `.arc/system/arc-config.yml`. Key settings:
 
-| Setting | Default | Effect |
-| ------- | ------- | ------ |
-| `hooks.pre_commit` | `enabled` | Enable/disable pre-commit hook |
-| `hooks.commit_msg` | `enabled` | Enable/disable commit-msg hook |
-| `hooks.pre_push` | `enabled` | Enable/disable pre-push force-push advisory |
-| `commit.format` | `conventional` | Format validation (`conventional` / `custom` / `any`) |
-| `commit.custom_pattern` | empty | ECMAScript pattern source used by `commit.format: custom` |
-| `commit.context_footer` | `required` | Footer validation (`required` / `recommended` / `custom` / `disabled`) |
-| `commit.context_pattern` | empty | ECMAScript pattern source used by `commit.context_footer: custom` |
-| `hooks.subject_max_length` | `72` | Hard limit for subject line length |
-| `hooks.body_max_lines` | `100` | Hard limit for commit body line count (runaway backstop) |
-| `hooks.body_max_line_length` | `100` | Hard limit for body per-line length (runaway backstop) |
-| `hooks.task_numbering` | `error` | Task numbering format (`error` / `warning` / `off`) |
-| `hooks.meta_ref_patterns` | `[Tt]ask...` | Meta-project reference patterns |
-| `hooks.skip_extensions` | `md\|yml...` | Extensions skipped in meta-reference check |
-| `hooks.test_patterns` | `__tests__/...` | Test file patterns (skipped in debug + meta checks) |
-| `hooks.contributor_protected_paths` | `active/\|backlog/` | Contributor staging warnings |
-| `branch.protection` | `partial` | Branch protection (`partial` / `full`) |
-| `team.mode` | `false` | Team mode (`true` / `false`) |
+| Setting                             | Default             | Effect                                                                 |
+| ----------------------------------- | ------------------- | ---------------------------------------------------------------------- |
+| `hooks.pre_commit`                  | `enabled`           | Enable/disable pre-commit hook                                         |
+| `hooks.commit_msg`                  | `enabled`           | Enable/disable commit-msg hook                                         |
+| `hooks.pre_push`                    | `enabled`           | Enable/disable pre-push force-push advisory                            |
+| `commit.format`                     | `conventional`      | Format validation (`conventional` / `custom` / `any`)                  |
+| `commit.custom_pattern`             | empty               | ECMAScript pattern source used by `commit.format: custom`              |
+| `commit.context_footer`             | `required`          | Footer validation (`required` / `recommended` / `custom` / `disabled`) |
+| `commit.context_pattern`            | empty               | ECMAScript pattern source used by `commit.context_footer: custom`      |
+| `hooks.subject_max_length`          | `72`                | Hard limit for subject line length                                     |
+| `hooks.body_max_lines`              | `100`               | Hard limit for commit body line count (runaway backstop)               |
+| `hooks.body_max_line_length`        | `100`               | Hard limit for body per-line length (runaway backstop)                 |
+| `hooks.task_numbering`              | `error`             | Task numbering format (`error` / `warning` / `off`)                    |
+| `hooks.meta_ref_patterns`           | `[Tt]ask...`        | Meta-project reference patterns                                        |
+| `hooks.skip_extensions`             | `md\|yml...`        | Extensions skipped in meta-reference check                             |
+| `hooks.test_patterns`               | `__tests__/...`     | Test file patterns (skipped in debug + meta checks)                    |
+| `hooks.contributor_protected_paths` | `active/\|backlog/` | Contributor staging warnings                                           |
+| `branch.protection`                 | `partial`           | Branch protection (`partial` / `full`)                                 |
+| `team.mode`                         | `false`             | Team mode (`true` / `false`)                                           |
 
 ## Environment
 

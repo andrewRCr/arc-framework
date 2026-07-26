@@ -432,7 +432,7 @@ Markers:
 - Probe-owned volatile git state — unpushed-commit counts, ahead/behind numbers, dirty file counts.
   The next session-init recomputes these fresh from git, and this handoff's own sync leg (§ Sync)
   drives the unpushed count to zero, so a recorded count reads false at next load. SESSION-NOTES
-  reflects *post-handoff* state, not the moment-of-writing snapshot. Intentionally-left uncommitted
+  reflects _post-handoff_ state, not the moment-of-writing snapshot. Intentionally-left uncommitted
   work is the exception — record it under Uncommitted Work above; it's working context visible only
   in `git diff`, not a transient count the sync leg erases.
 - Explanatory paragraphs where the template expects whitespace. Empty sections stay empty.

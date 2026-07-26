@@ -14,8 +14,8 @@
  * Scope: this binder wires the four encoding mutators, the foot-gun guards, and the
  * `reconcile-roadmap` / `reconcile-status-user` / `user-workspace` side-effects the
  * `start` dispatch's executor-routed arms (graduate / resume) declare, plus the
- * `discharge-dep-edges` side-effect the `activate` edge fires (the dep-edge
- * lifecycle's write half) and the `withdraw-pr` side-effect the `reopen` edge fires
+ * prepared current-WU reconcile seam used by dependent-owned write ceremonies and
+ * the `withdraw-pr` side-effect the `reopen` edge fires
  * (a `gh` write — close or draft the open PR, degrading to an advisory when `gh` is
  * unavailable so the applied phase flip is never left mid-transition). The
  * destructive `scaffold` / `remove` artifact runner is left to the verbs that build
@@ -45,17 +45,22 @@ import {
   reconcileMetaFields,
 } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
-import { getCurrentBranch, type GitExec } from "../git/exec.js";
+import { captureGitIndexState, getCurrentBranch, type GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
-import { renderTrackedProjectReadinessViewResult } from "../status/project-roadmap-render.js";
+import { renderRoadmapFromIndexViewResult } from "../status/roadmap-regeneration-assert.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
+import {
+  enumerateGitRetirementRecords,
+  queryGitRetirementDisposition,
+} from "./git-retirement-record-enumeration.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
 import { listParkedSlugs } from "./lifecycle-resolver.js";
+import { listCurrentWuArtifactPaths } from "./reference-reconcile.js";
 import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-executor.js";
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
@@ -65,7 +70,11 @@ import {
 } from "./mutators/reconcile-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
-import { dischargeDepEdges } from "./side-effects/discharge-dep-edges.js";
+import {
+  applyPreparedCurrentWuReconcile,
+  prepareCurrentWuReconcile,
+  type CurrentWuReconcileHost,
+} from "./side-effects/discharge-dep-edges.js";
 import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
 import { withdrawPr } from "./side-effects/withdraw-pr.js";
 
@@ -93,7 +102,9 @@ export interface ExecutorContextDeps {
  * @param deps - Repository root, I/O context, identity, and the template directory.
  * @returns The bound executor context, ready to pass to {@link executeTransition}.
  */
-export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransitionContext {
+export function buildExecutorContext(
+  deps: ExecutorContextDeps,
+): ExecuteTransitionContext & CurrentWuReconcileHost {
   const { cwd, io, identity, teamMode, baseBranch, internalTemplateDir } = deps;
 
   /** Resolve a cwd-relative path (the shape the executor passes) to an absolute one. */
@@ -134,27 +145,6 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     return undefined;
   };
 
-  // `activate` discharges satisfied `Depends On` edges — the dep-edge lifecycle's
-  // write half. Fires after the encoding legs, so the freshly-built index reflects
-  // the just-activated WU; each edge's dependency is read against current state and
-  // only the satisfied ones (`shipped` ∨ `integrating`) are dropped from the gate.
-  const dischargeDepEdgesHandler: SideEffectHandler = async ({ slug }) => {
-    const metaPath = resolveArcPath({
-      kind: "work-unit-artifact",
-      placement: { kind: "active", scope: { kind: "project" } },
-      slug: SlugSchema.parse(slug),
-      artifact: "meta",
-    });
-    const index = await buildLifecycleIndex({ cwd, fs: indexFs });
-    const { discharged } = await dischargeDepEdges(
-      { index, readMeta: (p) => io.readFile(at(p)), writeMeta: (p, c) => io.writeFile(at(p), c) },
-      { slug, metaPath },
-    );
-    return discharged.length > 0
-      ? `Discharged ${discharged.length} satisfied dependency edge(s): ${discharged.join(", ")}.`
-      : undefined;
-  };
-
   // `reopen` withdraws the WU's open PR — close it (default) or convert it back to a
   // draft (`--keep-pr`). A `gh` write: resolve the head branch from the meta, then
   // run the op. The `pr-unmerged` guard already cleared this WU on a positively
@@ -169,9 +159,9 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       slug: SlugSchema.parse(slug),
       artifact: "meta",
     });
-    const { Branch: branch } = parseMetaRecord(await io.readFile(at(metaPath)));
+    const { branch } = parseMetaRecord(await io.readFile(at(metaPath)));
     const mode = inputs.prWithdrawMode ?? "close";
-    if (branch === null || branch === "[none]") {
+    if (branch === null) {
       return `Could not withdraw the PR for \`${slug}\`: no branch recorded — close or convert it manually.`;
     }
     try {
@@ -260,20 +250,49 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       await exec("git", ["add", at(metaPath)]);
     },
 
+    currentWuReconcile: {
+      prepare: async (op) =>
+        prepareCurrentWuReconcile(
+          {
+            index: await buildLifecycleIndex({ cwd, fs: indexFs }),
+            queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
+            enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
+            listArtifactPaths: (slug, ownedMetaPath) =>
+              listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(at(path))),
+            readFile: (path) => io.readFile(at(path)),
+          },
+          op,
+        ),
+      apply: (prepared) =>
+        applyPreparedCurrentWuReconcile(
+          {
+            readFile: (path) => io.readFile(at(path)),
+            writeFile: (path, content) => io.writeFile(at(path), content),
+            stagePaths: async (paths, indexFile) => {
+              if (paths.length > 0) await exec("git", ["add", "--", ...paths], { indexFile });
+            },
+            captureIndexState: () => captureGitIndexState(exec, cwd),
+          },
+          prepared,
+        ),
+    },
+
     guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates, exec }),
 
     sideEffects: {
-      "reconcile-roadmap": ({ slug, from, to }) =>
+      "reconcile-roadmap": ({ slug, from, to, inputs }) =>
         reconcileRoadmap(
           {
             composeView: async () => {
               const currentBranch = await getCurrentBranch(exec);
-              const result = await renderTrackedProjectReadinessViewResult({
+              const { result } = await renderRoadmapFromIndexViewResult({
                 cwd,
                 exec,
-                fs: indexFs,
                 ...(baseBranch !== undefined ? { baseBranch } : {}),
                 currentBranch,
+                ...(inputs.supersededSource === undefined
+                  ? {}
+                  : { superseded: inputs.supersededSource }),
               });
               return {
                 content: result.markdown,
@@ -315,7 +334,6 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
           { cwd, identity, slug, from, to },
         ),
       "user-workspace": userWorkspaceHandler,
-      "discharge-dep-edges": dischargeDepEdgesHandler,
       "withdraw-pr": withdrawPrHandler,
     },
   };

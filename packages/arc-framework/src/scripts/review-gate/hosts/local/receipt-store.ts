@@ -22,6 +22,7 @@ import type {
 import type { GitCommonStatePublisher } from "./git-common-state.js";
 
 const RECEIPT_RECORD = "receipts-v2.json";
+const RECEIPT_REFERENCE_PREFIX = `git-common:review-gate/evidence/${RECEIPT_RECORD}#`;
 
 /** Stable local-store failure that callers can handle without parsing prose. */
 export class LocalReceiptStoreError extends Error {
@@ -74,6 +75,33 @@ export class LocalForwardReviewReceiptStore implements ForwardReviewReceiptStore
     };
   }
 
+  /** Read target receipts with their stable global-ledger references. */
+  async readReceiptEntries(targetId: string): Promise<Array<{
+    receipt: ReviewReceiptV2;
+    durableEvidenceRef: string;
+  }>> {
+    const ledger = parseLedger(await this.publisher.read("evidence", RECEIPT_RECORD), this.repositoryId);
+    return ledger.receipts.flatMap((receipt, index) => receipt.targetId === targetId
+      ? [{
+          receipt,
+          durableEvidenceRef: `${RECEIPT_REFERENCE_PREFIX}${index + 1}`,
+        }]
+      : []);
+  }
+
+  /** Resolve the exact receipt named by one store-issued durable reference. */
+  async readReceiptReference(reference: string): Promise<ReviewReceiptV2 | null> {
+    if (!reference.startsWith(RECEIPT_REFERENCE_PREFIX)) {
+      throw new LocalReceiptStoreError("invalid-receipt-reference");
+    }
+    const position = Number(reference.slice(RECEIPT_REFERENCE_PREFIX.length));
+    if (!Number.isSafeInteger(position) || position <= 0) {
+      throw new LocalReceiptStoreError("invalid-receipt-reference");
+    }
+    const ledger = parseLedger(await this.publisher.read("evidence", RECEIPT_RECORD), this.repositoryId);
+    return ledger.receipts[position - 1] ?? null;
+  }
+
   async appendReceipt(
     receipt: ReviewReceiptV2,
     expectedLedgerVersion: number,
@@ -92,7 +120,7 @@ export class LocalForwardReviewReceiptStore implements ForwardReviewReceiptStore
           content: null,
           result: {
             ledgerVersion: ledger.ledgerVersion,
-            durableEvidenceRef: `git-common:review-gate/evidence/${RECEIPT_RECORD}#${replayVersion}`,
+            durableEvidenceRef: `${RECEIPT_REFERENCE_PREFIX}${replayVersion}`,
           },
         };
       }
@@ -108,7 +136,7 @@ export class LocalForwardReviewReceiptStore implements ForwardReviewReceiptStore
         content: `${JSON.stringify(next)}\n`,
         result: {
           ledgerVersion: next.ledgerVersion,
-          durableEvidenceRef: `git-common:review-gate/evidence/${RECEIPT_RECORD}#${next.ledgerVersion}`,
+          durableEvidenceRef: `${RECEIPT_REFERENCE_PREFIX}${next.ledgerVersion}`,
         },
       };
     });

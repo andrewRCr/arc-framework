@@ -17,7 +17,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaRecord, type MetaFieldName } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, type ParsedMetaRecord } from "../../../../src/lib/active/meta-reader.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import { patchDigest, type PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
@@ -25,12 +25,18 @@ import type {
   ExecuteTransitionContext,
   SideEffectHandler,
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
-import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
+import type { ComposedLifecycleIndexResult } from "../../../../src/lib/work-unit/composed-lifecycle-index.js";
+import {
+  buildLifecycleIndex,
+  type DirEntry,
+  type LifecycleIndexFs,
+} from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
 import {
   validateReceiptMatrix,
   type RetirementReceipt,
 } from "../../../../src/lib/work-unit/retirement-authority.js";
+import { queryRetirementDisposition } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
 import {
   runPark,
   runResume,
@@ -79,7 +85,7 @@ function metaContent(meta: MetaSpec): string {
 }
 
 /** The parsed source meta the handler passes to `runPark` (read from the WU's own worktree). */
-function recordFor(meta: MetaSpec): Record<MetaFieldName, string | null> {
+function recordFor(meta: MetaSpec): ParsedMetaRecord {
   return parseMetaRecord(metaContent(meta));
 }
 
@@ -168,9 +174,13 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     reconcileWorktree: async (op) => {
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
-      return op.mutation === "teardown"
-        ? { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true }
-        : { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch };
+      if (op.mutation === "teardown") {
+        return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true };
+      }
+      if (op.mutation === "spawn") {
+        return { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch };
+      }
+      return { mutation: "move", from: op.from, to: op.to, locusHopped: false };
     },
     writeBranchField: async () => {},
     writeCurrentWorkflowField: async () => {},
@@ -311,6 +321,8 @@ describe("runPark — park@Planning", () => {
     expect(recordedReceipts).toHaveLength(1);
     expect(recordedReceipts[0]).toMatchObject({
       transition: "park-planning",
+      schemaVersion: 2,
+      inventoryRead: "tree-only",
       authorization: "planning-relocated",
       source: { branch: "plan/foo", head: "a".repeat(40) },
       result: { kind: "relocate", plannedArtifactDigest: canonicalDigest({ artifact: "planned-foo" }) },
@@ -328,6 +340,17 @@ describe("runPark — park@Planning", () => {
     if (recorded === undefined) throw new Error("expected a park receipt");
     expect(validateReceiptMatrix(recorded, "planned")).toBeNull();
     expect(validateReceiptMatrix(recorded, "nonexistent")).toBe("evidence-mismatch");
+    expect(queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: recorded.receiptId,
+        content: "",
+        record: { kind: "receipt", value: recorded },
+      }],
+    }, {
+      retiredSubject: "foo",
+      dependentSlug: "consumer",
+    })).toEqual({ status: "absent" });
   });
 
   it("preserves the advisory returned by deferred workspace cleanup", async () => {
@@ -478,9 +501,9 @@ describe("runPark — park@Active", () => {
     // Blessed render shape: State stays the literal `Active` (parked is derived
     // from location), the authoritative branch is carried, render fields survive.
     const record = parseMetaRecord(pointer);
-    expect(record.State).toBe("Active");
-    expect(record.Branch).toBe("feat/foo");
-    expect(record.Cohort).toBe("demo-cohort");
+    expect(record.state).toBe("Active");
+    expect(record.branch).toBe("feat/foo");
+    expect(record.cohort).toBe("demo-cohort");
   });
 
   it("rejects when the preserved-branch worktree is dirty (teardown gate, nothing written)", async () => {
@@ -509,6 +532,17 @@ describe("runPark — park@Active", () => {
     expect(result.reason).toMatch(/preserved branch/i);
     // Rejected before teardown — no worktree touched, no pointer-record written.
     expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
+    expect(writes).toEqual([]);
+  });
+
+  it("rejects an invalid pointer record before tearing down the worktree", async () => {
+    const { ctx, writes, calls } = buildCtx([ACTIVE]);
+    const sourceRecord = { ...recordFor(ACTIVE), owner: null };
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord });
+
+    expect(result.status).toBe("rejected");
+    expect(calls.some((call) => call.startsWith("worktree:"))).toBe(false);
     expect(writes).toEqual([]);
   });
 
@@ -557,6 +591,30 @@ describe("runPark — guards park-from-Integrating", () => {
 });
 
 describe("runResume — the inverse", () => {
+  it("refuses a divergent parked subject before reading or removing checkout files", async () => {
+    const { ctx, calls, removals } = buildCtx([PARKED]);
+    const composed: ComposedLifecycleIndexResult = {
+      index: await buildLifecycleIndex({ cwd: CWD, fs: ctx.executor.indexFs }),
+      recordsBySlug: new Map(),
+      qualityFacts: { warnings: [], resultMarks: [], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: true,
+      readQuality: "reachable",
+    };
+    ctx.composed = composed;
+    ctx.executor.indexFs.readFile = () => Promise.reject(new Error("filesystem read must not occur"));
+
+    const result = await runResume(ctx, BASE_RESUME);
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "Cannot resume `foo`: composed lifecycle truth does not grant current-checkout write authority.",
+    });
+    expect(calls).toEqual([]);
+    expect(removals).toEqual([]);
+  });
+
   it("re-attaches the preserved branch and removes the pointer-record (no relocate)", async () => {
     const { ctx, calls, removals } = buildCtx([PARKED]);
 
@@ -663,6 +721,23 @@ describe("runResume — the inverse", () => {
     // The branch re-attach (spawn) already ran — the failure is post-mutation.
     expect(calls).toContain("worktree:spawn");
   });
+
+  it("returns a structured advisory when deferred ROADMAP reconciliation throws", async () => {
+    const { ctx } = buildCtx([PARKED]);
+    ctx.executor.sideEffects!["reconcile-roadmap"] = async () => {
+      throw new Error("renderer unavailable");
+    };
+
+    const result = await runResume(ctx, BASE_RESUME);
+
+    expect(result).toMatchObject({
+      status: "resumed",
+      outcome: {
+        status: "ok",
+        advisories: ["Resume completed, but ROADMAP reconciliation failed: renderer unavailable."],
+      },
+    });
+  });
 });
 
 describe("park / resume reject a non-slug name", () => {
@@ -695,7 +770,7 @@ describe("park / resume reject a non-slug name", () => {
 
     const result = await runPark(ctx, {
       ...BASE_PARK,
-      sourceRecord: { ...recordFor(ACTIVE), Cohort: "Not-A-Slug" },
+      sourceRecord: { ...recordFor(ACTIVE), cohort: "Not-A-Slug" },
     });
 
     expect(result.status).toBe("rejected");

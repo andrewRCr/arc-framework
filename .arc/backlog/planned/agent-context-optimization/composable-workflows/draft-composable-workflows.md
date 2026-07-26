@@ -19,6 +19,17 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Replace residual activation cleanup mechanics with an owning lifecycle verb**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during the
+  `cli-layout-resolver` audit-packet reconciliation.
+- _Concern:_ activation still narrates a guarded `git rm` for residual draft cleanup, with matching strategy prose.
+  This is deterministic lifecycle behavior, while a layout-specific Git adapter would duplicate the existing
+  executor contract without owning the operation.
+- _Approach:_ select or add the code-tier lifecycle verb that owns residual draft retirement, replace the workflow
+  mechanic with that verb, and update the strategy in the same change. Preserve the guarded no-op and keep Git
+  execution behind the established executor seam.
+
 ### `[ ]` **Split session-adjacent supplemental workflows from installation operations**
 
 - _Routed from:_ evacuated `ATOMIC-INBOX`, housekeep drain (2026-07-20).

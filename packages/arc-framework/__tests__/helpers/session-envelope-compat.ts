@@ -60,6 +60,7 @@ const META = (name: string, fields: {
   `- **Branch:** ${fields.branch}`,
   `- **Class:** ${fields.workClass ?? "Heavy"}`,
   `- **Cohort:** ${fields.cohort ?? "[none]"}`,
+  "- **Depends On:** [none]",
   `- **Task List:** ${fields.taskList ?? "[none]"}`,
   "- **Current Workflow:** [none]",
   "- **Last Completed:** [none]",

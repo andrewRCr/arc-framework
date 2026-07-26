@@ -51,6 +51,7 @@ const allocation: DecomposeAllocationMap = {
 };
 
 const projection: DecomposePreparationProjection = {
+  inventoryRead: "reachable",
   sourceArtifactDigest: digest("source-artifacts"),
   inventories: {
     sourceInventory: [
@@ -64,6 +65,7 @@ const projection: DecomposePreparationProjection = {
     incomingEdgeInventory: [{ dependent: "consumer", currentTargets: ["other", "origin"] }],
     outgoingEdgeInventory: [{ prerequisite: "foundation" }],
   },
+  transformedIncomingDependents: ["consumer"],
   allowedPaths: [
     validateManagedPath(".arc/active/draft-origin.md"),
     validateManagedPath(".arc/backlog/planned/origin/member-a/meta-member-a.md"),
@@ -131,11 +133,13 @@ describe("prepareDecomposeRetirement", () => {
     expect(result.preparation.authorityVersion).toBe("version-prepared");
     expect(result.preparation.record).toMatchObject({
       kind: "prepared-decompose",
-      schemaVersion: 1,
+      schemaVersion: 2,
+      inventoryRead: "reachable",
       allocation,
       sourceInventory: projection.inventories.sourceInventory,
       incomingEdgeInventory: projection.inventories.incomingEdgeInventory,
       outgoingEdgeInventory: projection.inventories.outgoingEdgeInventory,
+      transformedIncomingDependents: ["consumer"],
       sourceArtifactDigest: projection.sourceArtifactDigest,
     });
     expect(result.preparation.locator.scope).toEqual(scope);
@@ -156,8 +160,14 @@ describe("prepareDecomposeRetirement", () => {
     const locator = raw.locator as Record<string, unknown>;
     const sourceInventory = raw.sourceInventory as Array<Record<string, unknown>>;
     const allowedPaths = raw.allowedPaths as string[];
+    const withoutPartition = { ...raw };
+    delete withoutPartition.transformedIncomingDependents;
+    const storedAllocation = raw.allocation as Record<string, unknown>;
+    const storedEntries = storedAllocation.entries as unknown[];
     const cases = [
       { ...raw, unexpected: true },
+      withoutPartition,
+      { ...raw, transformedIncomingDependents: ["unknown"] },
       { ...raw, locator: { ...locator, receiptId: canonicalDigest("forged-receipt") } },
       {
         ...raw,
@@ -168,6 +178,7 @@ describe("prepareDecomposeRetirement", () => {
       },
       { ...raw, allowedPaths: [...allowedPaths, allowedPaths[0]] },
       { ...raw, allocation: { schemaVersion: 2 } },
+      { ...raw, allocation: { ...storedAllocation, entries: [...storedEntries].reverse() } },
     ];
     for (const candidate of cases) {
       expect(parseDecomposePreparationRecord(canonicalize(candidate))).toBeNull();
@@ -307,7 +318,7 @@ describe("prepareDecomposeRetirement", () => {
       reason: "authority-unavailable",
     });
     const id = receiptId({
-      schemaVersion: 1,
+      schemaVersion: 2,
       subject: scope.subject,
       transition: "decompose",
       sourceBranch: scope.source.branch,

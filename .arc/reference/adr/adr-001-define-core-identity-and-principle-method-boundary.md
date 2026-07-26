@@ -79,7 +79,7 @@ involved at the micro level — contributing context, judgment, and course corre
 takes professional ownership of the work: their name is in the commit author field, and they bear responsibility for the
 output. The agent may execute operations, but the human owns the result.
 
-**Review increment scope:** The bounded chunk of autonomous execution between human review points must be kept small
+**Review increment scope:** The bounded unit of autonomous execution between human review points must be kept small
 enough to maintain micro-level collaboration:
 
 - **Too narrow:** Per-edit or per-tool-call review destroys momentum and signals task scoping problems, not effective
@@ -98,7 +98,7 @@ checkbox). The specific tracking mechanism, completion protocol steps, and revie
 convention. Deferred review (user-defined scope for multi-task continuation) is an existing flexibility mechanism.
 
 **Terminology note:** "Work unit" refers to the combined document set (PRD + task list + notes) for a coherent body of
-work. "Review increment" refers to the bounded autonomous execution chunk between human review points. These are
+work. "Review increment" refers to the bounded autonomous execution increment between human review points. These are
 distinct scales.
 
 #### P3. Focused, Sequential Execution

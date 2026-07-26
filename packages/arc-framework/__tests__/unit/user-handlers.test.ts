@@ -102,6 +102,24 @@ const mockRunWithSpinner = vi.fn(
 
 const mockIsNonInteractive = vi.fn(() => false);
 
+vi.mock("../../src/lib/command-input/interaction-context.js", () => ({
+  resolveProcessInteractionContext: (input: { yes: string }) => {
+    const forbidden = mockIsNonInteractive() || input.yes !== "absent";
+    return {
+      interaction: forbidden ? "forbidden" : "allowed",
+      confirmation: input.yes === "authority" ? "accept" : "ask",
+      machineReadable: false,
+      promptInput: process.stdin,
+      promptOutput: process.stdout,
+      subprocess: {
+        terminalPrompts: forbidden ? "forbidden" : "allowed",
+        presenters: forbidden ? "forbidden" : "allowed",
+        ambientStdin: forbidden ? "closed" : "inherit",
+      },
+    };
+  },
+}));
+
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
   runWithSpinner: (...args: unknown[]) =>
@@ -166,7 +184,7 @@ vi.mock("../../src/handlers/push-recovery.js", () => ({
 }));
 
 const {
-  handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus,
+  handleUserAdd, handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus,
   handleUserOpen, handleUserClose, handleUserCompact,
 } = await import("../../src/handlers/user.js");
 
@@ -199,7 +217,7 @@ function resetMockDefaults() {
       "commit.context_pattern": "",
       "merge.strategy": "merge",
       "platform.type": "github",
-      "review.frontline_source": "",
+      "review.frontline_sources": "[]",
       "pm.mode": "none",
       "team.mode": "false",
       "session.remote_sync": "enabled",
@@ -210,6 +228,26 @@ function resetMockDefaults() {
   });
   mockResolveArcRoot.mockReturnValue(process.cwd());
 }
+
+describe("handleUserAdd", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    process.exitCode = undefined;
+  });
+
+  afterEach(() => {
+    process.exitCode = undefined;
+  });
+
+  it("sets a failing exit code for an invalid identity", async () => {
+    await handleUserAdd("!!!");
+
+    expect(mockRunUserAdd).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+});
 
 // --- handleUserPush tests ---
 
@@ -448,25 +486,15 @@ describe("handleUserPull fetch+load flow", () => {
     expect(callArg).not.toHaveProperty("force");
   });
 
-  it("bypasses overwrite confirm in non-TTY environments", async () => {
+  it("requires explicit overwrite authority in non-TTY environments", async () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockIsNonInteractive.mockReturnValue(true);
-    mockRunUserPull.mockResolvedValue({
-      kind: "loaded",
-      identity: "andrew",
-      commit: "abc1234",
-      fileCount: 1,
-      fromAncestor: false,
-      ancestorDistance: 0,
-      warnings: [],
-    });
-
     await handleUserPull({});
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
-    expect(callArg).not.toHaveProperty("force");
+    expect(mockRunUserPull).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("--yes"));
+    expect(process.exitCode).toBe(1);
   });
 
   it("sets exitCode when pull returns no note after fetch", async () => {

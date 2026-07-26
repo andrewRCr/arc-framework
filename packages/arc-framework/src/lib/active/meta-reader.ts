@@ -22,7 +22,19 @@ import { join, relative, sep } from "node:path";
 import { readdir, readFile, stat } from "node:fs/promises";
 
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
+import {
+  MetaProjectionRecordSchema,
+  MetaRecordSchema,
+  ParsedMetaRecordSchema,
+  type MetaProjectionRecord,
+  type MetaRecord as SemanticMetaRecord,
+  type MetaSemanticKey,
+  type ParsedMetaRecord,
+} from "./meta-schema.js";
 import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
+import { displayWidth, padToDisplayWidth } from "../markdown/display-width.js";
+
+export type { MetaProjectionRecord, ParsedMetaRecord } from "./meta-schema.js";
 
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
 const LITE_FILENAME = "status.md";
@@ -193,7 +205,7 @@ export interface ParsedMetaFields {
  * {@link parseCandidate}) catch and downgrade to a warning.
  */
 export function parseMetaFile(content: string): ParsedMetaFields {
-  const record = parseMetaRecord(content);
+  const record = parseMetaProjectionRecord(content);
   return {
     branch: record.Branch,
     state: record.State,
@@ -233,6 +245,8 @@ export type MetaValueClass = "enum" | "identifier" | "identifier-list" | "url" |
 export interface MetaFieldDescriptor {
   /** Bold-marker label, e.g. `"Next Action"` (rendered as `- **Next Action:** …`). */
   readonly name: string;
+  /** Storage-agnostic code-facing key for this projection label. */
+  readonly key: MetaSemanticKey;
   /** Value rendered when the caller supplies no override for this field. */
   readonly default: string;
   /** Grouping key — bullet fields sharing a group render contiguously, blank-line separated. */
@@ -251,24 +265,24 @@ export interface MetaFieldDescriptor {
  * {@link MetaFieldName} literal union.
  */
 export const META_FIELDS = [
-  { name: "State", default: "—", group: "core", render: "core-table", valueClass: "enum" },
-  { name: "Owner", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
-  { name: "Branch", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
-  { name: "Class", default: "[TBD]", group: "core", render: "core-table", valueClass: "enum" },
-  { name: "Priority", default: "P3", group: "core", render: "core-table", valueClass: "enum" },
-  { name: "Cohort", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
-  { name: "Depends On", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier-list" },
-  { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "url" },
-  { name: "Design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
-  { name: "Task List", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
-  { name: "Review Rubric", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
-  { name: "Current Workflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
-  { name: "Last Completed", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
-  { name: "Next Task", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
-  { name: "Blockers", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
-  { name: "Next Action", default: "—", group: "directive", render: "bullet", valueClass: "narrative" },
-  { name: "PR URL", default: "[none]", group: "finalize", render: "bullet", valueClass: "url" },
-  { name: "Completed", default: "[none]", group: "finalize", render: "bullet", valueClass: "narrative" },
+  { name: "State", key: "state", default: "—", group: "core", render: "core-table", valueClass: "enum" },
+  { name: "Owner", key: "owner", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
+  { name: "Branch", key: "branch", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
+  { name: "Class", key: "workClass", default: "[TBD]", group: "core", render: "core-table", valueClass: "enum" },
+  { name: "Priority", key: "priority", default: "P3", group: "core", render: "core-table", valueClass: "enum" },
+  { name: "Cohort", key: "cohort", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
+  { name: "Depends On", key: "dependsOn", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier-list" },
+  { name: "Origin", key: "origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "url" },
+  { name: "Design", key: "design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
+  { name: "Task List", key: "taskList", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Review Rubric", key: "reviewRubric", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Current Workflow", key: "currentWorkflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
+  { name: "Last Completed", key: "lastCompleted", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
+  { name: "Next Task", key: "nextTask", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
+  { name: "Blockers", key: "blockers", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
+  { name: "Next Action", key: "nextAction", default: "—", group: "directive", render: "bullet", valueClass: "narrative" },
+  { name: "PR URL", key: "prUrl", default: "[none]", group: "finalize", render: "bullet", valueClass: "url" },
+  { name: "Completed", key: "completed", default: "[none]", group: "finalize", render: "bullet", valueClass: "narrative" },
 ] as const satisfies readonly MetaFieldDescriptor[];
 
 const CORE_FIELD_NAMES = META_FIELDS
@@ -303,10 +317,14 @@ export type MetaFieldName = (typeof META_FIELDS)[number]["name"];
  * Design from parsed spec input. Fields absent from the map render at their
  * declared default.
  */
-export type MetaFieldOverrides = Partial<Record<MetaFieldName, string>>;
+export type MetaProjectionOverrides = Partial<Record<MetaFieldName, string>>;
+
+/** Partial storage-independent record accepted by the full semantic renderer. */
+export type MetaRenderOverrides = Partial<MetaRecord>;
 
 /** The structured field record recovered from a meta projection by {@link parseMetaRecord}. */
-export type MetaRecord = Record<MetaFieldName, string | null>;
+/** Strict durable semantic record type. */
+export type MetaRecord = SemanticMetaRecord;
 
 /** Resolve the optional WU review-rubric overlay to one safe method identity. */
 export function parseReviewRubric(value: string | null): Slug | null {
@@ -370,17 +388,21 @@ export function formatValue(value: string, valueClass: MetaValueClass): string {
  * line up in raw markdown. (`MD013 tables:false` exempts the table from the
  * line-length gate.)
  */
-function renderCoreTable(valueOf: (field: MetaFieldDescriptor) => string): string[] {
+function renderCoreTable(
+  valueOf: (field: MetaFieldDescriptor) => string,
+  valuesAreRendered = false,
+): string[] {
   const columns = META_FIELDS.filter((f) => f.render === "core-table").map((f) => {
     // Bold the header so the table's keys read as labels in raw markdown,
     // matching the `**Field:**` bullet labels (parse strips the bold on read).
     const header = `**${f.name}**`;
-    const cell = formatValue(valueOf(f), f.valueClass);
-    return { header, cell, width: Math.max(header.length, cell.length) };
+    const value = valueOf(f);
+    const cell = valuesAreRendered ? value : formatValue(value, f.valueClass);
+    return { header, cell, width: Math.max(displayWidth(header), displayWidth(cell)) };
   });
-  const headerRow = `| ${columns.map((c) => c.header.padEnd(c.width)).join(" | ")} |`;
+  const headerRow = `| ${columns.map((c) => padToDisplayWidth(c.header, c.width)).join(" | ")} |`;
   const separatorRow = `| ${columns.map((c) => "-".repeat(c.width)).join(" | ")} |`;
-  const valueRow = `| ${columns.map((c) => c.cell.padEnd(c.width)).join(" | ")} |`;
+  const valueRow = `| ${columns.map((c) => padToDisplayWidth(c.cell, c.width)).join(" | ")} |`;
   return [headerRow, separatorRow, valueRow];
 }
 
@@ -454,9 +476,9 @@ function wrapCommaList(items: readonly string[], firstPrefixLength: number): str
  * @param overrides - Field→value overrides; absent fields render at their default.
  * @returns The rendered meta markdown, terminated by a single newline.
  */
-export function renderMetaFile(
+export function renderMetaProjectionFile(
   wuName: string,
-  overrides: MetaFieldOverrides = {},
+  overrides: MetaProjectionOverrides = {},
 ): string {
   const valueOf = (field: MetaFieldDescriptor): string =>
     overrides[field.name as MetaFieldName] ?? field.default;
@@ -465,6 +487,71 @@ export function renderMetaFile(
   lines.push(...renderBullets(valueOf));
   lines.push("", "---");
   return `${lines.join("\n")}\n`;
+}
+
+/**
+ * Render a complete canonical meta projection from semantic-key overrides.
+ * Required semantic values have no display-placeholder default and fail schema
+ * validation when omitted; all other fields use their durable semantic defaults.
+ *
+ * @param wuName - Work-unit name for the H1
+ * @param overrides - Partial storage-independent semantic record
+ * @returns Canonical full-layout Markdown
+ */
+export function renderMetaFile(
+  wuName: string,
+  overrides: MetaRenderOverrides = {},
+): string {
+  const record = MetaRecordSchema.parse({
+    state: undefined,
+    owner: undefined,
+    branch: null,
+    workClass: "TBD",
+    priority: "P3",
+    cohort: null,
+    dependsOn: [],
+    origin: "internal",
+    design: [],
+    taskList: null,
+    reviewRubric: null,
+    currentWorkflow: null,
+    lastCompleted: null,
+    nextTask: null,
+    blockers: null,
+    nextAction: null,
+    prUrl: null,
+    completed: null,
+    ...overrides,
+  });
+
+  return renderMetaProjectionFile(wuName, {
+    State: record.state,
+    Owner: record.owner,
+    Branch: renderNullable(record.branch),
+    Class: record.workClass === "TBD" ? "[TBD]" : record.workClass,
+    Priority: record.priority === "TBD" ? "[TBD]" : record.priority,
+    Cohort: renderNullable(record.cohort),
+    "Depends On": renderIdentifierList(record.dependsOn),
+    Origin: record.origin === "internal" ? "[internal]" : record.origin,
+    Design: renderIdentifierList(record.design),
+    "Task List": renderNullable(record.taskList),
+    "Review Rubric": renderNullable(record.reviewRubric),
+    "Current Workflow": renderNullable(record.currentWorkflow),
+    "Last Completed": renderNullable(record.lastCompleted),
+    "Next Task": renderNullable(record.nextTask),
+    Blockers: renderNullable(record.blockers),
+    "Next Action": record.nextAction ?? "—",
+    "PR URL": renderNullable(record.prUrl),
+    Completed: renderNullable(record.completed),
+  });
+}
+
+function renderNullable(value: string | null): string {
+  return value ?? "[none]";
+}
+
+function renderIdentifierList(values: readonly string[]): string {
+  return values.length === 0 ? "[none]" : values.join(", ");
 }
 
 /**
@@ -499,6 +586,23 @@ export function setMetaState(content: string, state: string): string {
  */
 export function setMetaBranch(content: string, branch: string): string {
   return setMetaCoreFields(content, { Branch: branch });
+}
+
+/**
+ * Rewrite the managed metadata H1 while leaving the field projection byte-stable.
+ *
+ * @param content - The meta file's raw markdown
+ * @param name - Target work-unit slug
+ * @returns Markdown with only the metadata title changed
+ * @throws When the managed metadata H1 is absent
+ */
+export function setMetaTitle(content: string, name: string): string {
+  const lines = content.split("\n");
+  const index = lines.findIndex((line) => /^# Metadata: .+\r?$/u.test(line));
+  if (index === -1) throw new Error("Cannot set metadata title: managed H1 not found.");
+  const line = lines[index];
+  lines[index] = `# Metadata: ${name}${line?.endsWith("\r") === true ? "\r" : ""}`;
+  return lines.join("\n");
 }
 
 /**
@@ -702,7 +806,7 @@ function bulletMarkerRe(name: string): RegExp {
  */
 export function reconcileMetaFields(
   content: string,
-  overrides: MetaFieldOverrides = {},
+  overrides: MetaProjectionOverrides = {},
 ): ReconcileMetaResult {
   const lines = content.split("\n");
   const h1Idx = lines.findIndex((line) => /^# /.test(line));
@@ -721,7 +825,7 @@ export function reconcileMetaFields(
   // Re-render the bullet region from the canonical order: present fields keep their
   // value (recovered bare, re-formatted by `renderBullets`), absent fields take the
   // override or the declared default. The core table / H1 / below-`---` are untouched.
-  const record = parseMetaRecord(content);
+  const record = parseMetaProjectionRecord(content);
   const valueOf = (field: MetaFieldDescriptor): string => {
     const name = field.name as MetaFieldName;
     if (absent.has(name)) return overrides[name] ?? field.default;
@@ -747,40 +851,29 @@ export function reconcileMetaFields(
  * @returns The rewritten markdown.
  * @throws When the meta carries no resolvable core-block table.
  */
-function setMetaCoreFields(content: string, overrides: MetaFieldOverrides): string {
-  const lines = content.split("\n");
-  const firstFieldIdx = lines.findIndex((line) => FIELD_MARKER_RE.test(line));
-  const scanLimit = firstFieldIdx === -1 ? lines.length : firstFieldIdx;
-  const sepIdx = lines.findIndex(
-    (line, i) => i < scanLimit && TABLE_SEPARATOR_RE.test(line.trim()),
-  );
-  const headerLine = sepIdx > 0 ? lines[sepIdx - 1] : undefined;
-  const valueLine = sepIdx === -1 ? undefined : lines[sepIdx + 1];
-  if (headerLine === undefined || valueLine === undefined) {
-    throw new Error("Cannot set meta core field: no core-block table found.");
-  }
-  const headers = splitTableRow(headerLine).map(stripHeaderLabel);
-  if (!isCoreTableHeader(headers)) {
-    throw new Error("Cannot set meta core field: core-block table header not recognized.");
-  }
-
-  const separatorLine = lines[sepIdx];
-  const separators = separatorLine === undefined ? [] : splitTableRow(separatorLine);
-  const cells = splitTableRow(valueLine);
-  if (headers.length !== separators.length || headers.length !== cells.length) {
-    throw new Error(
-      `Cannot set meta core field: malformed core-block table column-count mismatch ` +
-        `(header ${headers.length}, separator ${separators.length}, value ${cells.length}).`,
-    );
-  }
-  const current = new Map<string, string | null>();
-  headers.forEach((header, i) => current.set(header, normalizeValue(cells[i] ?? "")));
-
+function setMetaCoreFields(content: string, overrides: MetaProjectionOverrides): string {
+  const located = locateMetaCoreTable(content);
   const overrideMap = new Map<string, string>(Object.entries(overrides));
   const valueOf = (field: MetaFieldDescriptor): string =>
-    overrideMap.get(field.name) ?? current.get(field.name) ?? field.default;
-  lines.splice(sepIdx - 1, 3, ...renderCoreTable(valueOf));
-  return lines.join("\n");
+    overrideMap.get(field.name) ?? located.values.get(field.name) ?? field.default;
+  const rendered = renderCoreTable(valueOf);
+  const replacement = rendered
+    .map((line, index) => `${line}${located.lineEndings[index] ?? ""}`)
+    .join("");
+  return `${content.slice(0, located.startOffset)}${replacement}${content.slice(located.endOffset)}`;
+}
+
+/** Normalize the managed three-row core table without changing any field value or surrounding byte. */
+export function normalizeMetaCoreTable(content: string): string {
+  const located = locateMetaCoreTable(content);
+  const rendered = renderCoreTable(
+    (field) => located.renderedValues.get(field.name) ?? formatValue(field.default, field.valueClass),
+    true,
+  );
+  const replacement = rendered
+    .map((line, index) => `${line}${located.lineEndings[index] ?? ""}`)
+    .join("");
+  return `${content.slice(0, located.startOffset)}${replacement}${content.slice(located.endOffset)}`;
 }
 
 /**
@@ -855,6 +948,114 @@ function replaceBulletField(lines: string[], name: string, value: string): strin
 
 /** A core-block separator row, e.g. `| ---- | --- | ------ |`. */
 const TABLE_SEPARATOR_RE = /^\|(?:\s*:?-+:?\s*\|)+$/;
+
+interface MetaSourceLine {
+  readonly text: string;
+  readonly startOffset: number;
+  readonly endOffset: number;
+  readonly lineEnding: string;
+}
+
+/** Exact source span and decoded values for the managed three-row meta table. */
+export interface MetaCoreTableLocation {
+  readonly startOffset: number;
+  readonly endOffset: number;
+  readonly lineEndings: readonly [string, string, string];
+  readonly values: ReadonlyMap<string, string>;
+  readonly renderedValues: ReadonlyMap<string, string>;
+}
+
+function sourceLines(content: string): MetaSourceLine[] {
+  const lines: MetaSourceLine[] = [];
+  const endings = /\r\n|\n|\r/gu;
+  let startOffset = 0;
+  for (const match of content.matchAll(endings)) {
+    const endOffset = match.index;
+    const lineEnding = match[0];
+    lines.push({
+      text: content.slice(startOffset, endOffset),
+      startOffset,
+      endOffset: endOffset + lineEnding.length,
+      lineEnding,
+    });
+    startOffset = endOffset + lineEnding.length;
+  }
+  if (startOffset < content.length) {
+    lines.push({ text: content.slice(startOffset), startOffset, endOffset: content.length, lineEnding: "" });
+  }
+  return lines;
+}
+
+function isTableRow(line: MetaSourceLine | undefined): line is MetaSourceLine {
+  if (line === undefined) return false;
+  const trimmed = line.text.trim();
+  return trimmed.startsWith("|") && trimmed.endsWith("|");
+}
+
+/** Locate and validate the one managed five-column core table before meta bullets. */
+export function locateMetaCoreTable(content: string): MetaCoreTableLocation {
+  const lines = sourceLines(content);
+  const firstFieldIndex = lines.findIndex(({ text }) => FIELD_MARKER_RE.test(text));
+  const scanLimit = firstFieldIndex === -1 ? lines.length : firstFieldIndex;
+  const separatorIndexes = lines
+    .slice(0, scanLimit)
+    .flatMap(({ text }, index) => TABLE_SEPARATOR_RE.test(text.trim()) ? [index] : []);
+
+  if (separatorIndexes.length === 0) {
+    const tableLike = lines.slice(0, scanLimit).some((line) => isTableRow(line));
+    throw new Error(
+      tableLike
+        ? "Malformed meta core-block table: no valid separator row found."
+        : "Cannot locate meta core-block table: no table found before managed fields.",
+    );
+  }
+  if (separatorIndexes.length > 1) {
+    throw new Error("Cannot locate meta core-block table: duplicate tables found before managed fields.");
+  }
+
+  const separatorIndex = separatorIndexes[0] ?? -1;
+  const header = lines[separatorIndex - 1];
+  const separator = lines[separatorIndex];
+  const value = lines[separatorIndex + 1];
+  if (!isTableRow(header) || !isTableRow(separator) || !isTableRow(value)) {
+    throw new Error("Malformed meta core-block table: expected adjacent header, separator, and value rows.");
+  }
+  if (isTableRow(lines[separatorIndex - 2]) || isTableRow(lines[separatorIndex + 2])) {
+    throw new Error("Malformed meta core-block table: expected exactly three rows.");
+  }
+
+  const headers = splitTableRow(header.text).map(stripHeaderLabel);
+  if (!isCoreTableHeader(headers)) {
+    throw new Error("Cannot locate meta core-block table: five-column header not recognized.");
+  }
+  const separators = splitTableRow(separator.text);
+  const cells = splitTableRow(value.text);
+  if (headers.length !== separators.length || headers.length !== cells.length) {
+    throw new Error(
+      `Malformed meta core-block table: column-count mismatch ` +
+        `(header ${headers.length}, separator ${separators.length}, value ${cells.length}).`,
+    );
+  }
+
+  const values = new Map<string, string>();
+  const renderedValues = new Map<string, string>();
+  headers.forEach((headerName, index) => {
+    const rendered = cells[index] ?? "";
+    const normalized = normalizeValue(rendered);
+    if (normalized === null) {
+      throw new Error(`Malformed meta core-block table: \`${headerName}\` has no value.`);
+    }
+    values.set(headerName, normalized);
+    renderedValues.set(headerName, rendered);
+  });
+  return {
+    startOffset: header.startOffset,
+    endOffset: value.endOffset,
+    lineEndings: [header.lineEnding, separator.lineEnding, value.lineEnding],
+    values,
+    renderedValues,
+  };
+}
 
 /** Split a `| a | b | c |` row into trimmed cell strings. */
 function splitTableRow(line: string): string[] {
@@ -946,10 +1147,10 @@ function isCoreTableHeader(headers: readonly string[]): boolean {
  * stay distinct, and distinct from a marker-absent `null`). A structurally
  * malformed core-block table throws (see {@link parseCoreTable}).
  */
-export function parseMetaRecord(content: string): MetaRecord {
+export function parseMetaProjectionRecord(content: string): MetaProjectionRecord {
   const section = extractMetadataSection(content) ?? "";
   const table = parseCoreTable(section);
-  const record = {} as MetaRecord;
+  const record = {} as MetaProjectionRecord;
   for (const field of META_FIELDS) {
     const fromTable = table && field.name in table ? table[field.name] : undefined;
     const raw = fromTable === undefined ? extractField(section, field.name) : fromTable;
@@ -966,7 +1167,51 @@ export function parseMetaRecord(content: string): MetaRecord {
     record[field.name] =
       field.valueClass === "identifier-list" ? normalizeIdentifierListValue(stripped) : stripped;
   }
-  return record;
+  return MetaProjectionRecordSchema.parse(record);
+}
+
+/**
+ * Recover the tolerant storage-independent adapter record from a meta projection.
+ * Display sentinels normalize at this boundary; invalid closed-domain tokens stay
+ * visible so callers can degrade one field without discarding independent evidence.
+ */
+export function parseMetaRecord(content: string): ParsedMetaRecord {
+  const projection = parseMetaProjectionRecord(content);
+  return ParsedMetaRecordSchema.parse({
+    state: nullableProjectionValue(projection.State),
+    owner: nullableProjectionValue(projection.Owner),
+    branch: nullableProjectionValue(projection.Branch),
+    workClass: unresolvedProjectionValue(projection.Class),
+    priority: unresolvedProjectionValue(projection.Priority),
+    cohort: nullableProjectionValue(projection.Cohort),
+    dependsOn: parseIdentifierList(projection["Depends On"]),
+    origin: projection.Origin === "[internal]" ? "internal" : nullableProjectionValue(projection.Origin),
+    design: parseIdentifierList(projection.Design),
+    taskList: nullableProjectionValue(projection["Task List"]),
+    reviewRubric: nullableProjectionValue(projection["Review Rubric"]),
+    currentWorkflow: nullableProjectionValue(projection["Current Workflow"]),
+    lastCompleted: nullableProjectionValue(projection["Last Completed"]),
+    nextTask: nullableProjectionValue(projection["Next Task"]),
+    blockers: nullableProjectionValue(projection.Blockers),
+    nextAction: nullableProjectionValue(projection["Next Action"]),
+    prUrl: nullableProjectionValue(projection["PR URL"]),
+    completed: nullableProjectionValue(projection.Completed),
+  });
+}
+
+/** Convert a tolerant parsed adapter record to the strict durable contract. */
+export function toMetaRecord(record: ParsedMetaRecord): MetaRecord | null {
+  const parsed = MetaRecordSchema.safeParse(record);
+  return parsed.success ? parsed.data : null;
+}
+
+function nullableProjectionValue(value: string | null): string | null {
+  if (value === "—" || value === "[none]") return null;
+  return value === "[TBD]" ? "TBD" : value;
+}
+
+function unresolvedProjectionValue(value: string | null): string | null {
+  return nullableProjectionValue(value);
 }
 
 function normalizeIdentifierListValue(value: string): string {

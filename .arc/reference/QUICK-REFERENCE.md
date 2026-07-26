@@ -51,6 +51,9 @@ npm run -s lint:md:file -- "path/to/file.md"
 # Auto-fix specific file
 npm run -s lint:md:fix:file -- "path/to/file.md"
 
+# Certify the exact staged candidate (normally run by pre-commit)
+npm run -s lint:md:staged
+
 # Lint specific directory
 npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 ```
@@ -60,20 +63,18 @@ npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 - Without `--no-globs`, markdownlint-cli2 processes config globs **in addition to** specified files
 - Use `--no-globs` when checking/fixing individual files to avoid processing entire workspace
 - If local dependencies are unavailable, use fallback: `npx --yes markdownlint-cli2 ...`
-- `markdownlint-cli2 --fix` does NOT fix MD060 (table alignment) — use `markdown-table-prettify` instead:
+- `markdownlint-cli2 --fix` does not fix MD060 (table alignment). Use the repository's explicit table formatter:
 
 ```bash
-# Fix table formatting (MD060 violations)
-npx --yes markdown-table-prettify < input.md > output.md
-# Or use VS Code extension: "Markdown Table Prettifier"
+# Fix table formatting without rewriting surrounding prose
+npm run format:tables -- "path/to/file.md"
 ```
 
 ### Prettier (Markdown Formatting)
 
-Use `prettier` for bulk line-length wrapping (MD013). It's markdown-aware — won't
-break inside links, emphasis, or code spans. **Not recommended for MD060** (table
-alignment) — use `markdown-table-prettify` instead, which fixes tables without
-reformatting surrounding prose.
+Use `prettier` for bulk line-length wrapping (MD013). It's markdown-aware — won't break inside links, emphasis, or
+code spans. Do not use it for MD060 table alignment; use `npm run format:tables -- <file>` so only validated table
+ranges change.
 
 ```bash
 # Format a file (prose wrap at 120 chars, matching markdownlint config)
@@ -143,31 +144,74 @@ npm run build
 
 ## Quality Gate Commands
 
-Reference commands for DEV-RULES.PROJECT quality gates. See
-[Quality Gates Strategy][quality-gates] for the tiered approach (when to run which level of
-checks).
+Reference commands for the DEV-RULES.PROJECT quality gates. **Which** of them a given change has to run is
+DEV-RULES.PROJECT § Quality Gates (relevance and unchanged-tree conditions); the tier model itself is the
+[Quality Gates Strategy][quality-gates].
+
+**Parity with CI.** The full-suite set below tracks the required workflow in `.github/workflows/ci.yml`. The
+`lint:arc:*` contract checks are required there and are easy to omit locally — doing so produces a false green
+that CI then rejects. When CI gains or renames a required gate, update this section in the same change.
+
+**Measured cost** (2026-07-25, warm cache). Targeting is what makes Tier 1 a per-task gate rather than a second
+full suite — the expensive checks narrow by an order of magnitude, and the ARC contract checks are already cheap:
+
+| Check                   | Full project | Targeted                                    |
+| ----------------------- | ------------ | ------------------------------------------- |
+| `lint:md`               | 6.9s         | 0.25s — `lint:md:file`, per file            |
+| `lint:ts`               | 21.4s        | 2.1s one file · 9.1s one directory          |
+| `lint:sh`               | 1.0s         | not narrowable (fixed hook/script set)      |
+| `lint:arc:triggers`     | 0.27s        | corpus-wide by design; already cheap        |
+| `lint:arc:domain-rules` | 0.23s        | corpus-wide by design; already cheap        |
+| `lint:arc:section-refs` | 0.22s        | corpus-wide by design; already cheap        |
+| `typecheck`             | 4.2s         | not narrowable (whole-program)              |
+| `typecheck:test`        | 7.3s         | not narrowable (whole-program)              |
+| `test:unit`             | 24.2s        | 1.1s — filename filter                      |
+| `test:arc-contracts`    | 0.9s         | subset of `test`; a Tier 1 targeting handle |
+| `test` (7,524)          | 67.0s        | narrow via `test:unit` or a per-tier script |
+| `build`                 | 5.7s         | not narrowable                              |
 
 ### Incremental — Tier 1 (per-task)
 
+**Always targeted** — pass the paths the task actually changed. A single-file TypeScript task runs in seconds,
+not a minute.
+
 ```bash
-# Lint specific markdown file
+# Markdown — per changed file
 npm run -s lint:md:file -- "path/to/file.md"
 
-# Lint TypeScript source (for code changes)
-npm run lint:ts
+# ARC contract checks — run when any `.arc/**` methodology artifact changed
+# (~0.7s combined; required in CI, so skipping them here only defers the failure)
+npm run -s lint:arc:triggers
+npm run -s lint:arc:domain-rules
+npm run -s lint:arc:section-refs
 
-# Lint shell scripts (for hook/script changes)
+# TypeScript lint — per changed file or directory
+# (invoke eslint directly; `npm run lint:ts -- <path>` appends to the full set rather than narrowing it)
+npx eslint packages/arc-framework/src/path/to/file.ts
+
+# Unit tests — filename filter covering the area you touched
+npm run -s test:unit -- <filename-fragment>
+
+# Framework-contract tests — fast subset for two-copy sync / extension / review-gate changes
+npm run -s test:arc-contracts
+
+# Types — whole-program, not narrowable; run when TypeScript changed
+npm run typecheck
+
+# Shell — fixed hook/script set; run when a hook or script changed
 npm run lint:sh
-
-# Run relevant unit tests (for code changes)
-npm run test:unit
 ```
 
 ### Integration — Tier 2 (coherent unit)
 
+Full-project scope. The relevance condition still applies — a unit that touched no TypeScript skips the code
+checks.
+
 ```bash
-# Full markdown lint + code lint + type check + test suite
 npm run -s lint:md
+npm run -s lint:arc:triggers
+npm run -s lint:arc:domain-rules
+npm run -s lint:arc:section-refs
 npm run lint:ts
 npm run lint:sh
 npm run typecheck
@@ -177,30 +221,25 @@ npm test
 
 ### Full Suite — Tier 3 (per-phase / pre-PR)
 
+Tier 2 plus build verification and a change review. Run it whole — the strategy's no-partial-Tier-3 rule holds.
+Worth recording that in this repo Tier 3 exceeds Tier 2 by `build` alone (~5.7s, about 5%): the two tiers have
+nearly converged here, which is an input to the eventual tier-model rework rather than a license to substitute
+one for the other.
+
 ```bash
-# 1. Markdown Linting (zero violations required)
-npm run -s lint:md
+# 1-9: the Tier 2 block above (which carries the full CI-required set), then:
 
-# 2. Code Linting (zero violations required)
-npm run lint:ts
-npm run lint:sh
-
-# 3. TypeScript (zero errors required)
-npm run typecheck
-npm run typecheck:test
-
-# 4. Full test suite (all pass required)
-npm test
-
-# 5. Build verification
+# 10. Build verification
 npm run build
 
-# 6. Git Status Check
+# 11. Change review
 git status
-
-# 7. Review Changes
 git --no-pager diff --stat
 ```
+
+`npm test` runs every Vitest project (unit, unit-mocks, integration, e2e), so `test:arc-contracts`,
+`test:integration`, `test:e2e`, and `test:portability` are subsets of it — Tier 1 targeting handles, not
+additional full-suite gates.
 
 ---
 
@@ -246,8 +285,8 @@ npx arc update
 ### Lifecycle Verbs
 
 The complete work-unit lifecycle command set — the full verb index. The `work-unit-lifecycle/` workflow files
-cover only the judgment-bearing subset, so a verb with no workflow file (`demote`, `teardown`, `stub`) is by
-design, not a missing ceremony.
+cover only the judgment-bearing subset, so a verb with no workflow file (`demote`, `rename`, `teardown`, `stub`) is
+by design, not a missing ceremony.
 
 ```bash
 # Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, dep-edges
@@ -259,6 +298,9 @@ arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <re
 # Start an existing work unit on plan/<name>; --new explicitly creates an absent name.
 # Spawns a worktree; --here uses the current checkout (init-work-unit.md).
 arc start [name] [--new] [--here] [--from <pointer-or-blurb>]
+
+# Rename a WU and its applicable branch, notes, remote, marker, and worktree identities — no ceremony
+arc rename <slug> <new-slug>
 
 # Promote a provisional stub to planned, requires a resolved Class (promote-work-unit.md)
 arc promote <slug>

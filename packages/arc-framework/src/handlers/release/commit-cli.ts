@@ -35,6 +35,11 @@ import {
   releaseAdvisoryLock,
 } from "../../lib/user-sync/notes-lock.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
+import {
+  resolveProcessInteractionContext,
+  type InteractionContext,
+} from "../../lib/command-input/interaction-context.js";
+import { declareInteractionSite, type CommandInputDeclaration } from "../../lib/command-input/declaration.js";
 
 import {
   runReleaseCommit,
@@ -47,6 +52,36 @@ import { createCommitMessagePreflight } from "./commit-message-preflight.js";
 export interface HandleReleaseCommitOptions {
   args: readonly string[];
 }
+
+/** Input and interaction policies owned by the release-commit adapter. */
+export const releaseCommitInputPolicyDeclarations = [{
+  commandPath: "release commit",
+  aliases: [],
+  sites: [
+    {
+      id: "operand.args", source: { file: "cli.ts", symbol: "program" }, origin: "syntax",
+      acquisition: "opaque-passthrough", schemaOwnership: "opaque", cancellation: "not-applicable",
+      automation: { noInput: "same", flags: [], acceptedSyntax: ["[args]"] },
+      mutationBoundary: "release commit handler", subprocess: "opaque-arguments",
+    },
+    declareInteractionSite(
+      { file: "handlers/release/commit-cli.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
+      {
+        acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
+        mutationBoundary: "release commit input preflight", subprocess: "explicit-stdin",
+      },
+    ),
+    declareInteractionSite(
+      { file: "handlers/release/commit-cli.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
+      {
+        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "disable-terminal-input", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "release commit subprocess boundary", subprocess: "editor",
+      },
+    ),
+  ],
+}] satisfies readonly CommandInputDeclaration[];
 
 const capturedGitExec = createExecaGitExec();
 
@@ -68,7 +103,13 @@ export function stripNoWrap(args: readonly string[]): { argv: string[]; wrap: bo
  * path forwards to a wrapped `git commit` invocation that bubbles git's
  * stdout, stderr, and exit code verbatim.
  */
-export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Promise<void> {
+export async function handleReleaseCommit(
+  opts: HandleReleaseCommitOptions,
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false, machineReadable: false, yes: "absent",
+  });
   let identity: string;
   try {
     identity = await resolveUserIdentity();
@@ -104,14 +145,15 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
     argv,
     settings,
     currentBranch,
-    spawnGit: realSpawnGit,
+    spawnGit: createSpawnGit(context),
     resolveHead: realResolveHead,
     createMessageSnapshot: createRealCommitMessageSnapshot,
     persistMessageRetry: persistRealCommitMessageRetry,
     cleanupConsumedMessageRetry: cleanupRealConsumedMessageRetry,
     preflightRemedy,
     preflightCommitMessage: createCommitMessagePreflight({
-      stdinIsTTY: process.stdin.isTTY,
+      stdinIsTTY: context.interaction === "allowed" && context.promptInput.isTTY,
+      interactionAllowed: context.interaction === "allowed",
       readFile: (path) => readFile(path),
       readFileWithIdentity: readRealCommitMessageFileWithIdentity,
       readStdin,
@@ -169,14 +211,26 @@ async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
  *
  * @returns A `SpawnGit` adapter with captured output and guarded stdin transport
  */
-export function createSpawnGit(): SpawnGit {
+export function createSpawnGit(context?: InteractionContext): SpawnGit {
   return async ({ args, cwd, stdin }) => {
     const invocation = ["commit", ...args];
+    const forbidden = context?.subprocess.terminalPrompts === "forbidden";
+    const env = forbidden
+      ? {
+          ...(environmentForGitCwd(cwd) ?? process.env),
+          GIT_TERMINAL_PROMPT: "0",
+          GIT_EDITOR: "true",
+          GIT_PAGER: "cat",
+          PAGER: "cat",
+        }
+      : environmentForGitCwd(cwd);
     const result = await execa("git", invocation, {
       cwd,
-      env: environmentForGitCwd(cwd),
+      env,
       extendEnv: false,
-      ...(stdin === undefined ? { stdin: "inherit" as const } : { input: stdin }),
+      ...(stdin === undefined
+        ? { stdin: context?.subprocess.ambientStdin === "closed" ? "ignore" as const : "inherit" as const }
+        : { input: stdin }),
       stdout: ["inherit", "pipe"],
       stderr: ["inherit", "pipe"],
       reject: false,
@@ -190,8 +244,6 @@ export function createSpawnGit(): SpawnGit {
     return { exitCode: error.exitCode, stdout: error.stdout, stderr: error.stderr };
   };
 }
-
-const realSpawnGit = createSpawnGit();
 
 export const createRealCommitMessageSnapshot: CreateCommitMessageSnapshot = async ({ cwd, bytes }) => {
   const { stdout } = await capturedGitExec("git", ["rev-parse", "--absolute-git-dir"], { cwd });

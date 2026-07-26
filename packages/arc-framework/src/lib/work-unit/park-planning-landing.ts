@@ -11,7 +11,7 @@ import { posix, join, resolve } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
-import { canonicalDigest, isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 import {
   contentDigest,
   deleteOperation,
@@ -30,8 +30,12 @@ import {
   validateReceiptMatrix,
   type RetirementReceipt,
 } from "./retirement-authority.js";
+import { parseRetirementReceipt } from "./retirement-receipt-codec.js";
 import { validateRetirementReceiptRelation } from "./retirement-relation.js";
-import { resolveRetirementRecordRelativePath } from "./retirement-record-store.js";
+import {
+  RETIREMENT_RECORD_NAMESPACE,
+  resolveRetirementRecordRelativePath,
+} from "./retirement-record-store.js";
 import { isSlugSafe } from "./slug.js";
 
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
@@ -213,7 +217,7 @@ async function readCommittedTransition(
       return { status: "rejected", reason: "The park transition must be a direct single-parent commit." };
     }
     const id = receiptId({
-      schemaVersion: 1,
+      schemaVersion: 2,
       subject: { kind: "work-unit", name: params.name },
       transition: "park-planning",
       sourceBranch: branch,
@@ -245,7 +249,7 @@ async function readCommittedTransition(
     }
     const plannedDir = posix.dirname(plannedMeta.path);
     const plannedMetaBytes = await requireBlob(deps, commit, plannedMeta.path);
-    const cohort = parseMetaRecord(decodeUtf8(plannedMetaBytes)).Cohort?.trim() ?? "";
+    const cohort = parseMetaRecord(decodeUtf8(plannedMetaBytes)).cohort?.trim() ?? "";
     if (!isSafeCohortPath(cohort) || validateCohortPath(cohort) !== null) {
       return { status: "rejected", reason: "The planned result carries an invalid Cohort path." };
     }
@@ -365,7 +369,7 @@ async function readBaseSnapshot(
   const inventoryResult = await deps.exec(
     "git",
     ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ...LIFECYCLE_ROOTS,
-      ".arc/.internal/retirement-receipts"],
+      RETIREMENT_RECORD_NAMESPACE],
     execOptions,
   );
   const indexTree = indexTreeResult.stdout.trim();
@@ -678,46 +682,11 @@ async function readDiffOperations(
 }
 
 function parseParkReceipt(bytes: Uint8Array): RetirementReceipt {
-  const parsed: unknown = JSON.parse(decodeUtf8(bytes));
-  if (!isRecord(parsed) || !hasExactKeys(parsed, [
-    "schemaVersion", "receiptId", "subject", "transition", "source", "transitionPatchDigest",
-    "retiringProjection", "authorization", "result",
-  ])) throw new Error("The park receipt has an invalid top-level shape.");
-  const { subject, source, retiringProjection, result } = parsed;
-  if (
-    parsed.schemaVersion !== 1
-    || !isCanonicalDigest(parsed.receiptId)
-    || parsed.transition !== "park-planning"
-    || !isCanonicalDigest(parsed.transitionPatchDigest)
-    || parsed.authorization !== "planning-relocated"
-    || !isRecord(subject)
-    || !hasExactKeys(subject, ["kind", "name"])
-    || subject.kind !== "work-unit"
-    || typeof subject.name !== "string"
-    || !isRecord(source)
-    || !hasExactKeys(source, ["branch", "head", "artifactDigest"])
-    || typeof source.branch !== "string"
-    || typeof source.head !== "string"
-    || !isCanonicalDigest(source.artifactDigest)
-    || !isRecord(retiringProjection)
-    || !hasExactKeys(retiringProjection, ["kind"])
-    || retiringProjection.kind !== "direct-transition"
-    || !isRecord(result)
-    || !hasExactKeys(result, ["kind", "plannedArtifactDigest"])
-    || result.kind !== "relocate"
-    || !isCanonicalDigest(result.plannedArtifactDigest)
-  ) throw new Error("The park receipt has an invalid schema.");
-  return parsed as unknown as RetirementReceipt;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  const actual = Object.keys(value).sort(compareUtf8);
-  const expected = [...keys].sort(compareUtf8);
-  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+  const receipt = parseRetirementReceipt(decodeUtf8(bytes));
+  if (receipt === null || receipt.transition !== "park-planning") {
+    throw new Error("The park receipt has an invalid schema.");
+  }
+  return receipt;
 }
 
 function decodeUtf8(bytes: Uint8Array): string {

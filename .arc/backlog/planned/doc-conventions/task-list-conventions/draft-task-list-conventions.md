@@ -10,18 +10,50 @@
 
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Validate generated task-list structure before execution**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during
+  `review-surface-binding` Phase 2 compaction recovery.
+- _Concern:_ task generation committed 24 markers outside the operational cursor grammar: ID-less test-first
+  introducers, an executable subtask without an ID, and subtasks whose bold title contained only the ID. The
+  shared scanner rejected them, but generation finalization used only a prose checklist and session-init did not
+  stop on the malformed cursor.
+- _Fold-in:_ make the canonical marker shapes literal in guidance/templates, run the shared structural scanner as
+  a hard finalization precondition, and settle whether malformed execution cursors must stop session entry. Cover
+  all three observed malformed shapes.
+
+### `[ ]` **Narrow the draft around the shipped descriptor-spacing rule**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
+  `markdown-formatting` task generation.
+- _Concern:_ `markdown-formatting` now owns descriptor-cluster spacing guidance and validation, so retaining a
+  second spacing contract here would create competing authorities.
+- _Fold-in:_ remove descriptor-spacing ownership while preserving requirement anchors, inserted-phase rules,
+  interlock language, completion shape, and the remaining task grammar.
+
+### `[ ]` **Clarify the `[~]` success-criterion disposition**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
+  `review-architecture` verification.
+- _Concern:_ `[~]` currently combines dropped, irrelevant, and deferred criteria under a `Superseded` note, even
+  though deferral means the intent remains owed elsewhere. It also cannot distinguish a planned scope exclusion
+  from an implementation-time delivery gap that was subsequently routed.
+- _Approach:_ prefer a note convention that names the actual disposition (`Deferred`, `Dropped`, or `Irrelevant`),
+  or a neutral `Not delivered here`, without adding a new marker unless the provenance distinction proves worth
+  the corpus-wide state cost.
 
 ### `[ ]` **Forbid non-linear blocked-open leaves in generated task lists**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: task-list-conventions`), housekeep drain (2026-07-07);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: task-list-conventions`), housekeep drain (2026-07-07);
   captured during `finalize-parallelism` Task 2.1.d recovery, 2026-07-06.
-- *Concern:* FP generated a task-list shape where Task 2.1.c remained an open checkbox even though it depended on
+- _Concern:_ FP generated a task-list shape where Task 2.1.c remained an open checkbox even though it depended on
   later Task 2.4.c, while later siblings 2.1.d / 2.1.e were intended to run first. The task cursor has no dependency
   or "skip and return" mechanism; it selects the next open executable checkbox, so session-init / recovery kept
   pointing at the blocked 2.1.c leaf until the list was repaired.
-- *Approach:* Codify and guard the topology invariant: open executable checkboxes must be linearly runnable from top
+- _Approach:_ Codify and guard the topology invariant: open executable checkboxes must be linearly runnable from top
   to bottom. A task that depends on later work must be moved to a later executable leaf, represented as a later
   follow-on, or excluded until generated in the correct position. Evaluate both sides: task-generation/finalization
   checks that reject this shape, and task-cursor diagnostics that fail loud if a future dependency/blocked marker is
@@ -29,129 +61,129 @@
 
 ### `[ ]` **Structural task-list-shape conventions for long-running / observational / absorptive WUs**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: task-list-conventions`), housekeep drain (2026-07-07);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: task-list-conventions`), housekeep drain (2026-07-07);
   captured during `finalize-parallelism` generate-tasks (planning close), 2026-07-05.
-- *Concern:* FP's generate-tasks surfaced six structural/shape-level task-list convention gaps — distinct from
+- _Concern:_ FP's generate-tasks surfaced six structural/shape-level task-list convention gaps — distinct from
   micro-formatting scope. They concern how a long-running, observation-driven, absorptive WU is represented in the
   phase/task grammar:
     1. **Verification-as-spine vs. terminal-thin verification phase** — `strategy-task-list-formatting`
        § Verification Phase assumes verification is always a single terminal `verify-work-unit.md` pointer; FP's
-       verification is its *spine* (four substantive burn-in wave phases). No convention for substantive interior
+       verification is its _spine_ (four substantive burn-in wave phases). No convention for substantive interior
        verification phases coexisting with the terminal gate.
     2. **Calendar-gated / externally-gated phases** — leaf = bounded single-session increment doesn't fit a burn-in
        wave (calendar-gated, spans a window, coordinates external sacrificial-workload WUs). No convention for a
        phase gated on external availability rather than prior-phase completion.
     3. **Legitimately-open / absorptive phase vs. authored-once task list** — the Resolution model mandates a
        "resolve discovered seams" phase that accretes tasks mid-execution; the finalize checklist assumes the list is
-       complete at finalize; the R-scheme covers post-complete expansion, not a phase *planned* to grow.
+       complete at finalize; the R-scheme covers post-complete expansion, not a phase _planned_ to grow.
     4. **Evidence-gated / conditional task content vs. "no pending, document what is"** — a doctrine-reconciliation
        edit-set and three seam-audit decisions can't state their concrete action upfront. FP interpretation: write
-       the Goal as the decision *procedure + recorded outcome*, not the unknown resolution. The "no pending" finalize
+       the Goal as the decision _procedure + recorded outcome_, not the unknown resolution. The "no pending" finalize
        rule may need an explicit carve-out for empirically-gated tasks.
     5. **(minor) Deliverable-is-a-finding / commit rhythm** — many wave leaves' deliverable is a finding recorded in
-       notes/checklist, and workload commits land on *other* WUs' branches, so FP's branch sees notes/checklist
+       notes/checklist, and workload commits land on _other_ WUs' branches, so FP's branch sees notes/checklist
        commits (not code) for whole phases; the `_Outcome:_` / "quality gates pass" per-increment framing assumes a
        code-or-doc increment.
     6. **Grounding-audit cadence: group-by-axis batching** — generate-tasks Pass-3 fires a per-phase confirm gate;
-       FP surfaced a *middle*: group phases on a common grounding-character axis (code-facing / observational /
+       FP surfaced a _middle_: group phases on a common grounding-character axis (code-facing / observational /
        doc-facing) and batch the confirm gate per group (collapsed 7 gates → 3). Worth codifying as a sanctioned
        cadence option alongside per-phase and full-waiver.
-- *Prototype (FP, gap 3):* FP adopted a `> [!NOTE]` callout in the open phase's preamble marking it grow-in-place;
-  present-while-open, removed-on-close; placed *after* `_Purpose:_`, as the last element before the task space.
+- _Prototype (FP, gap 3):_ FP adopted a `> [!NOTE]` callout in the open phase's preamble marking it grow-in-place;
+  present-while-open, removed-on-close; placed _after_ `_Purpose:_`, as the last element before the task space.
   Parser-safe. Open codification question: on marker removal, is a replacement `_Note:_` warranted, or does
   `_Purpose:_` suffice?
-- *Discipline note:* FP minted exactly *one* new marker (the open-phase callout); gaps 2 and 4 were handled with
+- _Discipline note:_ FP minted exactly _one_ new marker (the open-phase callout); gaps 2 and 4 were handled with
   existing grammar (`_Note:_` / preamble prose + Goal wording), NOT new descriptor fields. Whether standardized
-  gating / evidence descriptors *should* exist is a proposal for this WU to weigh.
+  gating / evidence descriptors _should_ exist is a proposal for this WU to weigh.
 
 ### `[ ]` **Codify the letter-suffixed inserted-phase task-list convention**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: task-list-conventions`), housekeep drain (2026-07-07);
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: task-list-conventions`), housekeep drain (2026-07-07);
   captured during `finalize-parallelism` task-list rework, 2026-07-05.
-- *Concern:* Inserting a phase without renumbering the tail (FP's `Phase 2.R` / `2.I` / `2.E`, task ids like
+- _Concern:_ Inserting a phase without renumbering the tail (FP's `Phase 2.R` / `2.I` / `2.E`, task ids like
   `2.I.1.a`) parses and validates today — cursor id grammar `\d+(?:\.[0-9A-Za-z]+)+`, documented `4.R.1`; the
   `2.R.1.a` commit footer already validated — so it is non-blocking. The insert-without-renumbering convention
   itself is still ad hoc across task lists.
-- *Approach:* Bless / generalize it as an official pattern, sibling to the Phase 7 open-phase `[!NOTE]` prototype
+- _Approach:_ Bless / generalize it as an official pattern, sibling to the Phase 7 open-phase `[!NOTE]` prototype
   marker this WU already owns.
 
 ### `[ ]` **Final task-list requirement traceability across spec forms**
 
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
   `class-model-foundation` task generation.
-- *Concern:* `2_generate-tasks.md` codifies R-ID anchors only for the Pass 1 skeleton; the final task-list
+- _Concern:_ `2_generate-tasks.md` codifies R-ID anchors only for the Pass 1 skeleton; the final task-list
   convention is still undefined. A per-phase `_Requirements:_` line mapping parent tasks to requirement ranges
   looks like a useful middle altitude, but the convention needs to decide whether anchors persist at all.
-- *Coordination:* `scalable-authoring-pipeline` owns the spec-form family, including the detailed-RFC equivalent
+- _Coordination:_ `scalable-authoring-pipeline` owns the spec-form family, including the detailed-RFC equivalent
   to numbered PRD requirements. This WU owns the final task-list grammar / persistence rule and should coordinate
   that form-dependent anchor shape rather than hard-code PRD-only R-IDs.
 
 ### `[ ]` **Task-list cursor marker grammar as a CLI contract**
 
-- *Routed from:* `compaction-recovery` Phase 4.R (2026-06-28).
-- *Concern:* `arc status --session-init --json`, `arc status --recover --json`, compaction seed emission, and
+- _Routed from:_ `compaction-recovery` Phase 4.R (2026-06-28).
+- _Concern:_ `arc status --session-init --json`, `arc status --recover --json`, compaction seed emission, and
   `arc recover audit --json` now derive a deterministic `taskCursor` from task-list checkbox markers. The parser
   treats parent headings shaped like `### \`[ ]\` **<id> <title>**` and subtask bullets shaped like
   at least four spaces followed by `- \`[ ]\` **<id> <title>**` (or plain text) as the operational cursor grammar.
-- *Coordination:* when this WU formalizes task-list marker/spacing rules, preserve or consciously migrate that
+- _Coordination:_ when this WU formalizes task-list marker/spacing rules, preserve or consciously migrate that
   cursor grammar. If the convention changes, update the shared `task-list/cursor` projection and the recovery
   audit together so agents never infer current leaf state from stale meta fields.
 
 ### `[ ]` **Per-phase approval cascade in `2_generate-tasks` audit pass (reconcile with § Scope item 3)**
 
-- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02).
-- *Concern:* the Step 3.2 audit-pass `workflow-interlock` ("Stop after the audit findings and corrections are
-  applied per phase") reads as *apply-then-stop*; the cleaner pattern is *surface findings + proposed
-  corrections per phase, await direction before applying,* with approval of one phase's corrections cascading
+- _Routed from:_ `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02).
+- _Concern:_ the Step 3.2 audit-pass `workflow-interlock` ("Stop after the audit findings and corrections are
+  applied per phase") reads as _apply-then-stop_; the cleaner pattern is _surface findings + proposed
+  corrections per phase, await direction before applying,_ with approval of one phase's corrections cascading
   to permission for the next phase's audit.
-- *Reconcile:* this is the **same Step 3.2 interlock** as § Scope item 3 (*Strengthen `2_generate-tasks` Pass-3
-  interlock language*), but proposes a **different mechanism** — an *auto-cascade* (approval rolls one phase
-  forward) vs. item 3's *explicit user batch-waiver* ("audit the rest without stopping"). Resolve the tension
+- _Reconcile:_ this is the **same Step 3.2 interlock** as § Scope item 3 (_Strengthen `2_generate-tasks` Pass-3
+  interlock language_), but proposes a **different mechanism** — an _auto-cascade_ (approval rolls one phase
+  forward) vs. item 3's _explicit user batch-waiver_ ("audit the rest without stopping"). Resolve the tension
   between the two models at iteration rather than codifying both.
-- *Scope:* Quick-tier; ~3-line edit in both `2_generate-tasks.md` copies (folds into item 3's edit surface).
+- _Scope:_ Quick-tier; ~3-line edit in both `2_generate-tasks.md` copies (folds into item 3's edit surface).
 
 ### `[ ]` **`_Outcome:_` shape example + blank-line-separator adherence at completion-notes time**
 
-- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02); broadened during the sweep from the original
+- _Routed from:_ `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02); broadened during the sweep from the original
   `_Outcome:_`-only capture.
-- *Concern (two facets, one drift zone):* (a) an agent wrote `_Outcome:_` as a 4-space-indented paragraph (no
+- _Concern (two facets, one drift zone):_ (a) an agent wrote `_Outcome:_` as a 4-space-indented paragraph (no
   leading `-`) instead of a top-level bullet peer to `_Goal:_`, despite reading the prose guidance — the rule
   is verbal, neither `3_process-task-loop.md` § Completion protocol nor `strategy-task-list-formatting.md`
   § Goal/Note Lines shows the literal markdown shape. (b) more generally, the codified blank-line-separator
   conventions don't reliably stick at completion-notes-writing time — the same deep-indent drift zone the
   WORKING-MEMORY wide-wrap note tracks.
-- *Proposed:* add a small code-block shape example near the bullet-at-root prose (showing `_Goal:_` →
+- _Proposed:_ add a small code-block shape example near the bullet-at-root prose (showing `_Goal:_` →
   description → `_Outcome:_` at the parent column); pair it with the § Scope item 1 descriptor-block blank-line
-  work so the loose-list + shape conventions land together. *Watch-and-wait* on the `_Outcome:_` facet (first
+  work so the loose-list + shape conventions land together. _Watch-and-wait_ on the `_Outcome:_` facet (first
   observed occurrence — three instances, one session); the blank-line-adherence facet is the recurring one.
-- *Scope:* Quick-tier; doc/example edits in `3_process-task-loop.md` + `strategy-task-list-formatting.md`
+- _Scope:_ Quick-tier; doc/example edits in `3_process-task-loop.md` + `strategy-task-list-formatting.md`
   (+ `template-tasks.md`), two-copy.
 
 ### `[ ]` **Make task-list `verify-work-unit.md` references filename-only**
 
-- *Routed from:* `USER-INBOX § Atomic`, housekeep drain (2026-06-12); captured during task generation for
+- _Routed from:_ `USER-INBOX § Atomic`, housekeep drain (2026-06-12); captured during task generation for
   `merge-safety-mechanism`, when the pre-commit link-resolution check flagged the copied template path.
-- *Concern:* both copies of `template-tasks.md` ship the `[verify-work-unit]` link with a relative path that is
+- _Concern:_ both copies of `template-tasks.md` ship the `[verify-work-unit]` link with a relative path that is
   correct for neither active nor planned task-list locations. Recent task lists have silently diverged to local
   relative paths, and any relative link from a movable task-list artifact violates the relocation rule because the
   source path changes across lifecycle moves.
-- *Proposed:* render the reference as filename-only, backticked `verify-work-unit.md`, and drop the link definition.
+- _Proposed:_ render the reference as filename-only, backticked `verify-work-unit.md`, and drop the link definition.
   Also make the source-side rule explicit: movable artifacts should not carry outbound relative links even to stable
   docs. This trades link-check validation for relocation safety, matching the existing workflow-reference
   convention.
-- *Files / coordination:* `strategy-task-list-formatting.md` § Verification Phase and `template-tasks.md`, both
+- _Files / coordination:_ `strategy-task-list-formatting.md` § Verification Phase and `template-tasks.md`, both
   two-copy. Coordinate with `quality-gate-hooks`, whose draft already tracks the outbound relative-link enforcement
   catch.
 
 ### `[ ]` **Soften the tight-descriptor-cluster rule to match the loose-spacing preference**
 
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-06-25); captured during `partial-push-marker`
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-06-25); captured during `partial-push-marker`
   generate-tasks (Finalize formatting pass).
-- *Concern:* `strategy-task-list-formatting.md` § Blank-Line Discipline codifies "descriptor clusters stay tight"
+- _Concern:_ `strategy-task-list-formatting.md` § Blank-Line Discipline codifies "descriptor clusters stay tight"
   (no blank line between `_Goal:_` and peer descriptors), but it's unenforced (no markdownlint rule) and
   completed-file practice is mixed (`errand-lattice` tight, `release-wrappers-foundation` loose). Maintainer
   preference is the loose form; the codified rule pulls agents to "correct" toward tight, churning files needlessly.
-- *Proposed:* soften the strategy text so loose spacing is acceptable (or the explicit default), aligning the
+- _Proposed:_ soften the strategy text so loose spacing is acceptable (or the explicit default), aligning the
   written convention with actual preference and practice.
 
 ---

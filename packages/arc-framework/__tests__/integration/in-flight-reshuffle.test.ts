@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 import { runActiveInFlight } from "../../src/commands/active/in-flight.js";
-import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { renderMetaProjectionFile } from "../../src/lib/active/meta-reader.js";
 import {
   detectForeignArtifactOverlap,
   projectInFlightToOverlapRoster,
@@ -52,7 +52,7 @@ async function createSiblingFromFreshBase(
   await commitPaths(
     fixture.sibling,
     {
-      [metaPath]: renderMetaFile("foreign-sibling", {
+      [metaPath]: renderMetaProjectionFile("foreign-sibling", {
         State: "Active",
         Owner: "andrew",
         Branch: branch,
@@ -76,14 +76,14 @@ describe("in-flight reshuffle fixture", () => {
     const fixture = await setupInFlightReshuffleFixture();
     try {
       const metaPath = ".arc/active/meta-staged-origin.md";
-      const oldMeta = renderMetaFile("staged-origin", {
+      const oldMeta = renderMetaProjectionFile("staged-origin", {
         State: "Planning",
         Owner: "andrew",
         Branch: "plan/staged-origin",
         Class: "Light",
         Priority: "P3",
       });
-      const stagedMeta = renderMetaFile("staged-origin", {
+      const stagedMeta = renderMetaProjectionFile("staged-origin", {
         State: "Active",
         Owner: "andrew",
         Branch: "feat/staged-origin",
@@ -471,7 +471,7 @@ describe("in-flight reshuffle fixture", () => {
     try {
       const originatingBranch = "fix/originating";
       const targetPath = ".arc/active/meta-originating.md";
-      const targetContent = renderMetaFile("originating", {
+      const targetContent = renderMetaProjectionFile("originating", {
         State: "Active",
         Owner: "andrew",
         Branch: originatingBranch,

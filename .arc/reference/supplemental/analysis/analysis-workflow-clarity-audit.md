@@ -89,7 +89,7 @@ DEV-RULES.PROJECT, STRATEGY-INDEX, QUICK-REFERENCE, agent-specific files):
   before cross-references that require loading another document.
 - **Avoid:** Duplicating full strategy content. If the cross-reference is to optional/on-demand
   guidance, keep the reference and add a one-line summary of what the agent needs to know
-  *without* loading the referenced document.
+  _without_ loading the referenced document.
 
 **Zone 3 — On-demand documents** (all lifecycle workflows, supplemental workflows, strategies):
 
@@ -230,7 +230,7 @@ This is 3 lines and eliminates the need to load the template mid-workflow.
 **Current:** "If you ran activate-planning-branch (batch path), you're already on the right
 branch — skip this step."
 
-**Problem:** Agent must *remember* whether activate-planning-branch ran — impossible for a fresh
+**Problem:** Agent must _remember_ whether activate-planning-branch ran — impossible for a fresh
 agent starting a new session. No git-state-based diagnostic provided.
 
 **Impact:** Agent guesses, creates an unnecessary branch, or asks the user for information it

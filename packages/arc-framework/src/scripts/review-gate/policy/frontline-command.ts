@@ -2,10 +2,13 @@
 
 import { z } from "zod";
 
+import {
+  FrontlineResolveEnvelopeSchema,
+} from "../core/review-command-envelope.js";
+import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
 import { FrontlineInvocationOverrideSchema } from "./frontline-resolution.js";
 import { resolveFrontlineReview, type FrontlineSemanticRecord } from "./frontline-semantic.js";
 import type {
-  FrontlineSourceDiagnostic,
   FrontlineSourcePreferenceReader,
   FrontlineSourceRegistry,
 } from "./frontline-source.js";
@@ -15,19 +18,31 @@ export const FrontlineCommandRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   changeSet: z.unknown(),
   invocation: FrontlineInvocationOverrideSchema,
-  maxPasses: z.union([z.literal(1), z.literal(2)]).optional(),
+  pass: ReviewPassSchema.optional(),
+  maxPasses: ReviewPassSchema.optional(),
+}).superRefine((request, context) => {
+  if (request.pass !== undefined && request.pass > (request.maxPasses ?? 1)) {
+    context.addIssue({
+      code: "custom",
+      message: "frontline pass cannot exceed maxPasses",
+      path: ["pass"],
+    });
+  }
 });
 export type FrontlineCommandRequest = z.infer<typeof FrontlineCommandRequestSchema>;
 
 export interface FrontlineCommandResult {
   schemaVersion: 1;
   mode: "review-frontline-resolve";
-  routing: Pick<ReviewRoutingResolution, "facts" | "decision">;
-  frontlineReview: FrontlineSemanticRecord;
-  diagnostics: {
-    routing: readonly string[];
-    source: FrontlineSourceDiagnostic[];
+  diagnostics: Array<{ code: string; message: string }>;
+  payload: {
+    routing: Pick<ReviewRoutingResolution, "facts" | "decision">;
+    frontlineReview: FrontlineSemanticRecord;
+    pass?: ReviewPass;
+    maxPasses?: ReviewPass;
   };
+  state: "skipped" | "offered" | "ready";
+  nextAction: "none" | "bind-source" | "obtain-authorization" | "run-frontline";
 }
 
 /**
@@ -55,12 +70,51 @@ export async function resolveFrontlineCommand(
     registry: dependencies.registry,
     maxPasses: parsed.maxPasses,
   });
-
-  return {
-    schemaVersion: 1,
-    mode: "review-frontline-resolve",
+  const payload = {
     routing: { facts: routing.facts, decision: routing.decision },
     frontlineReview: semantic.frontlineReview,
-    diagnostics: { routing: routing.diagnostics, source: semantic.diagnostics },
   };
+  const diagnostics = [
+    ...routing.diagnostics.map((path) => ({
+      code: "routing-input-rejected",
+      message: `Rejected or missing routing input: ${path}`,
+    })),
+    ...semantic.diagnostics.map((diagnostic) => ({
+      code: diagnostic.code,
+      message: diagnostic.sourceId === undefined
+        ? `${diagnostic.tier} frontline source preference could not be applied`
+        : `${diagnostic.tier} frontline source '${diagnostic.sourceId}' could not be applied`,
+    })),
+  ];
+  const base = {
+    schemaVersion: 1,
+    mode: "review-frontline-resolve",
+    diagnostics,
+  };
+  if (semantic.frontlineReview.action === "skip") {
+    return FrontlineResolveEnvelopeSchema.parse({
+      ...base,
+      state: "skipped",
+      nextAction: "none",
+      payload,
+    });
+  }
+  if (semantic.frontlineReview.action === "offer") {
+    return FrontlineResolveEnvelopeSchema.parse({
+      ...base,
+      state: "offered",
+      nextAction: semantic.frontlineReview.source === null ? "bind-source" : "obtain-authorization",
+      payload,
+    });
+  }
+  return FrontlineResolveEnvelopeSchema.parse({
+    ...base,
+    state: "ready",
+    nextAction: "run-frontline",
+    payload: {
+      ...payload,
+      pass: parsed.pass ?? 1,
+      maxPasses: semantic.frontlineReview.maxPasses,
+    },
+  });
 }

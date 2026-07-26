@@ -78,7 +78,7 @@ each finding:
 - **Fix before starting** — the task description should be updated or a design decision resolved before
   implementation begins.
 - **Carry as context** — not a blocker, but the implementer must be aware of it during execution. The implementer
-  may be a *different, later session* — possibly several sessions downstream — so a carry-as-context finding is
+  may be a _different, later session_ — possibly several sessions downstream — so a carry-as-context finding is
   useful only if recorded durably, never left in the audit conversation alone.
 
 **Give carry-as-context findings a durable home.** Record each where the implementing session will meet it:
@@ -94,7 +94,7 @@ not implement fixes — present findings and let the caller decide how to procee
 ### Severity interpretation
 
 Through the `adversarial-review` mechanism, findings map into the fixed `blocker` / `major` / `minor` enum the
-[severity model][adversarial-review] owns — the rubric maps *into* the enum and never extends it. What each level
+[severity model][adversarial-review] owns — the rubric maps _into_ the enum and never extends it. What each level
 looks like for a task list:
 
 - **`blocker`** — the gate cannot certify the tasks against their design: an ungrounded referent that makes a
@@ -109,8 +109,8 @@ looks like for a task list:
 **Two-axis reconciliation.** The native tiers above are **dispositions**, not severities — the two axes compose
 rather than compete:
 
-- *Fix before starting* ≈ a higher-severity finding (`blocker` / `major`) carrying a fix-here disposition.
-- *Carry as context* is the carry-forward disposition, available at **any** severity — carrying a finding forward
+- _Fix before starting_ ≈ a higher-severity finding (`blocker` / `major`) carrying a fix-here disposition.
+- _Carry as context_ is the carry-forward disposition, available at **any** severity — carrying a finding forward
   durably resolves it for the caller without flattening its severity.
 
 Run through the mechanism, the rubric reports **severity** (the materiality claim) and the primary assigns

@@ -20,7 +20,9 @@ import * as p from "@clack/prompts";
 
 import { resolveWriteContext } from "../lib/git/write-context.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { gitExec } from "../lib/io-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import { createGitExec } from "../lib/io-context.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface HousekeepCheckOptions {
@@ -28,12 +30,25 @@ export interface HousekeepCheckOptions {
   json?: boolean;
 }
 
-export async function handleHousekeepCheck(opts: HousekeepCheckOptions): Promise<void> {
+/** Machine-output policy owned by the housekeep preflight adapter. */
+export const housekeepCommandInputPolicyDeclarations = [{
+  commandPath: "housekeep check", aliases: [], sites: [declareCliOptionSite("json", {
+    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })],
+}] satisfies readonly CommandInputDeclaration[];
+
+export async function handleHousekeepCheck(
+  opts: HousekeepCheckOptions,
+  interaction?: InteractionContext,
+): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+  const exec = createGitExec(interaction?.subprocess);
 
   const { settings } = await readConfigSettings(cwd);
-  const context = await resolveWriteContext({ exec: gitExec, baseBranch: settings["branch.base"] });
+  const context = await resolveWriteContext({ exec, baseBranch: settings["branch.base"] });
   const branchProtection = settings["branch.protection"] === "full" ? "full" : "partial";
 
   if (opts.json) {

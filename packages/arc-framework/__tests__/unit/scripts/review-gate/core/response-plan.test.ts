@@ -37,7 +37,7 @@ const routing = {
   schemaVersion: 1 as const,
   authorSelfReview: "required" as const,
   frontlineAction: "attempt" as const,
-  independentAnalysis: "required" as const,
+  standardReview: "required" as const,
   retrigger: "full-final" as const,
   assuranceMode: "terminal-aggregate" as const,
   reasons: ["sensitive-change-set" as const],
@@ -50,7 +50,7 @@ function approved(disposition: "fix" | "defer" | "reject" = "fix") {
     semanticsVersion: "review-gate/v2",
     targetId: currentTarget.targetId,
     policyVersion: canonicalDigest({ policy: "review" }),
-    rubricVersion: "independent-analysis/v1",
+    rubricVersion: "standard-review/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
     proposedBy: "author-1",
     findings: [{
@@ -89,8 +89,6 @@ function input() {
     verificationPassed: false,
     verificationRefs: [],
     capabilities,
-    channel: "local" as const,
-    conversations: [],
   };
 }
 
@@ -147,96 +145,13 @@ describe("review response planning", () => {
     });
   });
 
-  it("returns approved unchanged-target dispositions for channel closure", () => {
+  it("returns approved unchanged-target dispositions for caller closure", () => {
     expect(projectReviewResponse({ ...input(), dispositionState: approved("reject").dispositionState })).toMatchObject({
       state: "ready-to-close",
       allowedCapabilities: ["close"],
       newTarget: null,
       blocking: false,
-      channelActions: [],
-      localTerminalRecord: "local-disposition-report",
     });
-  });
-
-  it("emits only authenticated per-finding hosted conversation actions", () => {
-    expect(projectReviewResponse({
-      ...input(),
-      dispositionState: approved("defer").dispositionState,
-      channel: "hosted",
-      conversations: [{
-        kind: "controller-finding",
-        findingId: "finding-1",
-        immutableLocus: normalizedFinding.locus,
-        receiptHandle: "controller:receipt-1",
-        replyHandle: "controller:comment-1",
-        threadStateHandle: "controller:thread-1",
-        canReply: true,
-        canResolve: true,
-      }],
-    })).toMatchObject({
-      state: "ready-to-close",
-      channelActions: [{
-        kind: "controller-finding",
-        findingId: "finding-1",
-        receiptHandle: "controller:receipt-1",
-        reply: true,
-        resolve: true,
-        requiredClosure: "controller-source-confirmed",
-      }],
-    });
-    expect(projectReviewResponse({
-      ...input(),
-      dispositionState: approved("reject").dispositionState,
-      channel: "hosted",
-      conversations: [{
-        kind: "provider-native",
-        findingId: "finding-1",
-        immutableLocus: normalizedFinding.locus,
-        providerReplyHandle: "provider:reply-1",
-        threadStateHandle: "provider:thread-1",
-        decisiveReviewHandle: "provider:review-1",
-        canReply: true,
-      }],
-    })).toMatchObject({
-      state: "ready-to-close",
-      channelActions: [{
-        kind: "provider-native",
-        findingId: "finding-1",
-        providerReplyHandle: "provider:reply-1",
-        threadStateHandle: "provider:thread-1",
-        decisiveReviewHandle: "provider:review-1",
-        reply: true,
-        requiredClosure: "provider-native-decisive",
-      }],
-    });
-    expect(() => projectReviewResponse({
-      ...input(),
-      dispositionState: approved("reject").dispositionState,
-      conversations: [{
-        kind: "controller-finding",
-        findingId: "finding-1",
-        immutableLocus: normalizedFinding.locus,
-        receiptHandle: "controller:receipt-1",
-        replyHandle: "controller:comment-1",
-        threadStateHandle: "controller:thread-1",
-        canReply: true,
-        canResolve: true,
-      }],
-    })).toThrow(/local review/iu);
-    expect(() => projectReviewResponse({
-      ...input(),
-      dispositionState: approved("reject").dispositionState,
-      channel: "hosted",
-      conversations: [{
-        kind: "provider-native",
-        findingId: "finding-1",
-        immutableLocus: "src/other.ts:1",
-        providerReplyHandle: null,
-        threadStateHandle: "provider:thread-1",
-        decisiveReviewHandle: "provider:review-1",
-        canReply: false,
-      }],
-    })).toThrow(/immutable locus/iu);
   });
 
   it("blocks stale findings, failed verification, and unavailable required capabilities", () => {
@@ -275,8 +190,10 @@ describe("review response planning", () => {
     })).toMatchObject({ state: "blocked", nextAction: expect.stringMatching(/fix capability/iu) });
   });
 
-  it("rejects provider commands and controller-private state at the strict input boundary", () => {
+  it("rejects provider, channel, and controller state at the strict input boundary", () => {
     expect(() => projectReviewResponse({ ...input(), providerCommand: "@provider review" })).toThrow();
+    expect(() => projectReviewResponse({ ...input(), channel: "hosted" })).toThrow();
+    expect(() => projectReviewResponse({ ...input(), conversations: [] })).toThrow();
     expect(() => projectReviewResponse({ ...input(), controllerState: { verdict: "clean" } })).toThrow();
   });
 });

@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import {
   parseCutMap,
   parseDecomposeContentLocator,
   retirementAllocationRefusal,
+  type CutEntry,
   type DecomposeAllocationMap,
+  type DecomposeParams,
 } from "../../../src/lib/work-unit/decompose-cut-map.js";
 
 const SOURCE_A = canonicalDigest("source-a");
@@ -70,6 +72,24 @@ function rejection(input: Record<string, unknown>): string {
 }
 
 describe("parseCutMap", () => {
+  it("preserves non-object and unknown-version refusals", () => {
+    expect(parseCutMap(null)).toEqual({ status: "rejected", reason: "cut-map must be an object." });
+    expect(rejection(wellFormed({ schemaVersion: 3 }))).toBe("unrecognized cut-map `schemaVersion` (expected 2).");
+  });
+
+  it("preserves compatibility aliases over schema-derived structures", () => {
+    expectTypeOf<DecomposeParams>().toEqualTypeOf<DecomposeAllocationMap>();
+    expectTypeOf<CutEntry>().toEqualTypeOf<DecomposeAllocationMap["entries"][number]>();
+  });
+
+  it("keeps locator decoding as an accepted-value or null adapter", () => {
+    expect(parseDecomposeContentLocator({ artifact: "draft-example.md", kind: "whole-file" })).toEqual({
+      artifact: "draft-example.md",
+      kind: "whole-file",
+    });
+    expect(parseDecomposeContentLocator({ artifact: "nested/draft.md", kind: "whole-file" })).toBeNull();
+  });
+
   it("parses and canonically orders a schema-version-2 allocation map", () => {
     const map = parsed(wellFormed());
 
@@ -193,6 +213,82 @@ describe("parseCutMap", () => {
     expect(rejection(wellFormed({ cohort: "[none]" }))).toMatch(/safe cohort path/i);
     expect(rejection(wellFormed({ parentPosition: "at-cap" }))).toMatch(/at-cap.*omit/i);
     expect(parsed(wellFormed({ parentPosition: "at-cap", cohort: undefined })).cohort).toBeUndefined();
+  });
+
+  it("parses cohortless symmetric and extraction maps without a cohort", () => {
+    const symmetric = parsed(wellFormed({ parentPosition: "cohortless", cohort: undefined }));
+    expect(symmetric.parentPosition).toBe("cohortless");
+    expect(symmetric.cohort).toBeUndefined();
+
+    const extraction = wellFormed({
+      shape: "extraction",
+      parentPosition: "cohortless",
+      cohort: undefined,
+      entries: [
+        {
+          kind: "surviving-origin",
+          destinationId: "origin",
+          slug: "origin-wu",
+          disposition: "keep-active",
+        },
+        { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+      ],
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: {
+          kind: "target",
+          destinationId: "member-a",
+          targetLocator: { artifact: "draft-member-a.md", kind: "preamble" },
+        },
+      }],
+      internalEdges: [],
+      incomingEdges: [],
+      outgoingEdges: [],
+    });
+    expect(parsed(extraction).parentPosition).toBe("cohortless");
+  });
+
+  it("requires or forbids cohort placement for each closed parent position", () => {
+    for (const parentPosition of ["standalone", "in-cohort"]) {
+      expect(rejection(wellFormed({ parentPosition, cohort: undefined }))).toMatch(/requires.*cohort/i);
+    }
+    expect(rejection(wellFormed({ parentPosition: "cohortless" }))).toMatch(/cohortless.*omit/i);
+    expect(rejection(wellFormed({ parentPosition: "at-cap" }))).toMatch(/at-cap.*omit/i);
+  });
+
+  it("forbids shared coordination on cohortless maps while preserving cohort-backed maps", () => {
+    const coordination = {
+      kind: "cohort-coordination",
+      destinationId: "coord",
+      cohort: "my-cohort",
+    };
+    expect(rejection(wellFormed({
+      parentPosition: "cohortless",
+      cohort: undefined,
+      entries: [
+        ...(wellFormed().entries as unknown[]),
+        coordination,
+      ],
+    }))).toMatch(/cohortless.*cohort-coordination/i);
+
+    const shared = wellFormed({
+      parentPosition: "cohortless",
+      cohort: undefined,
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        ownership: "cohort-shared",
+        disposition: { kind: "drop", reason: "superseded" },
+      }],
+    });
+    expect(rejection(shared)).toMatch(/cohortless.*cohort-shared/i);
+
+    expect(parsed(wellFormed({
+      entries: [
+        ...(wellFormed().entries as unknown[]),
+        coordination,
+      ],
+    })).parentPosition).toBe("standalone");
   });
 
   it("requires each target locator to belong to its declared destination", () => {
