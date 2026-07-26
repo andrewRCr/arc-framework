@@ -65,9 +65,9 @@ import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-ex
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
 import {
-  nodeReconcileWorktreeFs,
-  reconcileWorktree,
-} from "./mutators/reconcile-worktree.js";
+  nodeReconcileWorkUnitWorktreeFs,
+  reconcileWorkUnitWorktree,
+} from "./mutators/reconcile-work-unit-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
 import {
@@ -77,6 +77,8 @@ import {
 } from "./side-effects/discharge-dep-edges.js";
 import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
 import { withdrawPr } from "./side-effects/withdraw-pr.js";
+import { createNodeWorkUnitLocusDriver } from "./work-unit-locus.js";
+import type { WorkUnitLocusDriver } from "./work-unit-locus.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
 export interface ExecutorContextDeps {
@@ -92,6 +94,8 @@ export interface ExecutorContextDeps {
   baseBranch?: string;
   /** Internal template directory for the user-workspace SESSION-NOTES seed. */
   internalTemplateDir: string;
+  /** Test/embedding override for WU role composition. */
+  workUnitLocus?: WorkUnitLocusDriver;
 }
 
 /**
@@ -174,6 +178,20 @@ export function buildExecutorContext(
     return undefined;
   };
 
+  const reconcileBoundWorkUnitWorktree: NonNullable<
+    ExecuteTransitionContext["reconcileWorkUnitWorktree"]
+  > = (op) => {
+    if (identity === null) throw new Error("work-unit session locus composition requires a resolved identity");
+    return reconcileWorkUnitWorktree({
+      exec,
+      chdir: (dir) => {
+        process.chdir(at(dir));
+      },
+      fs: nodeReconcileWorkUnitWorktreeFs,
+      locus: deps.workUnitLocus ?? createNodeWorkUnitLocusDriver({ exec, identity }),
+    }, op);
+  };
+
   return {
     cwd,
     withCwd: (nextCwd) => buildExecutorContext({ ...deps, cwd: nextCwd }),
@@ -198,8 +216,7 @@ export function buildExecutorContext(
         params,
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
-    reconcileWorktree: (op) =>
-      reconcileWorktree({ exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorktreeFs }, op),
+    reconcileWorkUnitWorktree: reconcileBoundWorkUnitWorktree,
 
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));

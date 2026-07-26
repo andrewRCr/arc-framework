@@ -153,7 +153,8 @@ arc teardown {name} --force
 `--force` selects the un-shipped teardown mode: the WU is not in `completed/` and its branch is unmerged, so the
 conservation safety is the committed abandonment above, not git-containment. It force-deletes the branch (local
 **and** the remote ref) and reaps the worktree — the in-place arm switches the primary worktree to the base
-branch before the delete; a linked arm removes the worktree and locus-hops. The agent's prior cwd no longer
+branch before the delete; a linked arm removes the worktree and moves the process to the base checkout. The agent's
+prior cwd no longer
 exists if it was in a torn-down WU worktree.
 
 ### 5) Clean up base-branch leftovers (per `pm.mode`)

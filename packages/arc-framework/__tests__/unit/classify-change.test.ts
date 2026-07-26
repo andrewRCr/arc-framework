@@ -169,10 +169,21 @@ describe("classify-change.sh portability", () => {
     return result.stdout.trim();
   }
 
-  it("targets concurrency primitives and their focused tests", async () => {
+  it("targets concurrency and process-inspector primitives with their focused tests", async () => {
     expect(await portability(["packages/arc-framework/src/lib/user-sync/notes-lock.ts"])).toBe("true");
     expect(await portability(["packages/arc-framework/src/lib/git/ref-tree.ts"])).toBe("true");
     expect(await portability(["packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts"])).toBe("true");
+    for (const path of [
+      "packages/arc-framework/src/lib/locus/platform-inspectors.ts",
+      "packages/arc-framework/src/lib/locus/process-exec.ts",
+      "packages/arc-framework/src/lib/locus/process-inspector.ts",
+      "packages/arc-framework/__tests__/unit/locus/platform-inspectors.test.ts",
+      "packages/arc-framework/__tests__/unit/locus/process-exec.test.ts",
+      "packages/arc-framework/__tests__/unit/locus/process-inspector.test.ts",
+      "packages/arc-framework/__tests__/integration/process-inspector-native.test.ts",
+    ]) {
+      expect(await portability([path]), path).toBe("true");
+    }
   });
 
   it("does not target unrelated code changes", async () => {
@@ -326,7 +337,12 @@ describe("classify-change.sh classify", () => {
       await readFile(join(root, "packages/arc-framework/package.json"), "utf8"),
     ) as { scripts: Record<string, string> };
     const command = manifest.scripts["test:arc-contracts"];
-    const suites = ["framework-sync", "pr-open-extensions", "review-gate-workflows"];
+    const suites = [
+      "framework-sync",
+      "locus-methodology-contracts",
+      "pr-open-extensions",
+      "review-gate-workflows",
+    ];
 
     expect(command).toBe(`vitest run --project integration ${suites.join(" ")}`);
     for (const suite of suites) {

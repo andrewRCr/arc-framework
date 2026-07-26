@@ -16,6 +16,7 @@ import {
   LOAD_SET_MANIFEST_VERSION,
   type LoadSetManifest,
 } from "../../../src/lib/load-set/types.js";
+import type { LocusRowV1, LocusStateV1 } from "../../../src/lib/locus/schema/index.js";
 
 const LOAD_SET = {
   manifestVersion: LOAD_SET_MANIFEST_VERSION,
@@ -31,10 +32,92 @@ const LOAD_SET = {
   ],
 } satisfies LoadSetManifest;
 
+const RECOVERY_LOAD_SET = {
+  manifestVersion: LOAD_SET_MANIFEST_VERSION,
+  entries: [
+    {
+      path: ".arc/reference/briefs/AGENT-BRIEF.ARC.md",
+      readMode: { kind: "full" },
+    },
+    {
+      path: ".arc/active/meta-compaction-recovery.md",
+      readMode: { kind: "full" },
+    },
+    {
+      path: ".arc/active/tasks-compaction-recovery.md",
+      readMode: { kind: "partial-strategic" },
+    },
+    {
+      path: ".arc/system/workflows/arc/process-task-loop.md",
+      readMode: { kind: "full" },
+    },
+  ],
+} satisfies LoadSetManifest;
+
+const WU_CURSOR = {
+  status: "found",
+  cursor: {
+    section: { id: "2.1", title: "Define the task-list cursor", lineHint: 66 },
+    leaf: { id: "2.1.a", title: "Parse cursor markers", lineHint: 70 },
+  },
+} as const;
+
+function locusState(overrides: Partial<LocusStateV1> = {}): LocusStateV1 {
+  return {
+    roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
+    current: { kind: "none" },
+    primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+    inFlightIdentities: [],
+    recovery: { kind: "none" },
+    reconciliation: { kind: "clean" },
+    ...overrides,
+  };
+}
+
+function workUnitRow(recordId: string, leaseId: string): LocusRowV1 {
+  return {
+    kind: "managed-role",
+    checkoutPath: "/repo",
+    primary: false,
+    recordId,
+    role: {
+      kind: "work-unit",
+      subject: { kind: "work-unit", key: "compaction-recovery", claimId: null },
+      parentCheckoutPath: null,
+      originEntry: null,
+    },
+    identity: null,
+    lease: {
+      leaseId,
+      selfHeld: false,
+      state: "live",
+      sessionHomePath: "/repo",
+      attachedAt: "2026-06-28T12:00:00.000Z",
+      heartbeatAt: "2026-06-28T12:00:00.000Z",
+    },
+    frame: "suspended",
+    derived: {
+      workflow: "process-task-loop",
+      stage: null,
+      sessionType: "execution",
+      taskCursor: WU_CURSOR,
+      loadSet: RECOVERY_LOAD_SET,
+    },
+    diagnostics: [],
+  };
+}
+
 function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]> = {}) {
   return {
     identity: { identity: "andrew" },
-    worktree: { ok: true, value: { branch: "feat/compaction-recovery" } },
+    locusState: { ok: true, value: locusState() },
+    worktree: {
+      ok: true,
+      value: {
+        branch: "feat/compaction-recovery",
+        identity: { kind: "linked", path: "/repo" },
+      },
+    },
     active: {
       ok: true,
       value: {
@@ -67,12 +150,13 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
 }
 
 async function emit(overrides: {
+  cwd?: string;
   uncommittedFiles?: string[];
   envelope?: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]>;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
 } = {}) {
   return emitCompactionSeed({
-    cwd: "/repo",
+    cwd: overrides.cwd ?? "/repo",
     envelope: envelope(overrides.envelope),
     gitSnapshot: {
       head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
@@ -154,6 +238,89 @@ describe("parseUncommittedFiles", () => {
 });
 
 describe("emitCompactionSeed", () => {
+  it("derives recovery context from a leaseless WU at the current checkout", async () => {
+    const recordId = `sha256:${"a".repeat(64)}`;
+    const wu = { ...workUnitRow(recordId, "b".repeat(32)), lease: null, frame: "idle" as const };
+    const result = await emit({
+      cwd: "/caller/symlink",
+      envelope: {
+        active: {
+          ok: true,
+          value: {
+            path: ".arc/active/meta-compaction-recovery.md",
+            sessionType: "execution",
+            currentWorkflow: null,
+          },
+        },
+        locusState: {
+          ok: true,
+          value: locusState({
+            roster: {
+              mode: "locus", ok: true, primaryPath: "/repo", rows: [wu], diagnostics: [],
+            },
+          }),
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "written",
+      seed: {
+        currentWorkflow: "process-task-loop",
+        taskCursor: WU_CURSOR.cursor,
+        loadSet: RECOVERY_LOAD_SET,
+      },
+    });
+    if (result.status === "written") {
+      expect(result.seed).not.toHaveProperty("locus");
+      // Omission is never silent: an idle checkout is a reader-established absence.
+      expect(result.seed.locusAbsence).toBe("none");
+    }
+  });
+
+  it("records an unavailable disposition when the locus probe itself failed", async () => {
+    const result = await emit({
+      envelope: {
+        locusState: { ok: false, error: { kind: "runtime", message: "topology unavailable" } },
+      },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed).not.toHaveProperty("locus");
+      expect(result.seed.locusAbsence).toBe("unavailable");
+    }
+  });
+
+  it("uses the resolved worktree path rather than the raw caller cwd", async () => {
+    const recordId = `sha256:${"a".repeat(64)}`;
+    const wu = { ...workUnitRow(recordId, "b".repeat(32)), lease: null, frame: "idle" as const };
+    const result = await emit({
+      envelope: {
+        locusState: {
+          ok: true,
+          value: locusState({
+            roster: {
+              mode: "locus", ok: true, primaryPath: "/primary", rows: [wu], diagnostics: [],
+            },
+          }),
+        },
+        worktree: {
+          ok: true,
+          value: {
+            branch: "feat/compaction-recovery",
+            identity: { kind: "linked", path: "/repo" },
+          },
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "written",
+      seed: { currentWorkflow: "process-task-loop", taskCursor: WU_CURSOR.cursor },
+    });
+  });
+
   it("embeds the load-set manifest supplied by the session-init envelope", async () => {
     const result = await emit();
 
@@ -162,6 +329,77 @@ describe("emitCompactionSeed", () => {
       expect(result.seed.loadSet).toEqual(LOAD_SET);
       expect(result.seed).not.toHaveProperty("harness");
     }
+  });
+
+  it("emits the exact locus hint and reader-owned parent context for a warm transient", async () => {
+    const recordId = `sha256:${"a".repeat(64)}`;
+    const parentRecordId = `sha256:${"c".repeat(64)}`;
+    const parentLeaseId = "e".repeat(32);
+    const claimId = "d".repeat(32);
+    const result = await emit({
+      envelope: {
+        locusState: {
+          ok: true,
+          value: locusState({
+            current: { kind: "resolved", sessionHomeRecordId: parentRecordId, activeRecordId: recordId, parentRecordId },
+            roster: {
+              mode: "locus", ok: true, primaryPath: "/repo", diagnostics: [],
+              rows: [workUnitRow(parentRecordId, parentLeaseId), {
+                kind: "managed-role", checkoutPath: "/repo/worktrees/errand", primary: false, recordId,
+                role: {
+                  kind: "errand", subject: { kind: "errand", key: "task", claimId },
+                  parentCheckoutPath: "/repo", originEntry: null,
+                },
+                identity: {
+                  kind: "errand", key: "task", claimId, protection: "full", branch: "chore/task",
+                  purpose: "errand", origin: "description", originEntry: null,
+                  state: "open", savedHead: null, changeRequest: null,
+                },
+                lease: {
+                  leaseId: "b".repeat(32), selfHeld: false, state: "live", sessionHomePath: "/repo",
+                  attachedAt: "2026-06-28T12:00:00.000Z", heartbeatAt: "2026-06-28T12:00:00.000Z",
+                },
+                frame: "active", derived: null, diagnostics: [],
+              }],
+            },
+            recovery: { kind: "resume", activeRecordId: recordId, parentRecordId },
+          }),
+        },
+      },
+    });
+    expect(result).toMatchObject({
+      status: "written",
+      seed: {
+        locus: {
+          sessionHomePath: "/repo",
+          activeLocusPath: "/repo/worktrees/errand",
+          recordId,
+          leaseId: "b".repeat(32),
+          parentRecordId,
+        },
+        currentWorkflow: "run-errand",
+        taskCursor: WU_CURSOR.cursor,
+        loadSet: {
+          entries: [
+            ...RECOVERY_LOAD_SET.entries,
+            {
+              path: ".arc/system/workflows/arc/supplemental/run-errand.md",
+              readMode: { kind: "full" },
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  it.each([
+    ["none", { ok: true, value: locusState() }],
+    ["ambiguous", { ok: true, value: locusState({ current: { kind: "ambiguous", recordIds: [], reasons: ["role-conflict"] } }) }],
+    ["probe failure", { ok: false, error: { kind: "runtime", message: "unavailable" } }],
+  ] as const)("omits the locus hint for %s", async (_label, locusStateProbe) => {
+    const result = await emit({ envelope: { locusState: locusStateProbe } });
+    expect(result.status).toBe("written");
+    if (result.status === "written") expect(result.seed).not.toHaveProperty("locus");
   });
 
   it("embeds uncommitted files from the supplied git snapshot", async () => {

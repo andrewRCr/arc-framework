@@ -6,6 +6,7 @@ import {
   runOrphanBranchSweep,
 } from "../../../src/lib/session-init/orphan-branch-sweep.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
 
 const NUL = "\u0000";
 
@@ -131,6 +132,28 @@ describe("runOrphanBranchSweep", () => {
     );
 
     expect(result.orphans).toEqual([]);
+  });
+
+  it("does not sweep a branch owned by a retained work-unit locus role", async () => {
+    const result = await runOrphanBranchSweep({
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      errandBranches: new Set(),
+      locusState: locusStateFixture({ rows: [managedWorkUnitRow("archived", "/wt/archived")] }),
+      exec: buildExec({ "feat/archived": { track: "gone", merged: true } }),
+    });
+
+    expect(result.orphans).toEqual([]);
+  });
+
+  it("suppresses every orphan offer when the complete locus read is unavailable", async () => {
+    const exec = vi.fn(buildExec({ "fix/legacy": { track: "gone", merged: true } }));
+    const result = await runOrphanBranchSweep({
+      worktreeIdentity: { kind: "primary" }, baseBranch: "main", errandBranches: new Set(), locusState: null, exec,
+    });
+
+    expect(result.orphans).toEqual([]);
+    expect(exec).not.toHaveBeenCalled();
   });
 
   it("does not sweep a branch checked out in a worktree", async () => {

@@ -190,7 +190,10 @@ export {
 
 export {
   readWorktreeMarker,
+  readWorktreeMarkerGeneration,
   decodeWorktreeHuskStamp,
+  decodeWorktreeMarkerOwnership,
+  classifyTransientWorktreeProvenance,
   stampWorktreeHusk,
   writeWorktreeMarker,
   writeWorktreeOwnershipMarker,
@@ -199,9 +202,15 @@ export {
   type WorktreeMarker,
   type WorktreeHuskStamp,
   type DecodedWorktreeHuskStamp,
+  type DecodedWorktreeMarkerOwnership,
   type WorktreeHuskStampResult,
   type WorktreeMarkerReadResult,
+  type WorktreeMarkerGenerationReadResult,
   type WorktreeSubject,
+  type LegacyWorktreeSubject,
+  type WorktreeMarkerSubject,
+  type TransientWorktreeSubject,
+  type TransientWorktreeProvenance,
   type WriteWorktreeOwnershipMarkerOptions,
 } from "./worktree-marker.js";
 

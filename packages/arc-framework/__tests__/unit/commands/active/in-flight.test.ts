@@ -40,6 +40,7 @@ function makeExec(opts: {
   liveBranches: string[] | "unreachable";
   metas?: Record<string, string>;
   errandRecords?: Array<{ slug: string; branch: string }>;
+  transientIdentity?: "absent" | "unreadable";
 }): GitExec {
   const metas = opts.metas ?? {};
   const errandRecords = opts.errandRecords ?? [];
@@ -94,6 +95,13 @@ function makeExec(opts: {
         return { stdout: (metas[target] ?? "").replaceAll("__BRANCH__", branch), stderr: "" };
       }
       throw new Error(`fatal: path does not exist in '${target}'`);
+    }
+    if (args[0] === "rev-parse") {
+      if (opts.transientIdentity === "unreadable") throw new Error("fatal: bad object");
+      // These fixtures carry only legacy records, so the transient identity ref is
+      // genuinely unborn. Model the absent-ref failure git reports, rather than letting
+      // the fallthrough read as an identity that could not be established.
+      throw new Error("fatal: ambiguous argument: unknown revision or path not in the working tree.");
     }
     throw new Error(`unexpected git ${args.join(" ")}`);
   });
@@ -161,6 +169,23 @@ describe("runActiveInFlight", () => {
       branch: "feat/x",
       workUnit: "x",
     });
+  });
+
+  it("degrades classification when the transient identity cannot be read", async () => {
+    // An unborn identity ref and an unreadable one both yield no transient records. Only
+    // the unreadable case leaves the claim set unestablished, so a branch carrying no
+    // record cannot be reported as settled — it is marked degraded instead.
+    const exec = makeExec({
+      localRefs: ["chore/fix-typo"],
+      liveBranches: ["chore/fix-typo"],
+      errandRecords: [{ slug: "fix-typo", branch: "chore/fix-typo" }],
+      transientIdentity: "unreadable",
+    });
+
+    const result = await runActiveInFlight({ exec, identity: "andrew", teamMode: false, localOnly: false });
+
+    expect(result.warnings.map((entry) => entry.code)).toContain("errand-record-read-failed");
+    expect(result.entries[0]).toMatchObject({ kind: "errand", marks: ["degraded"] });
   });
 
   it("skips the network read under localOnly and reports reachable=false", async () => {

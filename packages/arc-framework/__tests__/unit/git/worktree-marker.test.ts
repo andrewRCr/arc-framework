@@ -12,19 +12,26 @@ import { mkdtemp, rm, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 import {
+  decodeWorktreeMarkerOwnership,
+  classifyTransientWorktreeProvenance,
+  createWorktreeMarkerGeneration,
   ensureWorktreeMarkerIgnored,
   decodeWorktreeHuskStamp,
   nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarker,
+  readWorktreeMarkerGeneration,
+  removeWorktreeMarkerGeneration,
   renameWorktreeOwnershipMarker,
+  replaceWorktreeMarkerGeneration,
   stampWorktreeHusk,
   writeWorktreeMarker,
   writeWorktreeOwnershipMarker,
   resolveWorktreeMarkerPath,
   type WorktreeMarker,
+  type WorktreeMarkerReadResult,
   type WorktreeHuskStamp,
+  type LegacyWorktreeSubject,
   type WorktreeRenameMovePending,
-  type WorktreeSubject,
 } from "../../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
@@ -54,6 +61,11 @@ describe("worktree-marker", () => {
     expect(JSON.parse(raw)).toEqual(sampleMarker);
 
     expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker: sampleMarker });
+    expect(await readWorktreeMarkerGeneration(cwd)).toEqual({
+      kind: "present",
+      marker: sampleMarker,
+      bytes: Buffer.from(raw),
+    });
   });
 
   it("tolerates an absent marker — a missing file reads as 'no marker', not an error", async () => {
@@ -76,7 +88,25 @@ describe("worktree-marker", () => {
     expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
   });
 
-  it.each<WorktreeSubject>([
+  it("creates, replaces, and removes only exact marker generations", async () => {
+    const created = await createWorktreeMarkerGeneration(cwd, sampleMarker);
+    expect(created.kind).toBe("created");
+    if (created.kind !== "created") throw new Error("fixture create failed");
+    await expect(createWorktreeMarkerGeneration(cwd, sampleMarker)).resolves.toEqual({ kind: "exists" });
+
+    const next = { ...sampleMarker, createdAt: "2026-05-26T00:00:00.000Z" };
+    await expect(replaceWorktreeMarkerGeneration(cwd, Buffer.from("stale"), next))
+      .resolves.toEqual({ kind: "generation-mismatch" });
+    const replaced = await replaceWorktreeMarkerGeneration(cwd, created.bytes, next);
+    expect(replaced.kind).toBe("replaced");
+    if (replaced.kind !== "replaced") throw new Error("fixture replace failed");
+
+    await expect(removeWorktreeMarkerGeneration(cwd, created.bytes))
+      .resolves.toEqual({ kind: "generation-mismatch" });
+    await expect(removeWorktreeMarkerGeneration(cwd, replaced.bytes)).resolves.toEqual({ kind: "removed" });
+  });
+
+  it.each<LegacyWorktreeSubject>([
     { kind: "work-unit", name: "worktree-foundation" },
     { kind: "errand", slug: "refresh-fixtures" },
     { kind: "branch", ref: "chore/refresh-fixtures" },
@@ -123,6 +153,118 @@ describe("worktree-marker", () => {
 
     await writeFile(path, JSON.stringify(base), "utf8");
     expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
+  });
+
+  it.each(["errand", "groom", "housekeep"] as const)(
+    "round-trips exact %s claim provenance through pending and ready provisioning",
+    async (kind) => {
+      for (const provisioning of ["pending", "ready"] as const) {
+        const marker: WorktreeMarker = {
+          spawnedByArc: true,
+          createdFor: { kind, slug: "refresh-fixtures", claimId: "a".repeat(32) },
+          provisioning,
+          spawningIdentity: "andrew",
+          createdAt: "2026-05-25T00:00:00.000Z",
+        };
+        await writeWorktreeMarker(cwd, marker);
+
+        const read = await readWorktreeMarker(cwd);
+        expect(read).toEqual({ kind: "present", marker });
+        if (read.kind !== "present") throw new Error("expected marker");
+        expect(decodeWorktreeMarkerOwnership(read.marker)).toEqual({
+          kind: "current",
+          subject: marker.createdFor,
+          provisioning,
+        });
+      }
+    },
+  );
+
+  it("keeps claimless legacy and unknown transient provisioning manual-only", async () => {
+    const legacy: WorktreeMarker = {
+      spawnedByArc: true,
+      createdFor: { kind: "errand", slug: "refresh-fixtures" },
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    expect(decodeWorktreeMarkerOwnership(legacy)).toEqual({
+      kind: "manual-only",
+      reason: "legacy-transient",
+    });
+
+    const future = {
+      ...legacy,
+      createdFor: { ...legacy.createdFor, claimId: "a".repeat(32) },
+      provisioning: "future",
+    } as WorktreeMarker;
+    await writeWorktreeMarker(cwd, future);
+    const read = await readWorktreeMarker(cwd);
+    expect(read).toEqual({ kind: "present", marker: future });
+    if (read.kind !== "present") throw new Error("expected marker");
+    expect(decodeWorktreeMarkerOwnership(read.marker)).toEqual({
+      kind: "manual-only",
+      reason: "unknown-provisioning",
+    });
+  });
+
+  it("classifies transient provisioning and exact claim mismatches without granting authority", () => {
+    const subject = { kind: "errand", slug: "refresh-fixtures", claimId: "a".repeat(32) } as const;
+    const marker = (provisioning: "pending" | "ready" | "future"): WorktreeMarkerReadResult => ({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        createdFor: subject,
+        provisioning,
+        spawningIdentity: "andrew",
+        createdAt: "2026-05-25T00:00:00.000Z",
+      },
+    });
+
+    expect(classifyTransientWorktreeProvenance(marker("pending"), subject)).toEqual({ kind: "pending", subject });
+    expect(classifyTransientWorktreeProvenance(marker("ready"), subject)).toEqual({ kind: "ready", subject });
+    expect(classifyTransientWorktreeProvenance(marker("ready"), {
+      ...subject,
+      claimId: "b".repeat(32),
+    })).toEqual({
+      kind: "claim-mismatch",
+      subject,
+      expected: { ...subject, claimId: "b".repeat(32) },
+    });
+    expect(classifyTransientWorktreeProvenance(marker("future"))).toEqual({
+      kind: "unknown",
+      reason: "unknown-provisioning",
+    });
+    expect(classifyTransientWorktreeProvenance({
+      kind: "malformed",
+      path: "/work/marker.json",
+      message: "invalid marker",
+    })).toEqual({ kind: "malformed", message: "invalid marker" });
+  });
+
+  it("rejects incomplete or malformed transient claim provenance", async () => {
+    const path = resolveWorktreeMarkerPath(cwd);
+    await mkdir(dirname(path), { recursive: true });
+    const base = {
+      spawnedByArc: true,
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    for (const marker of [
+      { ...base, createdFor: { kind: "groom", slug: "anchor", claimId: "a".repeat(32) } },
+      {
+        ...base,
+        createdFor: { kind: "housekeep", slug: "sweep", claimId: "short" },
+        provisioning: "pending",
+      },
+      {
+        ...base,
+        createdFor: { kind: "errand", slug: "errand" },
+        provisioning: "pending",
+      },
+    ]) {
+      await writeFile(path, JSON.stringify(marker), "utf8");
+      expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
+    }
   });
 
   it("round-trips a complete husk stamp without changing its terminal identity or projection", async () => {
@@ -363,6 +505,24 @@ describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write",
         createdFor: { kind: "errand", slug: "refresh-fixtures" },
         spawningIdentity: "andrew",
         createdAt: "2026-05-27T12:00:00.000Z",
+      },
+    });
+  });
+
+  it("writes exact pending transient ownership for a newly created checkout", async () => {
+    await writeWorktreeOwnershipMarker(cwd, {
+      createdByArc: true,
+      createdFor: { kind: "groom", slug: "anchor", claimId: "a".repeat(32) },
+      provisioning: "pending",
+      spawningIdentity: "andrew",
+      now: Date.parse("2026-05-27T12:00:00.000Z"),
+    });
+
+    expect(await readWorktreeMarker(cwd)).toMatchObject({
+      kind: "present",
+      marker: {
+        createdFor: { kind: "groom", slug: "anchor", claimId: "a".repeat(32) },
+        provisioning: "pending",
       },
     });
   });

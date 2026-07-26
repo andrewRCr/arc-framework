@@ -140,6 +140,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     freshUncommittedFiles: parseUncommittedFiles(statusOutput),
     freshBranch,
     freshHead,
+    freshRepoRoot: cwd,
   });
   writeReport({
     mode: "recover-audit",
@@ -199,6 +200,7 @@ function stopVerdict(reason: RecoveryAuditStopReason): RecoveryAuditVerdict {
     explainedDrift: [],
     loadSetAudit: null,
     locus: null,
+    locusHint: null,
     dirtyFiles: {
       expected: [],
       actual: [],
@@ -236,6 +238,8 @@ function seedSummary(
     head: seed.head,
     branch: seed.branch,
     sessionType: seed.sessionType,
+    ...(seed.locus === undefined ? {} : { locus: seed.locus }),
+    ...(seed.locusAbsence === undefined ? {} : { locusAbsence: seed.locusAbsence }),
   };
 }
 

@@ -68,7 +68,7 @@ describe("deriveCurrentHuskAdvisory", () => {
       },
     });
 
-    expect(result?.stamp).toEqual({
+    expect(result !== null && "stamp" in result ? result.stamp : null).toEqual({
       kind: "current",
       authorization: "discard-confirmed",
       remoteRef: { remote: "origin/feat/shipped-widget", oid: "abc123", disposition: "delete" },
@@ -136,18 +136,14 @@ describe("deriveCurrentHuskAdvisory", () => {
       },
     });
 
-    expect(result?.stamp).toEqual({ kind: "manual-only", reason: "unknown-authorization" });
+    expect(result !== null && "stamp" in result ? result.stamp : null).toEqual({
+      kind: "manual-only",
+      reason: "unknown-authorization",
+    });
   });
 
   it.each([
     ["markerless", { marker: { kind: "absent" } satisfies WorktreeMarkerReadResult }],
-    ["malformed", {
-      marker: {
-        kind: "malformed",
-        path: "/wt/shipped-widget/.arc/system/.internal/worktree-marker.json",
-        message: "invalid JSON",
-      } satisfies WorktreeMarkerReadResult,
-    }],
     ["moved HEAD", { head: "different" }],
     ["branched worktree", { branch: "feat/shipped-widget" }],
   ])("returns no advisory for a %s", (_label, overrides) => {
@@ -166,6 +162,34 @@ describe("deriveCurrentHuskAdvisory", () => {
         },
       },
     })).toBeNull();
+  });
+
+  it.each(["pending", "ready"] as const)("surfaces %s transient provenance without a cleanup stamp", (provisioning) => {
+    const subject = { kind: "errand", slug: "tidy-hooks", claimId: "a".repeat(32) } as const;
+    expect(derive({
+      marker: {
+        kind: "present",
+        marker: {
+          spawnedByArc: true,
+          createdFor: subject,
+          provisioning,
+          spawningIdentity: "andrew",
+          createdAt: "2026-07-20T00:00:00.000Z",
+        },
+      },
+    })).toEqual({
+      worktreePath: "/wt/shipped-widget",
+      provenance: { kind: provisioning, subject },
+    });
+  });
+
+  it("keeps malformed branchless marker evidence visible", () => {
+    expect(derive({
+      marker: { kind: "malformed", path: "/wt/shipped-widget/marker", message: "invalid JSON" },
+    })).toEqual({
+      worktreePath: "/wt/shipped-widget",
+      provenance: { kind: "malformed", message: "invalid JSON" },
+    });
   });
 
   it("returns no advisory for a stamped non-WU subject", () => {

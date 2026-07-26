@@ -28,13 +28,22 @@ errand-vs-work-unit boundary, see [§ Errand Work Class][errand-class].
 **Typically one review increment, often one commit** — but neither bounds the character: a determinate sweep may
 land in several commits, and a large one may be reviewed in a bounded few **in-session** passes (an _extended
 errand_), each its own gate. No task list, no `process-task-loop`. The phases — Launch → Execute → Integrate — are
-**re-enterable**: pausing is `commit WIP + push`; a paused errand resumes from its pushed branch and originating
-capture, with no SESSION-NOTES.
+re-enterable through the Errand's exact identity and checkout. A full-mode interruption or review tail retains that
+exact identity and checkout without a meta, task list, or SESSION-NOTES; partial mode must complete, promote, or
+explicitly abandon in the current session.
+
+Every state-touching Errand command uses `--json`. On `applied` / `idempotent`, render `recommendedPromptText` and
+consume returned paths, record/lease IDs, restored parent, origin back-pointer, and `nextOffer`; on `refused` or
+`error`, render the supplied text and stop. Never reconstruct allocation, preservation, cleanup, or continuation
+from Git branch shape.
+
+When the rendered text asks for directed-command confirmation, confirm that the current session can run subsequent
+commands at `activeLocusPath`. If it cannot or the capability is uncertain, recommend a cold session at that
+checkout and stop before execution.
 
 ## Launch
 
-Confirm the work is an errand, check for in-flight overlap, and relocate off the launch branch — so the errand
-never executes from an unrelated work unit's branch.
+Confirm the work is an Errand, check for in-flight overlap, then open or resume its allocated checkout.
 
 1. **Classify — errand vs. work unit.** Confirm the work is a single **self-evident** concern that fits one
    session. The work-unit tell is **spec-worthiness**: design worth recording, or a determinate concern large
@@ -56,18 +65,25 @@ never executes from an unrelated work unit's branch.
    never a gate:** surface any overlap, coordinate or sequence after the other unit integrates, then proceed. If
    the remote is unreachable the check degrades to local refs and says so.
 
-3. **Open the errand locus** — relocate per protection mode ([§ Branch Protection Modes][branch-modes]):
+3. **Open or resume the Errand checkout.**
 
-   - **Full protection** — `arc errand open <slug>` cuts the errand branch and occupies it in place (`--type
-     fix|chore|refactor|hotfix`, default `chore`; `--intent <text>` for the concern). When the errand adopts an
-     originating `USER-INBOX § Errand` capture, add `--from-inbox <entry-title>` — or
-     `--inbox-entry-file <path>` (`-` reads stdin) when the exact title contains Markdown or shell
-     metacharacters. The record is minted `inbox`-origin and `arc errand close` drops that capture instead of
-     orphaning it. `<slug>` is branch-safe (lowercase/digits/hyphens) and is the merge key; idempotent — re-running
-     reuses an existing branch.
-   - **Partial protection** — no branch (`open` refuses here): read `arc housekeep check --json` → `baseBranch` /
-     `primaryWorktreePath`, switch to that base checkout, and commit directly to base (a documented off-work-unit
-     maintenance exception).
+   - **Launch mode:** invoke `arc errand open <slug> --intent <text> --json`. For an originating
+     `USER-INBOX § Errand` capture, add `--from-inbox <entry-title>` or `--inbox-title-file <path>` (`-` reads
+     stdin). The verb owns both protection modes: full protection allocates the free primary or a provisioned
+     transient and mints the exact v3 identity; partial protection occupies only a safe free primary and creates no
+     branch or portable identity. A warm entry never moves the session home or repurposes its WU checkout.
+   - **Resume mode:** consume the exact checkout and freshly attached lease selected by session-init. Do not invoke
+     `arc errand open` again; residue recovery already ran `arc locus resolve <record-id> --action resume`, and a
+     live role already ran `arc locus attach`.
+
+   Execute every subsequent command from `activeLocusPath` while retaining `sessionHomePath` for restoration. A
+   remote-only generation cannot enter on this machine; surface its exact identity and use the checkout that
+   retains its local role.
+
+4. **Late inbox adoption, when needed.** If an in-flight ordinary full-mode Errand acquires a matching capture
+   after open, run `arc errand link <slug> --from-inbox <entry-title> --json` (or `--inbox-title-file`). It may add
+   only one exact origin back-pointer to an otherwise linkable v3 claim. Conflicts, legacy records, missing
+   captures, and partial mode refuse; never edit the identity or inbox by hand.
 
 ## Execute
 
@@ -83,10 +99,20 @@ cross-session plan). Propose the split and get approval first ("this is ~N passe
 pass as its own increment, tracked in-session only, never a task list. Staging review for ergonomics is not a
 work-unit signal; needing a _durable plan_ is.
 
-**Spec-worthy → promote.** If the work crosses a floor mid-execution — it needs design authored, or a durable
-cross-session plan — stop and promote via the [Promote Errand path][promote-errand-to-wu] (`arc errand promote
-<slug> --floor derivation|scale`: rename → meta at the floor's stage → record retired, commits preserved), then
-continue under the work-unit lifecycle.
+**Spec-worthy → promote.** If work crosses the wrapper floor, stop and confirm the judgment, then invoke
+`arc errand promote <slug> --floor derivation|scale --json`. The verb requires the exact committed full-mode
+generation and performs the generation-checked branch/meta/marker/role replacement; for a warm promotion it also
+releases the former parent WU lease and makes the promoted checkout the sole session home. Render its result and
+continue only from the returned WU checkout. Commit the minted meta through the work-unit ceremony before removing an
+originating inbox capture; then run `arc user inbox-remove` with the returned `originEntry`. If the meta commit or
+capture removal fails, preserve the evidence and stop. Partial mode cannot use this full-mode verb and must first
+take the WU initialization route chosen by the owning lifecycle.
+
+**Explicit abandon.** On explicit direction to discard a safely preserved generation, invoke
+`arc errand abandon <slug> --json`. A full identity and its local review tail abandon only when the verb proves
+provenance, cleanliness, exact refs, and host disposition. A partial Errand abandons only while its clean primary is
+at the freshly pushed base. Both modes retain the originating capture and clear its execute-bound marking; never
+simulate abandonment by deleting a branch or session locus record.
 
 Run each review increment (one for a typical errand; a few for an extended one):
 
@@ -305,28 +331,35 @@ lane action.
    The auto-merge lane invokes no unlock: when the optional guard is installed, its trusted CI poster supplies
    `arc-cleared`; otherwise no such context is required.
 
+7. **Retain the local checkout when review continues asynchronously.** After the exact PR head is pushed and the
+   change request is open, keep the exact role, lease, and checkout intact. A later session enters that checkout;
+   session-init resolves its dead lease through `arc locus resolve <record-id> --action resume` before this workflow
+   resumes. If work is interrupted before PR creation, commit and push the checkpoint first. Never remove the
+   checkout or release its role while the Errand is incomplete.
+
 ### Ship — partial protection
 
-No branch and no PR: the errand is already a direct base-branch commit, so there is no merge step. The base push
-follows the project's normal base-push discipline.
+No branch and no PR: the Errand is a direct base-branch commit, so there is no merge step. The base push follows
+the project's normal discipline. It cannot pause or await merge; completion must pop the exact partial role and
+remove any originating capture before the session can leave.
 
 ### Complete
 
-On merge (full) or final commit (partial), close out:
+On merge (full) or final commit (partial), invoke `arc errand close <slug> --json` and consume its typed result.
 
-- **Full protection** — `arc errand close <slug>` reaps the branch, deletes its remote head when the work
-  provably landed in base (a host's delete-on-merge having already removed it is the idempotent no-op), prunes
-  its tracking ref, removes the record, and drops the originating `USER-INBOX` capture (the entry its record
-  back-points to). The reap is containment-safe: if the branch's commits aren't provably preserved (pushed or
-  merged), it **refuses** and keeps the record — push/merge then retry, or `--force` if you've verified it
-  shipped. A remote head that is the only proven preservation (e.g. a multi-commit squash) is kept and surfaced,
-  never deleted. The remote delete is best-effort: on a push failure (auth, connectivity) the local close still
-  completes and the head is surfaced for manual cleanup.
-- **Partial protection** — nothing to close; the errand is already a direct base commit.
+- **Full protection** — the verb proves merge/preservation, finalizes the exact v3 identity tail, reaps refs and
+  any retained checkout safely, and drops only its origin capture. The bounded v1/v2 compatibility arm may close an
+  already-open legacy record once; `--force` is legacy-only and never bypasses v3 preservation/host checks.
+- **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
+  removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.
+
+When the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`, `key`, and
+`parentCheckoutPath`). On acceptance, re-enter this workflow through the sibling's open driver; on decline,
+return to the restored parent/between-WUs frame. Never scan the inbox for a replacement continuation.
 
 **Unattended merge (auto-merge lane).** If the merge lands after the session ends, `arc errand close` is replayed
-from base context by the [finalize pass][finalize-pass] or next session-init's errand sweep — idempotent, so it
-never double-fires.
+from the retained checkout by the [finalize pass][finalize-pass] or the next session. Exact replay is idempotent
+and may return the next file-ordered execute-bound offer.
 
 ---
 
@@ -335,10 +368,8 @@ never double-fires.
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [drain-inbox]: drain-inbox.md
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
-[promote-errand-to-wu]: ../work-unit-lifecycle/planning/init-work-unit.md#promote-errand-to-work-unit-path
 [commit-footer]: ../../../methods/commit-footer.md
 [review-response]: ../../../methods/review-response.md
 [review-triage]: ../../../methods/review-triage.md
 [errand-class]: ../../../../reference/strategies/arc/strategy-work-organization.md#errand-work-class
-[branch-modes]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane

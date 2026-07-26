@@ -38,6 +38,9 @@ import {
   errandsRef,
   type ErrandRecordIO,
 } from "../../src/lib/errand/index.js";
+import { cleanupOrdinaryErrandRefs } from "../../src/lib/errand/close-runtime.js";
+import { TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
+import type { OrdinaryErrandRecord } from "../../src/lib/errand/identity-transitions.js";
 
 const IDENTITY = "andrew";
 const REF = errandsRef(IDENTITY);
@@ -133,6 +136,44 @@ describe("closeErrand", () => {
     expect(await remoteSlugs(dir)).toEqual([]);
     expect(await currentBranch(dir)).toBe("main");
     expect(await branchExists(dir, "chore/done")).toBe(false);
+  });
+
+  it("deletes exact v3 local and remote heads and replays their absence", async () => {
+    await git(dir, ["switch", "-c", "chore/v3-finalize"]);
+    await commitOn(dir, "v3 change");
+    const headSha = (await git(dir, ["rev-parse", "HEAD"])).trim();
+    await git(dir, ["push", "origin", "chore/v3-finalize"]);
+    await git(dir, ["switch", "main"]);
+    const record = TransientIdentityRecordV3Schema.parse({
+      version: 3,
+      slug: "v3-finalize",
+      claimId: "c".repeat(32),
+      createdAt: CREATED_AT,
+      updatedAt: "2026-06-19T12:01:00.000Z",
+      kind: "errand",
+      purpose: "errand",
+      intent: "finalize",
+      branch: "chore/v3-finalize",
+      origin: "description",
+      originEntry: null,
+      state: "awaiting-merge",
+      savedHead: null,
+      changeRequest: {
+        repositoryRef: "owner/repo",
+        hostRef: "github.com",
+        baseRef: "main",
+        headRef: "chore/v3-finalize",
+        headSha,
+      },
+    }) as OrdinaryErrandRecord;
+
+    if (record.state !== "awaiting-merge") throw new Error("expected awaiting tail");
+    const target = { record, changeRequest: record.changeRequest };
+
+    await expect(cleanupOrdinaryErrandRefs(io.exec, target)).resolves.toEqual({ kind: "applied" });
+    expect(await branchExists(dir, record.branch)).toBe(false);
+    expect(await remoteHeadExists(dir, record.branch)).toBe(false);
+    await expect(cleanupOrdinaryErrandRefs(io.exec, target)).resolves.toEqual({ kind: "idempotent" });
   });
 
   it("detaches at base when a legacy record has no return branch", async () => {

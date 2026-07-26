@@ -5,7 +5,8 @@
  * the kernel JSON Schema bundle; build projection remains a separate concern.
  */
 
-import { createKernelRegistry, type KernelRegistry } from "../kernel/index.js";
+import type { KernelRegistry } from "../kernel/index.js";
+import { createLocusRegistry } from "../locus/registry.js";
 import {
   SessionInitProbeResultSchema,
   SessionRecoverProbeResultSchema,
@@ -62,7 +63,7 @@ const STRICT_CURRENT_V1 = {
  * @returns Isolated registry containing kernel vocabulary and family schemas
  */
 export function createSessionEnvelopeRegistry(): KernelRegistry {
-  const registry = createKernelRegistry();
+  const registry = createLocusRegistry();
   registry.register(BaseBranchSyncStatusResultSchema, {
     id: SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync,
     ...STRICT_CURRENT_V1,

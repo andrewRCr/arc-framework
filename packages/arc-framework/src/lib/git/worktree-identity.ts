@@ -29,14 +29,25 @@ export type WorktreeIdentity =
   | { kind: "primary" }
   | { kind: "linked"; path: string };
 
+/** Raised when git plumbing cannot establish which physical worktree the session occupies. */
+export class WorktreeIdentityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WorktreeIdentityError";
+  }
+}
+
 /**
  * Resolve whether the current session is in the primary or a linked worktree.
  *
- * Returns `{ kind: "primary" }` on any failure to resolve — the safe default
- * is "surface nothing" rather than a misleading worktree line.
+ * Reports only what git establishes: a checkout proven linked whose working-tree
+ * path does not resolve raises {@link WorktreeIdentityError} rather than claiming
+ * primary. Callers that want "surface nothing" on failure — orientation
+ * rendering — apply that default themselves.
  *
  * @param exec - Injectable command executor
  * @returns The worktree identity; `linked` carries the working-tree path
+ * @throws {WorktreeIdentityError} When the checkout is linked but its path is unresolvable
  */
 export async function resolveWorktreeIdentity(exec: GitExec): Promise<WorktreeIdentity> {
   const commonDir = await revParse(exec, "--git-common-dir");
@@ -48,7 +59,11 @@ export async function resolveWorktreeIdentity(exec: GitExec): Promise<WorktreeId
   }
 
   const toplevel = await revParse(exec, "--show-toplevel");
-  if (toplevel === null) return { kind: "primary" };
+  if (toplevel === null) {
+    throw new WorktreeIdentityError(
+      "checkout is linked but git rev-parse did not resolve --show-toplevel",
+    );
+  }
   return { kind: "linked", path: toplevel };
 }
 

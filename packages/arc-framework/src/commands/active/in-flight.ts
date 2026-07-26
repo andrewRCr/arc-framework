@@ -20,7 +20,11 @@ import {
   type InFlightWarning,
   type PrSource,
 } from "../../lib/git/in-flight-derivation.js";
-import { readErrandSlugByBranch } from "../../lib/errand/record.js";
+import {
+  projectTransientInFlightRead,
+  readErrandSlugByBranch,
+  readTransientInFlightIndexes,
+} from "../../lib/errand/record.js";
 
 export interface ActiveInFlightOptions {
   exec: GitExec;
@@ -65,7 +69,14 @@ export async function runActiveInFlight(
   options: ActiveInFlightOptions,
 ): Promise<ActiveInFlightResult> {
   const { exec, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
-  const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
+  const [legacySlugByBranch, read] = await Promise.all([
+    readErrandSlugByBranch({ exec, identity }),
+    readTransientInFlightIndexes({ exec, identity }),
+  ]);
+  // An unreadable identity, or one whose read dropped entries, cannot prove a branch
+  // carries no transient claim — derive over what was readable, but mark the oracle
+  // incomplete so nothing downstream reports absence as a settled fact.
+  const { indexes, complete: transientComplete } = projectTransientInFlightRead(read);
   const result = await deriveInFlight({
     exec,
     localOnly,
@@ -73,7 +84,9 @@ export async function runActiveInFlight(
     timeoutMs,
     identity,
     teamMode,
-    errandSlugByBranch,
+    errandSlugByBranch: new Map([...legacySlugByBranch, ...indexes.slugByBranch]),
+    expectedTransientByBranch: indexes.expectedByBranch,
+    errandRecordsComplete: transientComplete,
     parkedSlugs,
     prSource,
   });

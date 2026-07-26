@@ -109,11 +109,15 @@ import type { GitExec } from "../lib/git/index.js";
 import { createGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
 import {
   listErrandRecordsResult,
+  projectTransientInFlightRead,
+  readTransientInFlightIndexes,
   type ErrandRecord,
   type ListErrandRecordsResult,
 } from "../lib/errand/record.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
+import { runLocusStateProbe } from "./locus-state-probe.js";
+import type { LocusStateV1 } from "../lib/locus/schema/index.js";
 import {
   emitCompactionSeed,
   parseUncommittedFiles,
@@ -434,12 +438,22 @@ export async function handleStatus(
     // the non-JSON exit path.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
     const probes: SessionHandoffProbes = {
+      locusState: async (id) => {
+        const resolved = await resolvedSettingsP;
+        return runLocusStateProbe({
+          cwd,
+          identity: id,
+          baseBranch: resolved.settings["branch.base"],
+          exec,
+        });
+      },
       dirty: () => runDirtyStateStatus({ exec }),
       worktree: async () => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
         return runWorktreeSyncStatus({ exec, remoteSyncEnabled });
       },
+      worktreeIdentity: () => resolveWorktreeIdentity(exec),
       user: async (id) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
@@ -505,6 +519,32 @@ export async function handleStatus(
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
+    const extensionsP = runExtensionsSessionInitStatus({ cwd });
+    // The kickoff is eager but the consumer awaits it later, so pre-attach a no-op rejection
+    // handler: a repository without `.arc/system/extensions` must degrade to a failed slot,
+    // not an unhandled rejection that kills the process before any slot is composed.
+    extensionsP.catch(() => undefined);
+    let locusStatePromise: Promise<LocusStateV1> | undefined;
+    const getLocusState = (id: string): Promise<LocusStateV1> => {
+      locusStatePromise ??= (async () => {
+        const resolved = await resolvedSettingsP;
+        return runLocusStateProbe({
+          cwd,
+          identity: id,
+          baseBranch: resolved.settings["branch.base"],
+          exec,
+        });
+      })();
+      return locusStatePromise;
+    };
+    const getOptionalLocusState = async (): Promise<LocusStateV1 | null> => {
+      if (identity === null) return null;
+      try {
+        return await getLocusState(identity);
+      } catch {
+        return null;
+      }
+    };
     const compactionSeedGitSnapshotP = opts.writeCompactionSeed
       ? readCompactionSeedGitSnapshot(cwd, exec)
       : null;
@@ -524,6 +564,11 @@ export async function handleStatus(
     // (resume + discovery). Identity-scoped and local, so read once and reused;
     // empty when no identity resolved (no record ref exists).
     let errandRecordsPromise: Promise<ListErrandRecordsResult> | undefined;
+    let transientIndexesPromise: ReturnType<typeof readTransientInFlightIndexes> | undefined;
+    const getTransientIndexes = () => {
+      transientIndexesPromise ??= readTransientInFlightIndexes({ exec, identity });
+      return transientIndexesPromise;
+    };
     const getErrandRecordsResult = (): Promise<ListErrandRecordsResult> => {
       errandRecordsPromise ??= identity === null
         ? Promise.resolve({ records: [], complete: true, warnings: [] })
@@ -543,12 +588,23 @@ export async function handleStatus(
         await pruneRemoteTrackingRefs(exec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const [recordResult, parkedSlugs] = await Promise.all([
+        const [recordResult, transientRead, parkedSlugs, locusState] = await Promise.all([
           getErrandRecordsResult(),
+          getTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
+          getOptionalLocusState(),
         ]);
         const records = recordResult.records;
-        const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
+        // The oracle is the union of the legacy records and the transient identity, so
+        // it is complete only when both halves are. An unreadable or entry-dropping
+        // transient read degrades classification exactly as an unreadable record tree does.
+        const transient = projectTransientInFlightRead(transientRead);
+        const transientIndexes = transient.indexes;
+        const oracleComplete = recordResult.complete && transient.complete;
+        const errandSlugByBranch = new Map([
+          ...records.map((record) => [record.branch, record.slug] as const),
+          ...transientIndexes.slugByBranch,
+        ]);
         const result = await deriveInFlight({
           exec,
           localOnly: false,
@@ -556,7 +612,9 @@ export async function handleStatus(
           identity,
           teamMode,
           errandSlugByBranch,
-          errandRecordsComplete: recordResult.complete,
+          expectedTransientByBranch: transientIndexes.expectedByBranch,
+          errandRecordsComplete: oracleComplete,
+          locusState,
           parkedSlugs,
         });
         // Unreachable: derive nothing rather than a half-resolved view over
@@ -574,6 +632,7 @@ export async function handleStatus(
       return oraclePromise;
     };
     const probes: SessionInitProbes = {
+      locusState: getLocusState,
       user: async (id) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
@@ -586,16 +645,26 @@ export async function handleStatus(
       },
       worktreeIdentity: () => resolveWorktreeIdentity(exec),
       currentHusk: async (worktreePath) => {
-        const [marker, headResult, resolved] = await Promise.all([
+        const [marker, headResult, resolved, transientRead] = await Promise.all([
           readWorktreeMarker(worktreePath),
           exec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
           resolvedSettingsP,
+          getTransientIndexes(),
         ]);
+        // The marker alone still classifies the worktree as transient, so an unreadable
+        // identity softens rather than inverts this advisory: without the expectation no
+        // claim mismatch can be detected, and the husk is described from the marker only.
+        const { indexes: huskIndexes } = projectTransientInFlightRead(transientRead);
+        const markerSubject = marker.kind === "present" ? marker.marker.createdFor : undefined;
+        const expectedTransient = markerSubject !== undefined && "slug" in markerSubject
+          ? huskIndexes.expectedBySlug.get(markerSubject.slug)
+          : undefined;
         return await resolveCurrentHuskAdvisory({
           worktreePath,
           branch: null,
           head: headResult.stdout,
           marker,
+          ...(expectedTransient === undefined ? {} : { expectedTransient }),
         }, async (stamp, decoded) => {
           const baseBranch = resolved.settings["branch.base"];
           return await revalidateDecodedHuskRetirementEvidence(
@@ -632,7 +701,7 @@ export async function handleStatus(
         compactionSeedGitSnapshotP,
         fallback: () => runDirtyStateStatus({ exec }),
       }),
-      extensions: () => runExtensionsSessionInitStatus({ cwd }),
+      extensions: () => extensionsP,
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
@@ -728,7 +797,15 @@ export async function handleStatus(
         });
       },
       sweep: async (roster, worktreeIdentity) => {
-        const resolved = await resolvedSettingsP;
+        const [resolved, transientRead, locusState] = await Promise.all([
+          resolvedSettingsP,
+          getTransientIndexes(),
+          getOptionalLocusState(),
+        ]);
+        // Transient worktrees stay blocked from cleanup on marker provenance alone, so an
+        // unreadable identity cannot turn a claimed worktree into a deletable one; it only
+        // costs the mismatch check between the marker's claim and the identity's.
+        const { indexes: sweepIndexes } = projectTransientInFlightRead(transientRead);
         return runStaleWorktreeSweep({
           roster,
           worktreeIdentity,
@@ -739,6 +816,8 @@ export async function handleStatus(
           protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
           excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
           readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
+          expectedTransientByBranch: sweepIndexes.expectedByBranch,
+          locusState,
         });
       },
       orphanBranchSweep: async (worktreeIdentity) => {
@@ -747,12 +826,16 @@ export async function handleStatus(
         // (resume, close replay) own their cleanup. With no resolved identity
         // the records are unreadable, so pass `null` and the sweep declines
         // rather than offering deletes that could orphan a record.
-        const errandRecords = identity === null ? null : await getErrandRecords();
+        const [errandRecords, locusState] = await Promise.all([
+          identity === null ? Promise.resolve(null) : getErrandRecords(),
+          getOptionalLocusState(),
+        ]);
         return runOrphanBranchSweep({
           worktreeIdentity,
           baseBranch: resolved.settings["branch.base"],
           errandBranches:
             errandRecords === null ? null : new Set(errandRecords.map((record) => record.branch)),
+          locusState,
           exec,
         });
       },
@@ -780,9 +863,21 @@ export async function handleStatus(
         // with the in-flight derivation); empty when no identity resolved.
         const recordResult = await getErrandRecordsResult();
         const records = recordResult.records;
+        const [transientRead, locusState] = await Promise.all([
+          getTransientIndexes(),
+          getOptionalLocusState(),
+        ]);
+        // Resume and discovery read the transient records as the identity's claim set. An
+        // unreadable identity yields no records, which is indistinguishable from having
+        // none — so the degradation is surfaced rather than left to read as absence.
+        const transientState = projectTransientInFlightRead(transientRead);
+        const transientIndexes = transientState.indexes;
         let entries: InFlightEntry[] | null = null;
         let residue: InFlightResidue[] = [];
-        let oracleWarnings: string[] = [...recordResult.warnings];
+        let oracleWarnings: string[] = [
+          ...recordResult.warnings,
+          ...(transientState.degraded === null ? [] : [transientState.degraded]),
+        ];
         if (input.includeDiscovery) {
           const oracle = await getOracle();
           entries = oracle.reachable ? oracle.entries : null;
@@ -797,7 +892,9 @@ export async function handleStatus(
           entries,
           residue,
           oracleWarnings,
+          locusState,
           records,
+          transientRecords: transientIndexes.records,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
           nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor),

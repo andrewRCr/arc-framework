@@ -43,11 +43,15 @@ describe("runInboxState", () => {
   it("reports an empty inbox as zero count with housekeepNeeded false", () => {
     const content = ["# User Inbox", "", "## Errand", "", "## Work Unit", ""].join("\n");
 
-    expect(runInboxState({ content })).toEqual({ routableCount: 0, housekeepNeeded: false });
+    expect(runInboxState({ content })).toEqual({
+      routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [], executeBoundDiagnostics: [],
+    });
   });
 
   it("treats empty content as zero count with housekeepNeeded false", () => {
-    expect(runInboxState({ content: "" })).toEqual({ routableCount: 0, housekeepNeeded: false });
+    expect(runInboxState({ content: "" })).toEqual({
+      routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [], executeBoundDiagnostics: [],
+    });
   });
 
   it("does not count malformed entries (H3 with no bold title)", () => {
@@ -87,7 +91,35 @@ describe("runInboxState", () => {
       "",
     ].join("\n");
 
-    expect(runInboxState({ content })).toEqual({ routableCount: 0, housekeepNeeded: false });
+    expect(runInboxState({ content })).toEqual({
+      routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [], executeBoundDiagnostics: [],
+    });
+  });
+
+  it("surfaces the execute-bound queue separately without reoffering it for routing", () => {
+    const bound = (title: string): string => [
+      `### \`[ ]\` **${title}**`, "", "- _Disposition:_ `execute-bound`",
+      "- _Observation:_ queued.", "",
+    ].join("\n");
+    const content = [
+      "## Errand", "", bound("first"), bound("second"), bound("other"), "## Work Unit", "",
+    ].join("\n");
+
+    expect(runInboxState({ content })).toMatchObject({
+      routableCount: 0,
+      housekeepNeeded: false,
+      pendingExecuteBound: ["first", "second", "other"],
+      executeBoundDiagnostics: [],
+    });
+  });
+
+  it("reports malformed execute-bound state without making it routable", () => {
+    const content = [
+      "## Errand", "", "### `[ ]` **broken**", "- _Disposition:_ `execute-bound`", "- body", "",
+    ].join("\n");
+    const result = runInboxState({ content });
+    expect(result).toMatchObject({ routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [] });
+    expect(result.executeBoundDiagnostics?.[0]).toContain("Malformed");
   });
 });
 

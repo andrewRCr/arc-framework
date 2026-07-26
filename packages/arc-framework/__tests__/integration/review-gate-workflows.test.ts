@@ -124,6 +124,21 @@ describe("trusted review-gate workflows", () => {
     expect(crossPlatform.strategy).toMatchObject({
       matrix: { os: ["windows-latest", "macos-latest"] },
     });
+
+    const packageManifest = JSON.parse(await readRepositoryFile("packages/arc-framework/package.json")) as {
+      scripts: Record<string, string>;
+    };
+    expect(packageManifest.scripts["test:portability"]).toBe(
+      "vitest run user-sync-notes-lock ref-tree-cas state-ref-race.e2e git-executor process-inspector-native",
+    );
+    for (const job of [portability, crossPlatform]) {
+      const steps = job.steps as Array<Record<string, unknown>>;
+      expect(steps).toContainEqual({
+        name: "Run portability contracts (${{ runner.os }})",
+        run: "npm run test:portability",
+        env: { ARC_E2E_SKIP_BUILD: "1" },
+      });
+    }
   });
 
   it("contains Actions spend while retaining explicit and bounded portability coverage", async () => {
@@ -178,7 +193,8 @@ describe("trusted review-gate workflows", () => {
       scripts: Record<string, string>;
     };
     expect(packageManifest.scripts["test:arc-contracts"]).toBe(
-      "vitest run --project integration framework-sync pr-open-extensions review-gate-workflows",
+      "vitest run --project integration framework-sync locus-methodology-contracts " +
+        "pr-open-extensions review-gate-workflows",
     );
     expect(rootManifest.scripts["test:arc-contracts"]).toBe(
       "npm run test:arc-contracts -w packages/arc-framework",
@@ -409,8 +425,12 @@ describe("trusted review-gate workflows", () => {
     expect(lanes).toMatch(/Reviewed-lane[\s\S]*owner review[\s\S]*head change restarts Step 4/iu);
 
     const complete = sectionBetween(packaged, "### Complete");
-    expect(complete).toMatch(/arc errand close <slug>[\s\S]*reaps the branch[\s\S]*removes the record/iu);
-    expect(complete).toMatch(/Unattended merge[\s\S]*finalize pass[\s\S]*next session-init's errand sweep/iu);
+    expect(complete).toMatch(
+      /arc errand close <slug>[\s\S]*finalizes the exact v3 identity tail[\s\S]*drops only its origin capture/iu,
+    );
+    expect(complete).toMatch(
+      /Unattended merge[\s\S]*retained checkout[\s\S]*finalize pass[\s\S]*next session/iu,
+    );
   });
 
   it("keeps auto-merge arming on canonical classification without requiring ARC clearance", async () => {

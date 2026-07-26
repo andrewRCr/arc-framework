@@ -57,12 +57,12 @@ export interface PlanCheckOptions {
 /** Validated input for planning-entry inspection. */
 export const PlanCheckInputSchema = z.object({ name: SlugSchema.optional(), json: z.boolean().optional() }).strict();
 
-/** Registry contribution owned by plan check. */
-export const planCheckInputRegistration = {
+/** Registry contributions owned by the value-bearing planning commands. */
+export const planCommandInputRegistrations = [{
   commandPath: "plan check",
   schema: PlanCheckInputSchema,
   schemaFields: { "option.name": "name", "option.json": "json" },
-} satisfies CommandInputRegistration;
+}] as const satisfies readonly CommandInputRegistration[];
 
 /** Machine-output policy owned by the planning preflight adapter. */
 export const planCommandInputPolicyDeclarations = [{

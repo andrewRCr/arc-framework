@@ -699,24 +699,21 @@ contains exactly the spawning WU's meta file plus its companions, and nothing el
 
 ## Main-on-Main Pattern
 
-The **main worktree** — the primary checkout the repository was cloned into — stays on `main`. It is not
-a work unit's worktree; it is the stable reference every WU worktree spawns from (see
-[§ Per-Worktree Isolation](#per-worktree-isolation)) and the launchpad for work that has no WU branch of
-its own: planning entry, stale-worktree sweep, repository-wide edits, and Errand launches (atomic fixes
-and other short-lived off-WU work — see [§ Errand Work Class](#errand-work-class)).
+The **physical primary** — the checkout the repository was cloned into — rests on the configured base while it is
+record-free. In that state it is the stable reference spawned worktrees use (see
+[§ Per-Worktree Isolation](#per-worktree-isolation)) and the free launchpad for planning entry, cleanup, grooming,
+housekeeping, and Errand allocation (see [§ Errand Work Class](#errand-work-class)).
 
-ARC defines no separate, dedicated administrative worktree. Admin operations run from the main worktree
-directly — keeping `main` checked out there is what makes them safe to launch and gives every spawn a
-clean base. The pattern composes with externally spawned worktrees: whatever checkout the tooling treats
-as the primary workspace _is_ the main worktree, with no extra setup.
+ARC defines no permanent administrative worktree. Allocation uses the free primary first and, under full
+protection, may provision a transient worktree when the primary is occupied or isolation is requested. The pattern
+composes with externally spawned worktrees: whatever checkout Git identifies as the physical primary is the
+launchpad when its locus state is free.
 
-Two disciplines keep the launchpad dependable. **`main` is the resting state, not a lock:** an Errand or
-grooming pass may occupy the main worktree with its short-lived branch as a bounded excursion, returning
-it to `main` at close — it is never parked on a branch between excursions. **One out-of-WU session at a
-time:** the main worktree is a single checkout (two sessions sharing it share HEAD, index, and
-per-checkout state), so out-of-WU work serializes through it; when it is occupied — or isolation is
-preferred — the Errand occupies an ephemeral worktree instead (see
-[§ Errand Work Class](#errand-work-class)).
+Two disciplines keep the launchpad dependable. **Base is the record-free resting state:** a transient role may
+occupy the primary as a bounded excursion, and its close returns the checkout to base before the role pops. **WU
+ownership is exclusive:** full protection spawns WUs by default; explicit `--here` converts the physical primary
+into a WU-owned occupied locus until exact teardown restores record-free base. While occupied by a WU, the primary
+is not available to any transient or another WU. Allocation refuses rather than displacing an existing role.
 
 ### Operational constraint
 
@@ -1365,31 +1362,26 @@ Either way, the work is tracked by its commit's `standalone (...)` context foote
 `maintenance | planning | documentation | refactor`; see [`commit-footer`][commit-footer-method]) rather than
 by an `active/` entry.
 
+Under full protection, a paused exact WIP head or an exact awaiting-merge change request may retain the Errand
+identity after local occupancy ends. These are operational re-entry states for the same atomic concern, not a
+durable plan: they create no WU meta, task list, SESSION-NOTES, or planning branch. Work that needs cross-session
+decomposition promotes to a WU instead. Resume allocates a fresh local locus; an unleased transient role is crash
+residue, never the normal representation of a pause or review wait.
+
 ### The cut→occupy invariant
 
-Cutting a `chore/<slug>` branch and _occupying_ it are **separate mechanics with a strict ordering** — the branch is
-cut off the base, then occupied: an in-place switch of the main worktree when it is free (the default locus — see
-[§ Main-on-Main Pattern](#main-on-main-pattern)), or an ephemeral worktree when it is occupied or isolation is
-preferred. The invariant: **a cut is never left un-occupied.** A branch cut without an immediate occupy strands the
-caller on its launch branch, writing the Errand's commits to the wrong place.
-
-`arc errand open` is the sole errand entry verb, and it **composes** the two — the internal cut mechanic
-(`cutErrandBranch`) followed by the occupy — in a single step, so the invariant holds by construction. There is no
-standalone cut command: exposing the cut half alone would let a caller create the branch and forget to occupy it,
-the exact failure the invariant forbids. Any internal site that cuts a branch carries the same obligation — cut,
-then immediately occupy.
+`arc errand open` is the sole Errand entry verb. Under full protection it atomically claims the Errand identity,
+allocates the free primary or a spawned transient worktree, and establishes the role before work begins. Under
+partial protection it occupies only the free primary or refuses. There is no in-place displacement fallback and no
+standalone branch-cut operation: a branch is never exposed without its matching occupied locus.
 
 ### Entry path
 
 An Errand runs through the `run-errand` workflow, dispatched by `arc-session` (via `--errand`, or surfaced at
-between-WU orientation). It launches from **any worktree**: the workflow's Launch phase resolves the base branch
-and relocates the execution locus itself onto the cheap-branch path (see
-[§ Cheap-branch path](#cheap-branch-path)) — to the main worktree when it is free (the default locus), or into an
-ephemeral worktree when it is occupied or isolation is preferred — so the caller need not pre-switch worktrees. It
-does not invoke
-planning entry — spawn and cold-start scaffold meta files and lifecycles, which an Errand has neither of. The
-Errand mints no `active/` artifact and produces no orientation surface; it ships, is recorded by git history
-through its commit footer, and tears down.
+between-WU orientation). It may be requested from any locus, but allocation never switches or repurposes a WU-owned
+checkout. The entry verb returns the exact primary or spawned transient locus to use. It does not invoke planning
+entry — WU start scaffolds meta files and lifecycles, which an Errand has neither of. The Errand mints no `active/`
+artifact; it ships, is recorded by git history through its commit footer, and closes through its subject verb.
 
 ### Batch execution — the sequential drain
 

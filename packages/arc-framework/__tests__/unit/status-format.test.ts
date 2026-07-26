@@ -135,6 +135,23 @@ function makeSessionInitResult(
   return {
     mode: "session-init",
     identity: { identity: "andrew", role: "maintainer" },
+    locusState: {
+      ok: true,
+      value: {
+        roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
+        current: { kind: "none" },
+        primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+        inFlightIdentities: [],
+        recovery: { kind: "none" },
+        reconciliation: { kind: "clean" },
+      },
+    },
+    locusGuidance: {
+      kind: "ready",
+      identities: [],
+      cleanup: [],
+      diagnostics: [],
+    },
     user: {
       ok: true,
       value: {
@@ -336,6 +353,25 @@ describe("buildStatusSummary — full mode", () => {
 });
 
 describe("buildSessionInitStatusSummary — scoped mode", () => {
+  it("omits the session locus section when no line is actionable", () => {
+    const summary = buildSessionInitStatusSummary(makeSessionInitResult());
+    expect(summary).not.toContain("Session locus:");
+  });
+
+  it("renders the session locus section when guidance carries an action", () => {
+    const summary = buildSessionInitStatusSummary(makeSessionInitResult({
+      locusGuidance: {
+        kind: "ready",
+        recovery: `Resume session locus record sha256:${"a".repeat(64)}.`,
+        identities: [],
+        cleanup: [],
+        diagnostics: [],
+      },
+    }));
+    expect(summary).toContain("Session locus:");
+    expect(summary).toContain("Resume session locus record");
+  });
+
   it("includes identity block plus all probe sections (user, worktree, extensions, config, active)", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     expect(summary).toContain("Identity:");

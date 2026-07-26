@@ -15,14 +15,18 @@ import {
   checkCommitMessageInputRegistration,
 } from "./handlers/check/commit-msg-cli.js";
 import { errandCommandInputPolicyDeclarations, errandCommandInputRegistrations } from "./handlers/errand.js";
-import { housekeepCommandInputPolicyDeclarations } from "./handlers/housekeep.js";
+import {
+  housekeepCommandInputPolicyDeclarations,
+  housekeepCommandInputRegistrations,
+} from "./handlers/housekeep.js";
 import { installationCommandInputPolicyDeclarations } from "./handlers/installation.js";
 import {
   lifecycleCommandInputPolicyDeclarations,
   lifecycleCommandInputRegistrations,
 } from "./handlers/lifecycle.js";
 import { logStandaloneInputRegistration } from "./handlers/log.js";
-import { planCheckInputRegistration, planCommandInputPolicyDeclarations } from "./handlers/plan.js";
+import { planCommandInputPolicyDeclarations, planCommandInputRegistrations } from "./handlers/plan.js";
+import { locusCommandInputRegistrations } from "./handlers/locus.js";
 import {
   wuReconcileCommandInputPolicyDeclarations,
   wuReconcileCommandInputRegistration,
@@ -68,7 +72,9 @@ export const commandInputRegistrations = [
   startCommandInputRegistration,
   ...lifecycleCommandInputRegistrations,
   ...errandCommandInputRegistrations,
-  planCheckInputRegistration,
+  ...housekeepCommandInputRegistrations,
+  ...locusCommandInputRegistrations,
+  ...planCommandInputRegistrations,
   wuReconcileCommandInputRegistration,
   statusCommandInputRegistration,
   logStandaloneInputRegistration,

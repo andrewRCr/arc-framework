@@ -289,6 +289,9 @@ cover only the judgment-bearing subset, so a verb with no workflow file (`demote
 by design, not a missing ceremony.
 
 ```bash
+# Inspect the network-free checkout-role, lease, identity-tail, and recovery projection
+arc locus [--json]
+
 # Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, dep-edges
 arc status <slug> [--json]
 
@@ -336,15 +339,19 @@ arc teardown <name> [--force] [--husk <absolute-path>]
 # Safely fast-forward the configured local base from any worktree
 arc base sync [--json]
 
-# Classify the planning-entry route — committable, or redirect to start / stub / errand
+# Planning-entry routing
 arc plan check
 
-# Errand lifecycle — chore/<slug> branch, no meta (run-errand.md)
-arc errand open <slug> [--type <fix|chore|refactor|hotfix>] [--intent <text>] [--from-inbox <entry>] [--inbox-entry-file <path|->]
-arc errand link <slug> (--from-inbox <entry> | --inbox-entry-file <path|->)
-arc errand close <slug>
-arc errand promote <slug>
-arc errand retire <slug>
+# Errand lifecycle — no meta; `open` exactly resumes an existing eligible identity
+arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--json]
+arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]
+arc errand close <slug> [--force] [--json]
+arc errand abandon <slug> [--json]
+arc errand promote <slug> [--name <name>] [--type <type>] --floor <derivation|scale> [--json]
+
+# Housekeep routing preflight and execute-now batch marking
+arc housekeep check
+arc housekeep mark-execute <titles...> [--json]
 ```
 
 ### Session State Portability

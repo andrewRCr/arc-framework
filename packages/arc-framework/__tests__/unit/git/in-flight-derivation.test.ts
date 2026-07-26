@@ -7,6 +7,7 @@ import {
 } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
+import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
 
 const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
 
@@ -545,6 +546,89 @@ describe("deriveInFlight", () => {
     ]);
   });
 
+  it("does not reclassify an exact live grooming identity as branch residue", async () => {
+    const identity = {
+      kind: "groom" as const,
+      key: "widget",
+      claimId: "c".repeat(32),
+      purpose: null,
+      anchorStub: "widget",
+      members: ["widget"],
+      openedBaseHead: "a".repeat(40),
+      protection: "full" as const,
+      branch: "chore/groom-widget",
+      state: "open" as const,
+      savedHead: null,
+      changeRequest: null,
+    };
+    const state = locusStateFixture({
+      rows: [],
+      inFlightIdentities: [{ identity, actions: ["resume", "abandon"] }],
+    });
+    state.roster.rows.push({
+      kind: "identity-only", checkoutPath: null, primary: null, recordId: null, role: null,
+      identity, lease: null, frame: "idle", derived: null, diagnostics: [],
+    });
+
+    const result = await deriveInFlight({
+      exec: makeExec({}), branches: ["chore/groom-widget"], identity: null, teamMode: false, locusState: state,
+    });
+
+    expect(result.entries).toEqual([]);
+    expect(result.residue).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("retains a work-unit role as branch authority after its active meta is archived", async () => {
+    const result = await deriveInFlight({
+      exec: makeExec({}),
+      branches: ["feat/shipped-widget"],
+      identity: null,
+      teamMode: false,
+      locusState: locusStateFixture({ rows: [managedWorkUnitRow("shipped-widget", "/wt/widget")] }),
+    });
+
+    expect(result.residue).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("keeps a locus-owned checkout authoritative over its stale same-branch remote", async () => {
+    // Suppressing the residue advisory must not also surrender the branch location: the
+    // worktree carries no active meta, so the remote twin's stale one is archived work
+    // and must not survive deduplication as a live entry.
+    const exec = makeExec({
+      worktrees: [{ path: "/wt/done", branch: "feat/done" }],
+      localRefs: ["feat/done"],
+      liveBranches: ["feat/done"],
+      metas: {
+        "origin/feat/done:.arc/active/meta-done.md": metaContent({ branch: "feat/done" }),
+      },
+    });
+
+    const { entries, residue } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+      locusState: locusStateFixture({ rows: [managedWorkUnitRow("done", "/wt/done")] }),
+    });
+
+    expect(entries).toEqual([]);
+    // Still not residue — the locus owns the branch; only the tombstone survives.
+    expect(residue).toEqual([]);
+  });
+
+  it("keeps branch cleanup indeterminate when the complete locus read is unavailable", async () => {
+    const result = await deriveInFlight({
+      exec: makeExec({}), branches: ["fix/legacy"], identity: null, teamMode: false, locusState: null,
+    });
+
+    expect(result.residue).toEqual([{
+      branch: "fix/legacy", slug: "legacy", reason: "classification-unavailable",
+    }]);
+    expect(result.warnings).toEqual([]);
+  });
+
   it("surfaces an errand record whose branch no longer exists", async () => {
     const exec = makeExec({ liveBranches: [] });
 
@@ -782,6 +866,38 @@ describe("deriveInFlight", () => {
     expect(entries).toEqual([
       { kind: "errand", branch: "chore/fix-typo", slug: "fix-typo", remoteOnly: true },
     ]);
+  });
+
+  it("joins local transient marker provenance to the exact identity generation", async () => {
+    const branch = "chore/fix-typo";
+    const expected = { kind: "errand", slug: "fix-typo", claimId: "a".repeat(32) } as const;
+    const exec = makeExec({ worktrees: [{ path: "/wt/fix-typo", branch }], metas: {} });
+
+    const { entries } = await deriveInFlight({
+      exec,
+      branches: [branch],
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([[branch, expected.slug]]),
+      expectedTransientByBranch: new Map([[branch, expected]]),
+      readMarker: async () => ({
+        kind: "present",
+        marker: {
+          spawnedByArc: true,
+          createdFor: { ...expected, claimId: "b".repeat(32) },
+          provisioning: "ready",
+          spawningIdentity: "andrew",
+          createdAt: "2026-07-20T00:00:00.000Z",
+        },
+      }),
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.transientProvenance).toEqual({
+      kind: "claim-mismatch",
+      subject: { ...expected, claimId: "b".repeat(32) },
+      expected,
+    });
   });
 
   it("classifies an unpushed local errand branch with no worktree as local in-flight work", async () => {

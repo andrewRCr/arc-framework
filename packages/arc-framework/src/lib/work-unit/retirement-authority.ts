@@ -252,7 +252,12 @@ export function worktreeSubjectsEqual(left: WorktreeSubject, right: WorktreeSubj
     case "work-unit":
       return right.kind === "work-unit" && left.name === right.name;
     case "errand":
-      return right.kind === "errand" && left.slug === right.slug;
+      return right.kind === "errand"
+        && left.slug === right.slug
+        && transientClaim(left) === transientClaim(right);
+    case "groom":
+    case "housekeep":
+      return right.kind === left.kind && left.slug === right.slug && left.claimId === right.claimId;
     case "branch":
       return right.kind === "branch" && left.ref === right.ref;
   }
@@ -265,7 +270,18 @@ export function worktreeSubjectsEqual(left: WorktreeSubject, right: WorktreeSubj
  * @returns A semantic refusal, or `null` when the subject is supported
  */
 export function retirementSubjectRefusal(subject: WorktreeSubject): TeardownAuthorizationRefusal | null {
-  return subject.kind === "errand" ? "unsupported-transition" : null;
+  return isRetirementSubjectSupported(subject) ? null : "unsupported-transition";
+}
+
+/** Narrow the only subject kinds supported by WU retirement and teardown. */
+export function isRetirementSubjectSupported(
+  subject: WorktreeSubject,
+): subject is Extract<WorktreeSubject, { kind: "work-unit" | "branch" }> {
+  return subject.kind === "work-unit" || subject.kind === "branch";
+}
+
+function transientClaim(subject: Extract<WorktreeSubject, { kind: "errand" }>): string | null {
+  return "claimId" in subject ? subject.claimId : null;
 }
 
 /**

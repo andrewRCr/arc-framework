@@ -21,8 +21,19 @@ import {
   type ErrandRecordReadIO,
 } from "./ref-tree.js";
 import { writeTreeWithCasRetry } from "../user-sync/cas-retry.js";
+import {
+  assertTransientIdentityOperation,
+  type TransientIdentityRecord,
+  type TransientIdentityOperation,
+  type TransientIdentityRecordV3,
+} from "./identity-record.js";
+import {
+  readTransientIdentitySnapshot,
+  type IdentitySnapshotDiagnostic,
+} from "./identity-snapshot.js";
 
 import type { GitExec } from "../git/exec.js";
+import type { TransientWorktreeSubject } from "../git/worktree-marker.js";
 
 /**
  * How an errand came to be — the discriminator carried uniformly by every
@@ -147,25 +158,77 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 /**
- * Read one errand record by slug, or `null` when the ref or the slug is absent.
+ * Read one legacy errand record from a complete, tip-pinned identity snapshot.
  *
  * @param io - Injected git seams and identity.
  * @param slug - The errand slug keying the record in the ref's tree.
- * @returns The parsed record, or `null` when missing or unparseable.
+ * @param operation - Read-only access or the state-changing verb requesting authority.
+ * @returns The parsed legacy record, or `null` only when the ref/key is proven absent.
+ * @throws {ErrandRecordReadError} When the basis is incomplete, the record is v3, or a non-close mutation targets
+ *   a legacy generation.
  */
+/** Structured reason a legacy single-record command cannot proceed safely. */
+export type ErrandRecordReadFailure =
+  | { kind: "snapshot-error"; stage: "tip" | "tree"; message: string }
+  | { kind: "invalid-basis"; diagnostics: readonly IdentitySnapshotDiagnostic[] }
+  | {
+      kind: "legacy-close-only";
+      operation: Exclude<TransientIdentityOperation, "close" | "read">;
+      record: ErrandRecord;
+    }
+  | { kind: "current-record"; operation: TransientIdentityOperation; record: TransientIdentityRecordV3 };
+
+/** Typed command-boundary failure preserving why a record was not safely readable. */
+export class ErrandRecordReadError extends Error {
+  readonly failure: ErrandRecordReadFailure;
+
+  constructor(failure: ErrandRecordReadFailure) {
+    super(messageForReadFailure(failure));
+    this.name = "ErrandRecordReadError";
+    this.failure = failure;
+  }
+}
+
 export async function readErrandRecord(
   io: ErrandRecordReadIO,
   slug: string,
+  operation: TransientIdentityOperation = "read",
 ): Promise<ErrandRecord | null> {
-  const ref = errandsRef(io.identity);
-  let blob: string;
-  try {
-    const { stdout } = await io.exec("git", ["cat-file", "-p", `${ref}:${slug}`]);
-    blob = stdout;
-  } catch {
-    return null;
+  const snapshot = await readTransientIdentitySnapshot(io);
+  if (snapshot.kind === "absent") return null;
+  if (snapshot.kind === "error") {
+    throw new ErrandRecordReadError({
+      kind: "snapshot-error",
+      stage: snapshot.stage,
+      message: snapshot.message,
+    });
   }
-  return deserializeErrandRecord(blob);
+  if (snapshot.diagnostics.length > 0) {
+    throw new ErrandRecordReadError({ kind: "invalid-basis", diagnostics: snapshot.diagnostics });
+  }
+  const record = snapshot.records.get(slug);
+  if (record === undefined) return null;
+  try {
+    assertTransientIdentityOperation(record, operation);
+  } catch {
+    if (record.version === 3 || operation === "close" || operation === "read") {
+      throw new Error("unreachable identity operation guard");
+    }
+    throw new ErrandRecordReadError({ kind: "legacy-close-only", operation, record });
+  }
+  if (record.version === 3) {
+    throw new ErrandRecordReadError({ kind: "current-record", operation, record });
+  }
+  return record;
+}
+
+function messageForReadFailure(failure: ErrandRecordReadFailure): string {
+  switch (failure.kind) {
+    case "snapshot-error": return `Errand identity ${failure.stage} read failed: ${failure.message}`;
+    case "invalid-basis": return "Errand identity basis contains invalid entries";
+    case "legacy-close-only": return `Legacy identity '${failure.record.slug}' is close-only`;
+    case "current-record": return `Current identity '${failure.record.slug}' requires v3 transitions`;
+  }
 }
 
 /**
@@ -244,6 +307,114 @@ export async function readErrandSlugByBranch(
   if (io.identity === null) return new Map();
   const records = await listErrandRecords({ exec: io.exec, identity: io.identity });
   return new Map(records.map((record) => [record.branch, record.slug]));
+}
+
+/** Exact branch indexes for transient in-flight classification and marker-generation joins. */
+export interface TransientInFlightIndexes {
+  slugByBranch: Map<string, string>;
+  expectedByBranch: Map<string, TransientWorktreeSubject>;
+  expectedBySlug: Map<string, TransientWorktreeSubject>;
+  records: TransientIdentityRecord[];
+}
+
+/**
+ * Exact outcome of one identity-index read.
+ *
+ * Only `absent` and a diagnostic-free `complete` establish the identity's whole
+ * claim set — the state a caller needs before treating a branch the indexes omit
+ * as carrying no transient claim. `error` establishes nothing, and a `complete`
+ * read that dropped entries reports them rather than presenting a partial index
+ * as the whole one.
+ */
+export type TransientInFlightRead =
+  | { kind: "absent"; indexes: TransientInFlightIndexes }
+  | {
+      kind: "complete";
+      indexes: TransientInFlightIndexes;
+      diagnostics: readonly IdentitySnapshotDiagnostic[];
+    }
+  | { kind: "error"; stage: "tip" | "tree"; message: string };
+
+/**
+ * Project a read into usable indexes plus whether they establish the whole claim set.
+ *
+ * Every consumer degrades the same way — derive over what was readable — but none may
+ * treat a branch the indexes omit as claim-free unless `complete` holds. Callers reach
+ * the indexes through this projection so the unreadable arm cannot be skipped silently.
+ *
+ * @param read - Outcome of {@link readTransientInFlightIndexes}
+ * @returns Indexes to derive over, whether absence is established, and any degradation notice
+ */
+export function projectTransientInFlightRead(read: TransientInFlightRead): {
+  indexes: TransientInFlightIndexes;
+  complete: boolean;
+  degraded: string | null;
+} {
+  if (read.kind === "error") {
+    return {
+      indexes: emptyTransientInFlightIndexes(),
+      complete: false,
+      degraded: `Transient identity unreadable (${read.stage}): ${read.message}`,
+    };
+  }
+  if (read.kind === "absent") return { indexes: read.indexes, complete: true, degraded: null };
+  if (read.diagnostics.length === 0) {
+    return { indexes: read.indexes, complete: true, degraded: null };
+  }
+  return {
+    indexes: read.indexes,
+    complete: false,
+    degraded: `Transient identity dropped ${read.diagnostics.length} unreadable entr`
+      + `${read.diagnostics.length === 1 ? "y" : "ies"}.`,
+  };
+}
+
+/** Indexes carrying no claims — the basis a caller degrades onto after an unreadable identity. */
+export function emptyTransientInFlightIndexes(): TransientInFlightIndexes {
+  return {
+    slugByBranch: new Map(),
+    expectedByBranch: new Map(),
+    expectedBySlug: new Map(),
+    records: [],
+  };
+}
+
+/**
+ * Read the identity's transient records into branch and slug indexes.
+ *
+ * @param io - Injected read seam (`exec`) and the identity, which may be `null`.
+ * @returns Clean absence, an unreadable identity, or the indexes plus any dropped entries.
+ */
+export async function readTransientInFlightIndexes(
+  io: { exec: GitExec; identity: string | null },
+): Promise<TransientInFlightRead> {
+  // No identity resolves no claims by definition — an established absence, not an
+  // unreadable one, so it stays distinct from a failed read of a real identity.
+  if (io.identity === null) return { kind: "absent", indexes: emptyTransientInFlightIndexes() };
+  const snapshot = await readTransientIdentitySnapshot({ exec: io.exec, identity: io.identity });
+  if (snapshot.kind === "error") {
+    return { kind: "error", stage: snapshot.stage, message: snapshot.message };
+  }
+  if (snapshot.kind === "absent") return { kind: "absent", indexes: emptyTransientInFlightIndexes() };
+
+  const indexes = emptyTransientInFlightIndexes();
+  for (const record of snapshot.records.values()) {
+    if (record.version !== 3 || record.branch === null) {
+      if (record.version !== 3) indexes.slugByBranch.set(record.branch, record.slug);
+      continue;
+    }
+    indexes.slugByBranch.set(record.branch, record.slug);
+    const kind = record.kind === "groom"
+      ? "groom"
+      : record.purpose === "housekeep-routing"
+        ? "housekeep"
+        : "errand";
+    const subject = { kind, slug: record.slug, claimId: record.claimId } as TransientWorktreeSubject;
+    indexes.expectedByBranch.set(record.branch, subject);
+    indexes.expectedBySlug.set(record.slug, subject);
+  }
+  indexes.records = [...snapshot.records.values()];
+  return { kind: "complete", indexes, diagnostics: snapshot.diagnostics };
 }
 
 /**

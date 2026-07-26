@@ -7,7 +7,7 @@
  * verb).
  *
  * {@link runCreateNew} is the explicit create-new path: it cuts an isolated
- * worktree on a new `plan/<name>` branch via the `reconcile-worktree.spawn` leg
+ * worktree on a new `plan/<name>` branch via the `reconcile-work-unit-worktree.spawn` leg
  * (ARC mints it, so the ownership marker lands), then scaffolds the Planning meta
  * + SESSION-NOTES. It is what the `arc-session` skill reaches for when starting
  * fresh work.
@@ -57,15 +57,20 @@ import {
   type TransitionOutcome,
 } from "../lib/work-unit/lifecycle-executor.js";
 import {
-  nodeReconcileWorktreeFs,
-  reconcileWorktree,
-  type ReconcileWorktreeOp,
-  type ReconcileWorktreeResult,
-} from "../lib/work-unit/mutators/reconcile-worktree.js";
+  nodeReconcileWorkUnitWorktreeFs,
+  reconcileWorkUnitWorktree,
+  type ReconcileWorkUnitWorktreeOp,
+  type ReconcileWorkUnitWorktreeResult,
+} from "../lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
+import {
+  createNodeWorkUnitLocusDriver,
+  type WorkUnitLocusDriver,
+  type WorkUnitLocusReceipt,
+} from "../lib/work-unit/work-unit-locus.js";
 
 /**
  * The arm `start` dispatches to for a resolved lifecycle state. `create-new`
@@ -330,7 +335,7 @@ export type GraduateResult =
  * Run the `graduate` arm of `start` (`init` Path A): relocate a backlog stub's
  * artifact set into `active/` and bring up its `plan/<name>` branch, dispatched
  * through {@link executeTransition} as the `start` verb. The branch comes up via
- * the `reconcile-worktree` spawn leg in one of two placement modes: a fresh
+ * the `reconcile-work-unit-worktree` spawn leg in one of two placement modes: a fresh
  * worktree (default), or — under the `--here` opt-out (`inPlace`) — a `git
  * checkout -b` in the current checkout, no spawn. The `reconcile-branch` create
  * leg stays inert either way (the worktree leg owns branch birth). The executor
@@ -364,7 +369,7 @@ export async function runGraduate(
     ctx,
     params,
     branch,
-    { mutation: "spawn", inPlace: true, branch, createBranch: true },
+    { mutation: "spawn", inPlace: true, branch, wuName: params.name, attachSession: true, createBranch: true },
   );
 }
 
@@ -380,9 +385,9 @@ async function runGraduateSpawn(
     };
   }
 
-  let spawnResult: ReconcileWorktreeResult;
+  let spawnResult: ReconcileWorkUnitWorktreeResult;
   try {
-    spawnResult = await ctx.reconcileWorktree({
+    spawnResult = await ctx.reconcileWorkUnitWorktree({
       mutation: "spawn",
       branch,
       base: params.baseBranch,
@@ -417,7 +422,15 @@ async function runGraduateSpawn(
         }),
     },
     branch,
-    { mutation: "spawn", inPlace: true, branch, createBranch: true, deferCheckout: true },
+    {
+      mutation: "spawn",
+      inPlace: true,
+      branch,
+      wuName: params.name,
+      attachSession: false,
+      createBranch: true,
+      deferCheckout: true,
+    },
   );
   if (result.status !== "graduated") return result;
   return {
@@ -473,7 +486,7 @@ async function runGraduateThroughExecutor(
   ctx: ExecuteTransitionContext,
   params: GraduateBaseParams,
   branch: string,
-  worktreeOp: ReconcileWorktreeOp,
+  worktreeOp: ReconcileWorkUnitWorktreeOp,
 ): Promise<GraduateResult> {
   const inputs: TransitionInputs = {
     toDir: ACTIVE_DIR,
@@ -745,7 +758,7 @@ export type CreateNewOutcome =
 
 /**
  * Spawn an isolated worktree on a new `plan/<name>` branch for a brand-new work
- * unit, recomposed on the lifecycle bundle legs: the `reconcile-worktree.spawn`
+ * unit, recomposed on the lifecycle bundle legs: the `reconcile-work-unit-worktree.spawn`
  * leg cuts the branch + worktree and writes the ownership marker (ARC mints this
  * one), then the `scaffold` + user-workspace legs (via {@link
  * scaffoldIntoWorktree}, `createdByArc: false` so the spawn's marker is kept) write
@@ -793,9 +806,17 @@ export async function runCreateNew(
   // Spawn leg: cut the branch + worktree and write the ARC-created marker.
   let worktreePath: string;
   let postCreateNotice: string | undefined;
+  let spawnedLocus: WorkUnitLocusReceipt | undefined;
+  const locusDriver = ctx.workUnitLocus
+    ?? createNodeWorkUnitLocusDriver({ exec: ctx.io.exec, identity: params.identity });
   try {
-    const spawnResult = await reconcileWorktree(
-      { exec: ctx.io.exec, chdir: (dir) => { process.chdir(dir); }, fs: nodeReconcileWorktreeFs },
+    const spawnResult = await reconcileWorkUnitWorktree(
+      {
+        exec: ctx.io.exec,
+        chdir: (dir) => { process.chdir(dir); },
+        fs: nodeReconcileWorkUnitWorktreeFs,
+        locus: locusDriver,
+      },
       {
         mutation: "spawn",
         branch,
@@ -814,6 +835,7 @@ export async function runCreateNew(
     }
     worktreePath = spawnResult.worktreePath;
     postCreateNotice = spawnResult.postCreateNotice;
+    spawnedLocus = spawnResult.locus;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `could not spawn the worktree: ${message}` };
@@ -836,7 +858,10 @@ export async function runCreateNew(
       }),
     });
   } catch (err) {
-    await rollbackSpawnedWorktree(ctx.io.exec, worktreePath, branch);
+    await rollbackSpawnedWorktree(ctx.io.exec, worktreePath, branch, {
+      wuName,
+      ...(spawnedLocus?.roleCreated === true ? { driver: locusDriver } : {}),
+    });
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `could not scaffold the work unit: ${message}` };
   }
@@ -857,14 +882,24 @@ export async function runCreateNew(
  * worktree and delete its branch. Errors are swallowed so the original scaffold
  * failure is the one surfaced (the user-facing teardown leg refuses a dirty
  * worktree; `--force` stays rollback-only, as here).
+ *
+ * A role this spawn minted is retired through its own driver, which proves the exact generation
+ * under the record lock before removing anything — otherwise the rollback would report success
+ * while leaving a role naming a checkout that no longer exists. A role the spawn merely reused is
+ * not this rollback's to retire, so it is left alone.
  */
 async function rollbackSpawnedWorktree(
   exec: SpawnWorktreeContext["io"]["exec"],
   worktreePath: string,
   branch: string,
+  role: { wuName: string; driver?: WorkUnitLocusDriver },
 ): Promise<void> {
-  try {
+  const removeCheckout = async (): Promise<void> => {
     await exec("git", ["worktree", "remove", "--force", worktreePath]);
+  };
+  try {
+    if (role.driver?.retire === undefined) await removeCheckout();
+    else await role.driver.retire({ checkoutPath: worktreePath, wuName: role.wuName, removeCheckout });
     await exec("git", ["branch", "-D", branch]);
   } catch {
     // Best-effort — the original scaffold failure is the one worth surfacing.

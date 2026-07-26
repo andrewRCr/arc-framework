@@ -101,6 +101,12 @@ const REOPEN_CTX = {
   to: { phase: "Active", location: "active" },
 } as const;
 
+describe("buildExecutorContext — WU worktree binding", () => {
+  it("registers the renamed WU-specific worktree reconciler", () => {
+    expect(buildCtx().reconcileWorkUnitWorktree).toBeDefined();
+  });
+});
+
 describe("buildExecutorContext — current-WU reconcile binding", () => {
   it("prepares through the lifecycle and receipt boundaries", async () => {
     const ctx = buildCtx();

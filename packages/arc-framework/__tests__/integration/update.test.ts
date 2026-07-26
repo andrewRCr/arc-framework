@@ -104,6 +104,13 @@ describe("update integration — baseline (real recipe)", () => {
 
     const manifest = await readManifestFile(tempDir);
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
+    for (const path of [
+      "reference/strategies/arc/strategy-concurrent-work.md",
+      "system/workflows/arc/supplemental/drain-inbox.md",
+    ]) {
+      expect(await fileExists(join(tempDir, ".arc", path)), path).toBe(true);
+      expect(manifest.files[path]?.classification, path).toBe("Framework");
+    }
     expect(manifest.files["system/.internal/skills/arc-design-audit/SKILL.md"]).toMatchObject({
       classification: "Framework",
       layer: "core",

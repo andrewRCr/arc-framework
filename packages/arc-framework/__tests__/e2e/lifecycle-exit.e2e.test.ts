@@ -288,7 +288,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await writeWorktreeOwnershipMarker(worktree!, {
       createdByArc: true,
       createdFor: { kind: "work-unit", name: "mono" },
-      spawningIdentity: "tester",
+      spawningIdentity: "test-user",
     });
     const cutMap = await writeCutMap(repo, "mono", "mono", ["alpha", "beta"]);
 
@@ -452,7 +452,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await writeWorktreeOwnershipMarker(worktree!, {
       createdByArc: true,
       createdFor: { kind: "work-unit", name: "solo" },
-      spawningIdentity: "tester",
+      spawningIdentity: "test-user",
     });
     const park = await runArc(["park", "solo", "--reason", "later"], worktree!);
     expect(park.exitCode, park.stdout + park.stderr).toBe(0);
@@ -477,7 +477,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       await writeWorktreeOwnershipMarker(worktree, {
         createdByArc: true,
         createdFor: { kind: "work-unit", name: "solo" },
-        spawningIdentity: "tester",
+        spawningIdentity: "test-user",
       });
       const land = await runArc(["park", "solo", "--land", transition], repo);
       expect(land.exitCode, land.stdout + land.stderr).toBe(0);
@@ -651,7 +651,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await writeWorktreeOwnershipMarker(worktree!, {
       createdByArc: true,
       createdFor: { kind: "work-unit", name: "mono" },
-      spawningIdentity: "tester",
+      spawningIdentity: "test-user",
     });
 
     const abandon = await runArc(["abandon", "mono", "--yes"], worktree!);
@@ -680,7 +680,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await writeWorktreeOwnershipMarker(worktree!, {
       createdByArc: true,
       createdFor: { kind: "work-unit", name: "mono" },
-      spawningIdentity: "tester",
+      spawningIdentity: "test-user",
     });
 
     const abandon = await runArc(["abandon", "mono", "--yes"], worktree!);
@@ -782,7 +782,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await writeWorktreeOwnershipMarker(worktree!, {
       createdByArc: true,
       createdFor: { kind: "work-unit", name: "mono" },
-      spawningIdentity: "tester",
+      spawningIdentity: "test-user",
     });
     const abandon = await runArc(["abandon", "mono", "--yes"], worktree!);
     expect(abandon.exitCode, abandon.stdout + abandon.stderr).toBe(0);

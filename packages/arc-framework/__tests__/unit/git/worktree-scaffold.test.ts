@@ -1,7 +1,7 @@
 /**
  * Unit tests for {@link scaffoldIntoWorktree} — the shared meta + SESSION-NOTES
  * writer for a work-unit worktree root. It never runs `git worktree add`: both
- * `start` entry paths (create-new after the `reconcile-worktree.spawn` leg, and
+ * `start` entry paths (create-new after the `reconcile-work-unit-worktree.spawn` leg, and
  * cold-start into an existing checkout) build on it. Covers the meta /
  * SESSION-NOTES scaffold, spec-input field rendering, and the `createdByArc`
  * marker gate. Git is mocked at the exec seam; the filesystem is real (temp dirs).

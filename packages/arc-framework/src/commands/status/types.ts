@@ -60,10 +60,14 @@ import type { WorkUnitStateResult } from "../../lib/session-init/work-unit-state
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
 import type { ClassComposition } from "../../lib/status/class-composition.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
+import type { HandoffLocusPlan } from "../../lib/handoff/locus-plan.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
+import type { LocusStateV1 } from "../../lib/locus/schema/index.js";
+import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
+import type { RecoveryLocusContext, RecoveryLocusFrame } from "../../lib/recover/locus-context.js";
 import type { CurrentWuReconcileSessionResult } from "../../lib/session-init/current-wu-reconcile.js";
 import type { UserReferenceReconcileSessionResult } from "../../lib/user-reference-reconcile.js";
 
@@ -208,6 +212,10 @@ export interface StatusResult {
 export interface SessionInitProbeResult {
   mode: "session-init";
   identity: StatusIdentity;
+  /** Shared network-free interpretation of machine-local session occupancy. */
+  locusState: Probe<LocusStateV1>;
+  /** CLI-precomposed narration derived from the same locus probe. */
+  locusGuidance: LocusSessionGuidance;
   user: Probe<SessionInitUserValue>;
   worktree: Probe<SessionInitWorktreeValue>;
   /**
@@ -264,9 +272,9 @@ export interface SessionInitProbeResult {
    */
   sweep?: Probe<StaleWorktreeSweepResult>;
   /**
-   * Derived orientation for a linked branchless checkout that is an exact,
-   * locally completed stamped WU husk. This interim advisory is separate from
-   * worktree sync state and may be superseded by a durable locus record.
+   * Derived orientation for a linked branchless checkout that is either an
+   * exact stamped WU husk or carries diagnostic-only transient provenance.
+   * This interim advisory is separate from worktree sync state.
    * Omitted on ordinary branched/primary paths and when the probe degrades.
    */
   currentHusk?: Probe<CurrentHuskAdvisory | null>;
@@ -328,11 +336,11 @@ export interface SessionInitProbeResult {
    */
   workUnitState?: Probe<WorkUnitStateResult>;
   /**
-   * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
-   * and a `housekeepNeeded` flag, so the Orient arm offers housekeep from a
-   * machine-resolved signal rather than an agent re-scan. Present whenever
-   * identity resolved (the source is identity-scoped); omitted only when
-   * identity is absent.
+   * Pre-computed inbox-state probe — routable-entry demand plus file-ordered
+   * execute-bound titles and queue diagnostics from `USER-INBOX`. The Orient
+   * arm can offer housekeep or sequential execution from machine-resolved
+   * signals rather than an agent re-scan. Present whenever identity resolves;
+   * omitted only when identity is absent.
    */
   inboxState?: Probe<InboxStateResult>;
   /**
@@ -409,6 +417,12 @@ export interface SessionRecoverWorktreeValue extends WorktreeSyncStatusResult {
 export interface SessionRecoverProbeResult {
   mode: "recover";
   identity: StatusIdentity;
+  /** Shared network-free interpretation of machine-local session occupancy. */
+  locusState: Probe<LocusStateV1>;
+  /** CLI-precomposed narration derived from the same locus probe. */
+  locusGuidance: LocusSessionGuidance;
+  /** Reader-owned active frame and governing workflow selected from `locusState`. */
+  recoveryFrame: Probe<RecoveryLocusFrame>;
   worktree: Probe<SessionRecoverWorktreeValue>;
   dirty: Probe<DirtyStateResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
@@ -470,6 +484,12 @@ export interface HandoffSyncInterlock {
 export interface SessionHandoffResult {
   mode: "session-handoff";
   identity: StatusIdentity;
+  /** Shared network-free interpretation of machine-local session occupancy. */
+  locusState: Probe<LocusStateV1>;
+  /** CLI-precomposed narration derived from the same locus probe. */
+  locusGuidance: LocusSessionGuidance;
+  /** Exact subject action derived from the same reader-owned locus snapshot. */
+  handoffLocus: Probe<HandoffLocusPlan>;
   /**
    * Current branch name from the worktree probe; `null` on detached HEAD or
    * when the worktree probe failed.
@@ -501,10 +521,11 @@ export interface SessionHandoffResult {
   /** Resolved release-wrapper routing decisions for workflow fire-site classes. */
   releaseRouting: Probe<ReleaseRoutingValue>;
   /**
-   * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
-   * and a `housekeepNeeded` flag, so the between-WUs handoff branch can offer
-   * housekeep from a machine-resolved signal rather than an agent re-scan.
-   * Present whenever identity resolved; omitted only when identity is absent.
+   * Pre-computed inbox-state probe — routable-entry demand plus file-ordered
+   * execute-bound titles and queue diagnostics from `USER-INBOX`. The
+   * between-WUs handoff branch can offer housekeep or sequential execution from
+   * machine-resolved signals rather than an agent re-scan. Present whenever
+   * identity resolves; omitted only when identity is absent.
    */
   inboxState?: Probe<InboxStateResult>;
   /**
@@ -530,6 +551,8 @@ export interface SessionHandoffResult {
  * identity-missing primitive because its `user` / `active` signatures differ.
  */
 export interface SessionSharedProbes {
+  /** Resolve the shared, network-free machine-local locus interpretation. */
+  locusState: (identity: string) => Promise<LocusStateV1>;
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   dirty: () => Promise<DirtyStateResult>;
@@ -702,6 +725,14 @@ export interface SessionInitProbes extends SessionSharedProbes {
 
 /** Probe functions in recover mode — the lean subset recovery needs. */
 export interface SessionRecoverProbes {
+  /** Resolve the shared, network-free machine-local locus interpretation. */
+  locusState: (identity: string) => Promise<LocusStateV1>;
+  /** Resolve the one close-only pre-locus Errand rollout shape, or null. */
+  legacyErrand: (
+    identity: string | null,
+    role: string | null,
+    workingMemoryPath: string | null,
+  ) => Promise<RecoveryLocusContext | null>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
@@ -712,12 +743,11 @@ export interface SessionRecoverProbes {
     role: string | null,
   ) => Promise<ActiveSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
-  cohortDoc: (activeMetaPath: string) => Promise<string | null>;
-  taskCursor: (taskListPath: string) => Promise<TaskListCursorFileResult>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
 export interface SessionHandoffProbes extends SessionSharedProbes {
+  worktreeIdentity: () => Promise<WorktreeIdentity>;
   syncInterlock: () => Promise<HandoffSyncInterlock>;
   head: () => Promise<HeadHashResult>;
   pushability: () => Promise<PushabilityResult>;

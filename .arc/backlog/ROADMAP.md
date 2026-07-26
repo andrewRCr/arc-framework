@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `7bfd4551d`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `c6443e34a`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -90,6 +90,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                     | Priority | Owner  | Depends on                                                  | Cohort                     |
 | ----------------------------- | -------- | ------ | ----------------------------------------------------------- | -------------------------- |
+| errand-transient-lifecycle    | P1       | andrew | session-locus-model                                         | —                          |
 | unit-scoped-review            | P2       | andrew | commit-increments                                           | approval-flow-refinement   |
 | documentation-surface-routing | P3       | andrew | handoff-optimization                                        | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | composable-workflows                                        | agent-context-optimization |
@@ -100,9 +101,16 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit          | Priority | Owner  | Depends on         | Cohort            |
-| ------------------ | -------- | ------ | ------------------ | ----------------- |
-| wu5-public-release | P3       | andrew | docs-content-sweep | release-readiness |
+| Work unit           | Priority | Owner  | Depends on                 | Cohort            |
+| ------------------- | -------- | ------ | -------------------------- | ----------------- |
+| claimed-sweep-verbs | P1       | andrew | errand-transient-lifecycle | —                 |
+| wu5-public-release  | P3       | andrew | docs-content-sweep         | release-readiness |
+
+### Depth 3
+
+| Work unit                | Priority | Owner  | Depends on          | Cohort |
+| ------------------------ | -------- | ------ | ------------------- | ------ |
+| locus-generation-binding | P2       | andrew | claimed-sweep-verbs | —      |
 
 ---
 

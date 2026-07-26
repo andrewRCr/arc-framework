@@ -5,7 +5,7 @@
  * including the resolved branch-protection mode that selects its write lane.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -43,5 +43,45 @@ describe("arc housekeep check", () => {
       baseBranch: "main",
       branchProtection: "full",
     });
+  });
+
+  it("atomically marks an execute-bound batch without dispatch metadata", async () => {
+    if (tmpDir === undefined) throw new Error("Test setup did not initialize a temporary repository");
+    const userDir = join(tmpDir, ".arc", "user", "test-user");
+    await mkdir(userDir, { recursive: true });
+    await writeFile(join(userDir, "USER-INBOX.md"), [
+      "# User Inbox",
+      "",
+      "## Errand",
+      "",
+      "### `[ ]` **Run now**",
+      "",
+      "- _Observation:_ Execute this capture.",
+      "",
+      "### `[ ]` **Run next**",
+      "",
+      "- _Observation:_ Execute this capture next.",
+      "",
+      "## Work Unit",
+      "",
+      "---",
+      "",
+    ].join("\n"), "utf8");
+    const result = await runArc([
+      "housekeep", "mark-execute", "Run now", "Run next", "--json",
+    ], tmpDir);
+
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout.trim())).toMatchObject({
+      mode: "housekeep-mark-execute",
+      outcome: "applied",
+      entries: [
+        { title: "Run now", state: "applied" },
+        { title: "Run next", state: "applied" },
+      ],
+    });
+    const inbox = await readFile(join(userDir, "USER-INBOX.md"), "utf8");
+    expect(inbox.match(/- _Disposition:_ `execute-bound`/gu)).toHaveLength(2);
+    expect(inbox).not.toContain("_Dispatch:_");
   });
 });

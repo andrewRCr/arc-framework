@@ -1,6 +1,6 @@
 /**
- * Inbox-state probe — a session-init signal that counts the routable entries in
- * a developer's `USER-INBOX` and derives whether housekeeping is due.
+ * Inbox-state probe — session-init routing demand plus the durable execute-bound
+ * queue visible in a developer's `USER-INBOX`.
  *
  * The pure core counts well-formed (`parse.ok`) entries across the inbox's
  * `## Errand` and `## Work Unit` sections, so session-init can offer housekeep
@@ -9,7 +9,9 @@
  * (mirroring the staleness sweep skipping entries it cannot age), and so are
  * entries deliberately retained at a drain (`_Hold:_ \`true\``) — a held entry
  * is triaged, not pending, so it must not re-trigger the housekeep offer (the
- * reminder sweep surfaces it instead; see `inbox-reminders`).
+ * reminder sweep surfaces it instead; see `inbox-reminders`). Execute-bound
+ * entries are likewise excluded from routing and returned in file order for
+ * sequential continuation; malformed queue state remains visible as diagnostics.
  *
  * The caller (the session-init probe) owns identity-gating and the file read;
  * this module carries no file or identity coupling of its own.
@@ -19,7 +21,7 @@
 
 import { z } from "zod";
 
-import { parseCrossWuEntries, type EntryParse } from "../user-sync/index.js";
+import { listExecuteBoundInboxEntries, parseCrossWuEntries, type EntryParse } from "../user-sync/index.js";
 import { managedFlagIsTrue } from "./managed-field.js";
 
 /** Runtime authority for the inbox-state advisory result. */
@@ -27,6 +29,8 @@ export const InboxStateResultSchema = z
   .object({
     routableCount: z.number().int().nonnegative(),
     housekeepNeeded: z.boolean(),
+    pendingExecuteBound: z.array(z.string().min(1)).optional(),
+    executeBoundDiagnostics: z.array(z.string().min(1)).optional(),
   })
   .strict()
   .refine((value) => value.housekeepNeeded === (value.routableCount > 0), {
@@ -42,18 +46,29 @@ export interface RunInboxStateOptions {
   content: string;
 }
 
-/** Whether one inferred parse outcome is a routable, non-held inbox entry. */
+/** Whether one inferred parse outcome is a routable, non-held, non-execute-bound inbox entry. */
 function isRoutableEntry(parse: EntryParse): boolean {
-  return parse.ok && !managedFlagIsTrue(parse.entry.raw, "Hold");
+  return parse.ok
+    && !managedFlagIsTrue(parse.entry.raw, "Hold")
+    && !parse.entry.raw.includes("- _Disposition:_ `execute-bound`")
+    && !parse.entry.raw.includes("- _Dispatch:_");
 }
 
 /**
- * Count routable `USER-INBOX` entries and derive the housekeep-needed flag.
+ * Derive routing demand and the visible execute-bound queue from `USER-INBOX`.
  *
  * @param options - The inbox file content.
- * @returns The routable-entry count and the housekeep-needed flag.
+ * @returns Routing demand, file-ordered execute-bound titles, and queue diagnostics.
  */
 export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
   const routableCount = parseCrossWuEntries(options.content, "user-inbox").filter(isRoutableEntry).length;
-  return { routableCount, housekeepNeeded: routableCount > 0 };
+  // Per-entry diagnostics, never a whole-queue discard: one malformed capture must not hide the
+  // queued siblings that read cleanly.
+  const listing = listExecuteBoundInboxEntries(options.content);
+  return {
+    routableCount,
+    housekeepNeeded: routableCount > 0,
+    pendingExecuteBound: listing.entries.map((entry) => entry.title),
+    executeBoundDiagnostics: [...listing.diagnostics],
+  };
 }

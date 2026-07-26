@@ -39,7 +39,11 @@ import {
   renderInFlightWarning,
   type PrSource,
 } from "../git/in-flight-derivation.js";
-import { readErrandSlugByBranch } from "../errand/record.js";
+import {
+  projectTransientInFlightRead,
+  readErrandSlugByBranch,
+  readTransientInFlightIndexes,
+} from "../errand/record.js";
 
 import { buildInFlightMineSlice } from "./in-flight-mine.js";
 import {
@@ -129,7 +133,14 @@ export async function runStatusUserView(
   // remote reachability so the unreachable path below never has to recompute it.
   const ready = await options.readReadyMine();
 
-  const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
+  const [legacySlugByBranch, read] = await Promise.all([
+    readErrandSlugByBranch({ exec, identity }),
+    readTransientInFlightIndexes({ exec, identity }),
+  ]);
+  // The rendered view degrades rather than stops, but it must not present a partial
+  // identity as the whole one: an unreadable or entry-dropping read marks the oracle
+  // incomplete, which surfaces as a warning beside the view.
+  const { indexes, complete: transientComplete } = projectTransientInFlightRead(read);
   const remoteResult = await deriveInFlight({
     exec,
     localOnly,
@@ -137,7 +148,9 @@ export async function runStatusUserView(
     timeoutMs,
     identity,
     teamMode,
-    errandSlugByBranch,
+    errandSlugByBranch: new Map([...legacySlugByBranch, ...indexes.slugByBranch]),
+    expectedTransientByBranch: indexes.expectedByBranch,
+    errandRecordsComplete: transientComplete,
     parkedSlugs,
     prSource,
   });

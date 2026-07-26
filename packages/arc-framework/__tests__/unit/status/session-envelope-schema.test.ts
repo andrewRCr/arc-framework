@@ -13,6 +13,20 @@ function fixture(name: string): Record<string, unknown> {
   const normalized = readFileSync(join(FIXTURE_DIR, `session-init-${name}.json`), "utf8");
   const producerCompatible = normalized.replaceAll(/<DATE_\d+>/gu, "2026-01-02");
   const value = JSON.parse(producerCompatible) as Record<string, unknown>;
+  const identity = value.identity as { identity: string | null };
+  value.locusState = identity.identity === null
+    ? { ok: false, error: { kind: "identity-missing", message: "arc.identity is not configured" } }
+    : {
+        ok: true,
+        value: {
+          roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
+          current: { kind: "none" },
+          primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+          inFlightIdentities: [],
+          recovery: { kind: "none" },
+          reconciliation: { kind: "clean" },
+        },
+      };
   const active = value.active as { ok?: boolean; value?: { resolution?: string; path?: string | null } };
   if (active.ok === true && active.value?.resolution === "single") {
     const slug = active.value.path?.match(/meta-(.+)\.md$/u)?.[1] ?? "active-work-unit";
@@ -83,6 +97,14 @@ function expectContractFailure(value: Record<string, unknown>, expectedPath: str
 }
 
 describe("session-init envelope schema", () => {
+  it("validates additive precomposed locus guidance when present", () => {
+    const value = fixture("orient");
+    value.locusGuidance = { kind: "unavailable", message: "Locus state is unavailable." };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+    value.locusGuidance = { kind: "ready", currentFrame: 42 };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(false);
+  });
+
   it("asserts full and thin producer defects with the registered contract identity", () => {
     const fullDefect = fixture("orient");
     (fullDefect.identity as { role: string }).role = "";
@@ -502,13 +524,19 @@ describe("session-init envelope schema", () => {
     [
       "errand candidate slug",
       ["errandState", "value", "materializable", "candidates"],
-      [{ slug: "", branch: "chore/test" }],
+      [{
+        slug: "", claimId: "c".repeat(32), branch: "chore/test", expectedHead: "a".repeat(40),
+        state: "paused", originEntry: null,
+      }],
       "errandState.value.materializable.candidates.0.slug",
     ],
     [
       "errand candidate branch",
       ["errandState", "value", "materializable", "candidates"],
-      [{ slug: "entry", branch: "" }],
+      [{
+        slug: "entry", claimId: "c".repeat(32), branch: "", expectedHead: "a".repeat(40),
+        state: "paused", originEntry: null,
+      }],
       "errandState.value.materializable.candidates.0.branch",
     ],
   ] as Array<readonly [string, MutationPath, unknown, string]>)(
@@ -538,6 +566,7 @@ describe("session-init envelope schema", () => {
     "active",
     "domainRules",
     "releaseRouting",
+    "locusState",
     "loadSet",
     "recommendedCombinedPrompt",
   ])("requires the unconditional %s slot", (key) => {
@@ -594,6 +623,29 @@ describe("session-init envelope schema", () => {
         error: { kind: "runtime", message: "degraded" },
       },
     });
+  });
+
+  it("accepts diagnostic-only transient provenance in current and sweep projections", () => {
+    const current = fixture("current-husk");
+    setPath(current, ["currentHusk", "value"], {
+      provenance: {
+        kind: "claim-mismatch",
+        subject: { kind: "errand", slug: "demo", claimId: "a".repeat(32) },
+        expected: { kind: "errand", slug: "demo", claimId: "b".repeat(32) },
+      },
+    });
+    expect(SessionInitProbeResultSchema.safeParse(current).success).toBe(true);
+
+    const orient = fixture("orient");
+    setPath(orient, ["sweep", "value", "worktrees"], [{
+      kind: "transient",
+      provenance: {
+        kind: "pending",
+        subject: { kind: "groom", slug: "demo", claimId: "a".repeat(32) },
+      },
+      decision: { action: "blocked", reason: "transient-provenance" },
+    }]);
+    expect(SessionInitProbeResultSchema.safeParse(orient).success).toBe(true);
   });
 
   it("enforces orphan and identity-scoped advisory presence", () => {

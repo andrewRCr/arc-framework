@@ -17,18 +17,74 @@
  */
 
 import * as p from "@clack/prompts";
+import { z } from "zod";
 
 import { resolveWriteContext } from "../lib/git/write-context.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
-import { createGitExec } from "../lib/io-context.js";
-import { requireArcProjectRoot } from "./shared.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import { createGitExec, createUserIOContext } from "../lib/io-context.js";
+import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
+import { markCurrentInboxEntriesExecuteBound } from "../commands/user.js";
 
 export interface HousekeepCheckOptions {
   /** Emit the write-context classification as JSON (for skill consumption). */
   json?: boolean;
 }
+
+export interface HousekeepMarkExecuteOptions {
+  json?: boolean;
+}
+
+/** Mark one confirmed execute-now batch into the durable global queue. */
+export async function handleHousekeepMarkExecute(
+  titles: string[],
+  opts: HousekeepMarkExecuteOptions,
+): Promise<void> {
+  if (opts.json !== true) p.intro("arc housekeep mark-execute");
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) { emitHousekeepMarkError("identity", "No identity resolved.", opts.json === true); return; }
+  const io = createUserIOContext();
+  try {
+    const marked = await markCurrentInboxEntriesExecuteBound({ cwd, io, identity, titles });
+    const result = {
+      mode: "housekeep-mark-execute",
+      outcome: marked.changed ? "applied" : "idempotent",
+      entries: marked.outcomes,
+      recommendedPromptText: marked.changed
+        ? `Marked ${marked.outcomes.length} inbox ${marked.outcomes.length === 1 ? "entry" : "entries"} execute-bound.`
+        : "The selected inbox entries are already execute-bound.",
+    } as const;
+    if (opts.json === true) process.stdout.write(`${JSON.stringify(result)}\n`);
+    else { p.log.success(result.recommendedPromptText); p.outro("Done."); }
+  } catch (error) {
+    emitHousekeepMarkError("mutation", error instanceof Error ? error.message : String(error), opts.json === true);
+  }
+}
+
+function emitHousekeepMarkError(suffix: string, message: string, json: boolean): void {
+  const result = {
+    mode: "housekeep-mark-execute",
+    outcome: "error",
+    error: { code: `housekeep.mark-execute.${suffix}`, message },
+    recommendedPromptText: "Re-read the inbox entries and retry the execute-bound batch.",
+  } as const;
+  if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
+  else p.log.error(`${result.error.code}: ${result.error.message}`);
+  process.exitCode = 1;
+}
+
+/** Registry contributions owned by the value-bearing housekeep commands. */
+export const housekeepCommandInputRegistrations = [
+  {
+    commandPath: "housekeep mark-execute",
+    schema: z.object({ titles: z.array(z.string().min(1)).min(1), json: z.boolean().optional() }).strict(),
+    schemaFields: { "operand.titles": "titles", "option.json": "json" },
+  },
+] as const satisfies readonly CommandInputRegistration[];
 
 /** Machine-output policy owned by the housekeep preflight adapter. */
 export const housekeepCommandInputPolicyDeclarations = [{

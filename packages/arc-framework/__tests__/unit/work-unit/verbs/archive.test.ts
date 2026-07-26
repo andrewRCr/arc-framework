@@ -112,7 +112,7 @@ function buildCtx(opts: {
     reconcileBranch: async (op) => {
       calls.push(op.mutation === "delete" ? `branch:delete:${op.branch}` : `branch:${op.mutation}`);
     },
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       calls.push(op.mutation === "teardown" ? `worktree:teardown:${op.currentLocus}` : `worktree:${op.mutation}`);
       return op.mutation === "teardown"
         ? { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true }

@@ -9,16 +9,26 @@ import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
+import type { LocusRowV1 } from "../../../src/lib/locus/schema/index.js";
+import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
 
 const shipped = new Set(["work-organization-reform"]);
 const emptyBlobReader: RunStaleWorktreeSweepOptions["readBlob"] = async () => null;
 
+/** No record claims any checkout — occupancy leaves each surface's own predicates to decide. */
+const unoccupied = () => locusStateFixture({ rows: [] });
+
 function runStaleWorktreeSweep(
-  options: Omit<RunStaleWorktreeSweepOptions, "readBlob"> & {
+  options: Omit<RunStaleWorktreeSweepOptions, "readBlob" | "locusState"> & {
     readBlob?: RunStaleWorktreeSweepOptions["readBlob"];
+    locusState?: RunStaleWorktreeSweepOptions["locusState"];
   },
 ) {
-  return runStaleWorktreeSweepCore({ ...options, readBlob: options.readBlob ?? emptyBlobReader });
+  return runStaleWorktreeSweepCore({
+    ...options,
+    readBlob: options.readBlob ?? emptyBlobReader,
+    locusState: options.locusState ?? unoccupied(),
+  });
 }
 
 /** Roster with one shipped-WU worktree and one still-active worktree. */
@@ -179,6 +189,7 @@ function runSweep(opts: {
   marker: WorktreeMarkerReadResult;
   roster?: WorktreeRosterResult;
   userSurfaceFs?: UserSurfaceMigrationFs;
+  locusState?: RunStaleWorktreeSweepOptions["locusState"];
 }) {
   return runStaleWorktreeSweep({
     roster: opts.roster ?? shippedRoster(),
@@ -187,10 +198,152 @@ function runSweep(opts: {
     exec: buildExec({ clean: opts.clean, merged: opts.merged }),
     readMarker: async () => opts.marker,
     userSurfaceFs: opts.userSurfaceFs ?? emptyUserSurfaceFs,
+    locusState: opts.locusState,
   });
 }
 
+/** A retained WU role at `checkoutPath`, occupied by a session whose lease is `state`. */
+function leasedWorkUnitRow(name: string, checkoutPath: string, state: "live" | "unknown"): LocusRowV1 {
+  return {
+    ...managedWorkUnitRow(name, checkoutPath),
+    lease: {
+      leaseId: "l".repeat(32),
+      selfHeld: false,
+      state,
+      sessionHomePath: checkoutPath,
+      attachedAt: "2026-07-24T00:00:00.000Z",
+      heartbeatAt: "2026-07-24T00:00:00.000Z",
+    },
+  };
+}
+
 describe("runStaleWorktreeSweep", () => {
+  it("uses a retained WU role as authority during the archive-to-teardown interval", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
+      locusState: locusStateFixture({
+        rows: [managedWorkUnitRow("work-organization-reform", "/wt/wor")],
+      }),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [
+          { path: "/primary", head: "1".repeat(40), branch: "main", detached: false, primary: true },
+          {
+            path: "/wt/wor", head: "2".repeat(40), branch: "feat/work-organization-reform",
+            detached: false, primary: false,
+          },
+        ],
+      }),
+    });
+
+    expect(result.worktrees).toEqual([{
+      kind: "branched", worktreePath: "/wt/wor", branch: "feat/work-organization-reform",
+      decision: { action: "removable" },
+    }]);
+  });
+
+  it("never offers a shipped worktree a live session still occupies", async () => {
+    const result = await runSweep({
+      clean: true,
+      merged: true,
+      marker: presentMarker,
+      locusState: locusStateFixture({
+        rows: [leasedWorkUnitRow("work-organization-reform", "/wt/wor", "live")],
+      }),
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "locus-occupied" });
+  });
+
+  it("holds a shipped worktree manual when its occupancy cannot be verified", async () => {
+    const result = await runSweep({
+      clean: true,
+      merged: true,
+      marker: presentMarker,
+      locusState: locusStateFixture({
+        rows: [leasedWorkUnitRow("work-organization-reform", "/wt/wor", "unknown")],
+      }),
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "locus-unverified" });
+  });
+
+  it("holds a shipped worktree manual when the record claiming it is untrusted", async () => {
+    const untrusted: LocusRowV1 = {
+      ...managedWorkUnitRow("work-organization-reform", "/wt/wor"),
+      diagnostics: [{
+        code: "cross-identity",
+        source: { kind: "record", key: "/wt/wor" },
+        message: "Marker belongs to another identity",
+      }],
+    };
+    const result = await runSweep({
+      clean: true,
+      merged: true,
+      marker: presentMarker,
+      locusState: locusStateFixture({ rows: [untrusted] }),
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "locus-unverified" });
+  });
+
+  it("never offers a retained-role worktree a live session still occupies", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
+      locusState: locusStateFixture({
+        rows: [leasedWorkUnitRow("work-organization-reform", "/wt/wor", "live")],
+      }),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [
+          { path: "/primary", head: "1".repeat(40), branch: "main", detached: false, primary: true },
+          {
+            path: "/wt/wor", head: "2".repeat(40), branch: "feat/work-organization-reform",
+            detached: false, primary: false,
+          },
+        ],
+      }),
+    });
+
+    expect(result.worktrees).toEqual([{
+      kind: "branched", worktreePath: "/wt/wor", branch: "feat/work-organization-reform",
+      decision: { action: "blocked", reason: "locus-occupied" },
+    }]);
+  });
+
+  it("never offers a stamped husk a live session still occupies", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async () => stampedMarker({ kind: "work-unit", name: "work-organization-reform" }),
+      locusState: locusStateFixture({
+        rows: [leasedWorkUnitRow("work-organization-reform", "/wt/husk", "live")],
+      }),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [{ path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false }],
+      }),
+    });
+
+    expect(result.worktrees[0]).toMatchObject({
+      kind: "husk",
+      worktreePath: "/wt/husk",
+      decision: { action: "blocked", reason: "locus-occupied" },
+    });
+  });
+
   it("is removable for a shipped worktree that is clean, merged, and ARC-marked", async () => {
     const result = await runSweep({ clean: true, merged: true, marker: presentMarker });
 
@@ -373,7 +526,7 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "uncommitted" });
   });
 
-  it("reports recordless and errand husks without claiming WU completion", async () => {
+  it("keeps recordless husks removable but legacy transient husks diagnostic-only", async () => {
     const markers = new Map<string, WorktreeMarkerReadResult>([
       ["/wt/recordless", stampedMarker({ kind: "branch", ref: "review/orphan" }, { branch: "review/orphan" })],
       ["/wt/errand", stampedMarker({ kind: "errand", slug: "tidy-hooks" }, { branch: "chore/tidy-hooks" })],
@@ -405,16 +558,62 @@ describe("runStaleWorktreeSweep", () => {
         decision: { action: "removable" },
       },
       {
-        kind: "husk",
+        kind: "transient",
         worktreePath: "/wt/errand",
         branch: null,
-        subject: { kind: "errand", slug: "tidy-hooks" },
-        stampedBranch: "chore/tidy-hooks",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
-        completedWorkUnit: null,
-        decision: { action: "removable" },
+        provenance: { kind: "legacy", subject: { kind: "errand", slug: "tidy-hooks" } },
+        decision: { action: "blocked", reason: "transient-provenance" },
       },
     ]);
+  });
+
+  it("classifies ready, pending, malformed, and claim-mismatched transient cleanup evidence", async () => {
+    const expected = { kind: "errand", slug: "exact", claimId: "a".repeat(32) } as const;
+    const marker = (
+      subject: typeof expected,
+      provisioning: "pending" | "ready",
+    ): WorktreeMarkerReadResult => ({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        createdFor: subject,
+        provisioning,
+        spawningIdentity: "andrew",
+        createdAt: "2026-07-20T00:00:00.000Z",
+      },
+    });
+    const markers = new Map<string, WorktreeMarkerReadResult>([
+      ["/wt/ready", marker(expected, "ready")],
+      ["/wt/pending", marker(expected, "pending")],
+      ["/wt/mismatch", marker({ ...expected, claimId: "b".repeat(32) }, "ready")],
+      ["/wt/malformed", { kind: "malformed", path: "/wt/malformed/marker", message: "invalid marker" }],
+    ]);
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async (path) => markers.get(path) ?? { kind: "absent" },
+      expectedTransientByBranch: new Map([
+        ["chore/ready", expected],
+        ["chore/pending", expected],
+        ["chore/mismatch", expected],
+      ]),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: ["ready", "pending", "mismatch", "malformed"].map((name) => ({
+          path: `/wt/${name}`,
+          head: "head",
+          branch: `chore/${name}`,
+          detached: false,
+          primary: false,
+        })),
+      }),
+    });
+
+    expect(result.worktrees.map((entry) => entry.kind === "transient" ? entry.provenance.kind : entry.kind))
+      .toEqual(["ready", "pending", "claim-mismatch", "malformed"]);
+    expect(result.worktrees.every((entry) => entry.decision.action === "blocked")).toBe(true);
   });
 
   it("marks a structurally current husk manual-only when committed evidence does not revalidate", async () => {
@@ -476,7 +675,7 @@ describe("runStaleWorktreeSweep", () => {
     expect(soloResult.worktrees).toHaveLength(1);
   });
 
-  it("excludes absent and malformed detached markers", async () => {
+  it("excludes absent markers while preserving malformed cleanup evidence", async () => {
     const markers = new Map<string, WorktreeMarkerReadResult>([
       ["/wt/absent", { kind: "absent" }],
       ["/wt/malformed", { kind: "malformed", path: "/wt/malformed/.arc/marker", message: "invalid JSON" }],
@@ -496,7 +695,13 @@ describe("runStaleWorktreeSweep", () => {
       }),
     });
 
-    expect(result.worktrees).toEqual([]);
+    expect(result.worktrees).toEqual([{
+      kind: "transient",
+      worktreePath: "/wt/malformed",
+      branch: null,
+      provenance: { kind: "malformed", message: "invalid JSON" },
+      decision: { action: "blocked", reason: "transient-provenance" },
+    }]);
   });
 
   it("warns and continues when one detached marker cannot be read", async () => {
@@ -521,7 +726,7 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees).toHaveLength(1);
     expect(result.worktrees[0]?.worktreePath).toBe("/wt/readable");
     expect(result.warnings).toEqual([
-      "Could not read detached worktree marker at /wt/unreadable: permission denied",
+      "Could not read registered worktree marker at /wt/unreadable: permission denied",
     ]);
   });
 
@@ -538,7 +743,7 @@ describe("runStaleWorktreeSweep", () => {
 
     expect(result.worktrees).toHaveLength(1);
     expect(result.worktrees[0]?.kind).toBe("branched");
-    expect(result.warnings).toEqual(["Could not scan detached worktrees: topology unavailable"]);
+    expect(result.warnings).toEqual(["Could not scan registered worktrees: topology unavailable"]);
   });
 
   it("scans sibling husks from a linked worktree and excludes the exact current path", async () => {

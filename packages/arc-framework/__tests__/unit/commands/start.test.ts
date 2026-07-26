@@ -23,6 +23,7 @@ import { resolveWorktreeLocation } from "../../../src/lib/git/worktree-location.
 import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../../src/lib/paths.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
+import type { WorkUnitLocusDriver } from "../../../src/lib/work-unit/work-unit-locus.js";
 import type { UserIOContext } from "../../../src/commands/user/types.js";
 
 /** A recording mock exec that resolves every call (success). */
@@ -64,8 +65,12 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+const workUnitLocus: WorkUnitLocusDriver = {
+  reconcile: async () => ({ recordId: "sha256:test", leaseId: null, roleCreated: true }),
+};
+
 function ctx(io: UserIOContext) {
-  return { io, internalTemplateDir: getInternalTemplatePath() };
+  return { io, internalTemplateDir: getInternalTemplatePath(), workUnitLocus };
 }
 
 /** Write a minimal `arc-config.yml` (flat dotted keys) into a worktree's `.arc/system/`. */
@@ -484,7 +489,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
     return join(primaryRoot, "..", "{repo}.{name}");
   }
 
-  it("spawns a worktree on a new `plan/<name>` branch via the reconcile-worktree spawn leg", async () => {
+  it("spawns a worktree on a new `plan/<name>` branch via the reconcile-work-unit-worktree spawn leg", async () => {
     await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
     const rec = recordingExecWithPrimary(primaryRoot);
     const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };
@@ -525,6 +530,64 @@ describe("runCreateNew — create-new worktree spawn", () => {
     expect((await readWorktreeMarker(expectedPath)).kind).toBe("present");
 
     await rm(expectedPath, { recursive: true, force: true });
+  });
+
+  describe("scaffold-failure rollback", () => {
+    /** A locus driver recording what the rollback asks it to compensate. */
+    function recordingLocus(roleCreated: boolean) {
+      const retired: { checkoutPath: string; wuName: string }[] = [];
+      const driver: WorkUnitLocusDriver = {
+        reconcile: async () => ({ recordId: "sha256:test", leaseId: null, roleCreated }),
+        retire: async (request) => {
+          retired.push({ checkoutPath: request.checkoutPath, wuName: request.wuName });
+          await request.removeCheckout();
+          return { recordId: "sha256:test", roleRemoved: true };
+        },
+      };
+      return { driver, retired };
+    }
+
+    async function failingScaffold(locus: WorkUnitLocusDriver) {
+      await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
+      const rec = recordingExecWithPrimary(primaryRoot);
+      const io: UserIOContext = {
+        ...createUserIOContext(),
+        exec: rec.exec,
+        writeFile: async () => {
+          throw new Error("EACCES: permission denied");
+        },
+      };
+      const outcome = await runCreateNew(
+        { io, internalTemplateDir: getInternalTemplatePath(), workUnitLocus: locus },
+        { worktreePath: primaryRoot, identity: "andrew", name: "widget", baseRef: "abc123" },
+      );
+      const worktreePath = resolveWorktreeLocation({
+        template: siblingTemplate(),
+        repo: basename(primaryRoot),
+        name: "widget",
+        branch: "plan/widget",
+      });
+      await rm(worktreePath, { recursive: true, force: true });
+      return { outcome, worktreePath };
+    }
+
+    it("retires the role it minted before removing the worktree", async () => {
+      const locus = recordingLocus(true);
+
+      const { outcome, worktreePath } = await failingScaffold(locus.driver);
+
+      expect(outcome.ok).toBe(false);
+      expect(locus.retired).toEqual([{ checkoutPath: worktreePath, wuName: "widget" }]);
+    });
+
+    it("leaves a role it did not mint alone", async () => {
+      const locus = recordingLocus(false);
+
+      const { outcome } = await failingScaffold(locus.driver);
+
+      expect(outcome.ok).toBe(false);
+      expect(locus.retired).toEqual([]);
+    });
   });
 
   it("resolves baseBranch / locationTemplate / repo from config, not hard-coded values", async () => {

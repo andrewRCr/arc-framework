@@ -104,4 +104,5 @@ describe("resolveBacklogStub", () => {
 
     await expect(resolveBacklogStub(root, "dup")).rejects.toThrow(/Ambiguous backlog stub "dup"/);
   });
+
 });

@@ -534,13 +534,13 @@ describe("inferBaseBranchSync — config-gated base-ref freshen", () => {
     }
   });
 
-  it("base checkout locus unknown → surface with arc base sync guidance under always/prompt", () => {
+  it("base checkout location unknown → surface with arc base sync guidance under always/prompt", () => {
     const result = inferBaseBranchSync(
       baseBranchSync({ state: "remote-ahead", behind: 1, checkout: { kind: "unknown" } }),
       policy("always"),
     );
     expect(result.recommendedAction).toBe("surface");
-    expect(result.recommendedPromptText).toContain("Base checkout locus unknown");
+    expect(result.recommendedPromptText).toContain("Base checkout location is unknown");
     expect(result.recommendedPromptText).toContain("arc base sync");
   });
 

@@ -154,13 +154,15 @@ export async function serialize(
   const warnings: SkipWarning[] = [];
 
   for (const entry of entries) {
+    const pathSegments = entry.name.split("/");
+
+    // Dot-prefixed files and directories are machine-local infrastructure.
+    if (pathSegments.some((segment) => segment.startsWith("."))) continue;
+
     // Extract basename for filtering (entry.name may be a relative path for subdirs)
     const basename = entry.name.includes("/")
       ? entry.name.substring(entry.name.lastIndexOf("/") + 1)
       : entry.name;
-
-    // Skip dotfiles (infrastructure, not user content)
-    if (basename.startsWith(".")) continue;
 
     // Skip framework-managed files
     if (EXCLUDED_NAMES.has(basename)) continue;

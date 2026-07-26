@@ -8,7 +8,6 @@ const BASE_INPUT = {
   activeWorkUnit: "loadset-projection",
   metaPath: ".arc/active/meta-loadset-projection.md",
   taskListPath: ".arc/active/tasks-loadset-projection.md",
-  activeExtensions: [],
   cohortDocPath: null,
 } as const;
 
@@ -122,12 +121,11 @@ describe("resolveLoadSetManifest", () => {
     );
   });
 
-  it("keeps active extension bodies out of the session load set while including the cohort doc", () => {
+  it("never projects an extension body into the session load set, and includes the cohort doc", () => {
     const manifest = resolveLoadSetManifest({
       ...BASE_INPUT,
       sessionType: "execution",
       planningStage: null,
-      activeExtensions: ["post-context-load", "post-pr-open"],
       cohortDocPath: ".arc/backlog/planned/loadset/cohort-loadset.md",
     });
 

@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 
-import { resolveWorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
+import {
+  WorktreeIdentityError,
+  resolveWorktreeIdentity,
+} from "../../../src/lib/git/worktree-identity.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
 
 /**
@@ -65,7 +68,7 @@ describe("resolveWorktreeIdentity", () => {
     expect(calls.every((c) => c.cmd === "git" && c.args[0] === "rev-parse")).toBe(true);
   });
 
-  it("falls back to primary (no surface) when rev-parse fails", async () => {
+  it("falls back to primary (no surface) when the git dirs themselves do not resolve", async () => {
     const { exec } = buildExec({
       "--git-common-dir": new Error("not a git repository"),
       "--git-dir": new Error("not a git repository"),
@@ -74,5 +77,15 @@ describe("resolveWorktreeIdentity", () => {
     const identity = await resolveWorktreeIdentity(exec);
 
     expect(identity).toEqual({ kind: "primary" });
+  });
+
+  it("refuses to claim primary once the git dirs have proven the checkout is linked", async () => {
+    const { exec } = buildExec({
+      "--git-common-dir": "/Users/dev/repo/.git",
+      "--git-dir": "/Users/dev/repo/.git/worktrees/arc-wu-b",
+      "--show-toplevel": new Error("unable to read current working directory"),
+    });
+
+    await expect(resolveWorktreeIdentity(exec)).rejects.toThrow(WorktreeIdentityError);
   });
 });

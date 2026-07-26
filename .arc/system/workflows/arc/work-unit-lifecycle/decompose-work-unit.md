@@ -275,7 +275,7 @@ gh pr merge <pr-number> --squash   # or per merge.strategy
 **Post-merge teardown — started origin only.** For a started (`Planning`) origin (the [symmetric arm](#symmetric-arm),
 or a [heterogeneous](#heterogeneous-home-arm) cut over one), reap its now-orphaned `plan/<name>` branch + worktree
 **after** the decompose has merged — never before, or the artifact retirement would not yet be durable. Run from the
-base checkout (so the locus survives the worktree removal):
+base checkout (so the current working directory survives the worktree removal):
 
 ```bash
 arc teardown <origin>   # receipt-backed cleanup of the retired plan branch, worktree, and user workspace
@@ -284,8 +284,8 @@ arc teardown <origin>   # receipt-backed cleanup of the retired plan branch, wor
 Teardown infers the retired cleanup mode from the finalized decompose receipt and revalidates its exact result
 instead of relying on git containment: the origin is retired (not in `completed/`) and its `plan/<name>` branch is
 unmerged because the design was redistributed into members, not git-merged. The in-place arm switches the primary
-to base; a linked arm removes the worktree and locus-hops. A successful teardown also closes the origin's per-WU
-user workspace. The
+to base; a linked arm removes the worktree and moves the process to the base checkout. A successful teardown also
+closes the origin's per-WU user workspace. The
 [backlog-stub-source arm](#backlog-stub-source-arm) (no branch) and the [extraction arm](#extraction-arm) (origin
 survives) owe no teardown.
 
@@ -307,8 +307,9 @@ distributed to N new members (all `kind: new-member`); the origin is **retired**
 - **Conservation scope** (Step 2): the _whole_ origin draft.
 - **Run-context** (Step 5): from a base checkout — the transform is PM-artifact grooming, staged on the base tree and
   shipped on the auto-merge lane. `arc decompose` retires the origin's artifacts but does **not** touch its
-  `plan/<name>` branch or worktree, so the run-locus is never sawn off mid-transform; the branch + worktree are
-  reaped post-merge via `arc teardown <origin>` (Step 7), run from the base checkout the ship already used.
+  `plan/<name>` branch or worktree, so the current working directory is never removed mid-transform; the branch +
+  worktree are reaped post-merge via `arc teardown <origin>` (Step 7), run from the base checkout the ship already
+  used.
 
 ### Extraction arm
 

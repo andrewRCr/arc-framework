@@ -62,6 +62,7 @@ import { extractReminderEntries } from "../../src/lib/session-init/inbox-reminde
 import { runErrandStalenessSweep } from "../../src/lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../src/lib/session-init/errand-state.js";
 import type { GitExec } from "../../src/lib/git/index.js";
+import type { LocusStateV1 } from "../../src/lib/locus/schema/index.js";
 import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
 interface Fixture {
@@ -71,6 +72,17 @@ interface Fixture {
   extDir: string;
   wfDir: string;
   activeDir: string;
+}
+
+function locusState(): LocusStateV1 {
+  return {
+    roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
+    current: { kind: "none" },
+    primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+    inFlightIdentities: [],
+    recovery: { kind: "none" },
+    reconciliation: { kind: "clean" },
+  };
 }
 
 async function createFixture(): Promise<Fixture> {
@@ -225,6 +237,7 @@ const cleanUserReferenceReconcile: SessionInitProbes["userReferenceReconcile"] =
 
 function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
+    locusState: async () => locusState(),
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     worktreeIdentity: async () => ({ kind: "primary" }),
@@ -297,6 +310,7 @@ function makeResolvedReleaseModeSessionInitProbes(
   };
 
   return {
+    locusState: async () => locusState(),
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     worktreeIdentity: async () => ({ kind: "primary" }),
@@ -371,6 +385,8 @@ function makeResolvedReleaseModeSessionHandoffProbes(
   };
 
   return {
+    locusState: async () => locusState(),
+    worktreeIdentity: async () => ({ kind: "primary" }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     user: async (identity) => stubUserSessionInit(identity),
@@ -550,6 +566,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
 
   it("resolves active under .arc/user/{identity}/active/ when role=contributor and surfaces companions", async () => {
     const probes: SessionInitProbes = {
+      locusState: async () => locusState(),
       user: async (id) => stubUserSessionInit(id),
       worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
       worktreeIdentity: async () => ({ kind: "primary" }),
@@ -738,6 +755,7 @@ function makeRealWorktreeProbes(
   const remoteSyncEnabled = opts.remoteSyncEnabled ?? true;
   const userState = opts.userState ?? "clean";
   return {
+    locusState: async () => locusState(),
     user: async (identity) => stubUserSessionInit(identity, userState),
     worktree: () =>
       runWorktreeSyncStatus({
@@ -1264,7 +1282,9 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 2, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({
+        routableCount: 2, housekeepNeeded: true, pendingExecuteBound: [], executeBoundDiagnostics: [],
+      });
     }
   });
 
@@ -1277,7 +1297,9 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 0, housekeepNeeded: false });
+      expect(result.inboxState.value).toEqual({
+        routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [], executeBoundDiagnostics: [],
+      });
     }
   });
 
@@ -1351,8 +1373,52 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 2, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({
+        routableCount: 2, housekeepNeeded: true, pendingExecuteBound: [], executeBoundDiagnostics: [],
+      });
     }
+  });
+
+  it("preserves the pending execute-bound queue across the post-housekeep recovery boundary", async () => {
+    const userDir = join(fixture.root, ".arc", "user", "andrew");
+    await mkdir(userDir, { recursive: true });
+    await writeFile(
+      join(userDir, "USER-INBOX.md"),
+      [
+        "# User Inbox",
+        "",
+        "## Errand",
+        "",
+        "### `[ ]` **first sibling**",
+        "",
+        "- _Disposition:_ `execute-bound`",
+        "- _Observation:_ queued.",
+        "",
+        "### `[ ]` **second sibling**",
+        "",
+        "- _Disposition:_ `execute-bound`",
+        "- _Observation:_ queued.",
+        "",
+        "## Work Unit",
+        "",
+      ].join("\n"),
+    );
+
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: realInboxStateProbes(fixture),
+    });
+
+    expect(result.inboxState).toMatchObject({
+      ok: true,
+      value: {
+        routableCount: 0,
+        housekeepNeeded: false,
+        pendingExecuteBound: ["first sibling", "second sibling"],
+        executeBoundDiagnostics: [],
+      },
+    });
   });
 
   it("reports a missing inbox as zero count with housekeepNeeded false (empty)", async () => {
@@ -1364,7 +1430,9 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 0, housekeepNeeded: false });
+      expect(result.inboxState.value).toEqual({
+        routableCount: 0, housekeepNeeded: false, pendingExecuteBound: [], executeBoundDiagnostics: [],
+      });
     }
   });
 

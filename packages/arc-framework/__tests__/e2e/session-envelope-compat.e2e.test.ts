@@ -11,15 +11,48 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { LocusAbsolutePathSchema } from "../../src/lib/locus/schema/limits.js";
 import {
   normalizeSessionEnvelope,
   prepareSessionEnvelopeFixture,
+  PRIMARY_TOKEN,
+  REMOTE_TOKEN,
+  WORKTREE_PARENT_TOKEN,
+  WORKTREE_TOKEN,
   type SessionEnvelopeFixture,
 } from "../helpers/session-envelope-compat.js";
 import { runArcNoTty } from "./helpers.js";
 
 const GOLDEN_DIR = join(import.meta.dirname, "..", "fixtures", "session-envelope");
 const UPDATE_GOLDENS = process.env.UPDATE_SESSION_ENVELOPE_GOLDENS === "1";
+
+/**
+ * Slots each golden arm is allowed to carry as `{ ok: false }`, by dotted path.
+ *
+ * A healthy arm declares none. `identity-missing` is the one arm whose failures
+ * are the point: with no identity there is no locus reader and no user surface.
+ */
+const EXPECTED_FAILED_SLOTS: Record<string, string[]> = {
+  "recovery-audit-dirty-path-drift.json": [],
+  "recovery-audit-ready.json": [],
+  "session-init-active-resume.json": [],
+  "session-init-branch-gone.json": [],
+  "session-init-current-husk.json": [],
+  "session-init-identity-missing.json": ["locusState", "user"],
+  "session-init-orient.json": [],
+};
+
+/** Collect the dotted path of every `{ ok: false }` object in a captured envelope. */
+function failedSlotPaths(node: unknown, path = ""): string[] {
+  if (node === null || typeof node !== "object") return [];
+  if (Array.isArray(node)) {
+    return node.flatMap((item, index) => failedSlotPaths(item, `${path}[${index}]`));
+  }
+  const here = (node as { ok?: unknown }).ok === false ? [path === "" ? "<root>" : path] : [];
+  const nested = Object.entries(node).flatMap(([key, value]) =>
+    failedSlotPaths(value, path === "" ? key : `${path}.${key}`));
+  return [...here, ...nested];
+}
 
 async function expectGolden(name: string, value: unknown): Promise<void> {
   const content = `${JSON.stringify(value)}\n`;
@@ -41,6 +74,57 @@ async function capture(
   expect(result.stdout).toBe(`${JSON.stringify(parsed)}\n`);
   return normalizeSessionEnvelope(parsed, fixture.normalization) as Record<string, unknown>;
 }
+
+describe("session envelope normalization contract", () => {
+  let fixture: SessionEnvelopeFixture | undefined;
+
+  afterEach(async () => {
+    await fixture?.cleanup();
+    fixture = undefined;
+  });
+
+  it("keeps every placeholder parseable as the absolute path it stands in for", () => {
+    // Normalized envelopes are replayed through schema validation, so a placeholder
+    // substituted into a path field has to satisfy the same schema the real path did.
+    for (const token of [
+      PRIMARY_TOKEN,
+      WORKTREE_PARENT_TOKEN,
+      WORKTREE_TOKEN,
+      REMOTE_TOKEN,
+    ]) {
+      expect(LocusAbsolutePathSchema.safeParse(token).success, token).toBe(true);
+    }
+  });
+
+  it("orders every fixture root deterministically against the primary", async () => {
+    // Roster rows sort on their checkout path. Siblings must extend the primary path so
+    // their order is fixed, rather than depending on which suffix the temp root drew.
+    fixture = await prepareSessionEnvelopeFixture("branch-gone");
+    const primary = fixture.primary;
+    const siblings = fixture.normalization.roots
+      .map(([path]) => path)
+      .filter((path) => path !== primary);
+
+    expect(siblings.length).toBeGreaterThan(0);
+    for (const path of siblings) {
+      expect(path.startsWith(primary), path).toBe(true);
+    }
+  });
+
+  it.each(Object.entries(EXPECTED_FAILED_SLOTS))(
+    "carries only declared failed slots in %s",
+    async (name, expected) => {
+      // A golden records whatever the code produced, including a slot that should
+      // never have failed. Declaring the failures per arm makes a new one a
+      // deliberate edit here rather than a silent capture the suite ratifies.
+      const golden = JSON.parse(
+        await readFile(join(GOLDEN_DIR, name), "utf8"),
+      ) as unknown;
+
+      expect(failedSlotPaths(golden)).toEqual(expected);
+    },
+  );
+});
 
 describe("session envelope wire compatibility", () => {
   let fixture: SessionEnvelopeFixture | undefined;
@@ -126,11 +210,18 @@ describe("recovery-audit wire compatibility", () => {
     expect(result.exitCode, result.stderr).toBe(0);
   }
 
-  it("locks the complete ready report", async () => {
+  it("locks the complete record-less-checkout report", async () => {
     fixture = await prepareSessionEnvelopeFixture("active-resume");
     await writeSeed(fixture);
     const normalized = await capture(fixture, ["recover", "audit", "--json"]);
-    expect(normalized.verdict).toMatchObject({ status: "ready", ready: true, stopReasons: [] });
+    expect(normalized.verdict).toMatchObject({
+      status: "stop",
+      ready: false,
+      stopReasons: expect.arrayContaining([
+        expect.objectContaining({ kind: "load-set-drift" }),
+        expect.objectContaining({ kind: "task-cursor-unresolved" }),
+      ]),
+    });
     await expectGolden("recovery-audit-ready.json", normalized);
   });
 
@@ -142,7 +233,11 @@ describe("recovery-audit wire compatibility", () => {
     expect(normalized.verdict).toMatchObject({
       status: "stop",
       ready: false,
-      stopReasons: [{ kind: "dirty-path-drift" }],
+      stopReasons: expect.arrayContaining([
+        expect.objectContaining({ kind: "load-set-drift" }),
+        expect.objectContaining({ kind: "dirty-path-drift" }),
+        expect.objectContaining({ kind: "task-cursor-unresolved" }),
+      ]),
     });
     await expectGolden("recovery-audit-dirty-path-drift.json", normalized);
   });
@@ -151,7 +246,7 @@ describe("recovery-audit wire compatibility", () => {
     fixture = await prepareSessionEnvelopeFixture("active-resume");
     const missing = await capture(fixture, ["recover", "audit", "--json"]);
     expect(missing).toMatchObject({
-      seedPath: "<WORKTREE>/.arc/user/test-user/.internal/compaction-seed.json",
+      seedPath: `${WORKTREE_TOKEN}/.arc/user/test-user/.internal/compaction-seed.json`,
       verdict: { status: "stop", ready: false, stopReasons: [{ kind: "seed-missing" }] },
     });
 

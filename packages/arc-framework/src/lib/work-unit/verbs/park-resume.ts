@@ -517,7 +517,7 @@ async function parkActive(
   // The pointer is valid before teardown. The teardown clean guard then gates
   // every filesystem effect, so dirty work still rejects without a pointer.
   try {
-    await ctx.executor.reconcileWorktree({ mutation: "teardown", worktreePath, currentLocus });
+    await ctx.executor.reconcileWorkUnitWorktree({ mutation: "teardown", worktreePath, currentLocus, wuName: name });
   } catch (err) {
     return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
   }
@@ -563,7 +563,7 @@ async function parkActive(
     verb: "park",
     from: PARK_ACTIVE_FROM,
     to: PARK_ACTIVE_TO,
-    legsFired: ["reconcileWorktree"] as EncodingLeg[],
+    legsFired: ["reconcileWorkUnitWorktree"] as EncodingLeg[],
     sideEffectsFired,
     advisories,
     softFieldsWritten: [],
@@ -583,7 +583,7 @@ async function parkActive(
  * (`deferCheckout`): switching off the tracked branch first would discard the
  * staged pointer removal (orphaning the pointer), so the verb removes the pointer
  * and returns `inPlaceCheckoutPending` + `branch` for the caller to commit, then
- * `git checkout <branch>`. The branch re-attach rides the `reconcile-worktree`
+ * `git checkout <branch>`. The branch re-attach rides the `reconcile-work-unit-worktree`
  * spawn leg in `createBranch: false` mode (the branch already exists); the worktree
  * spawn routes through the executor (the pointer-record *is* in this base tree, so
  * the WU resolves `parked`), and the pointer removal + empty-dir prune are this
@@ -641,7 +641,15 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
 
   const inputs: TransitionInputs = {
     worktreeOp: params.inPlace
-      ? { mutation: "spawn", inPlace: true, branch, createBranch: false, deferCheckout: true }
+      ? {
+          mutation: "spawn",
+          inPlace: true,
+          branch,
+          wuName: name,
+          attachSession: true,
+          createBranch: false,
+          deferCheckout: true,
+        }
       : {
           mutation: "spawn",
           branch,

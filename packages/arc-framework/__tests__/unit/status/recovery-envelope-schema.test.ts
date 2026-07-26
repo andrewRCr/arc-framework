@@ -21,7 +21,49 @@ const READY_PATH = join(
 
 function recovery(): Record<string, unknown> {
   const report = JSON.parse(readFileSync(READY_PATH, "utf8")) as { recover: Record<string, unknown> };
-  return structuredClone(report.recover);
+  const value = structuredClone(report.recover);
+  value.locusState = {
+    ok: true,
+    value: {
+      roster: { mode: "locus", ok: true, primaryPath: "/repo", rows: [], diagnostics: [] },
+      current: { kind: "none" },
+      primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+      inFlightIdentities: [],
+      recovery: { kind: "none" },
+      reconciliation: { kind: "clean" },
+    },
+  };
+  value.recoveryFrame = {
+    ok: true,
+    value: {
+      kind: "resolved",
+      workflow: "process-task-loop",
+      sessionType: "execution",
+      activeRecordId: `sha256:${"a".repeat(64)}`,
+      parentRecordId: null,
+    },
+  };
+  value.cohortDocPath = ".arc/backlog/planned/fixture-cohort/cohort-fixture-cohort.md";
+  value.loadSet = {
+    ok: true,
+    value: {
+      manifestVersion: 1,
+      entries: [
+        { path: ".arc/active/tasks-active-widget.md", readMode: { kind: "partial-strategic" } },
+      ],
+    },
+  };
+  value.taskCursor = {
+    ok: true,
+    value: {
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Exercise the envelope", lineHint: 11 },
+        leaf: { id: "1.1", title: "Exercise the envelope", lineHint: 11 },
+      },
+    },
+  };
+  return value;
 }
 
 function withoutKey(value: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -29,6 +71,14 @@ function withoutKey(value: Record<string, unknown>, key: string): Record<string,
 }
 
 describe("lean recovery envelope schema", () => {
+  it("validates additive precomposed locus guidance when present", () => {
+    const value = recovery();
+    value.locusGuidance = { kind: "unavailable", message: "Locus state is unavailable." };
+    expect(SessionRecoverProbeResultSchema.safeParse(value).success).toBe(true);
+    value.locusGuidance = { kind: "ready", currentFrame: 42 };
+    expect(SessionRecoverProbeResultSchema.safeParse(value).success).toBe(false);
+  });
+
   it("asserts mapped producer defects with the registered contract identity", () => {
     const value = recovery();
     (value.active as { value: { resolution: string } }).value.resolution = "ambiguous";
@@ -51,6 +101,8 @@ describe("lean recovery envelope schema", () => {
     "config",
     "active",
     "releaseRouting",
+    "locusState",
+    "recoveryFrame",
     "loadSet",
   ])("requires the %s slot", (key) => {
     expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), key)).success).toBe(false);
@@ -78,14 +130,14 @@ describe("lean recovery envelope schema", () => {
     expect(SessionRecoverProbeResultSchema.safeParse(invalid).success).toBe(false);
   });
 
-  it("requires a cursor exactly when the active task-list path is safe", () => {
+  it("requires a cursor exactly when the locus-derived load set has a strategic task list", () => {
     expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), "taskCursor")).success).toBe(false);
 
     const noTask = recovery();
     delete noTask.taskCursor;
     delete noTask.cohortDocPath;
-    const active = noTask.active as { value: { taskListPath: string | null } };
-    active.value.taskListPath = null;
+    const loadSet = noTask.loadSet as { value: { entries: Array<{ readMode: { kind: string } }> } };
+    loadSet.value.entries = loadSet.value.entries.filter((entry) => entry.readMode.kind !== "partial-strategic");
     expect(SessionRecoverProbeResultSchema.safeParse(noTask).success).toBe(true);
 
     noTask.taskCursor = recovery().taskCursor;

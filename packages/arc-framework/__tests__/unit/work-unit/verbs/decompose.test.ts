@@ -422,7 +422,7 @@ function buildRunHarness(metas: MetaSpec[], removeTree: Record<string, string[]>
     reconcileBranch: async (op) => {
       branchOps.push(op.mutation === "delete" ? `delete:${op.branch}` : op.mutation);
     },
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       worktreeOps.push(op.mutation);
       return op.mutation === "teardown"
         ? { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true }

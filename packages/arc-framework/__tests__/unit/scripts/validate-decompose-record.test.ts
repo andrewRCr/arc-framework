@@ -439,6 +439,26 @@ describe("validateDecomposeCommitGate", () => {
     })).toEqual([`root-level ARC internal namespace is forbidden: ${path}`]);
   });
 
+  it("admits a legacy receipt deletion whose exact bytes land in the canonical namespace", () => {
+    const legacy = ".arc/.internal/retirement-receipts/sha256-legacy.json";
+    const canonical = ".arc/system/.internal/retirement-receipts/sha256-legacy.json";
+    const preserved = bytes("legacy receipt");
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacy }, { status: "A", path: canonical }],
+      readIndexBytes: (path) => path === canonical ? preserved : null,
+      readHeadBytes: (path) => path === legacy ? preserved : null,
+    })).toEqual([]);
+  });
+
+  it("still rejects a legacy receipt deletion that preserves nothing canonically", () => {
+    const legacy = ".arc/.internal/retirement-receipts/sha256-legacy.json";
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: legacy }],
+      readIndexBytes: () => null,
+      readHeadBytes: (path) => path === legacy ? bytes("legacy receipt") : null,
+    })).toEqual([`root-level ARC internal namespace is forbidden: ${legacy}`]);
+  });
+
   it("rejects root-level .arc/.internal inherited unchanged from a merge parent", () => {
     const path = ".arc/.internal/retirement-receipts/record.json";
     const inherited = bytes("legacy record");

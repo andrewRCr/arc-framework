@@ -91,7 +91,7 @@ export async function runWorktreeRoster(
   options: RunWorktreeRosterOptions,
 ): Promise<WorktreeRosterResult> {
   const { exec, fs } = options;
-  const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+  const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
   const branched = worktrees.filter(
     (wt): wt is GitWorktreePorcelainRecord & { branch: string } => wt.branch !== null,
   );
@@ -164,7 +164,7 @@ export function filterRosterByIdentity(
  */
 export async function resolvePrimaryWorktreePath(exec: GitExec): Promise<string | null> {
   try {
-    const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
     return worktrees[0]?.path ?? null;
   } catch {
     return null;
@@ -204,7 +204,7 @@ export async function resolveWorktreePathsByBranchResult(
 ): Promise<WorktreePathsByBranchResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
-    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
   } catch {
     return { ok: false, paths: new Map() };
   }
@@ -224,7 +224,7 @@ export async function resolveWorktreePathsByBranchResult(
 export async function scanRegisteredWorktrees(exec: GitExec): Promise<RegisteredWorktreeScanResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
-    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
@@ -406,7 +406,66 @@ function buildEntry(
 }
 
 function parseWorktreeList(result: { stdout: string }): GitWorktreePorcelainRecord[] {
+  if (result.stdout.includes("\0")) return parseWorktreeListPorcelainZ(result.stdout);
   return parseGitWorktreePorcelain(result.stdout);
+}
+
+/**
+ * Parse Git's exact NUL-delimited worktree porcelain protocol.
+ *
+ * Paths are retained byte-for-code-unit from the decoded stdout string; no
+ * trimming, quote decoding, or line-oriented presentation parsing occurs.
+ */
+export function parseWorktreeListPorcelainZ(stdout: string): GitWorktreePorcelainRecord[] {
+  if (stdout === "") return [];
+  if (!stdout.endsWith("\0\0")) throw new Error("truncated worktree porcelain -z output");
+
+  const rawStanzas = stdout.slice(0, -2).split("\0\0");
+  return rawStanzas.map((stanza, index) => parsePorcelainZStanza(stanza, index));
+}
+
+function parsePorcelainZStanza(stanza: string, index: number): GitWorktreePorcelainRecord {
+  const fields = stanza.split("\0");
+  let path: string | null = null;
+  let head: string | null = null;
+  let branch: string | null = null;
+  let detached = false;
+  let bare = false;
+
+  for (const field of fields) {
+    if (field.startsWith("worktree ")) {
+      if (path !== null || field.length === "worktree ".length) {
+        throw new Error(`malformed worktree field in stanza ${index + 1}`);
+      }
+      path = field.slice("worktree ".length);
+    } else if (field.startsWith("HEAD ")) {
+      if (head !== null || field.length === "HEAD ".length) {
+        throw new Error(`malformed HEAD field in stanza ${index + 1}`);
+      }
+      head = field.slice("HEAD ".length);
+    } else if (field.startsWith("branch refs/heads/")) {
+      if (branch !== null || detached) throw new Error(`conflicting branch field in stanza ${index + 1}`);
+      branch = field.slice("branch refs/heads/".length);
+    } else if (field === "detached") {
+      if (detached || branch !== null) throw new Error(`conflicting detached field in stanza ${index + 1}`);
+      detached = true;
+    } else if (field === "bare") {
+      if (bare) throw new Error(`duplicate bare field in stanza ${index + 1}`);
+      bare = true;
+    } else if (field === "locked" || field.startsWith("locked ")
+      || field === "prunable" || field.startsWith("prunable ")) {
+      // Topology consumers do not need these standard advisory fields.
+    } else {
+      throw new Error(`unknown worktree porcelain field in stanza ${index + 1}`);
+    }
+  }
+
+  if (path === null) throw new Error(`worktree stanza ${index + 1} omitted worktree path`);
+  if (!bare && head === null) throw new Error(`worktree listing omitted HEAD for ${path}`);
+  if (!bare && branch === null && !detached) {
+    throw new Error(`worktree stanza for ${path} omitted branch or detached state`);
+  }
+  return { path, head, branch, detached };
 }
 
 async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promise<string[]> {

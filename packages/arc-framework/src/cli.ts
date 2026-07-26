@@ -23,22 +23,31 @@ import {
   handleErrandOpen,
   handleErrandLink,
   handleErrandClose,
-  handleErrandRetire,
+  handleErrandAbandon,
   handleErrandPromote,
   type ErrandCheckOptions,
   type ErrandOpenOptions,
   type ErrandLinkOptions,
   type ErrandCloseOptions,
+  type ErrandAbandonOptions,
   type ErrandPromoteOptions,
 } from "./handlers/errand.js";
-import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
+import {
+  handleHousekeepCheck,
+  handleHousekeepMarkExecute,
+  type HousekeepCheckOptions,
+  type HousekeepMarkExecuteOptions,
+} from "./handlers/housekeep.js";
 import {
   handleBaseDrift,
   handleBaseSync,
   type BaseDriftOptions,
   type BaseSyncOptions,
 } from "./handlers/base.js";
-import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
+import {
+  handlePlanCheck,
+  type PlanCheckOptions,
+} from "./handlers/plan.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -100,6 +109,15 @@ import {
   type ActiveInFlightCliOptions,
 } from "./handlers/active.js";
 import { handleStatus, type StatusCliOptions } from "./handlers/status.js";
+import {
+  handleLocus,
+  handleLocusAttach,
+  handleLocusRelease,
+  handleLocusResolve,
+  type LocusAttachOptions,
+  type LocusReleaseOptions,
+  type LocusResolveOptions,
+} from "./handlers/locus.js";
 import { handleView, type ViewCliOptions } from "./handlers/view.js";
 import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
@@ -487,14 +505,14 @@ errand
 
 errand
   .command("open <slug>")
-  .description("Open an errand: mint the record, cut a nature-typed branch, and occupy it in place")
-  .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
+  .description("Open an errand in the free primary or a provisioned transient worktree")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
   .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its bold title): inbox-origin record, dropped at close")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts, context),
   ));
 
@@ -504,26 +522,29 @@ errand
   .option("--from-inbox <entry-title>", "USER-INBOX capture bold title to associate with the errand")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts, context),
   ));
 
 errand
   .command("close <slug>")
-  .description("Close an errand: reap the branch (containment-safe), remove the record, drop the inbox capture")
-  .option("--force", "Bypass the containment check — reap even when the commits can't be proven preserved")
+  .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
+  .option("--force", "Legacy-only override for an intentionally discarded close-only generation")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts, context),
   ));
 
 errand
-  .command("retire <slug>")
-  .description("Retire a promoted errand's record (the renamed branch survives as the work-unit branch)")
+  .command("abandon <slug>")
+  .description("Abandon a safely preserved Errand and retain its inbox capture")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
-    (context, slug: string) => handleErrandRetire(slug, context),
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandAbandonOptions) => handleErrandAbandon(slug, opts, context),
   ));
 
 errand
@@ -534,8 +555,9 @@ errand
   .option("--floor <floor>", "Which floor the errand crossed: derivation | scale (required)")
   .option("--priority <priority>", "WU priority for the minted meta")
   .option("--class <class>", "WU Class for the minted meta")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts, context),
   ));
 
@@ -554,6 +576,12 @@ housekeep
     { machineReadable: (opts) => opts.json === true },
     (context, opts: HousekeepCheckOptions) => handleHousekeepCheck(opts, context),
   ));
+
+housekeep
+  .command("mark-execute <titles...>")
+  .description("Atomically mark confirmed inbox entries for execute-now follow-up")
+  .option("--json", "Emit the execute-bound mutation result")
+  .action((titles: string[], opts: HousekeepMarkExecuteOptions) => handleHousekeepMarkExecute(titles, opts));
 
 const baseCmd = program
   .command("base")
@@ -888,6 +916,48 @@ program
     },
     (context, slug: string | undefined, opts: StatusCliOptions) => handleStatus(slug, opts, context),
   ));
+
+// --- Locus ---
+
+const locusCmd = program
+  .command("locus")
+  .description("Inspect the local checkout and session locus roster")
+  .option("--json", "Emit one typed session locus envelope as JSON")
+  .action(handleLocus);
+
+locusCmd
+  .command("attach")
+  .description("Attach the entering process to one trusted managed session locus")
+  .option("--checkout <path>", "Select one roster-backed checkout")
+  .option("--json", "Emit one typed session locus mutation result")
+  .action((opts: LocusAttachOptions, command: Command) => handleLocusAttach({
+    ...opts,
+    json: command.optsWithGlobals().json === true,
+  }));
+
+locusCmd
+  .command("release <record-id>")
+  .description("Release one exact caller-named lease generation")
+  .requiredOption("--lease <id>", "Exact lease generation to release")
+  .option("--json", "Emit one typed session locus mutation result")
+  .action((recordId: string, opts: LocusReleaseOptions, command: Command) => handleLocusRelease(recordId, {
+    ...opts,
+    json: command.optsWithGlobals().json === true,
+  }));
+
+locusCmd
+  .command("resolve <record-id>")
+  .description("Resume or abandon one exact transient generation no live session holds")
+  .requiredOption("--action <action>", "Resolution action: resume | abandon")
+  .option(
+    "--confirm-no-live-session",
+    "Attest that no live session holds the lease; refused when one is verifiably live elsewhere",
+  )
+  .option("--json", "Emit one typed session locus mutation result")
+  .action((recordId: string, opts: LocusResolveOptions, command: Command) => handleLocusResolve(recordId, {
+    ...opts,
+    json: command.optsWithGlobals().json === true,
+  }));
 
 // --- Recover ---
 

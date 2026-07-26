@@ -29,11 +29,26 @@ export {
 } from "./schema.js";
 
 export {
+  inboxEntrySourceDigest,
+  listExecuteBoundInboxEntries,
+  inspectInboxEntry,
   listInboxEntryTitles,
+  mutateInboxEntries,
   removeInboxEntry,
   requireLiveInboxTitle,
+  type InboxEntryMutation,
+  type InboxEntryMutationOutcome,
+  type InspectedInboxEntry,
+  type ExecuteBoundInboxEntry,
+  type MutateInboxEntriesResult,
   type RemoveInboxEntryResult,
 } from "./inbox-writer.js";
+
+export {
+  resolveExecutionNextOffer,
+  type ExecutionNextOffer,
+  type ExecutionOfferResolution,
+} from "./execution-offer.js";
 
 export {
   listAnnotatedNoteCommits,

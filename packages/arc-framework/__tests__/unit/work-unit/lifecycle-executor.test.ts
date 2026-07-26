@@ -179,9 +179,9 @@ function buildSpies(opts: SpyOptions = {}): Spies {
       calls.push(`leg:branch:${op.mutation}`);
       guardThrow("reconcileBranch");
     },
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       calls.push(`leg:worktree:${op.mutation}`);
-      guardThrow("reconcileWorktree");
+      guardThrow("reconcileWorkUnitWorktree");
       if (op.mutation === "spawn") {
         return {
           mutation: "spawn",
@@ -517,7 +517,7 @@ describe("executeTransition — foot-gun guards", () => {
 describe("executeTransition — encoding leg ordering & recovery", () => {
   it("fires the worktree leg before the branch leg (the cross-leg constraint)", async () => {
     // `start` (graduate) declares relocate + worktree spawn + branch create — the
-    // multi-leg edge that exercises the reconcileWorktree-before-reconcileBranch order.
+    // multi-leg edge that exercises the reconcileWorkUnitWorktree-before-reconcileBranch order.
     const { ctx, calls } = buildSpies({
       metas: [PLANNED_META],
       guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
@@ -558,7 +558,7 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNED_META],
       guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
-      throwOnLeg: "reconcileWorktree",
+      throwOnLeg: "reconcileWorkUnitWorktree",
     });
 
     const outcome = await executeTransition(ctx, {
@@ -569,9 +569,9 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
 
     expect(outcome.status).toBe("encoding-failed");
     if (outcome.status !== "encoding-failed") return;
-    expect(outcome.failedLeg).toBe("reconcileWorktree");
+    expect(outcome.failedLeg).toBe("reconcileWorkUnitWorktree");
     expect(outcome.legsFired).toEqual(["artifacts"]); // relocate landed; worktree threw
-    expect(outcome.message).toMatch(/boom:reconcileWorktree/);
+    expect(outcome.message).toMatch(/boom:reconcileWorkUnitWorktree/);
     // No branch leg after the failed worktree leg, no side-effects, no soft write.
     expect(calls).not.toContain("leg:branch:create");
     expect(calls.some((c) => c.startsWith("side:"))).toBe(false);
@@ -677,7 +677,7 @@ describe("executeTransition — post-side-effect finalize failure", () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNED_META],
       guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
-      throwOnLeg: "reconcileWorktree",
+      throwOnLeg: "reconcileWorkUnitWorktree",
     });
 
     const outcome = await executeTransition(ctx, {

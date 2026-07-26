@@ -141,6 +141,11 @@
       "layer": "core",
       "pristine_hash": "74fe00915f49b88b0e553be2be6cb7bf0f4e107541a9e963104c1e7078092697"
     },
+    "reference/strategies/arc/strategy-concurrent-work.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "1f7c0eb4a96e8e0e91fcb051c83639c19177f503b87510e80cf18c09715954a6"
+    },
     "reference/strategies/arc/strategy-configurability-architecture.md": {
       "classification": "Framework",
       "layer": "core",
@@ -600,6 +605,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "6e27428fda2fb158cb980fb28fd1ceea1274637b6030d882508a9d9de7eb5382"
+    },
+    "system/workflows/arc/supplemental/drain-inbox.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "597123b826fd21fdbe08aef03f7b186ea93ac18ad97135919202851f1de08adb"
     },
     "system/workflows/arc/supplemental/integrate-external-content.md": {
       "classification": "Framework",
