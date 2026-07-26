@@ -42,6 +42,25 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   return true;
 }
 
+async function diagnoseEscapedNewlines(
+  values: readonly string[],
+  repository: CommitMessageCheckRepository,
+  bodyMaxLineLength?: number,
+): Promise<string | null> {
+  const expanded = values.map((value) => value.replaceAll("\\r\\n", "\n").replaceAll("\\n", "\n"));
+  if (expanded.every((value, index) => value === values[index])) return null;
+
+  const candidate = assembleCommitMessageParagraphs(expanded, bodyMaxLineLength);
+  const checked = await validateCommitMessageBytes(candidate, repository);
+  if (checked.kind !== "result" || checked.exitCode !== 0) return null;
+
+  return [
+    "Literal escaped newlines were detected in `-m` input.",
+    "Shell arguments do not turn `\\n` into line breaks; use `-F <message-file>` (or `-F -`) for a multiline",
+    "message, or pass each paragraph with separate `-m` arguments.",
+  ].join("\n");
+}
+
 /** Create the production preflight function from injected system boundaries. */
 export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): PreflightCommitMessage {
   return async ({ args, cwd }) => {
@@ -120,6 +139,15 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
     if (checked.result.kind === "skipped") return { kind: "pass-through" };
     if (checked.exitCode === 1) {
       const rendered = renderCheckCommitMessage(checked, false);
+      const escapedNewlineDiagnostic = classification.source.kind === "messages"
+        ? await diagnoseEscapedNewlines(
+            classification.source.values,
+            repository,
+            deps.wrap && preparedContext.kind === "ready"
+              ? preparedContext.policy.bodyMaxLineLength
+              : undefined,
+          )
+        : null;
       let correctedMessageBytes: Uint8Array | undefined;
       if (
         classification.source.kind !== "messages"
@@ -135,7 +163,10 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
       return {
         kind: "refused",
         reason: "validation",
-        message: (rendered.stderr ?? rendered.stdout ?? "Commit-message validation failed.").trimEnd(),
+        message: [
+          (rendered.stderr ?? rendered.stdout ?? "Commit-message validation failed.").trimEnd(),
+          escapedNewlineDiagnostic,
+        ].filter((part): part is string => part !== null).join("\n\n"),
         ...(correctedMessageBytes === undefined ? {} : { correctedMessageBytes }),
       };
     }
