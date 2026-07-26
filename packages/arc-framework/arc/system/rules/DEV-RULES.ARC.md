@@ -446,9 +446,10 @@ specific topic rather than reading the entire document.
 
 ### Method and extension loading
 
-When a workflow declares method or extension dependencies in its YAML frontmatter
-(`arc.methods` / `arc.extensions`), load the declared content before executing the workflow.
-Don't proceed from intuition when the declared content is one read away.
+A workflow's `arc.methods` / `arc.extensions` frontmatter is an **index of what the workflow may fire**, not a
+preload list. Load a declared method or extension when the workflow reaches its fire-point — the callout, signature
+block, or extension marker that invokes it — and not before. A declaration the current path never reaches is not a
+reason to load it. Don't proceed from intuition at a fire-point when the declared content is one read away.
 
 When a loaded method carries a populated `.override`, follow its `override-mode`: `replace` (the default; absent
 ⇒ this) supersedes `.default`, while `extend` applies `.default` first and then the override on top.

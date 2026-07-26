@@ -150,8 +150,8 @@ From the pushed branch, compose the immutable policy target
 `{ repository, pullRequest: null, headSha }`, the routed `standardReview` projection, and the explicit routing facts.
 For each new target, invoke `arc review chunking resolve -` once and retain its target statistics. Select
 whole-target or chunked scope separately for frontline and standard review, then pass the exact selection to
-`arc review resolve -`. The chunking recommendation informs this bounded scope judgment; the workflow never
-recomputes thresholds.
+`arc review resolve -`. The chunking recommendation informs this bounded scope judgment — apply the
+[`review-chunking` method][review-chunking] to make it; the workflow never recomputes thresholds.
 
 Resolve the frontline lane first, then the pre-PR standard lane. Follow only each returned `state` /
 `nextAction` pair:
@@ -601,6 +601,7 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 
 [branch-format]: ../../../methods/branch-format.md
 [self-review]: ../../../methods/self-review.md
+[review-chunking]: ../../../methods/review-chunking.md
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md
