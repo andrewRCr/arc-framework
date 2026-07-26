@@ -423,13 +423,18 @@ Cost tracks risk under this reading rather than being flat: a clean artifact sti
 material finding buys exactly one verification pass, bounded by the same cap.
 
 **Severity provenance — the signal must come from ARC's own classification.** Every hosted finding carries two
-severities today and nothing reconciles them. The triage method contracts the primary to verify each finding
-against source and record its severity; the gate parses severity from provider text at an adapter boundary. The
-typed record — the only surface a control decision can read — holds the **provider's** label, while the verified
-judgment sits in prose no mechanism can see. Keying convergence off the provider's label would let an
-over-labelling reviewer inflate the loop and an under-labelling one end it early: control flow driven by an
-unaudited external opinion, which is this WU's root defect expressed on the severity axis. Convergence keys on the
-triage-confirmed severity, which requires that verdict to reach the typed record.
+severities. The adapter normalizes the provider's label into the finding record; the primary's verified severity is
+recorded separately in the disposition report item, alongside a source-verification verdict and mandatory
+verification references, with a refinement forcing rejection of anything source does not support. **Both are
+already typed** — the verified verdict is not trapped in prose.
+
+What is missing is narrower and more tractable: **the driver cannot see it.** Its resolution input records each
+attempt as a source and an outcome — `clean`, `findings`, and the failure kinds — with no severity at all. So the
+decision to continue or stop is made against "findings happened," never against how material they were, while the
+verified verdict sits one artifact away in the approved disposition set. Keying convergence off the provider's
+label would put control flow under an unaudited external opinion; keying it off nothing at all is what happens
+today. This is the second pattern once more, in its most tractable form: the rule is right, the data exists, and it
+is simply not routed to the decision.
 
 **Shared, not duplicated.** One definition of convergence governs both the adversarial-review loop and the review
 gate's lanes. It matters more at the gate, where the loop is costlier and the severity provenance gap actually
@@ -450,10 +455,21 @@ After the rename each sense is unambiguous. The sweep is bounded and mechanical 
 methodology files, with one hazard: the impediment field is a different concept and must never be caught by a
 blind replace. **Sequence it first**, because the provenance work above edits the same schema.
 
-**Scope note.** The wording and the shared definition are cheap. Landing triage-confirmed severity in the typed
-record is the one part with real code cost, and the gate's exit becoming materiality-based is a genuine behavior
-change — today any finding forces a response cycle, where a pass carrying only minors could converge. Size those
-two against the response path before committing to them inside this WU.
+**Sized against the response path — the concern stays whole.** The two parts that looked code-bearing are smaller
+than the framing assumed, because the schema work is already done:
+
+- **No new record is needed.** The triage-confirmed severity already exists, typed, on the disposition report item.
+  The earlier reading that it had to be landed in the typed record was wrong.
+- **The change is one field and one branch.** Carry the confirmed severity — the maximum across the approved
+  disposition set — on the attempt record the driver already receives, then let the findings arm consult it: a pass
+  whose confirmed findings top out at `minor` resolves as a completed pass rather than requiring another response
+  cycle. Additive and optional on the schema, so an attempt that omits it keeps today's behavior.
+- **The behavior change is real and bounded.** Today any finding forces a response cycle; afterwards a
+  minors-only pass can converge. That is the intended effect rather than a side effect, and it is confined to one
+  arm of one function.
+
+Remaining unknowns are execution detail rather than design: how the maximum is computed across a chunk series, and
+whether the frontline lane needs the same field on its own attempt path. Neither reopens the direction.
 
 ### 8. Stop discipline and spend opt-in
 
@@ -700,15 +716,16 @@ method prose — wide, but no longer carrying an unrun measurement on its critic
   the two-front handoff contract with `chunk-scope-binding`; the spawn-context guard routed to
   `execution-delegation-doctrine`; the `ci-defer-heavy` mechanism and its routing out to
   an errand; `Class: Heavy`.
-- **Open:** the size of landing triage-confirmed severity in the typed record, and whether the gate's
-  materiality-based exit belongs in this WU — both to be assessed against the response path; whether existing test
+- **Open:** how a confirmed severity maximum is computed across a chunk series, and whether the frontline lane
+  needs the same attempt field; whether existing test
   coverage already proves the enforced fallback rule, or a test is owed; the single
   trimmed-guidance timeout observation; whether the parity check lands as a unit test or a pre-commit contract
   check; the retention default's concrete value once real diagnostics volume is observed.
-- **Next:** size concern 7's two code-bearing parts against `arc review respond` — whether the triage verdict can
-  ride the existing disposition set, and what the gate's exit change costs. That result decides whether concern 7
-  stays whole in this WU or sheds its gate half. Then run the formalization-readiness assessment: direction is
-  settled across all seven concerns, and the remaining question is whether the open items are detail-design a spec
-  can absorb.
+- **Next:** run the formalization-readiness assessment. Every concern is settled to the decision level and the last
+  sizing question is answered — concern 7 stays whole, at one additive field and one branch. Two cautions for the
+  session that takes it up: concerns 7 and 8 landed **after** this pass's consolidation, so re-read the whole draft
+  for coherence before treating it as a single input; and `Class` was resolved when the scope was six
+  provider-protocol concerns, so re-run `classify-work-unit` now that it also spans a typed-schema rename,
+  convergence semantics, and workflow autonomy discipline.
 
 ---
