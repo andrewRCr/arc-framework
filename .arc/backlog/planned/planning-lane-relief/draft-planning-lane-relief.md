@@ -8,8 +8,11 @@
 
 - **State:** rough — the problem is well characterized and one candidate resolution is named, but the gating
   unknown below is unresolved and the shape depends on it.
-- **Class:** `[TBD]` — resolve once the gating unknown settles; the answer decides whether this is a small
-  classifier change or a new typed input surface.
+- **Class:** `Heavy` — an estimate, resolved at promotion into `planned` on 2026-07-26. Derivation fires: the
+  forgeability question must be settled before a competent engineer can start, and `adr-029`'s precedent does not
+  transfer without working the asymmetry. Scale does not fire — one classifier plus at most one typed input. The
+  candidate resolution _composes_ from existing primitives rather than inventing, so it stays `Heavy` rather than
+  reaching `Novel`. No design authored yet, so this estimate is revisable in either direction.
 
 ---
 
