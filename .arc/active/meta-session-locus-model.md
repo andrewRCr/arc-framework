@@ -12,12 +12,12 @@
 - **Task List:** `tasks-session-locus-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Delivery-stack planning carve — routing re-settled, three specs authored
+- **Last Completed:** Base reconcile — `origin/main` merged, 35 conflicts settled, full gates green
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Merge `origin/main` in — 35 conflicted files (11 source, 12 test/fixture, 10 workflow, plus
-  the rendered `ROADMAP`); resolve, run gates, land as its own commit before cutting any deliverable branch
+- **Next Action:** Re-create D1 from tip state onto a fresh branch off the reconciled base, applying the seam list in
+  `notes-session-locus-model.md` § The carve, proved; then stack `errand-transient-lifecycle` and `claimed-sweep-verbs`
 
 - **PR URL:** [none]
 - **Completed:** [none]
