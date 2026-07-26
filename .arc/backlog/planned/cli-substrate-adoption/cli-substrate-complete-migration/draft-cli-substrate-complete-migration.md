@@ -29,6 +29,33 @@
 - _Approach:_ consume the landed inventory rather than rediscovering it; migrate each listed authority to its owning
   full schema, retire the handwritten type, and tighten thin views while preserving the member's contained/full roots.
 
+### `[ ]` **Adopt the command-input regime for the session-locus mutation verbs**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ `session-locus-model` merged the mainline command-input regime in, and its own mutation verbs
+  are only half-adopted. `locus attach` / `release` / `resolve`, `housekeep open` / `close` / `abandon` /
+  `mark-execute`, and `plan open` / `close` / `abandon` now carry input registrations (the registry conformance
+  test forces one per value-bearing command), but they are not routed through `withInteractionContext` and their
+  `--json` options are not declared `machine-mode`. Their handlers take no `InteractionContext`, so the
+  subprocess stdin policy the regime binds end to end does not reach them. The errand family was brought to
+  uniform adoption during the merge because mainline had already wrapped four of its verbs; these were never
+  wrapped, so nothing regressed — the inventory is simply silent about them rather than truthful, since an
+  undeclared `--json` reads as acquisition `optional`.
+
+- _Approach:_ thread `context?: InteractionContext` through the ten handlers, bind `createUserIOContext` /
+  `createGitExec` to `context?.subprocess`, wrap the CLI action sites in `withInteractionContext` with
+  `{ machineReadable: (opts) => opts.json === true }`, and add the matching `machine-mode` `declareCliOptionSite`
+  policies. The errand family in `handlers/errand.ts` is the worked pattern.
+
+- _Scope:_ mechanical against a landed contract — no new policy or domain contract, so it clears the target's
+  "not disguised as mechanical migration" cutline test. Its repository-wide audit would surface these as
+  same-domain stragglers regardless; this capture just names them up front.
+
+- _Captured during:_ `session-locus-model`'s base reconcile onto post-`cli-command-inputs` mainline (2026-07-24).
+  Routed out rather than into Phase 7.E, whose scope is the chunked-review findings pinned at `0c5dd045a` —
+  this surfaced from work that merged after that pin.
+
 ---
 
 ## Problem / Motivation
