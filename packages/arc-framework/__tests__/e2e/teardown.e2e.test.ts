@@ -82,7 +82,7 @@ describe("arc teardown (CLI surface)", () => {
     expect(result.stdout + result.stderr).toMatch(/requires the work-unit name/i);
   });
 
-  it("refuses a work unit that has not shipped (no completed/ presence)", async () => {
+  it("refuses a nonexistent receipt-backed target without a branch or detached husk", async () => {
     tmpDir = await createTempRepo();
     await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     await git(tmpDir, ["add", "."]);
@@ -91,7 +91,7 @@ describe("arc teardown (CLI surface)", () => {
     const result = await runArc(["teardown", "ghost"], tmpDir);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stdout + result.stderr).toMatch(/not shipped|completed/i);
+    expect(result.stdout + result.stderr).toMatch(/no branch or detached husk remains/i);
   });
 
   it("refuses branch-scoped teardown for non-chore branches", async () => {

@@ -62,11 +62,11 @@ function receipt(
 }
 
 function context(candidate = receipt()): RetirementAuthorizationContext & {
-  local: { oid: string; ownedByRetiringWorktree: boolean };
+  local: { oid: string; worktreeProjectionSafe: boolean };
   remoteRef: { oid: string | null };
   candidate: { value: RetirementReceipt | null };
 } {
-  const local = { oid: head, ownedByRetiringWorktree: true };
+  const local = { oid: head, worktreeProjectionSafe: true };
   const remoteRef = { oid: head as string | null };
   const candidateState = { value: candidate as RetirementReceipt | null };
   return {
@@ -136,7 +136,7 @@ describe("authorizeRetirement", () => {
     });
 
     ctx.remoteRef.oid = head;
-    ctx.local.ownedByRetiringWorktree = false;
+    ctx.local.worktreeProjectionSafe = false;
     await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
       status: "refused",
       reason: "projection-mismatch",

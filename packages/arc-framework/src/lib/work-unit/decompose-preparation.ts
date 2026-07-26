@@ -23,6 +23,7 @@ import { resolveRetirementRecordRelativePath } from "./retirement-record-store.j
 import { isSlugSafe } from "./slug.js";
 import type {
   DecomposePreparationRecord,
+  InventoryRead,
   PreparedDecomposeRetirement,
   RetirementAuthorityScope,
   TeardownAuthorizationRefusal,
@@ -32,6 +33,8 @@ export interface DecomposePreparationProjection {
   sourceArtifactDigest: CanonicalDigest;
   inventories: DecomposeInventories;
   allowedPaths: readonly ManagedPath[];
+  inventoryRead: Exclude<InventoryRead, "not-applicable">;
+  transformedIncomingDependents: readonly string[];
 }
 
 export interface DecomposePreparationContext {
@@ -89,7 +92,7 @@ function parseScope(value: unknown): RetirementAuthorityScope | null {
   };
 }
 
-function parseSourceInventory(value: unknown): DecomposeInventories["sourceInventory"] | null {
+export function parseSourceInventory(value: unknown): DecomposeInventories["sourceInventory"] | null {
   if (!Array.isArray(value)) return null;
   const entries: DecomposeInventories["sourceInventory"] = [];
   let previousId: string | undefined;
@@ -118,7 +121,7 @@ function parseSourceInventory(value: unknown): DecomposeInventories["sourceInven
   return entries;
 }
 
-function parseIncomingInventory(value: unknown): DecomposeInventories["incomingEdgeInventory"] | null {
+export function parseIncomingInventory(value: unknown): DecomposeInventories["incomingEdgeInventory"] | null {
   if (!Array.isArray(value)) return null;
   const entries: DecomposeInventories["incomingEdgeInventory"] = [];
   let previous: string | undefined;
@@ -140,7 +143,7 @@ function parseIncomingInventory(value: unknown): DecomposeInventories["incomingE
   return entries;
 }
 
-function parseOutgoingInventory(value: unknown): DecomposeInventories["outgoingEdgeInventory"] | null {
+export function parseOutgoingInventory(value: unknown): DecomposeInventories["outgoingEdgeInventory"] | null {
   if (!Array.isArray(value)) return null;
   const entries: DecomposeInventories["outgoingEdgeInventory"] = [];
   let previous: string | undefined;
@@ -171,6 +174,25 @@ function parseAllowedPaths(value: unknown): string[] | null {
   return paths;
 }
 
+function parseTransformedIncomingDependents(
+  value: unknown,
+  incomingEdgeInventory: DecomposeInventories["incomingEdgeInventory"],
+): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const incoming = new Set(incomingEdgeInventory.map((edge) => edge.dependent));
+  const dependents: string[] = [];
+  let previous: string | undefined;
+  for (const candidate of value) {
+    if (typeof candidate !== "string" || !isSlugSafe(candidate) || !incoming.has(candidate)
+      || (previous !== undefined && compareCanonicalStrings(previous, candidate) >= 0)) {
+      return null;
+    }
+    previous = candidate;
+    dependents.push(candidate);
+  }
+  return dependents;
+}
+
 /** Decode and rederive one canonical prepared-decompose record. */
 export function parseDecomposePreparationRecord(
   content: string,
@@ -178,8 +200,9 @@ export function parseDecomposePreparationRecord(
 ): DecomposePreparationRecord | null {
   try {
     const parsed: unknown = JSON.parse(content);
-    if (canonicalize(parsed) !== content || !isObject(parsed)
-      || !hasExactKeys(parsed, [
+    if (canonicalize(parsed) !== content || !isObject(parsed)) return null;
+    const schemaVersion = parsed.schemaVersion;
+    const expectedKeys = [
         "kind",
         "schemaVersion",
         "locator",
@@ -193,8 +216,14 @@ export function parseDecomposePreparationRecord(
         "incomingEdgeInventoryDigest",
         "outgoingEdgeInventoryDigest",
         "cutMapDigest",
-      ])
-      || parsed.kind !== "prepared-decompose" || parsed.schemaVersion !== 1
+        ...(schemaVersion === 2 ? ["inventoryRead", "transformedIncomingDependents"] : []),
+      ];
+    if (!hasExactKeys(parsed, expectedKeys)
+      || parsed.kind !== "prepared-decompose" || (schemaVersion !== 1 && schemaVersion !== 2)
+      || (schemaVersion === 2
+        && parsed.inventoryRead !== "tree-only"
+        && parsed.inventoryRead !== "reachable"
+        && parsed.inventoryRead !== "degraded")
       || !isObject(parsed.locator) || !hasExactKeys(parsed.locator, ["receiptId", "preparationId", "scope"])
       || !isCanonicalDigest(parsed.locator.receiptId) || !isCanonicalDigest(parsed.locator.preparationId)
       || (expectedReceiptId !== undefined && parsed.locator.receiptId !== expectedReceiptId)
@@ -211,17 +240,20 @@ export function parseDecomposePreparationRecord(
     const incomingEdgeInventory = parseIncomingInventory(parsed.incomingEdgeInventory);
     const outgoingEdgeInventory = parseOutgoingInventory(parsed.outgoingEdgeInventory);
     const allowedPaths = parseAllowedPaths(parsed.allowedPaths);
+    const transformedIncomingDependents = schemaVersion === 2 && incomingEdgeInventory !== null
+      ? parseTransformedIncomingDependents(parsed.transformedIncomingDependents, incomingEdgeInventory)
+      : null;
     if (scope === null || allocationResult.status !== "parsed"
       || canonicalize(allocationResult.params) !== canonicalize(parsed.allocation)
       || sourceInventory === null || incomingEdgeInventory === null || outgoingEdgeInventory === null
-      || allowedPaths === null) {
+      || allowedPaths === null || (schemaVersion === 2 && transformedIncomingDependents === null)) {
       return null;
     }
     const inventories = { sourceInventory, incomingEdgeInventory, outgoingEdgeInventory };
     const inventoryDigests = decomposeInventoryDigests(inventories);
     const cutMapDigest = canonicalDigest(allocationResult.params);
     const deterministicReceiptId = receiptId({
-      schemaVersion: 1,
+      schemaVersion,
       subject: scope.subject,
       transition: "decompose",
       sourceBranch: scope.source.branch,
@@ -241,9 +273,8 @@ export function parseDecomposePreparationRecord(
       || parsed.cutMapDigest !== cutMapDigest) {
       return null;
     }
-    return {
+    const common = {
       kind: "prepared-decompose",
-      schemaVersion: 1,
       locator: {
         receiptId: deterministicReceiptId,
         preparationId: deterministicPreparationId,
@@ -255,7 +286,15 @@ export function parseDecomposePreparationRecord(
       sourceArtifactDigest: parsed.sourceArtifactDigest,
       ...inventoryDigests,
       cutMapDigest,
-    };
+    } as const;
+    return schemaVersion === 1
+      ? { ...common, schemaVersion: 1 }
+      : {
+          ...common,
+          schemaVersion: 2,
+          inventoryRead: parsed.inventoryRead as Exclude<InventoryRead, "not-applicable">,
+          transformedIncomingDependents: transformedIncomingDependents ?? [],
+        };
   } catch {
     return null;
   }
@@ -285,11 +324,20 @@ export async function prepareDecomposeRetirement(
     if (retirementAllocationRefusal(allocation) !== null) {
       return { status: "refused", reason: "conservation-unproven" };
     }
+    const incomingDependents = new Set(
+      projection.inventories.incomingEdgeInventory.map((edge) => edge.dependent),
+    );
+    const transformedIncomingDependents = [...projection.transformedIncomingDependents]
+      .sort(compareCanonicalStrings);
+    if (new Set(transformedIncomingDependents).size !== transformedIncomingDependents.length
+      || transformedIncomingDependents.some((dependent) => !incomingDependents.has(dependent))) {
+      return { status: "refused", reason: "conservation-unproven" };
+    }
 
     const cutMapDigest = canonicalDigest(allocation);
     const inventoryDigests = decomposeInventoryDigests(projection.inventories);
     const deterministicReceiptId = receiptId({
-      schemaVersion: 1,
+      schemaVersion: 2,
       subject: scope.subject,
       transition: "decompose",
       sourceBranch: scope.source.branch,
@@ -308,13 +356,15 @@ export async function prepareDecomposeRetirement(
     };
     const record: DecomposePreparationRecord = {
       kind: "prepared-decompose",
-      schemaVersion: 1,
+      schemaVersion: 2,
+      inventoryRead: projection.inventoryRead,
       locator,
       allocation,
       sourceInventory: projection.inventories.sourceInventory,
       incomingEdgeInventory: projection.inventories.incomingEdgeInventory,
       outgoingEdgeInventory: projection.inventories.outgoingEdgeInventory,
       allowedPaths: [...projection.allowedPaths].sort(compareCanonicalStrings),
+      transformedIncomingDependents,
       sourceArtifactDigest: projection.sourceArtifactDigest,
       ...inventoryDigests,
       cutMapDigest,

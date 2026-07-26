@@ -346,6 +346,44 @@ describe("composeProjectReadinessView", () => {
     }));
   });
 
+  it("suppresses only the explicitly superseded source ref after a staged rename", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const oldSlug = "old-name";
+    const oldBranch = `feat/${oldSlug}`;
+    const newSlug = "new-name";
+    const newBranch = `feat/${newSlug}`;
+    const sibling = "unrelated";
+    const siblingBranch = `feat/${sibling}`;
+    await writeMeta(join(root, ".arc", "active", `meta-${newSlug}.md`), meta(newSlug, "Active"));
+    const exec = makeInFlightExec({
+      worktrees: [
+        { path: root, branch: newBranch },
+        { path: join(root, "..", oldSlug), branch: oldBranch },
+        { path: join(root, "..", sibling), branch: siblingBranch },
+      ],
+      metas: {
+        [`${oldBranch}:.arc/active/meta-${oldSlug}.md`]: oracleMeta({ branch: oldBranch, state: "Active" }),
+        [`${siblingBranch}:.arc/active/meta-${sibling}.md`]: oracleMeta({
+          branch: siblingBranch,
+          state: "Active",
+        }),
+      },
+    });
+
+    const input = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      prospective: {
+        currentBranch: newBranch,
+        superseded: { slug: oldSlug, branch: oldBranch },
+      },
+    });
+
+    expect(input.records.some((record) => record.slug === oldSlug)).toBe(false);
+    expect(input.records.some((record) => record.slug === newSlug)).toBe(true);
+    expect(input.records.some((record) => record.slug === sibling)).toBe(true);
+  });
+
   it("keeps a genuine live sibling ahead of its completed tree record", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
     const ownSlug = "own-transition";

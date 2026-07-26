@@ -1,5 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { execFile } from "node:child_process";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
+  captureGitIndexState,
   checkGitAvailable,
   isGitRepo,
   gitConfigGet,
@@ -7,6 +13,123 @@ import {
   gitConfigUnset,
   gitMergeFile,
 } from "../../../src/lib/git/exec.js";
+
+describe("captureGitIndexState", () => {
+  const roots: string[] = [];
+  afterEach(async () => {
+    await Promise.all(roots.splice(0).map(async (root) => await rm(root, { recursive: true, force: true })));
+  });
+
+  it("commits unchanged exact index bytes through the Git lock protocol", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-index-state-"));
+    roots.push(root);
+    const run = promisify(execFile);
+    await run("git", ["init", "-q"], { cwd: root });
+    await writeFile(join(root, "tracked"), "tracked\n");
+    await run("git", ["add", "tracked"], { cwd: root });
+    await writeFile(join(root, "intent"), "intent\n");
+    await run("git", ["add", "-N", "intent"], { cwd: root });
+    const indexPath = (await run("git", ["rev-parse", "--git-path", "index"], { cwd: root })).stdout.trim();
+    const before = await readFile(join(root, indexPath));
+    const gitExec = async (cmd: string, args: string[], options?: { cwd?: string; indexFile?: string }) => {
+      const result = await run(cmd, args, {
+        cwd: options?.cwd,
+        env: options?.indexFile === undefined
+          ? process.env
+          : { ...process.env, GIT_INDEX_FILE: options.indexFile },
+      });
+      return { stdout: result.stdout, stderr: result.stderr };
+    };
+
+    const transaction = await captureGitIndexState(gitExec, root);
+    await transaction.commit();
+
+    expect(await readFile(join(root, indexPath))).toEqual(before);
+    expect((await run("git", ["status", "--porcelain=v2"], { cwd: root })).stdout).toContain(" .A ");
+  });
+
+  it("refuses a transaction while another Git index lock is present", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-index-state-"));
+    roots.push(root);
+    const run = promisify(execFile);
+    await run("git", ["init", "-q"], { cwd: root });
+    await writeFile(join(root, "tracked"), "tracked\n");
+    await run("git", ["add", "tracked"], { cwd: root });
+    const indexPath = join(root, (await run("git", ["rev-parse", "--git-path", "index"], { cwd: root })).stdout.trim());
+    const gitExec = async (cmd: string, args: string[], options?: { cwd?: string }) => {
+      const result = await run(cmd, args, { cwd: options?.cwd });
+      return { stdout: result.stdout, stderr: result.stderr };
+    };
+
+    await writeFile(`${indexPath}.lock`, "other writer");
+
+    await expect(captureGitIndexState(gitExec, root)).rejects.toMatchObject({ code: "EEXIST" });
+    expect(await readFile(`${indexPath}.lock`, "utf8")).toBe("other writer");
+  });
+
+  it("refuses to overwrite an index changed outside the held lock", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-index-state-"));
+    roots.push(root);
+    const run = promisify(execFile);
+    await run("git", ["init", "-q"], { cwd: root });
+    await writeFile(join(root, "tracked"), "tracked\n");
+    await run("git", ["add", "tracked"], { cwd: root });
+    const indexPath = join(root, (await run("git", ["rev-parse", "--git-path", "index"], { cwd: root })).stdout.trim());
+    const gitExec = async (cmd: string, args: string[], options?: { cwd?: string }) => {
+      const result = await run(cmd, args, { cwd: options?.cwd });
+      return { stdout: result.stdout, stderr: result.stderr };
+    };
+
+    const transaction = await captureGitIndexState(gitExec, root);
+    const changed = Buffer.from("outside-lock writer");
+    await writeFile(indexPath, changed);
+
+    await expect(transaction.commit()).rejects.toThrow(/index changed/iu);
+    expect(await readFile(indexPath)).toEqual(changed);
+    await transaction.rollback();
+    await expect(readFile(`${indexPath}.lock`)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("discards a candidate index mutated by failed staging without changing the real index", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-index-state-"));
+    roots.push(root);
+    const run = promisify(execFile);
+    await run("git", ["init", "-q"], { cwd: root });
+    await writeFile(join(root, "tracked"), "tracked\n");
+    await run("git", ["add", "tracked"], { cwd: root });
+    const indexPath = join(root, (await run("git", ["rev-parse", "--git-path", "index"], { cwd: root })).stdout.trim());
+    const before = await readFile(indexPath);
+    const gitExec = async (cmd: string, args: string[], options?: { cwd?: string; indexFile?: string }) => {
+      const result = await run(cmd, args, {
+        cwd: options?.cwd,
+        env: options?.indexFile === undefined
+          ? process.env
+          : { ...process.env, GIT_INDEX_FILE: options.indexFile },
+      });
+      return { stdout: result.stdout, stderr: result.stderr };
+    };
+
+    const transaction = await captureGitIndexState(gitExec, root);
+    await writeFile(join(root, "candidate"), "candidate\n");
+    await expect((async () => {
+      try {
+        await gitExec("git", ["add", "--", "candidate"], {
+          cwd: root,
+          indexFile: transaction.indexFile,
+        });
+        expect(await readFile(transaction.indexFile)).not.toEqual(before);
+        throw new Error("injected staging failure after candidate mutation");
+      } catch (error) {
+        await transaction.rollback();
+        throw error;
+      }
+    })()).rejects.toThrow("injected staging failure");
+
+    expect(await readFile(indexPath)).toEqual(before);
+    expect((await run("git", ["diff", "--cached", "--name-only"], { cwd: root })).stdout).toBe("tracked\n");
+    await expect(readFile(transaction.indexFile)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});
 
 describe("checkGitAvailable", () => {
   it("returns true when git is on PATH", async () => {

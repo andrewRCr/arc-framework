@@ -25,12 +25,18 @@ import type {
   ExecuteTransitionContext,
   SideEffectHandler,
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
-import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
+import type { ComposedLifecycleIndexResult } from "../../../../src/lib/work-unit/composed-lifecycle-index.js";
+import {
+  buildLifecycleIndex,
+  type DirEntry,
+  type LifecycleIndexFs,
+} from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
 import {
   validateReceiptMatrix,
   type RetirementReceipt,
 } from "../../../../src/lib/work-unit/retirement-authority.js";
+import { queryRetirementDisposition } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
 import {
   runPark,
   runResume,
@@ -315,6 +321,8 @@ describe("runPark — park@Planning", () => {
     expect(recordedReceipts).toHaveLength(1);
     expect(recordedReceipts[0]).toMatchObject({
       transition: "park-planning",
+      schemaVersion: 2,
+      inventoryRead: "tree-only",
       authorization: "planning-relocated",
       source: { branch: "plan/foo", head: "a".repeat(40) },
       result: { kind: "relocate", plannedArtifactDigest: canonicalDigest({ artifact: "planned-foo" }) },
@@ -332,6 +340,17 @@ describe("runPark — park@Planning", () => {
     if (recorded === undefined) throw new Error("expected a park receipt");
     expect(validateReceiptMatrix(recorded, "planned")).toBeNull();
     expect(validateReceiptMatrix(recorded, "nonexistent")).toBe("evidence-mismatch");
+    expect(queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: recorded.receiptId,
+        content: "",
+        record: { kind: "receipt", value: recorded },
+      }],
+    }, {
+      retiredSubject: "foo",
+      dependentSlug: "consumer",
+    })).toEqual({ status: "absent" });
   });
 
   it("preserves the advisory returned by deferred workspace cleanup", async () => {
@@ -572,6 +591,30 @@ describe("runPark — guards park-from-Integrating", () => {
 });
 
 describe("runResume — the inverse", () => {
+  it("refuses a divergent parked subject before reading or removing checkout files", async () => {
+    const { ctx, calls, removals } = buildCtx([PARKED]);
+    const composed: ComposedLifecycleIndexResult = {
+      index: await buildLifecycleIndex({ cwd: CWD, fs: ctx.executor.indexFs }),
+      recordsBySlug: new Map(),
+      qualityFacts: { warnings: [], resultMarks: [], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: true,
+      readQuality: "reachable",
+    };
+    ctx.composed = composed;
+    ctx.executor.indexFs.readFile = () => Promise.reject(new Error("filesystem read must not occur"));
+
+    const result = await runResume(ctx, BASE_RESUME);
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "Cannot resume `foo`: composed lifecycle truth does not grant current-checkout write authority.",
+    });
+    expect(calls).toEqual([]);
+    expect(removals).toEqual([]);
+  });
+
   it("re-attaches the preserved branch and removes the pointer-record (no relocate)", async () => {
     const { ctx, calls, removals } = buildCtx([PARKED]);
 
@@ -677,6 +720,23 @@ describe("runResume — the inverse", () => {
     expect(result.reason).toMatch(/partially applied/i);
     // The branch re-attach (spawn) already ran — the failure is post-mutation.
     expect(calls).toContain("worktree:spawn");
+  });
+
+  it("returns a structured advisory when deferred ROADMAP reconciliation throws", async () => {
+    const { ctx } = buildCtx([PARKED]);
+    ctx.executor.sideEffects!["reconcile-roadmap"] = async () => {
+      throw new Error("renderer unavailable");
+    };
+
+    const result = await runResume(ctx, BASE_RESUME);
+
+    expect(result).toMatchObject({
+      status: "resumed",
+      outcome: {
+        status: "ok",
+        advisories: ["Resume completed, but ROADMAP reconciliation failed: renderer unavailable."],
+      },
+    });
   });
 });
 

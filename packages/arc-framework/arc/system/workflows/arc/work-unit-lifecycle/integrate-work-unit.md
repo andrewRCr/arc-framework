@@ -71,6 +71,10 @@ The executor fires the full `integrate` edge: flips `**State:** Active → Integ
 `State` column reflects `Integrating`, and stages both the meta and the ROADMAP. `{name}` defaults to the current
 worktree's WU. The `Integrating` state covers PR open through review-response.
 
+An advisory-only reconcile stops before the transition and surfaces every reference. Edit and rerun, or obtain
+explicit user direction to retain all surfaced advisories and rerun the same command with `--allow-advisories`.
+The flag does not accept conflicts or stale mechanical edits.
+
 Confirm the regenerated ROADMAP diff is clean (the `State` flip only) before committing.
 
 > [!CAUTION]
@@ -146,8 +150,8 @@ From the pushed branch, compose the immutable policy target
 `{ repository, pullRequest: null, headSha }`, the routed `standardReview` projection, and the explicit routing facts.
 For each new target, invoke `arc review chunking resolve -` once and retain its target statistics. Select
 whole-target or chunked scope separately for frontline and standard review, then pass the exact selection to
-`arc review resolve -`. The chunking recommendation informs this bounded scope judgment; the workflow never
-recomputes thresholds.
+`arc review resolve -`. The chunking recommendation informs this bounded scope judgment — apply the
+[`review-chunking` method][review-chunking] to make it; the workflow never recomputes thresholds.
 
 Resolve the frontline lane first, then the pre-PR standard lane. Follow only each returned `state` /
 `nextAction` pair:
@@ -420,6 +424,35 @@ After push, re-run required CI and routing on the new exact head before `pre-mer
 to the same Step 13 drift read. Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. Continue
 only when the authoritative result is `clean`.
 
+At the zero-behind head, apply the current WU's exact reconcile and parse its JSON:
+
+```bash
+arc wu reconcile {name} --apply --json
+```
+
+Accept only a schema-v1 result for the exact slug with status `clean`, `pending`, `applied`, or `conflict`. Malformed,
+unrecognized, or command-failure output stops integration. `pending` stops and surfaces every advisory reference:
+edit and rerun until `clean` / `applied`, or obtain explicit user direction to retain each advisory as intentional
+before continuing. `conflict` — including missing, ambiguous, corrupt, or
+otherwise unavailable replacement evidence — stops unmerged and surfaces the typed reason; the WU may remain
+`Integrating`.
+
+`clean` proceeds without a commit. On `applied`, run Tier 1 quality gates over the staged correction, then commit:
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): reconcile {name} before integration
+
+Context: meta-{name}.md (integration reconcile)
+```
+
+Repeat the Step 3 push extension contract and exact-head mutability action, then push through `workflowPush`.
+Rerun required CI and exact-head review coordination, and restart Step 13 from the authoritative base-drift read.
+The correction invalidates every prior base, lifecycle, review, and pre-merge checkpoint; rebuild them from the new
+head. Do not widen the review-readiness request or add a second merge-guard criterion.
+
 At the zero-behind final head, retain the `clean` result's `baseOid` as the current base-freshness evidence. Resolve
 authoritative lifecycle state:
 
@@ -568,6 +601,7 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 
 [branch-format]: ../../../methods/branch-format.md
 [self-review]: ../../../methods/self-review.md
+[review-chunking]: ../../../methods/review-chunking.md
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md

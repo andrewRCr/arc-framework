@@ -1,9 +1,5 @@
 /**
- * Unit tests for the executor-context binder's `discharge-dep-edges` wiring — the
- * deferred dep-edge-discharge `SideEffectHandler` the `activate` edge fires. The
- * lifecycle-index build and the discharge core are mocked at the module seam; these
- * assert the handler is registered and delegates to `dischargeDepEdges` with the
- * activated WU's meta path, surfacing its discharge count as an advisory.
+ * Unit tests for the executor-context binder's lifecycle ceremony seams.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -15,9 +11,11 @@ vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
   buildLifecycleIndex: (...args: unknown[]) => mockBuildLifecycleIndex(...args),
 }));
 
-const mockDischargeDepEdges = vi.fn();
+const mockPrepareCurrentWuReconcile = vi.fn();
+const mockApplyPreparedCurrentWuReconcile = vi.fn();
 vi.mock("../../../src/lib/work-unit/side-effects/discharge-dep-edges.js", () => ({
-  dischargeDepEdges: (...args: unknown[]) => mockDischargeDepEdges(...args),
+  prepareCurrentWuReconcile: (...args: unknown[]) => mockPrepareCurrentWuReconcile(...args),
+  applyPreparedCurrentWuReconcile: (...args: unknown[]) => mockApplyPreparedCurrentWuReconcile(...args),
 }));
 
 const mockWithdrawPr = vi.fn();
@@ -49,9 +47,13 @@ function metaWithBranch(branch: string): string {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   mockBuildLifecycleIndex.mockResolvedValue(new Map());
-  mockDischargeDepEdges.mockResolvedValue({ discharged: ["dep-a", "dep-b"], live: [] });
+  mockPrepareCurrentWuReconcile.mockResolvedValue({ status: "clean", prepared: { slug: "foo", plan: {}, edits: [] } });
+  mockApplyPreparedCurrentWuReconcile.mockResolvedValue({
+    status: "clean",
+    prepared: { slug: "foo", plan: {}, edits: [] },
+  });
   mockWithdrawPr.mockResolvedValue(undefined);
   mockRunUserOpen.mockResolvedValue(undefined);
   mockRunUserClose.mockResolvedValue(undefined);
@@ -99,44 +101,30 @@ const REOPEN_CTX = {
   to: { phase: "Active", location: "active" },
 } as const;
 
-describe("buildExecutorContext — discharge-dep-edges binding", () => {
-  it("registers the discharge-dep-edges side-effect handler", () => {
-    expect(buildCtx().sideEffects?.["discharge-dep-edges"]).toBeDefined();
-  });
+describe("buildExecutorContext — current-WU reconcile binding", () => {
+  it("prepares through the lifecycle and receipt boundaries", async () => {
+    const ctx = buildCtx();
 
-  it("delegates to dischargeDepEdges with the activated WU's meta path and surfaces the count", async () => {
-    const handler = buildCtx().sideEffects?.["discharge-dep-edges"];
-    if (handler === undefined) throw new Error("discharge-dep-edges handler was not registered");
-
-    const advisory = await handler({
-      cwd: "/repo",
-      slug: "foo",
-      from: { phase: "Planning", location: "active" },
-      to: { phase: "Active", location: "active" },
-      inputs: {},
-    });
-
-    expect(mockDischargeDepEdges).toHaveBeenCalledWith(expect.anything(), {
+    await ctx.currentWuReconcile.prepare({
       slug: "foo",
       metaPath: ".arc/active/meta-foo.md",
     });
-    expect(advisory).toContain("Discharged 2");
+
+    expect(mockBuildLifecycleIndex).toHaveBeenCalledOnce();
+    expect(mockPrepareCurrentWuReconcile).toHaveBeenCalledWith(expect.anything(), {
+      slug: "foo",
+      metaPath: ".arc/active/meta-foo.md",
+    });
   });
 
-  it("produces no advisory when nothing discharges", async () => {
-    mockDischargeDepEdges.mockResolvedValueOnce({ discharged: [], live: ["dep-a"] });
-    const handler = buildCtx().sideEffects?.["discharge-dep-edges"];
-    if (handler === undefined) throw new Error("discharge-dep-edges handler was not registered");
+  it("applies the caller's prepared plan without replanning", async () => {
+    const ctx = buildCtx();
+    const prepared = { slug: "foo", plan: {}, edits: [] };
 
-    const advisory = await handler({
-      cwd: "/repo",
-      slug: "foo",
-      from: { phase: "Planning", location: "active" },
-      to: { phase: "Active", location: "active" },
-      inputs: {},
-    });
+    await ctx.currentWuReconcile.apply(prepared as never);
 
-    expect(advisory).toBeUndefined();
+    expect(mockApplyPreparedCurrentWuReconcile).toHaveBeenCalledWith(expect.anything(), prepared);
+    expect(mockPrepareCurrentWuReconcile).not.toHaveBeenCalled();
   });
 });
 

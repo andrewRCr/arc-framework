@@ -1,0 +1,129 @@
+name: CI Defer On Review
+
+# Toggle the `ci-defer-heavy` label from review outcomes so the heavy suite
+# fires once per review cycle instead of once per intermediate head.
+#
+# A changes-requested review starts the fix loop, so the heavy legs are deferred
+# from that point; an approving review ends it, so removing the label re-runs the
+# full suite before merge. The pull request's first run is untouched, which keeps
+# early failure discovery: a late integration failure creates a new head and can
+# force a re-review, which costs far more than the minutes this saves.
+#
+# The label is mutated with a GitHub App installation token rather than the
+# automatic workflow token. Events created with the automatic token do not start
+# workflow runs — `labeled` and `unlabeled` produce no run at all — so the label
+# change would never reach the CI workflow that consumes it. An App token is the
+# documented way to lift that suppression.
+#
+# Every failure mode is fail-safe. A label wrongly present makes ci-ok fail and
+# blocks the merge; a label wrongly absent runs the full suite. No outcome here
+# can let an unverified head merge.
+#
+# Weight is deliberately not consulted: ci-ok only treats the label as blocking
+# when the classified weight is not light, so a docs-only pull request keeps a
+# green rollup with the label attached.
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+# Least-privilege default. The job needs nothing from the automatic token — the
+# label calls authenticate as the App instead.
+permissions: {}
+
+# Serialize toggles per pull request so two reviews landing together cannot
+# interleave read-then-write. Never cancel: a cancelled toggle would leave the
+# label in the state the previous review implied.
+concurrency:
+  group: ci-defer-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  toggle:
+    name: Toggle ci-defer-heavy
+    # Only pull requests targeting the default branch run CI at all. Fork-sourced
+    # pull requests are excluded because secrets are withheld from fork-triggered
+    # runs, so the App token could not be minted — skipping is honest, where
+    # attempting would fail red for a reason unrelated to the change.
+    if: >-
+      github.event.pull_request.base.ref == github.event.repository.default_branch
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - id: app-token
+        name: Mint a short-lived App installation token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.ARC_FRAMEWORK_BOT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ARC_FRAMEWORK_BOT_APP_PRIVATE_KEY }}
+          # Narrow the minted token to the one grant this job uses. The
+          # workflow-level `permissions: {}` above governs only the automatic
+          # token; an installation token would otherwise carry every permission
+          # the App holds. Pull-request scope covers a pull request's labels —
+          # issue scope would too, but the App is not granted it, and requesting
+          # a permission outside the installation's grants fails the mint.
+          permission-pull-requests: write
+
+      - name: Apply or remove the defer label for this review outcome
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+          LABEL: ci-defer-heavy
+        run: |
+          set -euo pipefail
+
+          # Webhook payloads report lowercase review states while the REST API
+          # reports uppercase. Normalize rather than depending on which one fed us.
+          state="$(printf '%s' "$REVIEW_STATE" | tr '[:upper:]' '[:lower:]')"
+          case "$state" in
+            changes_requested) intent=present ;;
+            approved)          intent=absent ;;
+            *)
+              echo "review state '$state' does not toggle the label; nothing to do"
+              exit 0
+              ;;
+          esac
+
+          # Any reviewer's outcome is acted on, including a provider's. The two
+          # directions are not symmetric in risk: removing the label runs the full
+          # suite, so acting on a weak approval costs time and buys verification,
+          # while the label's presence already fails the rollup and blocks the
+          # merge. Neither direction can under-verify a merged head, so there is
+          # nothing here for a trust distinction to protect.
+          #
+          # This is a CI cost control, not a review gate. Whether a provider's
+          # approval is evidence that review occurred is a real question, and a
+          # live one for this repository — but it is answered at the review
+          # obligation, not by a label toggle.
+
+          # Read current labels and act only on a real difference, so replayed or
+          # repeated reviews are no-ops rather than API errors.
+          #
+          # The read is hoisted out of the conditional deliberately: errexit is
+          # disabled for an `if` condition, so a failed read inside one would be
+          # reclassified as "label absent" and the removal branch would then
+          # report success without removing anything. As an assignment it takes
+          # the substitution's status, so a failed read stops the step loudly.
+          labels="$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" --jq '.[].name')"
+          if printf '%s\n' "$labels" | grep -Fxq "$LABEL"; then
+            current=present
+          else
+            current=absent
+          fi
+
+          if [ "$current" = "$intent" ]; then
+            echo "label '$LABEL' already $intent for review state '$state'; nothing to do"
+            exit 0
+          fi
+
+          if [ "$intent" = present ]; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" \
+              -f "labels[]=$LABEL" --silent
+            echo "deferred heavy CI: added '$LABEL' after a changes-requested review"
+          else
+            gh api --method DELETE \
+              "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels/$LABEL" --silent
+            echo "restored heavy CI: removed '$LABEL' after an approving review"
+          fi

@@ -75,7 +75,9 @@ import {
 import {
   handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
   handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
+  handleUserReconcileReferences,
   type UserInboxRemoveOptions,
+  type UserReconcileReferencesOptions,
   type UserPushOptions,
   type UserFetchOptions,
   type UserCompactHandlerOptions,
@@ -121,6 +123,7 @@ import {
   handleReviewRespond,
   type ReviewPlanningLaneOptions,
 } from "./handlers/review.js";
+import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
 import {
   handleCheckCommitMessage,
   type HandleCheckCommitMessageOptions,
@@ -229,6 +232,20 @@ program
   ));
 
 // --- Work units ---
+
+const wu = program
+  .command("wu")
+  .description("Current work-unit operations");
+
+wu
+  .command("reconcile [slug]")
+  .description("Plan or apply version-checked repairs owned by the current work unit")
+  .option("--apply", "Apply and stage the exact reported path set")
+  .option("--json", "Emit a typed JSON result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string | undefined, opts: WuReconcileOptions) => handleWuReconcile(slug, opts, context),
+  ));
 
 program
   .command("start [name]")
@@ -366,6 +383,7 @@ program
   .description("Open review on an Active work unit: Active → Integrating (defaults to the current WU); marks phase entry, not the merge")
   .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
   .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
+  .option("--allow-advisories", "Retain every surfaced advisory-only reconcile finding and enter review")
   .action(withInteractionContext(
     {},
     (context, slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts, context),
@@ -401,12 +419,12 @@ program
 
 program
   .command("teardown [name]")
-  .description("Post-merge cleanup of a shipped work unit: reap the merged branch, remove the worktree, prune stale refs")
+  .description("Evidence-backed cleanup of a retired work unit: reap refs, remove or husk its worktree, and prune")
   .option("--branch <branch>", "Reap a merged recordless chore/<slug> branch by exact name")
   .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
   .option(
     "--force",
-    "Tear down a retired/parked origin (unmerged branch) using its finalized retirement receipt",
+    "Compatibility spelling for receipt-backed cleanup; grants no additional authority",
   )
   .action(withInteractionContext(
     {},
@@ -698,6 +716,16 @@ userCmd
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
     (context, opts: UserStatusOptions) => handleUserStatus(opts, context),
+  ));
+
+userCmd
+  .command("reconcile-references")
+  .description("Inspect or apply protection-aware managed user-reference repairs")
+  .option("--apply", "Apply exact managed USER-INBOX repairs under the notes lock")
+  .option("--json", "Emit the typed result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: UserReconcileReferencesOptions) => handleUserReconcileReferences(opts, context),
   ));
 
 userCmd

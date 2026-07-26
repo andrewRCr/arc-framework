@@ -90,6 +90,123 @@
   `recommended-text-family`, `template-suffix`, and `workflow-root`; corresponding `scan-result.json#class-*`
   anchors.
 
+### `[ ]` **Demote frontmatter-declared methods from eager preload to validated fire-site triggers**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ `strategy-workflow-authoring.md` § Author-side Declaration Rule makes the frontmatter declaration
+  the load contract — agents load every declared method when they read the workflow, and body-level "see X"
+  pointers explicitly "do not constitute the trigger". The eager fan-out is large and mostly unfired: `create-spec`
+  pulls 8,036 words of method against a 2,659-word body (3.0×), `draft-design` 7,486 against 2,197 (3.4×),
+  `generate-tasks` 6,301 against 4,100, `integrate-work-unit` 5,779 against 4,068. The method corpus is 17,121
+  words across 25 files, so a single planning session traversing draft → spec → tasks preloads roughly 22k words
+  of it.
+
+- _Approach:_ the rule was chosen for **enforceability**, not recognition reliability — frontmatter is
+  mechanically validated (pre-commit resolves declared names; framework CI audits corpus coverage) while a prose
+  pointer is not. That gap is already closed for extensions: the `· #name` fire-point marker is validated by
+  `point-scanner.ts` CHECK 16 against `system/extensions/<name>.md`. Extending the same marker to methods turns
+  `arc.methods` from a preload list into a manifest of what a workflow _may_ load, each fire-site a validated
+  trigger — the L4 "gated fragment pointers" shape. Cross-check against `loadset-composition`'s
+  recognition-reliability data: explicit in-workflow triggers fire at 85–95%, near-T1.
+
+- _Scope:_ corpus-wide — every workflow carrying declared methods, plus the authoring strategy, the hook, and the
+  coverage audit's contract. Deliberately held back from the `recovery-read-contract` errand, which scoped its
+  override to the recovery load only rather than touching the general rule.
+
+- _Captured during:_ the `recovery-read-contract` errand (2026-07-23), grooming `recovery-load-scoping`.
+
+### `[ ]` **Stable anchors have a second consumer: runtime range addressing, which needs spans not points**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ D2 § Stable anchors currently justifies the anchor system on cross-file-citation hygiene alone
+  (~23 `Step N` refs in `session-init`, ~19 in `generate-tasks`, stale extension-doc refs) and leaves the form
+  open between the freed `#name`, a new sigil, and the `§ SectionName` convention. `recovery-load-scoping`'s
+  depth axis is an independent second consumer — reading a workflow from its resumed position forward — and it
+  adds a requirement citation does not imply: **an anchor must delimit a span (this anchor to the next), not
+  merely mark a point.** Two unrelated consumers is a materially stronger justification for the deliverable than
+  one.
+
+- _Approach:_ recorded lean from the 2026-07-23 grooming — `§ SectionName` (which D2 already calls "likely
+  lowest-friction") paired with **authoring guardrails**, not convention alone: once a heading is addressable at
+  runtime it is load-bearing, and nothing tells an author that today. `recovery-load-scoping` ships an interim
+  point-scanner resolves-check over a CLI-side mapping, which is the guardrail shape in miniature and retargets
+  when structural anchors land.
+
+- _Scope note:_ that WU deliberately does **not** mint a frontmatter section-declaration or edit
+  `strategy-workflow-authoring.md`, to avoid setting a declaration-family precedent D1 is chartered to unify — a
+  read-mode is an enum CW expects to grow, the declaration family is a schema CW expects to unify. It will hand
+  back the concrete shape its CLI-side mapping would have needed, as D1 input.
+
+- _Captured during:_ `recovery-load-scoping` grooming (2026-07-23).
+
+### `[ ]` **Read `analysis-load-set-scoping` before settling fragment granularity and the session-init rewire**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ A retired planning investigation (`recovery-load-scoping`, 2026-07-24) grounded the depth axis
+  against real workflow source and left its evidence in
+  `.arc/reference/supplemental/analysis/analysis-load-set-scoping.md`. Three things in it bear directly on CW:
+
+    1. **The granularity question resolves toward fragments.** CW frames per-arm files vs anchored sections
+       loaded by range as open alternatives. Making range addressing safe on a monolith requires a per-position
+       always-read table **plus** a backward-reference checker — machinery whose only job is recovering
+       structure the source never declared. Grounded in four findings against `integrate-work-unit.md`
+       (§ 13 back-references Phase 1; the mandatory re-entry guard is filed under Phase 1 Step 1; the
+       "everything above the first phase heading" rule misses both) and `process-task-loop.md` (no positional
+       structure at all, so the depth axis never applied to it). Measured yield if built anyway: 9% at the
+       position that motivated the work, 35% at best.
+    2. **Runtime addressing adds a requirement citation does not imply.** CW D2 justifies anchors on
+       cross-file-citation hygiene. Any runtime read needs an anchor to delimit a **span** (this anchor to the
+       next), not merely mark a point.
+    3. **The `partial-strategic` precedent is routinely miscited.** It is not "ranges work on monoliths" — task
+       lists were built to a structural contract (`strategy-task-list-formatting.md`, `template-tasks.md`, a
+       pre-save checklist), and ranges work on them because of that.
+
+- _Second, separable item — the Step 3 rewire has an unowned interaction._ CW records the `session-init` Step 3
+  rewire (replacing the inline enumeration with a loop over `loadSet` entries) as its own first-consumer
+  deliverable. Today init reads a hand-written enumeration, which is what makes init and recovery structurally
+  different consumers; the rewire removes that difference. Any per-position read policy that lands at recovery
+  first is silently upgraded when it does — at recovery a demotion means _do not re-read_, at init it means
+  _this session never reads this at all_, a strictly stronger claim. If a policy of that shape exists when the
+  rewire lands, it needs either an explicit init-side carve-out or a re-derived basis. The analysis doc's
+  § Recovery is a second consumer, and it is not init has the three verified differences.
+
+- _Captured during:_ `recovery-load-scoping` retirement (2026-07-24). The analysis doc is the record-of-record;
+  this capture is the pointer.
+
+### `[ ]` **Widen the procedural-prose problem statement to the second cost function**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
+
+- _Observation:_ the draft frames the disease exclusively as always-read cost — carry-and-skip conditionals,
+  "a typical session acts on a small fraction of what it reads," growth-rate O(1) per new surface, session-init's
+  31k tokens. That is one cost function. `integrate-work-unit` Step 13 exhibits a second one with the same root
+  (prose doing machine work) and a different economics: ~125 lines of machine-decidable sequencing over typed CLI
+  output, where nothing is carried-and-skipped — the workflow loads only when integrating, and every line applies
+  when it does. Its cost is reliability under a stochastic interpreter, paid _only_ by the sessions that run it,
+  and it worsens as prose accretes because prose constraints do not compose. Framed only in load terms, this
+  instance scores as healthy.
+
+- _Approach:_ generalize the problem statement to two cost functions over one root — load cost (paid by
+  non-firing sessions, the current framing) and execution-fidelity cost (paid by firing sessions). They imply
+  different remedies: load cost wants the fragment/agenda mechanism (D2/D3), fidelity cost wants relocation to a
+  CLI verb under `procedure-evolution` P1. The § Open questions **structural budget** item is the concrete place
+  this bites: framed as "line cap vs token-estimate cap," it measures only load and would rate Step 13 fine.
+  A fidelity-sensitive budget wants a different metric — imperative or branch density per step, not size.
+
+- _Related:_ D2 already names the remedy shape for the fidelity case — `lifecycle-state-machine`'s relocation
+  mutator bundle as "implemented code-tier — mechanics → CLI is literally a fixed public method in code," and the
+  buffer table's thin CLI post-merge teardown. The taxonomy cell exists; the problem statement does not yet
+  motivate reaching for it.
+
+- _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while scoping its concern 9
+  (interlock surface proportionality), which takes `integrate-work-unit` as an integration-only P1 dogfood.
+  That concern deliberately stays inside the extract-determinism boundary and does not restructure the workflow,
+  so it does not trip this WU's "before any at-scale touch of the inline-gated lifecycle workflows" graduation
+  trigger.
+
 ## Problem / Motivation
 
 ARC's workflows scale across modes, tiers, and session states via **carry-and-skip**: inline conditionals

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import { validateManagedPath } from "../../../../src/lib/kernel/canonical/managed-path.js";
 import type { RenameRetirementContext } from "../../../../src/lib/work-unit/direct-retirement-driver.js";
+import type { RetirementReceipt } from "../../../../src/lib/work-unit/retirement-authority.js";
+import { queryRetirementDisposition } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
 import {
   runRename,
   type RenamePlan,
@@ -27,6 +29,8 @@ function plan(shape: RenamePlan["shape"], resuming = false): RenamePlan {
     additionalPaths: [".arc/active/meta-sibling.md"],
     worktreePath: shape === "spawned" ? "/work/project.old-name" : null,
     baseBranch: "main",
+    inventoryRead: "reachable",
+    coordinationAdvisories: [],
   };
 }
 
@@ -34,8 +38,9 @@ function buildContext(options: {
   shape?: RenamePlan["shape"];
   resuming?: boolean;
   failAt?: string;
-} = {}): { ctx: RunRenameContext; calls: string[] } {
+} = {}): { ctx: RunRenameContext; calls: string[]; recordedReceipts: RetirementReceipt[] } {
   const calls: string[] = [];
+  const recordedReceipts: RetirementReceipt[] = [];
   const selected = plan(options.shape ?? "spawned", options.resuming ?? false);
   const source = {
     scope: {
@@ -66,8 +71,9 @@ function buildContext(options: {
           },
         };
       },
-      record: async () => {
+      record: async (receipt) => {
         calls.push("record");
+        recordedReceipts.push(receipt);
         return { status: "recorded" as const, authorityVersion: "v2" };
       },
     },
@@ -103,6 +109,10 @@ function buildContext(options: {
     mutateTracked: async () => {
       calls.push("mutate");
       fail("mutate");
+    },
+    regenerateReadiness: async () => {
+      calls.push("roadmap");
+      return options.failAt === "roadmap-advisory" ? "ROADMAP regen failed" : undefined;
     },
     commitTracked: async () => {
       calls.push("commit");
@@ -148,19 +158,73 @@ function buildContext(options: {
         locusHopped: true,
       };
     },
+    reconcileWorktreeMoveMarker: async () => {
+      calls.push("marker-move");
+      return "renamed";
+    },
   };
-  return { ctx, calls };
+  return { ctx, calls, recordedReceipts };
 }
 
 describe("runRename", () => {
+  it("surfaces prepared coordination advisories before tracked mutation", async () => {
+    const { ctx, calls } = buildContext();
+    const preflight = ctx.preflight;
+    ctx.preflight = async (request) => ({
+      ...await preflight(request),
+      coordinationAdvisories: ["coordinate integrating dependent"],
+    });
+    ctx.onPrepared = async (prepared) => {
+      calls.push(`surface:${prepared.coordinationAdvisories.join(",")}`);
+    };
+
+    await runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" });
+
+    expect(calls.slice(0, 3)).toEqual([
+      "preflight",
+      "surface:coordinate integrating dependent",
+      "capture",
+    ]);
+  });
+
+  it("records the composed inventory quality", async () => {
+    const { ctx, recordedReceipts } = buildContext();
+
+    await runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" });
+
+    expect(recordedReceipts[0]).toMatchObject({
+      schemaVersion: 2,
+      inventoryRead: "reachable",
+      transition: "rename",
+      result: { kind: "rename", targetSlug: "new-name" },
+    });
+    const [recorded] = recordedReceipts;
+    if (recorded === undefined) throw new Error("expected a rename receipt");
+    expect(queryRetirementDisposition({
+      status: "valid",
+      records: [{
+        id: recorded.receiptId,
+        content: "",
+        record: { kind: "receipt", value: recorded },
+      }],
+    }, {
+      retiredSubject: "old-name",
+      dependentSlug: "consumer",
+    })).toMatchObject({
+      status: "unique",
+      disposition: { kind: "retarget", targetSlug: "new-name" },
+    });
+  });
+
   it("commits the tracked sweep before all five spawned identity legs", async () => {
     const { ctx, calls } = buildContext();
 
     await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
       .resolves.toMatchObject({ status: "renamed", shape: "spawned", trackedCommit: "created" });
     expect(calls).toEqual([
-      "preflight", "capture", "snapshot", "mutate", "stage", "patch", "artifact-digest", "record", "commit",
+      "preflight", "capture", "snapshot", "mutate", "stage", "roadmap", "patch", "artifact-digest", "record", "commit",
       "branch", "notes", "remote", "marker", "resolve-worktree", "move-worktree",
+      "marker-move",
     ]);
   });
 
@@ -174,6 +238,17 @@ describe("runRename", () => {
     expect(calls).toContain("remote");
     expect(calls).not.toContain("marker");
     expect(calls).not.toContain("resolve-worktree");
+  });
+
+  it("retains a ROADMAP failure advisory without rolling back the tracked rename", async () => {
+    const { ctx, calls } = buildContext({ failAt: "roadmap-advisory" });
+
+    await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
+      .resolves.toMatchObject({
+        status: "renamed",
+        advisories: ["ROADMAP regen failed"],
+      });
+    expect(calls).not.toContain("rollback-transition");
   });
 
   it("runs the tracked phase on a stub branch and no identity legs", async () => {
@@ -192,7 +267,9 @@ describe("runRename", () => {
 
     await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
       .resolves.toMatchObject({ status: "renamed", trackedCommit: "existing" });
-    expect(calls).toEqual(["preflight", "branch", "notes", "remote", "marker", "resolve-worktree", "move-worktree"]);
+    expect(calls).toEqual([
+      "preflight", "branch", "notes", "remote", "marker", "resolve-worktree", "move-worktree", "marker-move",
+    ]);
   });
 
   it("rolls back the patch and record when the commit is refused", async () => {
@@ -210,6 +287,27 @@ describe("runRename", () => {
     await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
       .resolves.toEqual({ status: "partial", reason: "notes failed" });
     expect(calls.at(-1)).toBe("notes");
+  });
+
+  it("records a self-move defer without invoking the physical move", async () => {
+    const { ctx, calls } = buildContext();
+    ctx.resolveWorktreeMove = async () => {
+      calls.push("resolve-worktree");
+      return {
+        status: "deferred-self-move",
+        from: "/work/project.old-name",
+        to: "/work/project.new-name",
+      };
+    };
+
+    await expect(runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" }))
+      .resolves.toMatchObject({
+        status: "renamed",
+        marker: "renamed",
+        worktree: { status: "deferred-self-move" },
+      });
+    expect(calls).not.toContain("move-worktree");
+    expect(calls).toContain("marker-move");
   });
 
   it.each(["branch", "notes", "remote", "marker", "move-worktree"] as const)(
