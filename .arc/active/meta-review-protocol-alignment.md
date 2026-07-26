@@ -12,14 +12,13 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
-- **Last Completed:** Coherence re-read and adversarial pass one; three of five reopened decisions settled, concern 8
-  added with `review-adapter-extensibility` stubbed out of it
+- **Current Workflow:** `create-spec`
+- **Last Completed:** Draft captured formalization-ready — the last two reopened decisions settled against source
+  (request-schema registration behind the emitting flag; convergence severity with a uniform lane order)
 - **Next Task:** [none]
-- **Blockers:** Draft is not formalization-ready — two reopened design decisions must settle before create-spec
+- **Blockers:** [none]
 
-- **Next Action:** Settle concern 4 (schema-emitting flag versus the shipped kernel schema bundle) and concern 6
-  (whether it stays whole given the cross-lane triage ordering), then re-run `assess-draft-readiness`
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]

@@ -9,7 +9,8 @@
   capability is declared only where it is proven, and the rules that already govern review are reachable from the
   point where the decision is made.
 
-- **State:** not formalization-ready — 2026-07-26, decomposed, then reopened by adversarial pass one. Pre-PRD.
+- **State:** formalization-ready — 2026-07-26; decomposed, reopened by adversarial pass one, all five reopened
+  decisions settled. Pre-PRD.
 - **Class:** `Heavy` (derivation and scale both fire; compose rather than invent).
 
 ---
@@ -302,8 +303,9 @@ a three-arm experiment.
 
 ### 4. Request-body legibility
 
-`arc review unlock`, `resolve`, `chunking resolve`, `local prepare`, and `hosted request` all take `<file | ->`
-with help text reading only "Versioned JSON request file" — no schema, no example, no schema-emitting flag. Both
+Fourteen review verbs take `<file | ->` with help text reading only "Versioned JSON request file" — no schema, no
+example, no schema-emitting flag. `unlock`, `resolve`, `chunking resolve`, `local prepare`, and `hosted request`
+are the ones the workflows reach directly, and they are representative rather than special. Both
 `run-errand` and `integrate-work-unit` instruct the agent to invoke these verbs with no way to learn what `-`
 should contain short of reading Zod definitions, so those workflows are followable only by an agent willing to
 source-dive mid-integration. **Confirmed live during this WU's own grooming session**: composing an `unlock`
@@ -311,7 +313,32 @@ request required reading the request schema plus two supporting schema modules a
 
 **Settled: a schema-emitting flag, not prose.** The flag scales across the whole verb family and cannot drift from
 the schemas, where documentation drifts by construction — and the drift is what reproduces the defect rather than
-fixing it. This crosses into code and widens the WU; accepted deliberately.
+fixing it.
+
+**Resolved — the shipped bundle is the substrate under the flag, not a cheaper alternative to it.** Established
+against source: the build's success hook composes the review domain over a fresh kernel registry and writes
+`dist/schemas/kernel.json`, and `dist` is a published package file — so a review-domain JSON Schema bundle already
+ships. Of the fourteen verbs taking `<file | ->`, exactly one request shape is registered in it
+(`review-chunking-resolve-request`); the other thirteen request schemas exist, are exported, and are simply never
+registered. The bundle is therefore not an unweighed alternative — it is the same work minus a render surface.
+Registering the missing thirteen is the substantive half, after which the flag is a lookup-and-print over the
+registry rather than a second place where request shapes are described.
+
+Neither half alone is sufficient, and each fails in a way this WU has already named:
+
+- **The bundle alone leaves the caller two hops short.** It is a file inside the installed package, keyed by schema
+  identity — so a workflow would have to name an install path that varies by package manager, and the caller would
+  still have to map its verb onto a schema id. That is the same source-dive friction one layer up, and it lands the
+  coupling in workflow prose, which is the drift channel the prose alternative was rejected for.
+- **The flag alone mints a second registration surface.** A hand-maintained verb-to-schema table beside a registry
+  built to hold exactly that association is concern 8's defect in miniature: a fact about a contract living
+  somewhere other than the declaration that owns it.
+
+**Re-priced.** The accepted "this crosses into code and widens the WU" note stands but shrinks. The registry, its
+composition root, the deterministic projection, and the atomic publication step all exist and are already exercised
+by tests; what is added is thirteen registrations plus one render surface. The command adapter already holds the
+canonical list of the fourteen request-file verbs, so a test can iterate it and make a verb shipping without a
+reachable schema a build failure rather than a silent gap.
 
 **The concern splits in two, and the flag closes only one half.** Establishing both against source during an errand
 run of `run-errand`:
@@ -461,13 +488,44 @@ than the framing assumed, because the schema work is already done:
 
 - **No new record is needed.** The triage-confirmed severity already exists, typed, on the disposition report item.
   The earlier reading that it had to be landed in the typed record was wrong.
-- **The change is one field and one branch.** Carry the confirmed severity — the maximum across the approved
+- **The code change is one field and one branch.** Carry the confirmed severity — the maximum across the approved
   disposition set — on the attempt record the driver already receives, then let the findings arm consult it: a pass
   whose confirmed findings top out at `minor` resolves as a completed pass rather than requiring another response
-  cycle. Additive and optional on the schema, so an attempt that omits it keeps today's behavior.
+  cycle. Additive and optional on the schema, so an attempt that omits it keeps today's behavior. What this sizing
+  missed is the workflow ordering that decides whether the field is populated at the call — resolved below.
 - **The behavior change is real and bounded.** Today any finding forces a response cycle; afterwards a
   minors-only pass can converge. That is the intended effect rather than a side effect, and it is confined to one
   arm of one function.
+
+**Resolved — the concern stays whole, and the lane-ordering gap closes with a reorder rather than a second call.**
+Adversarial pass one was right that the lanes order triage and the driver call oppositely, and source confirms it:
+the hosted lane runs the disposition protocol and settles _before_ feeding a `findings` attempt to the driver, while
+the frontline and local lanes feed the attempt first and are dispatched into triage by the driver's own
+`findings / respond` state. Two facts decide what follows.
+
+- **As currently ordered, the recorded change delivers nothing on either lane.** Where the confirmed severity exists
+  — hosted — the response cycle has already run by the time the driver sees the attempt, so a minors-only arm saves
+  nothing; the driver merely re-announces a protocol that already completed. Where the saving would land — frontline
+  and local — the field is necessarily absent. The behavior and the data sit on opposite lanes, which is a sharper
+  statement of the gap than "the minors-only arm cannot fire", and it disqualifies shipping the field as recorded.
+- **The seam that fixes it already exists.** `review-triage` and `review-response` are separate methods with a
+  stated handoff: triage verifies each finding against source, classifies severity, and obtains approval _before any
+  mutation_; response consumes that approved set and performs it. A driver call is not a mutation, so it seats
+  cleanly between them.
+
+**The uniform order is triage, then the driver call, then response — on all three lanes.** Every driver call then
+carries a confirmed severity, one convergence semantic is mechanically enforced rather than agentically honored on
+two lanes out of three, and the minors-only arm delivers its stated saving everywhere instead of nowhere. The hosted
+lane moves too: settlement is response, so it follows the driver call rather than preceding it.
+
+Two shapes were weighed and rejected. **A second driver call after triage** works only if the caller knows not to
+advance its own pass count between the two calls — an ordering rule the driver cannot enforce, added to fix an
+ordering problem. **Shipping the field hosted-lane-only** is the smallest change and reproduces this WU's own
+thesis: a correct convergence rule reachable at one decision point and not at the other two.
+
+**Re-priced blast radius.** One optional field, one branch in the findings arm, and one bounded reorder of the
+disposition step in `integrate-work-unit.md` — its lane dispatch and its hosted findings arm. The rename and the
+convergence definition are untouched by the ordering question, so the concern's three parts still ship together.
 
 Remaining unknowns are execution detail rather than design: how the maximum is computed across a chunk series, and
 whether the frontline lane needs the same field on its own attempt path. Neither reopens the direction.
@@ -573,15 +631,16 @@ rather than a carve-out:
 
 > **A stop is required wherever the completion signal is not fully observable in the artifact.**
 
-- **Verification and integration triggers are artifact-observable.** The task list's phases are complete and the
-  verification phase is the literal next item; the review lanes fire at a determined position in the integration
-  cascade. Everything establishing "is it time" is on disk, so an agent reading the artifact holds exactly what the
-  developer holds. The stop adds no information, which is what makes it ceremony — and what makes autofire correct
-  once a project has opted in. Declining costs little in any case: the adversarial pass **augments** the self-verify
-  and never replaces it, so the floor beneath an autofired pass is the full criteria validation that runs either
-  way. The planning stages have no such floor. _(The integration half of this arm is pending re-derivation: there
-  is no standalone adversarial fire-point at integration to autofire, so what the rule governs there — the lane
-  carrier, or nothing — depends on the key's scope, which is open. See § Unknowns.)_
+- **The verification trigger is artifact-observable.** The task list's phases are complete and the verification
+  phase is the literal next item. Everything establishing "is it time" is on disk, so an agent reading the artifact
+  holds exactly what the developer holds. The stop adds no information, which is what makes it ceremony — and what
+  makes autofire correct once a project has opted in. Declining costs little in any case: the adversarial pass
+  **augments** the self-verify and never replaces it, so the floor beneath an autofired pass is the full criteria
+  validation that runs either way. The planning stages have no such floor.
+    - **Integration is out of the rule's scope**, now that the spend gate sits on the activity. The rule governs
+      standalone offer fire-points, and integration has none — it reaches the mechanism only as the carrier behind
+      the frontline and standard lanes, whose spend the lanes' own source lists already gate. Nothing there is
+      autofired or removed, so the rule's reach is the verification fire-point plus the three planning stages.
 - **Planning-stage boundaries are not.** Whether a draft is done depends on intent the developer has not yet
   uttered, which no artifact carries and no readiness read can reach — `assess-draft-readiness` reads the artifact,
   not the person. Here the stop **is** the input channel rather than a permission turn, so it holds even when a
@@ -659,6 +718,30 @@ fourth without changing the envelope contract. A supplied adapter implements one
 inherits its action; a fourth would be a framework change, not a project extension. This is what keeps workflows
 from dispatching actions unknown at authoring time, and it is why the stub does not need to reopen it.
 
+## Success Signals
+
+One falsifiable outcome per concern — the seed of the spec's success criteria, not the criteria themselves. Each is
+stated so that its absence is observable rather than argued.
+
+1. An operator expresses a one-run source preference through the driver and it is honored, while no override path
+   can add an entry to the observed attempt history — the provenance separation holds by construction, not by rule.
+2. `coderabbit-cli` no longer advertises `chunked`, `delegated-agent` carries `frontline`, a frontline request
+   routed to the local path consults the frontline decision field, and a chunked frontline request with no eligible
+   source skips with a typed scope-ineligibility diagnostic instead of halting integration.
+3. Both static guidance blocks carry the same four items, and a check fails when they diverge or when the typed
+   coverage and clean-result fields stop matching — with the check's partial coverage stated where it is read.
+4. A caller obtains any of the fourteen request shapes from the CLI without reading a schema module, and the
+   obligation projection `arc review resolve` consumes is emitted by a verb rather than hand-authored.
+5. `adversarial-review`'s `withstood` field states what reporting it means and what it does not license, and the
+   primary-side risk gradient is stated by claim type.
+6. A pass whose triage-confirmed findings top out at `minor` converges, on every lane, without a response cycle;
+   `critical` names the severity and nothing else in the corpus is caught by the rename.
+7. A project that has not set an audit evaluator key is never offered a planning or verification pass, and the
+   integration workflow states the stop discipline the shipped spec defined.
+8. Each third-party provider's lanes, scopes, pull-request dependence, and dispatch action live beside its adapter,
+   the driver reads an injected capability set, and naming a hosted provider as an audit evaluator is a validation
+   error rather than a runtime surprise.
+
 ## Alternatives
 
 - **Restore the deleted admission machinery** to re-establish carrier authority. Rejected — right-sizing removed it
@@ -679,6 +762,16 @@ from dispatching actions unknown at authoring time, and it is why the stub does 
 - **Document the request shapes in prose** (concern 4) where the workflows already reference the verbs. Cheaper and
   lands where the reader already is — **rejected**: prose drifts from the schemas by construction, and the drift is
   what reproduces the defect rather than fixing it. The schema-emitting flag is chosen instead.
+- **Point the workflows at the shipped schema bundle instead of adding a flag** (concern 4). Rejected as an
+  alternative and adopted as the substrate: the bundle already ships but is keyed by schema identity inside the
+  installed package, so using it directly means a workflow naming an install path that varies by package manager
+  and a caller mapping its verb onto an id. Registering the thirteen missing request shapes is the half worth
+  taking; the flag is what makes them reachable from where the caller stands.
+- **Ship the flag over a hand-maintained verb-to-schema table** (concern 4). Rejected — it re-describes an
+  association the schema registry exists to hold, which is concern 8's defect at smaller scale.
+- **A second driver call after triage, or a hosted-lane-only severity field** (concern 6). Both rejected — the
+  first adds a caller ordering rule the driver cannot enforce in order to fix an ordering problem; the second
+  leaves the convergence rule reachable on one lane and not the other two, which is this WU's own thesis inverted.
 - **Codify "hosted providers are selected only by the driver" as a requirement** (concern 1). Rejected — the
   provider interface is a pull-request comment that anyone can write, so no schema or check can enforce it.
   Asserting it would create exactly the unbacked authority claim this WU exists to remove. The achievable form is
@@ -722,30 +815,28 @@ from dispatching actions unknown at authoring time, and it is why the stub does 
 
 ### Reopened by adversarial pass one — design, not detail
 
-Five decisions returned to drafting on 2026-07-26. Each has two or more materially different builds, so the draft
-is **not formalization-ready** until they settle. Three have since settled: concern 1's attempt-ordering collision
-(the invariant validates against the pass's effective order), concern 2's frontline consequence (the capability
-removal is paired with a `frontline` grant to `delegated-agent`, and scope-ineligibility routes to the frontline
-lane's skip arm), and concern 7's spend gate (below). **Two remain — concern 4's flag-versus-bundle question and
-concern 6's wholeness.** Concern 8 arrived later and is settled on entry: a relocation plus five
-forward-compatibility measures, with adapter supply stubbed as `review-adapter-extensibility`.
+Five decisions returned to drafting on 2026-07-26; **all five have since settled**. Concern 1's attempt-ordering
+collision resolved to validating the invariant against the pass's effective order; concern 2's frontline consequence
+paired the capability removal with a `frontline` grant to `delegated-agent` and routed scope-ineligibility to the
+frontline lane's skip arm; concern 7's spend gate moved from the mechanism to the activity (below); concern 4's
+flag-versus-bundle question resolved to both, as one build, with the bundle as the flag's substrate; and concern 6
+stays whole, with the cross-lane ordering closed by a uniform triage-then-driver-then-response order. Concern 8
+arrived later and is settled on entry: a relocation plus five forward-compatibility measures, with adapter supply
+stubbed as `review-adapter-extensibility`.
 
 **Concern 7's spend-gate decision reopened and re-resolved during the same session** — the `Class`-threshold key sat
 on `adversarial-review`, contradicting the method's "the caller owns launch policy" contract. It is now an
 activity-level evaluator key per concern 7; the earlier open question of what the `Class` key gated dissolves with
 the key itself.
 
-- **Open — schema-emitting flag versus the shipped schema bundle.** The kernel registry already generates and
-  ships a JSON Schema bundle carrying `standard-review-obligation-projection` and the review envelopes; only one
-  review _request_ schema is registered in it. Registering the missing request shapes and pointing the workflows
-  at the bundle is a materially cheaper alternative the § Alternatives set never weighed, and it re-prices
-  concern 4's accepted "widens the WU" note.
-- **Open — whether concern 6 stays whole.** The two lanes order triage and the driver call oppositely: the hosted
-  lane triages before feeding the driver, so a confirmed severity exists at that call; the local and frontline
-  lanes are triggered _into_ triage by the driver's own findings state, so the field is necessarily absent and the
-  minors-only arm cannot fire. Closing that needs either a second driver call after triage — which re-enters an
-  arm that already consumed a pass — or moving triage ahead of the driver call, a workflow change the recorded
-  "one field and one branch" blast radius excludes.
+**Resolved — the schema-emitting flag and the shipped bundle are one build.** The bundle ships already and carries
+one of the fourteen request shapes; registering the other thirteen is the substantive half and the flag renders
+them where the caller stands. Neither half stands alone — see concern 4 and the two new § Alternatives entries.
+
+**Resolved — concern 6 stays whole.** The cross-lane ordering is real, and it disqualifies the change as recorded
+on _both_ lanes rather than only the two that lack the field. It closes by ordering every lane
+triage-then-driver-then-response across an existing method seam, which re-prices the blast radius to one field, one
+branch, and one bounded workflow reorder. See concern 6.
 
 ### Detail — closeable at spec time
 
@@ -755,6 +846,11 @@ the key itself.
 - **Open — the producing surface's CLI shape.** Concern 4's derivability half is settled as in-scope plumbing over
   existing functions; what remains is whether it lands as a new verb or as `arc review resolve` accepting routing
   facts alongside the projection it takes today.
+- **Open — the registered request shapes' identity convention.** Command-path-derived ids let the flag resolve its
+  schema without a lookup table, but the one already-registered request shape carries a domain-style id, and the
+  registry rejects the same schema instance under two identities — so deriving means renaming it. Domain-style ids
+  plus a table is the alternative. Either way the completeness anchor is the same: a test iterating the adapter's
+  canonical verb list. A naming call, not a direction.
 - **Open — whether the enforced fallback rule already has test coverage.** Concern 1 established the rule as current
   behavior at four sites by reading source. Whether existing tests prove it, or a characterization test is owed, was
   not established.
@@ -812,10 +908,11 @@ the key itself.
   preservation and registration isolation. Nothing here depends on it and it depends on nothing here; the two touch
   different files.
 - **`integration-boundary-accuracy` — extracted sibling, one coordination seam.** It owns the integration boundary's
-  procedural surfaces — the interlock extraction, the lifecycle verb rename, and the transition fire point. Concern 7
-  edits `integrate-work-unit.md` at the review-applicability step while that work unit rewrites the final merge step.
-  Different regions, so neither blocks the other — but if both run concurrently, sequence the edits rather than
-  merging them blind.
+  procedural surfaces — the interlock extraction, the lifecycle verb rename, and the transition fire point. This WU
+  now edits `integrate-work-unit.md` in two places — concern 7 at the review-applicability step, concern 6's reorder
+  at the lane dispatch and the hosted findings arm — while that work unit rewrites the final merge step. Different
+  regions, so neither blocks the other — but if both run concurrently, sequence the edits rather than merging them
+  blind.
 - **`review-chunking` — the evidence source, shipped.** Its `analysis-review-chunking.md` carries the three carrier
   shadows, the exact scopes, and the latency and untracked-file caveats. Read it rather than re-deriving the
   carrier question. Its advisory packet is SHA-bound and is not review coverage for anything.
@@ -894,22 +991,30 @@ removal plus a handoff note, and concern 3's shape settled rather than staying d
 The bulk of what remains is the concern 6 severity rename — mechanical but wide, touching the review-gate source and
 a handful of method files — plus the operator override on the policy driver, which is real code following an
 existing shape. Concerns 3 and 5 are small once specified; concern 2 is no longer among them — its capability pairing
-carries the local path's lane-awareness work. Concern 8 is a bounded relocation into an existing pattern, with the
-open-ended half stubbed away. Across the eight, the work spans configuration, policy contracts, adapter execution,
-CLI surface, method prose, and workflow prose. Nothing carries an unrun measurement on its critical path.
+carries the local path's lane-awareness work. Concern 4's discoverability half is thirteen schema registrations and
+one render surface over machinery that already builds and ships; concern 8 is a bounded relocation into an existing
+pattern, with the open-ended half stubbed away. Across the eight, the work spans configuration, policy contracts,
+adapter execution, CLI surface, method prose, and workflow prose — the last of which now includes concern 6's
+disposition-step reorder alongside concern 7's edits. Nothing carries an unrun measurement on its critical path.
 
 ## Continuity
 
-- **State:** **not formalization-ready** — returned to drafting by adversarial pass one on 2026-07-26. The scope,
-  the framing, and concerns 3 and 5 hold; five decisions across concerns 1, 2, 4, 6, and 7 reopened as design
-  rather than detail, two of them at blocker weight where the recorded design collided with shipped driver
-  behavior. Both blockers and concern 7's spend gate have since settled; **two reopened decisions remain** —
-  concern 4's flag-versus-bundle question and concern 6's wholeness. Concern 8 was added after — provider
-  capabilities relocating onto their adapters, surfaced by concern 2's capability edit and settled on entry, with
-  adapter supply stubbed as `review-adapter-extensibility` (`provisional`) rather than designed here.
-  See § Unknowns → Reopened by adversarial pass one. The eight concerns still share one subject: the
-  review protocol's content, under two patterns — authority claims outrunning evidence, and correct rules
-  unreachable at the decision point.
+- **State:** **formalization-ready.** `assess-draft-readiness` returns ready with no gaps: every settle-able design
+  decision is settled, § Success Signals states one falsifiable outcome per concern, and there is no inbound buffer.
+  `assess-cohort-fit` re-run against the eight-concern scope returns **stays one WU** — the four code concerns
+  (1, 2, 6, 8) share the driver and capability substrate and sequence against each other, 7's evaluator domain is a
+  second consumer of 8's relocation, 4 is the same thesis at the CLI surface, and 3 and 5 are each below WU-warrant
+  on their own, so the lower rail blocks cutting them out. `classify-work-unit` confirms **`Heavy`**: derivation and
+  scale both fired and are now realized rather than estimated, and every mechanism composes from an existing
+  pattern rather than inventing one, so the invent threshold is not met. Adversarial pass one
+  returned five decisions across concerns 1, 2, 4, 6, and 7 to drafting on 2026-07-26, two of them at blocker weight
+  where the recorded design collided with shipped driver behavior. All five have since settled — the two blockers
+  and concern 7's spend gate earlier, concern 4's flag-versus-bundle question and concern 6's wholeness in this
+  pass. Concern 8 was added after — provider capabilities relocating onto their adapters, surfaced by concern 2's
+  capability edit and settled on entry, with adapter supply stubbed as `review-adapter-extensibility`
+  (`provisional`) rather than designed here. The scope, the framing, and concerns 3 and 5 held throughout. The eight
+  concerns still share one subject: the review protocol's content, under two patterns — authority claims outrunning
+  evidence, and correct rules unreachable at the decision point.
 - **Resolved:** the problem framing and its two patterns — authority claims outrunning evidence, and correct rules
   unreachable at the decision point; the eight-concern
   scope; concern 1's corrected diagnosis (the typed fallback rule is already enforced; the driver was never
@@ -922,19 +1027,23 @@ CLI surface, method prose, and workflow prose. Nothing carries an unrun measurem
   lane-awareness work the grant requires, and scope-ineligibility routed to the frontline lane's skip arm rather
   than a stop; concern 3's trim-to-contract-floor decision, its four-item keep list retaining the
   repository-contract line untyped, the parity check's partial-by-construction coverage, its three drift findings,
-  and the trim-first sequencing; concern 4 resolved to a schema-emitting flag, split into its discoverability and
-  derivability halves, with both halves kept in this WU and the derivability half established as plumbing over
+  and the trim-first sequencing; concern 4 resolved to a schema-emitting flag over registered request schemas —
+  the shipped bundle established as the flag's substrate rather than a cheaper alternative, with the thirteen
+  missing registrations as the substantive half — split into its discoverability and derivability halves, with both
+  halves kept in this WU and the derivability half established as plumbing over
   functions that already exist; concern 5 resolved to three
   wording edits with its rejected shapes recorded; concern 6's separation of the exit gate from the convergence
   signal, convergence measured on what a pass surfaced, severity provenance anchored to triage rather than the
   provider label, one shared definition across both loops, the recommend-but-never-proceed boundary for judgment
-  at the cap, and the `blocker` → `critical` rename sequenced first; concern 7's finding that the stop discipline
+  at the cap, the `blocker` → `critical` rename sequenced first, and the concern held whole with its cross-lane
+  ordering closed by a uniform triage-then-driver-then-response order across an existing method seam; concern 7's
+  finding that the stop discipline
   is correct but archived, the spend gate re-resolved from a `Class` threshold on the mechanism to activity-level
   evaluator keys with a subagent-carrier-derived domain (disabled by default for consent, not marginal value), the
   knob-ownership split, one key per activity family rather than per stage, the aggregate-cap observation recorded
   against rebuilding the review-budget ledger, the autonomy-asymmetry finding withdrawn as unsupported, and the
   observable-signal rule that decides which stops survive streamlining — planning-stage passes always converge with
-  the developer first, with the rule's integration arm pending re-derivation; the
+  the developer first, verification autofires once opted in, and integration falls outside the rule's scope; the
   review-budget ledger rejected with its reasoning; coordination-not-dependency with `judgment-authority-model`;
   the handoff contract with `chunk-scope-binding`; the spawn-context guard routed to
   `execution-delegation-doctrine`; the `ci-defer-heavy` mechanism, shipped as an errand; the extraction of the
@@ -942,21 +1051,17 @@ CLI surface, method prose, and workflow prose. Nothing carries an unrun measurem
   `integration-boundary-accuracy`; concern 8's relocation of provider capabilities onto their adapters, its five
   forward-compatibility measures and the would-be-right-anyway test that bounds them, the dispatch action staying
   closed by construction, and the stubbing of adapter supply as `review-adapter-extensibility`; `Class: Heavy`.
-- **Open — design (gates formalization):** two of the five decisions reopened by adversarial pass one — concern 4's
-  schema-emitting flag versus the shipped bundle, and whether concern 6 stays whole given the cross-lane triage
-  ordering. Both are enumerated in § Unknowns → Reopened by adversarial pass one. The other three settled in
-  session: concern 1's attempt ordering, concern 2's frontline pairing, and concern 7's spend gate.
+- **Open — design (gates formalization):** none. All five decisions reopened by adversarial pass one are settled —
+  concern 1's attempt ordering, concern 2's frontline pairing, concern 7's spend gate, concern 4's
+  flag-and-bundle build, and concern 6's wholeness.
 - **Open — detail (closeable at spec time):** how a confirmed severity maximum is computed across a chunk series,
   and whether the frontline lane needs the same attempt field; the emit surface for concern 4's obligation
   projection — a new verb, an addition to the frontline envelope that already carries the decision, or routing
-  facts accepted by `arc review resolve`; whether existing test coverage already proves the enforced fallback
-  rule, or a test is owed; the single trimmed-guidance timeout observation; and whether the parity check lands as
-  a unit test or a pre-commit contract check.
-- **Next:** settle the two remaining reopened decisions — concern 4's flag-versus-bundle question and concern 6's
-  wholeness — then re-run `assess-draft-readiness`. Re-run `assess-cohort-fit` and `classify-work-unit` as well:
-  both were executed against the seven-concern post-decomposition scope, and concern 8 arrived after, weighed
-  against the two work units this WU has already spawned plus the `review-adapter-extensibility` stub. The
-  post-extraction coherence re-read has been performed end-to-end and its findings folded. Adversarial pass one is
-  spent; one pass remains under the `Heavy` cap, and it belongs after the two decisions settle, not before.
+  facts accepted by `arc review resolve`; the registered request shapes' identity convention; whether existing test
+  coverage already proves the enforced fallback rule, or a test is owed; the single trimmed-guidance timeout
+  observation; and whether the parity check lands as a unit test or a pre-commit contract check.
+- **Next:** the draft crosses into `create-spec`. Adversarial pass one is spent and one pass remains under the
+  `Heavy` cap; it is offered at this readiness boundary, and taking it before formalization is the last cheap
+  moment. The post-extraction coherence re-read has been performed end-to-end and its findings folded.
 
 ---
